@@ -1,0 +1,323 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// 日本語 resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+#ifdef _WIN32
+LANGUAGE LANG_JAPANESE, SUBLANG_DEFAULT
+#pragma code_page(932)
+#endif //_WIN32
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "#define _AFX_NO_SPLITTER_RESOURCES\r\n"
+    "#define _AFX_NO_OLE_RESOURCES\r\n"
+    "#define _AFX_NO_TRACKER_RESOURCES\r\n"
+    "#define _AFX_NO_PROPERTY_RESOURCES\r\n"
+    "\r\n"
+    "#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)\r\n"
+    "LANGUAGE 17, 1\r\n"
+    "#pragma code_page(932)\r\n"
+    "#include ""res\\BonTest.rc2""  // Microsoft Visual C++ 以外で編集されたリソース\r\n"
+    "#include ""afxres.rc""     // 標準コンポーネント\r\n"
+    "#endif\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDR_MAINFRAME           ICON                    "res\\BonTest.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_ABOUTBOX DIALOGEX 0, 0, 270, 63
+STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "バージョン情報 BonTest"
+FONT 9, "MS UI Gothic", 0, 0, 0x1
+BEGIN
+    ICON            IDR_MAINFRAME,IDC_STATIC,11,17,20,20
+    LTEXT           "BonTest Version 1.40",IDC_STATIC,42,12,119,8,SS_NOPREFIX
+    LTEXT           "http://2sen.dip.jp/friio/",IDC_STATIC,42,26,92,8
+    DEFPUSHBUTTON   "OK",IDOK,204,12,50,16,WS_GROUP
+    LTEXT           "Code from FAAD2 is copyright (c) Nero AG, www.nero.com",IDC_STATIC,42,42,192,12
+END
+
+IDD_BONTEST_DIALOG DIALOGEX 0, 0, 563, 429
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "BonTest Ver.1.40 http://2sen.dip.jp/friio/"
+FONT 9, "MS UI Gothic", 0, 0, 0x1
+BEGIN
+    COMBOBOX        IDC_CHCOMBO,42,5,30,198,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "チャンネル",IDC_STATIC,6,8,27,8
+    CTEXT           "受信レベル： ",IDC_STATUS,216,5,78,14,SS_CENTERIMAGE | SS_SUNKEN
+    PUSHBUTTON      "リセット",IDC_RESET,504,410,50,14
+    LTEXT           "",IDC_VIEW,6,24,550,361,SS_SUNKEN
+    LTEXT           "サービス",IDC_STATIC,84,8,22,8
+    COMBOBOX        IDC_SVCOMBO,114,5,90,198,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "● 録画開始",IDC_STARTRECORD,120,390,48,14
+    PUSHBUTTON      "■ 録画停止",IDC_STOPRECORD,174,390,48,14,WS_DISABLED
+    PUSHBUTTON      "参照...",IDC_BROWSEPATH,504,390,50,14
+    EDITTEXT        IDC_RECORDPATH,252,390,246,14,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "保存先",IDC_STATIC,228,394,22,8
+    LTEXT           "",IDC_INFOBAR,6,410,492,14,SS_CENTERIMAGE | SS_SUNKEN
+    PUSHBUTTON      "ファイル再生",IDC_OPENFILE,6,390,50,14
+    PUSHBUTTON      "|> 再生",IDC_PLAY,60,414,50,14,NOT WS_VISIBLE
+    PUSHBUTTON      "■ 再生停止",IDC_PAUSE,60,390,50,14
+    LTEXT           "",IDC_STATIC,114,390,1,14,SS_SUNKEN
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,4,0,0
+ PRODUCTVERSION 1,4,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "041103a4"
+        BEGIN
+            VALUE "Comments", "BonTest"
+            VALUE "CompanyName", "http://2sen.dip.jp/friio/"
+            VALUE "FileDescription", "BonTsEngine Test Container"
+            VALUE "FileVersion", "1.4.0.0"
+            VALUE "InternalName", "BonTest.exe"
+            VALUE "LegalCopyright", "http://2sen.dip.jp/friio/"
+            VALUE "OriginalFilename", "BonTest.exe"
+            VALUE "ProductVersion", "1.4.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x411, 932
+    END
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_ABOUTBOX, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 263
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 56
+    END
+
+    IDD_BONTEST_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 556
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 422
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog Info
+//
+
+IDD_BONTEST_DIALOG DLGINIT
+BEGIN
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3331, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3431, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3531, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3631, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3731, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3831, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3931, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3032, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3132, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3232, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3332, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3432, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3532, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3632, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3732, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3832, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3932, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3033, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3133, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3233, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3333, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3433, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3533, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3633, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3733, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3833, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3933, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3034, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3134, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3234, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3334, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3434, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3534, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3634, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3734, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3834, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3934, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3035, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3135, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3235, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3335, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3435, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3535, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3635, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3735, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3835, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3935, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3036, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3136, "\000" 
+    IDC_CHCOMBO, 0x403, 3, 0
+0x3236, "\000" 
+    0
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDS_ABOUTBOX            "バージョン情報 BonTest(&A)..."
+END
+
+#endif    // 日本語 resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#define _AFX_NO_SPLITTER_RESOURCES
+#define _AFX_NO_OLE_RESOURCES
+#define _AFX_NO_TRACKER_RESOURCES
+#define _AFX_NO_PROPERTY_RESOURCES
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_JPN)
+LANGUAGE 17, 1
+#pragma code_page(932)
+#include "res\BonTest.rc2"  // Microsoft Visual C++ 以外で編集されたリソース
+#include "afxres.rc"     // 標準コンポーネント
+#endif
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+
