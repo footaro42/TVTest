@@ -1,0 +1,4 @@
+LIBRARY HDUSTest_Image
+
+EXPORTS
+	SaveImage=_SaveImage@4

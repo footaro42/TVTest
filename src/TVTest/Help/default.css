@@ -1,0 +1,31 @@
+body{
+	color:#000000;
+	background-color:#ffffff;
+}
+.nowrap{white-space:nowrap;}
+h1{color:#006633;}
+h2{color:#006633;}
+div.group{
+	margin-left:1em;
+}
+p.descript{
+	margin-left:1em;
+}
+.warning{color:#ff0000;}
+.note{font-size:smaller;}
+
+table.optionlist {
+	border-collapse:collapse;
+	border:2px solid #666666;
+}
+.optionlist th{
+	text-align:left;
+	border:2px solid #666666;
+	color:#000000;
+	background-color:#e0e0e0;
+}
+.optionlist td{
+	border:2px solid #666666;
+	color:#000000;
+	background-color:#f3f3f3;
+}

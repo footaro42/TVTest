@@ -1,0 +1,51 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="ja">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
+	<link rel="stylesheet" href="default.css" type="text/css">
+	<title>導入</title>
+</head>
+<body>
+<h2>導入</h2>
+
+<p>
+実行には Visual C++ 2005 SP1 のランタイムが必要ですので、もしお使いのシステムに入っていない場合は別途入手してください。<br>
+以下のページからダウンロードできます。<br>
+<a href="http://www.microsoft.com/downloads/details.aspx?displaylang=ja&FamilyID=200b2fd9-ae1a-4a14-984d-389c36f85647">Microsoft Visual C++ 2005 SP1 再頒布可能パッケージ</a><br>
+</p>
+
+<p>
+TVTest で実際に視聴を行うには、BonDriver が必要です。
+</p>
+
+<h3>単体で視聴する場合</h3>
+<p class="descript">
+使用するチューナーに対応した BonDriver を、<a href="http://2sen.dip.jp/dtv/">DTV関係ツール(http://2sen.dip.jp/dtv/)</a>のアップローダからからダウンロードして、BonDriver_*.dll を TVTest.exe と同じフォルダに入れます。<br>
+使用する BonDriver は設定ダイアログで指定するか、コマンドラインで <span class="nowrap">/d BonDriver.dll</span> のように指定します。<br>
+</p>
+
+<h3>EpgDataCap_Bon や cap_hdus GUI+ などから呼び出して視聴する場合</h3>
+<p class="descript">
+呼び出し側のプログラムで、視聴プログラムを<br>
+<span class="nowrap">"TVTestのあるフォルダ\TVTest.exe" /nd /d BonDriver_UDP.dll"</span><br>
+のように設定します。</br>
+BonDriver_UDP.dll は、TVTest に同梱されています。</br>
+</p>
+
+<p>
+EpgDataCap_Bon に含まれる EpgDataCap.dll を TVTest.exe と同じフォルダに入れると、番組情報などを表示できます。<br>
+EpgDataCap_Bon は<a href="http://2sen.dip.jp/cgi-bin/friioup/upload.cgi">Friio関係ファイル置き場(http://2sen.dip.jp/cgi-bin/friioup/upload.cgi)</a>でダウンロードできます。
+</p>
+<p>
+次に、TVTest を起動したら、チャンネルスキャンを実行して視聴可能なチャンネルを検索します。
+</p>
+<p>
+チャンネルスキャンを実行するには、右クリックメニューから [<a href="options.html">設定</a>] を選択して設定ダイアログを表示させ、左のリストから [<a href="options/channelscan.html">チャンネルスキャン</a>] を選択します。<br>
+[スキャン開始] ボタンを押すとチャンネルスキャンが始まります。チャンネルスキャンには数分掛かります。<br>
+深夜などで停波している局は検索できませんので注意してください。<br>
+使用しているチューナーが複数のチューニング空間に対応している場合は、チューニング空間ごとにスキャンを行う必要があります。<br>
+</p>
+
+
+</body>
+</html>

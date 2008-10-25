@@ -1,0 +1,8 @@
+LIBRARY HDUSTest_KeyHook
+
+SECTIONS
+	.SHARE READ WRITE SHARED
+
+EXPORTS
+	BeginHook=_BeginHook@4
+	EndHook=_EndHook@0

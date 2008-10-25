@@ -1,0 +1,24 @@
+// stdafx.cpp : 標準インクルード BonTest.pch のみを
+// 含むソース ファイルは、プリコンパイル済みヘッダーになります。
+// stdafx.obj にはプリコンパイルされた型情報が含まれます。
+
+#include "stdafx.h"
+
+
+#ifdef _DEBUG
+	void DebugTrace(LPCTSTR szFormat, ...)
+	{
+		va_list Args;
+		TCHAR szTempStr[1024];
+
+		va_start(Args , szFormat);
+		wvsprintf(szTempStr, szFormat, Args);
+		va_end(Args);
+
+		CTime cTime = CTime::GetCurrentTime();
+		CString sTmp = cTime.Format("%Y/%m/%d %H:%M:%S > ");
+		::OutputDebugString(sTmp);
+
+		::OutputDebugString(szTempStr);
+	}
+#endif

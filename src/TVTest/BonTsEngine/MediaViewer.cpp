@@ -1,0 +1,1221 @@
+// MediaViewer.cpp: CMediaViewer クラスのインプリメンテーション
+//
+//////////////////////////////////////////////////////////////////////
+
+#include "stdafx.h"
+#include "MediaViewer.h"
+#include <Dvdmedia.h>
+#include "../Grabber.h"
+
+#include <d3d9.h>
+#include <vmr9.h>
+
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
+
+//////////////////////////////////////////////////////////////////////
+// 構築/消滅
+//////////////////////////////////////////////////////////////////////
+
+CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
+	: CMediaDecoder(pEventHandler, 1UL, 0UL)
+	, m_bInit(false)
+	, m_pMediaControl(NULL)
+
+	, m_pFilterGraph(NULL)
+
+	, m_pSrcFilter(NULL)
+	, m_pBonSrcFilterClass(NULL)
+
+	, m_pMpeg2SeqFilter(NULL)
+	, m_pMpeg2SeqClass(NULL)
+
+	, m_pAacDecFilter(NULL)
+	, m_pAacDecClass(NULL)
+
+	, m_pPcmSelFilter(NULL)
+	, m_pPcmSelClass(NULL)
+
+	, m_pMpeg2DecFilter(NULL)
+
+	, m_pVideoRenderer(NULL)
+
+	, m_strMpeg2DecorderName()
+
+	, m_pMp2DemuxFilter(NULL)
+	, m_pMp2DemuxInterface(NULL)
+	, m_pMp2DemuxVideoMap(NULL)
+	, m_pMp2DemuxAudioMap(NULL)
+
+	, m_wVideoEsPID(0xFFFFU)
+	, m_wAudioEsPID(0xFFFFU)
+
+	, m_wVideoWindowX(0)
+	, m_wVideoWindowY(0)
+	, m_VideoInfo()
+	, m_hOwnerWnd(NULL)
+	, m_dwRegister(0)
+
+	, m_VideoRendererType(CVideoRenderer::RENDERER_UNDEFINED)
+	, m_ForceAspectX(0)
+	, m_ForceAspectY(0)
+	, m_PanAndScan(0)
+	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
+#ifdef VMR9_SUPPORTED
+	, m_pImageMixer(NULL)
+#endif
+	, m_bGrabber(false)
+	, m_pGrabber(NULL)
+	, m_pTracer(NULL)
+	, m_bFirstDescrambleVideo(false)
+	, m_bFirstDescrambleAudio(false)
+	, m_hFlushThread(NULL)
+	, m_hFlushEvent(NULL)
+	, m_hFlushResumeEvent(NULL)
+	, m_LastFlushTime(0)
+{
+	// COMライブラリ初期化
+	::CoInitialize(NULL);
+}
+
+CMediaViewer::~CMediaViewer()
+{
+	CloseViewer();
+
+	// COMライブラリ開放
+	::CoUninitialize();
+}
+
+
+void CMediaViewer::Reset(void)
+{
+	TRACE(TEXT("CMediaViewer::Reset()\n"));
+
+	bool fResume=false;
+
+	if (m_pMediaControl) {
+		OAFilterState fs;
+
+		if (m_pMediaControl->GetState(1000,&fs)==S_OK && fs==State_Running) {
+			//Stop();
+			fResume=true;
+		}
+	}
+
+	Flush();
+	Stop();
+
+	CMediaDecoder::Reset();
+
+	SetVideoPID(0xFFFFU);
+	SetAudioPID(0xFFFFU);
+
+	m_bFirstDescrambleVideo=false;
+	m_bFirstDescrambleAudio=false;
+
+	if (fResume)
+		Play();
+}
+
+const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
+{
+	if(dwInputIndex > GetInputNum())return false;
+
+	CTsPacket *pTsPacket = dynamic_cast<CTsPacket *>(pMediaData);
+
+	// 入力メディアデータは互換性がない
+	if(!pTsPacket)return false;
+
+	/*
+	if (!m_bFirstDescrambleVideo || !m_bFirstDescrambleAudio) {
+		if (pTsPacket->IsScrambled())
+			return false;
+		WORD PID=pTsPacket->GetPID();
+		if (PID==m_wVideoEsPID)
+			m_bFirstDescrambleVideo=true;
+		if (PID==m_wAudioEsPID)
+			m_bFirstDescrambleAudio=true;
+		if (!m_bFirstDescrambleVideo || !m_bFirstDescrambleAudio)
+			return false;
+	}
+	*/
+
+	// フィルタグラフに入力
+	if (m_pBonSrcFilterClass) {
+		if (m_hFlushThread) {
+			DWORD CurTime=::GetTickCount();
+
+			if (CurTime<m_LastFlushTime)
+				m_LastFlushTime=0;
+			if (CurTime-m_LastFlushTime>=100) {
+				m_LastFlushTime=CurTime;
+				m_FlushEventType=FLUSH_RESET;
+				::SetEvent(m_hFlushEvent);
+			}
+		}
+		return m_pBonSrcFilterClass->InputMedia(pTsPacket);
+	}
+
+	return false;
+}
+
+const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
+			CVideoRenderer::RendererType RendererType,LPCWSTR pszMpeg2Decoder)
+{
+	if (m_bInit)
+		return false;
+
+	HRESULT hReturn=S_OK;
+	ULONG refCount;
+
+	IPin *pOutput=NULL;
+	IPin *pOutputVideo=NULL;
+	IPin *pOutputAudio=NULL;
+
+	try {
+		// フィルタグラフマネージャを構築する
+		if (::CoCreateInstance(CLSID_FilterGraph,NULL,CLSCTX_INPROC_SERVER,
+				IID_IGraphBuilder,reinterpret_cast<LPVOID*>(&m_pFilterGraph)) != S_OK) {
+			throw CBonException(TEXT("フィルタグラフマネージャを作成できません。"));
+		}
+#ifdef DEBUG
+		AddToRot(m_pFilterGraph, &m_dwRegister);
+#endif
+
+		// IMediaControlインタフェースのクエリー
+		if (m_pFilterGraph->QueryInterface(IID_IMediaControl, reinterpret_cast<LPVOID*>(&m_pMediaControl)) != S_OK) {
+			throw CBonException(TEXT("メディアコントロールを取得できません。"));
+		}
+
+		Trace(TEXT("ソースフィルタの接続中..."));
+
+		/* CBonSrcFilter */
+		{
+			// インスタンス作成
+			m_pSrcFilter = CBonSrcFilter::CreateInstance(NULL, &hReturn, &m_pBonSrcFilterClass);
+			if (m_pSrcFilter==NULL || hReturn!=S_OK)
+				throw CBonException(TEXT("ソースフィルタを作成できません。"));
+			m_pBonSrcFilterClass->SetOutputWhenPaused(RendererType==CVideoRenderer::RENDERER_DEFAULT);
+			// フィルタグラフに追加
+			if (m_pFilterGraph->AddFilter(m_pSrcFilter, L"BonSrcFilter") != S_OK)
+				throw CBonException(TEXT("ソースフィルタをフィルタグラフに追加できません。"));
+			// 出力ピンを取得
+			pOutput = DirectShowUtil::GetFilterPin(m_pSrcFilter,PINDIR_OUTPUT);
+			if (pOutput==NULL)
+				throw CBonException(TEXT("ソースフィルタの出力ピンを取得できません。"));
+		}
+
+		Trace(TEXT("MPEG-2 Demultiplexerフィルタの接続中..."));
+
+		/* MPEG-2 Demultiplexer */
+		{
+			CMediaType MediaTypeVideo;
+			CMediaType MediaTypeAudio;
+
+			if (::CoCreateInstance(CLSID_MPEG2Demultiplexer,NULL,
+					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
+					reinterpret_cast<LPVOID*>(&m_pMp2DemuxFilter))!=S_OK)
+				throw CBonException(TEXT("MPEG-2 Demultiplexerフィルタを作成できません。"),
+									TEXT("MPEG-2 Demultiplexerフィルタがインストールされているか確認してください。"));
+			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					m_pMp2DemuxFilter,L"Mpeg2Demuxer",&pOutput))
+				throw CBonException(TEXT("MPEG-2 Demultiplexerをフィルタグラフに追加できません。"));
+			// この時点でpOutput==NULLのはずだが念のため
+			SAFE_RELEASE(pOutput);
+			// IMpeg2Demultiplexerインタフェースのクエリー
+			if (m_pMp2DemuxFilter->QueryInterface(IID_IMpeg2Demultiplexer,
+									(void**)&m_pMp2DemuxInterface) != S_OK)
+				throw CBonException(TEXT("MPEG-2 Demultiplexerインターフェースを取得できません。"),
+									TEXT("互換性のないスプリッタの優先度がMPEG-2 Demultiplexerより高くなっている可能性があります。"));
+
+			IReferenceClock *pMp2DemuxRefClock;
+			// IReferenceClockインタフェースのクエリー
+			if (m_pMp2DemuxFilter->QueryInterface(IID_IReferenceClock,
+										(void**)&pMp2DemuxRefClock) != S_OK)
+				throw CBonException(TEXT("IReferenceClockを取得できません。"));
+			// リファレンスクロック選択
+			if (m_pMp2DemuxFilter->SetSyncSource(pMp2DemuxRefClock) != S_OK)
+				throw CBonException(TEXT("リファレンスクロックを設定できません。"));
+			pMp2DemuxRefClock->Release();
+
+			// 映像メディアフォーマット設定
+			MediaTypeVideo.InitMediaType();
+			MediaTypeVideo.SetType(&MEDIATYPE_Video);
+			MediaTypeVideo.SetSubtype(&MEDIASUBTYPE_MPEG2_VIDEO);
+			MediaTypeVideo.SetVariableSize();
+			MediaTypeVideo.SetTemporalCompression(TRUE);
+			MediaTypeVideo.SetSampleSize(0);
+			MediaTypeVideo.SetFormatType(&FORMAT_MPEG2Video);
+			 // フォーマット構造体確保
+			MPEG2VIDEOINFO *pVideoInfo = (MPEG2VIDEOINFO *)MediaTypeVideo.AllocFormatBuffer(sizeof(MPEG2VIDEOINFO));
+			if(!pVideoInfo) throw 1UL;
+			::ZeroMemory(pVideoInfo, sizeof(MPEG2VIDEOINFO));
+			// ビデオヘッダ設定
+			VIDEOINFOHEADER2 &VideoHeader = pVideoInfo->hdr;
+			::SetRect(&VideoHeader.rcSource, 0, 0, 720, 480);
+			VideoHeader.bmiHeader.biWidth = 720;
+			VideoHeader.bmiHeader.biHeight = 480;
+			// 映像出力ピン作成
+			if (m_pMp2DemuxInterface->CreateOutputPin(&MediaTypeVideo,L"Video",&pOutputVideo) != S_OK)
+				throw CBonException(TEXT("MPEG-2 Demultiplexerの映像出力ピンを作成できません。"));
+			// 音声メディアフォーマット設定	
+			MediaTypeAudio.InitMediaType();
+			MediaTypeAudio.SetType(&MEDIATYPE_Audio);
+			MediaTypeAudio.SetSubtype(&MEDIASUBTYPE_NULL);
+			MediaTypeAudio.SetVariableSize();
+			MediaTypeAudio.SetTemporalCompression(TRUE);
+			MediaTypeAudio.SetSampleSize(0);
+			MediaTypeAudio.SetFormatType(&FORMAT_None);
+			// 音声出力ピン作成
+			if (m_pMp2DemuxInterface->CreateOutputPin(&MediaTypeAudio,L"Audio",&pOutputAudio) != S_OK)
+				throw CBonException(TEXT("MPEG-2 Demultiplexerの音声出力ピンを作成できません。"));
+			// 映像出力ピンのIMPEG2PIDMapインタフェースのクエリー
+			if (pOutputVideo->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxVideoMap) != S_OK)
+				throw CBonException(TEXT("映像出力ピンのIMPEG2PIDMapを取得できません。"));
+			// 音声出力ピンのIMPEG2PIDMapインタフェースのクエリ
+			if (pOutputAudio->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxAudioMap) != S_OK)
+				throw CBonException(TEXT("音声出力ピンのIMPEG2PIDMapを取得できません。"));
+		}
+
+		Trace(TEXT("MPEG-2シーケンスフィルタの接続中..."));
+
+		/* CMpeg2SequenceFilter */
+		{
+			// インスタンス作成
+			m_pMpeg2SeqFilter = CMpeg2SequenceFilter::CreateInstance(NULL, &hReturn,&m_pMpeg2SeqClass);
+			if((!m_pMpeg2SeqFilter) || (hReturn != S_OK))
+				throw CBonException(TEXT("MPEG-2シーケンスフィルタを作成できません。"));
+			m_pMpeg2SeqClass->SetRecvCallback(OnMpeg2VideoInfo,this);
+			// フィルタの追加と接続
+			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					m_pMpeg2SeqFilter,L"Mpeg2SequenceFilter",&pOutputVideo))
+				throw CBonException(TEXT("MPEG-2シーケンスフィルタをフィルタグラフに追加できません。"));
+		}
+
+		Trace(TEXT("AACデコーダの接続中..."));
+
+		/* CAacDecFilter */
+		{
+			// CAacDecFilterインスタンス作成
+			m_pAacDecFilter=CAacDecFilter::CreateInstance(NULL,&hReturn,&m_pAacDecClass);
+			if (!m_pAacDecFilter || hReturn!=S_OK)
+				throw CBonException(TEXT("AACデコーダフィルタを作成できません。"));
+			// フィルタの追加と接続
+			//refCount = DirectShowUtil::GetRefCount(m_pAacDecFilter);
+			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					m_pAacDecFilter,L"AacDecFilter",&pOutputAudio))
+				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
+		}
+
+		Trace(TEXT("PCMセレクトフィルタの接続中..."));
+
+		/* CPcmSelectFilter */
+		{
+			// インスタンス作成
+			m_pPcmSelFilter=CPcmSelectFilter::CreateInstance(NULL,&hReturn,&m_pPcmSelClass);
+			if (!m_pPcmSelFilter || hReturn!=S_OK)
+				throw CBonException(TEXT("PCMセレクトフィルタを作成できません。"));
+			// フィルタの追加と接続
+			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					m_pPcmSelFilter,L"PcmSelFilter",&pOutputAudio))
+				throw CBonException(TEXT("PCMセレクトフィルタをフィルタグラフに追加できません。"));
+		}
+
+		Trace(TEXT("MPEG-2デコーダの接続中..."));
+
+		/* Mpeg2デコーダー */
+		{
+			CDirectShowFilterFinder FilterFinder;
+
+			// 検索
+			if(!FilterFinder.FindFilter(&MEDIATYPE_Video,&MEDIASUBTYPE_MPEG2_VIDEO))
+				throw CBonException(TEXT("MPEG-2デコーダが見付かりません。"),
+									TEXT("MPEG-2デコーダがインストールされているか確認してください。"));
+
+			WCHAR szMpeg2Vid[128];
+			CLSID idMpeg2Vid;
+			bool bConnectSuccess=false;
+
+			for (int i=0;!bConnectSuccess && i<FilterFinder.GetFilterCount();i++){
+				if (FilterFinder.GetFilterInfo(i,&idMpeg2Vid,szMpeg2Vid,128)) {
+					if (pszMpeg2Decoder!=NULL && pszMpeg2Decoder[0]!='\0'
+							&& lstrcmpi(szMpeg2Vid,pszMpeg2Decoder)!=0)
+						continue;
+					if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+							idMpeg2Vid,szMpeg2Vid,&m_pMpeg2DecFilter,
+							&pOutputVideo,NULL,true)) {
+						bConnectSuccess=true;
+						break;
+					}
+				} else {
+					// フィルタ情報取得失敗
+				}
+			}
+			// どれかのフィルタで接続できたか
+			if (bConnectSuccess) {
+				m_strMpeg2DecorderName = szMpeg2Vid;
+			} else {
+				m_strMpeg2DecorderName = L"";
+				throw CBonException(TEXT("MPEG-2デコーダフィルタをフィルタグラフに追加できません。"),
+									TEXT("設定で有効なMPEG-2デコーダが選択されているか確認してください。"));
+			}
+		}
+
+#if 1	// グラバをテスト実装したがいまいちうまくいかないので保留
+		if (m_bGrabber) {
+			m_pGrabber=new CGrabber();
+			IBaseFilter *pGrabberFilter;
+
+			Trace(TEXT("グラバフィルタを接続中..."));
+
+			m_pGrabber->Init();
+			pGrabberFilter=m_pGrabber->GetGrabberFilter();
+			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+									pGrabberFilter,L"Grabber",&pOutputVideo)) {
+				delete m_pGrabber;
+				m_pGrabber=NULL;
+			}
+		}
+#endif
+
+		Trace(TEXT("映像レンダラの構築中..."));
+
+		if (!CVideoRenderer::CreateRenderer(RendererType,&m_pVideoRenderer)) {
+			throw CBonException(TEXT("映像レンダラを作成できません。"),
+								TEXT("設定で有効なレンダラが選択されているか確認してください。"));
+		}
+		if (!m_pVideoRenderer->Initialize(m_pFilterGraph,pOutputVideo,
+										  hOwnerHwnd,hMessageDrainHwnd)) {
+			throw CBonException(m_pVideoRenderer->GetLastErrorText(),
+								m_pVideoRenderer->GetLastErrorAdvise());
+		}
+		m_VideoRendererType=RendererType;
+
+		Trace(TEXT("音声レンダラの構築中..."));
+
+		// 音声レンダラー構築
+		if(m_pFilterGraph->Render(pOutputAudio) != S_OK)
+			throw CBonException(TEXT("音声レンダラを構築できません。"));
+
+		// オーナウィンドウ設定
+		m_hOwnerWnd = hOwnerHwnd;
+
+		OSVERSIONINFO osvi;
+		osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
+		::GetVersionEx(&osvi);
+		if (osvi.dwMajorVersion>=6) {
+			DWORD ThreadID;
+
+			m_hFlushEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
+			m_hFlushResumeEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
+			m_hFlushThread=::CreateThread(NULL,0,FlushThread,this,0,&ThreadID);
+		}
+		m_LastFlushTime=0;
+
+		m_bInit=true;
+	} catch (CBonException &Exception) {
+		SetError(Exception);
+		CloseViewer();
+		TRACE(TEXT("フィルタグラフ構築失敗 : %s\n"), GetLastErrorText());
+		return false;
+	}
+
+	SAFE_RELEASE(pOutputVideo);
+	SAFE_RELEASE(pOutputAudio);
+
+	TRACE(TEXT("フィルタグラフ構築成功\n"));
+	return true;
+}
+
+void CMediaViewer::CloseViewer(void)
+{
+	/*
+	if (!m_bInit)
+		return;
+	*/
+
+	if (m_hFlushThread) {
+		m_FlushEventType=FLUSH_ABORT;
+		::SetEvent(m_hFlushEvent);
+		::SetEvent(m_hFlushResumeEvent);
+		if (::WaitForSingleObject(m_hFlushThread,1000)==WAIT_TIMEOUT) {
+			TRACE(TEXT("CMediaViewer::CloseViewer() Terminate flush thread\n"));
+			::TerminateThread(m_hFlushThread,1);
+		}
+		::CloseHandle(m_hFlushThread);
+		m_hFlushThread=NULL;
+		::CloseHandle(m_hFlushEvent);
+		m_hFlushEvent=NULL;
+		::CloseHandle(m_hFlushResumeEvent);
+		m_hFlushResumeEvent=NULL;
+	}
+
+	Flush();
+
+	// 既にフィルタグラフがデッドロックしている場合、止めると戻ってこないので
+	// 本当はデッドロックしないようにすべきだが...
+	if (!CheckHangUp(2000))
+		Stop();
+
+	// COMインスタンスを開放する
+
+	if (m_pVideoRenderer!=NULL) {
+		m_pVideoRenderer->Finalize();
+		delete m_pVideoRenderer;
+		m_pVideoRenderer=NULL;
+	}
+
+	if (m_pImageMixer!=NULL) {
+		delete m_pImageMixer;
+		m_pImageMixer=NULL;
+	}
+
+#if 1
+	if (m_pGrabber!=NULL) {
+		m_pFilterGraph->RemoveFilter(m_pGrabber->GetGrabberFilter());
+		delete m_pGrabber;
+		m_pGrabber=NULL;
+	}
+#endif
+
+	SAFE_RELEASE(m_pMpeg2DecFilter);
+
+	SAFE_RELEASE(m_pPcmSelFilter);
+	m_pPcmSelClass=NULL;
+	SAFE_RELEASE(m_pAacDecFilter);
+	m_pAacDecClass=NULL;
+
+	SAFE_RELEASE(m_pMpeg2SeqFilter);
+	m_pMpeg2SeqClass=NULL;
+
+	SAFE_RELEASE(m_pMp2DemuxAudioMap);
+	SAFE_RELEASE(m_pMp2DemuxVideoMap);
+	SAFE_RELEASE(m_pMp2DemuxInterface);
+	SAFE_RELEASE(m_pMp2DemuxFilter);
+
+	SAFE_RELEASE(m_pSrcFilter);
+	m_pBonSrcFilterClass=NULL;
+
+	SAFE_RELEASE(m_pMediaControl);
+
+#ifdef DEBUG
+	if(m_dwRegister!=0){
+		RemoveFromRot(m_dwRegister);
+		m_dwRegister = 0;
+	}
+#endif
+
+#ifdef DEBUG
+	if (m_pFilterGraph)
+		TRACE(TEXT("FilterGraph RefCount = %d\n"),DirectShowUtil::GetRefCount(m_pFilterGraph));
+#endif
+	SAFE_RELEASE(m_pFilterGraph);
+
+	m_bInit=false;
+}
+
+const bool CMediaViewer::IsOpen() const
+{
+	return m_bInit;
+}
+
+const bool CMediaViewer::Play(void)
+{
+	if(!m_pMediaControl)return false;
+
+	TRACE(TEXT("CMediaViewer::Play()\n"));
+
+	CTryBlockLock Lock(&m_CriticalLock);
+	if (!Lock.TryLock(1000))
+		return false;
+
+	if (m_hFlushThread) {
+		m_FlushEventType=FLUSH_RESET;
+		::SetEvent(m_hFlushEvent);
+		::SetEvent(m_hFlushResumeEvent);
+	}
+
+	// フィルタグラフを再生する
+
+	//return m_pMediaControl->Run()==S_OK;
+
+	if (m_pMediaControl->Run()!=S_OK) {
+		int i;
+		OAFilterState fs;
+
+		for (i=0;i<20;i++) {
+			if (m_pMediaControl->GetState(100,&fs)==S_OK && fs==State_Running)
+				return true;
+		}
+		return false;
+	}
+	return true;
+}
+
+const bool CMediaViewer::Stop(void)
+{
+	if(!m_pMediaControl)return false;
+
+	TRACE(TEXT("CMediaViewer::Stop()\n"));
+
+	CTryBlockLock Lock(&m_CriticalLock);
+	if (!Lock.TryLock(1000))
+		return false;
+
+	if (m_hFlushThread) {
+		m_FlushEventType=FLUSH_WAIT;
+		::ResetEvent(m_hFlushResumeEvent);
+		::SetEvent(m_hFlushEvent);
+	}
+
+	// フィルタグラフを停止する
+	return m_pMediaControl->Stop()==S_OK;
+}
+
+const bool CMediaViewer::Pause()
+{
+	if (!m_pMediaControl)
+		return false;
+
+	TRACE(TEXT("CMediaViewer::Pause()\n"));
+
+	CTryBlockLock Lock(&m_CriticalLock);
+	if (!Lock.TryLock(1000))
+		return false;
+
+	if (m_hFlushThread) {
+		m_FlushEventType=FLUSH_WAIT;
+		::ResetEvent(m_hFlushResumeEvent);
+		::SetEvent(m_hFlushEvent);
+	}
+
+	if (m_pMediaControl->Pause()!=S_OK) {
+		int i;
+		OAFilterState fs;
+		HRESULT hr;
+
+		for (i=0;i<20;i++) {
+			hr=m_pMediaControl->GetState(100,&fs);
+			if ((hr==S_OK || hr==VFW_S_CANT_CUE) && fs==State_Paused)
+				return true;
+		}
+		return false;
+	}
+	return true;
+}
+
+const bool CMediaViewer::Flush()
+{
+	if (!m_pBonSrcFilterClass)
+		return false;
+
+	TRACE(TEXT("CMediaViewer::Flush()\n"));
+
+	CTryBlockLock Lock(&m_CriticalLock);
+	if (!Lock.TryLock(1000))
+		return false;
+
+	m_pBonSrcFilterClass->Flush();
+	if (m_hFlushThread) {
+		m_FlushEventType=FLUSH_RESET;
+		::SetEvent(m_hFlushEvent);
+	}
+	return true;
+}
+
+const bool CMediaViewer::SetVideoPID(const WORD wPID)
+{
+	// 映像出力ピンにPIDをマッピングする
+	if(!m_pMp2DemuxVideoMap)return false;
+
+	if(wPID == m_wVideoEsPID)return true;
+
+	TRACE(TEXT("CMediaViewer::SetVideoPID() %04X <- %04X\n"),wPID,m_wVideoEsPID);
+
+	DWORD dwTempPID;
+
+	// 現在のPIDをアンマップ
+	if(m_wVideoEsPID != 0xFFFFU){
+		dwTempPID = (DWORD)m_wVideoEsPID;
+		if(m_pMp2DemuxVideoMap->UnmapPID(1UL, &dwTempPID) != S_OK)return false;
+		}
+
+	// 新規にPIDをマップ
+	if(wPID != 0xFFFFU){
+		dwTempPID = wPID;
+		if(m_pMp2DemuxVideoMap->MapPID(1UL, &dwTempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)return false;
+		}
+
+	m_wVideoEsPID = wPID;
+
+	return true;
+}
+
+const bool CMediaViewer::SetAudioPID(const WORD wPID)
+{
+	// 音声出力ピンにPIDをマッピングする
+	if(!m_pMp2DemuxAudioMap)return false;
+
+	if(wPID == m_wAudioEsPID)return true;
+
+	TRACE(TEXT("CMediaViewer::SetAudioPID() %04X <- %04X\n"),wPID,m_wAudioEsPID);
+
+	DWORD dwTempPID;
+
+	// 現在のPIDをアンマップ
+	if(m_wAudioEsPID != 0xFFFFU){
+		dwTempPID = (DWORD)m_wAudioEsPID;
+		if(m_pMp2DemuxAudioMap->UnmapPID(1UL, &dwTempPID) != S_OK)return false;
+		}
+
+	// 新規にPIDをマップ
+	if(wPID != 0xFFFFU){
+		dwTempPID = wPID;
+		if(m_pMp2DemuxAudioMap->MapPID(1UL, &dwTempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)return false;
+		}
+
+	m_wAudioEsPID = wPID;
+
+	return true;
+}
+
+void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam)
+{
+	// ビデオ情報の更新
+	CMediaViewer *pThis=static_cast<CMediaViewer*>(pParam);
+	if (pThis->m_VideoInfo!=*pVideoInfo) {
+		// ビデオ情報の更新
+		pThis->m_VideoInfo = *pVideoInfo;
+		pThis->ResizeVideoWindow();
+	}
+}
+
+const bool CMediaViewer::ResizeVideoWindow()
+{
+	// ウィンドウサイズを変更する
+	if (m_pVideoRenderer) {
+		long WindowWidth,WindowHeight,VideoWidth,VideoHeight;
+
+		WindowWidth = m_wVideoWindowX;
+		WindowHeight = m_wVideoWindowY;
+		if (m_ViewStretchMode!=STRETCH_FIT
+				&& (m_ForceAspectX>0 && m_ForceAspectY>0)
+				|| (m_VideoInfo.m_AspectRatioX>0 && m_VideoInfo.m_AspectRatioY>0)) {
+			int AspectX,AspectY;
+			double aspect_rate;
+			double window_rate = (double)WindowWidth / (double)WindowHeight;
+
+			if (m_ForceAspectX>0 && m_ForceAspectY>0) {
+				AspectX = m_ForceAspectX;
+				AspectY = m_ForceAspectY;
+			} else {
+				AspectX = m_VideoInfo.m_AspectRatioX;
+				AspectY = m_VideoInfo.m_AspectRatioY;
+			}
+			aspect_rate = (double)AspectX / (double)AspectY;
+			if ((m_ViewStretchMode==STRETCH_KEEPASPECTRATIO && aspect_rate>window_rate)
+					|| (m_ViewStretchMode==STRETCH_CUTFRAME && aspect_rate<window_rate)) {
+				VideoWidth = WindowWidth;
+				VideoHeight = VideoWidth * AspectY  / AspectX;
+			} else {
+				VideoHeight = WindowHeight;
+				VideoWidth = VideoHeight * AspectX / AspectY;
+			}
+		} else {
+			VideoWidth = WindowWidth;
+			VideoHeight = WindowHeight;
+		}
+		RECT rcSrc,rcDst,rcWindow;
+
+		GetSourceRect(&rcSrc);
+		// 座標値がマイナスになるとマルチディスプレイでおかしくなる?
+		/*
+		rcDst.left=(WindowWidth-VideoWidth)/2;
+		rcDst.top=(WindowHeight-VideoHeight)/2,
+		rcDst.right=rcDst.left+VideoWidth;
+		rcDst.bottom=rcDst.top+VideoHeight;
+		*/
+		if (WindowWidth<VideoWidth) {
+			rcDst.left=0;
+			rcDst.right=WindowWidth;
+			rcSrc.left+=(VideoWidth-WindowWidth)*(rcSrc.right-rcSrc.left)/VideoWidth/2;
+			rcSrc.right=m_VideoInfo.m_OrigWidth-rcSrc.left;
+		} else {
+			rcDst.left=(WindowWidth-VideoWidth)/2;
+			rcDst.right=rcDst.left+VideoWidth;
+		}
+		if (WindowHeight<VideoHeight) {
+			rcDst.top=0;
+			rcDst.bottom=WindowHeight;
+			rcSrc.top+=(VideoHeight-WindowHeight)*(rcSrc.bottom-rcSrc.top)/VideoHeight/2;
+			rcSrc.bottom=m_VideoInfo.m_OrigHeight-rcSrc.top;
+		} else {
+			rcDst.top=(WindowHeight-VideoHeight)/2,
+			rcDst.bottom=rcDst.top+VideoHeight;
+		}
+		rcWindow.left=0;
+		rcWindow.top=0;
+		rcWindow.right=WindowWidth;
+		rcWindow.bottom=WindowHeight;
+		return m_pVideoRenderer->SetVideoPosition(
+			m_VideoInfo.m_OrigWidth,m_VideoInfo.m_OrigHeight,&rcSrc,&rcDst,&rcWindow);
+	}
+	return false;
+}
+
+const bool CMediaViewer::SetViewSize(const int x,const int y)
+{
+	// ウィンドウサイズを設定する
+	if(x>0 && y>0){
+		m_wVideoWindowX = x;
+		m_wVideoWindowY = y;
+		return ResizeVideoWindow();
+		}
+	return false;
+}
+
+
+const bool CMediaViewer::SetVolume(const float fVolume)
+{
+	// オーディオボリュームをdBで設定する( -100.0(無音) < fVolume < 0(最大) )
+	IBasicAudio *pBasicAudio;
+	bool fOK=false;
+
+	if (m_pFilterGraph) {
+		if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IBasicAudio,
+								reinterpret_cast<LPVOID *>(&pBasicAudio)))) {
+			long lVolume = (long)(fVolume * 100.0f);
+
+			if (lVolume>=-10000 && lVolume<=0) {
+					TRACE(TEXT("Volume Control = %d\n"),lVolume);
+				if (SUCCEEDED(pBasicAudio->put_Volume(lVolume)))
+					fOK=true;
+			}
+			pBasicAudio->Release();
+		}
+	}
+	return fOK;
+}
+
+const bool CMediaViewer::GetVideoSize(WORD *pwWidth,WORD *pwHeight) const
+{
+	// ビデオのサイズを取得する
+	if (m_pMpeg2SeqClass)
+		return m_pMpeg2SeqClass->GetVideoSize(pwWidth,pwHeight);
+	return false;
+}
+
+const bool CMediaViewer::GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY) const
+{
+	// ビデオのアスペクト比を取得する
+	if (m_pMpeg2SeqClass)
+		return m_pMpeg2SeqClass->GetAspectRatio(pbyAspectRatioX,pbyAspectRatioY);
+	return false;
+}
+
+const BYTE CMediaViewer::GetAudioChannelNum()
+{
+	// オーディオの入力チャンネル数を取得する
+	if(m_pAacDecClass){
+		return m_pAacDecClass->GetCurrentChannelNum();
+		}
+	return 0;
+}
+
+const bool CMediaViewer::SetStereoMode(const int iMode)
+{
+	// ステレオ出力チャンネルの設定
+	if(m_pPcmSelClass){
+		m_pPcmSelClass->SetStereoMode(iMode);
+		return true;
+		}
+	return false;
+}
+
+const bool CMediaViewer::GetVideoDecorderName(LPWSTR lpName,int iBufLen)
+{
+	// 選択されているビデオデコーダー名の取得
+	if(m_pFilterGraph){
+		if(m_strMpeg2DecorderName.GetLength()+1<iBufLen){
+			lstrcpyW(lpName,m_strMpeg2DecorderName.GetBuffer());
+			return true;
+			}
+		}
+	return false;
+}
+
+const bool CMediaViewer::DisplayVideoDecoderProperty(HWND hWndParent)
+{
+	if (m_pMpeg2DecFilter)
+		return DirectShowUtil::ShowPropertyPage(m_pMpeg2DecFilter,hWndParent);
+	return false;
+}
+
+const bool CMediaViewer::DisplayVideoRandererProperty(HWND hWndParent)
+{
+	if (m_pVideoRenderer)
+		return m_pVideoRenderer->ShowProperty(hWndParent);
+	return false;
+}
+
+HRESULT CMediaViewer::AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister) const
+{
+	// デバッグ用
+	IMoniker * pMoniker;
+	IRunningObjectTable *pROT;
+	if(FAILED(::GetRunningObjectTable(0, &pROT)))return E_FAIL;
+	
+	WCHAR wsz[256];
+	wsprintfW(wsz, L"FilterGraph %08p pid %08x", (DWORD_PTR)pUnkGraph, ::GetCurrentProcessId());
+
+	HRESULT hr = ::CreateItemMoniker(L"!", wsz, &pMoniker);
+
+	if(SUCCEEDED(hr)){
+		hr = pROT->Register(0, pUnkGraph, pMoniker, pdwRegister);
+		pMoniker->Release();
+		}
+	
+	pROT->Release();
+	
+	return hr;
+}
+
+void CMediaViewer::RemoveFromRot(const DWORD dwRegister) const
+{
+	// デバッグ用
+	IRunningObjectTable *pROT;
+
+	if(SUCCEEDED(::GetRunningObjectTable(0, &pROT))){
+		pROT->Revoke(dwRegister);
+		pROT->Release();
+		}
+}
+
+
+
+
+const bool CMediaViewer::ForceAspectRatio(int AspectX,int AspectY)
+{
+	m_ForceAspectX=AspectX;
+	m_ForceAspectY=AspectY;
+	return true;
+}
+
+
+const bool CMediaViewer::GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY)
+{
+	if (m_ForceAspectX!=0 && m_ForceAspectY!=0) {
+		if (pAspectX)
+			*pAspectX=m_ForceAspectX;
+		if (pAspectY)
+			*pAspectY=m_ForceAspectY;
+		return true;
+	}
+	return GetVideoAspectRatio(pAspectX,pAspectY);
+}
+
+
+const bool CMediaViewer::SetPanAndScan(BYTE bFlags)
+{
+	m_PanAndScan=bFlags;
+	return true;
+}
+
+
+const bool CMediaViewer::SetViewStretchMode(ViewStretchMode Mode)
+{
+	if (m_ViewStretchMode!=Mode) {
+		m_ViewStretchMode=Mode;
+		ResizeVideoWindow();
+	}
+	return true;
+}
+
+
+const bool CMediaViewer::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const
+{
+	if (m_pMpeg2SeqClass)
+		return m_pMpeg2SeqClass->GetOriginalVideoSize(pWidth,pHeight);
+	return false;
+}
+
+
+const bool CMediaViewer::GetDestRect(RECT *pRect)
+{
+	if (m_pVideoRenderer) {
+		if (m_pVideoRenderer->GetDestPosition(pRect))
+			return true;
+	}
+	return false;
+}
+
+
+const bool CMediaViewer::GetDestSize(WORD *pWidth,WORD *pHeight)
+{
+	RECT rc;
+
+	if (!GetDestRect(&rc))
+		return false;
+	if (pWidth)
+		*pWidth=(WORD)(rc.right-rc.left);
+	if (pHeight)
+		*pHeight=(WORD)(rc.bottom-rc.top);
+	return true;
+}
+
+
+const bool CMediaViewer::GetCroppedVideoSize(WORD *pWidth,WORD *pHeight)
+{
+	WORD Width,Height;
+
+	Width=m_VideoInfo.m_DisplayWidth;
+	Height=m_VideoInfo.m_DisplayHeight;
+	if (m_PanAndScan&PANANDSCAN_HORZ)
+		Width=m_VideoInfo.m_OrigWidth*12/16;
+	if (m_PanAndScan&PANANDSCAN_VERT)
+		Height=m_VideoInfo.m_OrigHeight*9/12;
+	if (pWidth)
+		*pWidth=Width;
+	if (pHeight)
+		*pHeight=Height;
+	return true;
+}
+
+
+const bool CMediaViewer::GetSourceRect(RECT *pRect)
+{
+	if (!CalcSourcePosition(&pRect->left,&pRect->top,&pRect->right,&pRect->bottom))
+		return false;
+	pRect->right+=pRect->left;
+	pRect->bottom+=pRect->top;
+	return true;
+}
+
+
+bool CMediaViewer::SetVisible(bool fVisible)
+{
+	if (m_pVideoRenderer)
+		return m_pVideoRenderer->SetVisible(fVisible);
+	return false;
+}
+
+
+const void CMediaViewer::HideCursor(bool bHide)
+{
+	if (m_pVideoRenderer)
+		m_pVideoRenderer->ShowCursor(!bHide);
+}
+
+
+const bool CMediaViewer::CalcSourcePosition(long *pLeft,long *pTop,
+											long *pWidth,long *pHeight) const
+{
+	long SrcX,SrcY,SrcWidth,SrcHeight;
+
+	if (m_PanAndScan&PANANDSCAN_HORZ) {
+		SrcWidth=m_VideoInfo.m_OrigWidth*12/16;
+		SrcX=(m_VideoInfo.m_OrigWidth-SrcWidth)/2;
+	} else {
+		SrcWidth=m_VideoInfo.m_DisplayWidth;
+		SrcX=m_VideoInfo.m_PosX;
+	}
+	if (m_PanAndScan&PANANDSCAN_VERT) {
+		SrcHeight=m_VideoInfo.m_OrigHeight*9/12;
+		SrcY=(m_VideoInfo.m_OrigHeight-SrcHeight)/2;
+	} else {
+		SrcHeight=m_VideoInfo.m_DisplayHeight;
+		SrcY=m_VideoInfo.m_PosY;
+	}
+	if (pLeft)
+		*pLeft=SrcX;
+	if (pTop)
+		*pTop=SrcY;
+	if (pWidth)
+		*pWidth=SrcWidth;
+	if (pHeight)
+		*pHeight=SrcHeight;
+	return true;
+}
+
+
+const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
+{
+	CTryBlockLock Lock(&m_CriticalLock);
+	if (!Lock.TryLock(1000))
+		return false;
+
+	bool fOK=false;
+
+	if (m_pVideoRenderer) {
+		void *pBuffer;
+
+		if (m_pVideoRenderer->GetCurrentImage(&pBuffer)) {
+			fOK=true;
+			*ppDib=static_cast<BYTE*>(pBuffer);
+		}
+	}
+	return fOK;
+}
+
+
+bool CMediaViewer::SetGrabber(bool bGrabber)
+{
+	m_bGrabber=bGrabber;
+	return true;
+}
+
+
+void *CMediaViewer::DoCapture(DWORD WaitTime)
+{
+#if 1
+	void *pDib;
+
+	if (m_pGrabber==NULL)
+		return NULL;
+	if (!m_pGrabber->SetCapture(true))
+		return NULL;
+	if (!m_pGrabber->WaitCapture(WaitTime)) {
+		m_pGrabber->SetCapture(false);
+		return NULL;
+	}
+	pDib=m_pGrabber->GetCaptureBitmap();
+	m_pGrabber->SetCapture(false);
+	return pDib;
+#else
+	return NULL;
+#endif
+}
+
+
+bool CMediaViewer::SetAudioNormalize(bool bNormalize,float Level)
+{
+	if (m_pAacDecClass==NULL)
+		return false;
+	return m_pAacDecClass->SetNormalize(bNormalize,Level);
+}
+
+
+CVideoRenderer::RendererType CMediaViewer::GetVideoRendererType() const
+{
+	return m_VideoRendererType;
+}
+
+
+const bool CMediaViewer::RepaintVideo(HWND hwnd,HDC hdc)
+{
+	if (m_pVideoRenderer)
+		return m_pVideoRenderer->RepaintVideo(hwnd,hdc);
+	return false;
+}
+
+
+const bool CMediaViewer::DisplayModeChanged()
+{
+	if (m_pVideoRenderer)
+		return m_pVideoRenderer->DisplayModeChanged();
+	return false;
+}
+
+
+const bool CMediaViewer::DrawText(LPCTSTR pszText,HFONT hfont,COLORREF crColor,
+												int Opacity,RECT *pDestRect)
+{
+	IBaseFilter *pRenderer;
+	IVMRWindowlessControl9 *pWindowlessControl;
+	HRESULT hr;
+	WORD VideoWidth,VideoHeight;
+	LONG Width,Height;
+	RECT rc;
+
+	if (m_pVideoRenderer==NULL || m_VideoRendererType!=CVideoRenderer::RENDERER_VMR9)
+		return false;
+	pRenderer=m_pVideoRenderer->GetRendererFilter();
+	if (pRenderer==NULL)
+		return false;
+	if (m_pImageMixer==NULL)
+		m_pImageMixer=new CImageMixer(pRenderer);
+	if (FAILED(pRenderer->QueryInterface(IID_IVMRWindowlessControl9,
+							reinterpret_cast<LPVOID*>(&pWindowlessControl))))
+		return false;
+	hr=pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL);
+	pWindowlessControl->Release();
+	if (FAILED(hr) || !GetVideoSize(&VideoWidth,&VideoHeight))
+		return false;
+	rc.left=pDestRect->left*Width/VideoWidth;
+	rc.top=pDestRect->top*Height/VideoHeight;
+	rc.right=pDestRect->right*Width/VideoWidth;
+	rc.bottom=pDestRect->bottom*Height/VideoHeight;
+	return m_pImageMixer->SetText(pszText,hfont,crColor,Opacity,&rc);
+}
+
+
+const bool CMediaViewer::ClearOSD()
+{
+	if (m_pVideoRenderer==NULL)
+		return false;
+	if (m_pImageMixer!=NULL)
+		m_pImageMixer->Clear();
+	return true;
+}
+
+
+bool CMediaViewer::SetTracer(CTracer *pTracer)
+{
+	m_pTracer=pTracer;
+	return true;
+}
+
+
+void CMediaViewer::Trace(LPCTSTR pszOutput, ...)
+{
+	va_list Args;
+
+	va_start(Args,pszOutput);
+	if (m_pTracer!=NULL)
+		m_pTracer->TraceV(pszOutput,Args);
+	va_end(Args);
+}
+
+
+/*
+	フラッシュしてデッドロックを回避するスレッド
+	とりあえず暫定
+	本当はソースフィルタで別スレッドからサンプルを送信するようにした方がいいと思う
+*/
+DWORD WINAPI CMediaViewer::FlushThread(LPVOID lpParameter)
+{
+	CMediaViewer *pThis=static_cast<CMediaViewer*>(lpParameter);
+
+	while (true) {
+		if (::WaitForSingleObject(pThis->m_hFlushEvent,2000)==WAIT_OBJECT_0) {
+			switch (pThis->m_FlushEventType) {
+			case FLUSH_ABORT:
+				goto End;
+			case FLUSH_WAIT:
+				::WaitForSingleObject(pThis->m_hFlushResumeEvent,INFINITE);
+			case FLUSH_RESET:
+				continue;
+			}
+		}
+		if (pThis->CheckHangUp(100)) {
+			::OutputDebugString(TEXT("CMediaViewer::FlushThread() Flush\n"));
+			pThis->m_pBonSrcFilterClass->Flush();
+			pThis->SendDecoderEvent(EID_FILTER_GRAPH_FLUSH);
+		}
+	}
+End:
+	::OutputDebugString(TEXT("CMediaViewer::FlushThread() return\n"));
+	return 0;
+}
+
+
+bool CMediaViewer::CheckHangUp(DWORD TimeOut)
+{
+	if (m_pBonSrcFilterClass)
+		return m_pBonSrcFilterClass->CheckHangUp(TimeOut);
+	return false;
+}

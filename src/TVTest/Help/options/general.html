@@ -1,0 +1,76 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html lang="ja">
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=Shift_JIS">
+	<link rel="stylesheet" href="../default.css" type="text/css">
+	<title>一般</title>
+</head>
+<body>
+<h2>一般</h2>
+
+<h3>ドライバ</h3>
+<p class="descript">ドライバのファイル名です。<br>
+コマンドラインで指定されている場合は、そちらが優先されます。</p>
+
+<h3>デコーダ(*)</h3>
+<p class="descript">MPEG-2 のデコーダを選択します。<br>
+リストにあっても実際には使用できないものもあります。</p>
+
+<h3>レンダラ(*)</h3>
+<p class="descript">ビデオレンダラを選択します。</p>
+
+<h3>カードリーダ</h3>
+<p class="descript">スクランブル解除に利用するカードリーダを選択します。<br>
+HDUS内蔵カードリーダを使用するには、"HDUSカードリーダー利用テスト" の内容に従ってドライバにパッチを当てる必要があります。<br>
+コマンドラインで、スクランブル解除しないオプション /nd が指定されている場合は無視されます。</p>
+
+<h3>HDUSのリモコンを使用する</h3>
+<p class="descript">HDUSのリモコンを使用しての操作を有効にします。</p>
+<div class="group">
+	<h3>アクティブ時のみ</h3>
+	<p class="descript">TVTest がアクティブの場合のみリモコンが使用できるようにします。</p>
+</div>
+
+<h3>スクリーンセーバーを無効にする</h3>
+<p class="descript">スクリーンセーバーを無効にします。</p>
+
+<h3>モニタの省電力機能を無効にする</h3>
+<p class="descript">モニタの省電力機能を無効にします。</p>
+<div class="group">
+	<h3>アクティブ時のみ</h3>
+	<p class="descript">TVTest がアクティブの場合のみ省電力機能を無効にします。</p>
+</div>
+
+<h3>複数起動を禁止する(*)</h3>
+<p class="descript">TVTest の複数起動を禁止します。</p>
+
+<h3>常駐する</h3>
+<p class="descript">常駐モードにします。<br>
+常駐モードにすると、タスクトレイにアイコンが表示され、ウィンドウを閉じることによって待機状態に入ります。その際、負荷を下げるために、録画中でなければチューナーが閉じられます。待機状態から復帰すると、再びチューナーが開かれます。<br>
+待機状態から復帰するには、トレイアイコンを左クリックするか、右クリックメニューから [表示] を選択します。または、リモコンの電源ボタンを押します。</br>
+</p>
+
+<h3>起動時に前回終了時のチャンネルを表示する</h3>
+<p class="descript">TVTest の起動時に、前回終了時のチャンネルが表示されるようにします。
+</p>
+
+<h3>新HDUSドライバ</h3>
+<p class="descript">BonDriver_HDUS 使用時に、受信感度が表示されるようになります。</p>
+
+<h3>バッファリングを行う</h3>
+<p class="descript">再生するパケットのバッファリングを行います。</p>
+<div class="group">
+	<h3>バッファサイズ</h3>
+	<p class="descript">バッファの容量をパケット単位で指定します。</p>
+
+	<h3>初期貯蔵割合</h3>
+	<p class="descript">最初に出力を開始するまでの、バッファの使用割合を指定します。<br>
+	ここで指定された割合に達すると、出力を開始します。</p>
+</div>
+
+<p>
+(*) この設定は TVTest を再起動しないと反映されません。
+</p>
+
+</body>
+</html>
