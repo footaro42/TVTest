@@ -30,6 +30,7 @@ protected:
 	void SetAdvise(LPCTSTR pszAdvise);
 	void SetErrorCode(int ErrorCode);
 	void SetError(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise=NULL);
+	void SetError(LPCTSTR pszText,LPCTSTR pszAdvise=NULL);
 	void SetError(const CBonException &Exception);
 	void ClearError();
 public:

@@ -12,10 +12,18 @@ Title=TVTest ƒwƒ‹ƒv
 [WINDOWS]
 main="TVTest ƒwƒ‹ƒv","TVTest.hhc","TVTest.hhk","index.html","index.html",,,,,0x2120,,0x300e,,,,,,,,0
 
-
 [FILES]
 index.html
+first.html
 install.html
+initialsettings.html
+howtouse.html
+statusbar.html
+menu.html
+panel.html
+programguide.html
+record.html
+commandline.html
 options.html
 options\capture.html
 options\channelscan.html
@@ -30,6 +38,8 @@ options\programguide.html
 options\statusbar.html
 options\view.html
 options\record.html
+hint.html
+appendix\channelfile.html
 
 [ALIAS]
 HELP_ID_OPTIONS_CAPTURE=options\capture.html
@@ -45,6 +55,7 @@ HELP_ID_OPTIONS_PROGRAMGUIDE=options\programguide.html
 HELP_ID_OPTIONS_RECORD=options\record.html
 HELP_ID_OPTIONS_STATUSBAR=options\statusbar.html
 HELP_ID_OPTIONS_VIEW=options\view.html
+HELP_ID_INITIALSETTINGS=initialsettings.html
 
 [MAP]
 #include HelpID.h

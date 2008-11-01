@@ -103,7 +103,7 @@ DWORD CNetworkRemocon::SendProc(LPVOID pParam)
 {
 	CSendStringInfo *pInfo=(CSendStringInfo*)pParam;
 	int Result;
-	char Buffer[1024];
+	char Buffer[4096];
 
 	if (pInfo->m_pRemocon->m_Socket==INVALID_SOCKET) {
 		pInfo->m_pRemocon->m_Socket=socket(AF_INET,SOCK_STREAM,IPPROTO_TCP);
@@ -243,6 +243,12 @@ bool CNetworkRemocon::SetService(int Service)
 }
 
 
+bool CNetworkRemocon::GetDriverList(CNetworkRemoconReciver *pReciver)
+{
+	return Send("GetBonList",10,pReciver);
+}
+
+
 bool CNetworkRemocon::LoadChannelText(LPCTSTR pszFileName,
 											const CChannelList *pChannelList)
 {
@@ -330,6 +336,7 @@ CNetworkRemoconOptions::CNetworkRemoconOptions()
 	::lstrcpyA(m_szAddress,"127.0.0.1");
 	m_Port=1334;
 	m_szChannelFileName[0]='\0';
+	m_szDefaultChannelFileName[0]='\0';
 	m_fTempEnable=false;
 	m_TempPort=0;
 }
@@ -382,9 +389,33 @@ bool CNetworkRemoconOptions::SetTempPort(unsigned int Port)
 }
 
 
+bool CNetworkRemoconOptions::SetDefaultChannelFileName(LPCTSTR pszFileName)
+{
+	::lstrcpy(m_szDefaultChannelFileName,pszFileName);
+	return true;
+}
+
+
+bool CNetworkRemoconOptions::IsEnable() const
+{
+	return m_fUseNetworkRemocon || m_fTempEnable;
+}
+
+
 bool CNetworkRemoconOptions::IsSettingValid() const
 {
 	return m_Port>0;
+}
+
+
+bool CNetworkRemoconOptions::CreateNetworkRemocon(CNetworkRemocon **ppNetworkRemocon)
+{
+	*ppNetworkRemocon=new CNetworkRemocon;
+	if (!(*ppNetworkRemocon)->Init(m_szAddress,m_TempPort>0?m_TempPort:m_Port)) {
+		delete *ppNetworkRemocon;
+		*ppNetworkRemocon=NULL;
+	}
+	return true;
 }
 
 
@@ -417,17 +448,56 @@ bool CNetworkRemoconOptions::InitNetworkRemocon(CNetworkRemocon **ppNetworkRemoc
 }
 
 
+bool CNetworkRemoconOptions::FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFileName) const
+{
+	TCHAR szMask[MAX_PATH];
+	HANDLE hFind;
+	WIN32_FIND_DATA wfd;
+
+	::SHGetSpecialFolderPath(NULL,szMask,CSIDL_PERSONAL,FALSE);
+	::PathAppend(szMask,TEXT("EpgTimerBon\\*(*).ChSet.txt"));
+	hFind=::FindFirstFile(szMask,&wfd);
+	if (hFind==INVALID_HANDLE_VALUE)
+		return false;
+	bool fFinded=false;
+	do {
+		LPCTSTR p;
+		TCHAR szName[MAX_PATH];
+		int i;
+
+		p=wfd.cFileName;
+		while (*p!='(')
+			p++;
+		p++;
+		for (i=0;*p!=')';i++)
+			szName[i]=*p++;
+		szName[i]='\0';
+		if (::lstrcmpi(szName,pszDriverName)==0) {
+			::lstrcpy(pszFileName,wfd.cFileName);
+			fFinded=true;
+			break;
+		}
+	} while (::FindNextFile(hFind,&wfd));
+	::FindClose(hFind);
+	return fFinded;
+}
+
+
 void CNetworkRemoconOptions::GetChannelFilePath(LPTSTR pszPath) const
 {
 	if (m_szChannelFileName[0]=='\0' || ::PathIsFileSpec(m_szChannelFileName)) {
 		::SHGetSpecialFolderPath(NULL,pszPath,CSIDL_PERSONAL,FALSE);
 		::PathAppend(pszPath,TEXT("EpgTimerBon"));
-		if (m_szChannelFileName[0]!='\0')
+		if (m_szChannelFileName[0]!='\0') {
 			::PathAppend(pszPath,m_szChannelFileName);
-		else
+		} else if (m_szDefaultChannelFileName[0]!='\0') {
+			::PathAppend(pszPath,m_szDefaultChannelFileName);
+		} else {
 			::PathAppend(pszPath,TEXT("BonDriver_HDUS(HDUS).ChSet.txt"));
-	} else
+		}
+	} else {
 		::lstrcpy(pszPath,m_szChannelFileName);
+	}
 }
 
 
@@ -445,10 +515,39 @@ BOOL CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 			CNetworkRemoconOptions *pThis=dynamic_cast<CNetworkRemoconOptions*>(OnInitDialog(hDlg,lParam));
 
 			::CheckDlgButton(hDlg,IDC_NETWORKREMOCON_USE,
-						pThis->m_fUseNetworkRemocon?BST_CHECKED:BST_UNCHECKED);
+						pThis->m_fUseNetworkRemocon?BST_CHECKED:
+						pThis->m_fTempEnable?BST_INDETERMINATE:BST_UNCHECKED);
 			::SetDlgItemTextA(hDlg,IDC_NETWORKREMOCON_ADDRESS,pThis->m_szAddress);
 			::SetDlgItemInt(hDlg,IDC_NETWORKREMOCON_PORT,pThis->m_Port,FALSE);
-			::SetDlgItemText(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,pThis->m_szChannelFileName);
+			{
+				TCHAR szFileMask[MAX_PATH];
+				HANDLE hFind;
+				WIN32_FIND_DATA wfd;
+
+				::SendDlgItemMessage(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,CB_LIMITTEXT,MAX_PATH-1,0);
+				::SHGetSpecialFolderPath(NULL,szFileMask,CSIDL_PERSONAL,FALSE);
+				::PathAppend(szFileMask,TEXT("EpgTimerBon\\*.ChSet.txt"));
+				hFind=::FindFirstFile(szFileMask,&wfd);
+				if (hFind!=INVALID_HANDLE_VALUE) {
+					do {
+						::SendDlgItemMessage(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,
+							CB_ADDSTRING,0,
+							reinterpret_cast<LPARAM>(wfd.cFileName));
+					} while (::FindNextFile(hFind,&wfd));
+					::FindClose(hFind);
+				}
+				::SetDlgItemText(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,pThis->m_szChannelFileName);
+			}
+		}
+		return TRUE;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case IDC_NETWORKREMOCON_USE:
+			::CheckDlgButton(hDlg,IDC_NETWORKREMOCON_USE,
+				::IsDlgButtonChecked(hDlg,IDC_NETWORKREMOCON_USE)==BST_CHECKED?
+													BST_UNCHECKED:BST_CHECKED);
+			return TRUE;
 		}
 		return TRUE;
 
@@ -457,27 +556,27 @@ BOOL CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 		case PSN_APPLY:
 			{
 				CNetworkRemoconOptions *pThis=GetThis(hDlg);
-				bool fUse;
+				int State;
 				char szAddress[16];
 				unsigned int Port;
 				TCHAR szChannelFile[MAX_PATH];
 
-				fUse=::IsDlgButtonChecked(hDlg,IDC_NETWORKREMOCON_USE)==
-																BST_CHECKED;
+				State=::IsDlgButtonChecked(hDlg,IDC_NETWORKREMOCON_USE);
 				::GetDlgItemTextA(hDlg,IDC_NETWORKREMOCON_ADDRESS,szAddress,
 														lengthof(szAddress));
 				Port=::GetDlgItemInt(hDlg,IDC_NETWORKREMOCON_PORT,NULL,FALSE);
 				::GetDlgItemText(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,
 										szChannelFile,lengthof(szChannelFile));
 				bool fUpdate=false;
-				if (fUse!=pThis->m_fUseNetworkRemocon) {
-					pThis->m_fUseNetworkRemocon=fUse;
+				if (State!=BST_INDETERMINATE
+						&& (State==BST_CHECKED)!=(pThis->m_fUseNetworkRemocon || pThis->m_fTempEnable)) {
+					pThis->m_fUseNetworkRemocon=State==BST_CHECKED;
+					pThis->m_fTempEnable=false;
 					fUpdate=true;
-				} else {
-					if (pThis->m_fUseNetworkRemocon
-							&& (pThis->m_Port!=Port
-								|| ::lstrcmpiA(pThis->m_szAddress,szAddress)!=0
-								|| ::lstrcmpi(pThis->m_szChannelFileName,szChannelFile)!=0)) {
+				} else if (pThis->m_fUseNetworkRemocon || pThis->m_fTempEnable) {
+					if (pThis->m_Port!=Port
+							|| ::lstrcmpiA(pThis->m_szAddress,szAddress)!=0
+							|| ::lstrcmpi(pThis->m_szChannelFileName,szChannelFile)!=0) {
 						fUpdate=true;
 					}
 				}

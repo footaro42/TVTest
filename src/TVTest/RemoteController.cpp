@@ -30,7 +30,7 @@ bool CRemoteController::BeginHook()
 	BeginHookFunc pBeginHook;
 
 	if (m_hLib==NULL) {
-		m_hLib=LoadLibrary(TEXT("HDUSTest_KeyHook.dll"));
+		m_hLib=LoadLibrary(TEXT("TVTest_KeyHook.dll"));
 		if (m_hLib==NULL)
 			return false;
 	}

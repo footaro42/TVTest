@@ -83,9 +83,11 @@ CBonException::~CBonException()
 
 CBonException &CBonException::operator=(const CBonException &Exception)
 {
-	SetText(Exception.m_pszText);
-	SetAdvise(Exception.m_pszAdvise);
-	m_ErrorCode=Exception.m_ErrorCode;
+	if (&Exception!=this) {
+		SetText(Exception.m_pszText);
+		SetAdvise(Exception.m_pszAdvise);
+		m_ErrorCode=Exception.m_ErrorCode;
+	}
 	return *this;
 }
 
@@ -156,7 +158,8 @@ CBonErrorHandler::~CBonErrorHandler()
 
 CBonErrorHandler &CBonErrorHandler::operator=(const CBonErrorHandler &ErrorHandler)
 {
-	m_Exception=ErrorHandler.m_Exception;
+	if (&ErrorHandler!=this)
+		m_Exception=ErrorHandler.m_Exception;
 	return *this;
 }
 
@@ -182,6 +185,14 @@ void CBonErrorHandler::SetErrorCode(int ErrorCode)
 void CBonErrorHandler::SetError(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise)
 {
 	m_Exception.m_ErrorCode=ErrorCode;
+	m_Exception.SetText(pszText);
+	m_Exception.SetAdvise(pszAdvise);
+}
+
+
+void CBonErrorHandler::SetError(LPCTSTR pszText,LPCTSTR pszAdvise)
+{
+	m_Exception.m_ErrorCode=0;
 	m_Exception.SetText(pszText);
 	m_Exception.SetAdvise(pszAdvise);
 }

@@ -501,6 +501,13 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 			SendDtvEngineEvent(EID_FILE_WRITE_ERROR,pDecoder);
 			return 0UL;
 		}
+	} else if (pDecoder == &m_MediaViewer) {
+		switch (dwEventID) {
+		case CMediaViewer::EID_FILTER_GRAPH_FLUSH:
+			//ResetEngine();
+			m_BonSrcDecoder.PurgeStream();
+			return 0UL;
+		}
 	}
 
 	return 0UL;
@@ -523,6 +530,8 @@ bool CDtvEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		return false;
 	}
 	m_bBuildComplete=CheckBuildComplete();
+	if (m_bBuildComplete)
+		ResetEngine();
 	return true;
 }
 
@@ -543,7 +552,7 @@ bool CDtvEngine::RebuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		m_bBuildComplete=CheckBuildComplete();
 	}
 	m_ProgManager.SetOutputDecoder(&m_MediaViewer);
-	if (bOK)
+	if (m_bBuildComplete)
 		ResetEngine();
 	return bOK;
 }
@@ -564,6 +573,8 @@ bool CDtvEngine::OpenBcasCard(CCardReader::ReaderType CardReaderType)
 		m_TsDescrambler.CloseBcasCard();
 	}
 	m_bBuildComplete=CheckBuildComplete();
+	if (m_bBuildComplete)
+		ResetEngine();
 	return true;
 }
 

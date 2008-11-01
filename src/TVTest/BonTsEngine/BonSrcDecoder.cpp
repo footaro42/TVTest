@@ -51,10 +51,7 @@ void CBonSrcDecoder::Reset(void)
 	PauseStreamRecieve();
 
 	// 未処理のストリームを破棄する
-	if (m_bIsPlaying) {
-		// 未処理のストリームを破棄する
-		m_pBonDriver->PurgeTsStream();
-	}
+	m_pBonDriver->PurgeTsStream();
 
 	// 下位デコーダをリセットする
 	CMediaDecoder::Reset();
@@ -359,9 +356,6 @@ const bool CBonSrcDecoder::PurgeStream(void)
 
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
-
-	// 下位デコーダをリセットする
-	CMediaDecoder::Reset();
 
 	ResumeStreamRecieve();
 

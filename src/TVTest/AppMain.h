@@ -32,6 +32,9 @@ public:
 	bool SetChannel(int Space,int Channel,int Service=-1);
 	bool SetServiceByIndex(int Service);
 	bool SetServiceByID(WORD ServiceID,int *pServiceIndex=NULL);
+	bool SetDriver(LPCTSTR pszFileName);
+	bool UpdateDriverMenu();
+	bool ShowHelpContent(int ID);
 };
 
 

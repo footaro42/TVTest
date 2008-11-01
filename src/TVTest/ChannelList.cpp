@@ -594,14 +594,14 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 		return false;
 	static const char szComment[]=
 		"; " APP_NAME_A " チャンネル設定ファイル\r\n"
-		"; 名称,チューニング空間,チャンネル,リモコン番号(オプション),サービス(オプション),サービスID(オプション)\r\n";
+		"; 名称,チューニング空間,チャンネル,リモコン番号(オプション),サービス(オプション),サービスID(オプション),ネットワークID(オプション)\r\n";
 	::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL);
 	for (int i=0;i<m_NumSpaces;i++) {
 		const CChannelList *pChannelList=m_ppChannelList[i];
 
 		for (int j=0;j<pChannelList->NumChannels();j++) {
 			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(j);
-			char szName[MAX_CHANNEL_NAME*2],szText[MAX_CHANNEL_NAME*2+32];
+			char szName[MAX_CHANNEL_NAME*2],szText[MAX_CHANNEL_NAME*2+64];
 
 #ifdef UNICODE
 			::WideCharToMultiByte(CP_ACP,0,pChInfo->GetName(),-1,
@@ -609,18 +609,17 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 #else
 			::lstrcpy(szName,pChInfo->GetName());
 #endif
-			if (pChInfo->GetServiceID()!=0) {
-				Length=::wsprintfA(szText,"%s,%d,%d,%d,%d,%d\r\n",
-					szName,
-					pChInfo->GetSpace(),pChInfo->GetChannelIndex(),
-					pChInfo->GetChannelNo(),pChInfo->GetService(),
-					pChInfo->GetServiceID());
-			} else {
-				Length=::wsprintfA(szText,"%s,%d,%d,%d,%d\r\n",
-					szName,
-					pChInfo->GetSpace(),pChInfo->GetChannelIndex(),
-					pChInfo->GetChannelNo(),pChInfo->GetService());
-			}
+			Length=::wsprintfA(szText,"%s,%d,%d,%d,%d,%d,",
+				szName,
+				pChInfo->GetSpace(),pChInfo->GetChannelIndex(),
+				pChInfo->GetChannelNo(),pChInfo->GetService());
+			if (pChInfo->GetServiceID()!=0)
+				Length+=::wsprintfA(szText+Length,"%d",pChInfo->GetServiceID());
+			szText[Length++]=',';
+			if (pChInfo->GetNetworkID()!=0)
+				Length+=::wsprintfA(szText+Length,"%d",pChInfo->GetNetworkID());
+			szText[Length++]='\r';
+			szText[Length++]='\n';
 			if (!::WriteFile(hFile,szText,Length,&Write,NULL) || Write!=Length) {
 				::CloseHandle(hFile);
 				return false;
@@ -673,7 +672,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 	p=pszFile;
 	do {
 		TCHAR szName[MAX_CHANNEL_NAME];
-		int Space,Channel,ControlKey,Service,ServiceID;
+		int Space,Channel,ControlKey,Service,ServiceID,NetworkID;
 
 		while (*p=='\r' || *p=='\n' || *p==' ' || *p=='\t')
 			p++;
@@ -725,6 +724,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 		ControlKey=0;
 		Service=0;
 		ServiceID=0;
+		NetworkID=0;
 		if (*p==',') {
 			p++;
 			SkipSpaces(&p);
@@ -751,6 +751,16 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 						ServiceID=ServiceID*10+(*p-'0');
 						p++;
 					}
+					SkipSpaces(&p);
+					// ネットワークID(オプション)
+					if (*p==',') {
+						p++;
+						SkipSpaces(&p);
+						while (IsDigit(*p)) {
+							NetworkID=ServiceID*10+(*p-'0');
+							p++;
+						}
+					}
 				}
 			}
 		}
@@ -758,6 +768,8 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 			CChannelInfo ChInfo(Space,0,Channel,ControlKey,Service,szName);
 			if (ServiceID!=0)
 				ChInfo.SetServiceID(ServiceID);
+			if (NetworkID!=0)
+				ChInfo.SetNetworkID(NetworkID);
 			m_AllChannelList.AddChannel(ChInfo);
 		}
 	Next:

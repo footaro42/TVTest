@@ -13,7 +13,7 @@ class CChannelInfo {
 	int m_ChannelNo;		// リモコンチャンネル番号
 	int m_Service;			// サービス
 	TCHAR m_szName[MAX_CHANNEL_NAME];
-	WORD m_NetworkID;		// ネットワークID(Unused)
+	WORD m_NetworkID;		// ネットワークID
 	WORD m_ServiceID;		// サービスID
 public:
 	CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);

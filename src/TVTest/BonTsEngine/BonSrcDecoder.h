@@ -55,6 +55,7 @@ public:
 	LPCTSTR GetChannelName(const DWORD dwSpace, const DWORD dwChannel) const;
 
 	const DWORD GetLastError(void) const;
+	const bool PurgeStream(void);
 
 	// Append by HDUSTestÇÃíÜÇÃêl
 	int NumSpaces() const;
@@ -62,7 +63,6 @@ public:
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
 protected:
-	const bool PurgeStream(void);
 	virtual void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
 
 	void PauseStreamRecieve();

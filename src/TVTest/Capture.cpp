@@ -1,8 +1,10 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "Capture.h"
 #include "Image.h"
 #include "DrawUtil.h"
+#include "resource.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -21,6 +23,8 @@ CCaptureImage::CCaptureImage(HGLOBAL hData)
 {
 	m_hData=hData;
 	m_fLocked=false;
+	m_pszComment=NULL;
+	::GetLocalTime(&m_stCaptureTime);
 }
 
 
@@ -44,6 +48,8 @@ CCaptureImage::CCaptureImage(const BITMAPINFO *pbmi,const void *pBits)
 		}
 	}
 	m_fLocked=false;
+	m_pszComment=NULL;
+	::GetLocalTime(&m_stCaptureTime);
 }
 
 
@@ -54,6 +60,7 @@ CCaptureImage::~CCaptureImage()
 			::GlobalUnlock(m_hData);
 		::GlobalFree(m_hData);
 	}
+	delete [] m_pszComment;
 }
 
 
@@ -125,6 +132,12 @@ bool CCaptureImage::UnlockData()
 	::GlobalUnlock(m_hData);
 	m_fLocked=false;
 	return true;
+}
+
+
+bool CCaptureImage::SetComment(LPCTSTR pszComment)
+{
+	return ReplaceString(&m_pszComment,pszComment);
 }
 
 
@@ -336,10 +349,62 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 		}
 		return 0;
 
+	case WM_RBUTTONDOWN:
+		{
+			CCapturePreview *pThis=GetThis(hwnd);
+			HMENU hmenu;
+			POINT pt;
+
+			hmenu=::LoadMenu(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDM_CAPTUREPREVIEW));
+			::EnableMenuItem(hmenu,CM_COPY,MF_BYCOMMAND |
+							 (pThis->m_pImage!=NULL?MFS_ENABLED:MFS_GRAYED));
+			::EnableMenuItem(hmenu,CM_SAVEIMAGE,MF_BYCOMMAND |
+							 (pThis->m_pImage!=NULL?MFS_ENABLED:MFS_GRAYED));
+			pt.x=GET_X_LPARAM(lParam);
+			pt.y=GET_Y_LPARAM(lParam);
+			::ClientToScreen(hwnd,&pt);
+			::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,
+							 hwnd,NULL);
+			::DestroyMenu(hmenu);
+		}
+		return TRUE;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case CM_COPY:
+			{
+				CCapturePreview *pThis=GetThis(hwnd);
+
+				if (pThis->m_pImage!=NULL) {
+					if (!pThis->m_pImage->SetClipboard(hwnd)) {
+						::MessageBox(hwnd,TEXT("クリップボードにデータを設定できません。"),NULL,
+									 MB_OK | MB_ICONEXCLAMATION);
+					}
+				}
+			}
+			return TRUE;
+
+		case CM_SAVEIMAGE:
+			{
+				CCapturePreview *pThis=GetThis(hwnd);
+
+				if (pThis->m_pImage!=NULL && pThis->m_pEvent!=NULL) {
+					if (!pThis->m_pEvent->OnSave(pThis->m_pImage)) {
+						::MessageBox(hwnd,TEXT("画像の保存ができません。"),NULL,
+									 MB_OK | MB_ICONEXCLAMATION);
+					}
+				}
+			}
+			return TRUE;
+		}
+		return TRUE;
+
+	/*
 	case WM_NCHITTEST:
 		if (::DefWindowProc(hwnd,uMsg,wParam,lParam)==HTCLIENT)
 			return HTCAPTION;
 		break;
+	*/
 
 	case WM_CLOSE:
 		{

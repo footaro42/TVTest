@@ -124,7 +124,7 @@ bool CCaptureOptions::GetCustomSize(int Size,int *pWidth,int *pHeight) const
 }
 
 
-bool CCaptureOptions::GenerateFileName(LPTSTR pszFileName,int MaxLength) const
+bool CCaptureOptions::GenerateFileName(LPTSTR pszFileName,int MaxLength,const SYSTEMTIME *pst) const
 {
 	SYSTEMTIME st;
 	int ExtOffset;
@@ -137,7 +137,11 @@ bool CCaptureOptions::GenerateFileName(LPTSTR pszFileName,int MaxLength) const
 		::GetModuleFileName(NULL,pszFileName,MaxLength);
 		::lstrcpy(::PathFindFileName(pszFileName),m_szFileName);
 	}
-	GetLocalTime(&st);
+	if (pst==NULL) {
+		::GetLocalTime(&st);
+	} else {
+		st=*pst;
+	}
 	::wsprintf(pszFileName+::lstrlen(pszFileName),
 		TEXT("%04d%02d%02d-%02d%02d%02d"),
 		st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
@@ -194,6 +198,24 @@ bool CCaptureOptions::GetCommentText(LPTSTR pszComment,int MaxComment,
 	if (pszEventName!=NULL)
 		::wsprintf(pszComment+::lstrlen(pszComment),TEXT("\r\n%s"),pszEventName);
 	return true;
+}
+
+
+bool CCaptureOptions::SaveImage(CCaptureImage *pImage)
+{
+	TCHAR szFileName[MAX_PATH],szOption[16];
+	BITMAPINFO *pbmi;
+	BYTE *pBits;
+	bool fOK;
+
+	GenerateFileName(szFileName,lengthof(szFileName),&pImage->GetCaptureTime());
+	GetOptionText(szOption,lengthof(szOption));
+	if (!pImage->LockData(&pbmi,&pBits))
+		return false;
+	fOK=m_ImageCodec.SaveImage(szFileName,m_SaveFormat,szOption,
+						pbmi,pBits,m_fSetComment?pImage->GetComment():NULL);
+	pImage->UnlockData();
+	return fOK;
 }
 
 

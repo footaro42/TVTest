@@ -2,11 +2,13 @@
 #define INITIAL_SETTINGS_H
 
 
+#include "DriverManager.h"
 #include "DirectShowFilter/VideoRenderer.h"
 #include "BonTsEngine/CardReader.h"
 
 
 class CInitialSettings {
+	const CDriverManager *m_pDriverManager;
 	TCHAR m_szDriverFileName[MAX_PATH];
 	TCHAR m_szMpeg2DecoderName[128];
 	CVideoRenderer::RendererType m_VideoRenderer;
@@ -14,7 +16,7 @@ class CInitialSettings {
 	static CInitialSettings *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
-	CInitialSettings();
+	CInitialSettings(const CDriverManager *pDriverManager);
 	~CInitialSettings();
 	LPCTSTR GetDriverFileName() const { return m_szDriverFileName; }
 	bool GetDriverFileName(LPTSTR pszFileName,int MaxLength) const;

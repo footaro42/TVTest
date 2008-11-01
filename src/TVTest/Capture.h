@@ -8,6 +8,8 @@
 class CCaptureImage {
 	HGLOBAL m_hData;
 	bool m_fLocked;
+	SYSTEMTIME m_stCaptureTime;
+	LPTSTR m_pszComment;
 public:
 	CCaptureImage(HGLOBAL hData);
 	CCaptureImage(const BITMAPINFO *pbmi,const void *pBits);
@@ -16,6 +18,9 @@ public:
 	bool GetBitmapInfoHeader(BITMAPINFOHEADER *pbmih) const;
 	bool LockData(BITMAPINFO **ppbmi,BYTE **ppBits);
 	bool UnlockData();
+	const SYSTEMTIME &GetCaptureTime() const { return m_stCaptureTime; }
+	bool SetComment(LPCTSTR pszComment);
+	LPCTSTR GetComment() const { return m_pszComment; }
 };
 
 class CCapturePreview;
@@ -27,6 +32,7 @@ public:
 	CCapturePreviewEvent();
 	virtual ~CCapturePreviewEvent() {}
 	virtual bool OnClose() { return true; }
+	virtual bool OnSave(CCaptureImage *pImage) { return false; }
 	friend CCapturePreview;
 };
 

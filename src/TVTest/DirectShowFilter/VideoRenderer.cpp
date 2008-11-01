@@ -68,18 +68,18 @@ bool CVideoRenderer_Default::Initialize(IGraphBuilder *pFilterGraph,IPin *pInput
 
 	hr=pFilterGraph->Render(pInputPin);
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("映像レンダラを構築できません。"));
+		SetError(TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	hr=pFilterGraph->QueryInterface(IID_IVideoWindow,reinterpret_cast<LPVOID *>(&m_pVideoWindow));
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("IVideoWindowを取得できません。"));
+		SetError(TEXT("IVideoWindowを取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph->QueryInterface(IID_IBasicVideo2,reinterpret_cast<LPVOID *>(&m_pBasicVideo));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pVideoWindow);
-		SetErrorText(TEXT("IBasicVideo2を取得できません。"));
+		SetError(TEXT("IBasicVideo2を取得できません。"));
 		return false;
 	}
 	m_pVideoWindow->put_Owner((OAHWND)hwndRender);
@@ -99,11 +99,11 @@ bool CVideoRenderer_Default::Initialize(IGraphBuilder *pFilterGraph,IPin *pInput
 
 bool CVideoRenderer_Default::Finalize()
 {
-	SAFE_RELEASE(m_pBasicVideo);
+	CHECK_RELEASE(m_pBasicVideo);
 	if (m_pVideoWindow) {
 		m_pVideoWindow->put_Visible(OAFALSE);
 		m_pVideoWindow->put_Owner(NULL);
-		SAFE_RELEASE(m_pVideoWindow);
+		CHECK_RELEASE(m_pVideoWindow);
 	}
 	return true;
 }
@@ -186,6 +186,7 @@ bool CVideoRenderer_Default::SetVisible(bool fVisible)
 class CVideoRenderer_VMR7 : public CVideoRenderer {
 public:
 	CVideoRenderer_VMR7();
+	~CVideoRenderer_VMR7();
 	bool Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain);
 	bool Finalize();
 	bool SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSourceRect,
@@ -203,6 +204,12 @@ CVideoRenderer_VMR7::CVideoRenderer_VMR7()
 }
 
 
+CVideoRenderer_VMR7::~CVideoRenderer_VMR7()
+{
+	CHECK_RELEASE(m_pRenderer);
+}
+
+
 bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain)
 {
 	HRESULT hr;
@@ -210,13 +217,13 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("VMRのインスタンスを作成できません。"));
+		SetError(TEXT("VMRのインスタンスを作成できません。"));
 		return false;
 	}
 	hr=pFilterGraph->AddFilter(m_pRenderer,L"VMR7");
 	if (FAILED(hr)) {
-		SAFE_RELEASE(m_pRenderer);
-		SetErrorText(TEXT("VMRをフィルタグラフに追加できません。"));
+		CHECK_RELEASE(m_pRenderer);
+		SetError(TEXT("VMRをフィルタグラフに追加できません。"));
 		return false;
 	}
 
@@ -232,7 +239,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 							reinterpret_cast<LPVOID*>(&pWindowlessControl));
 	pWindowlessControl->SetVideoClippingWindow(hwndRender);
 	pWindowlessControl->SetBorderColor(RGB(0,0,0));
-	pWindowlessControl->SetAspectRatioMode(VMR9ARMode_None);
+	pWindowlessControl->SetAspectRatioMode(VMR_ARMODE_NONE);
 	::GetClientRect(hwndRender,&rc);
 	pWindowlessControl->SetVideoPosition(NULL,&rc);
 	pWindowlessControl->Release();
@@ -242,14 +249,14 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("IFilterGraph2を取得できません。"));
+		SetError(TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
 								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("映像レンダラを構築できません。"));
+		SetError(TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
@@ -260,7 +267,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 
 bool CVideoRenderer_VMR7::Finalize()
 {
-	SAFE_RELEASE(m_pRenderer);
+	//CHECK_RELEASE(m_pRenderer);
 	return true;
 }
 
@@ -388,6 +395,7 @@ bool CVideoRenderer_VMR7::SetVisible(bool fVisible)
 class CVideoRenderer_VMR9 : public CVideoRenderer {
 public:
 	CVideoRenderer_VMR9();
+	~CVideoRenderer_VMR9();
 	bool Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain);
 	bool Finalize();
 	virtual bool SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSourceRect,
@@ -405,6 +413,12 @@ CVideoRenderer_VMR9::CVideoRenderer_VMR9()
 }
 
 
+CVideoRenderer_VMR9::~CVideoRenderer_VMR9()
+{
+	CHECK_RELEASE(m_pRenderer);
+}
+
+
 bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain)
 {
 	HRESULT hr;
@@ -412,16 +426,15 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer9,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("VMR-9のインスタンスを作成できません。"));
+		SetError(TEXT("VMR-9のインスタンスを作成できません。"));
 		return false;
 	}
 	hr=pFilterGraph->AddFilter(m_pRenderer,L"VMR9");
 	if (FAILED(hr)) {
-		SAFE_RELEASE(m_pRenderer);
-		SetErrorText(TEXT("VMR-9をフィルタグラフに追加できません。"));
+		CHECK_RELEASE(m_pRenderer);
+		SetError(TEXT("VMR-9をフィルタグラフに追加できません。"));
 		return false;
 	}
-
 	IVMRFilterConfig *pFilterConfig;
 	IVMRWindowlessControl9 *pWindowlessControl;
 	IVMRMixerControl9 *pMixerControl;
@@ -454,14 +467,14 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("IFilterGraph2を取得できません。"));
+		SetError(TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
 								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("映像レンダラを構築できません。"));
+		SetError(TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
@@ -472,7 +485,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 
 bool CVideoRenderer_VMR9::Finalize()
 {
-	SAFE_RELEASE(m_pRenderer);
+	//CHECK_RELEASE(m_pRenderer);
 	return true;
 }
 
@@ -597,7 +610,7 @@ bool CVideoRenderer_VMR9::SetVisible(bool fVisible)
 
 
 
-#if 0
+#if 1
 
 #include <ddraw.h>
 #define D3D_OVERLOADS
@@ -608,19 +621,22 @@ class CVideoRenderer_VMR7Renderless :
 	public CUnknown,
 	public IVMRSurfaceAllocator,
 	public IVMRImagePresenter,
-	public IVMRSurfaceAllocatorNotify
+	public IVMRSurfaceAllocatorNotify,
+	public CVideoRenderer
 {
 	LPDIRECTDRAWSURFACE7 m_pddsPrimary;
 	LPDIRECTDRAWSURFACE7 m_pddsPriText;
 	LPDIRECTDRAWSURFACE7 m_pddsRenderT;
 
-	IVMRSurfaceAllocator       *m_lpDefSA;
-	IVMRImagePresenter         *m_lpDefIP;
-	IVMRSurfaceAllocatorNotify *m_lpDefSAN;
+	IVMRSurfaceAllocator       *m_pSurfaceAllocator;
+	IVMRImagePresenter         *m_pImagePresenter;
+	IVMRSurfaceAllocatorNotify *m_pSurfaceAllocatorNotify;
+
+	int m_Duration;
 
 	HRESULT CreateDefaultAllocatorPresenter(HWND hwndRender);
 	HRESULT AddVideoMixingRendererToFG();
-	HRESULT OnSetDDrawDevice(LPDIRECTDRAW7 pDD, HMONITOR hMon);
+	HRESULT OnSetDDrawDevice(LPDIRECTDRAW7 pDD,HMONITOR hMon);
 
 public:
 	CVideoRenderer_VMR7Renderless();
@@ -636,7 +652,7 @@ public:
 								 LPDIRECTDRAWSURFACE7* lplpSurface);
 	STDMETHODIMP FreeSurface(DWORD_PTR dwUserID);
 	STDMETHODIMP PrepareSurface(DWORD_PTR dwUserID,
-						LPDIRECTDRAWSURFACE7 lplpSurface,DWORD dwSurfaceFlags);
+						LPDIRECTDRAWSURFACE7 lpSurface,DWORD dwSurfaceFlags);
 	STDMETHODIMP AdviseNotify(IVMRSurfaceAllocatorNotify* lpIVMRSurfAllocNotify);
 
 	// IVMRSurfaceAllocatorNotify
@@ -667,19 +683,26 @@ public:
 
 
 CVideoRenderer_VMR7Renderless::CVideoRenderer_VMR7Renderless()
-	: m_pddsPrimary(NULL)
+	: CUnknown(TEXT("VMR7 Renderless"),NULL)
+	, m_pddsPrimary(NULL)
 	, m_pddsPriText(NULL)
 	, m_pddsRenderT(NULL)
-	, m_lpDefSA(NULL)
-	, m_lpDefIP(NULL)
-	, m_lpDefSAN(NULL)
+	, m_pSurfaceAllocator(NULL)
+	, m_pImagePresenter(NULL)
+	, m_pSurfaceAllocatorNotify(NULL)
+	, m_Duration(-1)
 {
+	AddRef();
 }
 
 
 CVideoRenderer_VMR7Renderless::~CVideoRenderer_VMR7Renderless()
 {
 	TRACE(TEXT("CVideoRenderer_VMR7Renderless::~CVideoRenderer_VMR7Renderless()\n"));
+	CHECK_RELEASE(m_pImagePresenter);
+	CHECK_RELEASE(m_pSurfaceAllocator);
+	CHECK_RELEASE(m_pSurfaceAllocatorNotify);
+	CHECK_RELEASE(m_pRenderer);
 }
 
 
@@ -688,26 +711,31 @@ HRESULT CVideoRenderer_VMR7Renderless::CreateDefaultAllocatorPresenter(HWND hwnd
 	HRESULT hr;
 
 	hr=::CoCreateInstance(CLSID_AllocPresenter,NULL,CLSCTX_INPROC_SERVER,
-			IID_IVMRSurfaceAllocator,reinterpret_cast<LPVOID*>(&m_lpDefSA));
+		IID_IVMRSurfaceAllocator,reinterpret_cast<LPVOID*>(&m_pSurfaceAllocator));
 	if (SUCCEEDED(hr)) {
-		hr=m_lpDefSA->QueryInterface(IID_IVMRImagePresenter,
-									 reinterpret_cast<LPVOID*>(&m_lpDefIP));
+		m_pSurfaceAllocator->AdviseNotify(this);
+		hr=m_pSurfaceAllocator->QueryInterface(IID_IVMRImagePresenter,
+								reinterpret_cast<LPVOID*>(&m_pImagePresenter));
 		if (SUCCEEDED(hr)) {
 			IVMRWindowlessControl *pWindowlessControl;
 
-			hr=m_lpDefSA->QueryInterface(IID_IVMRWindowlessControl,
+			hr=m_pSurfaceAllocator->QueryInterface(IID_IVMRWindowlessControl,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl));
 			if (SUCCEEDED(hr)) {
+				RECT rc;
+
 				pWindowlessControl->SetVideoClippingWindow(hwndRender);
 				pWindowlessControl->SetBorderColor(RGB(0,0,0));
+				pWindowlessControl->SetAspectRatioMode(VMR_ARMODE_NONE);
+				::GetClientRect(hwndRender,&rc);
+				pWindowlessControl->SetVideoPosition(NULL,&rc);
 				pWindowlessControl->Release();
-				hr=m_lpDefSA->AdviseNotify(this));
 			}
 		}
 	}
 	if (FAILED(hr)) {
-		SAFE_RELEASE(m_lpDefIP);
-		SAFE_RELEASE(m_lpDefSA);
+		CHECK_RELEASE(m_pImagePresenter);
+		CHECK_RELEASE(m_pSurfaceAllocator);
 	}
 	return hr;
 }
@@ -728,46 +756,46 @@ STDMETHODIMP CVideoRenderer_VMR7Renderless::NonDelegatingQueryInterface(
 STDMETHODIMP CVideoRenderer_VMR7Renderless::AllocateSurface(
 	DWORD_PTR dwUserID,VMRALLOCATIONINFO *lpAllocInfo,DWORD* lpdwBuffer,LPDIRECTDRAWSURFACE7* lplpSurface)
 {
-	return m_lpDefSA->AllocateSurface(dwUserID,lpAllocInfo,lpdwBuffer,lplpSurface);
+	return m_pSurfaceAllocator->AllocateSurface(dwUserID,lpAllocInfo,lpdwBuffer,lplpSurface);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::FreeSurface(DWORD_PTR dwUserID)
 {
-	return m_lpDefSA->FreeSurface(dwUserID);
+	return m_pSurfaceAllocator->FreeSurface(dwUserID);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::PrepareSurface(DWORD_PTR dwUserID,
 						LPDIRECTDRAWSURFACE7 lplpSurface,DWORD dwSurfaceFlags)
 {
-	return m_lpDefSA->PrepareSurface(dwUserID,lplpSurface,dwSurfaceFlags);
+	return m_pSurfaceAllocator->PrepareSurface(dwUserID,lplpSurface,dwSurfaceFlags);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::AdviseNotify(
 							IVMRSurfaceAllocatorNotify* lpIVMRSurfAllocNotify)
 {
-	return m_lpDefSA->AdviseNotify(lpIVMRSurfAllocNotify);
+	return m_pSurfaceAllocator->AdviseNotify(lpIVMRSurfAllocNotify);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::AdviseSurfaceAllocator(
 			DWORD_PTR dwUserID,IVMRSurfaceAllocator* lpIVRMSurfaceAllocator)
 {
-	return m_lpDefSAN->AdviseSurfaceAllocator(dwUserID,lpIVRMSurfaceAllocator);
+	return m_pSurfaceAllocatorNotify->AdviseSurfaceAllocator(dwUserID,lpIVRMSurfaceAllocator);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::SetDDrawDevice(LPDIRECTDRAW7 lpDDrawDevice,HMONITOR hMonitor)
 {
-    return m_lpDefSAN->SetDDrawDevice(lpDDrawDevice,hMonitor);
+    return m_pSurfaceAllocatorNotify->SetDDrawDevice(lpDDrawDevice,hMonitor);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::ChangeDDrawDevice(LPDIRECTDRAW7 lpDDrawDevice,HMONITOR hMonitor)
 {
-	return m_lpDefSAN->ChangeDDrawDevice(lpDDrawDevice,hMonitor);
+	return m_pSurfaceAllocatorNotify->ChangeDDrawDevice(lpDDrawDevice,hMonitor);
 }
 
 
@@ -796,9 +824,9 @@ HRESULT CVideoRenderer_VMR7Renderless::OnSetDDrawDevice(LPDIRECTDRAW7 pDD,
 {
 	HRESULT hr;
 
-	RELEASE(m_pddsRenderT);
-	RELEASE(m_pddsPriText);
-	RELEASE(m_pddsPrimary);
+	CHECK_RELEASE(m_pddsRenderT);
+	CHECK_RELEASE(m_pddsPriText);
+	CHECK_RELEASE(m_pddsPrimary);
 
 	DDSURFACEDESC2 ddsd;
 
@@ -828,9 +856,9 @@ HRESULT CVideoRenderer_VMR7Renderless::OnSetDDrawDevice(LPDIRECTDRAW7 pDD,
 	if (SUCCEEDED(hr))
 		hr=pDD->CreateSurface(&ddsd,&m_pddsRenderT,NULL);
 	if (FAILED(hr)) {
-		RELEASE(m_pddsRenderT);
-		RELEASE(m_pddsPriText);
-		RELEASE(m_pddsPrimary);
+		CHECK_RELEASE(m_pddsRenderT);
+		CHECK_RELEASE(m_pddsPriText);
+		CHECK_RELEASE(m_pddsPrimary);
 	}
 	return hr;
 }
@@ -838,31 +866,31 @@ HRESULT CVideoRenderer_VMR7Renderless::OnSetDDrawDevice(LPDIRECTDRAW7 pDD,
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::RestoreDDrawSurfaces()
 {
-    return m_lpDefSAN->RestoreDDrawSurfaces();
+    return m_pSurfaceAllocatorNotify->RestoreDDrawSurfaces();
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::NotifyEvent(LONG EventCode,LONG_PTR lp1,LONG_PTR lp2)
 {
-	return m_lpDefSAN->NotifyEvent(EventCode,lp1,lp2);
+	return m_pSurfaceAllocatorNotify->NotifyEvent(EventCode,lp1,lp2);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::SetBorderColor(COLORREF clr)
 {
-	return m_lpDefSAN->SetBorderColor(clr);
+	return m_pSurfaceAllocatorNotify->SetBorderColor(clr);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::StartPresenting(DWORD_PTR dwUserID)
 {
-	return m_lpDefIP->StartPresenting(dwUserID);
+	return m_pImagePresenter->StartPresenting(dwUserID);
 }
 
 
 STDMETHODIMP CVideoRenderer_VMR7Renderless::StopPresenting(DWORD_PTR dwUserID)
 {
-	return m_lpDefIP->StopPresenting(dwUserID);
+	return m_pImagePresenter->StopPresenting(dwUserID);
 }
 
 
@@ -870,105 +898,72 @@ STDMETHODIMP CVideoRenderer_VMR7Renderless::PresentImage(DWORD_PTR dwUserID,
 											VMRPRESENTATIONINFO* lpPresInfo)
 {
 #if 0
-    LPDIRECTDRAWSURFACE7 lpSurface = lpPresInfo->lpSurf;
-    const REFERENCE_TIME rtNow = lpPresInfo->rtStart;
-    const DWORD dwSurfaceFlags = lpPresInfo->dwFlags;
+	LPDIRECTDRAWSURFACE7 lpSurface=lpPresInfo->lpSurf;
+	const REFERENCE_TIME rtNow=lpPresInfo->rtStart;
+	const DWORD dwSurfaceFlags=lpPresInfo->dwFlags;
 
-    if(m_iDuration > 0)
-    {
-        HRESULT hr;
-        RECT rs, rd;
-        DDSURFACEDESC2 ddsdV;
+	if (m_iDuration>0) {
+		HRESULT hr;
+		RECT rs,rd;
+		DDSURFACEDESC2 ddsdV;
 
-        INITDDSTRUCT(ddsdV);
-        hr = lpSurface->GetSurfaceDesc(&ddsdV);
+		::ZeroMemory(&ddsdV,sizeof(ddsdV));
+		ddsdV.dwSize=sizeof(ddsd);
+		hr=lpSurface->GetSurfaceDesc(&ddsdV);
 
-        DDSURFACEDESC2 ddsdP;
-        INITDDSTRUCT(ddsdP);
-        hr = m_pddsPriText->GetSurfaceDesc(&ddsdP);
+		DDSURFACEDESC2 ddsdP;
+		::ZeroMemory(&ddsdP,sizeof(ddsdP));
+		ddsdP.dwSize=sizeof(ddsd);
+		hr=m_pddsPriText->GetSurfaceDesc(&ddsdP);
 
-        FLOAT fPos = (FLOAT)m_iDuration / 30.0F;
-        FLOAT fPosInv = 1.0F - fPos;
+		FLOAT fPos = (FLOAT)m_Duration / 30.0F;
+		FLOAT fPosInv = 1.0F - fPos;
 
-        SetRect(&rs, 0, 0,
-            MulDiv((int)ddsdV.dwWidth, 30 - m_iDuration, 30),
-            ddsdV.dwHeight);
+		::SetRect(&rs, 0, 0,
+			::MulDiv((int)ddsdV.dwWidth,30-m_Duration,30),
+			ddsdV.dwHeight);
+		::SetRect(&rd, 0, 0,
+			::MulDiv((int)ddsdP.dwWidth,30-m_Duration,30),
+			ddsdP.dwHeight);
+		hr=m_pddsRenderT->Blt(&rd,lpSurface,&rs,DDBLT_WAIT,NULL);
 
-        SetRect(&rd, 0, 0,
-            MulDiv((int)ddsdP.dwWidth, 30 - m_iDuration, 30),
-            ddsdP.dwHeight);
+		::SetRect(&rs, 0, 0,
+			::MulDiv((int)ddsdP.dwWidth,m_Duration,30),
+			ddsdP.dwHeight);
+		::SetRect(&rd,
+			(int)ddsdP.dwWidth-::MulDiv((int)ddsdP.dwWidth,m_Duration,30),
+			0,
+			ddsdP.dwWidth,
+			ddsdP.dwHeight);
+		hr=m_pddsRenderT->Blt(&rd,m_pddsPriText,&rs,DDBLT_WAIT,NULL);
 
-        hr = m_pddsRenderT->Blt(&rd, lpSurface,
-            &rs, DDBLT_WAIT, NULL);
-
-        SetRect(&rs, 0, 0,
-            MulDiv((int)ddsdP.dwWidth, m_iDuration, 30),
-            ddsdP.dwHeight);
-
-        SetRect(&rd,
-            (int)ddsdP.dwWidth - MulDiv((int)ddsdP.dwWidth, m_iDuration, 30),
-            0,
-            ddsdP.dwWidth,
-            ddsdP.dwHeight);
-
-        hr = m_pddsRenderT->Blt(&rd, m_pddsPriText,
-            &rs, DDBLT_WAIT, NULL);
-
-        //
-        // need to wait for VBlank before blt-ing
-        //
-        {
-            LPDIRECTDRAW lpdd;
-            hr = m_pddsPrimary->GetDDInterface((LPVOID*)&lpdd);
-            if(SUCCEEDED(hr))
-            {
-                DWORD dwScanLine;
-                for(; ;)
-                {
-                    hr = lpdd->GetScanLine(&dwScanLine);
-
-                    if(hr ==  DDERR_VERTICALBLANKINPROGRESS)
-                    {
-                        break;
-                    }
-
-                    if(FAILED(hr))
-                    {
-                        break;
-                    }
-
-                    if((LONG)dwScanLine>= rd.top)
-                    {
-                        if((LONG)dwScanLine <= rd.bottom)
-                        {
-                            continue;
-                        }
-                    }
-
-                    break;
-                }
-
-                RELEASE(lpdd);
-            }
-        }
-
-        hr = m_pddsPrimary->Blt(NULL, m_pddsRenderT,
-            NULL, DDBLT_WAIT, NULL);
-
-        m_iDuration--;
-        if(m_iDuration == 0 && (ddsdV.ddsCaps.dwCaps & DDSCAPS_OVERLAY))
-        {
-            // need to get the color key visible again.
-            InvalidateRect(m_hwndApp, NULL, FALSE);
-        }
-        return hr;
-    }
-    else
-    {
-        return m_lpDefIP->PresentImage(dwUserID, lpPresInfo);
-    }
+		LPDIRECTDRAW lpdd;
+		hr = m_pddsPrimary->GetDDInterface((LPVOID*)&lpdd);
+		if (SUCCEEDED(hr)) {
+			DWORD dwScanLine;
+			for (;;) {
+				hr=lpdd->GetScanLine(&dwScanLine);
+				if (hr==DDERR_VERTICALBLANKINPROGRESS)
+					break;
+				if (FAILED(hr))
+					break;
+				if ((LONG)dwScanLine>=rd.top) {
+					if ((LONG)dwScanLine<=rd.bottom)
+						continue;
+				}
+				break;
+			}
+			lpdd->Release();
+		}
+		hr=m_pddsPrimary->Blt(NULL,m_pddsRenderT,NULL,DDBLT_WAIT,NULL);
+		m_Duration--;
+		if (m_Duration==0 && (ddsdV.ddsCaps.dwCaps&DDSCAPS_OVERLAY)!=0) {
+			::InvalidateRect(m_hwndRender,NULL,FALSE);
+		}
+		return hr;
+	}
 #endif
-	return m_lpDefIP->PresentImage(dwUserID,lpPresInfo);
+	return m_pImagePresenter->PresentImage(dwUserID,lpPresInfo);
 }
 
 
@@ -980,21 +975,36 @@ bool CVideoRenderer_VMR7Renderless::Initialize(IGraphBuilder *pFilterGraph,
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer,NULL,CLSCTX_INPROC,
 					IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("VMRのインスタンスを作成できません。"));
+		SetError(TEXT("VMRのインスタンスを作成できません。"));
 		return false;
 	}
 	hr=pFilterGraph->AddFilter(m_pRenderer, L"VMR");
 	if (FAILED(hr)) {
-		SetErrorText(TEXT("VMRをフィルタグラフに追加できません。"));
+		SetError(TEXT("VMRをフィルタグラフに追加できません。"));
 		return false;
 	}
 	IVMRFilterConfig *pFilterConfig;
 	hr=m_pRenderer->QueryInterface(IID_IVMRFilterConfig,reinterpret_cast<LPVOID*>(&pFilterConfig));
-	pConfig->SetRenderingMode(VMRMode_Renderless);
-	pConfig->Release();
-	m_pRenderer->QueryInterface(IID_IVMRSurfaceAllocatorNotify,reinterpret_cast<LPVOID*>(&m_lpDefSAN));
+	pFilterConfig->SetRenderingMode(VMRMode_Renderless);
+	pFilterConfig->Release();
+	m_pRenderer->QueryInterface(IID_IVMRSurfaceAllocatorNotify,reinterpret_cast<LPVOID*>(&m_pSurfaceAllocatorNotify));
 	CreateDefaultAllocatorPresenter(hwndRender);
-	m_lpDefSAN->AdviseSurfaceAllocator(1234,this);
+	m_pSurfaceAllocatorNotify->AdviseSurfaceAllocator(1234,this);
+
+	IFilterGraph2 *pFilterGraph2;
+	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
+									reinterpret_cast<LPVOID*>(&pFilterGraph2));
+	if (FAILED(hr)) {
+		SetError(TEXT("IFilterGraph2を取得できません。"));
+		return false;
+	}
+	hr=pFilterGraph2->RenderEx(pInputPin,
+								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
+	pFilterGraph2->Release();
+	if (FAILED(hr)) {
+		SetError(TEXT("映像レンダラを構築できません。"));
+		return false;
+	}
 	m_pFilterGraph=pFilterGraph;
 	m_hwndRender=hwndRender;
 	return true;
@@ -1003,9 +1013,13 @@ bool CVideoRenderer_VMR7Renderless::Initialize(IGraphBuilder *pFilterGraph,
 
 bool CVideoRenderer_VMR7Renderless::Finalize()
 {
-	SAFE_RELEASE(m_lpDefSA);
-	SAFE_RELEASE(m_lpDefIP);
-	SAFE_RELEASE(m_pRenderer);
+	/*
+	CHECK_RELEASE(m_pSurfaceAllocatorNotify);
+	CHECK_RELEASE(m_pSurfaceAllocator);
+	CHECK_RELEASE(m_pImagePresenter);
+	CHECK_RELEASE(m_pRenderer);
+	*/
+	return true;
 }
 
 
@@ -1016,9 +1030,9 @@ bool CVideoRenderer_VMR7Renderless::SetVideoPosition(int SourceWidth,int SourceH
 	HRESULT hr;
 	RECT rcSrc,rcDest;
 
-	if (m_pRenderer==NULL)
+	if (m_pSurfaceAllocator==NULL)
 		return false;
-	hr=m_pRenderer->QueryInterface(IID_IVMRWindowlessControl,
+	hr=m_pSurfaceAllocator->QueryInterface(IID_IVMRWindowlessControl,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl));
 	if (FAILED(hr))
 		return false;
@@ -1050,7 +1064,7 @@ bool CVideoRenderer_VMR7Renderless::GetDestPosition(RECT *pRect)
 	if (m_pRenderer) {
 		IVMRWindowlessControl *pWindowlessControl;
 
-		if (SUCCEEDED(m_pRenderer->QueryInterface(IID_IVMRWindowlessControl,
+		if (SUCCEEDED(m_pSurfaceAllocator->QueryInterface(IID_IVMRWindowlessControl,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl)))) {
 			fOK=SUCCEEDED(pWindowlessControl->GetVideoPosition(NULL,pRect));
 			pWindowlessControl->Release();
@@ -1067,7 +1081,7 @@ bool CVideoRenderer_VMR7Renderless::GetCurrentImage(void **ppBuffer)
 	if (m_pRenderer) {
 		IVMRWindowlessControl *pWindowlessControl;
 
-		if (SUCCEEDED(m_pRenderer->QueryInterface(IID_IVMRWindowlessControl,
+		if (SUCCEEDED(m_pSurfaceAllocator->QueryInterface(IID_IVMRWindowlessControl,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl)))) {
 			BYTE *pDib;
 
@@ -1089,7 +1103,7 @@ bool CVideoRenderer_VMR7Renderless::RepaintVideo(HWND hwnd,HDC hdc)
 	if (m_pRenderer) {
 		IVMRWindowlessControl *pWindowlessControl;
 
-		if (SUCCEEDED(m_pRenderer->QueryInterface(IID_IVMRWindowlessControl,
+		if (SUCCEEDED(m_pSurfaceAllocator->QueryInterface(IID_IVMRWindowlessControl,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl)))) {
 			if (SUCCEEDED(pWindowlessControl->RepaintVideo(hwnd,hdc)))
 				fOK=true;
@@ -1107,7 +1121,7 @@ bool CVideoRenderer_VMR7Renderless::DisplayModeChanged()
 	if (m_pRenderer) {
 		IVMRWindowlessControl *pWindowlessControl;
 
-		if (SUCCEEDED(m_pRenderer->QueryInterface(IID_IVMRWindowlessControl,
+		if (SUCCEEDED(m_pSurfaceAllocator->QueryInterface(IID_IVMRWindowlessControl,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl)))) {
 			if (SUCCEEDED(pWindowlessControl->DisplayModeChanged()))
 				fOK=true;
@@ -1143,6 +1157,9 @@ bool CVideoRenderer::CreateRenderer(RendererType Type,CVideoRenderer **ppRendere
 	case RENDERER_VMR9:
 		*ppRenderer=new CVideoRenderer_VMR9;
 		break;
+	case RENDERER_VMR7RENDERLESS:
+		*ppRenderer=new CVideoRenderer_VMR7Renderless;
+		break;
 	default:
 		return false;
 	}
@@ -1156,9 +1173,10 @@ LPCTSTR CVideoRenderer::EnumRendererName(int Index)
 		TEXT("Default"),
 		TEXT("VMR7"),
 		TEXT("VMR9"),
+		TEXT("VMR7 Renderless"),
 	};
 
-	if (Index<0 || Index>=3)
+	if (Index<0 || Index>=sizeof(pszRendererName)/sizeof(LPCTSTR))
 		return NULL;
 	return pszRendererName[Index];
 }

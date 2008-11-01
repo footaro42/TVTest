@@ -104,7 +104,7 @@ bool FilterGrapph_Pause(IGraphBuilder *pFilterGraph);
 // フィルタ参照カウンタ取得
 inline LONG GetRefCount(IUnknown *pUkn)
 {
-	if(!pUkn) {
+	if (!pUkn) {
 		return 0;
 	} else {
 		pUkn->AddRef();
@@ -112,6 +112,19 @@ inline LONG GetRefCount(IUnknown *pUkn)
 		return ret;
 	}
 };
+
+#ifdef DEBUG
+#define CHECK_RELEASE(pObj)									\
+	if (pObj) {												\
+		LONG RefCount=DirectShowUtil::GetRefCount(pObj);	\
+		if (RefCount!=1)									\
+			TRACE(TEXT("%s %d : RefCount = %d\n"),TEXT(__FILE__),__LINE__,RefCount);	\
+		pObj->Release();									\
+		pObj=NULL;											\
+	}
+#else
+#define CHECK_RELEASE SAFE_RELEASE
+#endif
 
 //////////////////////////////////////////////////////////////////////
 // 以下 EVR専用ユーティリティ

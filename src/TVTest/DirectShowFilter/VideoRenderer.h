@@ -15,7 +15,8 @@ public:
 		RENDERER_UNDEFINED=-1,
 		RENDERER_DEFAULT,
 		RENDERER_VMR7,
-		RENDERER_VMR9
+		RENDERER_VMR9,
+		RENDERER_VMR7RENDERLESS
 	};
 	CVideoRenderer();
 	virtual ~CVideoRenderer();

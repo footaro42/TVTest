@@ -4,13 +4,15 @@
 #include "AppMain.h"
 #include "InitialSettings.h"
 #include "DirectShowFilter/DirectShowUtil.h"
+#include "Help.h"
 #include "resource.h"
 
 
 
 
-CInitialSettings::CInitialSettings()
+CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 {
+	m_pDriverManager=pDriverManager;
 	m_szDriverFileName[0]='\0';
 	m_szMpeg2DecoderName[0]='\0';
 	m_VideoRenderer=CVideoRenderer::RENDERER_DEFAULT;
@@ -74,27 +76,22 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 								  rc.right,rc.bottom,FALSE);
 			}
 			{
-				TCHAR szFile[MAX_PATH];
-				HANDLE hFind;
-				WIN32_FIND_DATA wfd;
 				bool fUDPDriverExists=false,fDriverFinded=false;
 
 				::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_DRIVER,CB_LIMITTEXT,MAX_PATH-1,0);
-				GetAppClass().GetAppDirectory(szFile);
-				::PathAppend(szFile,TEXT("BonDriver*.dll"));
-				hFind=::FindFirstFile(szFile,&wfd);
-				if (hFind!=INVALID_HANDLE_VALUE) {
-					do {
-						::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_DRIVER,
-							CB_ADDSTRING,0,reinterpret_cast<LPARAM>(wfd.cFileName));
-						if (::lstrcmpi(wfd.cFileName,TEXT("BonDriver_UDP.dll"))==0) {
-							fUDPDriverExists=true;
-						} else if (!fDriverFinded) {
-							::lstrcpy(pThis->m_szDriverFileName,wfd.cFileName);
-							fDriverFinded=true;
-						}
-					} while (::FindNextFile(hFind,&wfd));
-					::FindClose(hFind);
+				for (int i=0;i<pThis->m_pDriverManager->NumDrivers();i++) {
+					const CDriverInfo *pDriverInfo=pThis->m_pDriverManager->GetDriverInfo(i);
+
+					::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_DRIVER,
+						CB_ADDSTRING,0,
+						reinterpret_cast<LPARAM>(pDriverInfo->GetFileName()));
+					if (::lstrcmpi(pDriverInfo->GetFileName(),
+								   TEXT("BonDriver_UDP.dll"))==0) {
+						fUDPDriverExists=true;
+					} else if (!fDriverFinded) {
+						::lstrcpy(pThis->m_szDriverFileName,pDriverInfo->GetFileName());
+						fDriverFinded=true;
+					}
 				}
 				if (fUDPDriverExists && !fDriverFinded)
 					::lstrcpy(pThis->m_szDriverFileName,TEXT("BonDriver_UDP.dll"));
@@ -136,7 +133,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				static const LPCTSTR pszCardReaderList[] = {
 					TEXT("なし(スクランブル解除しない)"),
 					TEXT("スマートカードリーダ"),
-					TEXT("HDUS内蔵カードリーダ(非推奨)")
+					TEXT("HDUS内蔵カードリーダ")
 				};
 
 				for (int i=0;i<lengthof(pszCardReaderList);i++)
@@ -177,6 +174,10 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,szFileName);
 				}
 			}
+			return TRUE;
+
+		case IDC_INITIALSETTINGS_HELP:
+			GetAppClass().ShowHelpContent(HELP_ID_INITIALSETTINGS);
 			return TRUE;
 
 		case IDOK:

@@ -4,7 +4,10 @@ body{
 }
 .nowrap{white-space:nowrap;}
 h1{color:#006633;}
-h2{color:#006633;}
+h2{
+	color:#406050;
+	background-color:#80c0a0;
+}
 div.group{
 	margin-left:1em;
 }
@@ -28,4 +31,22 @@ table.optionlist {
 	border:2px solid #666666;
 	color:#000000;
 	background-color:#f3f3f3;
+}
+
+table.info {
+	border-collapse:collapse;
+	border:1px solid #e0e0e0;
+}
+.info th{
+	font-size:smaller;
+	text-align:left;
+	border:1px solid #e0e0e0;
+	color:#000000;
+	background-color:#f0f0f0;
+}
+.info td{
+	font-size:smaller;
+	border:1px solid #e0e0e0;
+	color:#000000;
+	background-color:#f8f8f8;
 }

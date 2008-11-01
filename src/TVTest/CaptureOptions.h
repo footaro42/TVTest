@@ -4,6 +4,7 @@
 
 #include "Image.h"
 #include "Options.h"
+#include "Capture.h"
 
 
 class CCaptureOptions : public COptions {
@@ -38,10 +39,11 @@ public:
 	bool SetCaptureSize(int Size);
 	int GetCaptureSize() const { return m_CaptureSize; }
 	bool GetCustomSize(int Size,int *pWidth,int *pHeight) const;
-	bool GenerateFileName(LPTSTR pszFileName,int MaxLength) const;
+	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,const SYSTEMTIME *pst=NULL) const;
 	bool GetOptionText(LPTSTR pszOption,int MaxLength) const;
 	bool GetCommentText(LPTSTR pszComment,int MaxComment,
 						LPCTSTR pszChannelName,LPCTSTR pszEventName);
+	bool SaveImage(CCaptureImage *pImage);
 	int TranslateCommand(int Command);
 	bool OpenSaveFolder() const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

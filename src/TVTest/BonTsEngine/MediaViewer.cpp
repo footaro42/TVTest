@@ -462,11 +462,8 @@ void CMediaViewer::CloseViewer(void)
 		Stop();
 
 	// COMインスタンスを開放する
-
 	if (m_pVideoRenderer!=NULL) {
 		m_pVideoRenderer->Finalize();
-		delete m_pVideoRenderer;
-		m_pVideoRenderer=NULL;
 	}
 
 	if (m_pImageMixer!=NULL) {
@@ -514,6 +511,11 @@ void CMediaViewer::CloseViewer(void)
 		TRACE(TEXT("FilterGraph RefCount = %d\n"),DirectShowUtil::GetRefCount(m_pFilterGraph));
 #endif
 	SAFE_RELEASE(m_pFilterGraph);
+
+	if (m_pVideoRenderer!=NULL) {
+		delete m_pVideoRenderer;
+		m_pVideoRenderer=NULL;
+	}
 
 	m_bInit=false;
 }

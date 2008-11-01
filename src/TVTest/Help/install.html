@@ -8,44 +8,49 @@
 <body>
 <h2>導入</h2>
 
+<h3>必要なランタイム</h3>
 <p>
-実行には Visual C++ 2005 SP1 のランタイムが必要ですので、もしお使いのシステムに入っていない場合は別途入手してください。<br>
+実行には Visual C++ 2005 SP1 のランタイムが必要ですので、もしお使いのシステムに入っていない場合は別途入手してインストールしてください。<br>
 以下のページからダウンロードできます。<br>
-<a href="http://www.microsoft.com/downloads/details.aspx?displaylang=ja&FamilyID=200b2fd9-ae1a-4a14-984d-389c36f85647">Microsoft Visual C++ 2005 SP1 再頒布可能パッケージ</a><br>
+<a href="http://www.microsoft.com/downloads/details.aspx?displaylang=ja&FamilyID=200b2fd9-ae1a-4a14-984d-389c36f85647">Microsoft Visual C++ 2005 SP1 再頒布可能パッケージ (x86)</a><br>
 </p>
 
+<h3>あると便利なもの</h3>
 <p>
-TVTest で実際に視聴を行うには、BonDriver が必要です。
+EpgDataCap_Bon に含まれる EpgDataCap.dll を TVTest.exe と同じフォルダに入れると、EPG番組表や番組情報の表示などができます。<br>
+EpgDataCap_Bon は<a href="http://2sen.dip.jp/cgi-bin/friioup/upload.cgi">Friio関係ファイル置き場</a>でダウンロードできます。
 </p>
 
-<h3>単体で視聴する場合</h3>
-<p class="descript">
+<h3>単体で視聴する</h3>
+<p>
+TVTest で実際に視聴を行うには、BonDriver が必要です。<br>
 使用するチューナーに対応した BonDriver を、<a href="http://2sen.dip.jp/dtv/">DTV関係ツール(http://2sen.dip.jp/dtv/)</a>のアップローダからからダウンロードして、BonDriver_*.dll を TVTest.exe と同じフォルダに入れます。<br>
 使用する BonDriver は設定ダイアログで指定するか、コマンドラインで <span class="nowrap">/d BonDriver.dll</span> のように指定します。<br>
 </p>
 
-<h3>EpgDataCap_Bon や cap_hdus GUI+ などから呼び出して視聴する場合</h3>
-<p class="descript">
+<h3>EpgDataCap_Bon や cap_hdus GUI+ などから呼び出して視聴する</h3>
+<p>
 呼び出し側のプログラムで、視聴プログラムを<br>
 <span class="nowrap">"TVTestのあるフォルダ\TVTest.exe" /nd /d BonDriver_UDP.dll"</span><br>
 のように設定します。</br>
 BonDriver_UDP.dll は、TVTest に同梱されています。</br>
+コマンドラインオプションに関しては「<a href="commandline.html">コマンドライン</a>」の項を参照してください。
 </p>
 
+<h3>起動</h3>
 <p>
-EpgDataCap_Bon に含まれる EpgDataCap.dll を TVTest.exe と同じフォルダに入れると、番組情報などを表示できます。<br>
-EpgDataCap_Bon は<a href="http://2sen.dip.jp/cgi-bin/friioup/upload.cgi">Friio関係ファイル置き場(http://2sen.dip.jp/cgi-bin/friioup/upload.cgi)</a>でダウンロードできます。
-</p>
-<p>
-次に、TVTest を起動したら、チャンネルスキャンを実行して視聴可能なチャンネルを検索します。
-</p>
-<p>
-チャンネルスキャンを実行するには、右クリックメニューから [<a href="options.html">設定</a>] を選択して設定ダイアログを表示させ、左のリストから [<a href="options/channelscan.html">チャンネルスキャン</a>] を選択します。<br>
+初回起動時に<a href="initialsettings.html">初期設定ダイアログ</a>が表示されますので、各項目を設定してください。<br>
+TVTest を起動したら、チャンネルスキャンを実行して視聴可能なチャンネルを検索します(チャンネルスキャンを行わなくても使用することは可能です)。<br>
+初回起動時にチャンネルスキャンを行うかどうかを尋ねられますので、そこで [はい] を選択するか、右クリックメニューから [<a href="options.html">設定</a>] を選択して設定ダイアログを表示させ、左のリストから [<a href="options/channelscan.html">チャンネルスキャン</a>] を選択します。<br>
 [スキャン開始] ボタンを押すとチャンネルスキャンが始まります。チャンネルスキャンには数分掛かります。<br>
 深夜などで停波している局は検索できませんので注意してください。<br>
 使用しているチューナーが複数のチューニング空間に対応している場合は、チューニング空間ごとにスキャンを行う必要があります。<br>
 </p>
 
+<p>
+チャンネルスキャンを行わずに、cap_hdus などと互換性のあるチャンネルファイルを利用することもできます。<br>
+詳しくは「<a href="appendix/channelfile.html">チャンネルファイル</a>」の項をご覧ください。
+</p>
 
 </body>
 </html>

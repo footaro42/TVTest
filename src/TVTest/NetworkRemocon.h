@@ -35,6 +35,7 @@ public:
 	bool SetChannel(int ChannelNo);
 	bool GetChannel(CNetworkRemoconReciver *pReciver);
 	bool SetService(int Service);
+	bool GetDriverList(CNetworkRemoconReciver *pReciver);
 	bool LoadChannelText(LPCTSTR pszFileName,const CChannelList *pChannelList);
 	const CChannelList &GetChannelList() const { return m_ChannelList; }
 	CChannelList &GetChannelList() { return m_ChannelList; }
@@ -45,6 +46,7 @@ class CNetworkRemoconOptions : public COptions {
 	char m_szAddress[16];
 	unsigned int m_Port;
 	TCHAR m_szChannelFileName[MAX_PATH];
+	TCHAR m_szDefaultChannelFileName[MAX_PATH];
 	bool m_fTempEnable;
 	unsigned int m_TempPort;
 	void GetChannelFilePath(LPTSTR pszPath) const;
@@ -57,9 +59,14 @@ public:
 	unsigned int GetPort() const { return m_Port; }
 	bool SetTempEnable(bool fEnable);
 	bool SetTempPort(unsigned int Port);
+	LPCTSTR GetChannelFileName() const { return m_szChannelFileName; }
+	bool SetDefaultChannelFileName(LPCTSTR pszFileName);
+	bool IsEnable() const;
 	bool IsSettingValid() const;
+	bool CreateNetworkRemocon(CNetworkRemocon **ppNetworkRemocon);
 	bool InitNetworkRemocon(CNetworkRemocon **ppNetworkRemocon,
 		const CCoreEngine *pCoreEngine,CChannelManager *pChannelManager) const;
+	bool FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFileName) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

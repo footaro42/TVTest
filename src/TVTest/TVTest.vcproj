@@ -250,6 +250,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DriverManager.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\EpgOptions.cpp"
 				>
 			</File>
@@ -311,6 +315,10 @@
 			</File>
 			<File
 				RelativePath=".\PanelOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\PointerArray.cpp"
 				>
 			</File>
 			<File
@@ -452,6 +460,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DriverManager.h"
+				>
+			</File>
+			<File
 				RelativePath=".\EpgOptions.h"
 				>
 			</File>
@@ -496,6 +508,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\MainWindow.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Menu.h"
 				>
 			</File>
@@ -517,6 +533,10 @@
 			</File>
 			<File
 				RelativePath=".\PanelOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PointerArray.h"
 				>
 			</File>
 			<File
