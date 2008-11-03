@@ -71,8 +71,6 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_bGrabber(false)
 	, m_pGrabber(NULL)
 	, m_pTracer(NULL)
-	, m_bFirstDescrambleVideo(false)
-	, m_bFirstDescrambleAudio(false)
 	, m_hFlushThread(NULL)
 	, m_hFlushEvent(NULL)
 	, m_hFlushResumeEvent(NULL)
@@ -114,9 +112,6 @@ void CMediaViewer::Reset(void)
 	SetVideoPID(0xFFFFU);
 	SetAudioPID(0xFFFFU);
 
-	m_bFirstDescrambleVideo=false;
-	m_bFirstDescrambleAudio=false;
-
 	if (fResume)
 		Play();
 }
@@ -129,20 +124,6 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 
 	// 入力メディアデータは互換性がない
 	if(!pTsPacket)return false;
-
-	/*
-	if (!m_bFirstDescrambleVideo || !m_bFirstDescrambleAudio) {
-		if (pTsPacket->IsScrambled())
-			return false;
-		WORD PID=pTsPacket->GetPID();
-		if (PID==m_wVideoEsPID)
-			m_bFirstDescrambleVideo=true;
-		if (PID==m_wAudioEsPID)
-			m_bFirstDescrambleAudio=true;
-		if (!m_bFirstDescrambleVideo || !m_bFirstDescrambleAudio)
-			return false;
-	}
-	*/
 
 	// フィルタグラフに入力
 	if (m_pBonSrcFilterClass) {
@@ -397,9 +378,42 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 		Trace(TEXT("音声レンダラの構築中..."));
 
-		// 音声レンダラー構築
-		if(m_pFilterGraph->Render(pOutputAudio) != S_OK)
-			throw CBonException(TEXT("音声レンダラを構築できません。"));
+		// 音声レンダラ構築
+		{
+			bool fOK=false;
+#if 1
+			IBaseFilter *pAudioRenderer;
+
+			if (SUCCEEDED(::CoCreateInstance(CLSID_DSoundRender,NULL,
+					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
+					reinterpret_cast<void**>(&pAudioRenderer)))) {
+				//if (SUCCEEDED(m_pFilterGraph->AddFilter(pAudioRenderer,L"Audio Renderer"))) {
+				if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+							pAudioRenderer,L"Audio Renderer",&pOutputAudio)) {
+					IMediaFilter *pMediaFilter;
+
+					if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IMediaFilter,
+								reinterpret_cast<void**>(&pMediaFilter)))) {
+						IReferenceClock *pReferenceClock;
+
+						if (SUCCEEDED(pAudioRenderer->QueryInterface(IID_IReferenceClock,
+								reinterpret_cast<void**>(&pReferenceClock)))) {
+							pMediaFilter->SetSyncSource(pReferenceClock);
+							pReferenceClock->Release();
+						}
+						pMediaFilter->Release();
+					}
+					fOK=true;
+				}
+				pAudioRenderer->Release();
+			}
+#endif
+			if (!fOK) {
+				if (FAILED(m_pFilterGraph->Render(pOutputAudio)))
+					throw CBonException(TEXT("音声レンダラを構築できません。"));
+				m_pFilterGraph->SetDefaultSyncSource();
+			}
+		}
 
 		// オーナウィンドウ設定
 		m_hOwnerWnd = hOwnerHwnd;

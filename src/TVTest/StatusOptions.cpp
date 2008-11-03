@@ -338,11 +338,11 @@ BOOL CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				// Font
 				if (memcmp(&pThis->m_lfItemFont,&lfCurFont,28/*offsetof(LOGFONT,lfFaceName)*/)!=0
 						|| lstrcmp(pThis->m_lfItemFont.lfFaceName,lfCurFont.lfFaceName)!=0) {
-					int OldHeight=pThis->m_pStatusView->Height(),NewHeight;
+					int OldHeight=pThis->m_pStatusView->GetHeight(),NewHeight;
 
 					pThis->m_lfItemFont=lfCurFont;
 					pThis->m_pStatusView->SetFont(CreateFontIndirect(&lfCurFont));
-					NewHeight=pThis->m_pStatusView->Height();
+					NewHeight=pThis->m_pStatusView->GetHeight();
 					if (NewHeight!=OldHeight) {
 						HWND hwnd=GetParent(pThis->m_pStatusView->GetHandle());
 						RECT rc;

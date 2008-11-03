@@ -486,15 +486,6 @@ bool CStatusView::GetItemClientRect(int ID,RECT *pRect) const
 }
 
 
-int CStatusView::Height() const
-{
-	RECT rc;
-
-	::GetWindowRect(m_hwnd,&rc);
-	return rc.bottom-rc.top;
-}
-
-
 int CStatusView::GetItemHeight() const
 {
 	RECT rc;

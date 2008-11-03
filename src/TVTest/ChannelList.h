@@ -2,6 +2,9 @@
 #define CHANNEL_LIST_H
 
 
+#include "PointerArray.h"
+
+
 #define FIRST_UHF_CHANNEL 13
 #define MAX_CHANNEL_NAME 64
 
@@ -78,23 +81,40 @@ private:
 	void SortSub(SortType Type,bool fDescending,int First,int Last,CChannelInfo **ppTemp);
 };
 
+class CTuningSpaceInfo {
+	CChannelList *m_pChannelList;
+	LPTSTR m_pszName;
+public:
+	CTuningSpaceInfo();
+	CTuningSpaceInfo(const CTuningSpaceInfo &Info);
+	~CTuningSpaceInfo();
+	CTuningSpaceInfo &operator=(const CTuningSpaceInfo &Info);
+	bool Create(const CChannelList *pList=NULL,LPCTSTR pszName=NULL);
+	CChannelList *GetChannelList() { return m_pChannelList; }
+	const CChannelList *GetChannelList() const { return m_pChannelList; }
+	LPCTSTR GetName() const { return m_pszName; }
+	bool SetName(LPCTSTR pszName);
+};
+
 class CTuningSpaceList {
-	CChannelList **m_ppChannelList;
-	int m_NumSpaces;
+	CPointerVector<CTuningSpaceInfo> m_TuningSpaceList;
 	CChannelList m_AllChannelList;
-	bool MakeTuningSpaceList(const CChannelList *pList,int NumSpaces=0);
+	bool MakeTuningSpaceList(const CChannelList *pList,int Spaces=0);
 public:
 	CTuningSpaceList();
 	CTuningSpaceList(const CTuningSpaceList &List);
 	~CTuningSpaceList();
 	CTuningSpaceList &operator=(const CTuningSpaceList &List);
-	int NumSpaces() const { return m_NumSpaces; }
+	int NumSpaces() const { return m_TuningSpaceList.Length(); }
+	CTuningSpaceInfo *GetTuningSpaceInfo(int Space);
+	const CTuningSpaceInfo *GetTuningSpaceInfo(int Space) const;
 	CChannelList *GetChannelList(int Space);
 	const CChannelList *GetChannelList(int Space) const;
 	CChannelList *GetAllChannelList() { return &m_AllChannelList; }
 	const CChannelList *GetAllChannelList() const { return &m_AllChannelList; }
-	bool Create(const CChannelList *pList,int NumSpaces=0);
-	bool Reserve(int NumSpaces);
+	LPCTSTR GetTuningSpaceName(int Space) const;
+	bool Create(const CChannelList *pList,int Spaces=0);
+	bool Reserve(int Spaces);
 	bool MakeAllChannelList();
 	void Clear();
 	bool SaveToFile(LPCTSTR pszFileName) const;

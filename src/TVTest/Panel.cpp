@@ -7,6 +7,7 @@
 
 #define PANEL_WINDOW_CLASS			APP_NAME TEXT(" Panel")
 #define PANEL_FRAME_WINDOW_CLASS	APP_NAME TEXT(" Panel Frame")
+#define DROP_HELPER_WINDOW_CLASS	APP_NAME TEXT(" Drop Helper")
 
 
 
@@ -78,8 +79,9 @@ bool CPanel::SetWindow(CBasicWindow *pWindow,LPCTSTR pszTitle)
 		pWindow->SetParent(m_hwnd);
 	pWindow->SetVisible(true);
 	m_pszTitle=DuplicateString(pszTitle);
-	GetClientRect(&rc);
-	OnSize(rc.right,rc.bottom);
+	GetPosition(&rc);
+	rc.right=rc.left+pWindow->GetWidth();
+	SetPosition(&rc);
 	return true;
 }
 
@@ -107,7 +109,7 @@ bool CPanel::SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText)
 	m_crTitleBackColor=crTitleBack;
 	m_crTitleTextColor=crTitleText;
 	if (m_hwnd!=NULL && m_fShowTitle)
-		InvalidateRect(m_hwnd,NULL,TRUE);
+		::InvalidateRect(m_hwnd,NULL,TRUE);
 	return true;
 }
 
@@ -298,22 +300,24 @@ HINSTANCE CPanelFrame::m_hinst=NULL;
 
 bool CPanelFrame::Initialize(HINSTANCE hinst)
 {
-	WNDCLASS wc;
+	if (m_hinst==NULL) {
+		WNDCLASS wc;
 
-	wc.style=0;
-	wc.lpfnWndProc=WndProc;
-	wc.cbClsExtra=0;
-	wc.cbWndExtra=0;
-	wc.hInstance=hinst;
-	wc.hIcon=NULL;
-	wc.hCursor=NULL;
-	wc.hbrBackground=NULL;
-	wc.lpszMenuName=NULL;
-	wc.lpszClassName=PANEL_FRAME_WINDOW_CLASS;
-	if (RegisterClass(&wc)==0)
-		return false;
-	m_hinst=hinst;
-	return CPanel::Initialize(hinst);
+		wc.style=0;
+		wc.lpfnWndProc=WndProc;
+		wc.cbClsExtra=0;
+		wc.cbWndExtra=0;
+		wc.hInstance=hinst;
+		wc.hIcon=NULL;
+		wc.hCursor=NULL;
+		wc.hbrBackground=NULL;
+		wc.lpszMenuName=NULL;
+		wc.lpszClassName=PANEL_FRAME_WINDOW_CLASS;
+		if (RegisterClass(&wc)==0)
+			return false;
+		m_hinst=hinst;
+	}
+	return CPanel::Initialize(hinst) && CDropHelper::Initialize(hinst);
 }
 
 
@@ -649,6 +653,32 @@ bool CPanelFrame::OnEnterSizeMove()
 
 
 
+HINSTANCE CDropHelper::m_hinst=NULL;
+
+
+bool CDropHelper::Initialize(HINSTANCE hinst)
+{
+	if (m_hinst==NULL) {
+		WNDCLASS wc;
+
+		wc.style=0;
+		wc.lpfnWndProc=WndProc;
+		wc.cbClsExtra=0;
+		wc.cbWndExtra=0;
+		wc.hInstance=hinst;
+		wc.hIcon=NULL;
+		wc.hCursor=NULL;
+		wc.hbrBackground=NULL;
+		wc.lpszMenuName=NULL;
+		wc.lpszClassName=DROP_HELPER_WINDOW_CLASS;
+		if (RegisterClass(&wc)==0)
+			return false;
+		m_hinst=hinst;
+	}
+	return true;
+}
+
+
 CDropHelper::CDropHelper()
 {
 	m_Opacity=128;
@@ -663,14 +693,14 @@ CDropHelper::~CDropHelper()
 bool CDropHelper::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 TEXT("STATIC"),TEXT(""),GetAppClass().GetInstance());
+							 DROP_HELPER_WINDOW_CLASS,TEXT(""),m_hinst);
 }
 
 
 bool CDropHelper::Show(const RECT *pRect)
 {
 	if (m_hwnd==NULL) {
-		if (!Create(NULL,SS_BLACKRECT | WS_POPUP,
+		if (!Create(NULL,WS_POPUP,
 				WS_EX_LAYERED | WS_EX_TRANSPARENT | WS_EX_TOPMOST | WS_EX_NOACTIVATE))
 			return false;
 		::SetLayeredWindowAttributes(m_hwnd,CLR_INVALID,m_Opacity,LWA_ALPHA);
@@ -686,4 +716,21 @@ bool CDropHelper::Hide()
 	if (m_hwnd!=NULL)
 		SetVisible(false);
 	return true;
+}
+
+
+LRESULT CALLBACK CDropHelper::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	switch (uMsg) {
+	case WM_PAINT:
+		{
+			PAINTSTRUCT ps;
+
+			::BeginPaint(hwnd,&ps);
+			::FillRect(ps.hdc,&ps.rcPaint,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
+			::EndPaint(hwnd,&ps);
+			return 0;
+		}
+	}
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }

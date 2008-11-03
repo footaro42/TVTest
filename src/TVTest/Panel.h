@@ -45,8 +45,11 @@ public:
 
 class CDropHelper : public CBasicWindow {
 	int m_Opacity;
+	static HINSTANCE m_hinst;
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
+	static bool Initialize(HINSTANCE hinst);
 	CDropHelper();
 	~CDropHelper();
 	bool Show(const RECT *pRect);

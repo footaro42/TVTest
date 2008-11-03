@@ -5,8 +5,29 @@
 #include "BasicWindow.h"
 
 
+class CFullscreen : public CBasicWindow {
+	bool m_fShowCursor;
+	bool m_fMenu;
+	bool m_fShowStatusView;
+	bool m_fShowTitleBar;
+	void ShowStatusView(bool fShow);
+	void ShowTitleBar(bool fShow);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	static CFullscreen *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+public:
+	CFullscreen();
+	~CFullscreen();
+	bool Create(HWND hwndOwner);
+	void OnRButtonDown();
+	void OnMouseMove();
+	HWND GetHandle() const { return m_hwnd; }
+	static bool Initialize();
+};
+
 class CMainWindow : public CBasicWindow {
 	bool m_fFullscreen;
+	CFullscreen *m_pFullscreen;
 	bool m_fMaximize;
 	bool m_fAlwaysOnTop;
 	bool m_fShowStatusBar;
@@ -57,8 +78,12 @@ public:
 	bool IsPreview() const { return m_fEnablePreview; }
 	bool SetStandby(bool fStandby);
 	bool ConfirmExit();
+	int GetVolume() const;
 	bool SetVolume(int Volume,bool fOSD=true);
+	int GetStereoMode() const;
+	bool SetStereoMode(int StereoMode);
 	int CalcZoomRate();
+	bool CalcZoomRate(int *pNum,int *pDenom);
 	void SetZoomRate(int ZoomNum,int ZoomDenom=100);
 	void SetMaximizeStatus(bool fMaximize) { m_fMaximize=fMaximize; }
 	bool GetMaximizeStatus() const { return m_fMaximize; }

@@ -14,6 +14,7 @@ public:
 	};
 	enum { MAX_VOLUME=100 };
 private:
+	bool m_fFileMode;
 	TCHAR m_szDriverFileName[MAX_PATH];
 	HMODULE m_hDriverLib;
 	DriverType m_DriverType;
@@ -47,6 +48,8 @@ public:
 	bool LoadDriver();
 	bool IsDriverLoaded() const { return m_hDriverLib!=NULL; }
 	bool OpenDriver();
+	bool OpenFile(LPCTSTR pszFileName);
+	bool IsFileMode() const { return m_fFileMode; }
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL);

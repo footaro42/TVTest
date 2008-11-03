@@ -216,6 +216,8 @@ bool CChannelManager::MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecode
 		for (int j=0;(pszName=pSrcDecoder->GetChannelName(i,j))!=NULL;j++) {
 			pList->AddChannel(i,0,j,j+1,0,pszName);
 		}
+		m_DriverTuningSpaceList.GetTuningSpaceInfo(i)->SetName(
+												pSrcDecoder->GetSpaceName(i));
 	}
 	m_DriverTuningSpaceList.MakeAllChannelList();
 	return true;

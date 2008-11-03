@@ -135,6 +135,24 @@ void CBasicWindow::GetPosition(RECT *pPosition) const
 }
 
 
+int CBasicWindow::GetWidth() const
+{
+	int Width;
+
+	GetPosition(NULL,NULL,&Width,NULL);
+	return Width;
+}
+
+
+int CBasicWindow::GetHeight() const
+{
+	int Height;
+
+	GetPosition(NULL,NULL,NULL,&Height);
+	return Height;
+}
+
+
 bool CBasicWindow::GetScreenPosition(RECT *pPosition) const
 {
 	if (m_hwnd==NULL) {

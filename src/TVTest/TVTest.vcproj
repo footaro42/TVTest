@@ -386,6 +386,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\TitleBar.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Tracer.cpp"
 				>
 			</File>
@@ -589,6 +593,10 @@
 			</File>
 			<File
 				RelativePath=".\stdafx.h"
+				>
+			</File>
+			<File
+				RelativePath=".\TitleBar.h"
 				>
 			</File>
 			<File

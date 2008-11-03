@@ -153,8 +153,6 @@ protected:
 	bool m_bGrabber;
 	class CGrabber *m_pGrabber;
 	CTracer *m_pTracer;
-	bool m_bFirstDescrambleVideo;
-	bool m_bFirstDescrambleAudio;
 	HANDLE m_hFlushThread;
 	HANDLE m_hFlushEvent;
 	HANDLE m_hFlushResumeEvent;

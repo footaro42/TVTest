@@ -40,6 +40,7 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 			&& Value>=CProgramGuide::MIN_LINES_PER_HOUR
 			&& Value<=CProgramGuide::MAX_LINES_PER_HOUR)
 		m_LinesPerHour=Value;
+	m_pProgramGuide->SetUIOptions(m_LinesPerHour,m_ItemWidth);
 	return true;
 }
 

@@ -37,7 +37,7 @@ public:
 	virtual void OnRButtonDown(int x,int y) { OnLButtonDown(x,y); }
 	virtual void OnMouseMove(int x,int y) {}
 	virtual void OnVisibleChange(bool fVisible) {}
-	friend class CStatusView;
+	friend CStatusView;
 };
 
 class CStatusViewEventHandler {
@@ -90,7 +90,6 @@ public:
 	void UpdateItem(int ID);
 	bool GetItemRect(int ID,RECT *pRect) const;
 	bool GetItemClientRect(int ID,RECT *pRect) const;
-	int Height() const;
 	int GetItemHeight() const;
 	int GetFontHeight() const { return m_FontHeight; }
 	void SetSingleText(LPCTSTR pszText);

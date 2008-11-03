@@ -210,11 +210,8 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	REFERENCE_TIME EndTime = 0LL;
 
 	// タイムスタンプ設定
-	HRESULT hr=pIn->GetTime(&StartTime, &EndTime);
-	if (hr == S_OK) {
+	if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
 		pOut->SetTime(&StartTime, &EndTime);
-	} else if (hr==VFW_S_NO_STOP_TIME) {
-		pOut->SetTime(&StartTime, NULL);
 	}
 
 	// ストリームタイム設定

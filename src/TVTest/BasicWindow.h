@@ -23,6 +23,8 @@ public:
 	bool SetPosition(const RECT *pPosition);
 	void GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const;
 	void GetPosition(RECT *pPosition) const;
+	int GetWidth() const;
+	int GetHeight() const;
 	bool GetScreenPosition(RECT *pPosition) const;
 	virtual void SetVisible(bool fVisible);
 	bool GetVisible() const;

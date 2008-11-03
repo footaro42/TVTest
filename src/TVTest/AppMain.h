@@ -2,6 +2,8 @@
 #define APP_MAIN_H
 
 
+#include "CoreEngine.h"
+#include "MainWindow.h"
 #include "ChannelList.h"
 
 
@@ -29,12 +31,15 @@ public:
 	bool InitializeChannel();
 	bool UpdateChannelList(const CTuningSpaceList *pList);
 	bool UpdateChannelMenu();
+	const CChannelInfo *GetCurrentChannelInfo() const;
 	bool SetChannel(int Space,int Channel,int Service=-1);
 	bool SetServiceByIndex(int Service);
 	bool SetServiceByID(WORD ServiceID,int *pServiceIndex=NULL);
 	bool SetDriver(LPCTSTR pszFileName);
 	bool UpdateDriverMenu();
 	bool ShowHelpContent(int ID);
+	const CCoreEngine *GetCoreEngine() const;
+	CMainWindow *GetMainWindow();
 };
 
 

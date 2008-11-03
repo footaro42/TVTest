@@ -432,18 +432,64 @@ bool CChannelList::SetServiceID(int Space,int ChannelIndex,int Service,WORD Serv
 
 
 
+CTuningSpaceInfo::CTuningSpaceInfo()
+	: m_pChannelList(NULL)
+	, m_pszName(NULL)
+{
+}
+
+
+CTuningSpaceInfo::CTuningSpaceInfo(const CTuningSpaceInfo &Info)
+	: m_pChannelList(NULL)
+	, m_pszName(NULL)
+{
+	Create(Info.m_pChannelList,Info.m_pszName);
+}
+
+
+CTuningSpaceInfo::~CTuningSpaceInfo()
+{
+	delete m_pChannelList;
+	delete [] m_pszName;
+}
+
+
+CTuningSpaceInfo &CTuningSpaceInfo::operator=(const CTuningSpaceInfo &Info)
+{
+	if (&Info!=this)
+		Create(Info.m_pChannelList,Info.m_pszName);
+	return *this;
+}
+
+
+bool CTuningSpaceInfo::Create(const CChannelList *pList,LPCTSTR pszName)
+{
+	delete m_pChannelList;
+	if (pList!=NULL)
+		m_pChannelList=new CChannelList(*pList);
+	else
+		m_pChannelList=new CChannelList;
+	SetName(pszName);
+	return true;
+}
+
+
+bool CTuningSpaceInfo::SetName(LPCTSTR pszName)
+{
+	return ReplaceString(&m_pszName,pszName);
+}
+
+
+
+
 CTuningSpaceList::CTuningSpaceList()
 {
-	m_ppChannelList=NULL;
-	m_NumSpaces=0;
 }
 
 
 CTuningSpaceList::CTuningSpaceList(const CTuningSpaceList &List)
 	: m_AllChannelList(List.m_AllChannelList)
 {
-	m_ppChannelList=NULL;
-	m_NumSpaces=0;
 	*this=List;
 }
 
@@ -459,112 +505,129 @@ CTuningSpaceList &CTuningSpaceList::operator=(const CTuningSpaceList &List)
 	if (&List==this)
 		return *this;
 	Clear();
-	if (List.m_NumSpaces>0) {
-		m_ppChannelList=static_cast<CChannelList**>(malloc(List.m_NumSpaces*sizeof(CChannelList*)));
-		for (int i=0;i<List.m_NumSpaces;i++)
-			m_ppChannelList[i]=new CChannelList(*List.m_ppChannelList[i]);
-		m_NumSpaces=List.m_NumSpaces;
+	if (List.NumSpaces()>0) {
+		m_TuningSpaceList.Reserve(List.NumSpaces());
+		for (int i=0;i<List.NumSpaces();i++)
+			m_TuningSpaceList.Add(new CTuningSpaceInfo(*List.m_TuningSpaceList[i]));
 	}
 	m_AllChannelList=List.m_AllChannelList;
 	return *this;
 }
 
 
+CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space)
+{
+	if (Space<0 || Space>=NumSpaces()) {
+		TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() : Out of range %d\n"),Space);
+		return NULL;
+	}
+	return m_TuningSpaceList[Space];
+}
+
+
+const CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space) const
+{
+	if (Space<0 || Space>=NumSpaces()) {
+		TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() const : Out of range %d\n"),Space);
+		return NULL;
+	}
+	return m_TuningSpaceList[Space];
+}
+
+
 CChannelList *CTuningSpaceList::GetChannelList(int Space)
 {
-	if (Space<0 || Space>=m_NumSpaces) {
+	if (Space<0 || Space>=NumSpaces()) {
 		TRACE(TEXT("CTuningSpaceList::GetChannelList() : Out of range %d\n"),Space);
 		return NULL;
 	}
-	return m_ppChannelList[Space];
+	return m_TuningSpaceList[Space]->GetChannelList();
 }
 
 
 const CChannelList *CTuningSpaceList::GetChannelList(int Space) const
 {
-	if (Space<0 || Space>=m_NumSpaces) {
+	if (Space<0 || Space>=NumSpaces()) {
 		TRACE(TEXT("CTuningSpaceList::GetChannelList() const : Out of range %d\n"),Space);
 		return NULL;
 	}
-	return m_ppChannelList[Space];
+	return m_TuningSpaceList[Space]->GetChannelList();
 }
 
 
-bool CTuningSpaceList::MakeTuningSpaceList(const CChannelList *pList,int NumSpaces)
+LPCTSTR CTuningSpaceList::GetTuningSpaceName(int Space) const
+{
+	if (Space<0 || Space>=NumSpaces()) {
+		return NULL;
+	}
+	return m_TuningSpaceList[Space]->GetName();
+}
+
+
+bool CTuningSpaceList::MakeTuningSpaceList(const CChannelList *pList,int Spaces)
 {
 	int i;
 	int Space;
 
 	for (i=0;i<pList->NumChannels();i++) {
 		Space=pList->GetSpace(i);
-		if (Space+1>NumSpaces)
-			NumSpaces=Space+1;
+		if (Space+1>Spaces)
+			Spaces=Space+1;
 	}
-	if (NumSpaces<1)
+	if (Spaces<1)
 		return false;
-	if (!Reserve(NumSpaces))
+	if (!Reserve(Spaces))
 		return false;
 	for (i=0;i<pList->NumChannels();i++) {
 		const CChannelInfo *pChInfo=pList->GetChannelInfo(i);
 
-		m_ppChannelList[pChInfo->GetSpace()]->AddChannel(*pChInfo);
+		m_TuningSpaceList[pChInfo->GetSpace()]->GetChannelList()->AddChannel(*pChInfo);
 	}
 	return true;
 }
 
 
-bool CTuningSpaceList::Create(const CChannelList *pList,int NumSpaces)
+bool CTuningSpaceList::Create(const CChannelList *pList,int Spaces)
 {
 	Clear();
-	if (!MakeTuningSpaceList(pList,NumSpaces))
+	if (!MakeTuningSpaceList(pList,Spaces))
 		return false;
 	m_AllChannelList=*pList;
 	return true;
 }
 
 
-bool CTuningSpaceList::Reserve(int NumSpaces)
+bool CTuningSpaceList::Reserve(int Spaces)
 {
 	int i;
 
-	if (NumSpaces<0)
+	if (Spaces<0)
 		return false;
-	if (NumSpaces==m_NumSpaces)
+	if (Spaces==NumSpaces())
 		return true;
-	if (NumSpaces==0) {
+	if (Spaces==0) {
 		Clear();
 		return true;
 	}
-	CChannelList **ppNewList=static_cast<CChannelList**>(malloc(NumSpaces*sizeof(CChannelList*)));
-	if (ppNewList==NULL)
-		return false;
-	if (NumSpaces<m_NumSpaces) {
-		for (i=NumSpaces;i<m_NumSpaces;i++)
-			delete m_ppChannelList[i];
+	if (Spaces<NumSpaces()) {
+		for (i=NumSpaces()-1;i>=Spaces;i--)
+			m_TuningSpaceList.Delete(i);
 	} else {
-		for (i=m_NumSpaces;i<NumSpaces;i++)
-			ppNewList[i]=new CChannelList;
+		for (i=NumSpaces();i<Spaces;i++) {
+			CTuningSpaceInfo *pInfo=new CTuningSpaceInfo;
+
+			pInfo->Create();
+			m_TuningSpaceList.Add(pInfo);
+		}
 	}
-	for (i=0;i<min(NumSpaces,m_NumSpaces);i++)
-		ppNewList[i]=m_ppChannelList[i];
-	free(m_ppChannelList);
-	m_ppChannelList=ppNewList;
-	m_NumSpaces=NumSpaces;
 	return true;
 }
 
 
 void CTuningSpaceList::Clear()
 {
-	if (m_ppChannelList!=NULL) {
-		int i;
-
-		for (i=m_NumSpaces-1;i>=0;i--)
-			delete m_ppChannelList[i];
-		free(m_ppChannelList);
-		m_ppChannelList=NULL;
-		m_NumSpaces=0;
-	}
+	m_TuningSpaceList.DeleteAll();
+	m_TuningSpaceList.Clear();
 	m_AllChannelList.Clear();
 }
 
@@ -572,8 +635,8 @@ void CTuningSpaceList::Clear()
 bool CTuningSpaceList::MakeAllChannelList()
 {
 	m_AllChannelList.Clear();
-	for (int i=0;i<m_NumSpaces;i++) {
-		CChannelList *pList=m_ppChannelList[i];
+	for (int i=0;i<NumSpaces();i++) {
+		CChannelList *pList=m_TuningSpaceList[i]->GetChannelList();
 
 		for (int j=0;j<pList->NumChannels();j++) {
 			m_AllChannelList.AddChannel(*pList->GetChannelInfo(j));
@@ -596,8 +659,8 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 		"; " APP_NAME_A " チャンネル設定ファイル\r\n"
 		"; 名称,チューニング空間,チャンネル,リモコン番号(オプション),サービス(オプション),サービスID(オプション),ネットワークID(オプション)\r\n";
 	::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL);
-	for (int i=0;i<m_NumSpaces;i++) {
-		const CChannelList *pChannelList=m_ppChannelList[i];
+	for (int i=0;i<NumSpaces();i++) {
+		const CChannelList *pChannelList=m_TuningSpaceList[i]->GetChannelList();
 
 		for (int j=0;j<pChannelList->NumChannels();j++) {
 			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(j);
@@ -783,8 +846,8 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 
 bool CTuningSpaceList::SetServiceID(int Space,int ChannelIndex,int Service,WORD ServiceID)
 {
-	for (int i=0;i<m_NumSpaces;i++)
-		m_ppChannelList[i]->SetServiceID(Space,ChannelIndex,Service,ServiceID);
+	for (int i=0;i<NumSpaces();i++)
+		m_TuningSpaceList[i]->GetChannelList()->SetServiceID(Space,ChannelIndex,Service,ServiceID);
 	m_AllChannelList.SetServiceID(Space,ChannelIndex,Service,ServiceID);
 	return true;
 }

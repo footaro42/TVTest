@@ -293,8 +293,8 @@ protected:
 	CMpeg2Sequence m_Mpeg2Sequence;
 
 private:
-	inline const DWORD FindStartCode(const BYTE *pData, const DWORD dwDataSize);
+	//inline const DWORD FindStartCode(const BYTE *pData, const DWORD dwDataSize);
 
-	bool m_bIsStoring;
+	//bool m_bIsStoring;
 	DWORD m_dwSyncState;
 };

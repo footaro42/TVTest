@@ -13,6 +13,7 @@ static char THIS_FILE[]=__FILE__;
 
 CCoreEngine::CCoreEngine()
 {
+	m_fFileMode=false;
 	m_szDriverFileName[0]='\0';
 	m_hDriverLib=NULL;
 	m_DriverType=DRIVER_UNKNOWN;
@@ -95,6 +96,7 @@ bool CCoreEngine::OpenDriver()
 	if (m_hDriverLib==NULL)
 		return false;
 	m_DtvEngine.ReleaseSrcFilter();
+	m_fFileMode=false;
 	if (!m_DtvEngine.OpenSrcFilter_BonDriver(m_hDriverLib))
 		return false;
 	LPCTSTR pszName=m_DtvEngine.m_BonSrcDecoder.GetTunerName();
@@ -105,6 +107,16 @@ bool CCoreEngine::OpenDriver()
 		else if (::_tcsncmp(pszName,TEXT("UDP/"),4)==0)
 			m_DriverType=DRIVER_UDP;
 	}
+	return true;
+}
+
+
+bool CCoreEngine::OpenFile(LPCTSTR pszFileName)
+{
+	m_DtvEngine.ReleaseSrcFilter();
+	m_fFileMode=true;
+	if (!m_DtvEngine.OpenSrcFilter_File(pszFileName))
+		return false;
 	return true;
 }
 
@@ -313,17 +325,26 @@ DWORD CCoreEngine::UpdateStatistics()
 		m_ScramblePacketCount=ScrambleCount;
 		Updated|=STATISTIC_SCRAMBLEPACKETCOUNT;
 	}
-	float SignalLevel=m_DtvEngine.m_BonSrcDecoder.GetSignalLevel();
+	float SignalLevel;
+	DWORD BitRate;
+	DWORD StreamRemain;
+	if (!m_fFileMode) {
+		SignalLevel=m_DtvEngine.m_BonSrcDecoder.GetSignalLevel();
+		BitRate=m_DtvEngine.m_BonSrcDecoder.GetBitRate();
+		StreamRemain=m_DtvEngine.m_BonSrcDecoder.GetStreamRemain();
+	} else {
+		SignalLevel=0.0;
+		BitRate=0;
+		StreamRemain=0;
+	}
 	if (SignalLevel!=m_SignalLevel) {
 		m_SignalLevel=SignalLevel;
 		Updated|=STATISTIC_SIGNALLEVEL;
 	}
-	DWORD BitRate=m_DtvEngine.m_BonSrcDecoder.GetBitRate();
 	if (BitRate!=m_BitRate) {
 		m_BitRate=BitRate;
 		Updated|=STATISTIC_BITRATE;
 	}
-	DWORD StreamRemain=m_DtvEngine.m_BonSrcDecoder.GetStreamRemain();
 	if (StreamRemain!=m_StreamRemain) {
 		m_StreamRemain=StreamRemain;
 		Updated|=STATISTIC_STREAMREMAIN;

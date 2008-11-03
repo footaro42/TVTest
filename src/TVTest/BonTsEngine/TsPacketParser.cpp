@@ -48,7 +48,7 @@ void CTsPacketParser::Reset(void)
 
 	// 状態をリセットする
 	m_TsPacket.ClearSize();
-	
+
 	CMediaDecoder::Reset();
 }
 
@@ -66,7 +66,7 @@ const bool CTsPacketParser::InputMedia(CMediaData *pMediaData, const DWORD dwInp
 void CTsPacketParser::SetOutputNullPacket(const bool bEnable)
 {
 	// NULLパケットの出力有無を設定する
-	m_bOutputNullPacket = (bEnable)? true : false;
+	m_bOutputNullPacket = bEnable;
 }
 
 const DWORD CTsPacketParser::GetInputPacketCount(void) const
@@ -90,57 +90,50 @@ const DWORD CTsPacketParser::GetErrorPacketCount(void) const
 void inline CTsPacketParser::SyncPacket(const BYTE *pData, const DWORD dwSize)
 {
 	// ※この方法は完全ではない、同期が乱れた場合に前回呼び出し時のデータまでさかのぼっては再同期はできない
-	DWORD dwCurSize = 0UL;
+	DWORD dwCurSize;
 	DWORD dwCurPos = 0UL;
 
-	while(dwCurPos < dwSize){
+	while (dwCurPos < dwSize) {
 		dwCurSize = m_TsPacket.GetSize();
 
-		if(!dwCurSize){
+		if (dwCurSize==0) {
 			// 同期バイト待ち中
-			for( ; dwCurPos < dwSize ; dwCurPos++){
-				if(pData[dwCurPos] == TS_HEADSYNCBYTE){
+			for ( ; dwCurPos < dwSize ; dwCurPos++) {
+				if (pData[dwCurPos] == TS_HEADSYNCBYTE) {
 					// 同期バイト発見
 					m_TsPacket.AddByte(TS_HEADSYNCBYTE);
 					dwCurPos++;
 					break;
-					}				
 				}
-			
-			continue;
 			}
-		else  if(dwCurSize == TS_PACKETSIZE){
+		} else if (dwCurSize == TS_PACKETSIZE) {
 			// パケットサイズ分データがそろった
 
-			if(pData[dwCurPos] == TS_HEADSYNCBYTE){
+			if (pData[dwCurPos] == TS_HEADSYNCBYTE) {
 				// 次のデータは同期バイト
 				ParsePacket();
-				}
-			else{
+			} else {
 				// 同期エラー
-				m_TsPacket.ClearSize();				
-				
-				// 位置を元に戻す
-				if(dwCurPos >= (TS_PACKETSIZE - 1UL))dwCurPos -= (TS_PACKETSIZE - 1UL);
-				else dwCurPos = 0UL;
-				}
+				m_TsPacket.ClearSize();
 
-			continue;
+				// 位置を元に戻す
+				if (dwCurPos >= (TS_PACKETSIZE - 1UL))
+					dwCurPos -= (TS_PACKETSIZE - 1UL);
+				else
+					dwCurPos = 0UL;
 			}
-		else{
+		} else {
 			// データ待ち
-			if((dwSize - dwCurPos) >= (TS_PACKETSIZE - dwCurSize)){
-				m_TsPacket.AddData(&pData[dwCurPos], TS_PACKETSIZE - dwCurSize);
-				dwCurPos += (TS_PACKETSIZE - dwCurSize);
-				}	
-			else{
+			DWORD dwRemain = (TS_PACKETSIZE - dwCurSize);
+			if ((dwSize - dwCurPos) >= dwRemain) {
+				m_TsPacket.AddData(&pData[dwCurPos], dwRemain);
+				dwCurPos += dwRemain;
+			} else {
 				m_TsPacket.AddData(&pData[dwCurPos], dwSize - dwCurPos);
-				dwCurPos += (dwSize - dwCurPos);
-				}			
-			
-			continue;
+				break;
 			}
 		}
+	}
 }
 
 void inline CTsPacketParser::ParsePacket(void)
@@ -149,28 +142,29 @@ void inline CTsPacketParser::ParsePacket(void)
 	m_TsPacket.ParseHeader();
 
 	// パケットをチェックする
-	if(m_TsPacket.CheckPacket(&m_abyContCounter[m_TsPacket.GetPID()])){
+	if (m_TsPacket.CheckPacket(&m_abyContCounter[m_TsPacket.GetPID()])) {
 		// 入力カウントインクリメント
-		if(m_dwInputPacketCount < 0xFFFFFFFFUL)m_dwInputPacketCount++;
+		//if(m_dwInputPacketCount < 0xFFFFFFFFUL)m_dwInputPacketCount++;
+		m_dwInputPacketCount++;
 
 		// 次のデコーダにデータを渡す
 		WORD PID;
-		if(m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)){
+		if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
 			if (PID == 0x0000 || PID == 0x0010 || PID == 0x0011
 					|| PID == 0x0012 || PID == 0x0014) {
-				m_EpgCap.AddTSPacket(m_TsPacket.GetData(),
-														m_TsPacket.GetSize());
+				m_EpgCap.AddTSPacket(m_TsPacket.GetData(),m_TsPacket.GetSize());
 			}
 			// 出力カウントインクリメント
-			if(m_dwOutputPacketCount < 0xFFFFFFFFUL)m_dwOutputPacketCount++;
-			
+			//if(m_dwOutputPacketCount < 0xFFFFFFFFUL)m_dwOutputPacketCount++;
+			m_dwOutputPacketCount++;
+
 			OutputMedia(&m_TsPacket);
-			}
 		}
-	else{
+	} else {
 		// エラーカウントインクリメント
-		if(m_dwErrorPacketCount < 0xFFFFFFFFUL)m_dwErrorPacketCount++;
-		}
+		//if(m_dwErrorPacketCount < 0xFFFFFFFFUL)m_dwErrorPacketCount++;
+		m_dwErrorPacketCount++;
+	}
 
 	// サイズをクリアし次のストアに備える
 	m_TsPacket.ClearSize();

@@ -901,7 +901,7 @@ CMpeg2Parser & CMpeg2Parser::operator = (const CMpeg2Parser &Operand)
 	// インスタンスのコピー
 	m_pSequenceHandler = Operand.m_pSequenceHandler;
 	m_Mpeg2Sequence = Operand.m_Mpeg2Sequence;
-	m_bIsStoring = Operand.m_bIsStoring;
+	//m_bIsStoring = Operand.m_bIsStoring;
 	m_dwSyncState = Operand.m_dwSyncState;
 
 	return *this;
@@ -915,40 +915,47 @@ const bool CMpeg2Parser::StorePacket(const CPesPacket *pPacket)
 const bool CMpeg2Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 {
 	static const BYTE StartCode[] = {0x00U, 0x00U, 0x01U, 0xB3U};
-	bool bTrigger = false;
-	DWORD dwPos = 0UL, dwStart;
+	bool bTrigger=false;
+	DWORD dwPos,dwStart;
 
-	while(dwPos < dwSize){
+	for (dwPos=0UL;dwPos<dwSize;dwPos+=dwStart) {
 		// スタートコードを検索する
-		dwStart = FindStartCode(&pData[dwPos], dwSize - dwPos);
-	
-		if(dwStart < (dwSize - dwPos)){
-			dwStart++;
-			
-			if(m_Mpeg2Sequence.GetSize() >= 4UL){
+		//dwStart = FindStartCode(&pData[dwPos], dwSize - dwPos);
+		DWORD Remain=dwSize-dwPos;
+		DWORD SyncState=m_dwSyncState;
+		for (dwStart=0UL;dwStart<Remain;dwStart++) {
+			SyncState=(SyncState<<8)|(DWORD)pData[dwStart+dwPos];
+			if (SyncState==0x000001B3UL) {
+				// スタートコード発見、シフトレジスタを初期化する
+				SyncState=0xFFFFFFFFUL;
+				break;
+			}
+		}
+		m_dwSyncState=SyncState;
 
+		if (dwStart<Remain) {
+			dwStart++;
+			if (m_Mpeg2Sequence.GetSize()>=4UL) {
 				// スタートコードの断片を取り除く
-				if(dwStart < 4)m_Mpeg2Sequence.TrimTail(4UL - dwStart);
+				if (dwStart<4UL)
+					m_Mpeg2Sequence.TrimTail(4UL-dwStart);
 
 				// シーケンスを出力する
-				if(m_Mpeg2Sequence.ParseHeader())OnMpeg2Sequence(&m_Mpeg2Sequence);
-				}
-				
-			// スタートコードをセットする		
-			m_Mpeg2Sequence.SetData(StartCode, 4UL);
-			bTrigger = true;
-			}
-		else  if(m_Mpeg2Sequence.GetSize() >= 4UL){
-			// シーケンスストア
-			if(m_Mpeg2Sequence.AddData(&pData[dwPos], dwSize - dwPos) >= 0x1000000UL){
-				// 例外(シーケンスが16MBを超える)
-				m_Mpeg2Sequence.ClearSize();
-				}
+				if (m_Mpeg2Sequence.ParseHeader())
+					OnMpeg2Sequence(&m_Mpeg2Sequence);
 			}
 
-		// ポジション更新
-		dwPos += dwStart;
+			// スタートコードをセットする
+			m_Mpeg2Sequence.SetData(StartCode,4UL);
+			bTrigger=true;
+		} else if (m_Mpeg2Sequence.GetSize()>=4UL) {
+			// シーケンスストア
+			if (m_Mpeg2Sequence.AddData(&pData[dwPos],Remain)>=0x1000000UL) {
+				// 例外(シーケンスが16MBを超える)
+				m_Mpeg2Sequence.ClearSize();
+			}
 		}
+	}
 
 	return bTrigger;
 }
@@ -956,7 +963,7 @@ const bool CMpeg2Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 void CMpeg2Parser::Reset(void)
 {
 	// 状態を初期化する
-	m_bIsStoring = false;
+	//m_bIsStoring = false;
 	m_dwSyncState = 0xFFFFFFFFUL;
 
 	m_Mpeg2Sequence.Reset();
@@ -974,6 +981,7 @@ void CMpeg2Parser::OnMpeg2Sequence(const CMpeg2Sequence *pSequence) const
 	if(m_pSequenceHandler)m_pSequenceHandler->OnMpeg2Sequence(this, pSequence);
 }
 
+/*
 inline const DWORD CMpeg2Parser::FindStartCode(const BYTE *pData, const DWORD dwDataSize)
 {
 	// Sequence Header Code (0x000001B3) を検索する
@@ -992,3 +1000,4 @@ inline const DWORD CMpeg2Parser::FindStartCode(const BYTE *pData, const DWORD dw
 
 	return dwPos;
 }
+*/
