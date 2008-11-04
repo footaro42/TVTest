@@ -28,7 +28,7 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_pBonDriver2(NULL)
 	, m_hStreamRecvThread(NULL)
 	, m_bPauseSignal(false)
-	, m_bResumeSignal(false)
+	, m_hResumeEvent(NULL)
 	, m_bKillSignal(false)
 	, m_TsStream(0x10000UL)
 	, m_bIsPlaying(false)
@@ -124,13 +124,14 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	*/
 
 	// ストリーム受信スレッド起動
-	DWORD dwThreadID = 0UL;
+	DWORD dwThreadID;
 
 	m_bPauseSignal=false;
+	m_hResumeEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
 	m_bKillSignal=false;
 	m_bIsPlaying = false;
 
-	if(!(m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, (LPVOID)this, 0UL, &dwThreadID))){
+	if(!(m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, &dwThreadID))){
 		CloseTuner();
 		m_dwLastError = BSDEC_INTERNALERROR;
 		return false;
@@ -162,6 +163,10 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		}
 		::CloseHandle(m_hStreamRecvThread);
 		m_hStreamRecvThread = NULL;
+	}
+	if (m_hResumeEvent) {
+		::CloseHandle(m_hResumeEvent);
+		m_hResumeEvent=NULL;
 	}
 
 	if (m_pBonDriver) {
@@ -425,11 +430,13 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 			::Sleep(1UL);
 			//pThis->m_pBonDriver->WaitTsStream(20);
 		}
+TRACE(L"Break\n");
 		if (pThis->m_bKillSignal)
 			break;
-		pThis->m_bResumeSignal=true;
+		::SetEvent(pThis->m_hResumeEvent);
 		while (pThis->m_bPauseSignal)
 			Sleep(1);
+		::SetEvent(pThis->m_hResumeEvent);
 	}
 
 	TRACE(TEXT("CBonSrcDecoder::StreamRecvThread() return\n"));
@@ -444,10 +451,9 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 */
 void CBonSrcDecoder::PauseStreamRecieve()
 {
-	m_bResumeSignal=false;
+	::ResetEvent(m_hResumeEvent);
 	m_bPauseSignal=true;
-	while (!m_bResumeSignal)
-		Sleep(1);
+	::WaitForSingleObject(m_hResumeEvent,INFINITE);
 	ResetBitRate();
 }
 
@@ -455,6 +461,7 @@ void CBonSrcDecoder::PauseStreamRecieve()
 void CBonSrcDecoder::ResumeStreamRecieve()
 {
 	m_bPauseSignal=false;
+	::WaitForSingleObject(m_hResumeEvent,INFINITE);
 }
 
 

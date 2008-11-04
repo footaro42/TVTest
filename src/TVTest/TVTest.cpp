@@ -3389,7 +3389,7 @@ CMyTitleBarEventHandler::CMyTitleBarEventHandler()
 
 bool CMyTitleBarEventHandler::OnClose()
 {
-	MainWindow.SendMessage(WM_SYSCOMMAND,SC_CLOSE,0);
+	MainWindow.SendCommand(CM_CLOSE);
 	return true;
 }
 
@@ -3800,8 +3800,15 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 						if (CoreEngine.m_DtvEngine.m_MediaViewer.GetDestSize(&w,&h))
 							AdjustWindowSize(w,h);
 					}
-				} else
+				} else {
+					SIZE sz;
+					int Width,Height;
+
+					VideoContainerWindow.GetClientSize(&sz);
+					if (CoreEngine.GetVideoViewSize(&Width,&Height))
+						AdjustWindowSize(Width*sz.cy/Height,sz.cy);
 					StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
+				}
 			}
 			AspectRatioType=i;
 			MainMenu.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
@@ -5356,7 +5363,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		break;
 
 	case WM_SYSCOMMAND:
-		switch (wParam) {
+		switch ((wParam&0xFFFFFFF0UL)) {
 		case SC_MONITORPOWER:
 			if (fNoMonitorLowPower)
 				return TRUE;
@@ -5380,6 +5387,10 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					pThis->SetFullscreen(false);
 			}
 			break;
+
+		case SC_CLOSE:
+			GetThis(hwnd)->SendCommand(CM_CLOSE);
+			return 0;
 		}
 		break;
 
@@ -5539,6 +5550,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 			pThis->m_fClosing=true;
 			::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+			StatusView.SetSingleText(TEXT("終了処理を行っています..."));
 			if (!StatusView.GetVisible()) {
 				RECT rc;
 
@@ -5547,15 +5559,14 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				rc.top=rc.bottom-StatusView.GetHeight();
 				StatusView.SetPosition(&rc);
 				StatusView.SetVisible(true);
+				StatusView.Update();
 				::BringWindowToTop(StatusView.GetHandle());
 			}
 
+			CoreEngine.m_DtvEngine.EnablePreview(false);
+
 			::KillTimer(hwnd,TIMER_ID_UPDATE);
 
-			StatusView.SetSingleText(TEXT("DtvEngineを閉じています..."));
-			CoreEngine.Close();
-
-			StatusView.SetSingleText(TEXT("終了処理を行っています..."));
 			if (fScreenSaverActive)
 				::SystemParametersInfo(SPI_SETSCREENSAVEACTIVE,TRUE,NULL,
 								SPIF_UPDATEINIFILE | SPIF_SENDWININICHANGE);
@@ -5569,8 +5580,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			SAFE_DELETE(pThis->m_pFullscreen);
 			SAFE_DELETE(pNetworkRemocon);
 			SAFE_DELETE(pRemoteController);
-			InfoWindow.Destroy();
-			ProgramGuide.Destroy();
 			ResidentManager.Finalize();
 			HtmlHelpClass.Finalize();
 			MainMenu.Destroy();
@@ -5592,6 +5601,9 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			pThis->m_fMaximize=pThis->GetMaximize();
 			AppMain.Finalize();
 			EpgOptions.SaveEpgFile(&EpgProgramList);
+
+			StatusView.SetSingleText(TEXT("DtvEngineを閉じています..."));
+			CoreEngine.Close();
 		}
 		break;
 
@@ -5599,6 +5611,9 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
+			PanelFrame.Destroy();
+			ProgramGuide.Destroy();
+			CapturePreview.Destroy();
 			pThis->OnDestroy();
 			::PostQuitMessage(0);
 		}

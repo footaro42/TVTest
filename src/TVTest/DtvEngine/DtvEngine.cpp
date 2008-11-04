@@ -150,6 +150,7 @@ const bool CDtvEngine::OpenSrcFilter_BonDriver(HMODULE hBonDriverDll)
 		m_bBuildComplete=false;
 		return false;
 	}
+	m_MediaBuffer.SetFileMode(false);
 	Trace(TEXT("ストリームの再生を開始しています..."));
 	if (!m_BonSrcDecoder.Play()) {
 		m_bBuildComplete=false;
@@ -174,6 +175,7 @@ const bool CDtvEngine::OpenSrcFilter_File(LPCTSTR lpszFileName)
 		m_bBuildComplete=false;
 		return false;
 	}
+	m_MediaBuffer.SetFileMode(true);
 	if (!m_FileReader.StartReadAnsync()) {
 		m_bBuildComplete=false;
 		return false;
@@ -339,7 +341,7 @@ const bool CDtvEngine::SetStereoMode(int iMode)
 
 const bool CDtvEngine::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
 {
-	return m_MediaViewer.GetVideoDecorderName(lpName, iBufLen);
+	return m_MediaViewer.GetVideoDecoderName(lpName, iBufLen);
 }
 
 
@@ -351,6 +353,8 @@ const bool CDtvEngine::DisplayVideoDecoderProperty(HWND hWndParent)
 
 const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel)
 {
+	if (m_MediaViewer.CheckHangUp(500))
+		return false;
 	// チャンネル変更
 	bool bRet = m_BonSrcDecoder.SetChannel((DWORD)byTuningSpace, (DWORD)wChannel);
 	//if(bRet) ResetEngine();

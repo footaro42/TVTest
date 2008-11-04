@@ -61,7 +61,7 @@ public:
 	const bool GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY) const;
 	const BYTE GetAudioChannelNum();
 	const bool SetStereoMode(const int iMode);
-	const bool GetVideoDecorderName(LPWSTR lpName,int iBufLen);
+	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 	const bool DisplayVideoRandererProperty(HWND hWndParent);
 
@@ -124,11 +124,10 @@ protected:
 	// Renderer
 	CVideoRenderer *m_pVideoRenderer;
 
-	CStringW m_strMpeg2DecorderName;
+	LPWSTR m_pszMpeg2DecoderName;
 
 	// MPEG2Demultiplexerインタフェース
 	IBaseFilter *m_pMp2DemuxFilter;
-	IMpeg2Demultiplexer *m_pMp2DemuxInterface;
 
 	// PIDマップ
 	IMPEG2PIDMap *m_pMp2DemuxVideoMap;
@@ -165,9 +164,10 @@ protected:
 	static DWORD WINAPI FlushThread(LPVOID lpParameter);
 	const bool CalcSourcePosition(long *pLeft,long *pTop,long *pWidth,long *pHeight) const;
 
+#ifdef DEBUG
 private:
 	HRESULT AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister) const;
 	void RemoveFromRot(const DWORD pdwRegister) const;
-
 	DWORD m_dwRegister;
+#endif
 };

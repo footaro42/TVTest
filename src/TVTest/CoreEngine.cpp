@@ -158,7 +158,8 @@ bool CCoreEngine::EnablePreview(bool fPreview)
 {
 	if (!m_DtvEngine.EnablePreview(fPreview))
 		return false;
-	m_DtvEngine.SetVolume(m_fMute?-100.0f:LevelToDeciBel(m_Volume));
+	if (fPreview)
+		m_DtvEngine.SetVolume(m_fMute?-100.0f:LevelToDeciBel(m_Volume));
 	return true;
 }
 

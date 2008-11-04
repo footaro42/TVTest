@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "MediaViewer.h"
+#include "StdUtil.h"
 #include <Dvdmedia.h>
 #include "../Grabber.h"
 
@@ -44,10 +45,9 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 
 	, m_pVideoRenderer(NULL)
 
-	, m_strMpeg2DecorderName()
+	, m_pszMpeg2DecoderName(NULL)
 
 	, m_pMp2DemuxFilter(NULL)
-	, m_pMp2DemuxInterface(NULL)
 	, m_pMp2DemuxVideoMap(NULL)
 	, m_pMp2DemuxAudioMap(NULL)
 
@@ -58,7 +58,9 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_wVideoWindowY(0)
 	, m_VideoInfo()
 	, m_hOwnerWnd(NULL)
+#ifdef DEBUG
 	, m_dwRegister(0)
+#endif
 
 	, m_VideoRendererType(CVideoRenderer::RENDERER_UNDEFINED)
 	, m_ForceAspectX(0)
@@ -150,8 +152,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 	if (m_bInit)
 		return false;
 
-	HRESULT hReturn=S_OK;
-	ULONG refCount;
+	HRESULT hr=S_OK;
 
 	IPin *pOutput=NULL;
 	IPin *pOutputVideo=NULL;
@@ -177,8 +178,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		/* CBonSrcFilter */
 		{
 			// インスタンス作成
-			m_pSrcFilter = CBonSrcFilter::CreateInstance(NULL, &hReturn, &m_pBonSrcFilterClass);
-			if (m_pSrcFilter==NULL || hReturn!=S_OK)
+			m_pSrcFilter = CBonSrcFilter::CreateInstance(NULL, &hr, &m_pBonSrcFilterClass);
+			if (m_pSrcFilter==NULL || hr!=S_OK)
 				throw CBonException(TEXT("ソースフィルタを作成できません。"));
 			m_pBonSrcFilterClass->SetOutputWhenPaused(RendererType==CVideoRenderer::RENDERER_DEFAULT);
 			// フィルタグラフに追加
@@ -196,6 +197,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		{
 			CMediaType MediaTypeVideo;
 			CMediaType MediaTypeAudio;
+			IReferenceClock *pMp2DemuxRefClock;
+			IMpeg2Demultiplexer *pMpeg2Demuxer;
 
 			if (::CoCreateInstance(CLSID_MPEG2Demultiplexer,NULL,
 					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
@@ -207,21 +210,21 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 				throw CBonException(TEXT("MPEG-2 Demultiplexerをフィルタグラフに追加できません。"));
 			// この時点でpOutput==NULLのはずだが念のため
 			SAFE_RELEASE(pOutput);
-			// IMpeg2Demultiplexerインタフェースのクエリー
-			if (m_pMp2DemuxFilter->QueryInterface(IID_IMpeg2Demultiplexer,
-									(void**)&m_pMp2DemuxInterface) != S_OK)
-				throw CBonException(TEXT("MPEG-2 Demultiplexerインターフェースを取得できません。"),
-									TEXT("互換性のないスプリッタの優先度がMPEG-2 Demultiplexerより高くなっている可能性があります。"));
-
-			IReferenceClock *pMp2DemuxRefClock;
 			// IReferenceClockインタフェースのクエリー
 			if (m_pMp2DemuxFilter->QueryInterface(IID_IReferenceClock,
-										(void**)&pMp2DemuxRefClock) != S_OK)
+						reinterpret_cast<LPVOID*>(&pMp2DemuxRefClock)) != S_OK)
 				throw CBonException(TEXT("IReferenceClockを取得できません。"));
 			// リファレンスクロック選択
-			if (m_pMp2DemuxFilter->SetSyncSource(pMp2DemuxRefClock) != S_OK)
-				throw CBonException(TEXT("リファレンスクロックを設定できません。"));
+			hr=m_pMp2DemuxFilter->SetSyncSource(pMp2DemuxRefClock);
 			pMp2DemuxRefClock->Release();
+			if (hr != S_OK)
+				throw CBonException(TEXT("リファレンスクロックを設定できません。"));
+
+			// IMpeg2Demultiplexerインタフェースのクエリー
+			if (FAILED(m_pMp2DemuxFilter->QueryInterface(IID_IMpeg2Demultiplexer,
+									reinterpret_cast<LPVOID*>(&pMpeg2Demuxer))))
+				throw CBonException(TEXT("MPEG-2 Demultiplexerインターフェースを取得できません。"),
+									TEXT("互換性のないスプリッタの優先度がMPEG-2 Demultiplexerより高くなっている可能性があります。"));
 
 			// 映像メディアフォーマット設定
 			MediaTypeVideo.InitMediaType();
@@ -241,8 +244,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			VideoHeader.bmiHeader.biWidth = 720;
 			VideoHeader.bmiHeader.biHeight = 480;
 			// 映像出力ピン作成
-			if (m_pMp2DemuxInterface->CreateOutputPin(&MediaTypeVideo,L"Video",&pOutputVideo) != S_OK)
+			if (pMpeg2Demuxer->CreateOutputPin(&MediaTypeVideo,L"Video",&pOutputVideo) != S_OK) {
+				pMpeg2Demuxer->Release();
 				throw CBonException(TEXT("MPEG-2 Demultiplexerの映像出力ピンを作成できません。"));
+			}
 			// 音声メディアフォーマット設定	
 			MediaTypeAudio.InitMediaType();
 			MediaTypeAudio.SetType(&MEDIATYPE_Audio);
@@ -252,7 +257,9 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			MediaTypeAudio.SetSampleSize(0);
 			MediaTypeAudio.SetFormatType(&FORMAT_None);
 			// 音声出力ピン作成
-			if (m_pMp2DemuxInterface->CreateOutputPin(&MediaTypeAudio,L"Audio",&pOutputAudio) != S_OK)
+			hr=pMpeg2Demuxer->CreateOutputPin(&MediaTypeAudio,L"Audio",&pOutputAudio);
+			pMpeg2Demuxer->Release();
+			if (hr != S_OK)
 				throw CBonException(TEXT("MPEG-2 Demultiplexerの音声出力ピンを作成できません。"));
 			// 映像出力ピンのIMPEG2PIDMapインタフェースのクエリー
 			if (pOutputVideo->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxVideoMap) != S_OK)
@@ -267,8 +274,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		/* CMpeg2SequenceFilter */
 		{
 			// インスタンス作成
-			m_pMpeg2SeqFilter = CMpeg2SequenceFilter::CreateInstance(NULL, &hReturn,&m_pMpeg2SeqClass);
-			if((!m_pMpeg2SeqFilter) || (hReturn != S_OK))
+			m_pMpeg2SeqFilter = CMpeg2SequenceFilter::CreateInstance(NULL, &hr,&m_pMpeg2SeqClass);
+			if((!m_pMpeg2SeqFilter) || (hr != S_OK))
 				throw CBonException(TEXT("MPEG-2シーケンスフィルタを作成できません。"));
 			m_pMpeg2SeqClass->SetRecvCallback(OnMpeg2VideoInfo,this);
 			// フィルタの追加と接続
@@ -282,11 +289,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		/* CAacDecFilter */
 		{
 			// CAacDecFilterインスタンス作成
-			m_pAacDecFilter=CAacDecFilter::CreateInstance(NULL,&hReturn,&m_pAacDecClass);
-			if (!m_pAacDecFilter || hReturn!=S_OK)
+			m_pAacDecFilter=CAacDecFilter::CreateInstance(NULL,&hr,&m_pAacDecClass);
+			if (!m_pAacDecFilter || hr!=S_OK)
 				throw CBonException(TEXT("AACデコーダフィルタを作成できません。"));
 			// フィルタの追加と接続
-			//refCount = DirectShowUtil::GetRefCount(m_pAacDecFilter);
 			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 					m_pAacDecFilter,L"AacDecFilter",&pOutputAudio))
 				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
@@ -297,8 +303,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		/* CPcmSelectFilter */
 		{
 			// インスタンス作成
-			m_pPcmSelFilter=CPcmSelectFilter::CreateInstance(NULL,&hReturn,&m_pPcmSelClass);
-			if (!m_pPcmSelFilter || hReturn!=S_OK)
+			m_pPcmSelFilter=CPcmSelectFilter::CreateInstance(NULL,&hr,&m_pPcmSelClass);
+			if (!m_pPcmSelFilter || hr!=S_OK)
 				throw CBonException(TEXT("PCMセレクトフィルタを作成できません。"));
 			// フィルタの追加と接続
 			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
@@ -317,17 +323,17 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 				throw CBonException(TEXT("MPEG-2デコーダが見付かりません。"),
 									TEXT("MPEG-2デコーダがインストールされているか確認してください。"));
 
-			WCHAR szMpeg2Vid[128];
+			WCHAR szMpeg2Decoder[128];
 			CLSID idMpeg2Vid;
 			bool bConnectSuccess=false;
 
 			for (int i=0;!bConnectSuccess && i<FilterFinder.GetFilterCount();i++){
-				if (FilterFinder.GetFilterInfo(i,&idMpeg2Vid,szMpeg2Vid,128)) {
+				if (FilterFinder.GetFilterInfo(i,&idMpeg2Vid,szMpeg2Decoder,128)) {
 					if (pszMpeg2Decoder!=NULL && pszMpeg2Decoder[0]!='\0'
-							&& lstrcmpi(szMpeg2Vid,pszMpeg2Decoder)!=0)
+							&& ::lstrcmpi(szMpeg2Decoder,pszMpeg2Decoder)!=0)
 						continue;
 					if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							idMpeg2Vid,szMpeg2Vid,&m_pMpeg2DecFilter,
+							idMpeg2Vid,szMpeg2Decoder,&m_pMpeg2DecFilter,
 							&pOutputVideo,NULL,true)) {
 						bConnectSuccess=true;
 						break;
@@ -338,9 +344,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			}
 			// どれかのフィルタで接続できたか
 			if (bConnectSuccess) {
-				m_strMpeg2DecorderName = szMpeg2Vid;
+				m_pszMpeg2DecoderName=StdUtil::strdup(szMpeg2Decoder);
 			} else {
-				m_strMpeg2DecorderName = L"";
 				throw CBonException(TEXT("MPEG-2デコーダフィルタをフィルタグラフに追加できません。"),
 									TEXT("設定で有効なMPEG-2デコーダが選択されているか確認してください。"));
 			}
@@ -371,8 +376,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		}
 		if (!m_pVideoRenderer->Initialize(m_pFilterGraph,pOutputVideo,
 										  hOwnerHwnd,hMessageDrainHwnd)) {
-			throw CBonException(m_pVideoRenderer->GetLastErrorText(),
-								m_pVideoRenderer->GetLastErrorAdvise());
+			throw CBonException(m_pVideoRenderer->GetLastErrorException());
 		}
 		m_VideoRendererType=RendererType;
 
@@ -386,18 +390,18 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 			if (SUCCEEDED(::CoCreateInstance(CLSID_DSoundRender,NULL,
 					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
-					reinterpret_cast<void**>(&pAudioRenderer)))) {
+					reinterpret_cast<LPVOID*>(&pAudioRenderer)))) {
 				//if (SUCCEEDED(m_pFilterGraph->AddFilter(pAudioRenderer,L"Audio Renderer"))) {
 				if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 							pAudioRenderer,L"Audio Renderer",&pOutputAudio)) {
 					IMediaFilter *pMediaFilter;
 
 					if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IMediaFilter,
-								reinterpret_cast<void**>(&pMediaFilter)))) {
+								reinterpret_cast<LPVOID*>(&pMediaFilter)))) {
 						IReferenceClock *pReferenceClock;
 
 						if (SUCCEEDED(pAudioRenderer->QueryInterface(IID_IReferenceClock,
-								reinterpret_cast<void**>(&pReferenceClock)))) {
+								reinterpret_cast<LPVOID*>(&pReferenceClock)))) {
 							pMediaFilter->SetSyncSource(pReferenceClock);
 							pReferenceClock->Release();
 						}
@@ -469,11 +473,7 @@ void CMediaViewer::CloseViewer(void)
 	}
 
 	Flush();
-
-	// 既にフィルタグラフがデッドロックしている場合、止めると戻ってこないので
-	// 本当はデッドロックしないようにすべきだが...
-	if (!CheckHangUp(2000))
-		Stop();
+	Stop();
 
 	// COMインスタンスを開放する
 	if (m_pVideoRenderer!=NULL) {
@@ -493,6 +493,11 @@ void CMediaViewer::CloseViewer(void)
 	}
 #endif
 
+	if (m_pszMpeg2DecoderName!=NULL) {
+		delete [] m_pszMpeg2DecoderName;
+		m_pszMpeg2DecoderName=NULL;
+	}
+
 	SAFE_RELEASE(m_pMpeg2DecFilter);
 
 	SAFE_RELEASE(m_pPcmSelFilter);
@@ -505,7 +510,6 @@ void CMediaViewer::CloseViewer(void)
 
 	SAFE_RELEASE(m_pMp2DemuxAudioMap);
 	SAFE_RELEASE(m_pMp2DemuxVideoMap);
-	SAFE_RELEASE(m_pMp2DemuxInterface);
 	SAFE_RELEASE(m_pMp2DemuxFilter);
 
 	SAFE_RELEASE(m_pSrcFilter);
@@ -580,6 +584,11 @@ const bool CMediaViewer::Stop(void)
 
 	CTryBlockLock Lock(&m_CriticalLock);
 	if (!Lock.TryLock(1000))
+		return false;
+
+	// 既にフィルタグラフがデッドロックしている場合、止めると戻ってこないので
+	// 本当はデッドロックしないようにすべきだが...
+	if (CheckHangUp(1000))
 		return false;
 
 	if (m_hFlushThread) {
@@ -852,15 +861,15 @@ const bool CMediaViewer::SetStereoMode(const int iMode)
 	return false;
 }
 
-const bool CMediaViewer::GetVideoDecorderName(LPWSTR lpName,int iBufLen)
+const bool CMediaViewer::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
 {
 	// 選択されているビデオデコーダー名の取得
-	if(m_pFilterGraph){
-		if(m_strMpeg2DecorderName.GetLength()+1<iBufLen){
-			lstrcpyW(lpName,m_strMpeg2DecorderName.GetBuffer());
-			return true;
-			}
-		}
+	if (m_pszMpeg2DecoderName!=NULL) {
+		::lstrcpynW(lpName,m_pszMpeg2DecoderName,iBufLen);
+		return true;
+	}
+	if (iBufLen>0)
+		lpName[0]='\0';
 	return false;
 }
 
@@ -878,13 +887,14 @@ const bool CMediaViewer::DisplayVideoRandererProperty(HWND hWndParent)
 	return false;
 }
 
+#ifdef DEBUG
 HRESULT CMediaViewer::AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister) const
 {
 	// デバッグ用
 	IMoniker * pMoniker;
 	IRunningObjectTable *pROT;
 	if(FAILED(::GetRunningObjectTable(0, &pROT)))return E_FAIL;
-	
+
 	WCHAR wsz[256];
 	wsprintfW(wsz, L"FilterGraph %08p pid %08x", (DWORD_PTR)pUnkGraph, ::GetCurrentProcessId());
 
@@ -894,9 +904,9 @@ HRESULT CMediaViewer::AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister) const
 		hr = pROT->Register(0, pUnkGraph, pMoniker, pdwRegister);
 		pMoniker->Release();
 		}
-	
+
 	pROT->Release();
-	
+
 	return hr;
 }
 
@@ -910,6 +920,7 @@ void CMediaViewer::RemoveFromRot(const DWORD dwRegister) const
 		pROT->Release();
 		}
 }
+#endif
 
 
 

@@ -86,6 +86,6 @@ private:
 
 	HANDLE m_hStreamRecvThread;
 	volatile bool m_bPauseSignal;
-	volatile bool m_bResumeSignal;
+	HANDLE m_hResumeEvent;
 	volatile bool m_bKillSignal;
 };
