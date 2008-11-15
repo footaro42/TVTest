@@ -38,6 +38,7 @@ private:
 	DWORD m_StreamRemain;
 	DWORD m_PacketBufferUsedCount;
 	CEpgDataInfo *m_pEpgDataInfo;
+	CEpgDataInfo *m_pEpgDataInfoNext;
 public:
 	CCoreEngine();
 	~CCoreEngine();
@@ -95,11 +96,11 @@ public:
 	DWORD GetScramblePacketCount() const { return m_ScramblePacketCount; }
 	float GetSignalLevel() const { return m_SignalLevel; }
 	DWORD GetBitRate() const { return m_BitRate; }
-	float GetBitRateFloat() const { return (float)(m_BitRate*8)/(float)(1024*1024); }
+	float GetBitRateFloat() const { return (float)m_BitRate/(float)(1024*1024); }
 	DWORD GetStreamRemain() const { return m_StreamRemain; }
 	int GetPacketBufferUsedPercentage();
 	bool UpdateEpgDataInfo();
-	const CEpgDataInfo *GetEpgDataInfo() const { return m_pEpgDataInfo; }
+	const CEpgDataInfo *GetEpgDataInfo(bool fNext=false) const;
 	void *GetCurrentImage();
 //private:
 	CDtvEngine m_DtvEngine;

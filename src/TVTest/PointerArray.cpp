@@ -198,7 +198,7 @@ int CPointerArray::Find(const void *pItem) const
 
 
 static void SortSub(void **ppHead,void **ppTail,
-					CPointerArray::CompareFunc pCompare)
+					CPointerArray::CompareFunc pCompare,void *pParam)
 {
 	void *pKey=ppHead[(ppTail-ppHead)/2];
 	void **p,**q;
@@ -206,9 +206,9 @@ static void SortSub(void **ppHead,void **ppTail,
 	p=ppHead;
 	q=ppTail;
 	while (p<=q) {
-		while ((*pCompare)(*p,pKey)<0)
+		while ((*pCompare)(*p,pKey,pParam)<0)
 			p++;
-		while ((*pCompare)(*q,pKey)>0)
+		while ((*pCompare)(*q,pKey,pParam)>0)
 			q--;
 		if (p<=q) {
 			Swap(*p,*q);
@@ -217,15 +217,15 @@ static void SortSub(void **ppHead,void **ppTail,
 		}
 	}
 	if (q>ppHead)
-		SortSub(ppHead,q,pCompare);
+		SortSub(ppHead,q,pCompare,pParam);
 	if (p<ppTail)
-		SortSub(p,ppTail,pCompare);
+		SortSub(p,ppTail,pCompare,pParam);
 }
 
-void CPointerArray::Sort(CompareFunc pCompare,bool fDescending/*=false*/)
+void CPointerArray::Sort(CompareFunc pCompare,bool fDescending/*=false*/,void *pParam/*=NULL*/)
 {
 	if (m_Length>1) {
-		SortSub(&m_ppList[0],&m_ppList[m_Length-1],pCompare);
+		SortSub(&m_ppList[0],&m_ppList[m_Length-1],pCompare,pParam);
 		if (fDescending) {
 			int i,j;
 

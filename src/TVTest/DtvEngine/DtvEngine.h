@@ -14,6 +14,7 @@
 #include "FileWriter.h"
 #include "FileReader.h"
 #include "MediaBuffer.h"
+#include "MediaGrabber.h"
 #include "Exception.h"
 #include "../Tracer.h"
 
@@ -65,6 +66,7 @@ public:
 	const bool SetChannel(const BYTE byTuningSpace, const WORD wChannel);
 	const bool SetService(const WORD wService);
 	const WORD GetService(void) const;
+	const bool GetServiceID(WORD *pServiceID) const;
 	const unsigned __int64 GetPcrTimeStamp() const;
 
 	/*
@@ -86,11 +88,11 @@ public:
 	bool SetDescrambleService(WORD Service);
 	bool SetDescrambleCurServiceOnly(bool bOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_bDescrambleCurServiceOnly; }
-	CEpgDataInfo *GetEpgDataInfo(WORD wSID, bool bNext);
+	CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
 	bool SetTracer(CTracer *pTracer);
 
 //protected:
-	// IMediaDecoder から派生したメディアデコーダクラス
+	// CMediaDecoder から派生したメディアデコーダクラス
 	CBonSrcDecoder m_BonSrcDecoder;			// TSソースチューナー(HAL化すべき)
 	CTsPacketParser m_TsPacketParser;		// TSパケッタイザー
 	CTsDescrambler m_TsDescrambler;			// TSデスクランブラー
@@ -100,6 +102,7 @@ public:
 	CFileWriter m_FileWriter;				// ファイルライター
 	CFileReader m_FileReader;				// ファイルリーダー
 	CMediaBuffer m_MediaBuffer;
+	CMediaGrabber m_MediaGrabber;
 
 protected:
 	const DWORD SendDtvEngineEvent(const DWORD dwEventID, PVOID pParam = NULL);

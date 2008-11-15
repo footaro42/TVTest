@@ -455,12 +455,15 @@ bool CChannelManager::SetNetworkRemoconCurrentChannel(int Channel)
 }
 
 
-bool CChannelManager::SetServiceID(int Space,int ChannelIndex,int Service,WORD ServiceID)
+bool CChannelManager::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
+						WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_fNetworkRemocon) {
-		m_pNetworkRemoconChannelList->SetServiceID(Space,ChannelIndex,Service,ServiceID);
+		m_pNetworkRemoconChannelList->UpdateStreamInfo(Space,ChannelIndex,Service,
+										NetworkID,TransportStreamID,ServiceID);
 	} else {
-		m_TuningSpaceList.SetServiceID(Space,ChannelIndex,Service,ServiceID);
+		m_TuningSpaceList.UpdateStreamInfo(Space,ChannelIndex,Service,
+										NetworkID,TransportStreamID,ServiceID);
 	}
 	return true;
 }
@@ -483,17 +486,25 @@ bool CChannelManager::LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 				for (int j=0;j<NumChannels;j++) {
 					int ChannelIndex;
 					int NumServices;
+					unsigned int NetworkID,TSID,ServiceID;
 
 					::wsprintf(szName,TEXT("Space%d_ChannelMap%d"),i,j);
 					if (Settings.Read(szName,&ChannelIndex)) {
+						::wsprintf(szName,TEXT("Space%d_Channel%d_NID"),i,j);
+						if (!Settings.Read(szName,&NetworkID))
+							NetworkID=0;
+						::wsprintf(szName,TEXT("Space%d_Channel%d_TSID"),i,j);
+						if (!Settings.Read(szName,&TSID))
+							TSID=0;
 						::wsprintf(szName,TEXT("Space%d_Channel%d_Count"),i,ChannelIndex);
 						if (Settings.Read(szName,&NumServices) && NumServices>0) {
 							for (int k=0;k<NumServices;k++) {
-								unsigned int ServiceID;
-
 								::wsprintf(szName,TEXT("Space%d_Channel%d_Service%d_SID"),i,ChannelIndex,k);
-								if (Settings.Read(szName,&ServiceID))
-									SetServiceID(i,ChannelIndex,k,ServiceID);
+								if (!Settings.Read(szName,&ServiceID))
+									ServiceID=0;
+								if (NetworkID!=0 || TSID!=0 || ServiceID!=0)
+									UpdateStreamInfo(i,ChannelIndex,k,
+													 NetworkID,TSID,ServiceID);
 							}
 						}
 					}
@@ -545,6 +556,16 @@ bool CChannelManager::SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 		for (int j=0;j<NumChannels;j++) {
 			const CChannelInfo *pChInfo=pList->GetChannelInfo(j);
 
+			if (pChInfo->GetNetworkID()!=0) {
+				::wsprintf(szName,TEXT("Space%d_Channel%d_NID"),
+					pChInfo->GetSpace(),pChInfo->GetChannelIndex());
+				Settings.Write(szName,pChInfo->GetNetworkID());
+			}
+			if (pChInfo->GetTransportStreamID()!=0) {
+				::wsprintf(szName,TEXT("Space%d_Channel%d_TSID"),
+					pChInfo->GetSpace(),pChInfo->GetChannelIndex());
+				Settings.Write(szName,pChInfo->GetTransportStreamID());
+			}
 			if (pChInfo->GetServiceID()!=0) {
 				::wsprintf(szName,TEXT("Space%d_Channel%d_Service%d_SID"),
 					pChInfo->GetSpace(),pChInfo->GetChannelIndex(),
@@ -553,5 +574,50 @@ bool CChannelManager::SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 			}
 		}
 	}
+	return true;
+}
+
+
+
+
+CChannelSpec::CChannelSpec()
+{
+	m_Space=-1;
+	m_Channel=-1;
+	m_Service=-1;
+}
+
+
+CChannelSpec::~CChannelSpec()
+{
+}
+
+
+bool CChannelSpec::Store(const CChannelManager *pChannelManager)
+{
+	m_Space=pChannelManager->GetCurrentSpace();
+	m_Channel=pChannelManager->GetCurrentChannel();
+	m_Service=pChannelManager->GetCurrentService();
+	return true;
+}
+
+
+bool CChannelSpec::SetSpace(int Space)
+{
+	m_Space=Space;
+	return true;
+}
+
+
+bool CChannelSpec::SetChannel(int Channel)
+{
+	m_Channel=Channel;
+	return true;
+}
+
+
+bool CChannelSpec::SetService(int Service)
+{
+	m_Service=Service;
 	return true;
 }

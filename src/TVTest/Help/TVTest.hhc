@@ -109,6 +109,10 @@
 			<param name="Local" value="options\programguide.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="プラグイン">
+			<param name="Local" value="options\plugin.html">
+			</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="ネットワークリモコン">
 			<param name="Local" value="options\networkremocon.html">
 			</OBJECT>

@@ -165,6 +165,7 @@
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				LinkTimeCodeGeneration="1"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -315,6 +316,10 @@
 			</File>
 			<File
 				RelativePath=".\PanelOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Plugin.cpp"
 				>
 			</File>
 			<File
@@ -540,6 +545,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Plugin.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PointerArray.h"
 				>
 			</File>
@@ -608,7 +617,15 @@
 				>
 			</File>
 			<File
+				RelativePath=".\TVTestPlugin.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Util.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Version.h"
 				>
 			</File>
 			<File
@@ -678,10 +695,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\MediaQueue.h"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\MediaTee.h"
 					>
 				</File>
@@ -699,10 +712,6 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\StdUtil.h"
-					>
-				</File>
-				<File
-					RelativePath=".\BonTsEngine\TsDemuxer.h"
 					>
 				</File>
 				<File
@@ -787,10 +796,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\MediaQueue.cpp"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\MediaTee.cpp"
 					>
 				</File>
@@ -829,10 +834,6 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\StdUtil.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\BonTsEngine\TsDemuxer.cpp"
 					>
 				</File>
 				<File

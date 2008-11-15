@@ -37,6 +37,7 @@ CCoreEngine::CCoreEngine()
 	m_PacketBufferUsedCount=0;
 	m_StreamRemain=0;
 	m_pEpgDataInfo=NULL;
+	m_pEpgDataInfoNext=NULL;
 }
 
 
@@ -44,6 +45,7 @@ CCoreEngine::~CCoreEngine()
 {
 	Close();
 	delete m_pEpgDataInfo;
+	delete m_pEpgDataInfoNext;
 }
 
 
@@ -368,9 +370,23 @@ int CCoreEngine::GetPacketBufferUsedPercentage()
 
 bool CCoreEngine::UpdateEpgDataInfo()
 {
-	delete m_pEpgDataInfo;
-	m_pEpgDataInfo=m_DtvEngine.GetEpgDataInfo(m_DtvEngine.GetService(),false);
+	WORD ServiceID;
+
+	SAFE_DELETE(m_pEpgDataInfo);
+	SAFE_DELETE(m_pEpgDataInfoNext);
+	if (!m_DtvEngine.GetServiceID(&ServiceID))
+		return false;
+	m_pEpgDataInfo=m_DtvEngine.GetEpgDataInfo(ServiceID,false);
+	m_pEpgDataInfoNext=m_DtvEngine.GetEpgDataInfo(ServiceID,true);
 	return true;
+}
+
+
+const CEpgDataInfo *CCoreEngine::GetEpgDataInfo(bool fNext) const
+{
+	if (fNext)
+		return m_pEpgDataInfoNext;
+	return m_pEpgDataInfo;
 }
 
 

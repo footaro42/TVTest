@@ -100,6 +100,16 @@ COLORREF CColorScheme::GetColor(int Type) const
 }
 
 
+COLORREF CColorScheme::GetColor(LPCTSTR pszText) const
+{
+	for (int i=0;i<NUM_COLORS;i++) {
+		if (::lstrcmpi(m_ColorInfoList[i].pszText,pszText)==0)
+			return m_ColorList[i];
+	}
+	return CLR_INVALID;
+}
+
+
 bool CColorScheme::SetColor(int Type,COLORREF Color)
 {
 	if (Type<0 || Type>=NUM_COLORS)
@@ -315,6 +325,18 @@ bool CColorSchemeOptions::Apply(const CColorScheme *pColorScheme) const
 	if (m_pApplyFunc==NULL)
 		return false;
 	return m_pApplyFunc(pColorScheme);
+}
+
+
+COLORREF CColorSchemeOptions::GetColor(int Type) const
+{
+	return m_pColorScheme->GetColor(Type);
+}
+
+
+COLORREF CColorSchemeOptions::GetColor(LPCTSTR pszText) const
+{
+	return m_pColorScheme->GetColor(pszText);
 }
 
 

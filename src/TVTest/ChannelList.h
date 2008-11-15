@@ -10,14 +10,15 @@
 
 
 class CChannelInfo {
-	int m_Space;			// チューニング空間
-	int m_Channel;			// 物理チャンネル番号
-	int m_ChannelIndex;		// チャンネルインデックス(BonDriverでの番号)
-	int m_ChannelNo;		// リモコンチャンネル番号
-	int m_Service;			// サービス
+	int m_Space;				// チューニング空間
+	int m_Channel;				// 物理チャンネル番号
+	int m_ChannelIndex;			// チャンネルインデックス(BonDriverでの番号)
+	int m_ChannelNo;			// リモコンチャンネル番号
+	int m_Service;				// サービス
 	TCHAR m_szName[MAX_CHANNEL_NAME];
-	WORD m_NetworkID;		// ネットワークID
-	WORD m_ServiceID;		// サービスID
+	WORD m_NetworkID;			// ネットワークID
+	WORD m_TransportStreamID;	// トランスポートストリームID
+	WORD m_ServiceID;			// サービスID
 public:
 	CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);
 	CChannelInfo(const CChannelInfo &Info);
@@ -31,6 +32,8 @@ public:
 	bool SetName(LPCTSTR pszName);
 	bool SetNetworkID(WORD NetworkID);
 	WORD GetNetworkID() const { return m_NetworkID; }
+	bool SetTransportStreamID(WORD TransportStreamID);
+	WORD GetTransportStreamID() const { return m_TransportStreamID; }
 	bool SetServiceID(WORD ServiceID);
 	WORD GetServiceID() const { return m_ServiceID; }
 };
@@ -76,14 +79,24 @@ public:
 		SORT_SERVICEID
 	};
 	void Sort(SortType Type,bool fDescending=false);
-	bool SetServiceID(int Space,int ChannelIndex,int Service,WORD ServiceID);
+	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
+						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 private:
 	void SortSub(SortType Type,bool fDescending,int First,int Last,CChannelInfo **ppTemp);
 };
 
 class CTuningSpaceInfo {
+public:
+	enum TuningSpaceType {
+		SPACE_UNKNOWN,
+		SPACE_TERRESTRIAL,
+		SPACE_BS,
+		SPACE_110CS
+	};
+private:
 	CChannelList *m_pChannelList;
 	LPTSTR m_pszName;
+	TuningSpaceType m_Space;
 public:
 	CTuningSpaceInfo();
 	CTuningSpaceInfo(const CTuningSpaceInfo &Info);
@@ -119,7 +132,8 @@ public:
 	void Clear();
 	bool SaveToFile(LPCTSTR pszFileName) const;
 	bool LoadFromFile(LPCTSTR pszFileName);
-	bool SetServiceID(int Space,int ChannelIndex,int Service,WORD ServiceID);
+	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
+						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 };
 
 

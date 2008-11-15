@@ -27,6 +27,12 @@ COptions *COptions::OnInitDialog(HWND hDlg,LPARAM lParam)
 }
 
 
+COptions *COptions::GetOptions(HWND hDlg)
+{
+	return static_cast<COptions*>(::GetProp(hDlg,TEXT("This")));
+}
+
+
 void COptions::OnDestroy()
 {
 	if (m_hDlg) {

@@ -115,6 +115,13 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName) const
 }
 
 
+void CLogger::GetDefaultLogFileName(LPTSTR pszFileName) const
+{
+	::GetModuleFileName(NULL,pszFileName,MAX_PATH);
+	::PathRenameExtension(pszFileName,TEXT(".log"));
+}
+
+
 CLogger *CLogger::GetThis(HWND hDlg)
 {
 	return static_cast<CLogger*>(::GetProp(hDlg,TEXT("This")));
@@ -183,8 +190,7 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				CLogger *pThis=GetThis(hDlg);
 				TCHAR szFileName[MAX_PATH];
 
-				::GetModuleFileName(NULL,szFileName,lengthof(szFileName));
-				::PathRenameExtension(szFileName,TEXT(".log"));
+				pThis->GetDefaultLogFileName(szFileName);
 				if (!pThis->SaveToFile(szFileName)) {
 					::MessageBox(hDlg,TEXT("ï€ë∂Ç™Ç≈Ç´Ç‹ÇπÇÒÅB"),NULL,MB_OK | MB_ICONEXCLAMATION);
 				} else {

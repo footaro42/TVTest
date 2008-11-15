@@ -605,6 +605,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			continue;
 		}
 		WORD NetworkID=pDtvEngine->m_ProgManager.GetNetworkID();
+		WORD TransportStreamID=pDtvEngine->m_ProgManager.GetTransportStreamID();
 		if (pThis->m_fScanService) {
 			for (int i=0;i<NumServices;i++) {
 				pDtvEngine->m_ProgManager.GetServiceName(szName,i);
@@ -612,6 +613,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 					pDtvEngine->m_ProgManager.GetRemoteControlKeyID(),
 					i,szName);
 				ChInfo.SetNetworkID(NetworkID);
+				ChInfo.SetTransportStreamID(TransportStreamID);
 				WORD ServiceID=0;
 				if (pDtvEngine->m_ProgManager.GetServiceID(&ServiceID,i))
 					ChInfo.SetServiceID(ServiceID);
@@ -627,6 +629,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				pDtvEngine->m_ProgManager.GetRemoteControlKeyID(),
 				0,szName);
 			ChInfo.SetNetworkID(NetworkID);
+			ChInfo.SetTransportStreamID(TransportStreamID);
 			WORD ServiceID=0;
 			if (pDtvEngine->m_ProgManager.GetServiceID(&ServiceID,0))
 				ChInfo.SetServiceID(ServiceID);

@@ -19,6 +19,7 @@ CTsDescrambler::CTsDescrambler(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 1UL, 1UL)
 	, m_dwInputPacketCount(0UL)
 	, m_dwScramblePacketCount(0UL)
+	, m_DescrambleServiceID(0)
 {
 	// PATテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(0x0000U, new CPatTable, OnPatUpdated, this);
@@ -43,18 +44,26 @@ void CTsDescrambler::Reset(void)
 	m_dwInputPacketCount = 0UL;
 	m_dwScramblePacketCount = 0UL;
 
+	// スクランブル解除ターゲット初期化
+	m_DescramblePIDList.clear();
+	m_DescrambleServiceID=0;
+
 	// 下流デコーダを初期化する
 	CMediaDecoder::Reset();
 }
 
 const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
+	/*
 	if(dwInputIndex >= GetInputNum())return false;
 
 	CTsPacket *pTsPacket = dynamic_cast<CTsPacket *>(pMediaData);
 
 	// 入力メディアデータは互換性がない
 	if(!pTsPacket)return false;
+	*/
+
+	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
 	// 入力パケット数カウント
 	//if(m_dwInputPacketCount < 0xFFFFFFFFUL)m_dwInputPacketCount++;
@@ -64,12 +73,13 @@ const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 		// PIDルーティング
 		m_PidMapManager.StorePacket(pTsPacket);
 
-		// パケット出力
+		/*
 		if (pTsPacket->IsScrambled()) {
 			// 復号漏れパケット数カウント
 			//if(m_dwScramblePacketCount < 0xFFFFFFFFUL)m_dwScramblePacketCount++;
 			m_dwScramblePacketCount++;
 		}
+		*/
 	}
 
 	// パケットを下流デコーダにデータを渡す
@@ -146,6 +156,7 @@ bool CTsDescrambler::SetTargetPID(const WORD *pPIDList,int NumPIDs)
 			m_DescramblePIDList.push_back(pPIDList[i]);
 		}
 	}
+	m_DescrambleServiceID=0;
 	return true;
 }
 
@@ -162,6 +173,20 @@ bool CTsDescrambler::IsTargetPID(WORD PID)
 	return false;
 }
 
+bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
+{
+	CBlockLock Lock(&m_DescrambleListLock);
+
+	m_DescramblePIDList.clear();
+	m_DescrambleServiceID=ServiceID;
+	return true;
+}
+
+DWORD CTsDescrambler::IncrementScramblePacketCount()
+{
+	return InterlockedIncrement((LONG*)&m_dwScramblePacketCount);
+}
+
 void CALLBACK CTsDescrambler::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam)
 {
 	// PATが更新された
@@ -174,7 +199,9 @@ void CALLBACK CTsDescrambler::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMa
 
 	// PMTテーブルPIDマップ追加
 	for(WORD wIndex = 0U ; wIndex < pPatTable->GetProgramNum() ; wIndex++){
-		pMapManager->MapTarget(pPatTable->GetPmtPID(wIndex), new CPmtTable, OnPmtUpdated, pParam);
+		if (pThis->m_DescrambleServiceID==0
+			|| pPatTable->GetProgramID(wIndex)==pThis->m_DescrambleServiceID)
+			pMapManager->MapTarget(pPatTable->GetPmtPID(wIndex), new CPmtTable, OnPmtUpdated, pParam);
 	}
 }
 
@@ -241,8 +268,10 @@ void CEcmProcessor::OnPidUnmapped(const WORD wPID)
 
 const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 {
-	if (!m_bInQueue)	// まだECMが来ていない
+	if (!m_bInQueue) {	// まだECMが来ていない
+		m_pDescrambler->IncrementScramblePacketCount();
 		return false;
+	}
 	for (int i=0;!m_bSetScrambleKey;i++) {
 		if (i==500)	// デッドロック回避
 			return false;
@@ -258,6 +287,8 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 		// トランスポートスクランブル制御再設定
 		pTsPacket->SetAt(3UL, pTsPacket->GetAt(3UL) & 0x3FU);
 		pTsPacket->m_Header.byTransportScramblingCtrl = 0U;
+	} else {
+		m_pDescrambler->IncrementScramblePacketCount();
 	}
 	return bOK;
 }

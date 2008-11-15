@@ -26,8 +26,8 @@ public:
 	bool Set(int Index,void *pItem);
 	bool Move(int From,int To);
 	int Find(const void *pItem) const;
-	typedef int (*CompareFunc)(const void*,const void*);
-	void Sort(CompareFunc pCompare,bool fDescending=false);
+	typedef int (*CompareFunc)(const void*,const void*,void *);
+	void Sort(CompareFunc pCompare,bool fDescending=false,void *pParam=NULL);
 };
 
 template <typename Type> class CPointerVector {
@@ -59,8 +59,8 @@ public:
 	bool Set(int Index,Type *pItem) { return m_Array.Set(Index,pItem); }
 	bool Move(int From,int To) { return m_Array.Move(From,To); }
 	int Find(const Type *pItem) const { return m_Array.Find(pItem); }
-	void Sort(int (*pCompare)(const Type*,const Type*),bool fDescending=false) {
-		m_Array.Sort((CPointerArray::CompareFunc)pCompare,fDescending);
+	void Sort(int (*pCompare)(const Type*,const Type*,void*),bool fDescending=false,void *pParam=NULL) {
+		m_Array.Sort((CPointerArray::CompareFunc)pCompare,fDescending,pParam);
 	}
 };
 

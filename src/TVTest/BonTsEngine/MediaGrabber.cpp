@@ -40,10 +40,13 @@ void CMediaGrabber::Reset(void)
 
 const bool CMediaGrabber::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	if(dwInputIndex > GetInputNum())return false;
+	if(dwInputIndex >= GetInputNum())return false;
 
 	// コールバックに通知する
-	if(m_pfnMediaGrabFunc)m_pfnMediaGrabFunc(pMediaData, m_pMediaGrabParam);
+	if (m_pfnMediaGrabFunc) {
+		if (!m_pfnMediaGrabFunc(pMediaData, m_pMediaGrabParam))
+			return false;
+	}
 
 	// 下位デコーダにデータを渡す
 	OutputMedia(pMediaData);
@@ -53,6 +56,8 @@ const bool CMediaGrabber::InputMedia(CMediaData *pMediaData, const DWORD dwInput
 
 void CMediaGrabber::SetMediaGrabCallback(const MEDIAGRABFUNC pCallback, const PVOID pParam)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// メディア受け取りコールバックを登録する
 	m_pfnMediaGrabFunc = pCallback;
 	m_pMediaGrabParam = pParam;
@@ -60,6 +65,8 @@ void CMediaGrabber::SetMediaGrabCallback(const MEDIAGRABFUNC pCallback, const PV
 
 void CMediaGrabber::SetResetGrabCallback(const RESETGRABFUNC pCallback, const PVOID pParam)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// リセット受け取りコールバックを登録する
 	m_pfnResetGrabFunc = pCallback;
 	m_pResetGrabParam = pParam;

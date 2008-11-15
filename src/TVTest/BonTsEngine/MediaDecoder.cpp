@@ -58,10 +58,10 @@ const DWORD CMediaDecoder::GetOutputNum(void) const
 
 const bool CMediaDecoder::SetOutputDecoder(CMediaDecoder *pDecoder, const DWORD dwOutputIndex, const DWORD dwInputIndex)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	if(dwOutputIndex >= m_dwOutputNum)
 		return false;
-
-	CBlockLock Lock(&m_DecoderLock);
 
 	// 出力フィルタをセットする
 	m_aOutputDecoder[dwOutputIndex].pDecoder = pDecoder;
@@ -73,10 +73,10 @@ const bool CMediaDecoder::OutputMedia(CMediaData *pMediaData, const DWORD dwOutp
 {
 	// デフォルトの出力処理
 
+	CBlockLock Lock(&m_DecoderLock);
+
 	if(dwOutptIndex >= m_dwOutputNum)
 		return false;
-
-	CBlockLock Lock(&m_DecoderLock);
 
 	// 次のフィルタにデータを渡す
 	if(m_aOutputDecoder[dwOutptIndex].pDecoder){

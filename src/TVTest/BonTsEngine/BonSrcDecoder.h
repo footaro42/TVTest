@@ -60,6 +60,8 @@ public:
 	// Append by HDUSTest‚Ì’†‚Ìl
 	int NumSpaces() const;
 	LPCTSTR GetTunerName() const;
+	int GetCurSpace() const;
+	int GetCurChannel() const;
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
 protected:

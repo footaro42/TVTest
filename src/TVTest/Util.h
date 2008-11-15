@@ -17,7 +17,8 @@ float LevelToDeciBel(int Level);
 COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio);
 
 DWORD DiffTime(DWORD Start,DWORD End);
-#define FILETIME_SECOND ((LONGLONG)10000000)
+#define FILETIME_SECOND			((LONGLONG)10000000)
+#define FILETIME_MILLISECOND	((LONGLONG)10000)
 FILETIME &operator+=(FILETIME &ft,LONGLONG Offset);
 LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2);
 int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2);
@@ -63,6 +64,29 @@ public:
 	bool RemoveDirectory();
 	bool HasDirectory() const;
 	bool IsExists() const;
+	bool IsValid(bool fWildcard=false) const;
+};
+
+class CLocalTime {
+protected:
+	FILETIME m_Time;
+public:
+	CLocalTime();
+	CLocalTime(const FILETIME &Time);
+	CLocalTime(const SYSTEMTIME &Time);
+	virtual ~CLocalTime();
+	bool operator==(const CLocalTime &Time) const;
+	bool operator!=(const CLocalTime &Time) const { return !(*this==Time); }
+	bool operator<(const CLocalTime &Time) const;
+	bool operator>(const CLocalTime &Time) const;
+	bool operator<=(const CLocalTime &Time) const;
+	bool operator>=(const CLocalTime &Time) const;
+	CLocalTime &operator+=(LONGLONG Offset);
+	CLocalTime &operator-=(LONGLONG Offset) { return *this+=-Offset; }
+	LONGLONG operator-(const CLocalTime &Time) const;
+	void SetCurrentTime();
+	bool GetTime(FILETIME *pTime) const;
+	bool GetTime(SYSTEMTIME *pTime) const;
 };
 
 

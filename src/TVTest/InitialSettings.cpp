@@ -76,6 +76,12 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 								  rc.right,rc.bottom,FALSE);
 			}
 			{
+				HBITMAP hbm=::LoadBitmap(GetAppClass().GetResourceInstance(),
+													MAKEINTRESOURCE(IDB_LOGO));
+				::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_LOGO,STM_SETIMAGE,
+									 IMAGE_BITMAP,reinterpret_cast<LPARAM>(hbm));
+			}
+			{
 				bool fUDPDriverExists=false,fDriverFinded=false;
 
 				::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_DRIVER,CB_LIMITTEXT,MAX_PATH-1,0);
@@ -204,8 +210,20 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return TRUE;
 
+	case WM_CTLCOLORSTATIC:
+		if (reinterpret_cast<HWND>(lParam)==::GetDlgItem(hDlg,IDC_INITIALSETTINGS_LOGO))
+			return reinterpret_cast<BOOL>(::GetStockObject(WHITE_BRUSH));
+		break;
+
 	case WM_DESTROY:
-		::RemoveProp(hDlg,TEXT("This"));
+		{
+			HBITMAP hbm=reinterpret_cast<HBITMAP>(::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_LOGO,
+				STM_SETIMAGE,IMAGE_BITMAP,reinterpret_cast<LPARAM>((HBITMAP)NULL)));
+
+			if (hbm!=NULL)
+				::DeleteObject(hbm);
+			::RemoveProp(hDlg,TEXT("This"));
+		}
 		return TRUE;
 	}
 	return FALSE;

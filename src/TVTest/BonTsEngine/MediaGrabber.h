@@ -18,7 +18,7 @@
 class CMediaGrabber : public CMediaDecoder  
 {
 public:
-	typedef void (CALLBACK * MEDIAGRABFUNC)(const CMediaData *pMediaData, const PVOID pParam);	// メディア受け取りコールバック型
+	typedef bool (CALLBACK * MEDIAGRABFUNC)(const CMediaData *pMediaData, const PVOID pParam);	// メディア受け取りコールバック型
 	typedef void (CALLBACK * RESETGRABFUNC)(const PVOID pParam);								// リセット受け取りコールバック型
 
 	CMediaGrabber(IEventHandler *pEventHandler = NULL);

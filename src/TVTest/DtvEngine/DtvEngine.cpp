@@ -33,6 +33,7 @@ CDtvEngine::CDtvEngine(void)
 	, m_FileWriter(this)
 	, m_FileReader(this)
 	, m_MediaBuffer(this)
+	, m_MediaGrabber(this)
 	, m_bBuiled(false)
 	, m_bBuildComplete(false)
 	, m_bIsFileMode(false)
@@ -83,7 +84,9 @@ const bool CDtvEngine::BuildEngine(CDtvEngineHandler *pDtvEngineHandler,
 	}
 	m_bDescramble=bDescramble;
 	m_MediaTee.SetOutputDecoder(&m_ProgManager, 0UL);		// Output #0 : CTsPacket
-	m_MediaTee.SetOutputDecoder(&m_FileWriter, 1UL);		// Output #1 : CTsPacket
+	//m_MediaTee.SetOutputDecoder(&m_FileWriter, 1UL);		// Output #1 : CTsPacket
+	m_MediaTee.SetOutputDecoder(&m_MediaGrabber, 1UL);
+	m_MediaGrabber.SetOutputDecoder(&m_FileWriter);
 	if (!bBuffering) {
 		m_ProgManager.SetOutputDecoder(&m_MediaViewer);			// Output #0 : CTsPacket
 	} else {
@@ -415,6 +418,13 @@ const WORD CDtvEngine::GetService(void) const
 }
 
 
+const bool CDtvEngine::GetServiceID(WORD *pServiceID) const
+{
+	// サービスID取得
+	return m_ProgManager.GetServiceID(pServiceID,m_wCurService);
+}
+
+
 const unsigned __int64 CDtvEngine::GetPcrTimeStamp() const
 {
 	// PCRタイムスタンプ取得
@@ -442,7 +452,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 		WORD wTransportStream = m_ProgManager.GetTransportStreamID();
 		switch(dwEventID){
 			case CProgManager::EID_SERVICE_LIST_UPDATED :
-				// サービスの構成が変化した				
+				// サービスの構成が変化した
 				if(m_wCurTransportStream!=wTransportStream) {
 					// ストリームIDが変わっているなら初期化
 					TRACE(TEXT("■Stream Change!! %04X\n"),wTransportStream);
@@ -456,12 +466,12 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 					SetService(m_wCurService);
 				}
 				return 0UL;
-				
+
 			case CProgManager::EID_SERVICE_INFO_UPDATED :
 				// サービス名が更新された
 				SendDtvEngineEvent(EID_SERVICE_INFO_UPDATED, static_cast<PVOID>(&m_ProgManager));
-				
 				return 0UL;
+
 			case CProgManager::EID_PCR_TIMESTAMP_UPDATED :
 				// タイムスタンプが更新された
 				if(m_wCurService!=0xFFFF){
@@ -620,6 +630,7 @@ bool CDtvEngine::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const
 
 bool CDtvEngine::SetDescrambleService(WORD Service)
 {
+	/*
 	if (Service!=0xFFFF) {
 		WORD TargetPIDs[2] = {0xFFFF,0xFFFF};
 
@@ -628,6 +639,16 @@ bool CDtvEngine::SetDescrambleService(WORD Service)
 		return m_TsDescrambler.SetTargetPID(TargetPIDs,2);
 	}
 	return m_TsDescrambler.SetTargetPID();
+	*/
+	WORD ServiceID;
+
+	if (Service!=0xFFFF) {
+		if (!m_ProgManager.GetServiceID(&ServiceID,Service))
+			return false;
+	} else {
+		ServiceID=0;
+	}
+	return m_TsDescrambler.SetTargetServiceID(ServiceID);
 }
 
 
@@ -641,12 +662,9 @@ bool CDtvEngine::SetDescrambleCurServiceOnly(bool bOnly)
 }
 
 
-CEpgDataInfo *CDtvEngine::GetEpgDataInfo(WORD wSID, bool bNext)
+CEpgDataInfo *CDtvEngine::GetEpgDataInfo(WORD ServiceID, bool bNext)
 {
-	WORD wID = 0;
-
-	m_ProgManager.GetServiceID(&wID,wSID);
-	return m_TsPacketParser.GetEpgDataInfo(wID,bNext);
+	return m_TsPacketParser.GetEpgDataInfo(ServiceID,bNext);
 }
 
 

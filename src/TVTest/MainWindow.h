@@ -2,10 +2,13 @@
 #define MAIN_WINDOW_H
 
 
-#include "BasicWindow.h"
+#include "View.h"
+#include "ChannelManager.h"
 
 
 class CFullscreen : public CBasicWindow {
+	CVideoContainerWindow *m_pVideoContainer;
+	CViewWindow *m_pViewWindow;
 	bool m_fShowCursor;
 	bool m_fMenu;
 	bool m_fShowStatusView;
@@ -18,7 +21,7 @@ class CFullscreen : public CBasicWindow {
 public:
 	CFullscreen();
 	~CFullscreen();
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner,CVideoContainerWindow *pVideoContainer,CViewWindow *m_pViewWindow);
 	void OnRButtonDown();
 	void OnMouseMove();
 	HWND GetHandle() const { return m_hwnd; }
@@ -26,6 +29,8 @@ public:
 };
 
 class CMainWindow : public CBasicWindow {
+	CVideoContainerWindow m_VideoContainer;
+	CViewWindow m_ViewWindow;
 	bool m_fFullscreen;
 	CFullscreen *m_pFullscreen;
 	bool m_fMaximize;
@@ -35,9 +40,11 @@ class CMainWindow : public CBasicWindow {
 	bool m_fEnablePreview;
 	bool m_fStandby;
 	bool m_fSrcFilterReleased;
+	CChannelSpec m_RestoreChannelSpec;
 	bool m_fRestoreFullscreen;
 	bool m_fProgramGuideUpdating;
 	int m_ProgramGuideUpdateStartChannel;
+	bool m_fExitOnRecordingStop;
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
 	bool m_fClosing;
@@ -63,6 +70,7 @@ public:
 	CMainWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool Show(int CmdShow);
+	bool BuildMediaViewer();
 	bool SetFullscreen(bool fFullscreen);
 	bool GetFullscreen() const { return m_fFullscreen; }
 	HWND GetVideoHostWindow() const;
@@ -77,14 +85,18 @@ public:
 	bool EnablePreview(bool fEnable);
 	bool IsPreview() const { return m_fEnablePreview; }
 	bool SetStandby(bool fStandby);
+	bool GetStandby() const { return m_fStandby; }
+	bool OpenTuner();
 	bool ConfirmExit();
 	int GetVolume() const;
 	bool SetVolume(int Volume,bool fOSD=true);
+	bool GetMute() const;
+	bool SetMute(bool fMute);
 	int GetStereoMode() const;
 	bool SetStereoMode(int StereoMode);
 	int CalcZoomRate();
 	bool CalcZoomRate(int *pNum,int *pDenom);
-	void SetZoomRate(int ZoomNum,int ZoomDenom=100);
+	bool SetZoomRate(int ZoomNum,int ZoomDenom=100);
 	void SetMaximizeStatus(bool fMaximize) { m_fMaximize=fMaximize; }
 	bool GetMaximizeStatus() const { return m_fMaximize; }
 	void OnChannelChange();
@@ -92,9 +104,13 @@ public:
 	void PopupMenu(const POINT *pPos=NULL);
 	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
+	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
 	bool BeginProgramGuideUpdate();
-	void EndProgramGuideUpdate();
+	void EndProgramGuideUpdate(bool fRelease=true);
 	void BeginProgramListUpdateTimer();
+	bool SetViewWindowEdge(bool fEdge);
+	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
+	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
 	static bool Initialize();
 };
 

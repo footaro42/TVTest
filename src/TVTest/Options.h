@@ -10,6 +10,7 @@ protected:
 	HWND m_hDlg;
 	DWORD m_UpdateFlags;
 	static COptions *OnInitDialog(HWND hDlg,LPARAM lParam);
+	static COptions *GetOptions(HWND hDlg);
 	void OnDestroy();
 public:
 	COptions();

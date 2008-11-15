@@ -73,6 +73,8 @@ public:
 	const DWORD GetScramblePacketCount(void) const;
 	bool SetTargetPID(const WORD *pPIDList=NULL,int NumPIDs=0);
 	bool IsTargetPID(WORD PID);
+	bool SetTargetServiceID(WORD ServiceID=0);
+	DWORD IncrementScramblePacketCount();
 
 protected:
 	class CEsProcessor;
@@ -86,6 +88,7 @@ protected:
 
 	std::vector<WORD> m_DescramblePIDList;
 	CCriticalLock m_DescrambleListLock;
+	WORD m_DescrambleServiceID;
 
 	DWORD m_dwInputPacketCount;
 	DWORD m_dwScramblePacketCount;

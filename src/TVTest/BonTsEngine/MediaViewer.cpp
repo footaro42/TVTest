@@ -472,7 +472,7 @@ void CMediaViewer::CloseViewer(void)
 		m_hFlushResumeEvent=NULL;
 	}
 
-	Flush();
+	//Flush();
 	Stop();
 
 	// COMインスタンスを開放する
@@ -929,6 +929,16 @@ const bool CMediaViewer::ForceAspectRatio(int AspectX,int AspectY)
 {
 	m_ForceAspectX=AspectX;
 	m_ForceAspectY=AspectY;
+	return true;
+}
+
+
+const bool CMediaViewer::GetForceAspectRatio(int *pAspectX,int *pAspectY) const
+{
+	if (pAspectX)
+		*pAspectX=m_ForceAspectX;
+	if (pAspectY)
+		*pAspectY=m_ForceAspectY;
 	return true;
 }
 

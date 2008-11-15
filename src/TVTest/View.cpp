@@ -17,22 +17,15 @@ static char THIS_FILE[]=__FILE__;
 
 
 HINSTANCE CVideoContainerWindow::m_hinst=NULL;
-CDtvEngine *CVideoContainerWindow::m_pDtvEngine=NULL;
 
 
 CVideoContainerWindow::CVideoContainerWindow()
+	: m_pDtvEngine(NULL)
 {
 }
 
 
-bool CVideoContainerWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
-{
-	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 VIDEO_CONTAINER_WINDOW_CLASS,NULL,m_hinst);
-}
-
-
-bool CVideoContainerWindow::Initialize(HINSTANCE hinst,CDtvEngine *pDtvEngine)
+bool CVideoContainerWindow::Initialize(HINSTANCE hinst)
 {
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
@@ -50,7 +43,6 @@ bool CVideoContainerWindow::Initialize(HINSTANCE hinst,CDtvEngine *pDtvEngine)
 		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
-		m_pDtvEngine=pDtvEngine;
 	}
 	return true;
 }
@@ -77,8 +69,8 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 			HBRUSH hbr;
 
 			::BeginPaint(hwnd,&ps);
-			m_pDtvEngine->m_MediaViewer.RepaintVideo(hwnd,ps.hdc);
-			m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest);
+			pThis->m_pDtvEngine->m_MediaViewer.RepaintVideo(hwnd,ps.hdc);
+			pThis->m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest);
 			hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
 			::GetClientRect(hwnd,&rc);
 			DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
@@ -120,7 +112,7 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 		{
 			CVideoContainerWindow *pThis=GetThis(hwnd);
 			CVideoRenderer::RendererType Renderer=
-				m_pDtvEngine->m_MediaViewer.GetVideoRendererType();
+				pThis->m_pDtvEngine->m_MediaViewer.GetVideoRendererType();
 
 			if (Renderer!=CVideoRenderer::RENDERER_VMR7
 					&& Renderer!=CVideoRenderer::RENDERER_VMR9)
@@ -130,7 +122,7 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 		{
 			CVideoContainerWindow *pThis=GetThis(hwnd);
 
-			m_pDtvEngine->SetViewSize(LOWORD(lParam),HIWORD(lParam));
+			pThis->m_pDtvEngine->SetViewSize(LOWORD(lParam),HIWORD(lParam));
 		}
 		return 0;
 
@@ -157,6 +149,24 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+}
+
+
+bool CVideoContainerWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
+{
+	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
+							 VIDEO_CONTAINER_WINDOW_CLASS,NULL,m_hinst);
+}
+
+
+bool CVideoContainerWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID,CDtvEngine *pDtvEngine)
+{
+	m_pDtvEngine=pDtvEngine;
+	if (!Create(hwndParent,Style,ExStyle,ID)) {
+		m_pDtvEngine=NULL;
+		return false;
+	}
+	return true;
 }
 
 

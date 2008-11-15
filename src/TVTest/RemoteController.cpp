@@ -121,7 +121,7 @@ bool CRemoteController::TranslateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 		Modifier|=MK_SHIFT;
 	for (i=0;i<lengthof(KeyMap);i++) {
 		if (KeyMap[i].Key==wParam && KeyMap[i].Modifier==Modifier) {
-			SendMessage(m_hwnd,WM_COMMAND,KeyMap[i].Command,0);
+			PostMessage(m_hwnd,WM_COMMAND,KeyMap[i].Command,0);
 			break;
 		}
 	}

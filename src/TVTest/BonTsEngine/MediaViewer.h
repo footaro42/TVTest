@@ -69,9 +69,11 @@ public:
 	const bool Pause();
 	const bool Flush();
 	const bool ForceAspectRatio(int AspectX,int AspectY);
+	const bool GetForceAspectRatio(int *pAspectX,int *pAspectY) const;
 	const bool GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY);
 	enum { PANANDSCAN_HORZ=1, PANANDSCAN_VERT=2 };
 	const bool SetPanAndScan(BYTE bFlags);
+	BYTE GetPanAndScan() const { return m_PanAndScan; }
 	enum ViewStretchMode {
 		STRETCH_KEEPASPECTRATIO,
 		STRETCH_CUTFRAME,

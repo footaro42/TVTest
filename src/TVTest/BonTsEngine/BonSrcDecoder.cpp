@@ -402,6 +402,7 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 					DWORD Remain,Size;
 
 					for (Remain=dwStreamSize;Remain>0;Remain-=Size) {
+						// 一度に送るサイズを小さくする程CPU使用率の変動が少なくなる
 						Size=min(Remain,188*64);
 						pThis->OnTsStream(pStreamData+(dwStreamSize-Remain),Size);
 					}
@@ -412,7 +413,7 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 				DWORD Now=::GetTickCount();
 				if (Now>=pThis->m_BitRateTime) {
 					if (Now-pThis->m_BitRateTime>=1000) {
-						pThis->m_BitRate=(TotalSize)*1000/(Now-pThis->m_BitRateTime);
+						pThis->m_BitRate=(DWORD)(((ULONGLONG)TotalSize*8*1000)/(ULONGLONG)(Now-pThis->m_BitRateTime));
 						pThis->m_BitRateTime=Now;
 						TotalSize=0;
 					}
@@ -427,10 +428,9 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 				break;
 
 			// ウェイト(24Mbpsとして次のデータ到着まで約15msかかる)
-			::Sleep(1UL);
+			::Sleep(5UL);
 			//pThis->m_pBonDriver->WaitTsStream(20);
 		}
-TRACE(L"Break\n");
 		if (pThis->m_bKillSignal)
 			break;
 		::SetEvent(pThis->m_hResumeEvent);
@@ -479,6 +479,22 @@ LPCTSTR CBonSrcDecoder::GetTunerName() const
 	if (m_pBonDriver2)
 		return m_pBonDriver2->GetTunerName();
 	return NULL;
+}
+
+
+int CBonSrcDecoder::GetCurSpace() const
+{
+	if (m_pBonDriver2)
+		return m_pBonDriver2->GetCurSpace();
+	return -1;
+}
+
+
+int CBonSrcDecoder::GetCurChannel() const
+{
+	if (m_pBonDriver2)
+		return m_pBonDriver2->GetCurChannel();
+	return -1;
 }
 
 

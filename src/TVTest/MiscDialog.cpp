@@ -26,6 +26,11 @@ BOOL CALLBACK CAboutDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		}
 		return TRUE;
 
+	case WM_CTLCOLORSTATIC:
+		if (reinterpret_cast<HWND>(lParam)==::GetDlgItem(hDlg,IDC_ABOUT_LOGO))
+			return reinterpret_cast<BOOL>(::GetStockObject(WHITE_BRUSH));
+		break;
+
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case IDOK:

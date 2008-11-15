@@ -63,6 +63,7 @@ public:
 	~CColorScheme();
 	CColorScheme &operator=(const CColorScheme &ColorScheme);
 	COLORREF GetColor(int Type) const;
+	COLORREF GetColor(LPCTSTR pszText) const;
 	bool SetColor(int Type,COLORREF Color);
 	LPCTSTR GetName() const { return m_pszName; }
 	bool SetName(LPCTSTR pszName);
@@ -121,6 +122,8 @@ public:
 	bool Save(LPCTSTR pszFileName) const;
 	bool SetApplyCallback(ApplyFunc pCallback);
 	bool ApplyColorScheme() const;
+	COLORREF GetColor(int Type) const;
+	COLORREF GetColor(LPCTSTR pszText) const;
 	static bool GetThemesDirectory(LPTSTR pszDirectory,int MaxLength,bool fCreate=false);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };

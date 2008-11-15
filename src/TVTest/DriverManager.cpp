@@ -40,7 +40,7 @@ void CDriverManager::Clear()
 }
 
 
-int CDriverManager::CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2)
+int CDriverManager::CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2,void *pParam)
 {
 	return ::lstrcmpi(pDriver1->GetFileName(),pDriver2->GetFileName());
 }

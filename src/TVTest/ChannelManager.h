@@ -55,9 +55,26 @@ public:
 	bool SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList=NULL);
 	int GetNetworkRemoconCurrentChannel() const { return m_NetworkRemoconCurrentChannel; }
 	bool SetNetworkRemoconCurrentChannel(int Channel);
-	bool SetServiceID(int Space,int ChannelIndex,int Service,WORD ServiceID);
+	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
+						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
 	bool SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
+};
+
+class CChannelSpec {
+	int m_Space;
+	int m_Channel;
+	int m_Service;
+public:
+	CChannelSpec();
+	~CChannelSpec();
+	bool Store(const CChannelManager *pChannelManager);
+	bool SetSpace(int Space);
+	int GetSpace() const { return m_Space; }
+	bool SetChannel(int Channel);
+	int GetChannel() const { return m_Channel; }
+	bool SetService(int Service);
+	int GetService() const { return m_Service; }
 };
 
 

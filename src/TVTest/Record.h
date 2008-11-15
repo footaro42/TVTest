@@ -6,6 +6,18 @@
 #include "Options.h"
 
 
+class CRecordTime {
+	FILETIME m_Time;
+	DWORD m_TickTime;
+public:
+	CRecordTime();
+	bool SetCurrentTime();
+	bool GetTime(FILETIME *pTime) const;
+	DWORD GetTickTime() const { return m_TickTime; }
+	void Clear();
+	bool IsValid() const;
+};
+
 class CRecordTask {
 public:
 	enum State {
@@ -16,7 +28,7 @@ public:
 protected:
 	State m_State;
 	CDtvEngine *m_pDtvEngine;
-	DWORD m_StartTime;
+	CRecordTime m_StartTime;
 	DWORD m_PauseStartTime;
 	DWORD m_TotalPauseTime;
 public:
@@ -30,9 +42,75 @@ public:
 	bool IsRecording() const { return m_State==STATE_RECORDING; }
 	bool IsPaused() const { return m_State==STATE_PAUSE; }
 	DWORD GetStartTime() const;
+	bool GetStartTime(FILETIME *pTime) const;
+	bool GetStartTime(CRecordTime *pTime) const;
 	DWORD GetRecordTime() const;
+	DWORD GetPauseTime() const;
 	LONGLONG GetWroteSize() const;
 	LPCTSTR GetFileName() const;
+};
+
+class CRecordManager {
+public:
+	enum TimeSpecType {
+		TIME_NOTSPECIFIED,
+		TIME_DATETIME,
+		TIME_DURATION
+	};
+	struct TimeSpecInfo {
+		TimeSpecType Type;
+		union {
+			FILETIME DateTime;
+			ULONGLONG Duration;
+		} Time;
+	};
+	enum FileExistsOperation {
+		EXISTS_OVERWRITE,
+		EXISTS_CONFIRM,
+		EXISTS_SEQUENCIALNUMBER
+	};
+private:
+	bool m_fRecording;
+	bool m_fReserved;
+	LPTSTR m_pszFileName;
+	CRecordTime m_ReserveTime;
+	TimeSpecInfo m_StartTimeSpec;
+	TimeSpecInfo m_StopTimeSpec;
+	CRecordTask m_RecordTask;
+	FileExistsOperation m_ExistsOperation;
+	bool m_fDescrambleCurServiceOnly;
+	static CRecordManager *GetThis(HWND hDlg);
+	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static BOOL CALLBACK StopTimeDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+public:
+	CRecordManager();
+	~CRecordManager();
+	bool SetFileName(LPCTSTR pszFileName);
+	LPCTSTR GetFileName() const { return m_pszFileName; }
+	bool SetFileExistsOperation(FileExistsOperation Operation);
+	FileExistsOperation GetFileExistsOperation() const { return m_ExistsOperation; }
+	bool GetStartTime(FILETIME *pTime) const;
+	bool GetReserveTime(FILETIME *pTime) const;
+	bool SetStartTimeSpec(const TimeSpecInfo *pInfo);
+	bool GetStartTimeSpec(TimeSpecInfo *pInfo) const;
+	bool SetStopTimeSpec(const TimeSpecInfo *pInfo);
+	bool GetStopTimeSpec(TimeSpecInfo *pInfo) const;
+	bool StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName);
+	void StopRecord();
+	bool PauseRecord();
+	bool IsRecording() const { return m_fRecording; }
+	bool IsPaused() const;
+	bool IsReserved() const { return m_fReserved; }
+	bool CancelReserve();
+	DWORD GetRecordTime() const;
+	DWORD GetPauseTime() const;
+	const CRecordTask *GetRecordTask() const { return &m_RecordTask; }
+	bool QueryStart(int Offset=0) const;
+	bool QueryStop(int Offset=0) const;
+	bool RecordDialog(HWND hwndOwner);
+	bool ChangeStopTimeDialog(HWND hwndOwner);
+	bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
+	bool SetDescrambleCurServiceOnly(bool fOnly);
 };
 
 class CRecordOptions : public COptions {
@@ -49,56 +127,11 @@ public:
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
 	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,SYSTEMTIME *pTime=NULL,LPCTSTR *ppszErrorMessage=NULL) const;
+	bool GetFilePath(LPTSTR pszFileName,int MaxLength) const;
 	bool ConfirmChannelChange(HWND hwndOwner);
-	bool ConfirmExit(HWND hwndOwner);
+	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager);
 	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-};
-
-class CRecordManager {
-public:
-	enum FileExistsOperation {
-		EXISTS_OVERWRITE,
-		EXISTS_CONFIRM,
-		EXISTS_SEQUENCIALNUMBER
-	};
-private:
-	TCHAR m_szFileName[MAX_PATH];
-	FileExistsOperation m_ExistsOperation;
-	bool m_fStopTimeSpec;
-	bool m_fStopDateTime;
-	DWORD m_StopTime;
-	FILETIME m_ftStopTime;
-	FILETIME m_ftStartTime;
-	bool m_fRecording;
-	CRecordTask *m_pRecordTask;
-	bool m_fDescrambleCurServiceOnly;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	static BOOL CALLBACK StopTimeDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-public:
-	CRecordManager();
-	~CRecordManager();
-	bool SetFileName(LPCTSTR pszFileName);
-	LPCTSTR GetFileName() const { return m_szFileName; }
-	bool SetFileExistsOperation(FileExistsOperation Operation);
-	FileExistsOperation GetFileExistsOperation() const { return m_ExistsOperation; }
-	bool SetStopTimeSpec(bool fSpec);
-	bool GetStopTimeSpec() const {return m_fStopTimeSpec; }
-	bool SetStopTime(unsigned int Time);
-	DWORD GetStopTime() const { return m_StopTime; }
-	bool StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName);
-	void StopRecord();
-	bool PauseRecord();
-	bool IsRecording() const { return m_fRecording; }
-	bool IsPaused() const;
-	DWORD GetRecordTime() const;
-	const CRecordTask *GetRecordTask() const { return m_pRecordTask; }
-	bool QueryStop() const;
-	bool RecordDialog(HWND hwndOwner,HINSTANCE hinst);
-	bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
-	bool SetDescrambleCurServiceOnly(bool fOnly);
-	DWORD CalcStopTime(DWORD StartTime);
-	bool ChangeStopTimeDialog(HWND hwndOwner,HINSTANCE hinst);
 };
 
 

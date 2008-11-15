@@ -34,6 +34,7 @@ options\log.html
 options\networkremocon.html
 options\operation.html
 options\panel.html
+options\plugin.html
 options\programguide.html
 options\statusbar.html
 options\view.html
@@ -51,6 +52,7 @@ HELP_ID_OPTIONS_LOG=options\log.html
 HELP_ID_OPTIONS_NETWORKREMOCON=options\networkremocon.html
 HELP_ID_OPTIONS_OPERATION=options\operation.html
 HELP_ID_OPTIONS_PANEL=options\panel.html
+HELP_ID_OPTIONS_PLUGIN=options\plugin.html
 HELP_ID_OPTIONS_PROGRAMGUIDE=options\programguide.html
 HELP_ID_OPTIONS_RECORD=options\record.html
 HELP_ID_OPTIONS_STATUSBAR=options\statusbar.html

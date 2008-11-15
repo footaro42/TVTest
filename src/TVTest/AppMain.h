@@ -4,7 +4,8 @@
 
 #include "CoreEngine.h"
 #include "MainWindow.h"
-#include "ChannelList.h"
+#include "ChannelManager.h"
+#include "Record.h"
 
 
 class CAppMain {
@@ -38,8 +39,20 @@ public:
 	bool SetDriver(LPCTSTR pszFileName);
 	bool UpdateDriverMenu();
 	bool ShowHelpContent(int ID);
+	bool StartRecord(LPCTSTR pszFileName=NULL,
+					 const CRecordManager::TimeSpecInfo *pStartTime=NULL,
+					 const CRecordManager::TimeSpecInfo *pStopTime=NULL);
+	bool ModifyRecord(LPCTSTR pszFileName=NULL,
+					  const CRecordManager::TimeSpecInfo *pStartTime=NULL,
+					  const CRecordManager::TimeSpecInfo *pStopTime=NULL);
+	bool StartReservedRecord();
+	bool CancelReservedRecord();
+	COLORREF GetColor(LPCTSTR pszText) const;
+	CCoreEngine *GetCoreEngine();
 	const CCoreEngine *GetCoreEngine() const;
 	CMainWindow *GetMainWindow();
+	const CChannelManager *GetChannelManager() const;
+	const CRecordManager *GetRecordManager() const;
 };
 
 

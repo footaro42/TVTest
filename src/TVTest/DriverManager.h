@@ -16,7 +16,7 @@ public:
 class CDriverManager {
 	CPointerVector<CDriverInfo> m_DriverList;
 	LPTSTR m_pszBaseDirectory;
-	static int CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2);
+	static int CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2,void *pParam);
 public:
 	CDriverManager();
 	~CDriverManager();

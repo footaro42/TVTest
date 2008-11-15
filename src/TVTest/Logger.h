@@ -26,6 +26,7 @@ public:
 	bool AddLog(LPCTSTR pszText, ...);
 	void Clear();
 	bool SaveToFile(LPCTSTR pszFileName) const;
+	void GetDefaultLogFileName(LPTSTR pszFileName) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

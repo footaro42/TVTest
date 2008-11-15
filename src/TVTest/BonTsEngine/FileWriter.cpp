@@ -41,6 +41,8 @@ void CFileWriter::Reset(void)
 
 const bool CFileWriter::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	if (dwInputIndex>GetInputNum())
 		return false;
 
@@ -64,8 +66,12 @@ const bool CFileWriter::InputMedia(CMediaData *pMediaData, const DWORD dwInputIn
 
 const bool CFileWriter::OpenFile(LPCTSTR lpszFileName, BYTE bFlags)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// 一旦閉じる
-	CloseFile();
+	m_OutFile.Close();
+	m_llWriteSize = 0U;
+	m_llWriteCount = 0U;
 
 	// ファイルを開く
 	if (!m_OutFile.Open(lpszFileName, CNCachedFile::CNF_WRITE | CNCachedFile::CNF_NEW | bFlags,m_BufferSize))
@@ -78,6 +84,8 @@ const bool CFileWriter::OpenFile(LPCTSTR lpszFileName, BYTE bFlags)
 
 void CFileWriter::CloseFile(void)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// ファイルを閉じる
 	m_OutFile.Close();
 
@@ -108,6 +116,8 @@ const LONGLONG CFileWriter::GetWriteCount(void) const
 
 bool CFileWriter::SetBufferSize(DWORD Size)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	if (Size==0)
 		return false;
 	m_BufferSize=Size;
@@ -117,6 +127,8 @@ bool CFileWriter::SetBufferSize(DWORD Size)
 
 bool CFileWriter::Pause()
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	if (!m_OutFile.IsOpen() || m_bPause)
 		return false;
 	m_bPause=true;
@@ -126,6 +138,8 @@ bool CFileWriter::Pause()
 
 bool CFileWriter::Resume()
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	if (!m_OutFile.IsOpen() || !m_bPause)
 		return false;
 	m_bPause=false;
