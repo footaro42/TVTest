@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.1.0
+	TVTest プラグインヘッダ ver.0.0.1
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -83,6 +83,22 @@
 */
 
 
+/*
+	更新履歴
+
+	ver.0.0.1
+	・以下のメッセージを追加した
+	  ・MESSAGE_QUERYEVENT
+	  ・MESSAGE_GETTUNINGSPACE
+	  ・MESSAGE_GETTUNINGSPACEINFO
+	  ・MESSAGE_SETNEXTCHANNEL
+	・ChannelInfo 構造体にいくつかメンバを追加した
+
+	ver.0.0.0
+	・最初のバージョン
+*/
+
+
 #ifndef TVTEST_PLUGIN_H
 #define TVTEST_PLUGIN_H
 
@@ -94,10 +110,18 @@ namespace TVTest {
 
 
 // プラグインのバージョン
-#define TVTEST_PLUGIN_VERSION 0
+#define TVTEST_PLUGIN_VERSION_0_0_0	0x00000000UL
+#define TVTEST_PLUGIN_VERSION_0_0_1	0x00000001UL
+#ifndef TVTEST_PLUGIN_VERSION
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_1
+#endif
 
 // エクスポート関数定義用
 #define TVTEST_EXPORT(type) extern "C" __declspec(dllexport) type WINAPI
+
+// offsetof
+#define TVTEST_OFFSETOF(type,member) \
+	((size_t)((BYTE*)&((type*)0)->member-(BYTE*)(type*)0))
 
 // プラグインの種類
 enum {
@@ -184,7 +208,14 @@ enum {
 	MESSAGE_ENABLEPLUGIN,
 	MESSAGE_GETCOLOR,
 	MESSAGE_DECODEARIBSTRING,
-	MESSAGE_GETCURRENTPROGRAMINFO
+	MESSAGE_GETCURRENTPROGRAMINFO,
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+	MESSAGE_QUERYEVENT,
+	MESSAGE_GETTUNINGSPACE,
+	MESSAGE_GETTUNINGSPACEINFO,
+	MESSAGE_SETNEXTCHANNEL,
+#endif
+	MESSAGE_DUMMY	// Don't use
 };
 
 // イベント用コールバック関数
@@ -207,17 +238,17 @@ enum {
 	EVENT_COLORCHANGE			// 色の設定が変化した
 };
 
-inline DWORD MAKE_VERSION(BYTE Major,WORD Minor,WORD Build) {
-	return (Major<<24) | (Minor<<12) | Build;
+inline DWORD MakeVersion(BYTE Major,WORD Minor,WORD Build) {
+	return ((DWORD)Major<<24) | ((DWORD)Minor<<12) | Build;
 }
-inline DWORD VERSION_MAJOR(DWORD Version) { return Version>>24; }
-inline DWORD VERSION_MINOR(DWORD Version) { return (Version&0x00FFF000UL)>>12; }
-inline DWORD VERSION_BUILD(DWORD Version) { return Version&0x00000FFFUL; }
+inline DWORD GetMajorVersion(DWORD Version) { return Version>>24; }
+inline DWORD GetMinorVersion(DWORD Version) { return (Version&0x00FFF000UL)>>12; }
+inline DWORD GetBuildVersion(DWORD Version) { return Version&0x00000FFFUL; }
 
 // TVTestのバージョンを取得する
 // 上位8ビットがメジャーバージョン、次の12ビットがマイナーバージョン、
 // 下位12ビットがビルドナンバー
-// VERSION_MAJOR/MINOR/BUILDを使って取得できる
+// GetMajorVersion/GetMinorVersion/GetBuildVersionを使って取得できる
 inline DWORD MsgGetVersion(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETVERSION,0,0);
 }
@@ -263,10 +294,23 @@ struct ChannelInfo {
 	WCHAR szNetworkName[32];			// ネットワーク名
 	WCHAR szTransportStreamName[32];	// トランスポートストリーム名
 	WCHAR szChannelName[64];			// チャンネル名
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+	int PhysicalChannel;				// 物理チャンネル番号(場合によっては信用できない)
+										// 不明の場合は0
+	WORD ServiceIndex;					// サービスのインデックス
+	WORD ServiceID;						// サービスID
+	// サービスはチャンネルファイルで設定されているものが取得される
+	// サービスはユーザーが切り替えられるので、実際に視聴中のサービスがこれであるとは限らない
+	// 実際に視聴中のサービスは MESSAGE_GETSERVICE で取得できる
+#endif
 };
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+enum { CHANNELINFO_SIZE_V1=TVTEST_OFFSETOF(ChannelInfo,PhysicalChannel) };
+#endif
+
 // 現在のチャンネルの情報を取得する
-// 事前にChannelInfoのSizeメンバを設定しておく
+// 事前に ChannelInfo の Size メンバを設定しておく
 inline bool MsgGetCurrentChannelInfo(PluginParam *pParam,ChannelInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCURRENTCHANNELINFO,(LPARAM)pInfo,0)!=0;
 }
@@ -278,6 +322,7 @@ inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel) {
 
 // 現在のサービス及びサービス数を取得する
 // サービスのインデックスが返る。エラー時は-1が返る
+// pNumServices が NULL でない場合は、サービスの数が返される
 inline int MsgGetService(PluginParam *pParam,int *pNumServices=NULL) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETSERVICE,(LPARAM)pNumServices,0);
 }
@@ -296,8 +341,9 @@ inline int MsgGetTuningSpaceName(PluginParam *pParam,int Index,LPWSTR pszName,in
 }
 
 // チャンネルの情報を取得する
-// 事前にChannelInfoのSizeメンバを設定しておく
-// NetworkID,TransportStreamID,szNetworkName,szTransportStreamName は MESSAGE_GETCURRENTCHANNEL でしか取得できない
+// 事前に ChannelInfo の Size メンバを設定しておく
+// szNetworkName,szTransportStreamName は MESSAGE_GETCURRENTCHANNEL でしか取得できない
+// NetworkID,TransportStreamID は取得できたりできなかったり(取得できなかった場合は0)
 inline bool MsgGetChannelInfo(PluginParam *pParam,int Space,int Index,ChannelInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCHANNELINFO,(LPARAM)pInfo,MAKELPARAM(Space,Index))!=0;
 }
@@ -688,6 +734,48 @@ inline bool MsgGetCurrentProgramInfo(PluginParam *pParam,ProgramInfo *pInfo,bool
 	return (*pParam->Callback)(pParam,MESSAGE_GETCURRENTPROGRAMINFO,(LPARAM)pInfo,fNext)!=0;
 }
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+
+// 指定されたイベントに対応しているか取得する
+inline bool MsgQueryEvent(PluginParam *pParam,UINT Event) {
+	return (*pParam->Callback)(pParam,MESSAGE_QUERYEVENT,Event,0)!=0;
+}
+
+// 現在のチューニング空間及びチューニング空間数を取得する
+inline int MsgGetTuningSpace(PluginParam *pParam,int *pNumSpaces=NULL) {
+	return (*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACE,(LPARAM)pNumSpaces,0);
+}
+
+// チューニング空間の種類
+enum {
+	TUNINGSPACE_UNKNOWN,		// 不明
+	TUNINGSPACE_TERRESTRIAL,	// 地上デジタル
+	TUNINGSPACE_BS,				// BS
+	TUNINGSPACE_110CS			// 110度CS
+};
+
+// チューニング空間の情報
+struct TuningSpaceInfo {
+	DWORD Size;			// 構造体のサイズ
+	int Space;			// チューニング空間の種類(TUNINGSPACE_???)
+						// 場合によっては信用できない
+	WCHAR szName[64];	// チューニング空間名
+};
+
+// チューニング空間の情報を取得する
+// 事前に TuningSpaceInfo の Size メンバを設定しておく
+inline bool MsgGetTuningSpaceInfo(PluginParam *pParam,int Index,TuningSpaceInfo *pInfo) {
+	return (*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACENAME,Index,(LPARAM)pInfo)!=0;
+}
+
+// チャンネルを次に設定する
+inline bool MsgSetNextChannel(PluginParam *pParam,bool fNext=true)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_SETNEXTCHANNEL,fNext,0)!=0;
+}
+
+#endif
+
 
 /*
 	TVTest アプリケーションクラス
@@ -868,6 +956,21 @@ public:
 		pInfo->Size=sizeof(ProgramInfo);
 		return MsgGetCurrentProgramInfo(m_pParam,pInfo,fNext);
 	}
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+	bool QueryEvent(UINT Event) {
+		return MsgQueryEvent(m_pParam,Event);
+	}
+	int GetTuningSpace(int *pNumSpaces=NULL) {
+		return MsgGetTuningSpace(m_pParam,pNumSpaces);
+	}
+	bool GetTuningSpaceInfo(int Index,TuningSpaceInfo *pInfo) {
+		pInfo->Size=sizeof(TuningSpaceInfo);
+		return MsgGetTuningSpaceInfo(m_pParam,Index,pInfo);
+	}
+	bool SetNextChannel(bool fNext=true) {
+		return MsgSetNextChannel(m_pParam,fNext);
+	}
+#endif
 };
 
 /*

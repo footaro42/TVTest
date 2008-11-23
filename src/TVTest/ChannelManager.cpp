@@ -31,6 +31,21 @@ CChannelManager::~CChannelManager()
 }
 
 
+void CChannelManager::Clear()
+{
+	m_TuningSpaceList.Clear();
+	m_DriverTuningSpaceList.Clear();
+	m_CurrentSpace=SPACE_INVALID;
+	m_CurrentChannel=-1;
+	m_CurrentService=0;
+	m_ChangingChannel=-1;
+	m_fUseDriverChannelList=false;
+	m_fNetworkRemocon=false;
+	m_pNetworkRemoconChannelList=NULL;
+	m_NetworkRemoconCurrentChannel=-1;
+}
+
+
 static void SkipSpaces(char **ppText)
 {
 	char *p=*ppText;
@@ -41,13 +56,8 @@ static void SkipSpaces(char **ppText)
 }
 
 
-bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
+bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
 {
-	// 新しい形式のチャンネル設定ファイル
-	if (::lstrcmpi(::PathFindExtension(pszFileName),TEXT(".ch2"))==0) {
-		return m_TuningSpaceList.LoadFromFile(pszFileName);
-	}
-
 	// 古い形式のチャンネル設定ファイル
 	HANDLE hFile;
 	DWORD Size,Read;
@@ -195,6 +205,44 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 }
 
 
+bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
+{
+	bool fOK;
+
+	if (::lstrcmpi(::PathFindExtension(pszFileName),TEXT(".ch2"))==0) {
+		// 新しい形式のチャンネル設定ファイル
+		fOK=m_TuningSpaceList.LoadFromFile(pszFileName);
+	} else {
+		// 古い形式のチャンネル設定ファイル(cap_hdus等との互換用)
+		fOK=LoadOldChannelFile(pszFileName);
+	}
+	if (!fOK)
+		return false;
+	for (int i=0;i<m_DriverTuningSpaceList.NumSpaces();i++) {
+		CTuningSpaceInfo *pTuningSpace=m_TuningSpaceList.GetTuningSpaceInfo(i);
+
+		if (pTuningSpace!=NULL) {
+			const CTuningSpaceInfo *pDriverTuningSpace=m_DriverTuningSpaceList.GetTuningSpaceInfo(i);
+			const CChannelList *pDriverChannelList=pDriverTuningSpace->GetChannelList();
+			CChannelList *pChannelList=pTuningSpace->GetChannelList();
+
+			pTuningSpace->SetName(pDriverTuningSpace->GetName());
+			for (int j=0;j<pChannelList->NumChannels();j++) {
+				CChannelInfo *pChInfo=pChannelList->GetChannelInfo(i);
+
+				if (pChInfo->GetChannel()==0) {
+					int Channel=pDriverChannelList->GetChannel(pChInfo->GetChannelIndex());
+
+					if (Channel>=0)
+						pChInfo->SetChannel(Channel);
+				}
+			}
+		}
+	}
+	return true;
+}
+
+
 bool CChannelManager::SetTuningSpaceList(const CTuningSpaceList *pList)
 {
 	m_TuningSpaceList=*pList;
@@ -214,7 +262,22 @@ bool CChannelManager::MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecode
 		LPCTSTR pszName;
 
 		for (int j=0;(pszName=pSrcDecoder->GetChannelName(i,j))!=NULL;j++) {
-			pList->AddChannel(i,0,j,j+1,0,pszName);
+			LPCTSTR p=pszName;
+			int Channel=0;
+
+			while (*p!='\0') {
+				if (*p>='0' && *p<='9') {
+					do {
+						Channel=Channel*10+(*p-'0');
+						p++;
+					} while (*p>='0' && *p<='9');
+					if (::_tcsnicmp(p,TEXT("ch"),2)!=0)
+						Channel=0;
+				} else {
+					p++;
+				}
+			}
+			pList->AddChannel(i,Channel,j,j+1,0,pszName);
 		}
 		m_DriverTuningSpaceList.GetTuningSpaceInfo(i)->SetName(
 												pSrcDecoder->GetSpaceName(i));

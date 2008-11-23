@@ -20,8 +20,6 @@ typedef IBonDriver* (PFCREATEBONDRIVER)(void);
 // 構築/消滅
 //////////////////////////////////////////////////////////////////////
 
-using namespace std;
-
 CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 0UL, 1UL)
 	, m_pBonDriver(NULL)
@@ -35,6 +33,8 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_dwLastError(BSDEC_NOERROR)
 	, m_BitRate(0)
 	, m_StreamRemain(0)
+	, m_RequestSpace(-1)
+	, m_RequestChannel(-1)
 {
 
 }
@@ -250,8 +250,10 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 		return false;
 		}
 
+	m_RequestChannel=byChannel;
 	PauseStreamRecieve();
 
+	/*
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
 
@@ -261,6 +263,13 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 		m_dwLastError = BSDEC_TUNERERROR;
 		return false;
 		}
+	*/
+
+	if (!m_bSetChannelResult) {
+		ResumeStreamRecieve();
+		m_dwLastError = BSDEC_TUNERERROR;
+		return false;
+	}
 
 	// 下位デコーダをリセットする
 	CMediaDecoder::Reset();
@@ -286,12 +295,23 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 		return false;
 	}
 
+	m_RequestSpace=dwSpace;
+	m_RequestChannel=dwChannel;
 	PauseStreamRecieve();
 
+	/*
 	// 未処理のストリームを破棄する
 	m_pBonDriver2->PurgeTsStream();
+
 	// チャンネルを変更する
 	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
+		ResumeStreamRecieve();
+		m_dwLastError = BSDEC_TUNERERROR;
+		return false;
+	}
+	*/
+
+	if (!m_bSetChannelResult) {
 		ResumeStreamRecieve();
 		m_dwLastError = BSDEC_TUNERERROR;
 		return false;
@@ -433,6 +453,18 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 		}
 		if (pThis->m_bKillSignal)
 			break;
+		if (pThis->m_RequestChannel>=0) {
+			pThis->m_pBonDriver->PurgeTsStream();
+			if (pThis->m_RequestSpace>=0) {
+				pThis->m_bSetChannelResult=pThis->m_pBonDriver2->SetChannel(
+						pThis->m_RequestSpace,pThis->m_RequestChannel)!=FALSE;
+				pThis->m_RequestSpace=-1;
+			} else {
+				pThis->m_bSetChannelResult=
+					pThis->m_pBonDriver->SetChannel(pThis->m_RequestChannel)!=FALSE;
+			}
+			pThis->m_RequestChannel=-1;
+		}
 		::SetEvent(pThis->m_hResumeEvent);
 		while (pThis->m_bPauseSignal)
 			Sleep(1);

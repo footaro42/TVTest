@@ -24,11 +24,11 @@ CStatusItem::CStatusItem(int ID,int DefaultWidth)
 
 int CStatusItem::GetIndex() const
 {
-	int i;
-
-	for (i=0;i<m_pStatus->NumItems();i++) {
-		if (m_pStatus->GetItem(i)==this)
-			return i;
+	if (m_pStatus!=NULL) {
+		for (int i=0;i<m_pStatus->NumItems();i++) {
+			if (m_pStatus->GetItem(i)==this)
+				return i;
+		}
 	}
 	return -1;
 }
@@ -36,12 +36,16 @@ int CStatusItem::GetIndex() const
 
 bool CStatusItem::GetRect(RECT *pRect) const
 {
+	if (m_pStatus==NULL)
+		return false;
 	return m_pStatus->GetItemRect(m_ID,pRect);
 }
 
 
 bool CStatusItem::GetClientRect(RECT *pRect) const
 {
+	if (m_pStatus==NULL)
+		return false;
 	return m_pStatus->GetItemClientRect(m_ID,pRect);
 }
 
@@ -61,12 +65,24 @@ bool CStatusItem::SetWidth(int Width)
 void CStatusItem::SetVisible(bool fVisible)
 {
 	m_fVisible=fVisible;
-	OnVisibleChange(fVisible && m_pStatus->GetVisible());
+	OnVisibleChange(fVisible && m_pStatus!=NULL && m_pStatus->GetVisible());
+}
+
+
+bool CStatusItem::Update()
+{
+	if (m_pStatus==NULL)
+		return false;
+	m_pStatus->UpdateItem(m_ID);
+	return true;
 }
 
 
 bool CStatusItem::GetMenuPos(POINT *pPos)
 {
+	if (m_pStatus==NULL)
+		return false;
+
 	RECT rc;
 
 	if (!GetRect(&rc))
@@ -75,6 +91,13 @@ bool CStatusItem::GetMenuPos(POINT *pPos)
 	pPos->y=rc.bottom;
 	::ClientToScreen(m_pStatus->GetHandle(),pPos);
 	return true;
+}
+
+
+void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const
+{
+	::DrawText(hdc,pszText,-1,const_cast<LPRECT>(pRect),
+			   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 }
 
 
@@ -144,8 +167,7 @@ CStatusView::~CStatusView()
 {
 	Destroy();
 	DeleteObject(m_hfontStatus);
-	for (int i=0;i<m_NumItems;i++)
-		delete m_pItemList[i];
+	m_ItemList.DeleteAll();
 	delete [] m_pszSingleText;
 }
 
@@ -161,7 +183,7 @@ const CStatusItem *CStatusView::GetItem(int Index) const
 {
 	if (Index<0 || Index>=m_NumItems)
 		return NULL;
-	return m_pItemList[Index];
+	return m_ItemList[Index];
 }
 
 
@@ -169,7 +191,7 @@ CStatusItem *CStatusView::GetItem(int Index)
 {
 	if (Index<0 || Index>=m_NumItems)
 		return NULL;
-	return m_pItemList[Index];
+	return m_ItemList[Index];
 }
 
 
@@ -179,7 +201,7 @@ const CStatusItem *CStatusView::GetItemByID(int ID) const
 
 	if (Index<0)
 		return NULL;
-	return m_pItemList[Index];
+	return m_ItemList[Index];
 }
 
 
@@ -189,15 +211,14 @@ CStatusItem *CStatusView::GetItemByID(int ID)
 
 	if (Index<0)
 		return NULL;
-	return m_pItemList[Index];
+	return m_ItemList[Index];
 }
 
 
 bool CStatusView::AddItem(CStatusItem *pItem)
 {
-	if (m_NumItems==MAX_STATUS_ITEMS)
-		return false;
-	m_pItemList[m_NumItems++]=pItem;
+	m_ItemList.Add(pItem);
+	m_NumItems++;
 	pItem->m_pStatus=this;
 	return true;
 }
@@ -208,7 +229,7 @@ int CStatusView::IDToIndex(int ID) const
 	int i;
 
 	for (i=0;i<m_NumItems;i++) {
-		if (m_pItemList[i]->GetID()==ID)
+		if (m_ItemList[i]->GetID()==ID)
 			return i;
 	}
 	return -1;
@@ -219,7 +240,7 @@ int CStatusView::IndexToID(int Index) const
 {
 	if (Index<0 || Index>=m_NumItems)
 		return -1;
-	return m_pItemList[Index]->GetID();
+	return m_ItemList[Index]->GetID();
 }
 
 
@@ -289,7 +310,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				int x;
 
 				for (int i=0;i<pStatus->m_NumItems;i++) {
-					if (!pStatus->m_pItemList[i]->GetVisible())
+					if (!pStatus->m_ItemList[i]->GetVisible())
 						continue;
 					bool fHighlight=i==pStatus->m_HotItem;
 					::SetTextColor(ps.hdc,fHighlight?
@@ -297,13 +318,13 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 					crBkColor1=fHighlight?pStatus->m_crHighlightBackColor1:pStatus->m_crBackColor1;
 					crBkColor2=fHighlight?pStatus->m_crHighlightBackColor2:pStatus->m_crBackColor2;
 					::SetBkColor(ps.hdc,MixColor(crBkColor1,crBkColor2,128));
-					rc.right=rc.left+pStatus->m_pItemList[i]->GetWidth()+
+					rc.right=rc.left+pStatus->m_ItemList[i]->GetWidth()+
 															STATUS_MARGIN*2;
 					DrawUtil::FillGradient(ps.hdc,&rc,crBkColor1,crBkColor2,
 													DrawUtil::DIRECTION_VERT);
 					rc.left+=STATUS_MARGIN;
 					rc.right-=STATUS_MARGIN;
-					pStatus->m_pItemList[i]->Draw(ps.hdc,&rc);
+					pStatus->m_ItemList[i]->Draw(ps.hdc,&rc);
 					rc.left=rc.right+STATUS_MARGIN;
 				}
 				rc.right=ps.rcPaint.right;
@@ -328,7 +349,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
 			x-=rc.left;
-			pStatus->m_pItemList[pStatus->m_HotItem]->OnMouseMove(x,y);
+			pStatus->m_ItemList[pStatus->m_HotItem]->OnMouseMove(x,y);
 		} else {
 			CStatusView *pStatus=GetStatusView(hwnd);
 
@@ -341,9 +362,9 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			Left=0;
 			for (i=0;i<pStatus->m_NumItems;i++) {
-				if (!pStatus->m_pItemList[i]->GetVisible())
+				if (!pStatus->m_ItemList[i]->GetVisible())
 					continue;
-				Right=Left+STATUS_MARGIN*2+pStatus->m_pItemList[i]->GetWidth();
+				Right=Left+STATUS_MARGIN*2+pStatus->m_ItemList[i]->GetWidth();
 				if (x>=Left && x<Right)
 					break;
 				Left=Right;
@@ -400,9 +421,9 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
 				x-=rc.left;
 				if (uMsg==WM_LBUTTONDOWN)
-					pStatus->m_pItemList[pStatus->m_HotItem]->OnLButtonDown(x,y);
+					pStatus->m_ItemList[pStatus->m_HotItem]->OnLButtonDown(x,y);
 				else
-					pStatus->m_pItemList[pStatus->m_HotItem]->OnRButtonDown(x,y);
+					pStatus->m_ItemList[pStatus->m_HotItem]->OnRButtonDown(x,y);
 			}
 		}
 		return 0;
@@ -458,12 +479,12 @@ bool CStatusView::GetItemRect(int ID,RECT *pRect) const
 		return false;
 	GetClientRect(&rc);
 	for (i=0;i<Index;i++) {
-		if (m_pItemList[i]->GetVisible())
-			rc.left+=m_pItemList[i]->GetWidth()+STATUS_MARGIN*2;
+		if (m_ItemList[i]->GetVisible())
+			rc.left+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
 	}
 	rc.right=rc.left;
-	if (m_pItemList[Index]->GetVisible())
-		rc.right+=m_pItemList[i]->GetWidth()+STATUS_MARGIN*2;
+	if (m_ItemList[Index]->GetVisible())
+		rc.right+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
 	*pRect=rc;
 	return true;
 }
@@ -501,7 +522,7 @@ void CStatusView::SetVisible(bool fVisible)
 
 	CBasicWindow::SetVisible(fVisible);
 	for (i=0;i<m_NumItems;i++)
-		m_pItemList[i]->OnVisibleChange(fVisible && m_pItemList[i]->GetVisible());
+		m_ItemList[i]->OnVisibleChange(fVisible && m_ItemList[i]->GetVisible());
 }
 
 
@@ -569,7 +590,7 @@ int CStatusView::GetCurItem() const
 {
 	if (m_HotItem<0)
 		return -1;
-	return m_pItemList[m_HotItem]->GetID();
+	return m_ItemList[m_HotItem]->GetID();
 }
 
 
@@ -586,21 +607,23 @@ bool CStatusView::SetEventHandler(CStatusViewEventHandler *pEventHandler)
 bool CStatusView::SetItemOrder(const int *pOrderList)
 {
 	int i,j;
-	CStatusItem *pNewList[MAX_STATUS_ITEMS];
+	CPointerVector<CStatusItem> NewList;
 
 	for (i=0;i<m_NumItems;i++) {
-		pNewList[i]=GetItem(IDToIndex(pOrderList[i]));
-		if (pNewList[i]==NULL)
+		CStatusItem *pItem=GetItem(IDToIndex(pOrderList[i]));
+
+		if (pItem==NULL)
 			return false;
+		NewList.Add(pItem);
 		for (j=0;j<i;j++) {
-			if (pNewList[i]==pNewList[j])
+			if (NewList[i]==NewList[j])
 				return false;
 		}
 	}
 	for (i=0;i<m_NumItems;i++)
-		m_pItemList[i]=pNewList[i];
+		m_ItemList.Set(i,NewList[i]);
 	if (m_hwnd!=NULL && !m_fSingleMode)
-		InvalidateRect(m_hwnd,NULL,TRUE);
+		Invalidate();
 	return true;
 }
 

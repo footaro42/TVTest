@@ -1,7 +1,12 @@
 #include "stdafx.h"
 #include <shlwapi.h>
 #include "TVTest.h"
+#include "AppMain.h"
 #include "DriverManager.h"
+#include "IBonDriver2.h"
+
+
+typedef IBonDriver *(*CreateBonDriverFunc)();
 
 
 
@@ -9,12 +14,69 @@
 CDriverInfo::CDriverInfo(LPCTSTR pszFileName)
 {
 	m_pszFileName=DuplicateString(pszFileName);
+	m_pszTunerName=NULL;
+	m_fChannelFileLoaded=false;
 }
 
 
 CDriverInfo::~CDriverInfo()
 {
 	delete [] m_pszFileName;
+	delete [] m_pszTunerName;
+}
+
+
+bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
+{
+	if (!m_fChannelFileLoaded) {
+		TCHAR szFileName[MAX_PATH];
+
+		if (::PathIsFileSpec(m_pszFileName)) {
+			GetAppClass().GetAppDirectory(szFileName);
+			::PathAppend(szFileName,m_pszFileName);
+		} else {
+			::lstrcpy(szFileName,m_pszFileName);
+		}
+		::PathRenameExtension(szFileName,TEXT(".ch2"));
+		if (!m_TuningSpaceList.LoadFromFile(szFileName))
+			return false;
+		if (fUseDriver) {
+			HMODULE hLib=::LoadLibrary(m_pszFileName);
+
+			if (hLib!=NULL) {
+				CreateBonDriverFunc pCreate=reinterpret_cast<CreateBonDriverFunc>(::GetProcAddress(hLib,"CreateBonDriver"));
+				IBonDriver *pBonDriver;
+
+				if (pCreate!=NULL && (pBonDriver=pCreate())!=NULL) {
+					IBonDriver2 *pBonDriver2=dynamic_cast<IBonDriver2*>(pBonDriver);
+
+					if (pBonDriver2!=NULL) {
+						ReplaceString(&m_pszTunerName,pBonDriver2->GetTunerName());
+						for (int i=0;i<m_TuningSpaceList.NumSpaces();i++) {
+							CTuningSpaceInfo *pTuningSpaceInfo=m_TuningSpaceList.GetTuningSpaceInfo(i);
+
+							pTuningSpaceInfo->SetName(pBonDriver2->EnumTuningSpace(i));
+
+							/*
+							CChannelList *pChannelList=pTuningSpaceInfo->GetChannelList();
+							if (pChannelList->NumChannels()==0) {
+								LPCTSTR pszName;
+
+								for (int j=0;(pszName=pBonDriver2->EnumChannelName(i,j))!=NULL;j++) {
+									pChannelList->AddChannel(i,0,j,j+1,0,pszName);
+								}
+							}
+							*/
+						}
+					}
+					pBonDriver->Release();
+				}
+				::FreeLibrary(hLib);
+			}
+		}
+		m_fChannelFileLoaded=true;
+	}
+	return true;
 }
 
 

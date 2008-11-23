@@ -20,6 +20,8 @@ public:
 	CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID,WORD ServiceType,LPCWSTR pszServiceName);
 	~CServiceInfoData();
 	CServiceInfoData &operator=(const CServiceInfoData &Info);
+	bool operator==(const CServiceInfoData &Info) const;
+	bool operator!=(const CServiceInfoData &Info) const { return !(*this==Info); }
 	LPCWSTR GetServiceName() const { return m_pszServiceName; }
 	bool SetServiceName(LPCWSTR pszName);
 };
@@ -36,6 +38,13 @@ public:
 		BYTE m_ContentNibbleLv2;	//content_nibble_level_2
 		BYTE m_UserNibbleLv1;		//user_nibble
 		BYTE m_UserNibbleLv2;		//user_nibble
+		bool operator==(const NibbleData &Data) const {
+			return m_ContentNibbleLv1==Data.m_ContentNibbleLv1
+				&& m_ContentNibbleLv2==Data.m_ContentNibbleLv2
+				&& m_UserNibbleLv1==Data.m_UserNibbleLv1
+				&& m_UserNibbleLv2==Data.m_UserNibbleLv2;
+		}
+		bool operator!=(const NibbleData &Data) const { return !(*this==Data); }
 	};
 	enum {
 		CONTENT_NEWS,
@@ -76,6 +85,8 @@ public:
 	CEventInfoData(const CEventInfoData &Info);
 	~CEventInfoData();
 	CEventInfoData &operator=(const CEventInfoData &Info);
+	bool operator==(const CEventInfoData &Info) const;
+	bool operator!=(const CEventInfoData &Info) const { return !(*this==Info); }
 	LPCWSTR GetEventName() const { return m_pszEventName; }
 	bool SetEventName(LPCWSTR pszEventName);
 	LPCWSTR GetEventText() const { return m_pszEventText; }

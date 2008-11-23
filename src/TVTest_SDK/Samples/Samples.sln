@@ -9,6 +9,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SignalGraph", "SignalGraph\
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TSInfo", "TSInfo\TSInfo.vcproj", "{874240A9-E0F6-4E74-8700-F82496AA8AC6}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SkinController", "SkinController\SkinController.vcproj", "{90A6125D-0ADA-4201-AF82-D4453A1E71B1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -31,6 +33,10 @@ Global
 		{874240A9-E0F6-4E74-8700-F82496AA8AC6}.Debug|Win32.Build.0 = Debug|Win32
 		{874240A9-E0F6-4E74-8700-F82496AA8AC6}.Release|Win32.ActiveCfg = Release|Win32
 		{874240A9-E0F6-4E74-8700-F82496AA8AC6}.Release|Win32.Build.0 = Release|Win32
+		{90A6125D-0ADA-4201-AF82-D4453A1E71B1}.Debug|Win32.ActiveCfg = Debug|Win32
+		{90A6125D-0ADA-4201-AF82-D4453A1E71B1}.Debug|Win32.Build.0 = Debug|Win32
+		{90A6125D-0ADA-4201-AF82-D4453A1E71B1}.Release|Win32.ActiveCfg = Release|Win32
+		{90A6125D-0ADA-4201-AF82-D4453A1E71B1}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

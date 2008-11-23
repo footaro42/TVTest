@@ -52,6 +52,8 @@ CEpgDataInfo::~CEpgDataInfo()
 
 CEpgDataInfo &CEpgDataInfo::operator=(const CEpgDataInfo &Info)
 {
+	if (&Info==this)
+		return *this;
 	m_ServiceID=Info.m_ServiceID;
 	m_EventID=Info.m_EventID;
 	ReplaceString(&m_pszEventName,Info.m_pszEventName);

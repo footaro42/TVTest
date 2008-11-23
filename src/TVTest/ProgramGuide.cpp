@@ -3,6 +3,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "ProgramGuide.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -253,10 +254,13 @@ public:
 	CProgramGuideServiceInfo();
 	CProgramGuideServiceInfo(const CEpgServiceInfo &Info);
 	~CProgramGuideServiceInfo();
+	WORD GetOriginalNID() const { return m_ServiceData.m_OriginalNID; }
+	WORD GetTSID() const { return m_ServiceData.m_TSID; }
 	WORD GetServiceID() const { return m_ServiceData.m_ServiceID; }
 	LPCTSTR GetServiceName() const { return m_ServiceData.GetServiceName(); }
 	int NumPrograms() const { return m_NumPrograms; }
 	CProgramGuideItem *GetProgram(int Index);
+	const CProgramGuideItem *GetProgram(int Index) const;
 	bool AddProgram(CProgramGuideItem *pItem);
 	void ClearPrograms();
 	void SortPrograms();
@@ -299,6 +303,16 @@ CProgramGuideItem *CProgramGuideServiceInfo::GetProgram(int Index)
 {
 	if (Index<0 || Index>=m_NumPrograms) {
 		TRACE(TEXT("CProgramGuideServiceInfo::GetProgram() Out of range %d\n"),Index);
+		return NULL;
+	}
+	return m_ppProgramList[Index];
+}
+
+
+const CProgramGuideItem *CProgramGuideServiceInfo::GetProgram(int Index) const
+{
+	if (Index<0 || Index>=m_NumPrograms) {
+		TRACE(TEXT("CProgramGuideServiceInfo::GetProgram() const : Out of range %d\n"),Index);
 		return NULL;
 	}
 	return m_ppProgramList[Index];
@@ -601,7 +615,7 @@ bool CProgramGuideServiceInfo::SaveiEpgFile(int Program,LPCTSTR pszFileName,bool
 	else
 		szEventName[0]='\0';
 	if (fVersion2) {
-		Length=_snprintf(szText,sizeof(szText),
+		Length=::wnsprintfA(szText,sizeof(szText),
 			"Content-type: application/x-tv-program-digital-info; charset=shift_jis\r\n"
 			"version: 2\r\n"
 			"station: DFS%05x\r\n"
@@ -619,7 +633,7 @@ bool CProgramGuideServiceInfo::SaveiEpgFile(int Program,LPCTSTR pszFileName,bool
 			stEnd.wHour,stEnd.wMinute,
 			szEventName,EventData.m_EventID);
 	} else {
-		Length=_snprintf(szText,sizeof(szText),
+		Length=::wnsprintfA(szText,sizeof(szText),
 			"Content-type: application/x-tv-program-digital-info; charset=shift_jis\r\n"
 			"version: 1\r\n"
 			"station: %s\r\n"
@@ -1215,7 +1229,8 @@ bool CProgramGuide::HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex)
 	if (::PtInRect(&rc,pt)) {
 		int Service;
 
-		Service=(x-rc.left)/(m_ItemWidth+m_ItemMargin*2);
+		Service=(x-rc.left+m_ScrollPos.x)/(m_ItemWidth+m_ItemMargin*2);
+		y-=rc.top;
 		if (Service<m_ServiceList.NumServices()) {
 			CProgramGuideServiceInfo *pServiceInfo=m_ServiceList.GetItem(Service);
 			int LineHeight=m_FontHeight+m_LineMargin;
@@ -1249,7 +1264,7 @@ bool CProgramGuide::HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex)
 
 CProgramGuide *CProgramGuide::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CProgramGuide*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return static_cast<CProgramGuide*>(GetBasicWindow(hwnd));
 }
 
 
@@ -1466,7 +1481,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CProgramGuide *pThis=GetThis(hwnd);
 			POINT pt;
-			HMENU hmenu;
+			HMENU hmenu,hmenuPopup;
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
@@ -1474,12 +1489,25 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				pThis->HitTest(pt.x,pt.y,&pThis->m_CurItem.Service,&pThis->m_CurItem.Program);
 			//::SetFocus(hwnd);
 			hmenu=::LoadMenu(m_hinst,MAKEINTRESOURCE(IDM_PROGRAMGUIDE));
+			hmenuPopup=::GetSubMenu(hmenu,0);
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_UPDATE,
 				MF_BYCOMMAND | (pThis->m_fUpdating?MFS_GRAYED:MFS_ENABLED));
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_ENDUPDATE,
 				MF_BYCOMMAND | (pThis->m_fUpdating?MFS_ENABLED:MFS_GRAYED));
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_IEPGASSOCIATE,
 				MF_BYCOMMAND | (pThis->m_CurItem.fValid?MFS_ENABLED:MFS_GRAYED));
+			if (pThis->m_ToolList.NumTools()>0) {
+				::AppendMenu(hmenuPopup,MFT_SEPARATOR | MFS_ENABLED,0,NULL);
+				for (int i=0;i<pThis->m_ToolList.NumTools();i++) {
+					const CProgramGuideTool *pTool=pThis->m_ToolList.GetTool(i);
+					TCHAR szText[CProgramGuideTool::MAX_NAME*2];
+
+					CopyToMenuText(pTool->GetName(),szText,lengthof(szText));
+					::AppendMenu(hmenuPopup,
+						MFT_STRING | (pThis->m_CurItem.fValid?MFS_ENABLED:MFS_GRAYED),
+						CM_PROGRAMGUIDETOOL_FIRST+i,szText);
+				}
+			}
 			::ClientToScreen(hwnd,&pt);
 			::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,
 							 0,hwnd,NULL);
@@ -1590,6 +1618,24 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				}
 			}
 			return 0;
+
+		default:
+			if (LOWORD(wParam)>=CM_PROGRAMGUIDETOOL_FIRST
+					&& LOWORD(wParam)<=CM_PROGRAMGUIDETOOL_LAST) {
+				CProgramGuide *pThis=GetThis(hwnd);
+
+				if (pThis->m_CurItem.fValid) {
+					CProgramGuideServiceInfo *pServiceInfo=
+						pThis->m_ServiceList.GetItem(pThis->m_CurItem.Service);
+
+					if (pServiceInfo!=NULL) {
+						CProgramGuideTool *pTool=pThis->m_ToolList.GetTool(LOWORD(wParam)-CM_PROGRAMGUIDETOOL_FIRST);
+
+						pTool->Execute(pServiceInfo,pThis->m_CurItem.Program);
+					}
+				}
+				return 0;
+			}
 		}
 		return 0;
 
@@ -1649,8 +1695,10 @@ CProgramGuideTool::~CProgramGuideTool()
 
 CProgramGuideTool &CProgramGuideTool::operator=(const CProgramGuideTool &Tool)
 {
-	::lstrcpy(m_szName,Tool.m_szName);
-	::lstrcpy(m_szCommand,Tool.m_szCommand);
+	if (&Tool!=this) {
+		::lstrcpy(m_szName,Tool.m_szName);
+		::lstrcpy(m_szCommand,Tool.m_szCommand);
+	}
 	return *this;
 }
 
@@ -1658,10 +1706,14 @@ CProgramGuideTool &CProgramGuideTool::operator=(const CProgramGuideTool &Tool)
 bool CProgramGuideTool::Execute(const CProgramGuideServiceInfo *pServiceInfo,
 								int Program)
 {
-	TCHAR szFileName[MAX_PATH],szCommand[MAX_PATH+128];
+	const CProgramGuideItem *pProgram=pServiceInfo->GetProgram(Program);
+	SYSTEMTIME stStart,stEnd;
+	TCHAR szFileName[MAX_PATH],szCommand[2048];
 	LPCTSTR p;
 	LPTSTR q;
 
+	pProgram->GetStartTime(&stStart);
+	pProgram->GetEndTime(&stEnd);
 	p=m_szCommand;
 	GetCommandFileName(&p,szFileName);
 	while (*p==' ')
@@ -1679,9 +1731,11 @@ bool CProgramGuideTool::Execute(const CProgramGuideServiceInfo *pServiceInfo,
 
 				for (i=0;*p!='%' && *p!='\0';i++) {
 					if (i<lengthof(szKeyword)-1)
-						szKeyword[i++]=*p;
+						szKeyword[i]=*p;
 					p++;
 				}
+				if (*p=='%')
+					p++;
 				szKeyword[i]='\0';
 				if (::lstrcmpi(szKeyword,TEXT("tvpid"))==0) {
 					TCHAR sziEpgFileName[MAX_PATH];
@@ -1691,9 +1745,43 @@ bool CProgramGuideTool::Execute(const CProgramGuideServiceInfo *pServiceInfo,
 					pServiceInfo->SaveiEpgFile(Program,szFileName,true);
 					::lstrcpy(q,sziEpgFileName);
 					q+=::lstrlen(q);
+				} else if (::lstrcmpi(szKeyword,TEXT("eid"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),pProgram->GetEventInfo().m_EventID);
+				} else if (::lstrcmpi(szKeyword,TEXT("nid"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),pServiceInfo->GetOriginalNID());
+				} else if (::lstrcmpi(szKeyword,TEXT("tsid"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),pServiceInfo->GetTSID());
+				} else if (::lstrcmpi(szKeyword,TEXT("sid"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),pServiceInfo->GetServiceID());
+				} else if (::lstrcmpi(szKeyword,TEXT("start-year"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stStart.wYear);
+				} else if (::lstrcmpi(szKeyword,TEXT("start-month"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stStart.wMonth);
+				} else if (::lstrcmpi(szKeyword,TEXT("start-day"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stStart.wDay);
+				} else if (::lstrcmpi(szKeyword,TEXT("start-hour"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stStart.wHour);
+				} else if (::lstrcmpi(szKeyword,TEXT("start-minute"))==0) {
+					q+=::wsprintf(q,TEXT("%02d"),stStart.wMinute);
+				} else if (::lstrcmpi(szKeyword,TEXT("end-year"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stEnd.wYear);
+				} else if (::lstrcmpi(szKeyword,TEXT("end-month"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stEnd.wMonth);
+				} else if (::lstrcmpi(szKeyword,TEXT("end-day"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stEnd.wDay);
+				} else if (::lstrcmpi(szKeyword,TEXT("end-hour"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),stEnd.wHour);
+				} else if (::lstrcmpi(szKeyword,TEXT("end-minute"))==0) {
+					q+=::wsprintf(q,TEXT("%02d"),stEnd.wMinute);
+				} else if (::lstrcmpi(szKeyword,TEXT("duration-sec"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),pProgram->GetEventInfo().m_DurationSec);
+				} else if (::lstrcmpi(szKeyword,TEXT("duration-min"))==0) {
+					q+=::wsprintf(q,TEXT("%d"),(pProgram->GetEventInfo().m_DurationSec+59)/60);
+				} else if (::lstrcmpi(szKeyword,TEXT("event-name"))==0) {
+					q+=::wsprintf(q,TEXT("%s"),pProgram->GetEventInfo().GetEventName());
+				} else if (::lstrcmpi(szKeyword,TEXT("service-name"))==0) {
+					q+=::wsprintf(q,TEXT("%s"),pServiceInfo->GetServiceName());
 				}
-				if (*p=='%')
-					p++;
 			}
 		} else {
 #ifndef UNICODE
@@ -1742,6 +1830,7 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			::SetDlgItemText(hDlg,IDC_PROGRAMGUIDETOOL_COMMAND,pThis->m_szCommand);
 			if (pThis->m_szName[0]!='\0' && pThis->m_szCommand[0]!='\0')
 				EnableDlgItem(hDlg,IDOK,true);
+			AdjustDialogPos(::GetParent(hDlg),hDlg);
 		}
 		return TRUE;
 
@@ -1758,7 +1847,6 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		case IDC_PROGRAMGUIDETOOL_BROWSE:
 			{
 				OPENFILENAME ofn;
-				HINSTANCE hinst=GetAppClass().GetResourceInstance();
 				TCHAR szCommand[MAX_COMMAND];
 				TCHAR szFileName[MAX_PATH],szDirectory[MAX_PATH];
 
@@ -1786,7 +1874,7 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				ofn.Flags=OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_EXPLORER;
 				if (::GetOpenFileName(&ofn)) {
 					::PathQuoteSpaces(szFileName);
-					::lstrcat(szFileName,TEXT(" \"%tvpid%\""));
+					//::lstrcat(szFileName,TEXT(" \"%tvpid%\""));
 					::SetDlgItemText(hDlg,IDC_PROGRAMGUIDETOOL_COMMAND,szFileName);
 					if (GetDlgItemTextLength(hDlg,IDC_PROGRAMGUIDETOOL_NAME)==0) {
 						*::PathFindExtension(szFileName)='\0';
@@ -1794,6 +1882,66 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 										 ::PathFindFileName(szFileName));
 					}
 				}
+				return TRUE;
+
+			case IDC_PROGRAMGUIDETOOL_PARAMETER:
+				{
+					static const struct {
+						LPCTSTR pszParameter;
+						LPCTSTR pszText;
+					} ParameterList[] = {
+						{TEXT("%tvpid%"),			TEXT("iEPGファイル")},
+						{TEXT("%eid%"),				TEXT("イベントID")},
+						{TEXT("%nid%"),				TEXT("ネットワークID")},
+						{TEXT("%tsid%"),			TEXT("ストリームID")},
+						{TEXT("%sid%"),				TEXT("サービスID")},
+						{TEXT("%start-year%"),		TEXT("開始年")},
+						{TEXT("%start-month%"),		TEXT("開始月")},
+						{TEXT("%start-day%"),		TEXT("開始日")},
+						{TEXT("%start-hour%"),		TEXT("開始時間")},
+						{TEXT("%start-minute%"),	TEXT("開始分")},
+						{TEXT("%end-year%"),		TEXT("終了年")},
+						{TEXT("%end-month%"),		TEXT("終了月")},
+						{TEXT("%end-day%"),			TEXT("終了日")},
+						{TEXT("%end-hour%"),		TEXT("終了時間")},
+						{TEXT("%end-minute%"),		TEXT("終了分")},
+						{TEXT("%duration-sec%"),	TEXT("秒単位の長さ")},
+						{TEXT("%duration-min%"),	TEXT("分単位の長さ")},
+						{TEXT("%event-name%"),		TEXT("イベント名")},
+						{TEXT("%service-name%"),	TEXT("サービス名")},
+					};
+					HMENU hmenu=::CreatePopupMenu();
+					RECT rc;
+					int Command;
+
+					for (int i=0;i<lengthof(ParameterList);i++) {
+						TCHAR szText[128];
+
+						::wsprintf(szText,TEXT("%s (%s)"),
+								   ParameterList[i].pszParameter,
+								   ParameterList[i].pszText);
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,i+1,
+									 szText);
+					}
+					::GetWindowRect(::GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_PARAMETER),&rc);
+					Command=::TrackPopupMenu(hmenu,TPM_RETURNCMD,
+											 rc.left,rc.bottom,0,hDlg,NULL);
+					::DestroyMenu(hmenu);
+					if (Command>0) {
+						DWORD Start,End;
+
+						::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDETOOL_COMMAND,EM_GETSEL,
+							reinterpret_cast<LPARAM>(&Start),
+							reinterpret_cast<LPARAM>(&End));
+						::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDETOOL_COMMAND,EM_REPLACESEL,
+							TRUE,reinterpret_cast<LPARAM>(ParameterList[Command-1].pszParameter));
+						if (End<Start)
+							Start=End;
+						::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDETOOL_COMMAND,EM_SETSEL,
+							Start,Start+::lstrlen(ParameterList[Command-1].pszParameter));
+					}
+				}
+				return TRUE;
 			}
 			return TRUE;
 
@@ -1809,6 +1957,10 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		case IDCANCEL:
 			EndDialog(hDlg,LOWORD(wParam));
 		}
+		return TRUE;
+
+	case WM_NCDESTROY:
+		::RemoveProp(hDlg,TEXT("This"));
 		return TRUE;
 	}
 	return FALSE;

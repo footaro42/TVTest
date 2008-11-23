@@ -4,6 +4,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "ChannelScan.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 
@@ -243,6 +244,8 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
 				*/
 			}
+			if (GetAppClass().GetCoreEngine()->IsUDPDriver())
+				EnableDlgItems(hDlg,IDC_CHANNELSCAN_FIRST,IDC_CHANNELSCAN_LAST,false);
 		}
 		return TRUE;
 

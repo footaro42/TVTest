@@ -38,6 +38,8 @@ public:
 	bool SetServiceByID(WORD ServiceID,int *pServiceIndex=NULL);
 	bool SetDriver(LPCTSTR pszFileName);
 	bool UpdateDriverMenu();
+	HMENU CreateTunerSelectMenu();
+	bool ProcessTunerSelectMenu(int Command);
 	bool ShowHelpContent(int ID);
 	bool StartRecord(LPCTSTR pszFileName=NULL,
 					 const CRecordManager::TimeSpecInfo *pStartTime=NULL,

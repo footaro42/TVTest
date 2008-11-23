@@ -15,6 +15,7 @@
 #include "FileReader.h"
 #include "MediaBuffer.h"
 #include "MediaGrabber.h"
+#include "TsSelector.h"
 #include "Exception.h"
 #include "../Tracer.h"
 
@@ -88,6 +89,9 @@ public:
 	bool SetDescrambleService(WORD Service);
 	bool SetDescrambleCurServiceOnly(bool bOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_bDescrambleCurServiceOnly; }
+	bool SetWriteService(WORD Service);
+	bool SetWriteCurServiceOnly(bool bOnly);
+	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
 	CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
 	bool SetTracer(CTracer *pTracer);
 
@@ -103,6 +107,7 @@ public:
 	CFileReader m_FileReader;				// ファイルリーダー
 	CMediaBuffer m_MediaBuffer;
 	CMediaGrabber m_MediaGrabber;
+	CTsSelector m_TsSelector;
 
 protected:
 	const DWORD SendDtvEngineEvent(const DWORD dwEventID, PVOID pParam = NULL);
@@ -122,6 +127,7 @@ protected:
 	bool m_bDescramble;
 
 	bool m_bDescrambleCurServiceOnly;
+	bool m_bWriteCurServiceOnly;
 
 	CTracer *m_pTracer;
 	void Trace(LPCTSTR pszOutput, ...);

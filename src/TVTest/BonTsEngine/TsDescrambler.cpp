@@ -179,6 +179,20 @@ bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 
 	m_DescramblePIDList.clear();
 	m_DescrambleServiceID=ServiceID;
+
+	CPatTable *pPatTable=dynamic_cast<CPatTable *>(m_PidMapManager.GetMapTarget(0x0000));
+	if (pPatTable!=NULL) {
+		for (WORD i=0;i<pPatTable->GetProgramNum();i++) {
+			WORD PmtPID=pPatTable->GetPmtPID(i);
+
+			if (m_DescrambleServiceID==0
+					|| pPatTable->GetProgramID(i)==m_DescrambleServiceID) {
+				m_PidMapManager.MapTarget(PmtPID,new CPmtTable,OnPmtUpdated,this);
+			} else {
+				m_PidMapManager.UnmapTarget(PmtPID);
+			}
+		}
+	}
 	return true;
 }
 

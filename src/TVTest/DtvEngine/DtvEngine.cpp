@@ -34,11 +34,13 @@ CDtvEngine::CDtvEngine(void)
 	, m_FileReader(this)
 	, m_MediaBuffer(this)
 	, m_MediaGrabber(this)
+	, m_TsSelector(this)
 	, m_bBuiled(false)
 	, m_bBuildComplete(false)
 	, m_bIsFileMode(false)
 	, m_bDescramble(true)
 	, m_bDescrambleCurServiceOnly(false)
+	, m_bWriteCurServiceOnly(false)
 	, m_pTracer(NULL)
 {
 }
@@ -404,6 +406,9 @@ const bool CDtvEngine::SetService(const WORD wService)
 		if (m_bDescrambleCurServiceOnly)
 			SetDescrambleService(m_wCurService);
 
+		if (m_bWriteCurServiceOnly)
+			SetWriteService(m_wCurService);
+
 		return true;
 		}
 
@@ -657,6 +662,38 @@ bool CDtvEngine::SetDescrambleCurServiceOnly(bool bOnly)
 	if (m_bDescrambleCurServiceOnly!=bOnly) {
 		m_bDescrambleCurServiceOnly=bOnly;
 		SetDescrambleService(bOnly?m_wCurService:0xFFFF);
+	}
+	return true;
+}
+
+
+bool CDtvEngine::SetWriteService(WORD Service)
+{
+	WORD ServiceID;
+
+	if (Service!=0xFFFF) {
+		if (!m_ProgManager.GetServiceID(&ServiceID,Service))
+			return false;
+	} else {
+		ServiceID=0;
+	}
+	return m_TsSelector.SetTargetServiceID(ServiceID);
+}
+
+
+bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly)
+{
+	if (m_bWriteCurServiceOnly!=bOnly) {
+		m_bWriteCurServiceOnly=bOnly;
+		if (bOnly) {
+			m_TsSelector.Reset();
+			SetWriteService(m_wCurService);
+			m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
+			m_TsSelector.SetOutputDecoder(&m_FileWriter);
+		} else {
+			m_TsSelector.SetOutputDecoder(NULL);
+			m_MediaGrabber.SetOutputDecoder(&m_FileWriter);
+		}
 	}
 	return true;
 }

@@ -7,6 +7,11 @@ template<typename t> t LimitRange(t value,t min,t max)
 	return value<min?min:value>max?max:value;
 }
 
+LONGLONG StringToInt64(LPCTSTR pszString);
+ULONGLONG StringToUInt64(LPCTSTR pszString);
+bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
+bool UInt64ToString(ULONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
+
 LPSTR DuplicateString(LPCSTR pszString);
 LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
@@ -25,12 +30,7 @@ int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2);
 int CalcDayOfWeek(int Year,int Month,int Day);
 
 void ClearMenu(HMENU hmenu);
-
-void EnableDlgItem(HWND hDlg,int ID,bool fEnable);
-void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable);
-void InvalidateDlgItem(HWND hDlg,int ID,bool fErase=true);
-int GetDlgItemTextLength(HWND hDlg,int ID);
-int GetCheckedRadioButton(HWND hDlg,int FirstID,int LastID);
+int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength);
 
 void InitOpenFileName(OPENFILENAME *pofn);
 

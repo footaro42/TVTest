@@ -2,15 +2,23 @@
 #define DRIVER_MANAGER_H
 
 
+#include "ChannelList.h"
 #include "PointerArray.h"
 
 
 class CDriverInfo {
 	LPTSTR m_pszFileName;
+	LPTSTR m_pszTunerName;
+	bool m_fChannelFileLoaded;
+	CTuningSpaceList m_TuningSpaceList;
 public:
 	CDriverInfo(LPCTSTR pszFileName);
 	~CDriverInfo();
 	LPCTSTR GetFileName() const { return m_pszFileName; }
+	LPCTSTR GetTunerName() const { return m_pszTunerName; }
+	bool LoadTuningSpaceList(bool fUseDriver);
+	bool IsTuningSpaceListLoaded() const { return m_fChannelFileLoaded; }
+	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
 };
 
 class CDriverManager {

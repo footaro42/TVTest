@@ -2,6 +2,7 @@
 #include "TVTest.h"
 #include "StatusOptions.h"
 #include "Settings.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 
@@ -138,9 +139,24 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 
 void CStatusOptions::SetDefaultItemList()
 {
+	static const BYTE DefaultOrder[NUM_STATUS_ITEMS] = {
+		STATUS_ITEM_TUNER,
+		STATUS_ITEM_CHANNEL,
+		STATUS_ITEM_VIDEOSIZE,
+		STATUS_ITEM_VOLUME,
+		STATUS_ITEM_AUDIOCHANNEL,
+		STATUS_ITEM_RECORD,
+		STATUS_ITEM_CAPTURE,
+		STATUS_ITEM_ERROR,
+		STATUS_ITEM_SIGNALLEVEL,
+		STATUS_ITEM_CLOCK,
+		STATUS_ITEM_PROGRAMINFO,
+		STATUS_ITEM_BUFFERING
+	};
+
 	for (int i=0;i<NUM_STATUS_ITEMS;i++) {
-		m_ItemList[i].ID=i;
-		m_ItemList[i].fVisible=i<=STATUS_ITEM_ERROR;
+		m_ItemList[i].ID=DefaultOrder[i];
+		m_ItemList[i].fVisible=i<=STATUS_ITEM_SIGNALLEVEL;
 		m_ItemList[i].Width=-1;
 	}
 }

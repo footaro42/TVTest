@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <shlwapi.h>
 #include "TVTest.h"
 #include "Menu.h"
 #include "resource.h"
@@ -167,7 +168,7 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 
 					EventInfo.GetStartTime(&stStart);
 					EventInfo.GetEndTime(&stEnd);
-					Length=::_snwprintf(szText,lengthof(szText),
+					Length=::wnsprintf(szText,lengthof(szText),
 								L"%d:%02d`%d:%02d %s",
 								stStart.wHour,stStart.wMinute,
 								stEnd.wHour,stEnd.wMinute,
@@ -262,7 +263,7 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 
 			pEventInfo->GetStartTime(&stStart);
 			pEventInfo->GetEndTime(&stEnd);
-			::_snwprintf(szText,lengthof(szText),L"%d:%02d`%d:%02d %s",
+			::wnsprintf(szText,lengthof(szText),L"%d:%02d`%d:%02d %s",
 				stStart.wHour,stStart.wMinute,stEnd.wHour,stEnd.wMinute,
 				pEventInfo->GetEventName());
 			rc.left=rc.right+m_TextHeight;

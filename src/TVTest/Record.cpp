@@ -3,6 +3,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Record.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -193,7 +194,9 @@ CRecordManager::CRecordManager()
 	m_pszFileName=NULL;
 	m_StartTimeSpec.Type=TIME_NOTSPECIFIED;
 	m_StopTimeSpec.Type=TIME_NOTSPECIFIED;
+	m_pDtvEngine=NULL;
 	m_ExistsOperation=EXISTS_CONFIRM;
+	m_fCurServiceOnly=false;
 	m_fDescrambleCurServiceOnly=false;
 }
 
@@ -282,9 +285,15 @@ bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
 {
 	if (m_fRecording)
 		return false;
-	if (!m_RecordTask.Start(pDtvEngine,pszFileName))
-		return false;
+	pDtvEngine->SetWriteCurServiceOnly(m_fCurServiceOnly);
+	bool fDescrambleCurOnly=pDtvEngine->GetDescrambleCurServiceOnly();
 	pDtvEngine->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
+	if (!m_RecordTask.Start(pDtvEngine,pszFileName)) {
+		pDtvEngine->SetWriteCurServiceOnly(false);
+		pDtvEngine->SetDescrambleCurServiceOnly(fDescrambleCurOnly);
+		return false;
+	}
+	m_pDtvEngine=pDtvEngine;
 	m_fRecording=true;
 	m_fReserved=false;
 	m_StartTimeSpec.Type=TIME_NOTSPECIFIED;
@@ -297,7 +306,10 @@ void CRecordManager::StopRecord()
 	if (m_fRecording) {
 		m_RecordTask.Stop();
 		m_fRecording=false;
+		if (m_fCurServiceOnly)
+			m_pDtvEngine->SetWriteCurServiceOnly(false);
 		//SAFE_DELETE(m_pszFileName);
+		m_pDtvEngine=NULL;
 	}
 }
 
@@ -599,6 +611,10 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 									IDC_RECORD_STOPTIME_SECOND_LABEL,
 									pThis->m_StopTimeSpec.Type==TIME_DURATION);
 			}
+			::DlgCheckBox_Check(hDlg,IDC_RECORD_CURSERVICEONLY,
+								pThis->m_fCurServiceOnly);
+			if (pThis->m_fRecording)
+				EnableDlgItem(hDlg,IDC_RECORD_CURSERVICEONLY,false);
 			EnableDlgItem(hDlg,IDC_RECORD_CANCEL,pThis->m_fReserved);
 		}
 		return TRUE;
@@ -760,6 +776,7 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 						}
 						break;
 					}
+					pThis->m_fCurServiceOnly=DlgCheckBox_IsChecked(hDlg,IDC_RECORD_CURSERVICEONLY);
 				}
 				if (IsDlgButtonChecked(hDlg,IDC_RECORD_STOPSPECTIME)==BST_CHECKED) {
 					TimeSpecInfo TimeSpec;
@@ -937,6 +954,13 @@ bool CRecordManager::DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName)
 }
 
 
+bool CRecordManager::SetCurServiceOnly(bool fOnly)
+{
+	m_fCurServiceOnly=fOnly;
+	return true;
+}
+
+
 bool CRecordManager::SetDescrambleCurServiceOnly(bool fOnly)
 {
 	m_fDescrambleCurServiceOnly=fOnly;
@@ -953,6 +977,7 @@ CRecordOptions::CRecordOptions()
 	m_fAddTime=true;
 	m_fConfirmChannelChange=true;
 	m_fConfirmExit=true;
+	m_fCurServiceOnly=false;
 	m_fDescrambleCurServiceOnly=false;
 }
 
@@ -986,6 +1011,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("AddRecordTime"),&m_fAddTime);
 	pSettings->Read(TEXT("ConfirmRecChChange"),&m_fConfirmChannelChange);
 	pSettings->Read(TEXT("ConfrimRecordingExit"),&m_fConfirmExit);
+	pSettings->Read(TEXT("RecordCurServiceOnly"),&m_fCurServiceOnly);
 	pSettings->Read(TEXT("RecordDescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
 	return true;
 }
@@ -998,6 +1024,7 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("AddRecordTime"),m_fAddTime);
 	pSettings->Write(TEXT("ConfirmRecChChange"),m_fConfirmChannelChange);
 	pSettings->Write(TEXT("ConfrimRecordingExit"),m_fConfirmExit);
+	pSettings->Write(TEXT("RecordCurServiceOnly"),m_fCurServiceOnly);
 	pSettings->Write(TEXT("RecordDescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	return true;
 }
@@ -1069,7 +1096,7 @@ bool CRecordOptions::GetFilePath(LPTSTR pszFileName,int MaxLength) const
 }
 
 
-bool CRecordOptions::ConfirmChannelChange(HWND hwndOwner)
+bool CRecordOptions::ConfirmChannelChange(HWND hwndOwner) const
 {
 	if (m_fConfirmChannelChange) {
 		if (::MessageBox(hwndOwner,TEXT("録画中です。チャンネル変更しますか?"),
@@ -1081,7 +1108,22 @@ bool CRecordOptions::ConfirmChannelChange(HWND hwndOwner)
 }
 
 
-bool CRecordOptions::ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager)
+bool CRecordOptions::ConfirmServiceChange(HWND hwndOwner,const CRecordManager *pRecordManager) const
+{
+	if (pRecordManager->GetCurServiceOnly()) {
+		if (::MessageBox(hwndOwner,
+				TEXT("現在のサービスのみ録画中です。\r\n")
+				TEXT("サービスの変更をすると正常に再生できなくなるかも知れません。\r\n")
+				TEXT("サービスを変更しますか?"),
+				TEXT("変更の確認"),
+				MB_OKCANCEL | MB_DEFBUTTON2 | MB_ICONQUESTION)!=IDOK)
+			return false;
+	}
+	return true;
+}
+
+
+bool CRecordOptions::ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const
 {
 	if (m_fConfirmExit && pRecordManager->IsRecording()) {
 		if (::MessageBox(hwndOwner,
@@ -1099,6 +1141,14 @@ bool CRecordOptions::ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordMan
 				MB_OKCANCEL | MB_DEFBUTTON2 | MB_ICONQUESTION)!=IDOK)
 			return false;
 	}
+	return true;
+}
+
+
+bool CRecordOptions::ApplyOptions(CRecordManager *pManager)
+{
+	pManager->SetCurServiceOnly(m_fCurServiceOnly);
+	pManager->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
 	return true;
 }
 
@@ -1131,6 +1181,8 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				pThis->m_fConfirmChannelChange?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMEXIT,
 				pThis->m_fConfirmExit?BST_CHECKED:BST_UNCHECKED);
+			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY,
+				pThis->m_fCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY,
 				pThis->m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 		}
@@ -1194,6 +1246,8 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					IDC_RECORDOPTIONS_CONFIRMCHANNELCHANGE)==BST_CHECKED;
 				pThis->m_fConfirmExit=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_CONFIRMEXIT)==BST_CHECKED;
+				pThis->m_fCurServiceOnly=::IsDlgButtonChecked(hDlg,
+					IDC_RECORDOPTIONS_CURSERVICEONLY)==BST_CHECKED;
 				pThis->m_fDescrambleCurServiceOnly=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY)==BST_CHECKED;
 			}

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "PanelOptions.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 
@@ -58,7 +59,7 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 
 CPanelOptions *CPanelOptions::GetThis(HWND hDlg)
 {
-	return static_cast<CPanelOptions*>(GetProp(hDlg,TEXT("This")));
+	return static_cast<CPanelOptions*>(GetOptions(hDlg));
 }
 
 
@@ -69,11 +70,10 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		{
 			CPanelOptions *pThis=dynamic_cast<CPanelOptions*>(OnInitDialog(hDlg,lParam));
 
-			SetProp(hDlg,TEXT("This"),pThis);
-			CheckDlgButton(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW,
-						pThis->m_fSnapAtMainWindow?BST_CHECKED:BST_UNCHECKED);
-			CheckDlgButton(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW,
-						pThis->m_fAttachToMainWindow?BST_CHECKED:BST_UNCHECKED);
+			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW,
+												pThis->m_fSnapAtMainWindow);
+			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW,
+												pThis->m_fAttachToMainWindow);
 		}
 		return TRUE;
 
@@ -84,9 +84,9 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				CPanelOptions *pThis=GetThis(hDlg);
 
 				pThis->m_fSnapAtMainWindow=
-					IsDlgButtonChecked(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW)==BST_CHECKED;
+					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW);
 				pThis->m_fAttachToMainWindow=
-					IsDlgButtonChecked(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW)==BST_CHECKED;
+					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW);
 			}
 			break;
 		}

@@ -74,6 +74,7 @@ public:
 	bool SetFullscreen(bool fFullscreen);
 	bool GetFullscreen() const { return m_fFullscreen; }
 	HWND GetVideoHostWindow() const;
+	int ShowMessage(LPCTSTR pszText,LPCTSTR pszCaption=NULL,UINT Type=MB_OK | MB_ICONEXCLAMATION) const;
 	void AdjustWindowSize(int Width,int Height);
 	void SetAlwaysOnTop(bool fTop);
 	bool GetAlwaysOnTop() const { return m_fAlwaysOnTop; }

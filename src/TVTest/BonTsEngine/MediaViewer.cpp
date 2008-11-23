@@ -727,9 +727,7 @@ const bool CMediaViewer::ResizeVideoWindow()
 
 		WindowWidth = m_wVideoWindowX;
 		WindowHeight = m_wVideoWindowY;
-		if (m_ViewStretchMode!=STRETCH_FIT
-				&& (m_ForceAspectX>0 && m_ForceAspectY>0)
-				|| (m_VideoInfo.m_AspectRatioX>0 && m_VideoInfo.m_AspectRatioY>0)) {
+		if (m_ViewStretchMode!=STRETCH_FIT) {
 			int AspectX,AspectY;
 			double aspect_rate;
 			double window_rate = (double)WindowWidth / (double)WindowHeight;
@@ -737,9 +735,19 @@ const bool CMediaViewer::ResizeVideoWindow()
 			if (m_ForceAspectX>0 && m_ForceAspectY>0) {
 				AspectX = m_ForceAspectX;
 				AspectY = m_ForceAspectY;
-			} else {
+			} else if (m_VideoInfo.m_AspectRatioX>0 && m_VideoInfo.m_AspectRatioY>0) {
 				AspectX = m_VideoInfo.m_AspectRatioX;
 				AspectY = m_VideoInfo.m_AspectRatioY;
+			} else {
+				if (((m_VideoInfo.m_DisplayWidth==1920
+							|| m_VideoInfo.m_DisplayWidth==1440)
+						&& m_VideoInfo.m_DisplayHeight==1080)) {
+					AspectX=16;
+					AspectY=9;
+				} else {
+					AspectX=WindowWidth;
+					AspectY=WindowHeight;
+				}
 			}
 			aspect_rate = (double)AspectX / (double)AspectY;
 			if ((m_ViewStretchMode==STRETCH_KEEPASPECTRATIO && aspect_rate>window_rate)

@@ -13,6 +13,8 @@ class CProgramGuideOptions : public COptions {
 	int m_ItemWidth;
 	int m_LinesPerHour;
 	CProgramGuideToolList m_ToolList;
+	void SetDlgItemState();
+	void DeleteAllTools();
 	static CProgramGuideOptions *GetThis(HWND hDlg);
 public:
 	CProgramGuideOptions(CProgramGuide *pProgramGuide);

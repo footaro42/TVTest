@@ -187,6 +187,32 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// CATテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CCatTable : public CPsiSingleTable
+{
+public:
+	CCatTable();
+	virtual ~CCatTable(void);
+	CCatTable(const CCatTable &Operand);
+
+	CCatTable  & operator = (const CCatTable &Operand);
+
+// CPsiSingleTable
+	virtual void Reset(void);
+
+// CCatTable
+	const CDescBlock * GetCatDesc() const;
+
+protected:
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+
+	CDescBlock m_DescBlock;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PMTテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 

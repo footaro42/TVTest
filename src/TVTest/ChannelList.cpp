@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <shlwapi.h>
 #include "TVTest.h"
 #include "ChannelList.h"
 
@@ -45,6 +46,13 @@ CChannelInfo &CChannelInfo::operator=(const CChannelInfo &Info)
 	m_TransportStreamID=Info.m_TransportStreamID;
 	m_ServiceID=Info.m_ServiceID;
 	return *this;
+}
+
+
+bool CChannelInfo::SetChannel(int Channel)
+{
+	m_Channel=Channel;
+	return true;
 }
 
 
@@ -496,15 +504,19 @@ bool CTuningSpaceInfo::SetName(LPCTSTR pszName)
 {
 	if (!ReplaceString(&m_pszName,pszName))
 		return false;
+	// チューニング空間の種類を判定する
+	// BonDriverから取得できないので苦肉の策
 	m_Space=SPACE_UNKNOWN;
 	if (pszName!=NULL) {
-		if (_tcsncmp(pszName,TEXT("地デジ"),6/sizeof(TCHAR))==0
-				|| ::lstrcmpi(pszName,TEXT("VHF"))==0
-				|| ::lstrcmpi(pszName,TEXT("UHF"))==0) {
+		if (::StrStr(pszName,TEXT("地デジ"))!=NULL
+				|| ::StrStr(pszName,TEXT("地上"))!=NULL
+				|| ::StrStrI(pszName,TEXT("VHF"))!=NULL
+				|| ::StrStrI(pszName,TEXT("UHF"))!=NULL
+				|| ::StrStrI(pszName,TEXT("CATV"))!=NULL) {
 			m_Space=SPACE_TERRESTRIAL;
-		} else if (::lstrcmpi(pszName,TEXT("BS"))==0) {
+		} else if (::StrStrI(pszName,TEXT("BS"))!=NULL) {
 			m_Space=SPACE_BS;
-		} else if (::lstrcmpi(pszName,TEXT("110CS"))==0) {
+		} else if (::StrStrI(pszName,TEXT("CS"))!=NULL) {
 			m_Space=SPACE_110CS;
 		}
 	}
@@ -593,6 +605,15 @@ LPCTSTR CTuningSpaceList::GetTuningSpaceName(int Space) const
 		return NULL;
 	}
 	return m_TuningSpaceList[Space]->GetName();
+}
+
+
+CTuningSpaceInfo::TuningSpaceType CTuningSpaceList::GetTuningSpaceType(int Space) const
+{
+	if (Space<0 || Space>=NumSpaces()) {
+		return CTuningSpaceInfo::SPACE_ERROR;
+	}
+	return m_TuningSpaceList[Space]->GetType();
 }
 
 
@@ -775,11 +796,8 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 
 		while (*p=='\r' || *p=='\n' || *p==' ' || *p=='\t')
 			p++;
-		if (*p==';') {	// コメント
-			while (*p!='\r' && *p!='\n' && *p!='\0')
-				p++;
-			continue;
-		}
+		if (*p==';')	// コメント
+			goto Next;
 		if (*p=='\0')
 			break;
 		// チャンネル名

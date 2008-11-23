@@ -49,12 +49,26 @@ CServiceInfoData::~CServiceInfoData()
 
 CServiceInfoData &CServiceInfoData::operator=(const CServiceInfoData &Info)
 {
-	m_OriginalNID=Info.m_OriginalNID;
-	m_TSID=Info.m_TSID;
-	m_ServiceID=Info.m_ServiceID;
-	m_ServiceType=Info.m_ServiceType;
-	ReplaceString(&m_pszServiceName,Info.m_pszServiceName);
+	if (&Info!=this) {
+		m_OriginalNID=Info.m_OriginalNID;
+		m_TSID=Info.m_TSID;
+		m_ServiceID=Info.m_ServiceID;
+		m_ServiceType=Info.m_ServiceType;
+		ReplaceString(&m_pszServiceName,Info.m_pszServiceName);
+	}
 	return *this;
+}
+
+
+bool CServiceInfoData::operator==(const CServiceInfoData &Info) const
+{
+	return m_OriginalNID==Info.m_OriginalNID
+		&& m_TSID==Info.m_TSID
+		&& m_ServiceID==Info.m_ServiceID
+		&& m_ServiceType==Info.m_ServiceType
+		&& ((m_pszServiceName==NULL && Info.m_pszServiceName==NULL)
+			|| (m_pszServiceName!=NULL && Info.m_pszServiceName!=NULL
+				&& ::lstrcmp(m_pszServiceName,Info.m_pszServiceName)==0));
 }
 
 
@@ -110,6 +124,8 @@ CEventInfoData::~CEventInfoData()
 
 CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 {
+	if (&Info==this)
+		return *this;
 	m_OriginalNID=Info.m_OriginalNID;
 	m_TSID=Info.m_TSID;
 	m_ServiceID=Info.m_ServiceID;
@@ -128,6 +144,38 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 	SetAudioComponentTypeText(Info.m_pszAudioComponentTypeText);
 	m_NibbleList=Info.m_NibbleList;
 	return *this;
+}
+
+
+bool CEventInfoData::operator==(const CEventInfoData &Info) const
+{
+	return m_OriginalNID==Info.m_OriginalNID
+		&& m_TSID==Info.m_TSID
+		&& m_ServiceID==Info.m_ServiceID
+		&& m_EventID==Info.m_EventID
+		&& ((m_pszEventName==NULL && Info.m_pszEventName==NULL)
+			|| (m_pszEventName!=NULL && Info.m_pszEventName!=NULL
+				&& ::lstrcmp(m_pszEventName,Info.m_pszEventName)==0))
+		&& ((m_pszEventText==NULL && Info.m_pszEventText==NULL)
+			|| (m_pszEventText!=NULL && Info.m_pszEventText!=NULL
+				&& ::lstrcmp(m_pszEventText,Info.m_pszEventText)==0))
+		&& ((m_pszEventExtText==NULL && Info.m_pszEventExtText==NULL)
+			|| (m_pszEventExtText!=NULL && Info.m_pszEventExtText!=NULL
+				&& ::lstrcmp(m_pszEventExtText,Info.m_pszEventExtText)==0))
+		&& ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0
+		&& m_DurationSec==Info.m_DurationSec
+		&& m_ComponentType==Info.m_ComponentType
+		&& ((m_pszComponentTypeText==NULL && Info.m_pszComponentTypeText==NULL)
+			|| (m_pszComponentTypeText!=NULL && Info.m_pszComponentTypeText!=NULL
+				&& ::lstrcmp(m_pszComponentTypeText,Info.m_pszComponentTypeText)==0))
+		&& m_AudioComponentType==Info.m_AudioComponentType
+		&& m_ESMultiLangFlag==Info.m_ESMultiLangFlag
+		&& m_MainComponentFlag==Info.m_MainComponentFlag
+		&& m_SamplingRate==Info.m_SamplingRate
+		&& ((m_pszAudioComponentTypeText==NULL && Info.m_pszAudioComponentTypeText==NULL)
+			|| (m_pszAudioComponentTypeText!=NULL && Info.m_pszAudioComponentTypeText!=NULL
+				&& ::lstrcmp(m_pszAudioComponentTypeText,Info.m_pszAudioComponentTypeText)==0))
+		&& m_NibbleList==Info.m_NibbleList;
 }
 
 

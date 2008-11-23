@@ -144,8 +144,35 @@ bool CSettings::Read(LPCTSTR pszValueName,LPTSTR pszData,unsigned int Max)
 
 bool CSettings::Write(LPCTSTR pszValueName,LPCTSTR pszData)
 {
-	return WritePrivateProfileString(m_szSection,pszValueName,pszData,
-																m_szFileName);
+	// ï∂éöóÒÇ™ ' Ç© " Ç≈àÕÇ‹ÇÍÇƒÇ¢ÇÈÇ∆ì«Ç›çûÇ›éûÇ…èúãéÇ≥ÇÍÇƒÇµÇ‹Ç§ÇÃÇ≈ÅA
+	// ó]ï™Ç… " Ç≈àÕÇ¡ÇƒÇ®Ç≠ÅB
+	if (pszData[0]=='"' || pszData[0]=='\'') {
+		LPCTSTR p;
+		TCHAR Quote;
+
+		p=pszData;
+		Quote=*p++;
+		while (*p!='\0') {
+			if (*p==Quote && *(p+1)=='\0')
+				break;
+#ifndef UNICODE
+			if (IsDBCSLeadByteEx(CP_ACP,*p))
+				p++;
+#endif
+			p++;
+		}
+		if (*p==Quote) {
+			LPTSTR pszBuff;
+
+			pszBuff=new TCHAR[::lstrlen(pszData)+3];
+			::wsprintf(pszBuff,TEXT("\"%s\""),pszData);
+			bool fOK=WritePrivateProfileString(m_szSection,pszValueName,
+											   pszBuff,m_szFileName)!=0;
+			delete [] pszBuff;
+			return fOK;
+		}
+	}
+	return WritePrivateProfileString(m_szSection,pszValueName,pszData,m_szFileName);
 }
 
 

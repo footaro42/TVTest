@@ -1,8 +1,9 @@
 #include "stdafx.h"
-#include "TVTest.h"
 #include <commctrl.h>
 #include <shlwapi.h>
+#include "TVTest.h"
 #include "CaptureOptions.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 
@@ -243,28 +244,7 @@ bool CCaptureOptions::OpenSaveFolder() const
 
 CCaptureOptions *CCaptureOptions::GetThis(HWND hDlg)
 {
-	return static_cast<CCaptureOptions*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
-static void SyncTrackBar(HWND hDlg,int nEditID,int nTrackbarID)
-{
-	int nMin,nMax,nVal;
-
-	nMin=(int)SendDlgItemMessage(hDlg,nTrackbarID,TBM_GETRANGEMIN,0,0);
-	nMax=(int)SendDlgItemMessage(hDlg,nTrackbarID,TBM_GETRANGEMAX,0,0);
-	nVal=GetDlgItemInt(hDlg,nEditID,NULL,TRUE);
-	SendDlgItemMessage(hDlg,nTrackbarID,TBM_SETPOS,TRUE,
-										nVal<nMin?nMin:nVal>nMax?nMax:nVal);
-}
-
-
-static void SyncEditControl(HWND hDlg,int nTrackbarID,int nEditID)
-{
-	int nVal;
-
-	nVal=(int)SendDlgItemMessage(hDlg,nTrackbarID,TBM_GETPOS,0,0);
-	SetDlgItemInt(hDlg,nEditID,nVal,TRUE);
+	return static_cast<CCaptureOptions*>(GetOptions(hDlg));
 }
 
 
@@ -277,7 +257,6 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			int i;
 			LPCTSTR pszFormat;
 
-			SetProp(hDlg,TEXT("This"),pThis);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
 			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,pThis->m_szSaveFolder);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
@@ -327,12 +306,12 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 	case WM_HSCROLL:
 		if (reinterpret_cast<HWND>(lParam)==
 						GetDlgItem(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB)) {
-			SyncEditControl(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
-										IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT);
+			SyncEditWithTrackBar(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
+									  IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT);
 		} else if (reinterpret_cast<HWND>(lParam)==
 						GetDlgItem(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB)) {
-			SyncEditControl(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
-											IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT);
+			SyncEditWithTrackBar(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
+									  IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT);
 		}
 		return TRUE;
 
@@ -352,14 +331,14 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 		case IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT:
 			if (HIWORD(wParam)==EN_CHANGE)
-				SyncTrackBar(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT,
-											IDC_CAPTUREOPTIONS_JPEGQUALITY_TB);
+				SyncTrackBarWithEdit(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT,
+										  IDC_CAPTUREOPTIONS_JPEGQUALITY_TB);
 			return TRUE;
 
 		case IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT:
 			if (HIWORD(wParam)==EN_CHANGE)
-				SyncTrackBar(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT,
-											IDC_CAPTUREOPTIONS_PNGLEVEL_TB);
+				SyncTrackBarWithEdit(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT,
+										  IDC_CAPTUREOPTIONS_PNGLEVEL_TB);
 			return TRUE;
 		}
 		return TRUE;

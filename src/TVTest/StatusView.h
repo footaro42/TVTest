@@ -4,6 +4,7 @@
 
 #include "BasicWindow.h"
 #include "Tracer.h"
+#include "PointerArray.h"
 
 
 class CStatusView;
@@ -16,6 +17,9 @@ protected:
 	int m_Width;
 	int m_MinWidth;
 	bool m_fVisible;
+	bool Update();
+	bool GetMenuPos(POINT *pPos);
+	void DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const;
 public:
 	CStatusItem(int ID,int DefaultWidth);
 	virtual ~CStatusItem() {}
@@ -29,7 +33,6 @@ public:
 	int GetMinWidth() const { return m_MinWidth; }
 	void SetVisible(bool fVisible);
 	bool GetVisible() const { return m_fVisible; }
-	bool GetMenuPos(POINT *pPos);
 	virtual LPCTSTR GetName() const=0;
 	virtual void Draw(HDC hdc,const RECT *pRect)=0;
 	virtual void DrawPreview(HDC hdc,const RECT *pRect) { Draw(hdc,pRect); }
@@ -61,7 +64,7 @@ class CStatusView : public CBasicWindow, public CTracer {
 	COLORREF m_crHighlightBackColor2;
 	COLORREF m_crHighlightTextColor;
 	enum { MAX_STATUS_ITEMS=16 };
-	CStatusItem *m_pItemList[MAX_STATUS_ITEMS];
+	CPointerVector<CStatusItem> m_ItemList;
 	int m_NumItems;
 	bool m_fSingleMode;
 	LPTSTR m_pszSingleText;

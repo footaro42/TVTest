@@ -54,7 +54,9 @@ public:
 };
 
 class CProgramGuideTool {
+public:
 	enum { MAX_NAME=64, MAX_COMMAND=MAX_PATH*2 };
+private:
 	TCHAR m_szName[MAX_NAME];
 	TCHAR m_szCommand[MAX_COMMAND];
 	static LPTSTR GetCommandFileName(LPCTSTR *ppszCommand,LPTSTR pszFileName);
@@ -66,6 +68,8 @@ public:
 	CProgramGuideTool(LPCTSTR pszName,LPCTSTR pszCommand);
 	~CProgramGuideTool();
 	CProgramGuideTool &operator=(const CProgramGuideTool &Tool);
+	LPCTSTR GetName() const { return m_szName; }
+	LPCTSTR GetCommand() const { return m_szCommand; }
 	bool Execute(const CProgramGuideServiceInfo *pServiceInfo,int Program);
 	bool ShowDialog(HWND hwndOwner);
 };
@@ -114,6 +118,7 @@ class CProgramGuide : public CBasicWindow {
 	CProgramGuideEventHandler *m_pEventHandler;
 	enum { NUM_COLORS=19 };
 	COLORREF m_ColorList[NUM_COLORS];
+	CProgramGuideToolList m_ToolList;
 	bool UpdateList();
 	void CalcLayout();
 	void DrawProgramList(int Service,HDC hdc,const RECT *pRect,const RECT *pPaintRect);
@@ -168,6 +173,7 @@ public:
 	bool SetUIOptions(int LinesPerHour,int ItemWidth);
 	bool SetColor(int Type,COLORREF Color);
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
+	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 };
 
 

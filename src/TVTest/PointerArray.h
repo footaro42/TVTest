@@ -11,7 +11,7 @@ public:
 	CPointerArray(const CPointerArray &Array);
 	virtual ~CPointerArray();
 	CPointerArray &operator=(const CPointerArray &Array);
-	void *operator[](int Index) { return m_ppList[Index]; }
+	void *&operator[](int Index) { return m_ppList[Index]; }
 	const void *operator[](int Index) const { return m_ppList[Index]; }
 	void Clear();
 	int Length() const { return m_Length; }

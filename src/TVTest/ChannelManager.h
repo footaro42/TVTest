@@ -17,6 +17,7 @@ class CChannelManager {
 	bool m_fNetworkRemocon;
 	CChannelList *m_pNetworkRemoconChannelList;
 	int m_NetworkRemoconCurrentChannel;
+	bool LoadOldChannelFile(LPCTSTR pszFileName);
 public:
 	enum {
 		SPACE_INVALID=-2,
@@ -24,6 +25,7 @@ public:
 	};
 	CChannelManager();
 	~CChannelManager();
+	void Clear();
 	bool LoadChannelList(LPCTSTR pszFileName);
 	bool SetTuningSpaceList(const CTuningSpaceList *pList);
 	bool MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecoder);

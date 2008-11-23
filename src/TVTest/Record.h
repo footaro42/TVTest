@@ -77,7 +77,9 @@ private:
 	TimeSpecInfo m_StartTimeSpec;
 	TimeSpecInfo m_StopTimeSpec;
 	CRecordTask m_RecordTask;
+	CDtvEngine *m_pDtvEngine;
 	FileExistsOperation m_ExistsOperation;
+	bool m_fCurServiceOnly;
 	bool m_fDescrambleCurServiceOnly;
 	static CRecordManager *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -110,7 +112,10 @@ public:
 	bool RecordDialog(HWND hwndOwner);
 	bool ChangeStopTimeDialog(HWND hwndOwner);
 	bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
+	bool SetCurServiceOnly(bool fOnly);
+	bool GetCurServiceOnly() const { return m_fCurServiceOnly; }
 	bool SetDescrambleCurServiceOnly(bool fOnly);
+	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
 };
 
 class CRecordOptions : public COptions {
@@ -119,6 +124,7 @@ class CRecordOptions : public COptions {
 	bool m_fAddTime;
 	bool m_fConfirmChannelChange;
 	bool m_fConfirmExit;
+	bool m_fCurServiceOnly;
 	bool m_fDescrambleCurServiceOnly;
 	static CRecordOptions *GetThis(HWND hDlg);
 public:
@@ -128,9 +134,10 @@ public:
 	bool Write(CSettings *pSettings) const;
 	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,SYSTEMTIME *pTime=NULL,LPCTSTR *ppszErrorMessage=NULL) const;
 	bool GetFilePath(LPTSTR pszFileName,int MaxLength) const;
-	bool ConfirmChannelChange(HWND hwndOwner);
-	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager);
-	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
+	bool ConfirmChannelChange(HWND hwndOwner) const;
+	bool ConfirmServiceChange(HWND hwndOwner,const CRecordManager *pRecordManager) const;
+	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const;
+	bool ApplyOptions(CRecordManager *pManager);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

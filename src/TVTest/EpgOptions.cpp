@@ -2,6 +2,7 @@
 #include <shlwapi.h>
 #include "TVTest.h"
 #include "EpgOptions.h"
+#include "DialogUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG

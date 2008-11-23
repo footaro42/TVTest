@@ -37,6 +37,7 @@
 #include "Help.h"
 #include "Image.h"
 #include "MiscDialog.h"
+#include "DialogUtil.h"
 #include "DrawUtil.h"
 #include "PseudoOSD.h"
 #include "resource.h"
@@ -152,7 +153,8 @@ static CPluginOptions PluginOptions(&PluginList);
 static CNetworkRemoconOptions NetworkRemoconOptions;
 static CLogger Logger;
 
-static TCHAR szMpeg2DecoderName[128];
+#define MAX_MPEG2_DECODER_NAME 128
+static TCHAR szMpeg2DecoderName[MAX_MPEG2_DECODER_NAME];
 static CVideoRenderer::RendererType VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
 static bool fDescrambleCurServiceOnly=false;
 static bool fKeepSingleTask=false;
@@ -360,6 +362,7 @@ bool CAppMain::InitializeChannel()
 	bool fUDPDriver=CoreEngine.IsUDPDriver();
 	CFilePath ChannelFilePath;
 
+	ChannelManager.Clear();
 	ChannelManager.MakeDriverTuningSpaceList(&CoreEngine.m_DtvEngine.m_BonSrcDecoder);
 	if (!fUDPDriver) {
 		ChannelFilePath.SetPath(CoreEngine.GetDriverFileName());
@@ -429,7 +432,7 @@ bool CAppMain::InitializeChannel()
 		}
 		if (!fOK && szDriverFileName[0]!='\0'
 				&& ::lstrcmpi(::PathFindFileName(szDriverFileName),
-						  TEXT("BonDriver_UDP.dll"))!=0) {
+							  TEXT("BonDriver_UDP.dll"))!=0) {
 			ChannelFilePath.SetPath(szDriverFileName);
 			ChannelFilePath.SetExtension(TEXT(".ch2"));
 			if (!ChannelFilePath.IsExists())
@@ -443,7 +446,7 @@ bool CAppMain::InitializeChannel()
 		}
 	}
 	if (ChannelManager.LoadChannelList(ChannelFilePath.GetPath()))
-		Logger.AddLog(TEXT("チャンネル設定を \"%s\" から読み込みました"),
+		Logger.AddLog(TEXT("チャンネル設定を \"%s\" から読み込みました。"),
 												ChannelFilePath.GetFileName());
 	TCHAR szFileName[MAX_PATH];
 	bool fLoadChannelSettings=true;
@@ -459,9 +462,12 @@ bool CAppMain::InitializeChannel()
 	if (fLoadChannelSettings)
 		ChannelManager.LoadChannelSettings(m_szChannelSettingFileName,szFileName);
 	ChannelManager.SetUseDriverChannelList(fUDPDriver);
+	/*
 	ChannelManager.SetCurrentSpace(
 		(!fUDPDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
 											CChannelManager::SPACE_ALL:0);
+	*/
+	ChannelManager.SetCurrentSpace(0);
 	ChannelManager.SetCurrentChannel(fUDPDriver?0:-1);
 	ChannelManager.SetCurrentService(0);
 	SetTuningSpaceMenu();
@@ -503,37 +509,42 @@ bool CAppMain::SaveChannelSettings()
 
 void CAppMain::SetTuningSpaceMenu(HMENU hmenu)
 {
-	int i;
+	TCHAR szText[MAX_PATH*2];
+	int Length;
+	int i,j;
 
 	ClearMenu(hmenu);
 	if ((!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL)
 			&& ChannelManager.GetAllChannelList()->NumChannels()>0)
-		AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_ALL,TEXT("すべて"));
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_ALL,TEXT("&0: すべて"));
 	const CTuningSpaceList *pTuningSpaceList=ChannelManager.GetDriverTuningSpaceList();
 	for (i=0;i<pTuningSpaceList->NumSpaces();i++) {
 		LPCTSTR pszName=pTuningSpaceList->GetTuningSpaceName(i);
-		AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_FIRST+i,
-				   pszName!=NULL?pszName:TEXT("???"));
+
+		Length=::wsprintf(szText,TEXT("&%d: "),i+1);
+		CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
+					   szText+Length,lengthof(szText)-Length);
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_FIRST+i,szText);
 	}
-	CheckMenuRadioItem(hmenu,CM_SPACE_ALL,CM_SPACE_ALL+pTuningSpaceList->NumSpaces(),
+	::CheckMenuRadioItem(hmenu,CM_SPACE_ALL,CM_SPACE_ALL+pTuningSpaceList->NumSpaces(),
 				CM_SPACE_FIRST+ChannelManager.GetCurrentSpace(),MF_BYCOMMAND);
-	AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
+	::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
 	int CurDriver=-1;
 	for (i=0;i<DriverManager.NumDrivers();i++) {
 		const CDriverInfo *pDriverInfo=DriverManager.GetDriverInfo(i);
 
-		AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_DRIVER_FIRST+i,
-				   pDriverInfo->GetFileName());
+		CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_DRIVER_FIRST+i,szText);
 		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0)
 			CurDriver=i;
 	}
 	if (CurDriver<0) {
-		AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_DRIVER_FIRST+i,
-				   CoreEngine.GetDriverFileName());
+		CopyToMenuText(CoreEngine.GetDriverFileName(),szText,lengthof(szText));
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_DRIVER_FIRST+i,szText);
 		CurDriver=i++;
 	}
-	CheckMenuRadioItem(hmenu,CM_DRIVER_FIRST,CM_DRIVER_FIRST+i-1,
-					   CM_DRIVER_FIRST+CurDriver,MF_BYCOMMAND);
+	::CheckMenuRadioItem(hmenu,CM_DRIVER_FIRST,CM_DRIVER_FIRST+i-1,
+						 CM_DRIVER_FIRST+CurDriver,MF_BYCOMMAND);
 }
 
 
@@ -672,6 +683,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 		}
 	}
 	StatusView.UpdateItem(STATUS_ITEM_CHANNEL);
+	StatusView.UpdateItem(STATUS_ITEM_TUNER);
 	SetChannelMenu();
 	MainMenu.CheckRadioItem(CM_SPACE_ALL,CM_SPACE_ALL+ChannelManager.NumSpaces(),
 		CM_SPACE_FIRST+ChannelManager.GetCurrentSpace());
@@ -742,7 +754,7 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 	CoreEngine.SetDriverFileName(pszFileName);
 	fOK=CoreEngine.LoadDriver();
 	if (fOK) {
-		Logger.AddLog(TEXT("%s を読み込みました"),CoreEngine.GetDriverFileName());
+		Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
 		fOK=CoreEngine.OpenDriver();
 		if (fOK) {
 			AppMain.InitializeChannel();
@@ -755,16 +767,15 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 			PluginList.SendDriverChangeEvent();
 		} else {
 			::SetCursor(hcurOld);
-			::MessageBox(MainWindow.GetHandle(),
-						 TEXT("BonDriverの初期化ができません。"),NULL,
-						 MB_OK | MB_ICONEXCLAMATION);
+			MainWindow.ShowMessage(TEXT("BonDriverの初期化ができません。"),NULL,
+								   MB_OK | MB_ICONEXCLAMATION);
 		}
 	} else {
 		TCHAR szMessage[MAX_PATH+64];
 
 		::SetCursor(hcurOld);
 		::wsprintf(szMessage,TEXT("\"%s\" をロードできません。"),pszFileName);
-		::MessageBox(MainWindow.GetHandle(),szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
+		MainWindow.ShowMessage(szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
 	}
 	CoreEngine.m_DtvEngine.SetTracer(NULL);
 	StatusView.SetSingleText(NULL);
@@ -776,6 +787,182 @@ bool CAppMain::UpdateDriverMenu()
 {
 	SetTuningSpaceMenu();
 	return true;
+}
+
+
+HMENU CAppMain::CreateTunerSelectMenu()
+{
+	HMENU hmenu=::CreatePopupMenu(),hmenuSpace;
+	const CChannelList *pChannelList;
+	const CTuningSpaceList *pTuningSpaceList;
+	int Command,FirstCommand;
+	int i,j;
+	LPCTSTR pszName;
+	TCHAR szText[MAX_PATH*2];
+	int Length;
+	POINT pt;
+
+	Command=CM_SPACE_CHANNEL_FIRST;
+	/*
+	if ((!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL)
+			&& ChannelManager.GetAllChannelList()->NumChannels()>0) {
+		hmenuSpace=::CreatePopupMenu();
+		pChannelList=ChannelManager.GetAllChannelList();
+		for (i=0;i<pChannelList->NumChannels();i++) {
+			pszName=pChannelList->GetName(i);
+			CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),szText,lengthof(szText));
+			::AppendMenu(hmenuSub,MFT_STRING | MFS_ENABLED,Command++,szText);
+		}
+		::AppendMenu(hmenu,MFT_POPUP | MFS_ENABLED,
+					 reinterpret_cast<UINT_PTR>(hmenuSpace),TEXT("&0: すべて"));
+	}
+	*/
+	pTuningSpaceList=ChannelManager.GetDriverTuningSpaceList();
+	for (i=0;i<pTuningSpaceList->NumSpaces();i++) {
+		pChannelList=ChannelManager.GetChannelList(i);
+		hmenuSpace=::CreatePopupMenu();
+		FirstCommand=Command;
+		for (j=0;j<pChannelList->NumChannels();j++) {
+			const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
+
+			Length=::wsprintf(szText,TEXT("%d : "),pChannelInfo->GetChannelNo());
+			pszName=pChannelInfo->GetName();
+			CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
+						   szText+Length,lengthof(szText)-Length);
+			::AppendMenu(hmenuSpace,MFT_STRING | MFS_ENABLED,Command++,szText);
+		}
+		if (ChannelManager.GetCurrentSpace()==i
+				&& ChannelManager.GetCurrentChannel()>=0) {
+			::CheckMenuRadioItem(hmenuSpace,FirstCommand,Command-1,
+								 FirstCommand+ChannelManager.GetCurrentChannel(),
+								 MF_BYCOMMAND);
+		}
+		Length=::wsprintf(szText,TEXT("&%d: "),i+1);
+		pszName=pTuningSpaceList->GetTuningSpaceName(i);
+		CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
+					   szText+Length,lengthof(szText)-Length);
+		::AppendMenu(hmenu,MF_POPUP | MFS_ENABLED,
+					 reinterpret_cast<UINT_PTR>(hmenuSpace),szText);
+	}
+	AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
+	//int CurDriver=-1;
+	for (i=0;i<DriverManager.NumDrivers();i++) {
+		CDriverInfo *pDriverInfo=DriverManager.GetDriverInfo(i);
+
+		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0) {
+			/*
+			CurDriver=i;
+			CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
+			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED | MFS_CHECKED,
+						 CM_DRIVER_FIRST+i,szText);
+			*/
+			continue;
+		}
+		if (pDriverInfo->LoadTuningSpaceList(
+				!::PathMatchSpec(pDriverInfo->GetFileName(),TEXT("BonDriver_Spinel*.dll")))) {
+			HMENU hmenuDriver=::CreatePopupMenu();
+
+			pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
+			for (j=0;j<pTuningSpaceList->NumSpaces();j++) {
+				pChannelList=pTuningSpaceList->GetChannelList(j);
+				if (pTuningSpaceList->NumSpaces()>1)
+					hmenuSpace=::CreatePopupMenu();
+				else
+					hmenuSpace=hmenuDriver;
+				for (int k=0;k<pChannelList->NumChannels();k++) {
+					const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(k);
+
+					Length=::wsprintf(szText,TEXT("%d: "),k+1/*pChannelInfo->GetChannelNo()*/);
+					pszName=pChannelInfo->GetName();
+					CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
+								   szText+Length,lengthof(szText)-Length);
+					::AppendMenu(hmenuSpace,MFT_STRING | MFS_ENABLED,Command++,szText);
+				}
+				if (hmenuSpace!=hmenuDriver) {
+					pszName=pTuningSpaceList->GetTuningSpaceName(j);
+					Length=::wsprintf(szText,TEXT("&%d: "),j+1);
+					CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
+								   szText+Length,lengthof(szText)-Length);
+					::AppendMenu(hmenuDriver,MF_POPUP | MFS_ENABLED,
+								 reinterpret_cast<UINT_PTR>(hmenuSpace),szText);
+				}
+			}
+			if (pDriverInfo->GetTunerName()!=NULL) {
+				TCHAR szTemp[lengthof(szText)];
+
+				::wnsprintf(szTemp,lengthof(szTemp),TEXT("%s [%s]"),
+							pDriverInfo->GetTunerName(),
+							pDriverInfo->GetFileName());
+				CopyToMenuText(szTemp,szText,lengthof(szText));
+			} else {
+				CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
+			}
+			::AppendMenu(hmenu,MF_POPUP | MFS_ENABLED,
+						 reinterpret_cast<UINT_PTR>(hmenuDriver),szText);
+		} else {
+			CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
+			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_DRIVER_FIRST+i,szText);
+		}
+	}
+	/*
+	if (CurDriver<0) {
+		CopyToMenuText(CoreEngine.GetDriverFileName(),szText,lengthof(szText));
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED | MFS_CHECKED,
+					 CM_DRIVER_FIRST+i,szText);
+	}
+	*/
+	return hmenu;
+}
+
+
+bool CAppMain::ProcessTunerSelectMenu(int Command)
+{
+	if (Command<CM_SPACE_CHANNEL_FIRST || Command>CM_SPACE_CHANNEL_LAST)
+		return false;
+
+	const CTuningSpaceList *pTuningSpaceList;
+	const CChannelList *pChannelList;
+	int CommandBase;
+	int i,j;
+
+	CommandBase=CM_SPACE_CHANNEL_FIRST;
+	/*
+	if (!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL) {
+		pChannelList=ChannelManager.GetAllChannelList();
+		if (pChannelList->NumChannels()>0) {
+			if (Command-CommandBase<pChannelList->NumChannels())
+				return SetChannel(-1,Command-CommandBase);
+			CommandBase+=pChannelList->NumChannels();
+		}
+	}
+	*/
+	pTuningSpaceList=ChannelManager.GetDriverTuningSpaceList();
+	for (int i=0;i<pTuningSpaceList->NumSpaces();i++) {
+		pChannelList=ChannelManager.GetChannelList(i);
+		if (Command-CommandBase<pChannelList->NumChannels())
+			return SetChannel(i,Command-CommandBase);
+		CommandBase+=pChannelList->NumChannels();
+	}
+	for (i=0;i<DriverManager.NumDrivers();i++) {
+		const CDriverInfo *pDriverInfo=DriverManager.GetDriverInfo(i);
+
+		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0)
+			continue;
+		if (pDriverInfo->IsTuningSpaceListLoaded()) {
+			pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
+			for (j=0;j<pTuningSpaceList->NumSpaces();j++) {
+				pChannelList=pTuningSpaceList->GetChannelList(j);
+				if (Command-CommandBase<pChannelList->NumChannels()) {
+					if (!SetDriver(pDriverInfo->GetFileName()))
+						return false;
+					::lstrcpy(szDriverFileName,pDriverInfo->GetFileName());
+					return SetChannel(j,Command-CommandBase);
+				}
+				CommandBase+=pChannelList->NumChannels();
+			}
+		}
+	}
+	return false;
 }
 
 
@@ -1060,7 +1247,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 	RecordManager.SetFileName(pszFileName);
 	RecordManager.SetStartTimeSpec(pStartTime);
 	RecordManager.SetStopTimeSpec(pStopTime);
-	RecordManager.SetDescrambleCurServiceOnly(RecordOptions.GetDescrambleCurServiceOnly());
+	RecordOptions.ApplyOptions(&RecordManager);
 	if (RecordManager.IsReserved()) {
 		StatusView.UpdateItem(STATUS_ITEM_RECORD);
 		return true;
@@ -1073,24 +1260,24 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 		LPCTSTR pszErrorMessage;
 
 		if (!RecordOptions.GenerateFileName(szFileName,lengthof(szFileName),
-													NULL,&pszErrorMessage)) {
-			MessageBox(MainWindow.GetVideoHostWindow(),pszErrorMessage,NULL,
-												MB_OK | MB_ICONEXCLAMATION);
+											NULL,&pszErrorMessage)) {
+			MainWindow.ShowMessage(pszErrorMessage,NULL,
+								   MB_OK | MB_ICONEXCLAMATION);
 			return false;
 		}
 		pszFileName=szFileName;
 	}
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,pszFileName)) {
-		MessageBox(MainWindow.GetVideoHostWindow(),
-			TEXT("ファイルが開けません。"),NULL,MB_OK | MB_ICONEXCLAMATION);
+		MainWindow.ShowMessage(TEXT("ファイルが開けません。"),
+							   NULL,MB_OK | MB_ICONEXCLAMATION);
 		return false;
 	}
 	ResidentManager.SetStatus(CResidentManager::STATUS_RECORDING,
 							  CResidentManager::STATUS_RECORDING);
 	Logger.AddLog(TEXT("録画開始 %s"),pszFileName);
 	StatusView.UpdateItem(STATUS_ITEM_RECORD);
-	MainMenu.EnableItem(CM_RECORDOPTION,!RecordManager.IsRecording());
-	MainMenu.EnableItem(CM_RECORDSTOPTIME,RecordManager.IsRecording());
+	MainMenu.EnableItem(CM_RECORDOPTION,false);
+	MainMenu.EnableItem(CM_RECORDSTOPTIME,true);
 	PluginList.SendRecordStatusChangeEvent();
 	return true;
 }
@@ -1124,16 +1311,16 @@ bool CAppMain::StartReservedRecord()
 
 		if (!RecordOptions.GenerateFileName(szFileName,lengthof(szFileName),
 													NULL,&pszErrorMessage)) {
-			MessageBox(MainWindow.GetVideoHostWindow(),pszErrorMessage,NULL,
-												MB_OK | MB_ICONEXCLAMATION);
+			MainWindow.ShowMessage(pszErrorMessage,NULL,
+								   MB_OK | MB_ICONEXCLAMATION);
 			return false;
 		}
 	}
 	MainWindow.OpenTuner();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,szFileName)) {
 		RecordManager.CancelReserve();
-		::MessageBox(MainWindow.GetVideoHostWindow(),
-			TEXT("ファイルが開けません。"),NULL,MB_OK | MB_ICONEXCLAMATION);
+		MainWindow.ShowMessage(TEXT("ファイルが開けません。"),NULL,
+							   MB_OK | MB_ICONEXCLAMATION);
 		return false;
 	}
 	StatusView.UpdateItem(STATUS_ITEM_RECORD);
@@ -1293,14 +1480,12 @@ void CChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		::wsprintf(szText,TEXT("%d: %s"),pInfo->GetChannelNo(),pInfo->GetName());
 	} else
 		::lstrcpy(szText,TEXT("<チャンネル>"));
-	::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CChannelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	::DrawText(hdc,TEXT("アフリカ中央テレビ"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("アフリカ中央テレビ"));
 }
 
 void CChannelStatusItem::OnLButtonDown(int x,int y)
@@ -1353,14 +1538,12 @@ void CVideoSizeStatusItem::Draw(HDC hdc,const RECT *pRect)
 	if (!CoreEngine.m_DtvEngine.GetVideoSize(&Width,&Height))
 		Width=Height=0;
 	::wsprintf(szText,TEXT("%d x %d (%d %%)"),Width,Height,MainWindow.CalcZoomRate());
-	::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CVideoSizeStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	::DrawText(hdc,TEXT("1920 x 1080 (100 %)"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("1920 x 1080 (100 %)"));
 }
 
 void CVideoSizeStatusItem::OnLButtonDown(int x,int y)
@@ -1501,14 +1684,12 @@ void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		}
 	} else
 		lstrcpy(szText,TEXT("<音声>"));
-	DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CAudioChannelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,TEXT("Stereo"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("Stereo"));
 }
 
 void CAudioChannelStatusItem::OnLButtonDown(int x,int y)
@@ -1591,14 +1772,12 @@ void CRecordStatusItem::Draw(HDC hdc,const RECT *pRect)
 	} else {
 		pszText=TEXT("■ <録画>");
 	}
-	::DrawText(hdc,pszText,-1,&rc,
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,&rc,pszText);
 }
 
 void CRecordStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	::DrawText(hdc,TEXT("● 0:24:15"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("● 0:24:15"));
 }
 
 void CRecordStatusItem::OnLButtonDown(int x,int y)
@@ -1724,21 +1903,19 @@ void CErrorStatusItem::Draw(HDC hdc,const RECT *pRect)
 	if (CoreEngine.GetDescramble()
 			&& CoreEngine.GetCardReaderType()!=CCardReader::READER_NONE)
 		wsprintf(szText+Length,TEXT(" / S %u"),CoreEngine.GetScramblePacketCount());
-	DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CErrorStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,TEXT("E 0 / S 127"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("E 0 / S 127"));
 }
 
 
 class CSignalLevelStatusItem : public CStatusItem {
 public:
 	CSignalLevelStatusItem();
-	LPCTSTR GetName() const { return TEXT("受信レベル"); }
+	LPCTSTR GetName() const { return TEXT("信号レベル"); }
 	void Draw(HDC hdc,const RECT *pRect);
 	void DrawPreview(HDC hdc,const RECT *pRect);
 };
@@ -1767,14 +1944,12 @@ void CSignalLevelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		wsprintf(szText,TEXT("%d.%02d dB / %d.%02d Mbps"),
 								Level/100,Level%100,BitRate/100,BitRate%100);
 	}
-	DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CSignalLevelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,TEXT("52.30 dB / 16.73 Mbps"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("52.30 dB / 16.73 Mbps"));
 }
 
 
@@ -1797,68 +1972,65 @@ void CClockStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 	GetLocalTime(&st);
 	wsprintf(szText,TEXT("%d:%02d:%02d"),st.wHour,st.wMinute,st.wSecond);
-	DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CClockStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,TEXT("13:25:30"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("13:25:30"));
 }
 
 
 class CProgramInfoStatusItem : public CStatusItem {
-	LPTSTR m_pszProgramInfo;
+	bool m_fNext;
 public:
 	CProgramInfoStatusItem();
-	~CProgramInfoStatusItem();
 	LPCTSTR GetName() const { return TEXT("番組情報"); }
 	void Draw(HDC hdc,const RECT *pRect);
 	void DrawPreview(HDC hdc,const RECT *pRect);
-	void OnVisibleChange(bool fVisible);
-	bool SetProgramInfo(LPCTSTR pszInfo);
+	void OnLButtonDown(int x,int y);
+	void OnRButtonDown(int x,int y);
 };
 
 CProgramInfoStatusItem::CProgramInfoStatusItem() : CStatusItem(STATUS_ITEM_PROGRAMINFO,256)
 {
-	m_pszProgramInfo=NULL;
-}
-
-CProgramInfoStatusItem::~CProgramInfoStatusItem()
-{
-	delete [] m_pszProgramInfo;
+	m_fNext=false;
 }
 
 void CProgramInfoStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	if (m_pszProgramInfo!=NULL)
-		DrawText(hdc,m_pszProgramInfo,-1,const_cast<LPRECT>(pRect),
-			DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+	const CEpgDataInfo *pInfo=CoreEngine.GetEpgDataInfo(m_fNext);
+
+	if (pInfo!=NULL) {
+		TCHAR szText[256];
+		SYSTEMTIME stStart,stEnd;
+
+		pInfo->GetStartTime(&stStart);
+		pInfo->GetEndTime(&stEnd);
+		::wnsprintf(szText,lengthof(szText),L"%s%d:%02d～%d:%02d %s",
+					m_fNext?TEXT("次: "):TEXT(""),
+					stStart.wHour,
+					stStart.wMinute,
+					stEnd.wHour,
+					stEnd.wMinute,
+					pInfo->GetEventName());
+		DrawText(hdc,pRect,szText);
+	}
 }
 
 void CProgramInfoStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,TEXT("01:00～01:30 今日のニュース"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("1:00～1:30 今日のニュース"));
 }
 
-void CProgramInfoStatusItem::OnVisibleChange(bool fVisible)
+void CProgramInfoStatusItem::OnLButtonDown(int x,int y)
 {
-	if (!fVisible) {
-		delete [] m_pszProgramInfo;
-		m_pszProgramInfo=NULL;
-	}
+	m_fNext=!m_fNext;
+	Update();
 }
 
-bool CProgramInfoStatusItem::SetProgramInfo(LPCTSTR pszInfo)
+void CProgramInfoStatusItem::OnRButtonDown(int x,int y)
 {
-	if (pszInfo!=NULL && lstrcmp(pszInfo,m_pszProgramInfo)==0)
-		return true;
-	delete [] m_pszProgramInfo;
-	m_pszProgramInfo=DuplicateString(pszInfo);
-	m_pStatus->UpdateItem(m_ID);
-	return true;
 }
 
 
@@ -1882,14 +2054,12 @@ void CBufferingStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 	::wsprintf(szText,TEXT("R %lu / B %d%%"),
 		CoreEngine.GetStreamRemain(),CoreEngine.GetPacketBufferUsedPercentage());
-	::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,szText);
 }
 
 void CBufferingStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	::DrawText(hdc,TEXT("R 52 / B 48%"),-1,const_cast<LPRECT>(pRect),
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	DrawText(hdc,pRect,TEXT("R 52 / B 48%"));
 }
 
 void CBufferingStatusItem::OnLButtonDown(int x,int y)
@@ -1906,6 +2076,64 @@ void CBufferingStatusItem::OnLButtonDown(int x,int y)
 	TrackPopupMenu(GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,
 												MainWindow.GetHandle(),NULL);
 	DestroyMenu(hmenu);
+}
+
+
+class CTunerStatusItem : public CStatusItem {
+public:
+	CTunerStatusItem();
+	LPCTSTR GetName() const { return TEXT("チューナー"); }
+	void Draw(HDC hdc,const RECT *pRect);
+	void DrawPreview(HDC hdc,const RECT *pRect);
+	void OnLButtonDown(int x,int y);
+	void OnRButtonDown(int x,int y);
+};
+
+CTunerStatusItem::CTunerStatusItem() : CStatusItem(STATUS_ITEM_TUNER,80)
+{
+}
+
+void CTunerStatusItem::Draw(HDC hdc,const RECT *pRect)
+{
+	const CChannelInfo *pChInfo=ChannelManager.GetCurrentRealChannelInfo();
+	LPCTSTR pszText;
+
+	if (pChInfo!=NULL || ChannelManager.GetCurrentSpace()>=0) {
+		pszText=
+			ChannelManager.GetDriverTuningSpaceList()->GetTuningSpaceName(
+				pChInfo!=NULL?pChInfo->GetSpace():ChannelManager.GetCurrentSpace());
+		if (pszText==NULL)
+			pszText=TEXT("<チューナー>");
+	} else if (ChannelManager.GetCurrentSpace()==CChannelManager::SPACE_ALL) {
+		pszText=TEXT("すべて");
+	} else {
+		pszText=TEXT("<チューナー>");
+	}
+	DrawText(hdc,pRect,pszText);
+}
+
+void CTunerStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
+{
+	DrawText(hdc,pRect,TEXT("地デジ"));
+}
+
+void CTunerStatusItem::OnLButtonDown(int x,int y)
+{
+	POINT pt;
+
+	GetMenuPos(&pt);
+	MainMenu.PopupSubMenu(CMainMenu::SUBMENU_SPACE,TPM_RIGHTBUTTON,pt.x,pt.y,
+						  MainWindow.GetHandle());
+}
+
+void CTunerStatusItem::OnRButtonDown(int x,int y)
+{
+	HMENU hmenu=AppMain.CreateTunerSelectMenu();
+	POINT pt;
+
+	GetMenuPos(&pt);
+	::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON,pt.x,pt.y,0,MainWindow.GetHandle(),NULL);
+	::DestroyMenu(hmenu);
 }
 
 
@@ -2118,7 +2346,7 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 		}
 		{
 			CDirectShowFilterFinder FilterFinder;
-			WCHAR szFilterName[128];
+			WCHAR szFilterName[MAX_MPEG2_DECODER_NAME];
 			int Sel=-1;
 
 			if (szMpeg2DecoderName[0]=='\0')
@@ -2257,23 +2485,24 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				}
 			}
 			{
+				TCHAR szDecoder[MAX_MPEG2_DECODER_NAME];
 				int Sel=SendDlgItemMessage(hDlg,IDC_OPTIONS_DECODER,
 															CB_GETCURSEL,0,0);
 				if (Sel>0)
 					SendDlgItemMessage(hDlg,IDC_OPTIONS_DECODER,CB_GETLBTEXT,
-											Sel,(LPARAM)szMpeg2DecoderName);
+											Sel,(LPARAM)szDecoder);
 				else
-					szMpeg2DecoderName[0]='\0';
-				VideoRendererType=(CVideoRenderer::RendererType)
+					szDecoder[0]='\0';
+				CVideoRenderer::RendererType Renderer=(CVideoRenderer::RendererType)
 					SendDlgItemMessage(hDlg,IDC_OPTIONS_RENDERER,CB_GETCURSEL,0,0);
-/*
-CoreEngine.m_DtvEngine.SetTracer(&StatusView);
-CoreEngine.m_DtvEngine.RebuildMediaViewer(VideoContainerWindow.GetHandle(),MainWindow.GetHandle(),
-										VideoRendererType,szMpeg2DecoderName);
-CoreEngine.EnablePreview(true);
-CoreEngine.m_DtvEngine.SetTracer(NULL);
-StatusView.SetSingleText(NULL);
-*/
+				if (::lstrcmpi(szDecoder,szMpeg2DecoderName)!=0
+						|| Renderer!=VideoRendererType) {
+					::lstrcpy(szMpeg2DecoderName,szDecoder);
+					VideoRendererType=Renderer;
+					if (!CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()
+							&& !CmdLineParser.m_fNoDirectShow)
+						MainWindow.EnablePreview(true);
+				}
 				CoreEngine.SetCardReaderType((CCardReader::ReaderType)
 					SendDlgItemMessage(hDlg,IDC_OPTIONS_CARDREADER,CB_GETCURSEL,0,0));
 			}
@@ -3127,13 +3356,12 @@ void CMyProgramGuideEventHandler::OnServiceTitleLButtonDown(WORD ServiceID)
 bool CMyProgramGuideEventHandler::OnBeginUpdate()
 {
 	if (CoreEngine.IsUDPDriver()) {
-		::MessageBox(MainWindow.GetHandle(),
-					 TEXT("UDPでは番組表の取得はできません。"),
-					 TEXT("ごめん"),MB_OK | MB_ICONINFORMATION);
+		MainWindow.ShowMessage(TEXT("UDPでは番組表の取得はできません。"),
+							   TEXT("ごめん"),MB_OK | MB_ICONINFORMATION);
 		return false;
 	}
 	if (RecordManager.IsRecording()) {
-		::MessageBox(MainWindow.GetHandle(),
+		MainWindow.ShowMessage(
 					 TEXT("録画を停止させてから番組表を取得してください。"),
 					 TEXT("お知らせ"),MB_OK | MB_ICONINFORMATION);
 		return false;
@@ -3208,7 +3436,7 @@ LRESULT CALLBACK CFullscreen::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CFullscreen *pThis=dynamic_cast<CFullscreen*>(OnCreate(hwnd,lParam));
+			CFullscreen *pThis=static_cast<CFullscreen*>(OnCreate(hwnd,lParam));
 
 			pThis->m_pVideoContainer->SetParent(pThis);
 			RECT rc;
@@ -3733,6 +3961,12 @@ HWND CMainWindow::GetVideoHostWindow() const
 }
 
 
+int CMainWindow::ShowMessage(LPCTSTR pszText,LPCTSTR pszCaption,UINT Type) const
+{
+	return ::MessageBox(GetVideoHostWindow(),pszText,pszCaption,Type);
+}
+
+
 void CMainWindow::AdjustWindowSize(int Width,int Height)
 {
 	RECT rcOld,rc;
@@ -3855,6 +4089,7 @@ bool CMainWindow::OnCreate()
 	StatusView.AddItem(new CClockStatusItem);
 	StatusView.AddItem(new CProgramInfoStatusItem);
 	StatusView.AddItem(new CBufferingStatusItem);
+	StatusView.AddItem(new CTunerStatusItem);
 	StatusOptions.ApplyOptions();
 	if (!m_fShowStatusBar) {
 		RECT rc;
@@ -3885,6 +4120,7 @@ bool CMainWindow::OnCreate()
 	MainMenu.CheckRadioItem(CM_CAPTURESIZE_FIRST,CM_CAPTURESIZE_LAST,
 							CM_CAPTURESIZE_FIRST+CaptureOptions.GetCaptureSize());
 	MainMenu.CheckItem(CM_CAPTUREPREVIEW,fShowCapturePreview);
+	MainMenu.CheckItem(CM_DISABLEVIEWER,true);
 	MainMenu.CheckItem(CM_INFORMATION,fShowPanelWindow);
 	MainMenu.CheckItem(CM_STATUSBAR,m_fShowStatusBar);
 	MainMenu.CheckItem(CM_TITLEBAR,m_fShowTitleBar);
@@ -4054,9 +4290,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 			pDib=static_cast<BYTE*>(CoreEngine.GetCurrentImage());
 			if (pDib==NULL) {
-				MessageBox(GetVideoHostWindow(),
-						TEXT("現在の画像を取得できません。"),TEXT("ごめん"),
-						MB_OK | MB_ICONEXCLAMATION);
+				ShowMessage(TEXT("現在の画像を取得できません。"),TEXT("ごめん"),
+							MB_OK | MB_ICONEXCLAMATION);
 				return;
 			}
 			{
@@ -4131,13 +4366,13 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				CapturePreview.SetImage(pImage);
 				if (id==CM_COPY) {
 					if (!pImage->SetClipboard(hwnd)) {
-						MessageBox(GetVideoHostWindow(),
+						ShowMessage(
 							TEXT("クリップボードにデータを設定できません。"),
 							NULL,MB_OK | MB_ICONEXCLAMATION);
 					}
 				} else {
 					if (!CaptureOptions.SaveImage(pImage)) {
-						MessageBox(GetVideoHostWindow(),
+						ShowMessage(
 							TEXT("画像の保存でエラーが発生しました。"),NULL,
 							MB_OK | MB_ICONEXCLAMATION);
 					}
@@ -4193,6 +4428,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			InfoWindow.SetRecordStatus(false);
 			ResidentManager.SetStatus(0,CResidentManager::STATUS_RECORDING);
 			Logger.AddLog(TEXT("録画停止"));
+			StatusView.UpdateItem(STATUS_ITEM_RECORD);
+			MainMenu.EnableItem(CM_RECORDOPTION,true);
+			MainMenu.EnableItem(CM_RECORDSTOPTIME,false);
+			PluginList.SendRecordStatusChangeEvent();
 			CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(fDescrambleCurServiceOnly);
 			if (m_fStandby) {
 				CoreEngine.m_DtvEngine.ReleaseSrcFilter();
@@ -4201,11 +4440,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			if (m_fExitOnRecordingStop)
 				PostCommand(CM_EXIT);
 		} else {
-			TCHAR szFileName[MAX_PATH];
-			LPCTSTR pszErrorMessage;
-
 			if (RecordManager.IsReserved()) {
-				if (MessageBox(GetVideoHostWindow(),
+				if (ShowMessage(
 						TEXT("既に設定されている録画があります。\r\n")
 						TEXT("録画を開始すると既存の設定が破棄されます。\r\n")
 						TEXT("録画を開始してもいいですか?"),
@@ -4213,28 +4449,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 						MB_OKCANCEL | MB_ICONQUESTION)!=IDOK)
 					return;
 			}
-			if (!RecordOptions.GenerateFileName(szFileName,lengthof(szFileName),
-												NULL,&pszErrorMessage)) {
-				MessageBox(GetVideoHostWindow(),pszErrorMessage,NULL,
-												MB_OK | MB_ICONEXCLAMATION);
-				return;
-			}
-			RecordManager.SetDescrambleCurServiceOnly(RecordOptions.GetDescrambleCurServiceOnly());
-			if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,szFileName)) {
-				MessageBox(GetVideoHostWindow(),
-										TEXT("ファイルが開けません。"),NULL,
-												MB_OK | MB_ICONEXCLAMATION);
-				return;
-			}
-			RecordManager.SetStopTimeSpec(NULL);
-			ResidentManager.SetStatus(CResidentManager::STATUS_RECORDING,
-									  CResidentManager::STATUS_RECORDING);
-			Logger.AddLog(TEXT("録画開始 %s"),szFileName);
+			AppMain.StartRecord();
 		}
-		StatusView.UpdateItem(STATUS_ITEM_RECORD);
-		MainMenu.EnableItem(CM_RECORDOPTION,!RecordManager.IsRecording());
-		MainMenu.EnableItem(CM_RECORDSTOPTIME,RecordManager.IsRecording());
-		PluginList.SendRecordStatusChangeEvent();
 		return;
 
 	case CM_RECORD_PAUSE:
@@ -4254,7 +4470,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				if (RecordOptions.GetFilePath(szFileName,MAX_PATH))
 					RecordManager.SetFileName(szFileName);
 			}
-			RecordManager.SetDescrambleCurServiceOnly(RecordOptions.GetDescrambleCurServiceOnly());
+			RecordOptions.ApplyOptions(&RecordManager);
 			if (RecordManager.RecordDialog(GetVideoHostWindow())) {
 				if (RecordManager.IsReserved()) {
 					StatusView.UpdateItem(STATUS_ITEM_RECORD);
@@ -4457,6 +4673,12 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			return;
 		}
 		if (id>=CM_SERVICE_FIRST && id<=CM_SERVICE_LAST) {
+
+			if (RecordManager.IsRecording()) {
+				if (!RecordOptions.ConfirmServiceChange(GetVideoHostWindow(),
+														&RecordManager))
+					return;
+			}
 			AppMain.SetServiceByIndex(id-CM_SERVICE_FIRST);
 			return;
 		}
@@ -4478,12 +4700,18 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 						::lstrcpy(szDriverFileName,pDriverInfo->GetFileName());
 				}
 			}
+			return;
 		}
 		if (id>=CM_PLUGIN_FIRST && id<=CM_PLUGIN_LAST) {
 			CPlugin *pPlugin=PluginList.GetPlugin(id-CM_PLUGIN_FIRST);
 
 			if (pPlugin!=NULL)
 				pPlugin->Enable(!pPlugin->IsEnabled());
+			return;
+		}
+		if (id>=CM_SPACE_CHANNEL_FIRST && id<=CM_SPACE_CHANNEL_LAST) {
+			AppMain.ProcessTunerSelectMenu(id);
+			return;
 		}
 	}
 }
@@ -4584,7 +4812,8 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 					const CChannelInfo *pChInfo=ChannelManager.GetCurrentChannelInfo();
 
 					if (pChInfo!=NULL)
-						::wsprintf(szText,TITLE_TEXT TEXT(" - %s / %s"),
+						::wnsprintf(szText,lengthof(szText),
+									TITLE_TEXT TEXT(" - %s / %s"),
 									pChInfo->GetName(),pInfo->GetEventName());
 					else
 						::lstrcpy(szText,TITLE_TEXT);
@@ -4592,22 +4821,8 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 					if (::lstrcmp(szText,szText+lengthof(szText)/2)!=0)
 						::SetWindowText(MainWindow.GetHandle(),szText);
 
-					CProgramInfoStatusItem *pPgInfoItem=
-						dynamic_cast<CProgramInfoStatusItem*>(StatusView.GetItemByID(STATUS_ITEM_PROGRAMINFO));
-					if (pPgInfoItem!=NULL && pPgInfoItem->GetVisible()) {
-						SYSTEMTIME stStart,stEnd;
+					StatusView.UpdateItem(STATUS_ITEM_PROGRAMINFO);
 
-						pInfo->GetStartTime(&stStart);
-						pInfo->GetEndTime(&stEnd);
-						::_snwprintf(szText,lengthof(szText),
-							L"%d:%02d～%d:%02d %s",
-							stStart.wHour,
-							stStart.wMinute,
-							stEnd.wHour,
-							stEnd.wMinute,
-							pInfo->GetEventName());
-						pPgInfoItem->SetProgramInfo(szText);
-					}
 					if (fShowPanelWindow) {
 						if (InfoWindow.GetProgramInfoNext())
 							pInfo=CoreEngine.GetEpgDataInfo(true);
@@ -4616,7 +4831,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 							pInfo->GetStartTime(&stStart);
 							pInfo->GetEndTime(&stEnd);
-							::_snwprintf(szText,lengthof(szText),
+							::wnsprintf(szText,lengthof(szText),
 								L"%d/%d/%d(%s) %d:%02d～%d:%02d\r\n%s\r\n\r\n%s\r\n\r\n%s",
 								stStart.wYear,
 								stStart.wMonth,
@@ -4875,6 +5090,24 @@ void CMainWindow::PopupMenu(const POINT *pPos/*=NULL*/)
 bool CMainWindow::EnablePreview(bool fEnable)
 {
 	if (m_fEnablePreview!=fEnable) {
+		if (fEnable && !CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
+			CoreEngine.m_DtvEngine.SetTracer(&StatusView);
+			bool fOK=BuildMediaViewer();
+			if (!fOK) {
+				TCHAR szText[1024];
+				int Length;
+
+				lstrcpy(szText,TEXT("DirectShowの初期化ができません。\n"));
+				Length=lstrlen(szText);
+				CoreEngine.FormatLastErrorText(szText+Length,lengthof(szText)-Length);
+				ShowMessage(szText,NULL,MB_OK | MB_ICONEXCLAMATION);
+				Logger.AddLog(CoreEngine.GetLastErrorText());
+			}
+			CoreEngine.m_DtvEngine.SetTracer(NULL);
+			StatusView.SetSingleText(NULL);
+			if (!fOK)
+				return false;
+		}
 		// なぜか成功してもfalseが返ってくる
 		//if (!CoreEngine.EnablePreview(fEnable))
 		//	return false;
@@ -5245,7 +5478,7 @@ static void SnapWindow(HWND hwnd,RECT *prc)
 
 CMainWindow *CMainWindow::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CMainWindow*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return static_cast<CMainWindow*>(GetBasicWindow(hwnd));
 }
 
 
@@ -5255,7 +5488,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CMainWindow *pThis=dynamic_cast<CMainWindow*>(CBasicWindow::OnCreate(hwnd,lParam));
+			CMainWindow *pThis=static_cast<CMainWindow*>(CBasicWindow::OnCreate(hwnd,lParam));
 
 			if (!pThis->OnCreate())
 				return -1;
@@ -5751,9 +5984,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_APP_FILEWRITEERROR:
-		::MessageBox(MainWindow.GetVideoHostWindow(),
-					 TEXT("ファイルへの書き出しでエラーが発生しました。"),NULL,
-					 MB_OK | MB_ICONEXCLAMATION);
+		GetThis(hwnd)->ShowMessage(TEXT("ファイルへの書き出しでエラーが発生しました。"));
 		return 0;
 
 	case WM_DISPLAYCHANGE:
@@ -5784,7 +6015,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 			PluginList.FreePlugins();
 
-			CoreEngine.m_DtvEngine.EnablePreview(false);
+			//CoreEngine.m_DtvEngine.EnablePreview(false);
 
 			::KillTimer(hwnd,TIMER_ID_UPDATE);
 
@@ -5990,11 +6221,42 @@ bool CMainWindow::CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Durati
 }
 
 
+static bool SetCommandLineChannel(const CCommandLineParser *pCmdLine)
+{
+	const CChannelList *pChannelList;
+	int i,j;
+
+	for (i=0;(pChannelList=ChannelManager.GetChannelList(i))!=NULL;i++) {
+		for (j=0;j<pChannelList->NumChannels();j++) {
+			const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
+
+			if ((pCmdLine->m_Channel==0
+					|| pCmdLine->m_Channel==pChannelInfo->GetChannel())
+				&& (pCmdLine->m_ControllerChannel==0
+					|| pCmdLine->m_ControllerChannel==pChannelInfo->GetChannelNo())
+				&& (pCmdLine->m_ServiceID==0
+					|| pCmdLine->m_ServiceID==pChannelInfo->GetServiceID())
+				&& (pCmdLine->m_NetworkID==0
+					|| pCmdLine->m_NetworkID==pChannelInfo->GetNetworkID())
+				&& (pCmdLine->m_TransportStreamID==0
+					|| pCmdLine->m_TransportStreamID==pChannelInfo->GetTransportStreamID())) {
+				return AppMain.SetChannel(i,j);
+			}
+		}
+	}
+	return false;
+}
+
+
 bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 {
-	CCommandLineParser CmdLineParser;
+	CCommandLineParser CmdLine;
 
-	CmdLineParser.Parse(pszCmdLine);
+	CmdLine.Parse(pszCmdLine);
+	if (CmdLine.m_fSilent)
+		CmdLineParser.m_fSilent=true;
+	if (CmdLine.m_fSaveLog)
+		CmdLineParser.m_fSaveLog=true;
 	if (m_fStandby) {
 		SetStandby(false);
 	} else {
@@ -6003,26 +6265,13 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 		else
 			ForegroundWindow(m_hwnd);
 	}
-	if (CmdLineParser.m_fFullscreen)
+	if (CmdLine.m_fFullscreen)
 		SetFullscreen(true);
-	if (CmdLineParser.m_Channel>0 || CmdLineParser.m_ControllerChannel>0) {
-		if (CmdLineParser.m_Channel>0) {
-			const CChannelList *pList=ChannelManager.GetChannelList(ChannelManager.GetCurrentSpace());
-			int i;
-
-			i=pList->FindChannel(CmdLineParser.m_Channel);
-			if (i>=0)
-				SendCommand(CM_CHANNEL_FIRST+i);
-		} else {
-			const CChannelList *pList=ChannelManager.GetCurrentChannelList();
-
-			if (pList->FindChannelNo(CmdLineParser.m_ControllerChannel)>=0)
-				SendCommand(CM_CHANNELNO_FIRST+CmdLineParser.m_ControllerChannel-1);
-		}
-	}
-	if (CmdLineParser.m_fRecord)
-		CommandLineRecord(CmdLineParser.m_szRecordFileName,
-			CmdLineParser.m_RecordDelay,CmdLineParser.m_RecordDuration);
+	if (CmdLine.IsChannelSpecified())
+		SetCommandLineChannel(&CmdLine);
+	if (CmdLine.m_fRecord)
+		CommandLineRecord(CmdLine.m_szRecordFileName,
+						  CmdLine.m_RecordDelay,CmdLine.m_RecordDuration);
 	return true;
 }
 
@@ -6154,7 +6403,7 @@ BOOL CALLBACK CPortQuery::EnumProc(HWND hwnd,LPARAM lParam)
 			pThis->m_UDPPortList.push_back(UDPPort);
 			if (RemoconPort>0)
 				pThis->m_RemoconPortList.push_back(RemoconPort);
-			Logger.AddLog(TEXT("既に起動している") APP_NAME TEXT("が見付かりました (UDPポート %d / リモコンポート %d)"),UDPPort,RemoconPort);
+			Logger.AddLog(TEXT("既に起動している") APP_NAME TEXT("が見付かりました。(UDPポート %d / リモコンポート %d)"),UDPPort,RemoconPort);
 		}
 	}
 	return TRUE;
@@ -6175,7 +6424,15 @@ public:
 CAppMutex::CAppMutex(bool fEnable)
 {
 	if (fEnable) {
-		m_hMutex=CreateMutex(NULL,TRUE,APP_NAME TEXT(" Mutex"));
+		TCHAR szName[MAX_PATH];
+
+		::GetModuleFileName(hInst,szName,lengthof(szName));
+		::CharUpperBuff(szName,::lstrlen(szName));
+		for (int i=0;szName[i]!='\0';i++) {
+			if (szName[i]=='\\')
+				szName[i]=':';
+		}
+		m_hMutex=CreateMutex(NULL,TRUE,szName);
 		m_fAlreadyExists=m_hMutex!=NULL && GetLastError()==ERROR_ALREADY_EXISTS;
 	} else {
 		m_hMutex=NULL;
@@ -6193,11 +6450,23 @@ CAppMutex::~CAppMutex()
 }
 
 
+#ifndef DEBUG
+LONG WINAPI ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
+{
+	if (CmdLineParser.m_fSilent)
+		return EXCEPTION_EXECUTE_HANDLER;
+	return EXCEPTION_CONTINUE_SEARCH;
+}
+#endif
+
+
 int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 												LPTSTR pszCmdLine,int nCmdShow)
 {
 #ifdef DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF/* | _CRTDBG_CHECK_ALWAYS_DF*/);
+#else
+	SetUnhandledExceptionFilter(ExceptionFilter);
 #endif
 
 	Logger.AddLog(TEXT("起動"));
@@ -6227,10 +6496,11 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			return FALSE;
 		} else if (!CmdLineParser.m_fSchedule) {
 			// 固まった場合でも WinMain は抜けるのでこれは無意味...
-			MessageBox(NULL,
-				APP_NAME TEXT(" は既に起動しています。\r\n")
-				TEXT("ウィンドウが見当たらない場合はタスクマネージャに隠れていますので\r\n")
-				TEXT("強制終了させてください。"),TITLE_TEXT,
+			if (!CmdLineParser.m_fSilent)
+				MessageBox(NULL,
+					APP_NAME TEXT(" は既に起動しています。\r\n")
+					TEXT("ウィンドウが見当たらない場合はタスクマネージャに隠れていますので\r\n")
+					TEXT("強制終了させてください。"),TITLE_TEXT,
 												MB_OK | MB_ICONEXCLAMATION);
 			return FALSE;
 		}
@@ -6282,7 +6552,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	}
 
 	if (!MainWindow.Create(NULL,WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)) {
-		MessageBox(NULL,TEXT("ウィンドウが作成できません。"),NULL,
+		if (!CmdLineParser.m_fSilent)
+			MessageBox(NULL,TEXT("ウィンドウが作成できません。"),NULL,
 														MB_OK | MB_ICONSTOP);
 		return FALSE;
 	}
@@ -6298,24 +6569,28 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	ResidentManager.Initialize(MainWindow.GetHandle(),hInst);
 
-	CoreEngine.SetDriverFileName(CmdLineParser.m_szDriverName[0]!='\0'?
+	if (!CmdLineParser.m_fNoDriver) {
+		CoreEngine.SetDriverFileName(CmdLineParser.m_szDriverName[0]!='\0'?
 								CmdLineParser.m_szDriverName:szDriverFileName);
-	if (CoreEngine.GetDriverFileName()[0]!='\0') {
-		StatusView.SetSingleText(TEXT("ドライバの読み込み中..."));
-		if (CoreEngine.LoadDriver()) {
-			Logger.AddLog(TEXT("%s を読み込みました"),CoreEngine.GetDriverFileName());
-		} else {
-			TCHAR szMessage[MAX_PATH+64];
+		if (CoreEngine.GetDriverFileName()[0]!='\0') {
+			StatusView.SetSingleText(TEXT("ドライバの読み込み中..."));
+			if (CoreEngine.LoadDriver()) {
+				Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
+			} else {
+				TCHAR szMessage[MAX_PATH+64];
 
-			wsprintf(szMessage,TEXT("\"%s\" をロードできません。"),CoreEngine.GetDriverFileName());
-			MessageBox(MainWindow.GetHandle(),szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
-			Logger.AddLog(TEXT("%s を読み込めません"),CoreEngine.GetDriverFileName());
+				wsprintf(szMessage,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
+				if (!CmdLineParser.m_fSilent)
+					MainWindow.ShowMessage(szMessage);
+				Logger.AddLog(szMessage);
+			}
+		} else {
+			if (!CmdLineParser.m_fSilent)
+				MainWindow.ShowMessage(
+						TEXT("設定で使用するドライバを指定してください。"),
+						TEXT("お願い"),MB_OK | MB_ICONINFORMATION);
+			Logger.AddLog(TEXT("BonDriverが設定されていません。"));
 		}
-	} else {
-		MessageBox(MainWindow.GetHandle(),
-			TEXT("設定で使用するドライバを指定してください。"),TEXT("お願い"),
-			MB_OK | MB_ICONINFORMATION);
-		Logger.AddLog(TEXT("BonDriverが設定されていません"));
 	}
 	CoreEngine.SetDescramble(!CmdLineParser.m_fNoDescramble);
 	CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(fDescrambleCurServiceOnly);
@@ -6328,26 +6603,30 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		CoreEngine.FormatLastErrorText(szText,lengthof(szText));
 		MessageBox(MainWindow.GetHandle(),szText,NULL,MB_OK | MB_ICONEXCLAMATION);
 		*/
-		MessageBox(MainWindow.GetHandle(),TEXT("DtvEngineを構築できません。"),
-				   NULL,MB_OK | MB_ICONEXCLAMATION);
-		Logger.AddLog(TEXT("DtvEngineを構築できません"));
+		if (!CmdLineParser.m_fSilent)
+			MainWindow.ShowMessage(TEXT("DtvEngineを構築できません。"));
+		Logger.AddLog(TEXT("DtvEngineを構築できません。"));
 	} else {
 		if (!CoreEngine.OpenBcasCard()) {
-			TCHAR szText[1024];
+			if (!CmdLineParser.m_fSilent) {
+				TCHAR szText[1024];
 
-			wsprintf(szText,TEXT("%s\r\n利用可能なカードリーダを検索しますか?"),
-					 CoreEngine.GetLastErrorText());
-			if (MessageBox(MainWindow.GetHandle(),szText,NULL,MB_YESNO | MB_ICONEXCLAMATION)==IDYES) {
-				CCardReader::ReaderType CurReader=CoreEngine.GetCardReaderType();
+				wsprintf(szText,TEXT("%s\r\n利用可能なカードリーダを検索しますか?"),
+						CoreEngine.GetLastErrorText());
+				if (MainWindow.ShowMessage(szText,NULL,MB_YESNO | MB_ICONEXCLAMATION)==IDYES) {
+					CCardReader::ReaderType CurReader=CoreEngine.GetCardReaderType();
 
-				if (!CoreEngine.SetCardReaderType(
-						CurReader==CCardReader::READER_SCARD?
+					if (!CoreEngine.SetCardReaderType(
+							CurReader==CCardReader::READER_SCARD?
 							CCardReader::READER_HDUS:CCardReader::READER_SCARD)
-						&& !CoreEngine.SetCardReaderType(CurReader)) {
-					MessageBox(MainWindow.GetHandle(),
-						TEXT("利用可能なカードリーダが見付かりませんでした。"),
-						NULL,MB_OK | MB_ICONEXCLAMATION);
+							&& !CoreEngine.SetCardReaderType(CurReader)) {
+						MainWindow.ShowMessage(
+							TEXT("利用可能なカードリーダが見付かりませんでした。"));
+						Logger.AddLog(TEXT("カードリーダがオープンできません。"));
+					}
 				}
+			} else {
+				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 			}
 		}
 		if (CoreEngine.m_DtvEngine.m_TsDescrambler.IsBcasCardOpen()) {
@@ -6368,20 +6647,22 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 					(DWORD)(ID/10000ULL)%10000,(DWORD)(ID%10000ULL));
 			}
 		}
-		if (!MainWindow.BuildMediaViewer()) {
-			TCHAR szText[1024];
-			int Length;
+		if (!CmdLineParser.m_fNoDirectShow && !MainWindow.BuildMediaViewer()) {
+			if (!CmdLineParser.m_fSilent) {
+				TCHAR szText[1024];
+				int Length;
 
-			lstrcpy(szText,TEXT("DirectShowの初期化ができません。\n"));
-			Length=lstrlen(szText);
-			CoreEngine.FormatLastErrorText(szText+Length,lengthof(szText)-Length);
-			MessageBox(MainWindow.GetHandle(),szText,NULL,MB_OK | MB_ICONEXCLAMATION);
+				lstrcpy(szText,TEXT("DirectShowの初期化ができません。\n"));
+				Length=lstrlen(szText);
+				CoreEngine.FormatLastErrorText(szText+Length,lengthof(szText)-Length);
+				MainWindow.ShowMessage(szText);
+			}
 			Logger.AddLog(CoreEngine.GetLastErrorText());
 		}
 		if (CoreEngine.IsDriverLoaded() && !CoreEngine.OpenDriver()) {
-			MessageBox(MainWindow.GetHandle(),TEXT("BonDriverの初期化ができません。"),
-					NULL,MB_OK | MB_ICONEXCLAMATION);
-			Logger.AddLog(TEXT("BonDriverの初期化ができません"));
+			if (!CmdLineParser.m_fSilent)
+				MainWindow.ShowMessage(TEXT("BonDriverの初期化ができません。"));
+			Logger.AddLog(TEXT("BonDriverの初期化ができません。"));
 		}
 		EpgOptions.InitializeEpgDataCap();
 		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()
@@ -6421,7 +6702,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	SetDisplayStatus();
 
-	{
+	if (!CmdLineParser.m_fNoPlugin) {
 		TCHAR szPluginDir[MAX_PATH];
 
 		StatusView.SetSingleText(TEXT("プラグインを読み込んでいます..."));
@@ -6501,39 +6782,28 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	CapturePreview.SetEventHandler(&CapturePreviewEvent);
 
-	if (CoreEngine.IsBuildComplete()) {
-		if (CmdLineParser.m_fFullscreen)
-			MainWindow.SetFullscreen(true);
+	if (CoreEngine.m_DtvEngine.IsSrcFilterOpen()) {
+		if (CoreEngine.IsBuildComplete()) {
+			if (CmdLineParser.m_fFullscreen)
+				MainWindow.SetFullscreen(true);
+		}
 
 		if (CoreEngine.IsUDPDriver()) {
 			if (CmdLineParser.m_UDPPort>1234 && CmdLineParser.m_UDPPort<=1243)
 				MainWindow.PostCommand(CM_CHANNEL_FIRST+(CmdLineParser.m_UDPPort-1234));
 		} else if (AppMain.IsFirstExecute()) {
 			if (ChannelManager.GetFileAllChannelList()->NumChannels()==0) {
-				if (MessageBox(MainWindow.GetHandle(),
+				if (MainWindow.ShowMessage(
 						TEXT("最初にチャンネルスキャンを行うことをおすすめします。\r\n")
 						TEXT("今すぐチャンネルスキャンを行いますか?"),
 						TEXT("チャンネルスキャンの確認"),
 						MB_YESNO | MB_ICONQUESTION)==IDYES) {
 					OptionDialog.ShowDialog(MainWindow.GetHandle(),
-										 COptionDialog::PAGE_CHANNELSCAN);
+											COptionDialog::PAGE_CHANNELSCAN);
 				}
 			}
-		} else if (CmdLineParser.m_Channel>0
-				|| CmdLineParser.m_ControllerChannel>0
-				|| CmdLineParser.m_ServiceID>0) {
-			const CChannelList *pList=ChannelManager.GetAllChannelList();
-			int i;
-
-			if (CmdLineParser.m_ServiceID>0) {
-				i=pList->FindServiceID(CmdLineParser.m_ServiceID);
-			} else if (CmdLineParser.m_Channel>0) {
-				i=pList->FindChannel(CmdLineParser.m_Channel);
-			} else {
-				i=pList->FindChannelNo(CmdLineParser.m_ControllerChannel);
-			}
-			if (i>=0)
-				MainWindow.PostCommand(CM_CHANNEL_FIRST+i);
+		} else if (CmdLineParser.IsChannelSpecified()) {
+			SetCommandLineChannel(&CmdLineParser);
 		} else if (fRestoreChannel
 				&& RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0
 				&& lstrcmpi(RestoreChannelInfo.szDriverName,CoreEngine.GetDriverFileName())==0) {
@@ -6555,6 +6825,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				}
 			}
 		} else {
+			// 初期チャンネルに設定する
 			const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 			int i=pList->Find(
 				CoreEngine.m_DtvEngine.m_BonSrcDecoder.GetCurSpace(),

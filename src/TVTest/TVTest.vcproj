@@ -247,6 +247,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DialogUtil.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\DrawUtil.cpp"
 				>
 			</File>
@@ -462,6 +466,10 @@
 			</File>
 			<File
 				RelativePath=".\CoreEngine.h"
+				>
+			</File>
+			<File
+				RelativePath=".\DialogUtil.h"
 				>
 			</File>
 			<File
@@ -739,6 +747,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\TsSelector.h"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\TsStream.h"
 					>
 				</File>
@@ -858,6 +870,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\TsProgGuide.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\TsSelector.cpp"
 					>
 				</File>
 				<File
@@ -1034,10 +1050,6 @@
 				</File>
 			</Filter>
 		</Filter>
-		<File
-			RelativePath=".\ReadMe.txt"
-			>
-		</File>
 	</Files>
 	<Globals>
 		<Global

@@ -48,7 +48,13 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		return false;
 	TVTest::GetVersionFunc pGetVersion=
 		reinterpret_cast<TVTest::GetVersionFunc>(::GetProcAddress(hLib,"TVTGetVersion"));
-	if (pGetVersion==NULL || pGetVersion()!=TVTEST_PLUGIN_VERSION) {
+	if (pGetVersion==NULL) {
+		::FreeLibrary(hLib);
+		return false;
+	}
+	DWORD Version=pGetVersion();
+	if (TVTest::GetMajorVersion(Version)!=TVTest::GetMajorVersion(TVTEST_PLUGIN_VERSION)
+		|| TVTest::GetMinorVersion(Version)!=TVTest::GetMinorVersion(TVTEST_PLUGIN_VERSION)) {
 		::FreeLibrary(hLib);
 		return false;
 	}
@@ -94,12 +100,21 @@ void CPlugin::Free()
 {
 	if (m_hLib!=NULL) {
 		m_GrabberLock.Lock();
-		for (int i=m_GrabberList.Length()-1;i>=0;i--) {
-			if (m_GrabberList[i]->m_pPlugin==this) {
-				m_GrabberList.Delete(i);
+		if (m_fSetGrabber) {
+			for (int i=m_GrabberList.Length()-1;i>=0;i--) {
+				if (m_GrabberList[i]->m_pPlugin==this)
+					m_GrabberList.Delete(i);
+			}
+			if (m_GrabberList.Length()==0) {
+				CMediaGrabber &MediaGrabber=GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaGrabber;
+
+				MediaGrabber.SetMediaGrabCallback(NULL);
+				m_fSetGrabber=false;
 			}
 		}
 		m_GrabberLock.Unlock();
+
+		m_pEventCallback=NULL;
 
 		TVTest::FinalizeFunc pFinalize=
 			static_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
@@ -113,7 +128,6 @@ void CPlugin::Free()
 	SAFE_DELETE(m_pszCopyright);
 	SAFE_DELETE(m_pszDescription);
 	m_fEnabled=false;
-	m_pEventCallback=NULL;
 }
 
 
@@ -148,7 +162,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 {
 	switch (Message) {
 	case TVTest::MESSAGE_GETVERSION:
-		return TVTest::MAKE_VERSION(VERSION_MAJOR,VERSION_MINOR,VERSION_BUILD);
+		return TVTest::MakeVersion(VERSION_MAJOR,VERSION_MINOR,VERSION_BUILD);
 
 	case TVTest::MESSAGE_QUERYMESSAGE:
 		switch (lParam1) {
@@ -198,6 +212,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::MESSAGE_GETCOLOR:
 		case TVTest::MESSAGE_DECODEARIBSTRING:
 		case TVTest::MESSAGE_GETCURRENTPROGRAMINFO:
+		case TVTest::MESSAGE_QUERYEVENT:
+		case TVTest::MESSAGE_GETTUNINGSPACE:
+		case TVTest::MESSAGE_GETTUNINGSPACEINFO:
+		case TVTest::MESSAGE_SETNEXTCHANNEL:
 			return TRUE;
 		}
 		return FALSE;
@@ -229,7 +247,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			TVTest::ChannelInfo *pChannelInfo=reinterpret_cast<TVTest::ChannelInfo*>(lParam1);
 
 			if (pChannelInfo==NULL
-					|| pChannelInfo->Size!=sizeof(TVTest::ChannelInfo))
+					|| (pChannelInfo->Size!=sizeof(TVTest::ChannelInfo)
+						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V1))
 				return FALSE;
 			const CChannelInfo *pChInfo=GetAppClass().GetCurrentChannelInfo();
 			if (pChInfo==NULL)
@@ -247,6 +266,11 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 								lengthof(pChannelInfo->szTransportStreamName)))
 				pChannelInfo->szTransportStreamName[0]='\0';
 			::lstrcpy(pChannelInfo->szChannelName,pChInfo->GetName());
+			if (pChannelInfo->Size==sizeof(TVTest::ChannelInfo)) {
+				pChannelInfo->PhysicalChannel=pChInfo->GetChannel();
+				pChannelInfo->ServiceIndex=pChInfo->GetService();
+				pChannelInfo->ServiceID=pChInfo->GetServiceID();
+			}
 		}
 		return TRUE;
 
@@ -297,7 +321,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			int Channel=HIWORD(lParam2);
 
 			if (pChannelInfo==NULL
-					|| pChannelInfo->Size!=sizeof(TVTest::ChannelInfo)
+					|| (pChannelInfo->Size!=sizeof(TVTest::ChannelInfo)
+						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V1)
 					|| Space<0 || Channel<0)
 				return FALSE;
 
@@ -315,9 +340,14 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			pChannelInfo->RemoteControlKeyID=pChInfo->GetChannelNo();
 			pChannelInfo->NetworkID=pChInfo->GetNetworkID();
 			pChannelInfo->szNetworkName[0]='\0';
-			pChannelInfo->TransportStreamID=0;
+			pChannelInfo->TransportStreamID=pChInfo->GetTransportStreamID();
 			pChannelInfo->szTransportStreamName[0]='\0';
 			::lstrcpy(pChannelInfo->szChannelName,pChInfo->GetName());
+			if (pChannelInfo->Size==sizeof(TVTest::ChannelInfo)) {
+				pChannelInfo->PhysicalChannel=pChInfo->GetChannel();
+				pChannelInfo->ServiceIndex=pChInfo->GetService();
+				pChannelInfo->ServiceID=pChInfo->GetServiceID();
+			}
 		}
 		return TRUE;
 
@@ -357,6 +387,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		{
 			LPCWSTR pszDriverName=reinterpret_cast<LPCWSTR>(lParam1);
 
+			if (pszDriverName==NULL)
+				return FALSE;
 			return GetAppClass().SetDriver(pszDriverName);
 		}
 
@@ -773,18 +805,20 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 			CBlockLock Lock(&m_GrabberLock);
 
-			if (!m_fSetGrabber) {
-				CMediaGrabber &MediaGrabber=GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaGrabber;
-
-				MediaGrabber.SetMediaGrabCallback(GrabMediaCallback,&m_GrabberList);
-			}
 			if ((pInfo->Flags&TVTest::STREAM_CALLBACK_REMOVE)==0) {
+				if (!m_fSetGrabber) {
+					CMediaGrabber &MediaGrabber=GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaGrabber;
+
+					MediaGrabber.SetMediaGrabCallback(GrabMediaCallback,&m_GrabberList);
+					m_fSetGrabber=true;
+				}
 				m_GrabberList.Add(new CMediaGrabberInfo(pThis,pInfo));
 			} else {
 				int i;
 
 				for (i=m_GrabberList.Length()-1;i>=0;i--) {
-					if (m_GrabberList[i]->m_CallbackInfo.Callback==pInfo->Callback) {
+					if (m_GrabberList[i]->m_pPlugin==pThis
+							&& m_GrabberList[i]->m_CallbackInfo.Callback==pInfo->Callback) {
 						m_GrabberList.Delete(i);
 						break;
 					}
@@ -867,6 +901,72 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			}
 			pProgramInfo->StartTime=pEpgInfo->GetStartTime();
 			pProgramInfo->Duration=pEpgInfo->GetDuration();
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_QUERYEVENT:
+		switch (lParam1) {
+		case TVTest::EVENT_PLUGINENABLE:
+		case TVTest::EVENT_PLUGINSETTINGS:
+		case TVTest::EVENT_CHANNELCHANGE:
+		case TVTest::EVENT_SERVICECHANGE:
+		case TVTest::EVENT_DRIVERCHANGE:
+		case TVTest::EVENT_SERVICEUPDATE:
+		case TVTest::EVENT_RECORDSTATUSCHANGE:
+		case TVTest::EVENT_FULLSCREENCHANGE:
+		case TVTest::EVENT_PREVIEWCHANGE:
+		case TVTest::EVENT_VOLUMECHANGE:
+		case TVTest::EVENT_STEREOMODECHANGE:
+		case TVTest::EVENT_COLORCHANGE:
+			return TRUE;
+		}
+		return FALSE;
+
+	case TVTest::MESSAGE_GETTUNINGSPACE:
+		{
+			const CChannelManager *pChannelManager=GetAppClass().GetChannelManager();
+			int *pNumSpaces=reinterpret_cast<int*>(lParam1);
+			int CurSpace;
+
+			if (pNumSpaces!=NULL)
+				*pNumSpaces=pChannelManager->GetDriverTuningSpaceList()->NumSpaces();
+			CurSpace=pChannelManager->GetCurrentSpace();
+			if (CurSpace<0) {
+				const CChannelInfo *pChannelInfo;
+
+				if (CurSpace==CChannelManager::SPACE_ALL
+						&& (pChannelInfo=pChannelManager->GetCurrentChannelInfo())!=NULL) {
+					CurSpace=pChannelInfo->GetSpace();
+				} else {
+					CurSpace=-1;
+				}
+			}
+			return CurSpace;
+		}
+
+	case TVTest::MESSAGE_GETTUNINGSPACEINFO:
+		{
+			TVTest::TuningSpaceInfo *pInfo=reinterpret_cast<TVTest::TuningSpaceInfo*>(lParam1);
+			int Index=lParam2;
+
+			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::TuningSpaceInfo))
+				return FALSE;
+
+			const CTuningSpaceList *pTuningSpaceList=GetAppClass().GetChannelManager()->GetDriverTuningSpaceList();
+			LPCTSTR pszTuningSpaceName=pTuningSpaceList->GetTuningSpaceName(Index);
+
+			if (pszTuningSpaceName==NULL)
+				return FALSE;
+			::lstrcpyn(pInfo->szName,pszTuningSpaceName,lengthof(pInfo->szName));
+			pInfo->Space=(int)pTuningSpaceList->GetTuningSpaceType(Index);
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_SETNEXTCHANNEL:
+		{
+			bool fNext=lParam1&1;
+
+			GetAppClass().GetMainWindow()->PostCommand(fNext?CM_CHANNEL_UP:CM_CHANNEL_DOWN);
 		}
 		return TRUE;
 	}

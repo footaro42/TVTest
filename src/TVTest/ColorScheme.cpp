@@ -4,6 +4,7 @@
 #include "AppMain.h"
 #include "ColorScheme.h"
 #include "Settings.h"
+#include "DialogUtil.h"
 #include "DrawUtil.h"
 #include "resource.h"
 

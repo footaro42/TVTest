@@ -15,6 +15,38 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+LONGLONG StringToInt64(LPCTSTR pszString)
+{
+	return _ttoi64(pszString);
+}
+
+
+ULONGLONG StringToUInt64(LPCTSTR pszString)
+{
+	ULONGLONG Value=0;
+	LPCTSTR p;
+
+	p=pszString;
+	while (*p>='0' && *p<='9') {
+		Value=Value*10+(*p-'0');
+		p++;
+	}
+	return Value;
+}
+
+
+bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix)
+{
+	return _i64tot_s(Value,pszString,MaxLength,Radix)==0;
+}
+
+
+bool UInt64ToString(ULONGLONG Value,LPTSTR pszString,int MaxLength,int Radix)
+{
+	return _ui64tot_s(Value,pszString,MaxLength,Radix)==0;
+}
+
+
 LPSTR DuplicateString(LPCSTR pszString)
 {
 	LPSTR p;
@@ -112,11 +144,28 @@ LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2)
 
 int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2)
 {
+	/*
 	FILETIME ft1,ft2;
 
 	SystemTimeToFileTime(pTime1,&ft1);
 	SystemTimeToFileTime(pTime2,&ft2);
 	return CompareFileTime(&ft1,&ft2);
+	*/
+	DWORD Date1,Date2;
+
+	Date1=((DWORD)pTime1->wYear<<16) | ((DWORD)pTime1->wMonth<<8) | pTime1->wDay;
+	Date2=((DWORD)pTime2->wYear<<16) | ((DWORD)pTime2->wMonth<<8) | pTime2->wDay;
+	if (Date1==Date2) {
+		Date1=((DWORD)pTime1->wHour<<24) | ((DWORD)pTime1->wMinute<<16) |
+			  ((DWORD)pTime1->wSecond<<10) | pTime1->wMilliseconds;
+		Date2=((DWORD)pTime2->wHour<<24) | ((DWORD)pTime2->wMinute<<16) |
+			  ((DWORD)pTime2->wSecond<<10) | pTime2->wMilliseconds;
+	}
+	if (Date1<Date2)
+		return -1;
+	if (Date1>Date2)
+		return 1;
+	return 0;
 }
 
 
@@ -136,52 +185,31 @@ void ClearMenu(HMENU hmenu)
 }
 
 
-void EnableDlgItem(HWND hDlg,int ID,bool fEnable)
+int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength)
 {
-	EnableWindow(GetDlgItem(hDlg,ID),fEnable);
-}
+	int i,j;
 
-
-void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable)
-{
-	int i;
-
-	if (FirstID>LastID) {
-		i=FirstID;
-		FirstID=LastID;
-		LastID=i;
+	i=j=0;
+	while (pszSrcText[i]!='\0' && j+1<MaxLength) {
+		pszDstText[j++]=pszSrcText[i];
+#ifndef UNICODE
+		if (::IsDBCSLeadByteEx(CP_ACP,pszSrcText[i])) {
+			if (j+1>=MaxLength || pszSrcText[i+1]=='\0')
+				break;
+			pszDstText[j++]=pszSrcText[++i];
+			i++;
+			continue;
+		}
+#endif
+		if (pszSrcText[i]=='&') {
+			if (j+1>=MaxLength)
+				break;
+			pszDstText[j++]='&';
+		}
+		i++;
 	}
-	for (i=FirstID;i<=LastID;i++)
-		EnableDlgItem(hDlg,i,fEnable);
-}
-
-
-void InvalidateDlgItem(HWND hDlg,int ID,bool fErase)
-{
-	InvalidateRect(GetDlgItem(hDlg,ID),NULL,fErase);
-}
-
-
-int GetDlgItemTextLength(HWND hDlg,int ID)
-{
-	return GetWindowTextLength(GetDlgItem(hDlg,ID));
-}
-
-
-int GetCheckedRadioButton(HWND hDlg,int FirstID,int LastID)
-{
-	int i;
-
-	if (LastID<FirstID) {
-		i=FirstID;
-		FirstID=LastID;
-		LastID=i;
-	}
-	for (i=FirstID;i<=LastID;i++) {
-		if (IsDlgButtonChecked(hDlg,i)==BST_CHECKED)
-			return i;
-	}
-	return -1;
+	pszDstText[j]='\0';
+	return j;
 }
 
 

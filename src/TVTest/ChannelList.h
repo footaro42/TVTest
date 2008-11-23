@@ -25,6 +25,7 @@ public:
 	CChannelInfo &operator=(const CChannelInfo &Info);
 	int GetSpace() const { return m_Space; }
 	int GetChannel() const { return m_Channel; }
+	bool SetChannel(int Channel);
 	int GetChannelIndex() const { return m_ChannelIndex; }
 	int GetChannelNo() const { return m_ChannelNo; }
 	int GetService() const { return m_Service; }
@@ -88,7 +89,8 @@ private:
 class CTuningSpaceInfo {
 public:
 	enum TuningSpaceType {
-		SPACE_UNKNOWN,
+		SPACE_ERROR=-1,
+		SPACE_UNKNOWN=0,
 		SPACE_TERRESTRIAL,
 		SPACE_BS,
 		SPACE_110CS
@@ -107,6 +109,7 @@ public:
 	const CChannelList *GetChannelList() const { return m_pChannelList; }
 	LPCTSTR GetName() const { return m_pszName; }
 	bool SetName(LPCTSTR pszName);
+	TuningSpaceType GetType() const { return m_Space; }
 };
 
 class CTuningSpaceList {
@@ -126,6 +129,7 @@ public:
 	CChannelList *GetAllChannelList() { return &m_AllChannelList; }
 	const CChannelList *GetAllChannelList() const { return &m_AllChannelList; }
 	LPCTSTR GetTuningSpaceName(int Space) const;
+	CTuningSpaceInfo::TuningSpaceType GetTuningSpaceType(int Space) const;
 	bool Create(const CChannelList *pList,int Spaces=0);
 	bool Reserve(int Spaces);
 	bool MakeAllChannelList();

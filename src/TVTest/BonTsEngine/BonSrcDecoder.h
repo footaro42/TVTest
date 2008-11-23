@@ -90,4 +90,8 @@ private:
 	volatile bool m_bPauseSignal;
 	HANDLE m_hResumeEvent;
 	volatile bool m_bKillSignal;
+
+	int m_RequestSpace;
+	int m_RequestChannel;
+	bool m_bSetChannelResult;
 };

@@ -504,6 +504,62 @@ const bool CPatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 
 /////////////////////////////////////////////////////////////////////////////
+// CATテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CCatTable::CCatTable()
+	: CPsiSingleTable()
+{
+	Reset();
+}
+
+CCatTable::~CCatTable(void)
+{
+}
+
+CCatTable  & CCatTable::operator = (const CCatTable &Operand)
+{
+	if (this != &Operand)
+		*this = Operand;
+	return *this;
+}
+
+void CCatTable::Reset(void)
+{
+	// 状態をクリアする
+	m_DescBlock.Reset();
+
+	CPsiSingleTable::Reset();
+}
+
+const CDescBlock * CCatTable::GetCatDesc(void) const
+{
+	// 記述子領域を返す
+	return &m_DescBlock;
+}
+
+const bool CCatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
+{
+	if (pCurSection->GetTableID() != 0x01U)
+		return false;	// テーブルIDが不正
+
+	TRACE(TEXT("\n------- CAT Table -------\n"));
+
+	// テーブルを解析する
+	m_DescBlock.ParseBlock(pCurSection->GetPayloadData(), pCurSection->GetPayloadSize());
+
+#ifdef DEBUG
+	for (WORD i = 0 ; i < m_DescBlock.GetDescNum() ; i++) {
+		const CBaseDesc *pBaseDesc = m_DescBlock.GetDescByIndex(i);
+		TRACE(TEXT("[%lu] TAG = 0x%02X LEN = %lu\n"), i, pBaseDesc->GetTag(), pBaseDesc->GetLength());
+	}
+#endif
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PMTテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
