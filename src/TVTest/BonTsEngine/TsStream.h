@@ -187,8 +187,6 @@ private:
 	const BYTE StartUnit(const BYTE *pPayload, const BYTE byRemain);
 	const BYTE StoreUnit(const BYTE *pPayload, const BYTE byRemain);
 
-	static const DWORD CalcCrc(const BYTE *pData, const WORD wDataSize, DWORD dwCurCrc = 0xFFFFFFFFUL);
-
 	IPsiSectionHandler *m_pPsiSectionHandler;
 	CPsiSection m_PsiSection;
 	bool m_bTargetExt;

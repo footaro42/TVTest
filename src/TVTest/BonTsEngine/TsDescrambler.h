@@ -31,17 +31,20 @@ public:
 
 class CBcasAccessQueue {
 	std::deque<CBcasAccess> m_Queue;
+	CBcasCard *m_pBcasCard;
+	CCardReader::ReaderType m_ReaderType;
 	HANDLE m_hThread;
 	HANDLE m_hEvent;
 	volatile bool m_bKillEvent;
+	volatile bool m_bStartEvent;
 	CCriticalLock m_Lock;
 	static DWORD CALLBACK BcasAccessThread(LPVOID lpParameter);
 public:
-	CBcasAccessQueue();
+	CBcasAccessQueue(CBcasCard *pBcasCard);
 	~CBcasAccessQueue();
 	void Clear();
 	bool Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
-	bool BeginBcasThread();
+	bool BeginBcasThread(CCardReader::ReaderType ReaderType);
 	bool EndBcasThread();
 };
 
@@ -72,15 +75,16 @@ public:
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetScramblePacketCount(void) const;
 	bool SetTargetPID(const WORD *pPIDList=NULL,int NumPIDs=0);
-	bool IsTargetPID(WORD PID);
 	bool SetTargetServiceID(WORD ServiceID=0);
 	DWORD IncrementScramblePacketCount();
-
+	bool HasTargetPID(const std::vector<WORD> *pList);
 protected:
 	class CEsProcessor;
 
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
+
+	bool IsTargetPID(WORD PID);
 
 	CTsPidMapManager m_PidMapManager;
 	CBcasCard m_BcasCard;

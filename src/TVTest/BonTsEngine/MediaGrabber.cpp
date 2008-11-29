@@ -22,25 +22,29 @@ CMediaGrabber::CMediaGrabber(IEventHandler *pEventHandler)
 	, m_pMediaGrabParam(NULL)
 	, m_pResetGrabParam(NULL)
 {
-	
 }
 
 CMediaGrabber::~CMediaGrabber()
 {
-
 }
 
 void CMediaGrabber::Reset(void)
 {
 	// コールバックに通知する
-	if(m_pfnResetGrabFunc)m_pfnResetGrabFunc(m_pResetGrabParam);
+	if (m_pfnResetGrabFunc)
+		m_pfnResetGrabFunc(m_pResetGrabParam);
 
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 }
 
 const bool CMediaGrabber::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	if(dwInputIndex >= GetInputNum())return false;
+	CBlockLock Lock(&m_DecoderLock);
+
+	/*
+	if (dwInputIndex >= GetInputNum())
+		return false;
+	*/
 
 	// コールバックに通知する
 	if (m_pfnMediaGrabFunc) {

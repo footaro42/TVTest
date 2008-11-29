@@ -18,22 +18,23 @@ static char THIS_FILE[]=__FILE__;
 CMediaTee::CMediaTee(IEventHandler *pEventHandler, const DWORD dwOutputNum)
 	: CMediaDecoder(pEventHandler, 1UL, dwOutputNum)
 {
-	
 }
 
 CMediaTee::~CMediaTee()
 {
-
 }
 
 const bool CMediaTee::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	if(dwInputIndex > GetInputNum())return false;
+	/*
+	if (dwInputIndex >= GetInputNum())
+		return false;
+	*/
 
 	// 下位デコーダにデータを渡す
-	for(DWORD dwOutIndex = 0UL ; dwOutIndex < GetOutputNum() ; dwOutIndex++){
+	for (DWORD dwOutIndex = 0UL ; dwOutIndex < GetOutputNum() ; dwOutIndex++) {
 		OutputMedia(pMediaData, dwOutIndex);
-		}
+	}
 
 	return true;
 }

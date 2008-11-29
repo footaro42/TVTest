@@ -60,6 +60,9 @@ public:
 	const bool GetVideoSize(WORD *pwWidth,WORD *pwHeight);
 	const bool GetVideoAspectRatio(BYTE *pbyAspectRateX,BYTE *pbyAspectRateY);
 	const BYTE GetAudioChannelNum();
+	const int GetAudioStreamNum(const WORD wService = 0);
+	const bool SetAudioStream(int StreamIndex);
+	const int GetAudioStream() const;
 	const bool SetStereoMode(int iMode);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
@@ -67,7 +70,7 @@ public:
 	const bool SetChannel(const BYTE byTuningSpace, const WORD wChannel);
 	const bool SetService(const WORD wService);
 	const WORD GetService(void) const;
-	const bool GetServiceID(WORD *pServiceID) const;
+	const bool GetServiceID(WORD *pServiceID);
 	const unsigned __int64 GetPcrTimeStamp() const;
 
 	/*
@@ -75,7 +78,6 @@ public:
 	void StopFile(void);
 	*/
 
-	// Append by HDUSTestÇÃíÜÇÃêl
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL);
@@ -117,6 +119,7 @@ protected:
 	CDtvEngineHandler *m_pDtvEngineHandler;
 	WORD m_wCurTransportStream;
 	WORD m_wCurService;
+	int m_CurAudioStream;
 	WORD m_wCurVideoPID;
 	WORD m_wCurAudioPID;
 	unsigned __int64 m_u64CurPcrTimeStamp;

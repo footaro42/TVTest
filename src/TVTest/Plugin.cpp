@@ -281,7 +281,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_GETSERVICE:
 		{
-			const CDtvEngine *pDtvEngine=&GetAppClass().GetCoreEngine()->m_DtvEngine;
+			CDtvEngine *pDtvEngine=&GetAppClass().GetCoreEngine()->m_DtvEngine;
 			WORD Service=pDtvEngine->GetService();
 			int *pNumServices=reinterpret_cast<int*>(lParam1);
 
@@ -364,8 +364,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			if (pProgManager->GetServiceID(&pServiceInfo->ServiceID,Index)
 					&& pProgManager->GetServiceName(
 											pServiceInfo->szServiceName,Index)
-					&& pProgManager->GetServiceEsPID(&pServiceInfo->VideoPID,
-											&pServiceInfo->AudioPID[0],Index)) {
+					&& pProgManager->GetVideoEsPID(&pServiceInfo->VideoPID,Index)
+					&& pProgManager->GetAudioEsPID(&pServiceInfo->AudioPID[0],0,Index)) {
 				pServiceInfo->NumAudioPIDs=1;
 				return TRUE;
 			}

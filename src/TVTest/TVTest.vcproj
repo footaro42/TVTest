@@ -132,12 +132,14 @@
 				Name="VCCLCompilerTool"
 				Optimization="3"
 				InlineFunctionExpansion="2"
+				EnableIntrinsicFunctions="false"
 				FavorSizeOrSpeed="1"
 				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
 				StringPooling="true"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
+				BufferSecurityCheck="false"
 				EnableEnhancedInstructionSet="1"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
@@ -941,11 +943,11 @@
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\PcmSelectFilter.h"
+					RelativePath=".\DirectShowFilter\VideoRenderer.h"
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\VideoRenderer.h"
+					RelativePath=".\DirectShowFilter\VMR9Renderless.h"
 					>
 				</File>
 			</Filter>
@@ -977,11 +979,11 @@
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\PcmSelectFilter.cpp"
+					RelativePath=".\DirectShowFilter\VideoRenderer.cpp"
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\VideoRenderer.cpp"
+					RelativePath=".\DirectShowFilter\VMR9Renderless.cpp"
 					>
 				</File>
 			</Filter>

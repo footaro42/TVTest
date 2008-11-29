@@ -30,13 +30,12 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_bKillSignal(false)
 	, m_TsStream(0x10000UL)
 	, m_bIsPlaying(false)
-	, m_dwLastError(BSDEC_NOERROR)
+	, m_dwLastError(ERR_NOERROR)
 	, m_BitRate(0)
 	, m_StreamRemain(0)
 	, m_RequestSpace(-1)
 	, m_RequestChannel(-1)
 {
-
 }
 
 CBonSrcDecoder::~CBonSrcDecoder()
@@ -46,7 +45,7 @@ CBonSrcDecoder::~CBonSrcDecoder()
 
 void CBonSrcDecoder::Reset(void)
 {
-	CBlockLock Lock(&m_CriticalLock);
+	CBlockLock Lock(&m_DecoderLock);
 
 	PauseStreamRecieve();
 
@@ -54,7 +53,7 @@ void CBonSrcDecoder::Reset(void)
 	m_pBonDriver->PurgeTsStream();
 
 	// 下位デコーダをリセットする
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 
 	ResumeStreamRecieve();
 }
@@ -67,88 +66,72 @@ const bool CBonSrcDecoder::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 
 const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 {
-	CBlockLock Lock(&m_CriticalLock);
-	
 	// オープンチェック
-	if(m_pBonDriver){
-		m_dwLastError = BSDEC_ALREADYOPEN;
+	if (m_pBonDriver) {
+		m_dwLastError = ERR_ALREADYOPEN;
 		return false;
-		}
+	}
 
 	// ドライバポインタの取得
 	PFCREATEBONDRIVER *pf=(PFCREATEBONDRIVER*)GetProcAddress(hBonDrvDll,"CreateBonDriver");
-	if(!pf){
-		m_dwLastError = BSDEC_DRIVERERROR;
+	if (!pf || (m_pBonDriver = pf()) == NULL) {
+		m_dwLastError = ERR_DRIVER;
 		return false;
-		}
-
-	// ドライバインスタンス生成
-	if(!(m_pBonDriver = pf())){
-		m_dwLastError = BSDEC_TUNERERROR;
-		return false;
-		}
-
-	// IBonDriver2インタフェース取得
-	try{
-		m_pBonDriver2 = dynamic_cast<IBonDriver2 *>(m_pBonDriver);
-		}
-	catch(std::__non_rtti_object){
-		m_pBonDriver2 = NULL;
-		}
+	}
 
 	// チューナを開く
-	if(!m_pBonDriver->OpenTuner()){
-		CloseTuner();
-		m_dwLastError = BSDEC_TUNERERROR;
-		return false;
-		}
-	
-	// 初期チャンネルをセットする
+	if (!m_pBonDriver->OpenTuner()) {
+		m_dwLastError = ERR_TUNEROPEN;
+		goto OnError;
+	}
+
+	// IBonDriver2インタフェース取得
+	m_pBonDriver2 = dynamic_cast<IBonDriver2 *>(m_pBonDriver);
+
 	/*
-	if(m_pBonDriver2){
+	// 初期チャンネルをセットする
+	if (m_pBonDriver2) {
 		// IBonDriver2
-		if(!m_pBonDriver2->SetChannel(0UL, 0UL)){
-			CloseTuner();
-			m_dwLastError = BSDEC_TUNERERROR;
-			return false;
-			}
+		if (!m_pBonDriver2->SetChannel(0UL, 0UL)) {
+			m_dwLastError = ERR_TUNER;
+			goto OnError;
 		}
-	else{
+	} else {
 		// IBonDriver
-		if(!m_pBonDriver->SetChannel(13U)){
-			CloseTuner();
-			m_dwLastError = BSDEC_TUNERERROR;
-			return false;
-			}
+		if (!m_pBonDriver->SetChannel(13U)) {
+			m_dwLastError = ERR_TUNER;
+			goto OnError;
 		}
+	}
 	*/
 
 	// ストリーム受信スレッド起動
-	DWORD dwThreadID;
-
 	m_bPauseSignal=false;
 	m_hResumeEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
 	m_bKillSignal=false;
 	m_bIsPlaying = false;
+	m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, NULL);
+	if (!m_hStreamRecvThread) {
+		m_dwLastError = ERR_INTERNAL;
+		goto OnError;
+	}
 
-	if(!(m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, &dwThreadID))){
-		CloseTuner();
-		m_dwLastError = BSDEC_INTERNALERROR;
-		return false;
-		}
-
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	ResetBitRate();
+
 	return true;
+
+OnError:
+	m_pBonDriver->CloseTuner();
+	m_pBonDriver->Release();
+	m_pBonDriver = NULL;
+	m_pBonDriver2 = NULL;
+	return false;
 }
 
 const bool CBonSrcDecoder::CloseTuner(void)
 {
-	CTryBlockLock Lock(&m_CriticalLock);
-	// しばらく待っても入れない場合は恐らくデッドロックしているので、強制的に終了させる
-	Lock.TryLock(2000);
-
 	// ストリーム停止
 	m_bIsPlaying = false;
 
@@ -156,7 +139,7 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		// ストリーム受信スレッド停止
 		m_bKillSignal=true;
 		m_bPauseSignal=true;
-		if (::WaitForSingleObject(m_hStreamRecvThread,1000UL)!=WAIT_OBJECT_0) {
+		if (::WaitForSingleObject(m_hStreamRecvThread, 1000UL) != WAIT_OBJECT_0) {
 			// スレッド強制終了
 			TRACE(TEXT("Terminate stream recieve thread.\n"));
 			::TerminateThread(m_hStreamRecvThread, 0UL);
@@ -179,7 +162,7 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		m_pBonDriver2 = NULL;
 	}
 
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	return true;
 }
@@ -191,113 +174,116 @@ const bool CBonSrcDecoder::IsOpen() const
 
 const bool CBonSrcDecoder::Play(void)
 {
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
-		return false;
-
-	if(!m_pBonDriver){
+	if (!m_pBonDriver) {
 		// チューナが開かれていない
-		m_dwLastError = BSDEC_TUNERNOTOPEN;
+		m_dwLastError = ERR_NOTOPEN;
 		return false;
-		}
+	}
 
-	if(m_bIsPlaying){
+	if (m_bIsPlaying) {
 		// 既に再生中
-		m_dwLastError = BSDEC_ALREADYPLAYING;
+		m_dwLastError = ERR_ALREADYPLAYING;
 		return false;
-		}
+	}
 
-	PauseStreamRecieve();
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
 
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
 
 	// 下位デコーダをリセットする
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 
 	ResumeStreamRecieve();
 
 	// ストリームを再生状態にする
 	m_bIsPlaying = true;
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	return true;
 }
 
 const bool CBonSrcDecoder::Stop(void)
 {
-	if(!m_bIsPlaying){
+	if (!m_bIsPlaying) {
 		// ストリームは再生中でない
-		m_dwLastError = BSDEC_NOTPLAYING;
+		m_dwLastError = ERR_NOTPLAYING;
 		return false;
-		}
+	}
+
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
 
 	m_bIsPlaying = false;
-	m_dwLastError = BSDEC_NOERROR;
+
+	ResumeStreamRecieve();
+
+	m_dwLastError = ERR_NOERROR;
 
 	return true;
 }
 
 const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 {
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
-		return false;
-
-	if(!m_pBonDriver){
+	if (!m_pBonDriver) {
 		// チューナが開かれていない
-		m_dwLastError = BSDEC_TUNERNOTOPEN;
+		m_dwLastError = ERR_NOTOPEN;
 		return false;
-		}
+	}
 
-	m_RequestChannel=byChannel;
-	PauseStreamRecieve();
+	m_RequestChannel = byChannel;
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
 
 	/*
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
 
 	// チャンネルを変更する
-	if(!m_pBonDriver->SetChannel(byChannel)){
+	if (!m_pBonDriver->SetChannel(byChannel)) {
 		ResumeStreamRecieve();
-		m_dwLastError = BSDEC_TUNERERROR;
+		m_dwLastError = ERR_TUNER;
 		return false;
-		}
+	}
 	*/
 
 	if (!m_bSetChannelResult) {
 		ResumeStreamRecieve();
-		m_dwLastError = BSDEC_TUNERERROR;
+		m_dwLastError = ERR_TUNER;
 		return false;
 	}
 
 	// 下位デコーダをリセットする
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 
 	ResumeStreamRecieve();
 
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	return true;
 }
 
 const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel)
 {
-	if(!IsBonDriver2())return SetChannel((BYTE)dwChannel + 13U);
-
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
-		return false;
-
 	if (!m_pBonDriver2) {
 		// チューナが開かれていない
-		m_dwLastError = BSDEC_TUNERNOTOPEN;
+		m_dwLastError = ERR_NOTOPEN;
 		return false;
 	}
 
-	m_RequestSpace=dwSpace;
-	m_RequestChannel=dwChannel;
-	PauseStreamRecieve();
+	m_RequestSpace = dwSpace;
+	m_RequestChannel = dwChannel;
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
 
 	/*
 	// 未処理のストリームを破棄する
@@ -306,36 +292,36 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 	// チャンネルを変更する
 	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
 		ResumeStreamRecieve();
-		m_dwLastError = BSDEC_TUNERERROR;
+		m_dwLastError = ERR_TUNER;
 		return false;
 	}
 	*/
 
 	if (!m_bSetChannelResult) {
 		ResumeStreamRecieve();
-		m_dwLastError = BSDEC_TUNERERROR;
+		m_dwLastError = ERR_TUNER;
 		return false;
 	}
 
 	// 下位デコーダをリセットする
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 
 	ResumeStreamRecieve();
 
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	return true;
 }
 
 const float CBonSrcDecoder::GetSignalLevel(void)
 {
-	if(!m_pBonDriver){
+	if (!m_pBonDriver) {
 		// チューナが開かれていない
-		m_dwLastError = BSDEC_TUNERNOTOPEN;
+		m_dwLastError = ERR_NOTOPEN;
 		return 0.0f;
-		}
+	}
 
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	// 信号レベルを返す
 	return m_pBonDriver->GetSignalLevel();
@@ -344,19 +330,27 @@ const float CBonSrcDecoder::GetSignalLevel(void)
 const bool CBonSrcDecoder::IsBonDriver2(void) const
 {
 	// IBonDriver2インタフェースの使用可否を返す
-	return (m_pBonDriver2)? true : false;
+	return m_pBonDriver2 != NULL;
 }
 
 LPCTSTR CBonSrcDecoder::GetSpaceName(const DWORD dwSpace) const
 {
 	// チューニング空間名を返す
-	return (IsBonDriver2())? m_pBonDriver2->EnumTuningSpace(dwSpace) : NULL;
+	if (m_pBonDriver2 == NULL) {
+		//m_dwLastError = ERR_NOTOPEN;
+		return NULL;
+	}
+	return m_pBonDriver2->EnumTuningSpace(dwSpace);
 }
 
 LPCTSTR CBonSrcDecoder::GetChannelName(const DWORD dwSpace, const DWORD dwChannel) const
 {
 	// チャンネル名を返す
-	return (IsBonDriver2())? m_pBonDriver2->EnumChannelName(dwSpace, dwChannel) : NULL;
+	if (m_pBonDriver2 == NULL) {
+		//m_dwLastError = ERR_NOTOPEN;
+		return NULL;
+	}
+	return m_pBonDriver2->EnumChannelName(dwSpace, dwChannel);
 }
 
 const DWORD CBonSrcDecoder::GetLastError(void) const
@@ -367,24 +361,23 @@ const DWORD CBonSrcDecoder::GetLastError(void) const
 
 const bool CBonSrcDecoder::PurgeStream(void)
 {
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
-		return false;
-
-	if(!m_pBonDriver){
+	if (!m_pBonDriver) {
 		// チューナが開かれていない
-		m_dwLastError = BSDEC_TUNERNOTOPEN;
+		m_dwLastError = ERR_NOTOPEN;
 		return false;
-		}
+	}
 
-	PauseStreamRecieve();
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
 
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
 
 	ResumeStreamRecieve();
 
-	m_dwLastError = BSDEC_NOERROR;
+	m_dwLastError = ERR_NOERROR;
 
 	return true;
 }
@@ -392,9 +385,10 @@ const bool CBonSrcDecoder::PurgeStream(void)
 
 void CBonSrcDecoder::OnTsStream(BYTE *pStreamData, DWORD dwStreamSize)
 {
-	//CBlockLock Lock(&m_CriticalLock);
+	//CBlockLock Lock(&m_DecoderLock);
 
-	if(!m_bIsPlaying)return;
+	if (!m_bIsPlaying)
+		return;
 
 	// 最上位デコーダに入力する
 	m_TsStream.SetData(pStreamData, dwStreamSize);
@@ -481,12 +475,14 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 	ストリームの受信を一時停止させる
 	Purgeしたストリームを読みに行って落ちることがあるので、その対策
 */
-void CBonSrcDecoder::PauseStreamRecieve()
+bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 {
 	::ResetEvent(m_hResumeEvent);
 	m_bPauseSignal=true;
-	::WaitForSingleObject(m_hResumeEvent,INFINITE);
+	if (::WaitForSingleObject(m_hResumeEvent,TimeOut) == WAIT_TIMEOUT)
+		return false;
 	ResetBitRate();
+	return true;
 }
 
 
@@ -508,25 +504,31 @@ int CBonSrcDecoder::NumSpaces() const
 
 LPCTSTR CBonSrcDecoder::GetTunerName() const
 {
-	if (m_pBonDriver2)
-		return m_pBonDriver2->GetTunerName();
-	return NULL;
+	if (m_pBonDriver2 == NULL) {
+		//m_dwLastError = ERR_NOTOPEN;
+		return NULL;
+	}
+	return m_pBonDriver2->GetTunerName();
 }
 
 
 int CBonSrcDecoder::GetCurSpace() const
 {
-	if (m_pBonDriver2)
-		return m_pBonDriver2->GetCurSpace();
-	return -1;
+	if (m_pBonDriver2 == NULL) {
+		//m_dwLastError = ERR_NOTOPEN;
+		return -1;
+	}
+	return m_pBonDriver2->GetCurSpace();
 }
 
 
 int CBonSrcDecoder::GetCurChannel() const
 {
-	if (m_pBonDriver2)
-		return m_pBonDriver2->GetCurChannel();
-	return -1;
+	if (m_pBonDriver2 == NULL) {
+		//m_dwLastError = ERR_NOTOPEN;
+		return -1;
+	}
+	return m_pBonDriver2->GetCurChannel();
 }
 
 

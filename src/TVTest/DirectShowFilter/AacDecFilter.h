@@ -42,26 +42,31 @@ public:
 	const BYTE GetCurrentChannelNum();
 
 	// Append by HDUSTestÇÃíÜÇÃêl
+	enum { STEREOMODE_STEREO, STEREOMODE_LEFT, STEREOMODE_RIGHT };
+	bool SetStereoMode(int StereoMode);
+	int GetStereoMode() const { return m_StereoMode; }
 	bool SetNormalize(bool bNormalize,float Level=1.0f);
+	bool GetNormalize(float *pLevel) const;
 protected:
 	CCritSec m_cStateLock;
 	HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);
 
 // CAacDecoder::IPcmHandler
 	virtual void OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData, const DWORD dwSamples, const BYTE byChannel);
-	
+
 // CAacDecFilter
 	CAdtsParser m_AdtsParser;
 	CAacDecoder m_AacDecoder;
 	IMediaSample *m_pOutSample;
 	BYTE m_byCurChannelNum;
-	
+
 private:
-	static const DWORD DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples);
-	static const DWORD DownMixStreao(short *pDst, const short *pSrc, const DWORD dwSamples);
-	static const DWORD DownMixSurround(short *pDst, const short *pSrc, const DWORD dwSamples);
+	const DWORD DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples);
+	const DWORD DownMixStereo(short *pDst, const short *pSrc, const DWORD dwSamples);
+	const DWORD DownMixSurround(short *pDst, const short *pSrc, const DWORD dwSamples);
 
 	// Append by HDUSTestÇÃíÜÇÃêl
+	int m_StereoMode;
 	bool m_bNormalize;
 	float m_NormalizeLevel;
 	void Normalize(short *pBuffer,DWORD Samples);

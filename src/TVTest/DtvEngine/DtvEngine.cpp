@@ -21,6 +21,7 @@ CDtvEngine::CDtvEngine(void)
 	: m_pDtvEngineHandler(NULL)
 	, m_wCurTransportStream(0U)
 	, m_wCurService(0xFFFFU)
+	, m_CurAudioStream(0)
 	, m_wCurVideoPID(0x1FFFU)
 	, m_wCurAudioPID(0x1FFFU)
 	, m_u64CurPcrTimeStamp(0UL)
@@ -338,6 +339,42 @@ const BYTE CDtvEngine::GetAudioChannelNum()
 }
 
 
+const int CDtvEngine::GetAudioStreamNum(const WORD wService)
+{
+	return m_ProgManager.GetAudioEsNum(wService);
+}
+
+
+const bool CDtvEngine::SetAudioStream(int StreamIndex)
+{
+	if (StreamIndex == m_CurAudioStream)
+		return true;
+	if (StreamIndex < 0 || StreamIndex >= GetAudioStreamNum(m_wCurService))
+		return false;
+
+	WORD wAudioPID;
+
+	if (!m_ProgManager.GetAudioEsPID(&wAudioPID, StreamIndex, m_wCurService))
+		return false;
+
+	if (m_wCurAudioPID != wAudioPID) {
+		m_MediaViewer.SetAudioPID(wAudioPID);
+		m_wCurAudioPID = wAudioPID;
+		TRACE(TEXT("Change Audio PID = %04X\n"),wAudioPID);
+	}
+
+	m_CurAudioStream = StreamIndex;
+
+	return true;
+}
+
+
+const int CDtvEngine::GetAudioStream() const
+{
+	return m_CurAudioStream;
+}
+
+
 const bool CDtvEngine::SetStereoMode(int iMode)
 {
 	return m_MediaViewer.SetStereoMode(iMode);
@@ -379,29 +416,35 @@ const bool CDtvEngine::SetService(const WORD wService)
 		WORD wAudioPID = 0xFFFF;
 
 		// 先頭PMTが到着するまで失敗にする
-		if(!m_ProgManager.GetServiceID(&wServiceID,wService)) return false;
-		if(wService==0xFFFF){
+		if (!m_ProgManager.GetServiceID(&wServiceID,wService))
+			return false;
+		if (wService==0xFFFF) {
 			m_wCurService = 0;
 			m_wCurVideoPID = m_wCurAudioPID = 0;
 		} else {
 			m_wCurService = wService;
 		}
-		
-		m_ProgManager.GetServiceEsPID(&wVideoPID, &wAudioPID, m_wCurService);
+
+		m_ProgManager.GetVideoEsPID(&wVideoPID, m_wCurService);
+		if (!m_ProgManager.GetAudioEsPID(&wAudioPID, m_CurAudioStream, m_wCurService)
+				&& m_CurAudioStream != 0) {
+			m_ProgManager.GetAudioEsPID(&wAudioPID, 0, m_wCurService);
+			m_CurAudioStream = 0;
+		}
 
 		TRACE(TEXT("------- Service Select -------\n"));
 		TRACE(TEXT("ServiceID = %04X(%d)\n"),m_wCurService,wServiceID);
 
-		if(m_wCurVideoPID != wVideoPID){
+		if (m_wCurVideoPID != wVideoPID) {
 			m_MediaViewer.SetVideoPID(wVideoPID);
 			m_wCurVideoPID = wVideoPID;
 			TRACE(TEXT("Change Video PID = %04X\n"),wVideoPID);
-			}
-		if(m_wCurAudioPID != wAudioPID){
+		}
+		if (m_wCurAudioPID != wAudioPID) {
 			m_MediaViewer.SetAudioPID(wAudioPID);
 			m_wCurAudioPID = wAudioPID;
 			TRACE(TEXT("Change Audio PID = %04X\n"),wAudioPID);
-			}
+		}
 
 		if (m_bDescrambleCurServiceOnly)
 			SetDescrambleService(m_wCurService);
@@ -410,7 +453,7 @@ const bool CDtvEngine::SetService(const WORD wService)
 			SetWriteService(m_wCurService);
 
 		return true;
-		}
+	}
 
 	return false;
 }
@@ -423,7 +466,7 @@ const WORD CDtvEngine::GetService(void) const
 }
 
 
-const bool CDtvEngine::GetServiceID(WORD *pServiceID) const
+const bool CDtvEngine::GetServiceID(WORD *pServiceID)
 {
 	// サービスID取得
 	return m_ProgManager.GetServiceID(pServiceID,m_wCurService);
@@ -451,69 +494,64 @@ const DWORD CDtvEngine::SendDtvEngineEvent(const DWORD dwEventID, PVOID pParam)
 const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam)
 {
 	// デコーダからのイベントを受け取る(暫定)
-	if(pDecoder == &m_ProgManager){
-		
+	if (pDecoder == &m_ProgManager) {
 		// プログラムマネージャからのイベント
 		WORD wTransportStream = m_ProgManager.GetTransportStreamID();
-		switch(dwEventID){
-			case CProgManager::EID_SERVICE_LIST_UPDATED :
-				// サービスの構成が変化した
-				if(m_wCurTransportStream!=wTransportStream) {
-					// ストリームIDが変わっているなら初期化
-					TRACE(TEXT("■Stream Change!! %04X\n"),wTransportStream);
-					// この時点でまだサービスが全部きてないこともあるので、いったん保留
-					if(SetService(0xFFFF)){
-						m_wCurTransportStream = wTransportStream;
-						SendDtvEngineEvent(EID_SERVICE_LIST_UPDATED, static_cast<PVOID>(&m_ProgManager));
-						}
-				} else {
-					// ストリームIDは同じだが、構成ESのPIDが変わった可能性がある
-					SetService(m_wCurService);
+		switch (dwEventID) {
+		case CProgManager::EID_SERVICE_LIST_UPDATED :
+			// サービスの構成が変化した
+			m_CurAudioStream = 0;
+			if (m_wCurTransportStream != wTransportStream) {
+				// ストリームIDが変わっているなら初期化
+				TRACE(TEXT("■Stream Change!! %04X\n"),wTransportStream);
+				// この時点でまだサービスが全部きてないこともあるので、いったん保留
+				if (SetService(0xFFFF)) {
+					m_wCurTransportStream = wTransportStream;
+					SendDtvEngineEvent(EID_SERVICE_LIST_UPDATED, static_cast<PVOID>(&m_ProgManager));
 				}
-				return 0UL;
-
-			case CProgManager::EID_SERVICE_INFO_UPDATED :
-				// サービス名が更新された
-				SendDtvEngineEvent(EID_SERVICE_INFO_UPDATED, static_cast<PVOID>(&m_ProgManager));
-				return 0UL;
-
-			case CProgManager::EID_PCR_TIMESTAMP_UPDATED :
-				// タイムスタンプが更新された
-				if(m_wCurService!=0xFFFF){
-					m_ProgManager.GetPcrTimeStamp(&m_u64CurPcrTimeStamp,m_wCurService);
-					}
-				SendDtvEngineEvent(EID_PCR_TIMESTAMP_UPDATED, static_cast<PVOID>(&m_ProgManager));
-				return 0UL;
+			} else {
+				// ストリームIDは同じだが、構成ESのPIDが変わった可能性がある
+				SetService(m_wCurService);
 			}
+			return 0UL;
+
+		case CProgManager::EID_SERVICE_INFO_UPDATED :
+			// サービス名が更新された
+			SendDtvEngineEvent(EID_SERVICE_INFO_UPDATED, static_cast<PVOID>(&m_ProgManager));
+			return 0UL;
+
+		case CProgManager::EID_PCR_TIMESTAMP_UPDATED :
+			// タイムスタンプが更新された
+			if (m_wCurService!=0xFFFF) {
+				m_ProgManager.GetPcrTimeStamp(&m_u64CurPcrTimeStamp,m_wCurService);
+			}
+			SendDtvEngineEvent(EID_PCR_TIMESTAMP_UPDATED, static_cast<PVOID>(&m_ProgManager));
+			return 0UL;
 		}
-	else if(pDecoder == &m_FileReader){
-		
+	} else if(pDecoder == &m_FileReader) {
 		CFileReader *pFileReader = dynamic_cast<CFileReader *>(pDecoder);
-		
+
 		// ファイルリーダからのイベント
 		switch(dwEventID){
-			case CFileReader::EID_READ_ASYNC_START :
-				// 非同期リード開始
-				return 0UL;
-			
-			case CFileReader::EID_READ_ASYNC_END :
-				// 非同期リード終了
-				return 0UL;
-			
-			case CFileReader::EID_READ_ASYNC_POSTREAD :
-				// 非同期リード後
-				
-				if(pFileReader->GetReadPos() >= pFileReader->GetFileSize()){
-					// 最初に巻き戻す(ループ再生)
-					pFileReader->SetReadPos(0ULL);
-					pFileReader->Reset();
-					ResetEngine();
-					}
-				
-				return 0UL;
-			}		
+		case CFileReader::EID_READ_ASYNC_START:
+			// 非同期リード開始
+			return 0UL;
+
+		case CFileReader::EID_READ_ASYNC_END:
+			// 非同期リード終了
+			return 0UL;
+
+		case CFileReader::EID_READ_ASYNC_POSTREAD:
+			// 非同期リード後
+			if (pFileReader->GetReadPos() >= pFileReader->GetFileSize()) {
+				// 最初に巻き戻す(ループ再生)
+				pFileReader->SetReadPos(0ULL);
+				pFileReader->Reset();
+				ResetEngine();
+			}
+			return 0UL;
 		}
-	else if (pDecoder == &m_FileWriter) {
+	} else if (pDecoder == &m_FileWriter) {
 		switch (dwEventID) {
 		case CFileWriter::EID_WRITE_ERROR:
 			// 書き込みエラーが発生した
@@ -523,8 +561,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 	} else if (pDecoder == &m_MediaViewer) {
 		switch (dwEventID) {
 		case CMediaViewer::EID_FILTER_GRAPH_FLUSH:
-			//ResetEngine();
-			m_BonSrcDecoder.PurgeStream();
+			//m_BonSrcDecoder.PurgeStream();
 			return 0UL;
 		}
 	}

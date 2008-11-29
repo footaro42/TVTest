@@ -29,7 +29,7 @@ public:
 		EID_SERVICE_INFO_UPDATED,	// サービス情報更新
 		EID_PCR_TIMESTAMP_UPDATED	// PCRタイムスタンプ更新(かなり頻繁)
 	};
-	
+
 	CProgManager(IEventHandler *pEventHandler = NULL);
 	virtual ~CProgManager();
 
@@ -38,17 +38,19 @@ public:
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 // CProgManager
-	const WORD GetServiceNum(void) const;
-	const bool GetServiceID(WORD *pwServiceID, const WORD wIndex = 0U) const;
-	const bool GetServiceEsPID(WORD *pwVideoPID, WORD *pwAudioPID, const WORD wIndex = 0U) const;
-	const bool GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, const WORD wServiceID = 0U) const;
-	const DWORD GetServiceName(LPTSTR lpszDst, const WORD wIndex = 0U) const;
-	const WORD GetTransportStreamID();
+	const WORD GetServiceNum(void);
+	const bool GetServiceID(WORD *pwServiceID, const WORD wIndex = 0U);
+	const bool GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex = 0U);
+	const bool GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex = 0U, const WORD wIndex = 0U);
+	const WORD GetAudioEsNum(const WORD wIndex = 0U);
+	const bool GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, const WORD wServiceID = 0U);
+	const DWORD GetServiceName(LPTSTR lpszDst, const WORD wIndex = 0U);
+	const WORD GetTransportStreamID() const;
 
-	WORD GetNetworkID(void);
-	BYTE GetBroadcastingID(void);
+	WORD GetNetworkID(void) const;
+	BYTE GetBroadcastingID(void) const;
 	DWORD GetNetworkName(LPTSTR pszName,int MaxLength);
-	BYTE GetRemoteControlKeyID(void);
+	BYTE GetRemoteControlKeyID(void) const;
 	DWORD GetTSName(LPTSTR pszName,int MaxLength);
 
 protected:
@@ -62,7 +64,7 @@ protected:
 	{
 		WORD wServiceID;
 		WORD wVideoEsPID;
-		WORD wAudioEsPID;
+		vector<WORD> AudioEsPIDs;
 		TCHAR szServiceName[256];
 
 		// タイムスタンプ
@@ -88,7 +90,7 @@ public:
 
 	void Reset(void);
 	void UnmapTable(void);
-	
+
 	const WORD GetServiceIndexByID(const WORD wServiceID);
 
 	// CProgManagerと情報がダブっているので見直すべき
@@ -96,7 +98,7 @@ public:
 	{
 		WORD wServiceID;
 		WORD wVideoEsPID;
-		WORD wAudioEsPID;
+		vector<WORD> AudioEsPIDs;
 		BYTE byServiceType;
 		TCHAR szServiceName[256];
 
@@ -105,8 +107,8 @@ public:
 		// 下記は情報として特に不要？
 		BYTE byVideoComponentTag;
 		BYTE byAudioComponentTag;
-		
-		WORD wPmtTablePID;			
+
+		WORD wPmtTablePID;
 		BYTE byRunningStatus;
 		bool bIsCaService;
 

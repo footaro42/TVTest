@@ -39,6 +39,7 @@ class CMainWindow : public CBasicWindow {
 	bool m_fShowTitleBar;
 	bool m_fEnablePreview;
 	bool m_fStandby;
+	bool m_fStandbyInit;
 	bool m_fSrcFilterReleased;
 	CChannelSpec m_RestoreChannelSpec;
 	bool m_fRestoreFullscreen;
@@ -87,6 +88,7 @@ public:
 	bool IsPreview() const { return m_fEnablePreview; }
 	bool SetStandby(bool fStandby);
 	bool GetStandby() const { return m_fStandby; }
+	bool InitStandby();
 	bool OpenTuner();
 	bool ConfirmExit();
 	int GetVolume() const;

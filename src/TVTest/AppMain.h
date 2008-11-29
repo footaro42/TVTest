@@ -34,6 +34,7 @@ public:
 	bool UpdateChannelMenu();
 	const CChannelInfo *GetCurrentChannelInfo() const;
 	bool SetChannel(int Space,int Channel,int Service=-1);
+	bool FollowChannelChange(int Channel);
 	bool SetServiceByIndex(int Service);
 	bool SetServiceByID(WORD ServiceID,int *pServiceIndex=NULL);
 	bool SetDriver(LPCTSTR pszFileName);

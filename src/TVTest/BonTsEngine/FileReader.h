@@ -34,7 +34,7 @@ public:
 	virtual ~CFileReader();
 
 // IMediaDecoder
-	virtual void Reset(void);
+	//virtual void Reset(void);
 	const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex);
 
 // CFileReader

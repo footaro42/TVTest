@@ -27,7 +27,6 @@ public:
 	virtual ~CFileWriter();
 
 // IMediaDecoder
-	virtual void Reset(void);
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 // CFileWriter

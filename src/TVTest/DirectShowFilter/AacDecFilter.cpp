@@ -37,6 +37,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_AacDecoder(this)
 	, m_pOutSample(NULL)
 	, m_byCurChannelNum(0)
+	, m_StereoMode(STEREOMODE_STEREO)
 	, m_bNormalize(false)
 {
 	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"),this);
@@ -141,7 +142,7 @@ HRESULT CAacDecFilter::GetMediaType(int iPosition, CMediaType *pMediaType)
 	pMediaType->SetTemporalCompression(FALSE);
 	pMediaType->SetSampleSize(0);
 	pMediaType->SetFormatType(&FORMAT_WaveFormatEx);
-		
+
 	 // フォーマット構造体確保
 	WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(pMediaType->AllocFormatBuffer(sizeof(WAVEFORMATEX)));
 	if(!pWaveInfo)return E_OUTOFMEMORY;
@@ -247,7 +248,7 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 
 	// 出力ポインタ取得
 	const DWORD dwOffset = m_pOutSample->GetActualDataLength();
-	DWORD dwOutSize = 0UL;
+	DWORD dwOutSize;
 
 	BYTE *pOutBuff = NULL;
 	m_pOutSample->GetPointer(&pOutBuff);
@@ -255,14 +256,23 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 	m_byCurChannelNum = byChannel;
 
 	// ダウンミックス
-	switch(byChannel){
-		case 1U:	dwOutSize = DownMixMono((short *)pOutBuff, (const short *)pData, dwSamples);		break;
-		case 2U:	dwOutSize = DownMixStreao((short *)pOutBuff, (const short *)pData, dwSamples);		break;
-		case 6U:	dwOutSize = DownMixSurround((short *)pOutBuff, (const short *)pData, dwSamples);	break;
-		}
+	switch (byChannel) {
+	case 1U:
+		dwOutSize = DownMixMono((short *)pOutBuff, (const short *)pData, dwSamples);
+		break;
+	case 2U:
+		dwOutSize = DownMixStereo((short *)pOutBuff, (const short *)pData, dwSamples);
+		break;
+	case 6U:
+		dwOutSize = DownMixSurround((short *)pOutBuff, (const short *)pData, dwSamples);
+		break;
+	default:
+		dwOutSize = 0;
+		break;
+	}
 
 	if (m_bNormalize)
-		Normalize((short*)pOutBuff,dwOutSize/sizeof(short));
+		Normalize((short*)pOutBuff, dwOutSize/sizeof(short));
 
 	// メディアサンプル有効サイズ設定
     m_pOutSample->SetActualDataLength(dwOffset + dwOutSize);
@@ -271,22 +281,49 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 const DWORD CAacDecFilter::DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
 	// 1ch → 2ch 二重化
-	for(register DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++){
-		pDst[dwPos * 2UL + 0UL] = pSrc[dwPos];	// L
-		pDst[dwPos * 2UL + 1UL] = pSrc[dwPos];	// R
-		}
+	const short *p = pSrc, *pEnd = pSrc + dwSamples;
+	short *q = pDst;
+
+	while (p < pEnd) {
+		short Value = *p++;
+		*q++ = Value;	// L
+		*q++ = Value;	// R
+	}
 
 	// バッファサイズを返す
-	return dwSamples * 4UL;
+	return dwSamples * (sizeof(short) * 2);
 }
 
-const DWORD CAacDecFilter::DownMixStreao(short *pDst, const short *pSrc, const DWORD dwSamples)
+const DWORD CAacDecFilter::DownMixStereo(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
 	// 2ch → 2ch スルー
-	::CopyMemory(pDst, pSrc, dwSamples * 4UL);
+	if (m_StereoMode == STEREOMODE_STEREO) {
+		::CopyMemory(pDst, pSrc, dwSamples * (sizeof(short) * 2));
+	} else {
+		const short *p = pSrc, *pEnd = pSrc + dwSamples * 2;
+		short *q = pDst;
+
+		if (m_StereoMode == STEREOMODE_LEFT) {
+			// 左のみ
+			while (p < pEnd) {
+				short Value = *p;
+				*q++ = Value;	// L
+				*q++ = Value;	// R
+				p += 2;
+			}
+		} else {
+			// 右のみ
+			while (p < pEnd) {
+				short Value = p[1];
+				*q++ = Value;	// L
+				*q++ = Value;	// R
+				p += 2;
+			}
+		}
+	}
 
 	// バッファサイズを返す
-	return dwSamples * 4UL;
+	return dwSamples * (sizeof(short) * 2);
 }
 
 #ifndef DOWNMIX_INT
@@ -328,7 +365,7 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 		}
 
 	// バッファサイズを返す
-	return dwSamples * 4UL;
+	return dwSamples * (sizeof(short) * 2);
 }
 
 #else
@@ -368,12 +405,23 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 	}
 
 	// バッファサイズを返す
-	return dwSamples * 4UL;
+	return dwSamples * (sizeof(short) * 2);
 }
 
 #endif
 
 
+bool CAacDecFilter::SetStereoMode(int StereoMode)
+{
+	switch (StereoMode) {
+	case STEREOMODE_STEREO:
+	case STEREOMODE_LEFT:
+	case STEREOMODE_RIGHT:
+		m_StereoMode = StereoMode;
+		return true;
+	}
+	return false;
+}
 
 
 bool CAacDecFilter::SetNormalize(bool bNormalize,float Level)
@@ -381,6 +429,14 @@ bool CAacDecFilter::SetNormalize(bool bNormalize,float Level)
 	m_bNormalize=bNormalize;
 	m_NormalizeLevel=Level;
 	return true;
+}
+
+
+bool CAacDecFilter::GetNormalize(float *pLevel) const
+{
+	if (pLevel)
+		*pLevel=m_NormalizeLevel;
+	return m_bNormalize;
 }
 
 

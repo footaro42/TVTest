@@ -394,17 +394,19 @@ void *CCoreEngine::GetCurrentImage()
 {
 	BYTE *pDib;
 
+#if 0
 	if (m_DtvEngine.m_MediaViewer.GetGrabber()) {
 		pDib=static_cast<BYTE*>(m_DtvEngine.m_MediaViewer.DoCapture(1000));
-	} else {
-		bool fPause=m_DtvEngine.m_MediaViewer.GetVideoRendererType()==CVideoRenderer::RENDERER_DEFAULT;
-
-		if (fPause)
-			m_DtvEngine.m_MediaViewer.Pause();
-		if (!m_DtvEngine.m_MediaViewer.GetCurrentImage(&pDib))
-			pDib=NULL;
-		if (fPause)
-			m_DtvEngine.m_MediaViewer.Play();
+		return pDib;
 	}
+#endif
+	bool fPause=m_DtvEngine.m_MediaViewer.GetVideoRendererType()==CVideoRenderer::RENDERER_DEFAULT;
+
+	if (fPause)
+		m_DtvEngine.m_MediaViewer.Pause();
+	if (!m_DtvEngine.m_MediaViewer.GetCurrentImage(&pDib))
+		pDib=NULL;
+	if (fPause)
+		m_DtvEngine.m_MediaViewer.Play();
 	return pDib;
 }

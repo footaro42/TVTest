@@ -18,13 +18,13 @@ static char THIS_FILE[]=__FILE__;
 
 CDirectShowFilterFinder::CDirectShowFilterFinder()
 {
-	::CoInitialize(NULL);
+	//::CoInitialize(NULL);
 }
 
 
 CDirectShowFilterFinder::~CDirectShowFilterFinder()
 {
-	::CoUninitialize();
+	//::CoUninitialize();
 }
 
 

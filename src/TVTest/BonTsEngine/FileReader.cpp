@@ -33,15 +33,17 @@ CFileReader::~CFileReader()
 	if(m_hReadAnsyncThread)::CloseHandle(m_hReadAnsyncThread);
 }
 
+/*
 void CFileReader::Reset(void)
 {
 	// 下位デコーダをリセットする
 	CMediaDecoder::Reset();
 }
+*/
 
 const bool CFileReader::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	// ソースでコーダのため常にエラーを返す
+	// ソースデコーダのため常にエラーを返す
 	return false;
 }
 

@@ -102,8 +102,6 @@ private:
 	const BYTE StoreHeader(const BYTE *pPayload, const BYTE byRemain);
 	const BYTE StorePayload(const BYTE *pPayload, const BYTE byRemain);
 
-	static const WORD CalcCrc(const BYTE *pData, const WORD wDataSize, WORD wCurCrc = 0xFFFFU);
-
 	bool m_bIsStoring;
 	WORD m_wStoreCrc;
 	DWORD m_dwStoreSize;
@@ -187,7 +185,6 @@ protected:
 
 private:
 	inline const bool SyncFrame(const BYTE byData);
-	static const WORD CalcCrc(const BYTE *pData, const WORD wDataSize, WORD wCurCrc = 0xFFFFU);
 
 	bool m_bIsStoring;
 	WORD m_wStoreCrc;

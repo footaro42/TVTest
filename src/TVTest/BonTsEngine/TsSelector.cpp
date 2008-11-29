@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TsSelector.h"
+#include "TsUtilClass.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -37,6 +38,8 @@ CTsSelector::~CTsSelector()
 
 void CTsSelector::Reset(void)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// 内部状態を初期化する
 	m_PidMapManager.UnmapAllTarget();
 
@@ -57,14 +60,17 @@ void CTsSelector::Reset(void)
 	m_TargetPmtPID = 0;
 
 	// 下流デコーダを初期化する
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 }
 
 
 const bool CTsSelector::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	/*
-	if(dwInputIndex >= GetInputNum())return false;
+	if (dwInputIndex >= GetInputNum())
+		return false;
 
 	CTsPacket *pTsPacket = dynamic_cast<CTsPacket *>(pMediaData);
 
@@ -224,23 +230,6 @@ void CALLBACK CTsSelector::OnCatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->AddTargetPID(EmmPID);
 }
 
-static DWORD CRC32(const BYTE *pData, SIZE_T Size)
-{
-	SIZE_T i, j;
-	DWORD CRC;
-
-	CRC = 0xFFFFFFFFUL;
-	for (i = 0; i < Size; i++) {
-		CRC ^= pData[i]<<24;
-		for (j = 0; j < 8; j++) {
-			if (CRC&0x80000000UL)
-				CRC = (CRC<<1)^0x04C11DB7UL;
-			else
-				CRC <<= 1;
-		}
-	}
-	return CRC;
-}
 
 bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 {
@@ -297,7 +286,8 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	pDstData[5] = (pPayloadData[5]&0xC1) | (m_Version<<1);
 	pDstData[6] = pPayloadData[6];
 	pDstData[7] = pPayloadData[7];
-	DWORD CRC = CRC32(pDstData, 8+NewProgramListSize);
+	//DWORD CRC = CRC32(pDstData, 8+NewProgramListSize);
+	DWORD CRC = CCrcCalculator::CalcCrc32(pDstData, 8+NewProgramListSize);
 	pDstData[8+NewProgramListSize+0] = (BYTE)(CRC>>24);
 	pDstData[8+NewProgramListSize+1] = (BYTE)((CRC>>16)&0xFF);
 	pDstData[8+NewProgramListSize+2] = (BYTE)((CRC>>8)&0xFF);

@@ -29,19 +29,13 @@ CMediaDecoder::CMediaDecoder(IEventHandler *pEventHandler, const DWORD dwInputNu
 
 CMediaDecoder::~CMediaDecoder()
 {
-
 }
 
 void CMediaDecoder::Reset()
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	// 次のフィルタをリセットする
-	for(DWORD dwOutputIndex = 0UL ; dwOutputIndex < m_dwOutputNum ; dwOutputIndex++){
-		if(m_aOutputDecoder[dwOutputIndex].pDecoder){
-			m_aOutputDecoder[dwOutputIndex].pDecoder->Reset();
-		}
-	}
+	ResetDownstreamDecoder();
 }
 
 const DWORD CMediaDecoder::GetInputNum(void) const
@@ -71,22 +65,32 @@ const bool CMediaDecoder::SetOutputDecoder(CMediaDecoder *pDecoder, const DWORD 
 
 const bool CMediaDecoder::OutputMedia(CMediaData *pMediaData, const DWORD dwOutptIndex)
 {
-	// デフォルトの出力処理
-
-	CBlockLock Lock(&m_DecoderLock);
+	// 出力処理
 
 	if(dwOutptIndex >= m_dwOutputNum)
 		return false;
 
 	// 次のフィルタにデータを渡す
-	if(m_aOutputDecoder[dwOutptIndex].pDecoder){
+	if (m_aOutputDecoder[dwOutptIndex].pDecoder) {
 		return m_aOutputDecoder[dwOutptIndex].pDecoder->InputMedia(pMediaData, m_aOutputDecoder[dwOutptIndex].dwInputIndex);
 	}
 	return false;
 }
 
+void CMediaDecoder::ResetDownstreamDecoder()
+{
+	// 次のフィルタをリセットする
+	for (DWORD dwOutputIndex = 0UL ; dwOutputIndex < m_dwOutputNum ; dwOutputIndex++) {
+		if (m_aOutputDecoder[dwOutputIndex].pDecoder) {
+			m_aOutputDecoder[dwOutputIndex].pDecoder->Reset();
+		}
+	}
+}
+
 const DWORD CMediaDecoder::SendDecoderEvent(const DWORD dwEventID, PVOID pParam)
 {
 	// イベントを通知する
-	return (m_pEventHandler)? m_pEventHandler->OnDecoderEvent(this, dwEventID, pParam) : 0UL;
+	if (m_pEventHandler==NULL)
+		return 0;
+	return m_pEventHandler->OnDecoderEvent(this, dwEventID, pParam);
 }

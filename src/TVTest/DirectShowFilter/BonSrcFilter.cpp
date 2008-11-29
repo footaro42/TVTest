@@ -117,6 +117,8 @@ const bool CBonSrcFilter::InputMedia(CMediaData *pMediaData)
 
 void CBonSrcFilter::Flush()
 {
+	CAutoLock Lock(m_pLock);
+
 	if (m_pSrcPin)
 		m_pSrcPin->Flush();
 }

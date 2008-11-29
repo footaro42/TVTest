@@ -123,7 +123,7 @@ HRESULT CMpeg2SequenceFilter::GetMediaType(int iPosition, CMediaType *pMediaType
 
 	if(iPosition < 0)return E_INVALIDARG;
 	if(iPosition > 0)return VFW_S_NO_MORE_ITEMS;
-	*pMediaType=this->m_pInput->CurrentMediaType();
+	*pMediaType=m_pInput->CurrentMediaType();
 	return S_OK;
 }
 

@@ -32,6 +32,9 @@ public:
 	enum EVENTID {
 		EID_FILTER_GRAPH_FLUSH
 	};
+	enum {
+		PID_INVALID=0xFFFF
+	};
 
 	CMediaViewer(IEventHandler *pEventHandler = NULL);
 	virtual ~CMediaViewer();
@@ -61,6 +64,7 @@ public:
 	const bool GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY) const;
 	const BYTE GetAudioChannelNum();
 	const bool SetStereoMode(const int iMode);
+	const int GetStereoMode() const;
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 	const bool DisplayVideoRandererProperty(HWND hWndParent);
@@ -88,9 +92,11 @@ public:
 	bool SetVisible(bool fVisible);
 	const void HideCursor(bool bHide);
 	const bool GetCurrentImage(BYTE **ppDib);
+#ifdef USE_GABBER_FILTER
 	bool SetGrabber(bool bGrabber);
 	bool GetGrabber() const { return m_pGrabber!=NULL; }
 	void *DoCapture(DWORD WaitTime);
+#endif
 	bool SetAudioNormalize(bool bNormalize,float Level=1.0f);
 	CVideoRenderer::RendererType GetVideoRendererType() const;
 	const bool RepaintVideo(HWND hwnd,HDC hdc);
@@ -102,7 +108,7 @@ public:
 	void Trace(LPCTSTR pszOutput, ...);
 	bool CheckHangUp(DWORD TimeOut);
 protected:
-	CCriticalLock m_CriticalLock;
+	//CCriticalLock m_CriticalLock;
 
 	// DirectShowインタフェース
 	bool m_bInit;
@@ -120,9 +126,11 @@ protected:
 	// AAC
 	IBaseFilter *m_pAacDecFilter;
 	CAacDecFilter *m_pAacDecClass;
+	/*
 	// Pcm Select
 	IBaseFilter *m_pPcmSelFilter;
 	CPcmSelectFilter *m_pPcmSelClass;
+	*/
 	// Renderer
 	CVideoRenderer *m_pVideoRenderer;
 
@@ -151,8 +159,10 @@ protected:
 	BYTE m_PanAndScan;
 	ViewStretchMode m_ViewStretchMode;
 	CImageMixer *m_pImageMixer;
+#ifdef USE_GABBER_FILTER
 	bool m_bGrabber;
 	class CGrabber *m_pGrabber;
+#endif
 	CTracer *m_pTracer;
 	HANDLE m_hFlushThread;
 	HANDLE m_hFlushEvent;

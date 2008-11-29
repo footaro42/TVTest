@@ -116,10 +116,11 @@ CCommandLineParser::CCommandLineParser()
 	m_RecordDuration=0;
 	m_szRecordFileName[0]='\0';
 	m_fFullscreen=false;
-	m_fNoView=false;
-	m_fSilent=false;
 	m_fNoDriver=false;
+	m_fStandby;
+	m_fNoView=false;
 	m_fNoDirectShow=false;
+	m_fSilent=false;
 	m_fNoPlugin=false;
 	m_fSchedule=false;
 	m_fInitialSettings=false;
@@ -151,6 +152,7 @@ CCommandLineParser::CCommandLineParser()
 	/s				複数起動しない
 	/sid			サービスID
 	/silent			エラー時にダイアログを表示しない
+	/standby		待機状態で起動
 	/tsid			トランスポートストリームID
 */
 void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
@@ -215,6 +217,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					Args.GetValue(&m_ServiceID);
 			} else if (Args.IsOption(TEXT("silent"))) {
 				m_fSilent=true;
+			} else if (Args.IsOption(TEXT("standby"))) {
+				m_fStandby=true;
 			} else if (Args.IsOption(TEXT("tsid"))) {
 				if (Args.Next())
 					Args.GetValue(&m_TransportStreamID);

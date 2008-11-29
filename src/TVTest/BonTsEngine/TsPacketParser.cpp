@@ -38,10 +38,12 @@ CTsPacketParser::~CTsPacketParser()
 
 void CTsPacketParser::Reset(void)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// パケットカウンタをクリアする
-	m_dwInputPacketCount =	0UL;
+	m_dwInputPacketCount = 0UL;
 	m_dwOutputPacketCount = 0UL;
-	m_dwErrorPacketCount =	0UL;
+	m_dwErrorPacketCount = 0UL;
 
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -49,13 +51,17 @@ void CTsPacketParser::Reset(void)
 	// 状態をリセットする
 	m_TsPacket.ClearSize();
 
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 }
 
 const bool CTsPacketParser::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	if(dwInputIndex >= GetInputNum())return false;
-	if(!pMediaData)return false;
+	CBlockLock Lock(&m_DecoderLock);
+
+	/*
+	if (dwInputIndex >= GetInputNum())
+		return false;
+	*/
 
 	// TSパケットを処理する
 	SyncPacket(pMediaData->GetData(), pMediaData->GetSize());

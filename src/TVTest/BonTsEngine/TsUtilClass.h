@@ -65,3 +65,15 @@ private:
 	CCriticalLock *m_pCriticalLock;
 	bool m_bLocked;
 };
+
+
+/////////////////////////////////////////////////////////////////////////////
+// CRCŒvŽZƒNƒ‰ƒX
+/////////////////////////////////////////////////////////////////////////////
+
+class CCrcCalculator
+{
+public:
+	static WORD CalcCrc16(const BYTE *pData, DWORD DataSize, WORD wCurCrc = 0xFFFF);
+	static DWORD CalcCrc32(const BYTE *pData, DWORD DataSize, DWORD dwCurCrc = 0xFFFFFFFFUL);
+};

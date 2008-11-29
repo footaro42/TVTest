@@ -6,10 +6,12 @@
 #include "MediaViewer.h"
 #include "StdUtil.h"
 #include <Dvdmedia.h>
+#ifdef USE_GRABBER_FILTER
 #include "../Grabber.h"
+#endif
 
-#include <d3d9.h>
-#include <vmr9.h>
+//#include <d3d9.h>
+//#include <vmr9.h>
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -38,8 +40,10 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pAacDecFilter(NULL)
 	, m_pAacDecClass(NULL)
 
+	/*
 	, m_pPcmSelFilter(NULL)
 	, m_pPcmSelClass(NULL)
+	*/
 
 	, m_pMpeg2DecFilter(NULL)
 
@@ -51,8 +55,8 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pMp2DemuxVideoMap(NULL)
 	, m_pMp2DemuxAudioMap(NULL)
 
-	, m_wVideoEsPID(0xFFFFU)
-	, m_wAudioEsPID(0xFFFFU)
+	, m_wVideoEsPID(PID_INVALID)
+	, m_wAudioEsPID(PID_INVALID)
 
 	, m_wVideoWindowX(0)
 	, m_wVideoWindowY(0)
@@ -70,8 +74,10 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 #ifdef VMR9_SUPPORTED
 	, m_pImageMixer(NULL)
 #endif
+#ifdef USE_GRABBER_FILTER
 	, m_bGrabber(false)
 	, m_pGrabber(NULL)
+#endif
 	, m_pTracer(NULL)
 	, m_hFlushThread(NULL)
 	, m_hFlushEvent(NULL)
@@ -79,7 +85,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_LastFlushTime(0)
 {
 	// COMライブラリ初期化
-	::CoInitialize(NULL);
+	//::CoInitialize(NULL);
 }
 
 CMediaViewer::~CMediaViewer()
@@ -87,7 +93,7 @@ CMediaViewer::~CMediaViewer()
 	CloseViewer();
 
 	// COMライブラリ開放
-	::CoUninitialize();
+	//::CoUninitialize();
 }
 
 
@@ -95,6 +101,7 @@ void CMediaViewer::Reset(void)
 {
 	TRACE(TEXT("CMediaViewer::Reset()\n"));
 
+	/*
 	bool fResume=false;
 
 	if (m_pMediaControl) {
@@ -105,17 +112,20 @@ void CMediaViewer::Reset(void)
 			fResume=true;
 		}
 	}
+	*/
 
 	Flush();
-	Stop();
+	//Stop();
 
-	CMediaDecoder::Reset();
+	SetVideoPID(PID_INVALID);
+	SetAudioPID(PID_INVALID);
 
-	SetVideoPID(0xFFFFU);
-	SetAudioPID(0xFFFFU);
+	ResetDownstreamDecoder();
 
+	/*
 	if (fResume)
 		Play();
+	*/
 }
 
 const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
@@ -298,6 +308,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
 		}
 
+#if 0
 		Trace(TEXT("PCMセレクトフィルタの接続中..."));
 
 		/* CPcmSelectFilter */
@@ -311,6 +322,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 					m_pPcmSelFilter,L"PcmSelFilter",&pOutputAudio))
 				throw CBonException(TEXT("PCMセレクトフィルタをフィルタグラフに追加できません。"));
 		}
+#endif
 
 		Trace(TEXT("MPEG-2デコーダの接続中..."));
 
@@ -351,7 +363,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			}
 		}
 
-#if 1	// グラバをテスト実装したがいまいちうまくいかないので保留
+#ifdef USE_GRABBER_FILTER
+		// グラバをテスト実装したがいまいちうまくいかないので保留
 		if (m_bGrabber) {
 			m_pGrabber=new CGrabber();
 			IBaseFilter *pGrabberFilter;
@@ -485,7 +498,7 @@ void CMediaViewer::CloseViewer(void)
 		m_pImageMixer=NULL;
 	}
 
-#if 1
+#ifdef USE_GRABBER_FILTER
 	if (m_pGrabber!=NULL) {
 		m_pFilterGraph->RemoveFilter(m_pGrabber->GetGrabberFilter());
 		delete m_pGrabber;
@@ -500,8 +513,10 @@ void CMediaViewer::CloseViewer(void)
 
 	SAFE_RELEASE(m_pMpeg2DecFilter);
 
+	/*
 	SAFE_RELEASE(m_pPcmSelFilter);
 	m_pPcmSelClass=NULL;
+	*/
 	SAFE_RELEASE(m_pAacDecFilter);
 	m_pAacDecClass=NULL;
 
@@ -549,9 +564,11 @@ const bool CMediaViewer::Play(void)
 
 	TRACE(TEXT("CMediaViewer::Play()\n"));
 
+	/*
 	CTryBlockLock Lock(&m_CriticalLock);
 	if (!Lock.TryLock(1000))
 		return false;
+	*/
 
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_RESET;
@@ -582,9 +599,11 @@ const bool CMediaViewer::Stop(void)
 
 	TRACE(TEXT("CMediaViewer::Stop()\n"));
 
+	/*
 	CTryBlockLock Lock(&m_CriticalLock);
 	if (!Lock.TryLock(1000))
 		return false;
+	*/
 
 	// 既にフィルタグラフがデッドロックしている場合、止めると戻ってこないので
 	// 本当はデッドロックしないようにすべきだが...
@@ -608,9 +627,11 @@ const bool CMediaViewer::Pause()
 
 	TRACE(TEXT("CMediaViewer::Pause()\n"));
 
+	/*
 	CTryBlockLock Lock(&m_CriticalLock);
 	if (!Lock.TryLock(1000))
 		return false;
+	*/
 
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_WAIT;
@@ -640,9 +661,11 @@ const bool CMediaViewer::Flush()
 
 	TRACE(TEXT("CMediaViewer::Flush()\n"));
 
+	/*
 	CTryBlockLock Lock(&m_CriticalLock);
 	if (!Lock.TryLock(1000))
 		return false;
+	*/
 
 	m_pBonSrcFilterClass->Flush();
 	if (m_hFlushThread) {
@@ -664,13 +687,13 @@ const bool CMediaViewer::SetVideoPID(const WORD wPID)
 	DWORD dwTempPID;
 
 	// 現在のPIDをアンマップ
-	if(m_wVideoEsPID != 0xFFFFU){
+	if(m_wVideoEsPID != PID_INVALID){
 		dwTempPID = (DWORD)m_wVideoEsPID;
 		if(m_pMp2DemuxVideoMap->UnmapPID(1UL, &dwTempPID) != S_OK)return false;
 		}
 
 	// 新規にPIDをマップ
-	if(wPID != 0xFFFFU){
+	if(wPID != PID_INVALID){
 		dwTempPID = wPID;
 		if(m_pMp2DemuxVideoMap->MapPID(1UL, &dwTempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)return false;
 		}
@@ -692,13 +715,13 @@ const bool CMediaViewer::SetAudioPID(const WORD wPID)
 	DWORD dwTempPID;
 
 	// 現在のPIDをアンマップ
-	if(m_wAudioEsPID != 0xFFFFU){
+	if(m_wAudioEsPID != PID_INVALID){
 		dwTempPID = (DWORD)m_wAudioEsPID;
 		if(m_pMp2DemuxAudioMap->UnmapPID(1UL, &dwTempPID) != S_OK)return false;
 		}
 
 	// 新規にPIDをマップ
-	if(wPID != 0xFFFFU){
+	if(wPID != PID_INVALID){
 		dwTempPID = wPID;
 		if(m_pMp2DemuxAudioMap->MapPID(1UL, &dwTempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)return false;
 		}
@@ -853,20 +876,30 @@ const bool CMediaViewer::GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspe
 const BYTE CMediaViewer::GetAudioChannelNum()
 {
 	// オーディオの入力チャンネル数を取得する
-	if(m_pAacDecClass){
+	if (m_pAacDecClass)
 		return m_pAacDecClass->GetCurrentChannelNum();
-		}
 	return 0;
 }
 
 const bool CMediaViewer::SetStereoMode(const int iMode)
 {
 	// ステレオ出力チャンネルの設定
+	/*
 	if(m_pPcmSelClass){
 		m_pPcmSelClass->SetStereoMode(iMode);
 		return true;
 		}
+	*/
+	if (m_pAacDecClass)
+		return m_pAacDecClass->SetStereoMode(iMode);
 	return false;
+}
+
+const int CMediaViewer::GetStereoMode() const
+{
+	if (m_pAacDecClass)
+		return m_pAacDecClass->GetStereoMode();
+	return CAacDecFilter::STEREOMODE_STEREO;
 }
 
 const bool CMediaViewer::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
@@ -1089,9 +1122,11 @@ const bool CMediaViewer::CalcSourcePosition(long *pLeft,long *pTop,
 
 const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
 {
+	/*
 	CTryBlockLock Lock(&m_CriticalLock);
 	if (!Lock.TryLock(1000))
 		return false;
+	*/
 
 	bool fOK=false;
 
@@ -1107,6 +1142,8 @@ const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
 }
 
 
+#ifdef USE_GRABBER_FILTER
+
 bool CMediaViewer::SetGrabber(bool bGrabber)
 {
 	m_bGrabber=bGrabber;
@@ -1116,7 +1153,6 @@ bool CMediaViewer::SetGrabber(bool bGrabber)
 
 void *CMediaViewer::DoCapture(DWORD WaitTime)
 {
-#if 1
 	void *pDib;
 
 	if (m_pGrabber==NULL)
@@ -1130,10 +1166,9 @@ void *CMediaViewer::DoCapture(DWORD WaitTime)
 	pDib=m_pGrabber->GetCaptureBitmap();
 	m_pGrabber->SetCapture(false);
 	return pDib;
-#else
-	return NULL;
-#endif
 }
+
+#endif
 
 
 bool CMediaViewer::SetAudioNormalize(bool bNormalize,float Level)

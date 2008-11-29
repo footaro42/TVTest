@@ -8,18 +8,6 @@
 #include "MediaDecoder.h"
 #include "IBonDriver.h"
 #include "IBonDriver2.h"
-#include "TsUtilClass.h"
-
-
-// エラーコード
-#define BSDEC_NOERROR			0x00000000UL	// エラーなし
-#define BSDEC_TUNERERROR		0x00000001UL	// チューナエラー
-#define BSDEC_INTERNALERROR		0x00000002UL	// 内部エラー
-#define BSDEC_TUNERNOTOPEN		0x00000003UL	// チューナが既に閉じられている
-#define BSDEC_ALREADYOPEN		0x00000004UL	// チューナが既に開かれている
-#define BSDEC_ALREADYPLAYING	0x00000005UL	// 既に再生されている
-#define BSDEC_NOTPLAYING		0x00000006UL	// 再生されていない
-#define BSDEC_DRIVERERROR		0x00000007UL	// ドライバエラー
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -28,9 +16,23 @@
 // Output	#0	: CMediaData		平分TSストリーム
 /////////////////////////////////////////////////////////////////////////////
 
-class CBonSrcDecoder : public CMediaDecoder  
+class CBonSrcDecoder : public CMediaDecoder
 {
 public:
+	// エラーコード
+	enum {
+		ERR_NOERROR,		// エラーなし
+		ERR_DRIVER,			// ドライバエラー
+		ERR_TUNEROPEN,		// チューナオープンエラー
+		ERR_TUNER,			// チューナエラー
+		ERR_NOTOPEN,		// チューナが開かれていない
+		ERR_ALREADYOPEN,	// チューナが既に開かれている
+		ERR_NOTPLAYING,		// 再生されていない
+		ERR_ALREADYPLAYING,	// 既に再生されている
+		ERR_TIMEOUT,		// タイムアウト
+		ERR_INTERNAL		// 内部エラー
+	};
+
 	CBonSrcDecoder(IEventHandler *pEventHandler = NULL);
 	virtual ~CBonSrcDecoder();
 
@@ -64,24 +66,12 @@ public:
 	int GetCurChannel() const;
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
-protected:
-	virtual void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
-
-	void PauseStreamRecieve();
-	void ResumeStreamRecieve();
-	void ResetBitRate();
-
-	CMediaData m_TsStream;
-
-	CCriticalLock m_CriticalLock;
-	bool m_bIsPlaying;
-	DWORD m_dwLastError;
-
-	DWORD m_BitRateTime;
-	DWORD m_BitRate;
-	DWORD m_StreamRemain;
 private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
+	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
+	bool PauseStreamRecieve(DWORD TimeOut = 1000);
+	void ResumeStreamRecieve();
+	void ResetBitRate();
 
 	IBonDriver *m_pBonDriver;
 	IBonDriver2 *m_pBonDriver2;	
@@ -91,7 +81,16 @@ private:
 	HANDLE m_hResumeEvent;
 	volatile bool m_bKillSignal;
 
+	CMediaData m_TsStream;
+
+	bool m_bIsPlaying;
+	DWORD m_dwLastError;
+
 	int m_RequestSpace;
 	int m_RequestChannel;
 	bool m_bSetChannelResult;
+
+	DWORD m_BitRateTime;
+	DWORD m_BitRate;
+	DWORD m_StreamRemain;
 };

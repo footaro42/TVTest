@@ -63,7 +63,4 @@ protected:
 	} m_EcmStatus;
 
 	DWORD m_dwLastError;
-
-private:
-	const bool StoreEcmData(const BYTE *pEcmData, const DWORD dwEcmSize);
 };

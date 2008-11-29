@@ -20,6 +20,7 @@ CTsDescrambler::CTsDescrambler(IEventHandler *pEventHandler)
 	, m_dwInputPacketCount(0UL)
 	, m_dwScramblePacketCount(0UL)
 	, m_DescrambleServiceID(0)
+	, m_Queue(&m_BcasCard)
 {
 	// PATテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(0x0000U, new CPatTable, OnPatUpdated, this);
@@ -32,6 +33,8 @@ CTsDescrambler::~CTsDescrambler()
 
 void CTsDescrambler::Reset(void)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	m_Queue.Clear();
 
 	// 内部状態を初期化する
@@ -49,11 +52,13 @@ void CTsDescrambler::Reset(void)
 	m_DescrambleServiceID=0;
 
 	// 下流デコーダを初期化する
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 }
 
 const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	/*
 	if(dwInputIndex >= GetInputNum())return false;
 
@@ -92,6 +97,7 @@ const bool CTsDescrambler::OpenBcasCard(CCardReader::ReaderType ReaderType,DWORD
 {
 	CloseBcasCard();
 
+#if 0
 	// カードリーダからB-CASカードを検索して開く
 	const bool bReturn = m_BcasCard.OpenCard(ReaderType);
 
@@ -102,13 +108,23 @@ const bool CTsDescrambler::OpenBcasCard(CCardReader::ReaderType ReaderType,DWORD
 		m_Queue.BeginBcasThread();
 
 	return bReturn;
+#else
+	// カードリーダにアクセスするスレッドでカードリーダを開く
+	// HDUSのカードリーダがCOMを使うため、アクセスするスレッドでCoInitializeする
+	bool bOK=m_Queue.BeginBcasThread(ReaderType);
+
+	// エラーコードセット
+	if(pErrorCode)*pErrorCode = m_BcasCard.GetLastError();
+
+	return bOK;
+#endif
 }
 
 void CTsDescrambler::CloseBcasCard(void)
 {
 	m_Queue.EndBcasThread();
 	// B-CASカードを閉じる
-	m_BcasCard.CloseCard();
+	//m_BcasCard.CloseCard();
 }
 
 const bool CTsDescrambler::IsBcasCardOpen() const
@@ -120,10 +136,10 @@ const bool CTsDescrambler::GetBcasCardID(BYTE *pCardID)
 {
 	// カードID取得
 	const BYTE *pBuff = m_BcasCard.GetBcasCardID();
-	
+
 	// バッファにコピー
 	if(pCardID && pBuff)::CopyMemory(pCardID, pBuff, 6UL);
-	
+
 	return (pBuff)? true : false;
 }
 
@@ -146,9 +162,10 @@ const DWORD CTsDescrambler::GetScramblePacketCount(void) const
 
 bool CTsDescrambler::SetTargetPID(const WORD *pPIDList,int NumPIDs)
 {
-	CBlockLock Lock(&m_DescrambleListLock);
+	CBlockLock Lock(&m_DecoderLock);
 
 	TRACE(TEXT("CTsDescrambler::SetTargetPID()\n"));
+	m_DescrambleListLock.Lock();
 	m_DescramblePIDList.clear();
 	if (pPIDList!=NULL) {
 		for (int i=0;i<NumPIDs;i++) {
@@ -157,6 +174,7 @@ bool CTsDescrambler::SetTargetPID(const WORD *pPIDList,int NumPIDs)
 		}
 	}
 	m_DescrambleServiceID=0;
+	m_DescrambleListLock.Unlock();
 	return true;
 }
 
@@ -173,9 +191,26 @@ bool CTsDescrambler::IsTargetPID(WORD PID)
 	return false;
 }
 
-bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
+bool CTsDescrambler::HasTargetPID(const std::vector<WORD> *pList)
 {
 	CBlockLock Lock(&m_DescrambleListLock);
+
+	if (m_DescramblePIDList.size()==0)
+		return true;
+	for (size_t i=0;i<pList->size();i++) {
+		for (size_t j=0;j<m_DescramblePIDList.size();j++) {
+			if (m_DescramblePIDList[j]==(*pList)[i])
+				return true;
+		}
+	}
+	return false;
+}
+
+bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	m_DescrambleListLock.Lock();
 
 	m_DescramblePIDList.clear();
 	m_DescrambleServiceID=ServiceID;
@@ -187,18 +222,21 @@ bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 
 			if (m_DescrambleServiceID==0
 					|| pPatTable->GetProgramID(i)==m_DescrambleServiceID) {
-				m_PidMapManager.MapTarget(PmtPID,new CPmtTable,OnPmtUpdated,this);
+				if (m_PidMapManager.GetMapTarget(PmtPID)==NULL)
+					m_PidMapManager.MapTarget(PmtPID,new CPmtTable,OnPmtUpdated,this);
 			} else {
 				m_PidMapManager.UnmapTarget(PmtPID);
 			}
 		}
 	}
+	m_DescrambleListLock.Unlock();
 	return true;
 }
 
 DWORD CTsDescrambler::IncrementScramblePacketCount()
 {
-	return InterlockedIncrement((LONG*)&m_dwScramblePacketCount);
+	//return InterlockedIncrement((LONG*)&m_dwScramblePacketCount);
+	return ++m_dwScramblePacketCount;
 }
 
 void CALLBACK CTsDescrambler::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam)
@@ -265,7 +303,9 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler, CBcasCard *pBcasCard,
 	, m_bLastEcmSucceed(true)
 {
 	// MULTI2デコーダにシステムキーと初期CBCをセット
-	m_Multi2Decoder.Initialize(m_pBcasCard->GetSystemKey(), m_pBcasCard->GetInitialCbc());
+	if (m_pBcasCard->IsCardOpen())
+		m_Multi2Decoder.Initialize(m_pBcasCard->GetSystemKey(),
+								   m_pBcasCard->GetInitialCbc());
 }
 
 void CEcmProcessor::OnPidMapped(const WORD wPID, const PVOID pParam)
@@ -321,15 +361,10 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 
 const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 {
-	bool bHasTargetPID=false;
-	for (size_t i=0;i<m_EsPIDList.size();i++) {
-		if (m_pDescrambler->IsTargetPID(m_EsPIDList[i])) {
-			bHasTargetPID=true;
-			break;
-		}
-	}
-	if (!bHasTargetPID)
+	if (!m_pDescrambler->HasTargetPID(&m_EsPIDList)) {
+		m_bSetScrambleKey=true;
 		return false;
+	}
 
 	// ECMをB-CASカードに渡してキー取得
 	const BYTE *pKsData = m_pBcasCard->GetKsFromEcm(pEcmData, EcmSize);
@@ -440,10 +475,10 @@ bool CBcasAccess::SetScrambleKey()
 
 
 
-CBcasAccessQueue::CBcasAccessQueue()
-	: m_hThread(NULL)
+CBcasAccessQueue::CBcasAccessQueue(CBcasCard *pBcasCard)
+	: m_pBcasCard(pBcasCard)
+	, m_hThread(NULL)
 	, m_hEvent(NULL)
-	, m_bKillEvent(false)
 {
 }
 
@@ -452,6 +487,8 @@ CBcasAccessQueue::~CBcasAccessQueue()
 {
 	EndBcasThread();
 	//Clear();
+	if (m_hEvent)
+		::CloseHandle(m_hEvent);
 }
 
 
@@ -465,7 +502,7 @@ void CBcasAccessQueue::Clear()
 
 bool CBcasAccessQueue::Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size)
 {
-	if (!m_hThread || Size>256)
+	if (m_hThread == NULL || Size > 256)
 		return false;
 
 	CBlockLock Lock(&m_Lock);
@@ -477,19 +514,28 @@ bool CBcasAccessQueue::Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, 
 }
 
 
-bool CBcasAccessQueue::BeginBcasThread()
+bool CBcasAccessQueue::BeginBcasThread(CCardReader::ReaderType ReaderType)
 {
 	if (m_hThread)
 		return false;
-	DWORD ThreadID;
-	m_hEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	m_ReaderType = ReaderType;
+	if (m_hEvent == NULL)
+		m_hEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	else
+		::ResetEvent(m_hEvent);
 	m_bKillEvent = false;
-	m_hThread = ::CreateThread(NULL, 0, BcasAccessThread, this, 0, &ThreadID);
-	if (m_hThread == NULL) {
-		::CloseHandle(m_hEvent);
-		m_hEvent = NULL;
+	m_bStartEvent = false;
+	m_hThread = ::CreateThread(NULL, 0, BcasAccessThread, this, 0, NULL);
+	if (m_hThread == NULL)
+		return false;
+	::WaitForSingleObject(m_hEvent, INFINITE);
+	if (!m_pBcasCard->IsCardOpen()) {
+		::WaitForSingleObject(m_hThread, INFINITE);
+		::CloseHandle(m_hThread);
+		m_hThread = NULL;
 		return false;
 	}
+	m_bStartEvent = true;
 	return true;
 }
 
@@ -499,13 +545,12 @@ bool CBcasAccessQueue::EndBcasThread()
 	if (m_hThread) {
 		m_bKillEvent = true;
 		::SetEvent(m_hEvent);
+		Clear();
 		if (::WaitForSingleObject(m_hThread, 1000) == WAIT_TIMEOUT) {
 			::TerminateThread(m_hThread, 1);
 		}
 		::CloseHandle(m_hThread);
 		m_hThread = NULL;
-		::CloseHandle(m_hEvent);
-		m_hEvent = NULL;
 	}
 	return true;
 }
@@ -514,6 +559,14 @@ bool CBcasAccessQueue::EndBcasThread()
 DWORD CALLBACK CBcasAccessQueue::BcasAccessThread(LPVOID lpParameter)
 {
 	CBcasAccessQueue *pThis=static_cast<CBcasAccessQueue*>(lpParameter);
+
+	// カードリーダからB-CASカードを検索して開く
+	bool bOK = pThis->m_pBcasCard->OpenCard(pThis->m_ReaderType);
+	::SetEvent(pThis->m_hEvent);
+	if (!bOK)
+		return 1;
+	while (!pThis->m_bStartEvent)
+		::Sleep(0);
 
 	while (true) {
 		::WaitForSingleObject(pThis->m_hEvent, INFINITE);
@@ -531,5 +584,9 @@ DWORD CALLBACK CBcasAccessQueue::BcasAccessThread(LPVOID lpParameter)
 			BcasAccess.SetScrambleKey();
 		}
 	}
+
+	// B-CASカードを閉じる
+	pThis->m_pBcasCard->CloseCard();
+
 	return 0;
 }

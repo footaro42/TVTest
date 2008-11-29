@@ -47,14 +47,16 @@ void CMediaBuffer::Reset(void)
 {
 	TRACE(TEXT("CMediaBuffer::Reset()\n"));
 	ResetBuffer();
-	CMediaDecoder::Reset();
+	ResetDownstreamDecoder();
 }
 
 
 const bool CMediaBuffer::InputMedia(CMediaData *pMediaData,const DWORD dwInputIndex)
 {
+	/*
 	if (dwInputIndex>=GetInputNum())
 		return false;
+	*/
 
 	CTsPacket *pPacket=static_cast<CTsPacket*>(pMediaData);
 

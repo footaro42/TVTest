@@ -553,10 +553,10 @@ bool CChannelManager::LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 
 					::wsprintf(szName,TEXT("Space%d_ChannelMap%d"),i,j);
 					if (Settings.Read(szName,&ChannelIndex)) {
-						::wsprintf(szName,TEXT("Space%d_Channel%d_NID"),i,j);
+						::wsprintf(szName,TEXT("Space%d_Channel%d_NID"),i,ChannelIndex);
 						if (!Settings.Read(szName,&NetworkID))
 							NetworkID=0;
-						::wsprintf(szName,TEXT("Space%d_Channel%d_TSID"),i,j);
+						::wsprintf(szName,TEXT("Space%d_Channel%d_TSID"),i,ChannelIndex);
 						if (!Settings.Read(szName,&TSID))
 							TSID=0;
 						::wsprintf(szName,TEXT("Space%d_Channel%d_Count"),i,ChannelIndex);

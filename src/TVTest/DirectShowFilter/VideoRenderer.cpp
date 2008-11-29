@@ -3,6 +3,7 @@
 #include <d3d9.h>
 #include <vmr9.h>
 #include "VideoRenderer.h"
+#include "VMR9Renderless.h"
 #include "DirectShowUtil.h"
 
 #ifdef _DEBUG
@@ -442,7 +443,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 
 	m_pRenderer->QueryInterface(IID_IVMRFilterConfig9,
 									reinterpret_cast<LPVOID*>(&pFilterConfig));
-	pFilterConfig->SetRenderingMode(VMRMode_Windowless);
+	pFilterConfig->SetRenderingMode(VMR9Mode_Windowless);
 	pFilterConfig->Release();
 	m_pRenderer->QueryInterface(IID_IVMRWindowlessControl9,
 							reinterpret_cast<LPVOID*>(&pWindowlessControl));
@@ -1160,6 +1161,9 @@ bool CVideoRenderer::CreateRenderer(RendererType Type,CVideoRenderer **ppRendere
 	case RENDERER_VMR7RENDERLESS:
 		*ppRenderer=new CVideoRenderer_VMR7Renderless;
 		break;
+	case RENDERER_VMR9RENDERLESS:
+		*ppRenderer=new CVideoRenderer_VMR9Renderless;
+		break;
 	default:
 		return false;
 	}
@@ -1174,6 +1178,7 @@ LPCTSTR CVideoRenderer::EnumRendererName(int Index)
 		TEXT("VMR7"),
 		TEXT("VMR9"),
 		TEXT("VMR7 Renderless"),
+		TEXT("VMR9 Renderless"),
 	};
 
 	if (Index<0 || Index>=sizeof(pszRendererName)/sizeof(LPCTSTR))

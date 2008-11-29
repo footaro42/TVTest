@@ -23,6 +23,7 @@ public:
 	TCHAR m_szRecordFileName[MAX_PATH];
 	bool m_fFullscreen;
 	bool m_fNoDriver;
+	bool m_fStandby;
 	bool m_fNoView;
 	bool m_fNoDirectShow;
 	bool m_fSilent;

@@ -1,4 +1,4 @@
-LIBRARY HDUSTest_Image
+LIBRARY TVTest_Image
 
 EXPORTS
 	SaveImage=_SaveImage@4

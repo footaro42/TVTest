@@ -10,9 +10,6 @@
 
 
 const SIZE CCaptureOptions::m_SizeList[SIZE_LAST+1] = {
-	{0,		0},
-	{0,		0},
-	{0,		0},
 	// 16:9
 	{1920,	1080},
 	{1440,	810},
@@ -31,6 +28,14 @@ const SIZE CCaptureOptions::m_SizeList[SIZE_LAST+1] = {
 };
 
 
+const CCaptureOptions::PercentageType CCaptureOptions::m_PercentageList[PERCENTAGE_LAST+1] = {
+	{3,	4},
+	{2,	3},
+	{1,	2},
+	{1,	3}
+};
+
+
 CCaptureOptions::CCaptureOptions()
 {
 	m_szSaveFolder[0]='\0';
@@ -40,7 +45,9 @@ CCaptureOptions::CCaptureOptions()
 	m_PNGCompressionLevel=6;
 	m_fCaptureSaveToFile=false;
 	m_fSetComment=false;
-	m_CaptureSize=SIZE_ORIGINAL;
+	m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
+	m_CaptureSize=SIZE_1920x1080;
+	m_CapturePercentage=PERCENTAGE_50;
 }
 
 
@@ -65,19 +72,30 @@ bool CCaptureOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("PngCompressionLevel"),&m_PNGCompressionLevel);
 	int Size;
 	if (pSettings->Read(TEXT("CaptureSizeType"),&Size)
-			&& Size>=0 && Size<=SIZE_CUSTOM_FIRST)
-		m_CaptureSize=Size;
-	if (m_CaptureSize==SIZE_CUSTOM_FIRST) {
-		int Width,Height;
-
-		m_CaptureSize=SIZE_ORIGINAL;
-		if (pSettings->Read(TEXT("CaptureWidth"),&Width)
-				&& pSettings->Read(TEXT("CaptureHeight"),&Height)) {
-			for (int i=SIZE_CUSTOM_FIRST;i<=SIZE_CUSTOM_LAST;i++) {
-				if (m_SizeList[i].cx==Width && m_SizeList[i].cy==Height) {
-					m_CaptureSize=i;
-					break;
-				}
+			&& Size>=0 && Size<=SIZE_TYPE_LAST) {
+		if (Size==SIZE_TYPE_RAW)
+			m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
+		else
+			m_CaptureSizeType=Size;
+	}
+	int Width,Height;
+	if (pSettings->Read(TEXT("CaptureWidth"),&Width)
+			&& pSettings->Read(TEXT("CaptureHeight"),&Height)) {
+		for (int i=0;i<=SIZE_LAST;i++) {
+			if (m_SizeList[i].cx==Width && m_SizeList[i].cy==Height) {
+				m_CaptureSize=i;
+				break;
+			}
+		}
+	}
+	int Num,Denom;
+	if (pSettings->Read(TEXT("CaptureRatioNum"),&Num)
+			&& pSettings->Read(TEXT("CaptureRatioDenom"),&Denom)) {
+		for (int i=0;i<=PERCENTAGE_LAST;i++) {
+			if (m_PercentageList[i].Num==Num
+					&& m_PercentageList[i].Denom==Denom) {
+				m_CapturePercentage=i;
+				break;
 			}
 		}
 	}
@@ -95,32 +113,70 @@ bool CCaptureOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("CaptureSetComment"),m_fSetComment);
 	pSettings->Write(TEXT("JpegQuality"),m_JPEGQuality);
 	pSettings->Write(TEXT("PngCompressionLevel"),m_PNGCompressionLevel);
-	pSettings->Write(TEXT("CaptureSizeType"),min(m_CaptureSize,SIZE_CUSTOM_FIRST));
-	if (m_CaptureSize>=SIZE_CUSTOM_FIRST) {
-		pSettings->Write(TEXT("CaptureWidth"),m_SizeList[m_CaptureSize].cx);
-		pSettings->Write(TEXT("CaptureHeight"),m_SizeList[m_CaptureSize].cy);
+	pSettings->Write(TEXT("CaptureSizeType"),m_CaptureSizeType);
+	pSettings->Write(TEXT("CaptureWidth"),m_SizeList[m_CaptureSize].cx);
+	pSettings->Write(TEXT("CaptureHeight"),m_SizeList[m_CaptureSize].cy);
+	pSettings->Write(TEXT("CaptureRatioNum"),m_PercentageList[m_CapturePercentage].Num);
+	pSettings->Write(TEXT("CaptureRatioDenom"),m_PercentageList[m_CapturePercentage].Denom);
+	return true;
+}
+
+
+bool CCaptureOptions::SetPresetCaptureSize(int Size)
+{
+	if (Size<0)
+		return false;
+	if (Size<=SIZE_TYPE_VIEW) {
+		m_CaptureSizeType=Size;
+	} else if (Size-2<=PERCENTAGE_LAST) {
+		m_CaptureSizeType=SIZE_TYPE_PERCENTAGE;
+		m_CapturePercentage=Size-2;
+	} else if (Size-(2+PERCENTAGE_LAST+1)<=SIZE_LAST) {
+		m_CaptureSizeType=SIZE_TYPE_CUSTOM;
+		m_CaptureSize=Size-(2+PERCENTAGE_LAST+1);
+	} else {
+		return false;
 	}
 	return true;
 }
 
 
-bool CCaptureOptions::SetCaptureSize(int Size)
+int CCaptureOptions::GetPresetCaptureSize() const
 {
-	if (Size<0 || Size>SIZE_LAST)
-		return false;
-	m_CaptureSize=Size;
+	int Size;
+
+	switch (m_CaptureSizeType) {
+	case SIZE_TYPE_ORIGINAL:
+	case SIZE_TYPE_VIEW:
+		Size=m_CaptureSizeType;
+		break;
+	case SIZE_TYPE_CUSTOM:
+		Size=2+(PERCENTAGE_LAST+1)+m_CaptureSize;
+		break;
+	case SIZE_TYPE_PERCENTAGE:
+		Size=2+m_CapturePercentage;
+		break;
+	}
+	return Size;
+}
+
+
+bool CCaptureOptions::GetSizePercentage(int *pNum,int *pDenom) const
+{
+	if (pNum)
+		*pNum=m_PercentageList[m_CapturePercentage].Num;
+	if (pDenom)
+		*pDenom=m_PercentageList[m_CapturePercentage].Denom;
 	return true;
 }
 
 
-bool CCaptureOptions::GetCustomSize(int Size,int *pWidth,int *pHeight) const
+bool CCaptureOptions::GetCustomSize(int *pWidth,int *pHeight) const
 {
-	if (Size<SIZE_CUSTOM_FIRST || Size>SIZE_CUSTOM_LAST)
-		return false;
 	if (pWidth)
-		*pWidth=m_SizeList[Size].cx;
+		*pWidth=m_SizeList[m_CaptureSize].cx;
 	if (pHeight)
-		*pHeight=m_SizeList[Size].cy;
+		*pHeight=m_SizeList[m_CaptureSize].cy;
 	return true;
 }
 
@@ -255,17 +311,50 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 		{
 			CCaptureOptions *pThis=dynamic_cast<CCaptureOptions*>(OnInitDialog(hDlg,lParam));
 			int i;
-			LPCTSTR pszFormat;
 
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
 			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,pThis->m_szSaveFolder);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
 			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_FILENAME,pThis->m_szFileName);
+
+			static const LPCTSTR SizeTypeText[] = {
+				TEXT("Œ³‚Ì‘å‚«‚³"),
+				TEXT("•\Ž¦‚³‚ê‚Ä‚¢‚é‘å‚«‚³"),
+			};
+			TCHAR szText[32];
+			for (i=0;i<lengthof(SizeTypeText);i++)
+				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,SizeTypeText[i]);
+			for (i=0;i<=PERCENTAGE_LAST;i++) {
+				wsprintf(szText,TEXT("%d %%"),
+						 m_PercentageList[i].Num*100/m_PercentageList[i].Denom);
+				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,szText);
+			}
+			for (i=0;i<=SIZE_LAST;i++) {
+				wsprintf(szText,TEXT("%ld x %ld"),m_SizeList[i].cx,m_SizeList[i].cy);
+				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,szText);
+			}
+			int Sel=-1;
+			switch (pThis->m_CaptureSizeType) {
+			case SIZE_TYPE_ORIGINAL:
+			case SIZE_TYPE_VIEW:
+				Sel=pThis->m_CaptureSizeType;
+				break;
+			case SIZE_TYPE_CUSTOM:
+				Sel=lengthof(SizeTypeText)+(PERCENTAGE_LAST+1)+pThis->m_CaptureSize;
+				break;
+			case SIZE_TYPE_PERCENTAGE:
+				Sel=lengthof(SizeTypeText)+pThis->m_CapturePercentage;
+				break;
+			}
+			DlgComboBox_SetCurSel(hDlg,IDC_CAPTUREOPTIONS_SIZE,Sel);
+
+			LPCTSTR pszFormat;
 			for (i=0;(pszFormat=pThis->m_ImageCodec.EnumSaveFormat(i))!=NULL;i++)
 				SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FORMAT,CB_ADDSTRING,
 										0,reinterpret_cast<LPARAM>(pszFormat));
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FORMAT,CB_SETCURSEL,
 														pThis->m_SaveFormat,0);
+
 			// JPEG quality
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
 										TBM_SETRANGE,TRUE,MAKELPARAM(0,100));
@@ -281,6 +370,7 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 													pThis->m_JPEGQuality,TRUE);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_UD,
 											UDM_SETRANGE,0,MAKELPARAM(100,0));
+
 			// PNG compression level
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
 											TBM_SETRANGE,TRUE,MAKELPARAM(0,9));
@@ -296,6 +386,7 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 										pThis->m_PNGCompressionLevel,FALSE);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_UD,
 											UDM_SETRANGE,0,MAKELPARAM(9,0));
+
 			CheckDlgButton(hDlg,IDC_CAPTUREOPTIONS_ICONSAVEFILE,
 						pThis->m_fCaptureSaveToFile?BST_CHECKED:BST_UNCHECKED);
 			CheckDlgButton(hDlg,IDC_CAPTUREOPTIONS_SETCOMMENT,
@@ -353,6 +444,8 @@ BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					pThis->m_szSaveFolder,lengthof(pThis->m_szSaveFolder));
 				GetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_FILENAME,
 					pThis->m_szFileName,lengthof(pThis->m_szFileName));
+				pThis->SetPresetCaptureSize(
+					DlgComboBox_GetCurSel(hDlg,IDC_CAPTUREOPTIONS_SIZE));
 				pThis->m_SaveFormat=SendDlgItemMessage(hDlg,
 							IDC_CAPTUREOPTIONS_FORMAT,CB_GETCURSEL,0,0);
 				pThis->m_JPEGQuality=SendDlgItemMessage(hDlg,

@@ -64,8 +64,10 @@ const bool CBcasCard::OpenCard(CCardReader::ReaderType ReaderType, LPCTSTR lpszR
 	}
 
 	// カード初期化
-	if (!InitialSetting())
+	if (!InitialSetting()) {
+		CloseCard();
 		return false;
+	}
 
 	m_dwLastError = BCEC_NOERROR;
 
@@ -157,7 +159,7 @@ const bool CBcasCard::InitialSetting(void)
 const BYTE * CBcasCard::GetBcasCardID(void)
 {
 	// Card ID を返す
-	if( !m_pCardReader){
+	if (!m_pCardReader) {
 		m_dwLastError = BCEC_CARDNOTOPEN;
 		return NULL;
 	}
@@ -171,12 +173,10 @@ const BYTE * CBcasCard::GetBcasCardID(void)
 const BYTE * CBcasCard::GetInitialCbc(void)
 {
 	// Descrambler CBC Initial Value を返す
-	/*
-	if(!m_pCardReader){
+	if (!m_pCardReader) {
 		m_dwLastError = BCEC_CARDNOTOPEN;
 		return NULL;
 	}
-	*/
 
 	m_dwLastError = BCEC_NOERROR;
 
@@ -187,18 +187,18 @@ const BYTE * CBcasCard::GetInitialCbc(void)
 const BYTE * CBcasCard::GetSystemKey(void)
 {
 	// Descrambling System Key を返す
-	/*
 	if (!m_pCardReader) {
 		m_dwLastError = BCEC_CARDNOTOPEN;
 		return NULL;
 	}
-	*/
 
 	m_dwLastError = BCEC_NOERROR;
 
 	return m_BcasCardInfo.SystemKey;
 }
 
+
+#pragma intrinsic(memcpy, memset, memcmp)
 
 const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize)
 {
@@ -217,11 +217,15 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	}
 
 	// キャッシュをチェックする
-	if (!StoreEcmData(pEcmData, dwEcmSize)) {
+	if (m_EcmStatus.dwLastEcmSize == dwEcmSize
+			&& ::memcmp(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize) == 0) {
 		// ECMが同一の場合はキャッシュ済みKsを返す
 		m_dwLastError = BCEC_NOERROR;
 		return m_EcmStatus.KsData;
 	}
+	// ECMデータを保存する
+	m_EcmStatus.dwLastEcmSize = dwEcmSize;
+	::CopyMemory(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize);
 
 	// バッファ準備
 	DWORD dwRecvSize = 0UL;
@@ -248,7 +252,7 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 		::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
 		m_dwLastError = BCEC_TRANSMITERROR;
 		return NULL;
-	}	
+	}
 
 	// レスポンス解析
 	::CopyMemory(m_EcmStatus.KsData, &RecvData[6], sizeof(m_EcmStatus.KsData));
@@ -261,39 +265,9 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	case 0x0800U :	// Tier
 		m_dwLastError = BCEC_NOERROR;
 		return m_EcmStatus.KsData;
-	
+	}
 	// 上記以外(視聴不可)
-	default :
-		m_dwLastError = BCEC_ECMREFUSED;
-		return NULL;
-	}
-}
 
-
-const bool CBcasCard::StoreEcmData(const BYTE *pEcmData, const DWORD dwEcmSize)
-{
-	bool bUpdate = false;
-
-	// ECMデータ比較
-	if (m_EcmStatus.dwLastEcmSize != dwEcmSize) {
-		// サイズが変化した
-		bUpdate = true;
-	} else {
-		// サイズが同じ場合はデータをチェックする
-		for (DWORD dwPos = 0UL ; dwPos < dwEcmSize ; dwPos++) {
-			if (pEcmData[dwPos] != m_EcmStatus.LastEcmData[dwPos]) {
-				// データが不一致
-				bUpdate = true;
-				break;
-			}
-		}
-	}
-
-	// ECMデータを保存する
-	if (bUpdate) {
-		m_EcmStatus.dwLastEcmSize = dwEcmSize;
-		::CopyMemory(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize);
-	}
-
-	return bUpdate;
+	m_dwLastError = BCEC_ECMREFUSED;
+	return NULL;
 }

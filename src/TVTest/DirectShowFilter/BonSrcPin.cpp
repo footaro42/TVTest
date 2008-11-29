@@ -86,7 +86,7 @@ HRESULT CBonSrcPin::DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR_PROPERTIES
 	CheckPointer(pRequest, E_POINTER);
 
 	// バッファは1個あればよい
-	if(!pRequest->cBuffers)pRequest->cBuffers = 1024;
+	if(!pRequest->cBuffers)pRequest->cBuffers = 1;
 
 	// とりあえずTSパケット長確保
 	if(pRequest->cbBuffer < 256)pRequest->cbBuffer = 256;

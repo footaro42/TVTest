@@ -23,7 +23,6 @@ CFileWriter::CFileWriter(IEventHandler *pEventHandler)
 	, m_bWriteError(false)
 	, m_bPause(false)
 {
-
 }
 
 
@@ -33,18 +32,14 @@ CFileWriter::~CFileWriter()
 }
 
 
-void CFileWriter::Reset(void)
-{
-
-}
-
-
 const bool CFileWriter::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	if (dwInputIndex>GetInputNum())
+	/*
+	if (dwInputIndex>=GetInputNum())
 		return false;
+	*/
 
 	if (!m_OutFile.IsOpen() || m_bPause)
 		return true;

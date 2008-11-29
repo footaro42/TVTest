@@ -13,7 +13,7 @@
 // メディアデコーダ基底クラス
 //////////////////////////////////////////////////////////////////////
 
-class CMediaDecoder  
+class CMediaDecoder
 {
 public:
 	class IEventHandler
@@ -30,19 +30,20 @@ public:
 	virtual const DWORD GetInputNum(void) const;
 	virtual const DWORD GetOutputNum(void) const;
 
-	virtual const bool SetOutputDecoder(CMediaDecoder *pDecoder, const DWORD dwOutputIndex = 0UL, const DWORD dwInputIndex = 0UL);
+	const bool SetOutputDecoder(CMediaDecoder *pDecoder, const DWORD dwOutputIndex = 0UL, const DWORD dwInputIndex = 0UL);
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL) = 0;
 
 protected:
-	virtual const bool OutputMedia(CMediaData *pMediaData, const DWORD dwOutptIndex = 0UL);
-	virtual const DWORD SendDecoderEvent(const DWORD dwEventID, PVOID pParam = NULL);
+	const bool OutputMedia(CMediaData *pMediaData, const DWORD dwOutptIndex = 0UL);
+	void ResetDownstreamDecoder();
+	const DWORD SendDecoderEvent(const DWORD dwEventID, PVOID pParam = NULL);
 
 	// 出力ピンデータベース
 	struct TAG_OUTPUTDECODER
 	{
 		CMediaDecoder *pDecoder;
 		DWORD dwInputIndex;
-	} m_aOutputDecoder[16];
+	} m_aOutputDecoder[4];
 
 	IEventHandler *m_pEventHandler;
 

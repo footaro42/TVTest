@@ -10,8 +10,8 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define VIEW_WINDOW_CLASS				APP_NAME TEXT("TVTest View")
-#define VIDEO_CONTAINER_WINDOW_CLASS	APP_NAME TEXT("TVTest Video Container")
+#define VIEW_WINDOW_CLASS				APP_NAME TEXT(" View")
+#define VIDEO_CONTAINER_WINDOW_CLASS	APP_NAME TEXT(" Video Container")
 
 
 

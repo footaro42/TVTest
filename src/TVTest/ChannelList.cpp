@@ -442,12 +442,14 @@ bool CChannelList::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 		if (m_ppList[i]->GetSpace()==Space
 				&& m_ppList[i]->GetChannelIndex()==ChannelIndex
 				&& m_ppList[i]->GetService()==Service) {
-			if (NetworkID!=0)
-				m_ppList[i]->SetNetworkID(NetworkID);
-			if (TransportStreamID!=0)
-				m_ppList[i]->SetTransportStreamID(TransportStreamID);
-			if (ServiceID!=0)
-				m_ppList[i]->SetServiceID(ServiceID);
+			CChannelInfo *pChannelInfo=m_ppList[i];
+
+			if (NetworkID!=0 && pChannelInfo->GetNetworkID()==0)
+				pChannelInfo->SetNetworkID(NetworkID);
+			if (TransportStreamID!=0 && pChannelInfo->GetTransportStreamID()==0)
+				pChannelInfo->SetTransportStreamID(TransportStreamID);
+			if (ServiceID!=0  && pChannelInfo->GetServiceID()==0)
+				pChannelInfo->SetServiceID(ServiceID);
 		}
 	}
 	return true;
