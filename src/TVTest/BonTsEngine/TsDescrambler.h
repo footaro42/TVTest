@@ -74,9 +74,10 @@ public:
 	LPCTSTR GetCardReaderName() const;
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetScramblePacketCount(void) const;
+	void ResetScramblePacketCount(void);
 	bool SetTargetPID(const WORD *pPIDList=NULL,int NumPIDs=0);
 	bool SetTargetServiceID(WORD ServiceID=0);
-	DWORD IncrementScramblePacketCount();
+	void IncrementScramblePacketCount();
 	bool HasTargetPID(const std::vector<WORD> *pList);
 protected:
 	class CEsProcessor;
@@ -94,8 +95,8 @@ protected:
 	CCriticalLock m_DescrambleListLock;
 	WORD m_DescrambleServiceID;
 
-	DWORD m_dwInputPacketCount;
-	DWORD m_dwScramblePacketCount;
+	ULONGLONG m_InputPacketCount;
+	ULONGLONG m_ScramblePacketCount;
 };
 
 

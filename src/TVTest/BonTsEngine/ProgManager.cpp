@@ -86,19 +86,21 @@ const bool CProgManager::GetServiceID(WORD *pwServiceID, const WORD wIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
+	if (pwServiceID == NULL)
+		return false;
+
 	// サービスIDを取得する
-	if (wIndex==0xFFFF) {
-		if (m_pProgDatabase->m_ServiceList.size()==0
+	if (wIndex == 0xFFFF) {
+		if (m_pProgDatabase->m_ServiceList.size() == 0
 				|| !m_pProgDatabase->m_ServiceList[0].bIsUpdated)
 			return false;
 		*pwServiceID = m_pProgDatabase->m_ServiceList[0].wServiceID;
-		return true;
-	}
-	if ((wIndex < GetServiceNum()) && pwServiceID) {
+	} else if ((size_t)wIndex < m_ServiceList.size()) {
 		*pwServiceID = m_ServiceList[wIndex].wServiceID;
-		return true;
+	} else {
+		return false;
 	}
-	return false;
+	return true;
 }
 
 
@@ -106,7 +108,7 @@ const bool CProgManager::GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	if (wIndex < GetServiceNum() && pwVideoPID) {
+	if (pwVideoPID && (size_t)wIndex < m_ServiceList.size()) {
 		*pwVideoPID = m_ServiceList[wIndex].wVideoEsPID;
 		return true;
 	}
@@ -118,8 +120,8 @@ const bool CProgManager::GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex,
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	if (wIndex < GetServiceNum() && pwAudioPID
-			&& wAudioIndex < m_ServiceList[wIndex].AudioEsPIDs.size()) {
+	if (pwAudioPID && (size_t)wIndex < m_ServiceList.size()
+			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsPIDs.size()) {
 		*pwAudioPID = m_ServiceList[wIndex].AudioEsPIDs[wAudioIndex];
 		return true;
 	}
@@ -131,7 +133,7 @@ const WORD CProgManager::GetAudioEsNum(const WORD wIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	if (wIndex < GetServiceNum())
+	if ((size_t)wIndex < m_ServiceList.size())
 		return m_ServiceList[wIndex].AudioEsPIDs.size();
 	return 0;
 }
@@ -142,7 +144,7 @@ const bool CProgManager::GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, con
 	CBlockLock Lock(&m_DecoderLock);
 
 	// PCRを取得する
-	if (wIndex < GetServiceNum() && pu64PcrTimeStamp) {
+	if ((size_t)wIndex < m_ServiceList.size() && pu64PcrTimeStamp) {
 		*pu64PcrTimeStamp = m_ServiceList[wIndex].u64TimeStamp;
 		return true;
 	}
@@ -155,7 +157,7 @@ const DWORD CProgManager::GetServiceName(LPTSTR lpszDst, const WORD wIndex)
 	CBlockLock Lock(&m_DecoderLock);
 
 	// サービス名を取得する
-	if (wIndex < GetServiceNum()) {
+	if ((size_t)wIndex < m_ServiceList.size()) {
 		if (lpszDst)
 			::lstrcpy(lpszDst, m_ServiceList[wIndex].szServiceName);
 		return ::lstrlen(m_ServiceList[wIndex].szServiceName);
@@ -240,7 +242,8 @@ void CProgManager::OnServiceInfoUpdated(void)
 
 		if (wServiceIndex != 0xFFFFU) {
 			if (m_pProgDatabase->m_ServiceList[wIndex].szServiceName[0]) {
-				::lstrcpy(m_ServiceList[wIndex].szServiceName, m_pProgDatabase->m_ServiceList[wServiceIndex].szServiceName);
+				::lstrcpy(m_ServiceList[wIndex].szServiceName,
+						  m_pProgDatabase->m_ServiceList[wServiceIndex].szServiceName);
 			} else {
 				::wsprintf(m_ServiceList[wIndex].szServiceName, TEXT("サービス%d"), wIndex + 1);
 			}
@@ -326,9 +329,9 @@ void CProgManager::CProgDatabase::UnmapTable(void)
 const WORD CProgManager::CProgDatabase::GetServiceIndexByID(const WORD wServiceID)
 {
 	// プログラムIDからサービスインデックスを検索する
-	for (WORD wIndex = 0U ; wIndex < m_ServiceList.size() ; wIndex++) {
-		if(m_ServiceList[wIndex].wServiceID == wServiceID)
-			return wIndex;
+	for (size_t Index = 0 ; Index < m_ServiceList.size() ; Index++) {
+		if (m_ServiceList[Index].wServiceID == wServiceID)
+			return Index;
 	}
 
 	// プログラムIDが見つからない
@@ -346,35 +349,34 @@ void CALLBACK CProgManager::CProgDatabase::OnPatUpdated(const WORD wPID, CTsPidM
 	pThis->m_wTransportStreamID = pPatTable->m_CurSection.GetTableIdExtension();
 
 	// 現PMT/PCRのPIDをアンマップする
-	for (WORD wIndex = 0U ; wIndex < pThis->m_ServiceList.size() ; wIndex++) {
+	for (size_t Index = 0 ; Index < pThis->m_ServiceList.size() ; Index++) {
 		WORD wPID;
-		wPID = pThis->m_ServiceList[wIndex].wPmtTablePID;
+		wPID = pThis->m_ServiceList[Index].wPmtTablePID;
 		pMapManager->UnmapTarget(wPID);
-		wPID = pThis->m_ServiceList[wIndex].wPcrPID;
+		wPID = pThis->m_ServiceList[Index].wPcrPID;
 		pMapManager->UnmapTarget(wPID);
 	}
 
 	// 新PMTをストアする
 	pThis->m_ServiceList.resize(pPatTable->GetProgramNum());
 
-	for (WORD wIndex = 0U ; wIndex < pThis->m_ServiceList.size() ; wIndex++) {
+	for (size_t Index = 0 ; Index < pThis->m_ServiceList.size() ; Index++) {
 		// サービスリスト更新
-		pThis->m_ServiceList[wIndex].bIsUpdated = false;
-		pThis->m_ServiceList[wIndex].wServiceID = pPatTable->GetProgramID(wIndex);
-		pThis->m_ServiceList[wIndex].wPmtTablePID = pPatTable->GetPmtPID(wIndex);
-
-		pThis->m_ServiceList[wIndex].wVideoEsPID = 0xFFFFU;
-		pThis->m_ServiceList[wIndex].AudioEsPIDs.clear();
-		pThis->m_ServiceList[wIndex].wPcrPID = 0xFFFFU;		
-		pThis->m_ServiceList[wIndex].byVideoComponentTag = 0xFFU;
-		pThis->m_ServiceList[wIndex].byAudioComponentTag = 0xFFU;
-		pThis->m_ServiceList[wIndex].byServiceType = 0xFFU;
-		pThis->m_ServiceList[wIndex].byRunningStatus = 0xFFU;
-		pThis->m_ServiceList[wIndex].bIsCaService = false;
-		pThis->m_ServiceList[wIndex].szServiceName[0] = TEXT('\0');
+		pThis->m_ServiceList[Index].bIsUpdated = false;
+		pThis->m_ServiceList[Index].wServiceID = pPatTable->GetProgramID(Index);
+		pThis->m_ServiceList[Index].wPmtTablePID = pPatTable->GetPmtPID(Index);
+		pThis->m_ServiceList[Index].wVideoEsPID = 0xFFFFU;
+		pThis->m_ServiceList[Index].AudioEsPIDs.clear();
+		pThis->m_ServiceList[Index].wPcrPID = 0xFFFFU;
+		pThis->m_ServiceList[Index].byVideoComponentTag = 0xFFU;
+		pThis->m_ServiceList[Index].byAudioComponentTag = 0xFFU;
+		pThis->m_ServiceList[Index].byServiceType = 0xFFU;
+		pThis->m_ServiceList[Index].byRunningStatus = 0xFFU;
+		pThis->m_ServiceList[Index].bIsCaService = false;
+		pThis->m_ServiceList[Index].szServiceName[0] = TEXT('\0');
 
 		// PMTのPIDをマップ
-		pMapManager->MapTarget(pPatTable->GetPmtPID(wIndex), new CPmtTable, CProgDatabase::OnPmtUpdated, pParam);
+		pMapManager->MapTarget(pPatTable->GetPmtPID(Index), new CPmtTable, CProgDatabase::OnPmtUpdated, pParam);
 	}
 }
 
@@ -411,7 +413,7 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 	}
 
 	WORD wPcrPID = pPmtTable->GetPcrPID();
-	if (wPcrPID<0x1FFFU) {
+	if (wPcrPID < 0x1FFFU) {
 		pThis->m_ServiceList[wServiceIndex].wPcrPID = wPcrPID;
 		CTsPidMapTarget *pMap = pMapManager->GetMapTarget(wPcrPID);
 		if (!pMap) {
@@ -492,7 +494,7 @@ void CALLBACK CProgManager::CProgDatabase::OnPcrUpdated(const WORD wPID, CTsPidM
 
 	WORD wServiceIndex;
 	for (WORD wIndex = 0 ; pPcrTable->GetServiceIndex(&wServiceIndex,wIndex); wIndex++) {
-		if (wServiceIndex<pThis->m_ServiceList.size()) {
+		if (wServiceIndex < pThis->m_ServiceList.size()) {
 			pThis->m_ServiceList[wServiceIndex].u64TimeStamp = u64TimeStamp;
 		}
 	}

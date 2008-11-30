@@ -87,7 +87,7 @@ public:
 	bool OpenBcasCard(CCardReader::ReaderType CardReaderType);
 	bool SetDescramble(bool bDescramble);
 	bool ResetBuffer();
-	bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const;
+	bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight);
 	bool SetDescrambleService(WORD Service);
 	bool SetDescrambleCurServiceOnly(bool bOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_bDescrambleCurServiceOnly; }

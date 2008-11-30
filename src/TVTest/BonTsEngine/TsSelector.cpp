@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "TsSelector.h"
-#include "TsUtilClass.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -286,7 +285,6 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	pDstData[5] = (pPayloadData[5]&0xC1) | (m_Version<<1);
 	pDstData[6] = pPayloadData[6];
 	pDstData[7] = pPayloadData[7];
-	//DWORD CRC = CRC32(pDstData, 8+NewProgramListSize);
 	DWORD CRC = CCrcCalculator::CalcCrc32(pDstData, 8+NewProgramListSize);
 	pDstData[8+NewProgramListSize+0] = (BYTE)(CRC>>24);
 	pDstData[8+NewProgramListSize+1] = (BYTE)((CRC>>16)&0xFF);

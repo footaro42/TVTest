@@ -17,27 +17,28 @@ public:
 	virtual ~CMediaData();
 
 	CMediaData & operator = (const CMediaData &Operand);
+	CMediaData & operator += (const CMediaData &Operand);
 
-	virtual BYTE * GetData(void) const;
-	virtual const DWORD GetSize(void) const;
+	BYTE *GetData();
+	const BYTE *GetData() const;
+	const DWORD GetSize() const { return m_dwDataSize; }
 
-	virtual void SetAt(const DWORD dwPos, const BYTE byData);
-	virtual const BYTE GetAt(const DWORD dwPos) const;
+	void SetAt(const DWORD dwPos, const BYTE byData);
+	const BYTE GetAt(const DWORD dwPos) const;
 
-	virtual const DWORD SetData(const BYTE *pData, const DWORD dwDataSize);
-	virtual const DWORD AddData(const BYTE *pData, const DWORD dwDataSize);
-	virtual const DWORD AddData(const CMediaData *pData);
-	virtual const DWORD AddByte(const BYTE byData);
-	virtual const DWORD TrimHead(const DWORD dwTrimSize = 1UL);
-	virtual const DWORD TrimTail(const DWORD dwTrimSize = 1UL);
+	const DWORD SetData(const BYTE *pData, const DWORD dwDataSize);
+	const DWORD AddData(const BYTE *pData, const DWORD dwDataSize);
+	const DWORD AddData(const CMediaData *pData);
+	const DWORD AddByte(const BYTE byData);
+	const DWORD TrimHead(const DWORD dwTrimSize = 1UL);
+	const DWORD TrimTail(const DWORD dwTrimSize = 1UL);
 
-	virtual const DWORD GetBuffer(const DWORD dwGetSize);
+	const DWORD GetBuffer(const DWORD dwGetSize);
 
-	virtual const DWORD SetSize(const DWORD dwSetSize);
-	virtual const DWORD SetSize(const DWORD dwSetSize, const BYTE byFiller);
-	
-	virtual void ClearSize(void);
-	virtual void Delete(void);
+	const DWORD SetSize(const DWORD dwSetSize);
+	const DWORD SetSize(const DWORD dwSetSize, const BYTE byFiller);
+
+	void ClearSize(void);
 
 protected:
 	DWORD m_dwDataSize;

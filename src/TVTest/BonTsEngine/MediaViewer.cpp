@@ -435,6 +435,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		// オーナウィンドウ設定
 		m_hOwnerWnd = hOwnerHwnd;
 
+		ResizeVideoWindow();
+
 		OSVERSIONINFO osvi;
 		osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
 		::GetVersionEx(&osvi);
@@ -735,7 +737,9 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 {
 	// ビデオ情報の更新
 	CMediaViewer *pThis=static_cast<CMediaViewer*>(pParam);
-	if (pThis->m_VideoInfo!=*pVideoInfo) {
+	CBlockLock Lock(&pThis->m_ResizeLock);
+
+	if (pThis->m_VideoInfo != *pVideoInfo) {
 		// ビデオ情報の更新
 		pThis->m_VideoInfo = *pVideoInfo;
 		pThis->ResizeVideoWindow();
@@ -787,7 +791,7 @@ const bool CMediaViewer::ResizeVideoWindow()
 		}
 		RECT rcSrc,rcDst,rcWindow;
 
-		GetSourceRect(&rcSrc);
+		CalcSourceRect(&rcSrc);
 		// 座標値がマイナスになるとマルチディスプレイでおかしくなる?
 		/*
 		rcDst.left=(WindowWidth-VideoWidth)/2;
@@ -825,12 +829,14 @@ const bool CMediaViewer::ResizeVideoWindow()
 
 const bool CMediaViewer::SetViewSize(const int x,const int y)
 {
+	CBlockLock Lock(&m_ResizeLock);
+
 	// ウィンドウサイズを設定する
-	if(x>0 && y>0){
+	if (x>0 && y>0) {
 		m_wVideoWindowX = x;
 		m_wVideoWindowY = y;
 		return ResizeVideoWindow();
-		}
+	}
 	return false;
 }
 
@@ -857,19 +863,41 @@ const bool CMediaViewer::SetVolume(const float fVolume)
 	return fOK;
 }
 
-const bool CMediaViewer::GetVideoSize(WORD *pwWidth,WORD *pwHeight) const
+const bool CMediaViewer::GetVideoSize(WORD *pwWidth,WORD *pwHeight)
 {
+	CBlockLock Lock(&m_ResizeLock);
+
 	// ビデオのサイズを取得する
+	/*
 	if (m_pMpeg2SeqClass)
 		return m_pMpeg2SeqClass->GetVideoSize(pwWidth,pwHeight);
+	*/
+	if (m_VideoInfo.m_DisplayWidth > 0 && m_VideoInfo.m_DisplayHeight > 0) {
+		if (pwWidth)
+			*pwWidth = m_VideoInfo.m_DisplayWidth;
+		if (pwHeight)
+			*pwHeight = m_VideoInfo.m_DisplayHeight;
+		return true;
+	}
 	return false;
 }
 
-const bool CMediaViewer::GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY) const
+const bool CMediaViewer::GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY)
 {
+	CBlockLock Lock(&m_ResizeLock);
+
 	// ビデオのアスペクト比を取得する
+	/*
 	if (m_pMpeg2SeqClass)
 		return m_pMpeg2SeqClass->GetAspectRatio(pbyAspectRatioX,pbyAspectRatioY);
+	*/
+	if (m_VideoInfo.m_AspectRatioX > 0 && m_VideoInfo.m_AspectRatioY > 0) {
+		if (pbyAspectRatioX)
+			*pbyAspectRatioX = m_VideoInfo.m_AspectRatioX;
+		if (pbyAspectRatioY)
+			*pbyAspectRatioY = m_VideoInfo.m_AspectRatioY;
+		return true;
+	}
 	return false;
 }
 
@@ -997,9 +1025,17 @@ const bool CMediaViewer::GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY)
 }
 
 
-const bool CMediaViewer::SetPanAndScan(BYTE bFlags)
+const bool CMediaViewer::SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags)
 {
-	m_PanAndScan=bFlags;
+	if (m_ForceAspectX!=AspectX || m_ForceAspectY!=AspectY
+			|| m_PanAndScan!=PanScanFlags) {
+		CBlockLock Lock(&m_ResizeLock);
+
+		m_ForceAspectX=AspectX;
+		m_ForceAspectY=AspectY;
+		m_PanAndScan=PanScanFlags;
+		ResizeVideoWindow();
+	}
 	return true;
 }
 
@@ -1007,18 +1043,81 @@ const bool CMediaViewer::SetPanAndScan(BYTE bFlags)
 const bool CMediaViewer::SetViewStretchMode(ViewStretchMode Mode)
 {
 	if (m_ViewStretchMode!=Mode) {
+		CBlockLock Lock(&m_ResizeLock);
+
 		m_ViewStretchMode=Mode;
-		ResizeVideoWindow();
+		return ResizeVideoWindow();
 	}
 	return true;
 }
 
 
-const bool CMediaViewer::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const
+const bool CMediaViewer::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight)
 {
+	CBlockLock Lock(&m_ResizeLock);
+
+	/*
 	if (m_pMpeg2SeqClass)
 		return m_pMpeg2SeqClass->GetOriginalVideoSize(pWidth,pHeight);
+	*/
+	if (m_VideoInfo.m_OrigWidth > 0 && m_VideoInfo.m_OrigHeight > 0) {
+		if (pWidth)
+			*pWidth = m_VideoInfo.m_OrigWidth;
+		if (pHeight)
+			*pHeight = m_VideoInfo.m_OrigHeight;
+		return true;
+	}
 	return false;
+}
+
+
+const bool CMediaViewer::GetCroppedVideoSize(WORD *pWidth,WORD *pHeight)
+{
+	RECT rc;
+
+	GetSourceRect(&rc);
+	if (pWidth)
+		*pWidth = (WORD)(rc.right - rc.left);
+	if (pHeight)
+		*pHeight = (WORD)(rc.bottom - rc.top);
+	return true;
+}
+
+
+const bool CMediaViewer::GetSourceRect(RECT *pRect)
+{
+	CBlockLock Lock(&m_ResizeLock);
+
+	return CalcSourceRect(pRect);
+}
+
+
+const bool CMediaViewer::CalcSourceRect(RECT *pRect)
+{
+	if (!pRect)
+		return false;
+
+	long SrcX,SrcY,SrcWidth,SrcHeight;
+
+	if (m_PanAndScan&PANANDSCAN_HORZ) {
+		SrcWidth=m_VideoInfo.m_OrigWidth*12/16;
+		SrcX=(m_VideoInfo.m_OrigWidth-SrcWidth)/2;
+	} else {
+		SrcWidth=m_VideoInfo.m_DisplayWidth;
+		SrcX=m_VideoInfo.m_PosX;
+	}
+	if (m_PanAndScan&PANANDSCAN_VERT) {
+		SrcHeight=m_VideoInfo.m_OrigHeight*9/12;
+		SrcY=(m_VideoInfo.m_OrigHeight-SrcHeight)/2;
+	} else {
+		SrcHeight=m_VideoInfo.m_DisplayHeight;
+		SrcY=m_VideoInfo.m_PosY;
+	}
+	pRect->left=SrcX;
+	pRect->top=SrcY;
+	pRect->right=SrcX+SrcWidth;
+	pRect->bottom=SrcY+SrcHeight;
+	return true;
 }
 
 
@@ -1046,34 +1145,6 @@ const bool CMediaViewer::GetDestSize(WORD *pWidth,WORD *pHeight)
 }
 
 
-const bool CMediaViewer::GetCroppedVideoSize(WORD *pWidth,WORD *pHeight)
-{
-	WORD Width,Height;
-
-	Width=m_VideoInfo.m_DisplayWidth;
-	Height=m_VideoInfo.m_DisplayHeight;
-	if (m_PanAndScan&PANANDSCAN_HORZ)
-		Width=m_VideoInfo.m_OrigWidth*12/16;
-	if (m_PanAndScan&PANANDSCAN_VERT)
-		Height=m_VideoInfo.m_OrigHeight*9/12;
-	if (pWidth)
-		*pWidth=Width;
-	if (pHeight)
-		*pHeight=Height;
-	return true;
-}
-
-
-const bool CMediaViewer::GetSourceRect(RECT *pRect)
-{
-	if (!CalcSourcePosition(&pRect->left,&pRect->top,&pRect->right,&pRect->bottom))
-		return false;
-	pRect->right+=pRect->left;
-	pRect->bottom+=pRect->top;
-	return true;
-}
-
-
 bool CMediaViewer::SetVisible(bool fVisible)
 {
 	if (m_pVideoRenderer)
@@ -1086,37 +1157,6 @@ const void CMediaViewer::HideCursor(bool bHide)
 {
 	if (m_pVideoRenderer)
 		m_pVideoRenderer->ShowCursor(!bHide);
-}
-
-
-const bool CMediaViewer::CalcSourcePosition(long *pLeft,long *pTop,
-											long *pWidth,long *pHeight) const
-{
-	long SrcX,SrcY,SrcWidth,SrcHeight;
-
-	if (m_PanAndScan&PANANDSCAN_HORZ) {
-		SrcWidth=m_VideoInfo.m_OrigWidth*12/16;
-		SrcX=(m_VideoInfo.m_OrigWidth-SrcWidth)/2;
-	} else {
-		SrcWidth=m_VideoInfo.m_DisplayWidth;
-		SrcX=m_VideoInfo.m_PosX;
-	}
-	if (m_PanAndScan&PANANDSCAN_VERT) {
-		SrcHeight=m_VideoInfo.m_OrigHeight*9/12;
-		SrcY=(m_VideoInfo.m_OrigHeight-SrcHeight)/2;
-	} else {
-		SrcHeight=m_VideoInfo.m_DisplayHeight;
-		SrcY=m_VideoInfo.m_PosY;
-	}
-	if (pLeft)
-		*pLeft=SrcX;
-	if (pTop)
-		*pTop=SrcY;
-	if (pWidth)
-		*pWidth=SrcWidth;
-	if (pHeight)
-		*pHeight=SrcHeight;
-	return true;
 }
 
 
@@ -1270,6 +1310,8 @@ DWORD WINAPI CMediaViewer::FlushThread(LPVOID lpParameter)
 {
 	CMediaViewer *pThis=static_cast<CMediaViewer*>(lpParameter);
 
+	::CoInitialize(NULL);
+
 	while (true) {
 		if (::WaitForSingleObject(pThis->m_hFlushEvent,2000)==WAIT_OBJECT_0) {
 			switch (pThis->m_FlushEventType) {
@@ -1288,6 +1330,8 @@ DWORD WINAPI CMediaViewer::FlushThread(LPVOID lpParameter)
 		}
 	}
 End:
+	::CoUninitialize();
+
 	::OutputDebugString(TEXT("CMediaViewer::FlushThread() return\n"));
 	return 0;
 }

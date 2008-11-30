@@ -17,8 +17,8 @@ static char THIS_FILE[]=__FILE__;
 
 CTsDescrambler::CTsDescrambler(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 1UL, 1UL)
-	, m_dwInputPacketCount(0UL)
-	, m_dwScramblePacketCount(0UL)
+	, m_InputPacketCount(0)
+	, m_ScramblePacketCount(0)
 	, m_DescrambleServiceID(0)
 	, m_Queue(&m_BcasCard)
 {
@@ -44,8 +44,8 @@ void CTsDescrambler::Reset(void)
 	m_PidMapManager.MapTarget(0x0000U, new CPatTable, OnPatUpdated, this);
 
 	// 統計データ初期化
-	m_dwInputPacketCount = 0UL;
-	m_dwScramblePacketCount = 0UL;
+	m_InputPacketCount = 0;
+	m_ScramblePacketCount = 0;
 
 	// スクランブル解除ターゲット初期化
 	m_DescramblePIDList.clear();
@@ -71,8 +71,7 @@ const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
 	// 入力パケット数カウント
-	//if(m_dwInputPacketCount < 0xFFFFFFFFUL)m_dwInputPacketCount++;
-	m_dwInputPacketCount++;
+	m_InputPacketCount++;
 
 	if (!pTsPacket->IsScrambled() || IsTargetPID(pTsPacket->GetPID())) {
 		// PIDルーティング
@@ -81,8 +80,7 @@ const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 		/*
 		if (pTsPacket->IsScrambled()) {
 			// 復号漏れパケット数カウント
-			//if(m_dwScramblePacketCount < 0xFFFFFFFFUL)m_dwScramblePacketCount++;
-			m_dwScramblePacketCount++;
+			m_ScramblePacketCount++;
 		}
 		*/
 	}
@@ -151,13 +149,18 @@ LPCTSTR CTsDescrambler::GetCardReaderName() const
 const DWORD CTsDescrambler::GetInputPacketCount(void) const
 {
 	// 入力パケット数を返す
-	return m_dwInputPacketCount;
+	return (DWORD)m_InputPacketCount;
 }
 
 const DWORD CTsDescrambler::GetScramblePacketCount(void) const
 {
 	// 復号漏れパケット数を返す
-	return m_dwScramblePacketCount;
+	return (DWORD)m_ScramblePacketCount;
+}
+
+void CTsDescrambler::ResetScramblePacketCount(void)
+{
+	m_ScramblePacketCount=0;
 }
 
 bool CTsDescrambler::SetTargetPID(const WORD *pPIDList,int NumPIDs)
@@ -233,10 +236,9 @@ bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 	return true;
 }
 
-DWORD CTsDescrambler::IncrementScramblePacketCount()
+void CTsDescrambler::IncrementScramblePacketCount()
 {
-	//return InterlockedIncrement((LONG*)&m_dwScramblePacketCount);
-	return ++m_dwScramblePacketCount;
+	m_ScramblePacketCount++;
 }
 
 void CALLBACK CTsDescrambler::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam)

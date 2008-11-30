@@ -57,11 +57,10 @@ public:
 	const bool SetAudioPID(const WORD wPID);
 
 	// Append by Meru
-	const bool ResizeVideoWindow();
 	const bool SetViewSize(const int x,const int y);
 	const bool SetVolume(const float fVolume);
-	const bool GetVideoSize(WORD *pwWidth,WORD *pwHeight) const;
-	const bool GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY) const;
+	const bool GetVideoSize(WORD *pwWidth,WORD *pwHeight);
+	const bool GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY);
 	const BYTE GetAudioChannelNum();
 	const bool SetStereoMode(const int iMode);
 	const int GetStereoMode() const;
@@ -76,7 +75,7 @@ public:
 	const bool GetForceAspectRatio(int *pAspectX,int *pAspectY) const;
 	const bool GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY);
 	enum { PANANDSCAN_HORZ=1, PANANDSCAN_VERT=2 };
-	const bool SetPanAndScan(BYTE bFlags);
+	const bool SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags = 0);
 	BYTE GetPanAndScan() const { return m_PanAndScan; }
 	enum ViewStretchMode {
 		STRETCH_KEEPASPECTRATIO,
@@ -84,11 +83,12 @@ public:
 		STRETCH_FIT
 	};
 	const bool SetViewStretchMode(ViewStretchMode Mode);
-	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const;
-	const bool GetDestRect(RECT *pRect);
-	const bool GetDestSize(WORD *pWidth,WORD *pHeight);
+	const ViewStretchMode GetViewStretchMode() const { return m_ViewStretchMode; }
+	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight);
 	const bool GetCroppedVideoSize(WORD *pWidth,WORD *pHeight);
 	const bool GetSourceRect(RECT *pRect);
+	const bool GetDestRect(RECT *pRect);
+	const bool GetDestSize(WORD *pWidth,WORD *pHeight);
 	bool SetVisible(bool fVisible);
 	const void HideCursor(bool bHide);
 	const bool GetCurrentImage(BYTE **ppDib);
@@ -108,6 +108,9 @@ public:
 	void Trace(LPCTSTR pszOutput, ...);
 	bool CheckHangUp(DWORD TimeOut);
 protected:
+	const bool ResizeVideoWindow();
+	const bool CalcSourceRect(RECT *pRect);
+
 	//CCriticalLock m_CriticalLock;
 
 	// DirectShowインタフェース
@@ -154,6 +157,7 @@ protected:
 	HWND m_hOwnerWnd;
 
 	// Append by HDUSTestの中の人
+	CCriticalLock m_ResizeLock;
 	CVideoRenderer::RendererType m_VideoRendererType;
 	int m_ForceAspectX,m_ForceAspectY;
 	BYTE m_PanAndScan;
@@ -174,7 +178,6 @@ protected:
 		FLUSH_RESET
 	} m_FlushEventType;
 	static DWORD WINAPI FlushThread(LPVOID lpParameter);
-	const bool CalcSourcePosition(long *pLeft,long *pTop,long *pWidth,long *pHeight) const;
 
 #ifdef DEBUG
 private:

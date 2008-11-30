@@ -76,7 +76,7 @@ protected:
 // ISO/IEC 13818-1 PESパケット抽出クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class CPesParser  
+class CPesParser
 {
 public:
 	class IPacketHandler
@@ -265,7 +265,7 @@ protected:
 // ISO/IEC 13818-2 H.262フレーム抽出クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class CMpeg2Parser : public CPesParser::IPacketHandler 
+class CMpeg2Parser : public CPesParser::IPacketHandler
 {
 public:
 	class ISequenceHandler

@@ -439,16 +439,16 @@ bool CChannelList::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 	int i;
 
 	for (i=0;i<m_NumChannels;i++) {
-		if (m_ppList[i]->GetSpace()==Space
-				&& m_ppList[i]->GetChannelIndex()==ChannelIndex
-				&& m_ppList[i]->GetService()==Service) {
-			CChannelInfo *pChannelInfo=m_ppList[i];
+		CChannelInfo *pChannelInfo=m_ppList[i];
 
+		if (pChannelInfo->GetSpace()==Space
+				&& pChannelInfo->GetChannelIndex()==ChannelIndex
+				&& pChannelInfo->GetService()==Service) {
 			if (NetworkID!=0 && pChannelInfo->GetNetworkID()==0)
 				pChannelInfo->SetNetworkID(NetworkID);
 			if (TransportStreamID!=0 && pChannelInfo->GetTransportStreamID()==0)
 				pChannelInfo->SetTransportStreamID(TransportStreamID);
-			if (ServiceID!=0  && pChannelInfo->GetServiceID()==0)
+			if (ServiceID!=0 && pChannelInfo->GetServiceID()==0)
 				pChannelInfo->SetServiceID(ServiceID);
 		}
 	}
@@ -728,7 +728,7 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 #else
 			::lstrcpy(szName,pChInfo->GetName());
 #endif
-			Length=::wsprintfA(szText,"%s,%d,%d,%d,%d,%d,",
+			Length=::wsprintfA(szText,"%s,%d,%d,%d,%d,",
 				szName,
 				pChInfo->GetSpace(),pChInfo->GetChannelIndex(),
 				pChInfo->GetChannelNo(),pChInfo->GetService());

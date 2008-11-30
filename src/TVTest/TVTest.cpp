@@ -1716,9 +1716,7 @@ void CAudioChannelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 
 void CAudioChannelStatusItem::OnLButtonDown(int x,int y)
 {
-	if (CoreEngine.m_DtvEngine.GetAudioChannelNum()==2)
-		MainWindow.SendCommand(CM_STEREOMODE);
-	else
+	if (!MainWindow.SwitchAudio())
 		OnRButtonDown(x,y);
 }
 
@@ -1910,6 +1908,7 @@ public:
 	LPCTSTR GetName() const { return TEXT("ƒGƒ‰["); }
 	void Draw(HDC hdc,const RECT *pRect);
 	void DrawPreview(HDC hdc,const RECT *pRect);
+	void OnLButtonDown(int x,int y);
 };
 
 CErrorStatusItem::CErrorStatusItem() : CStatusItem(STATUS_ITEM_ERROR,100)
@@ -1931,6 +1930,13 @@ void CErrorStatusItem::Draw(HDC hdc,const RECT *pRect)
 void CErrorStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
 	DrawText(hdc,pRect,TEXT("E 0 / S 127"));
+}
+
+void CErrorStatusItem::OnLButtonDown(int x,int y)
+{
+	CoreEngine.m_DtvEngine.m_TsPacketParser.ResetErrorPacketCount();
+	CoreEngine.m_DtvEngine.m_TsDescrambler.ResetScramblePacketCount();
+	Update();
 }
 
 
@@ -2661,12 +2667,12 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				IsDlgButtonChecked(hDlg,IDC_OPTIONS_FULLSCREENCUTFRAME)==BST_CHECKED?
 				CMediaViewer::STRETCH_CUTFRAME:CMediaViewer::STRETCH_KEEPASPECTRATIO;
 			if (MainWindow.GetFullscreen())
-				CoreEngine.m_DtvEngine.m_MediaViewer.ResizeVideoWindow();
+				CoreEngine.m_DtvEngine.m_MediaViewer.SetViewStretchMode(FullscreenStretchMode);
 			MaximizeStretchMode=
 				IsDlgButtonChecked(hDlg,IDC_OPTIONS_MAXIMIZECUTFRAME)==BST_CHECKED?
 				CMediaViewer::STRETCH_CUTFRAME:CMediaViewer::STRETCH_KEEPASPECTRATIO;
 			if (MainWindow.GetMaximize())
-				CoreEngine.m_DtvEngine.m_MediaViewer.ResizeVideoWindow();
+				CoreEngine.m_DtvEngine.m_MediaViewer.SetViewStretchMode(MaximizeStretchMode);
 			{
 				bool fEdge=IsDlgButtonChecked(hDlg,IDC_OPTIONS_CLIENTEDGE)==BST_CHECKED;
 				if (fEdge!=fClientEdge) {
@@ -4235,11 +4241,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			};
 			int i=id-CM_ASPECTRATIO_FIRST;
 
-			CoreEngine.m_DtvEngine.m_MediaViewer.ForceAspectRatio(
-					AspectRatioList[i].XAspect,AspectRatioList[i].YAspect);
 			CoreEngine.m_DtvEngine.m_MediaViewer.SetPanAndScan(
-												AspectRatioList[i].PanAndScan);
-			CoreEngine.m_DtvEngine.m_MediaViewer.ResizeVideoWindow();
+				AspectRatioList[i].XAspect,AspectRatioList[i].YAspect,
+				AspectRatioList[i].PanAndScan);
 			if (!m_fFullscreen && !::IsZoomed(hwnd)) {
 				if (!fPanScanNoResizeWindow) {
 					int ZoomNum,ZoomDenom;
@@ -4316,16 +4320,11 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_STEREO_THROUGH:
 	case CM_STEREO_LEFT:
 	case CM_STEREO_RIGHT:
-	case CM_STEREOMODE:
-		{
-			int Mode=CoreEngine.GetStereoMode();
+		SetStereoMode(id-CM_STEREO_THROUGH);
+		return;
 
-			if (id==CM_STEREOMODE)
-				Mode=(Mode+1)%3;
-			else
-				Mode=id-CM_STEREO_THROUGH;
-			SetStereoMode(Mode);
-		}
+	case CM_SWITCHAUDIO:
+		SwitchAudio();
 		return;
 
 	case CM_CAPTURE:
@@ -5132,8 +5131,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fStatus)
 		}
 		break;
 	case WHEEL_MODE_STEREOMODE:
-		if (CoreEngine.m_DtvEngine.GetAudioChannelNum()==2)
-			SendCommand(CM_STEREOMODE);
+		SendCommand(CM_SWITCHAUDIO);
 		break;
 	case WHEEL_MODE_ZOOM:
 		if (!IsZoomed(m_hwnd) && !m_fFullscreen) {
@@ -5290,9 +5288,25 @@ bool CMainWindow::SetStereoMode(int StereoMode)
 		if (!CoreEngine.SetStereoMode(StereoMode))
 			return false;
 		MainMenu.CheckRadioItem(CM_STEREO_THROUGH,CM_STEREO_RIGHT,
-							CM_STEREO_THROUGH+StereoMode);
+								CM_STEREO_THROUGH+StereoMode);
 		StatusView.UpdateItem(STATUS_ITEM_AUDIOCHANNEL);
 		PluginList.SendStereoModeChangeEvent(StereoMode);
+	}
+	return true;
+}
+
+
+bool CMainWindow::SwitchAudio()
+{
+	int NumStreams=CoreEngine.m_DtvEngine.GetAudioStreamNum(CoreEngine.m_DtvEngine.GetService());
+
+	if (NumStreams>1) {
+		SendCommand(CM_AUDIOSTREAM_FIRST+
+					(CoreEngine.m_DtvEngine.GetAudioStream()+1)%NumStreams);
+	} else if (CoreEngine.m_DtvEngine.GetAudioChannelNum()==2) {
+		SetStereoMode((GetStereoMode()+1)%3);
+	} else {
+		return false;
 	}
 	return true;
 }
@@ -5854,7 +5868,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					{'I',		CM_INFORMATION},
 					{'M',		CM_VOLUME_MUTE},
 					{'R',		CM_RECORD},
-					{'S',		CM_STEREOMODE},
+					{'S',		CM_SWITCHAUDIO},
 					{'T',		CM_ALWAYSONTOP},
 					{'V',		CM_SAVEIMAGE},
 					{VK_HOME,	CM_ZOOM_100},
@@ -6243,6 +6257,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 			if (fShowCapturePreview)
 				CapturePreview.SetVisible(false);
 			SetVisible(false);
+			m_RestoreChannelSpec.Store(&ChannelManager);
 			if (EpgOptions.GetUpdateWhenStandby()
 					&& !RecordManager.IsRecording()
 					&& !CoreEngine.IsUDPDriver())
@@ -6253,7 +6268,6 @@ bool CMainWindow::SetStandby(bool fStandby)
 			} else {
 				m_fSrcFilterReleased=false;
 			}
-			m_RestoreChannelSpec.Store(&ChannelManager);
 		} else {
 			bool fRestoreCh=m_fSrcFilterReleased || m_fProgramGuideUpdating;
 
@@ -6470,7 +6484,8 @@ bool CMainWindow::BeginProgramGuideUpdate()
 {
 	if (!m_fProgramGuideUpdating) {
 		if (m_fStandby && m_fSrcFilterReleased) {
-			CoreEngine.OpenDriver();
+			if (!CoreEngine.OpenDriver())
+				return false;
 		}
 		m_fProgramGuideUpdating=true;
 		EnablePreview(false);

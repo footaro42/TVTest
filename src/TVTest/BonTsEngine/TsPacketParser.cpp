@@ -23,9 +23,9 @@ static char THIS_FILE[]=__FILE__;
 CTsPacketParser::CTsPacketParser(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 1UL, 1UL)
 	, m_bOutputNullPacket(false)
-	, m_dwInputPacketCount(0UL)
-	, m_dwOutputPacketCount(0UL)
-	, m_dwErrorPacketCount(0UL)
+	, m_InputPacketCount(0)
+	, m_OutputPacketCount(0)
+	, m_ErrorPacketCount(0)
 {
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -41,9 +41,9 @@ void CTsPacketParser::Reset(void)
 	CBlockLock Lock(&m_DecoderLock);
 
 	// パケットカウンタをクリアする
-	m_dwInputPacketCount = 0UL;
-	m_dwOutputPacketCount = 0UL;
-	m_dwErrorPacketCount = 0UL;
+	m_InputPacketCount = 0;
+	m_OutputPacketCount = 0;
+	m_ErrorPacketCount = 0;
 
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -78,19 +78,24 @@ void CTsPacketParser::SetOutputNullPacket(const bool bEnable)
 const DWORD CTsPacketParser::GetInputPacketCount(void) const
 {
 	// 入力パケット数を返す
-	return m_dwInputPacketCount;
+	return (DWORD)m_InputPacketCount;
 }
 
 const DWORD CTsPacketParser::GetOutputPacketCount(void) const
 {
 	// 出力パケット数を返す
-	return m_dwOutputPacketCount;
+	return (DWORD)m_OutputPacketCount;
 }
 
 const DWORD CTsPacketParser::GetErrorPacketCount(void) const
 {
 	// エラーパケット数を返す
-	return m_dwErrorPacketCount;
+	return (DWORD)m_ErrorPacketCount;
+}
+
+void CTsPacketParser::ResetErrorPacketCount(void)
+{
+	m_ErrorPacketCount=0;
 }
 
 void inline CTsPacketParser::SyncPacket(const BYTE *pData, const DWORD dwSize)
@@ -150,8 +155,7 @@ void inline CTsPacketParser::ParsePacket(void)
 	// パケットをチェックする
 	if (m_TsPacket.CheckPacket(&m_abyContCounter[m_TsPacket.GetPID()])) {
 		// 入力カウントインクリメント
-		//if(m_dwInputPacketCount < 0xFFFFFFFFUL)m_dwInputPacketCount++;
-		m_dwInputPacketCount++;
+		m_InputPacketCount++;
 
 		// 次のデコーダにデータを渡す
 		WORD PID;
@@ -161,15 +165,13 @@ void inline CTsPacketParser::ParsePacket(void)
 				m_EpgCap.AddTSPacket(m_TsPacket.GetData(),m_TsPacket.GetSize());
 			}
 			// 出力カウントインクリメント
-			//if(m_dwOutputPacketCount < 0xFFFFFFFFUL)m_dwOutputPacketCount++;
-			m_dwOutputPacketCount++;
+			m_OutputPacketCount++;
 
 			OutputMedia(&m_TsPacket);
 		}
 	} else {
 		// エラーカウントインクリメント
-		//if(m_dwErrorPacketCount < 0xFFFFFFFFUL)m_dwErrorPacketCount++;
-		m_dwErrorPacketCount++;
+		m_ErrorPacketCount++;
 	}
 
 	// サイズをクリアし次のストアに備える

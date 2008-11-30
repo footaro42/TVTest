@@ -37,7 +37,7 @@ bool CVideoContainerWindow::Initialize(HINSTANCE hinst)
 		wc.hInstance=hinst;
 		wc.hIcon=NULL;
 		wc.hCursor=NULL;
-		wc.hbrBackground=CreateSolidBrush(RGB(0,0,0));
+		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=VIDEO_CONTAINER_WINDOW_CLASS;
 		if (::RegisterClass(&wc)==0)
@@ -73,7 +73,8 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 			pThis->m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest);
 			hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
 			::GetClientRect(hwnd,&rc);
-			DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
+			if (!::EqualRect(&rc,&rcDest))
+				DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
 			/*
 			if (ps.rcPaint.top<rcDest.top) {
 				rc.left=ps.rcPaint.left;

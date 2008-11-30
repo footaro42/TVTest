@@ -70,7 +70,7 @@
 #define CM_STEREO_THROUGH			125
 #define CM_STEREO_LEFT				126
 #define CM_STEREO_RIGHT				127
-#define CM_STEREOMODE				128
+#define CM_SWITCHAUDIO				128
 #define CM_RECORD					130
 #define CM_RECORD_START				131
 #define CM_RECORD_STOP				132

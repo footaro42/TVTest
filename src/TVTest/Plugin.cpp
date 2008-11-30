@@ -977,7 +977,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 bool CALLBACK CPlugin::GrabMediaCallback(const CMediaData *pMediaData, const PVOID pParam)
 {
 	CBlockLock Lock(&m_GrabberLock);
-	BYTE *pData=pMediaData->GetData();
+	BYTE *pData=const_cast<BYTE*>(pMediaData->GetData());
 
 	for (int i=0;i<m_GrabberList.Length();i++) {
 		CMediaGrabberInfo *pInfo=m_GrabberList[i];

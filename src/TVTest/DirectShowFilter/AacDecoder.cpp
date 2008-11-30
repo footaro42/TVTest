@@ -109,7 +109,7 @@ const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 		unsigned long SampleRate;
 		unsigned char Channels;
 
-		if (::NeAACDecInit(m_hDecoder, pFrame->GetData(), pFrame->GetSize(), &SampleRate, &Channels) < 0) {
+		if (::NeAACDecInit(m_hDecoder, const_cast<BYTE*>(pFrame->GetData()), pFrame->GetSize(), &SampleRate, &Channels) < 0) {
 			return false;
 		}
 		m_bInitRequest = false;
@@ -118,7 +118,7 @@ const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 	NeAACDecFrameInfo FrameInfo;
 	//::ZeroMemory(&FrameInfo, sizeof(FrameInfo));
 
-	BYTE *pPcmBuffer = (BYTE *)::NeAACDecDecode(m_hDecoder, &FrameInfo, pFrame->GetData(), pFrame->GetSize());
+	BYTE *pPcmBuffer = (BYTE *)::NeAACDecDecode(m_hDecoder, &FrameInfo, const_cast<BYTE*>(pFrame->GetData()), pFrame->GetSize());
 
 	if (FrameInfo.error==0) {
 		if (FrameInfo.samples>0) {

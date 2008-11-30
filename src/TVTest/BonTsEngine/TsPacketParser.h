@@ -32,6 +32,7 @@ public:
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetOutputPacketCount(void) const;
 	const DWORD GetErrorPacketCount(void) const;
+	void ResetErrorPacketCount(void);
 
 	// Append by HDUSTestÇÃíÜÇÃêl
 	bool InitializeEpgDataCap(LPCTSTR pszDllFileName);
@@ -46,9 +47,9 @@ private:
 
 	bool m_bOutputNullPacket;
 
-	DWORD m_dwInputPacketCount;
-	DWORD m_dwOutputPacketCount;
-	DWORD m_dwErrorPacketCount;
+	ULONGLONG m_InputPacketCount;
+	ULONGLONG m_OutputPacketCount;
+	ULONGLONG m_ErrorPacketCount;
 	BYTE m_abyContCounter[0x1FFF];
 
 	// Append by HDUSTestÇÃíÜÇÃêl

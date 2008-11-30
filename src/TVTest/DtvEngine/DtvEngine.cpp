@@ -664,7 +664,7 @@ bool CDtvEngine::ResetBuffer()
 }
 
 
-bool CDtvEngine::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const
+bool CDtvEngine::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight)
 {
 	return m_MediaViewer.GetOriginalVideoSize(pWidth,pHeight);
 }

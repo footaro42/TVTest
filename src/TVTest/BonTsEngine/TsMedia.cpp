@@ -38,9 +38,11 @@ CPesPacket::CPesPacket(const CPesPacket &Operand)
 
 CPesPacket & CPesPacket::operator = (const CPesPacket &Operand)
 {
-	// インスタンスのコピー
-	CMediaData::operator = (Operand);
-	m_Header = Operand.m_Header;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		CMediaData::operator = (Operand);
+		m_Header = Operand.m_Header;
+	}
 
 	return *this;
 }
@@ -176,7 +178,7 @@ const LONGLONG CPesPacket::GetPtsCount(void)const
 	if(m_Header.byPtsDtsFlags){
 		return HexToTimeStamp(&m_pData[9]);
 		}
-	
+
 	// エラー(PTSがない)
 	return -1LL;
 }
@@ -185,7 +187,7 @@ const WORD CPesPacket::GetPacketCrc(void) const
 {
 	// PES Packet CRCを返す
 	DWORD dwCrcPos = 9UL;
-	
+
 	// 位置を計算
 	if(m_Header.byPtsDtsFlags == 2U)dwCrcPos += 5UL;
 	if(m_Header.byPtsDtsFlags == 3U)dwCrcPos += 10UL;
@@ -250,11 +252,13 @@ CPesParser::CPesParser(const CPesParser &Operand)
 
 CPesParser & CPesParser::operator = (const CPesParser &Operand)
 {
-	// インスタンスのコピー
-	m_pPacketHandler = Operand.m_pPacketHandler;
-	m_PesPacket = Operand.m_PesPacket;
-	m_bIsStoring = Operand.m_bIsStoring;
-	m_wStoreCrc = Operand.m_wStoreCrc;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		m_pPacketHandler = Operand.m_pPacketHandler;
+		m_PesPacket = Operand.m_PesPacket;
+		m_bIsStoring = Operand.m_bIsStoring;
+		m_wStoreCrc = Operand.m_wStoreCrc;
+	}
 
 	return *this;
 }
@@ -279,7 +283,7 @@ const bool CPesParser::StorePacket(const CTsPacket *pPacket)
 		m_bIsStoring = false;
 		bTrigger = true;
 		m_PesPacket.ClearSize();
-			
+
 		byPos += StoreHeader(&pData[byPos], bySize - byPos);
 		byPos += StorePayload(&pData[byPos], bySize - byPos);
 		}
@@ -346,10 +350,10 @@ const BYTE CPesParser::StorePayload(const BYTE *pPayload, const BYTE byRemain)
 	if(m_dwStoreSize && (dwStoreRemain <= (DWORD)byRemain)){
 		// ストア完了
 		m_PesPacket.AddData(pPayload, dwStoreRemain);
-				
+
 		// CRC正常、コールバックにセクションを渡す
 		OnPesPacket(&m_PesPacket);
-		
+
 		// 状態を初期化し、次のセクション受信に備える
 		m_PesPacket.Reset();
 		m_bIsStoring = false;
@@ -383,9 +387,11 @@ CAdtsFrame::CAdtsFrame(const CAdtsFrame &Operand)
 
 CAdtsFrame & CAdtsFrame::operator = (const CAdtsFrame &Operand)
 {
-	// インスタンスのコピー
-	CMediaData::operator = (Operand);
-	m_Header = Operand.m_Header;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		CMediaData::operator = (Operand);
+		m_Header = Operand.m_Header;
+	}
 
 	return *this;
 }
@@ -513,11 +519,13 @@ CAdtsParser::CAdtsParser(const CAdtsParser &Operand)
 
 CAdtsParser & CAdtsParser::operator = (const CAdtsParser &Operand)
 {
-	// インスタンスのコピー
-	m_pFrameHandler = Operand.m_pFrameHandler;
-	m_AdtsFrame = Operand.m_AdtsFrame;
-	m_bIsStoring = Operand.m_bIsStoring;
-	m_wStoreCrc = Operand.m_wStoreCrc;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		m_pFrameHandler = Operand.m_pFrameHandler;
+		m_AdtsFrame = Operand.m_AdtsFrame;
+		m_bIsStoring = Operand.m_bIsStoring;
+		m_wStoreCrc = Operand.m_wStoreCrc;
+	}
 
 	return *this;
 }
@@ -534,39 +542,37 @@ const bool CAdtsParser::StoreEs(const BYTE *pData, const DWORD dwSize)
 
 	if(!dwSize || !dwSize)return bTrigger;
 
-	while(dwPos < dwSize){
-		if(!m_bIsStoring){
+	while (dwPos < dwSize) {
+		if (!m_bIsStoring) {
 			// ヘッダを検索する
 			m_bIsStoring = SyncFrame(pData[dwPos++]);
 			if(m_bIsStoring)bTrigger = true;
-			}
-		else{
+		} else {
 			// データをストアする
 			const DWORD dwStoreRemain = m_AdtsFrame.GetFrameLength() - (WORD)m_AdtsFrame.GetSize();
 			const DWORD dwDataRemain = dwSize - dwPos;
-			
-			if(dwStoreRemain <= dwDataRemain){
+
+			if (dwStoreRemain <= dwDataRemain) {
 				// ストア完了
 				m_AdtsFrame.AddData(&pData[dwPos], dwStoreRemain);
 				dwPos += dwStoreRemain;
 				m_bIsStoring = false;
-				
+
 				// 本来ならここでCRCチェックをすべき
 				// チェック対象領域が可変で複雑なので保留、誰か実装しませんか...
 
 				// フレーム出力
 				OnAdtsFrame(&m_AdtsFrame);
-				
+
 				// 次のフレームを処理するためリセット
 				m_AdtsFrame.ClearSize();
-				}
-			else{
+			} else {
 				// ストア未完了、次のペイロードを待つ
 				m_AdtsFrame.AddData(&pData[dwPos], dwDataRemain);
 				dwPos += dwDataRemain;
-				}
-			}		
+			}
 		}
+	}
 
 	return bTrigger;
 }
@@ -620,7 +626,7 @@ inline const bool CAdtsParser::SyncFrame(const BYTE byData)
 			if(m_AdtsFrame.ParseHeader())return true;
 			else m_AdtsFrame.ClearSize();
 			break;
-		
+
 		default:
 			// 例外
 			m_AdtsFrame.ClearSize();
@@ -650,9 +656,11 @@ CMpeg2Sequence::CMpeg2Sequence(const CMpeg2Sequence &Operand)
 
 CMpeg2Sequence & CMpeg2Sequence::operator = (const CMpeg2Sequence &Operand)
 {
-	// インスタンスのコピー
-	CMediaData::operator = (Operand);
-	m_Header = Operand.m_Header;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		CMediaData::operator = (Operand);
+		m_Header = Operand.m_Header;
+	}
 
 	return *this;
 }
@@ -745,7 +753,7 @@ const bool CMpeg2Sequence::ParseHeader(void)
 void CMpeg2Sequence::Reset(void)
 {
 	// データをクリアする
-	ClearSize();	
+	ClearSize();
 	::ZeroMemory(&m_Header, sizeof(m_Header));
 }
 

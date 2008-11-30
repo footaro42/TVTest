@@ -25,15 +25,16 @@ public:
 	void ParseHeader(void);
 	const bool CheckPacket(BYTE *pContinuityCounter = NULL) const;
 
-	BYTE * GetPayloadData(void) const;
+	BYTE * GetPayloadData(void);
+	const BYTE * GetPayloadData(void) const;
 	const BYTE GetPayloadSize(void) const;
 
-	const WORD GetPID(void) const;
-	const bool HaveAdaptationField(void) const;
-	const bool HavePayload(void) const;
-	const bool IsScrambled(void) const;
+	const WORD GetPID(void) const { return m_Header.wPID; }
+	const bool HaveAdaptationField(void) const { return (m_Header.byAdaptationFieldCtrl & 0x02U) != 0; }
+	const bool HavePayload(void) const { return (m_Header.byAdaptationFieldCtrl & 0x01U) != 0; }
+	const bool IsScrambled(void) const { return (m_Header.byTransportScramblingCtrl & 0x02U) != 0; }
 
-	struct TAG_TSPACKETHEADER{
+	struct TAG_TSPACKETHEADER {
 		BYTE bySyncByte;					// Sync Byte
 		bool bTransportErrorIndicator;		// Transport Error Indicator
 		bool bPayloadUnitStartIndicator;	// Payload Unit Start Indicator
@@ -42,9 +43,9 @@ public:
 		BYTE byTransportScramblingCtrl;		// Transport Scrambling Control
 		BYTE byAdaptationFieldCtrl;			// Adaptation Field Control
 		BYTE byContinuityCounter;			// Continuity Counter
-		} m_Header;
+	} m_Header;
 
-	struct TAG_ADAPTFIELDHEADER{
+	struct TAG_ADAPTFIELDHEADER {
 		BYTE byAdaptationFieldLength;		// Adaptation Field Length
 		bool bDiscontinuityIndicator;		// Discontinuity Indicator
 		bool bRamdomAccessIndicator;		// Random Access Indicator
@@ -56,7 +57,7 @@ public:
 		bool bAdaptationFieldExtFlag;		// Adaptation Field Extension Flag
 		const BYTE *pOptionData;			// オプションフィールドデータ
 		BYTE byOptionSize;					// オプションフィールド長
-		} m_AdaptationField;
+	} m_AdaptationField;
 
 	enum { BUFFER_SIZE=TS_PACKETSIZE+sizeof(TAG_TSPACKETHEADER)+sizeof(TAG_ADAPTFIELDHEADER) };
 	void StoreToBuffer(void *pBuffer);
@@ -95,7 +96,7 @@ public:
 	const BYTE GetLastSectionNumber(void) const;
 
 protected:
-	struct TAG_PSIHEADER{
+	struct TAG_PSIHEADER {
 		BYTE byTableID;						// テーブルID
 		bool bSectionSyntaxIndicator;		// セクションシンタックスインジケータ
 		bool bPrivateIndicator;				// プライベートインジケータ
@@ -106,7 +107,7 @@ protected:
 		bool bCurrentNextIndicator;			// カレントネクストインジケータ
 		BYTE bySectionNumber;				// セクション番号
 		BYTE byLastSectionNumber;			// ラストセクション番号
-		} m_Header;
+	} m_Header;
 };
 
 
@@ -145,7 +146,7 @@ public:
 	CTsPidMapTarget * GetMapTarget(const WORD wPID) const;
 
 	const WORD GetMapCount(void) const;
-	
+
 protected:
 	struct TAG_MAPTARGETITEM
 	{

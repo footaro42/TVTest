@@ -400,6 +400,8 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 {
 	CBonSrcDecoder *pThis = static_cast<CBonSrcDecoder *>(pParam);
 
+	::CoInitialize(NULL);
+
 	BYTE *pStreamData = NULL;
 	DWORD dwStreamSize = 0UL;
 	DWORD dwStreamRemain = 0UL;
@@ -464,6 +466,8 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 			Sleep(1);
 		::SetEvent(pThis->m_hResumeEvent);
 	}
+
+	::CoUninitialize();
 
 	TRACE(TEXT("CBonSrcDecoder::StreamRecvThread() return\n"));
 

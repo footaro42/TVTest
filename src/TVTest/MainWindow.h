@@ -97,6 +97,7 @@ public:
 	bool SetMute(bool fMute);
 	int GetStereoMode() const;
 	bool SetStereoMode(int StereoMode);
+	bool SwitchAudio();
 	int CalcZoomRate();
 	bool CalcZoomRate(int *pNum,int *pDenom);
 	bool SetZoomRate(int ZoomNum,int ZoomDenom=100);

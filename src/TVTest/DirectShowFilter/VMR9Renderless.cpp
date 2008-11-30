@@ -63,9 +63,9 @@ public:
 
 	// CVMR9Allocator
 	bool GetNativeVideoSize(LONG *pWidth,LONG *pHeight);
-	bool SetVideoPosition(const RECT *pSrc,const RECT *pDst);
-	bool GetVideoPosition(RECT *pSrc,RECT *pDst) const;
-	bool RepaintVideo(HDC hdc);
+	bool SetVideoPosition(const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect);
+	bool GetVideoPosition(RECT *pSrc,RECT *pDst);
+	bool RepaintVideo();
 	bool SetCapture(bool fCapture);
 	bool WaitCapture(DWORD TimeOut);
 	bool GetCaptureSurface(IDirect3DSurface9 **ppSurface);
@@ -405,7 +405,6 @@ HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 	if (lpPresInfo==NULL || lpPresInfo->lpSurf==NULL)
 		return E_POINTER;
 
-	CAutoLock Lock(&m_ObjectLock);
 	HRESULT hr;
 	D3DSURFACE_DESC desc;
 
@@ -440,12 +439,13 @@ HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 	hr=m_D3DDev->BeginScene();
 	if (FAILED(hr))
 		return hr;
+#if 0
 	RECT rcDest;
-	SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
+	DstSurface->GetDesc(&desc);
+	SetRect(&rcDest,0,0,desc.Width,desc.Height);
 	if (!IsRectEmpty(&m_DestRect)) {
 		m_D3DDev->ColorFill(DstSurface,NULL,D3DCOLOR_XRGB(0,0,0));
 		if (m_WindowSize.cx>0 && m_WindowSize.cy>0) {
-			DstSurface->GetDesc(&desc);
 			SetRect(&rcDest,
 					m_DestRect.left*desc.Width/m_WindowSize.cx,
 					m_DestRect.top*desc.Height/m_WindowSize.cy,
@@ -455,13 +455,33 @@ HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 	}
 	m_D3DDev->StretchRect(lpPresInfo->lpSurf,
 						  IsRectEmpty(&m_SourceRect)?NULL:&m_SourceRect,
-						  DstSurface,IsRectEmpty(&rcDest)?NULL:&rcDest,
+						  DstSurface,&rcDest,
 						  D3DTEXF_NONE);
 	hr=m_D3DDev->EndScene();
 	if (FAILED(hr))
 		return hr;
 
 	return m_D3DDev->Present(NULL,NULL,NULL,NULL);
+#else
+	RECT rcSource;
+	DstSurface->GetDesc(&desc);
+	if (!IsRectEmpty(&m_SourceRect)) {
+		rcSource.left=(m_SourceRect.left*desc.Width)/m_NativeVideoSize.cx;
+		rcSource.top=(m_SourceRect.top*desc.Height)/m_NativeVideoSize.cy;
+		rcSource.right=(m_SourceRect.right*desc.Width)/m_NativeVideoSize.cx;
+		rcSource.bottom=(m_SourceRect.bottom*desc.Height)/m_NativeVideoSize.cy;
+	} else {
+		SetRect(&rcSource,0,0,desc.Width,desc.Height);
+	}
+	m_D3DDev->StretchRect(lpPresInfo->lpSurf,NULL,DstSurface,NULL,D3DTEXF_NONE);
+	hr=m_D3DDev->EndScene();
+	if (FAILED(hr))
+		return hr;
+
+	return m_D3DDev->Present(&rcSource,
+							 ::IsRectEmpty(&m_DestRect)?NULL:&m_DestRect,
+							 NULL,NULL);
+#endif
 }
 
 
@@ -482,24 +502,30 @@ bool CVMR9Allocator::NeedToHandleDisplayChange()
 }
 
 
-bool CVMR9Allocator::RepaintVideo(HDC hdc)
+bool CVMR9Allocator::RepaintVideo()
 {
-	bool fOK=false;
-#if 0	// Not yet...
-	IDirect3DSurface9 *pBackBuffer;
+	CAutoLock Lock(&m_ObjectLock);
+	HRESULT hr;
+	CComPtr<IDirect3DSurface9> DstSurface;
+	D3DSURFACE_DESC desc;
+	RECT rcSource;
 
-	if (SUCCEEDED(m_D3DDev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&pBackBuffer))) {
-		HDC hdcSrc;
-
-		if (SUCCEEDED(pBackBuffer->GetDC(&hdcSrc))) {
-			fOK=true;
-
-			pBackBuffer->ReleaseDC();
-		}
-		pBackBuffer->Release();
+	hr=m_D3DDev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&DstSurface.p);
+	if (FAILED(hr))
+		return false;
+	DstSurface->GetDesc(&desc);
+	if (!IsRectEmpty(&m_SourceRect)) {
+		rcSource.left=(m_SourceRect.left*desc.Width)/m_NativeVideoSize.cx;
+		rcSource.top=(m_SourceRect.top*desc.Height)/m_NativeVideoSize.cy;
+		rcSource.right=(m_SourceRect.right*desc.Width)/m_NativeVideoSize.cx;
+		rcSource.bottom=(m_SourceRect.bottom*desc.Height)/m_NativeVideoSize.cy;
+	} else {
+		SetRect(&rcSource,0,0,desc.Width,desc.Height);
 	}
-#endif
-	return fOK;
+	hr=m_D3DDev->Present(&rcSource,
+						 ::IsRectEmpty(&m_DestRect)?NULL:&m_DestRect,
+						 NULL,NULL);
+	return SUCCEEDED(hr);
 }
 
 
@@ -546,7 +572,7 @@ bool CVMR9Allocator::GetNativeVideoSize(LONG *pWidth,LONG *pHeight)
 }
 
 
-bool CVMR9Allocator::SetVideoPosition(const RECT *pSrc,const RECT *pDst)
+bool CVMR9Allocator::SetVideoPosition(const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect)
 {
 	CAutoLock Lock(&m_ObjectLock);
 
@@ -560,9 +586,8 @@ bool CVMR9Allocator::SetVideoPosition(const RECT *pSrc,const RECT *pDst)
 	} else {
 		::ZeroMemory(&m_DestRect,sizeof(RECT));
 	}
-	RECT rc;
-	::GetClientRect(m_window,&rc);
-	if (rc.right!=m_WindowSize.cx || rc.bottom!=m_WindowSize.cy) {
+	if (pWindowRect->right-pWindowRect->left!=m_WindowSize.cx
+			|| pWindowRect->bottom-pWindowRect->top!=m_WindowSize.cy) {
 	/*
 		if (m_D3DDev!=NULL && m_pSurfaceAllocatorNotify!=NULL) {
 			HRESULT hr;
@@ -587,19 +612,37 @@ bool CVMR9Allocator::SetVideoPosition(const RECT *pSrc,const RECT *pDst)
 			}
 		}
 	*/
-		m_WindowSize.cx=rc.right;
-		m_WindowSize.cy=rc.bottom;
+		m_WindowSize.cx=pWindowRect->right-pWindowRect->left;
+		m_WindowSize.cy=pWindowRect->bottom-pWindowRect->top;
 	}
 	return true;
 }
 
 
-bool CVMR9Allocator::GetVideoPosition(RECT *pSrc,RECT *pDst) const
+bool CVMR9Allocator::GetVideoPosition(RECT *pSrc,RECT *pDst)
 {
-	if (pSrc)
-		*pSrc=m_SourceRect;
-	if (pDst)
-		*pDst=m_DestRect;
+	CAutoLock Lock(&m_ObjectLock);
+
+	if (pSrc) {
+		if (!::IsRectEmpty(&m_SourceRect)) {
+			*pSrc=m_SourceRect;
+		} else {
+			pSrc->left=0;
+			pSrc->top=0;
+			pSrc->right=m_NativeVideoSize.cx;
+			pSrc->bottom=m_NativeVideoSize.cy;
+		}
+	}
+	if (pDst) {
+		if (!::IsRectEmpty(&m_DestRect)) {
+			*pDst=m_DestRect;
+		} else {
+			pDst->left=0;
+			pDst->top=0;
+			pDst->right=m_WindowSize.cx;
+			pDst->bottom=m_WindowSize.cy;
+		}
+	}
 	return true;
 }
 
@@ -699,8 +742,8 @@ bool CVideoRenderer_VMR9Renderless::SetVideoPosition(int SourceWidth,int SourceH
 	}
 	rcDest=*pDestRect;
 	::OffsetRect(&rcDest,pWindowRect->left,pWindowRect->top);
-	m_pAllocator->SetVideoPosition(&rcSrc,&rcDest);
-	//::InvalidateRect(m_hwndRender,NULL,TRUE);
+	m_pAllocator->SetVideoPosition(&rcSrc,&rcDest,pWindowRect);
+	::InvalidateRect(m_hwndRender,NULL,TRUE);
 	return true;
 }
 
@@ -801,7 +844,7 @@ bool CVideoRenderer_VMR9Renderless::RepaintVideo(HWND hwnd,HDC hdc)
 {
 	if (m_pRenderer==NULL)
 		return false;
-	return m_pAllocator->RepaintVideo(hdc);
+	return m_pAllocator->RepaintVideo();
 }
 
 

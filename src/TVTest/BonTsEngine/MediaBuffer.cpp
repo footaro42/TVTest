@@ -263,6 +263,8 @@ DWORD WINAPI CMediaBuffer::OutputThread(LPVOID lpParameter)
 {
 	CMediaBuffer *pThis=static_cast<CMediaBuffer*>(lpParameter);
 
+	::CoInitialize(NULL);
+
 	while (true) {
 		while (::WaitForSingleObject(pThis->m_hBreakEvent,1)==WAIT_TIMEOUT) {
 			pThis->m_Lock.Lock();
@@ -297,5 +299,8 @@ DWORD WINAPI CMediaBuffer::OutputThread(LPVOID lpParameter)
 		pThis->m_Lock.Unlock();
 		::SetEvent(pThis->m_hCompleteEvent);
 	}
+
+	::CoUninitialize();
+
 	return 0;
 }

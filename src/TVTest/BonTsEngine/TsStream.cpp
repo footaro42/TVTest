@@ -17,6 +17,8 @@ static char THIS_FILE[]=__FILE__;
 
 #pragma comment(lib, "winmm.lib")
 
+#pragma intrinsic(memset, memcmp)
+
 
 //////////////////////////////////////////////////////////////////////
 // CTsPacketクラスの構築/消滅
@@ -44,13 +46,15 @@ CTsPacket::CTsPacket(const CTsPacket &Operand)
 	
 CTsPacket & CTsPacket::operator = (const CTsPacket &Operand)
 {
-	// インスタンスのコピー
-	CMediaData::operator = (Operand);
+	if (&Operand != this) {
+		// インスタンスのコピー
+		CMediaData::operator = (Operand);
 
-	m_Header = Operand.m_Header;
-	m_AdaptationField = Operand.m_AdaptationField;
-	if (Operand.m_AdaptationField.pOptionData)
-		m_AdaptationField.pOptionData=&m_pData[6];
+		m_Header = Operand.m_Header;
+		m_AdaptationField = Operand.m_AdaptationField;
+		if (Operand.m_AdaptationField.pOptionData)
+			m_AdaptationField.pOptionData = &m_pData[6];
+	}
 
 	return *this;
 }
@@ -59,36 +63,36 @@ void CTsPacket::ParseHeader(void)
 {
 	// TSパケットヘッダ解析
 	m_Header.bySyncByte					= m_pData[0];							// +0
-	m_Header.bTransportErrorIndicator	= (m_pData[1] & 0x80U)? true : false;	// +1 bit7
-	m_Header.bPayloadUnitStartIndicator	= (m_pData[1] & 0x40U)? true : false;	// +1 bit6
-	m_Header.TransportPriority			= (m_pData[1] & 0x20U)? true : false;	// +1 bit5
+	m_Header.bTransportErrorIndicator	= (m_pData[1] & 0x80U) != 0;	// +1 bit7
+	m_Header.bPayloadUnitStartIndicator	= (m_pData[1] & 0x40U) != 0;	// +1 bit6
+	m_Header.TransportPriority			= (m_pData[1] & 0x20U) != 0;	// +1 bit5
 	m_Header.wPID = ((WORD)(m_pData[1] & 0x1F) << 8) | (WORD)m_pData[2];		// +1 bit4-0, +2
 	m_Header.byTransportScramblingCtrl	= (m_pData[3] & 0xC0U) >> 6;			// +3 bit7-6
 	m_Header.byAdaptationFieldCtrl		= (m_pData[3] & 0x30U) >> 4;			// +3 bit5-4
 	m_Header.byContinuityCounter		= m_pData[3] & 0x0FU;					// +3 bit3-0
-	
+
 	// アダプテーションフィールド解析
 	::ZeroMemory(&m_AdaptationField, sizeof(m_AdaptationField));
-	
-	if(m_Header.byAdaptationFieldCtrl & 0x02){
+
+	if (m_Header.byAdaptationFieldCtrl & 0x02) {
 		// アダプテーションフィールドあり
-		if(m_AdaptationField.byAdaptationFieldLength = m_pData[4]){								// +4
+		if (m_AdaptationField.byAdaptationFieldLength = m_pData[4]) {								// +4
 			// フィールド長以降あり
-			m_AdaptationField.bDiscontinuityIndicator	= (m_pData[5] & 0x80U)? true : false;	// +5 bit7
-			m_AdaptationField.bRamdomAccessIndicator	= (m_pData[5] & 0x40U)? true : false;	// +5 bit6
-			m_AdaptationField.bEsPriorityIndicator		= (m_pData[5] & 0x20U)? true : false;	// +5 bit5
-			m_AdaptationField.bPcrFlag					= (m_pData[5] & 0x10U)? true : false;	// +5 bit4
-			m_AdaptationField.bOpcrFlag					= (m_pData[5] & 0x08U)? true : false;	// +5 bit3
-			m_AdaptationField.bSplicingPointFlag		= (m_pData[5] & 0x04U)? true : false;	// +5 bit2
-			m_AdaptationField.bTransportPrivateDataFlag	= (m_pData[5] & 0x02U)? true : false;	// +5 bit1
-			m_AdaptationField.bAdaptationFieldExtFlag	= (m_pData[5] & 0x01U)? true : false;	// +5 bit0
-			
-			if(m_pData[4] > 1U){
+			m_AdaptationField.bDiscontinuityIndicator	= (m_pData[5] & 0x80U) != 0;	// +5 bit7
+			m_AdaptationField.bRamdomAccessIndicator	= (m_pData[5] & 0x40U) != 0;	// +5 bit6
+			m_AdaptationField.bEsPriorityIndicator		= (m_pData[5] & 0x20U) != 0;	// +5 bit5
+			m_AdaptationField.bPcrFlag					= (m_pData[5] & 0x10U) != 0;	// +5 bit4
+			m_AdaptationField.bOpcrFlag					= (m_pData[5] & 0x08U) != 0;	// +5 bit3
+			m_AdaptationField.bSplicingPointFlag		= (m_pData[5] & 0x04U) != 0;	// +5 bit2
+			m_AdaptationField.bTransportPrivateDataFlag	= (m_pData[5] & 0x02U) != 0;	// +5 bit1
+			m_AdaptationField.bAdaptationFieldExtFlag	= (m_pData[5] & 0x01U) != 0;	// +5 bit0
+
+			if (m_pData[4] > 1U) {
 				m_AdaptationField.pOptionData			= &m_pData[6];
 				m_AdaptationField.byOptionSize			= m_pData[4] - 1U;
-				}
 			}
 		}
+	}
 }
 
 const bool CTsPacket::CheckPacket(BYTE *pContinuityCounter) const
@@ -123,60 +127,50 @@ const bool CTsPacket::CheckPacket(BYTE *pContinuityCounter) const
 	return bValid;
 }
 
-BYTE * CTsPacket::GetPayloadData(void) const
+BYTE * CTsPacket::GetPayloadData(void)
 {
 	// ペイロードポインタを返す
-	switch(m_Header.byAdaptationFieldCtrl){
-		case 1U :	// ペイロードのみ
-			return &m_pData[4];
-		
-		case 3U :	// アダプテーションフィールド、ペイロードあり
-			return &m_pData[m_AdaptationField.byAdaptationFieldLength + 5U];
-		
-		default :	// アダプテーションフィールドのみ or 例外
-			return NULL;
-		}
+	switch (m_Header.byAdaptationFieldCtrl) {
+	case 1U :	// ペイロードのみ
+		return &m_pData[4];
+
+	case 3U :	// アダプテーションフィールド、ペイロードあり
+		return &m_pData[m_AdaptationField.byAdaptationFieldLength + 5U];
+
+	default :	// アダプテーションフィールドのみ or 例外
+		return NULL;
+	}
+}
+
+const BYTE * CTsPacket::GetPayloadData(void) const
+{
+	// ペイロードポインタを返す
+	switch (m_Header.byAdaptationFieldCtrl) {
+	case 1U :	// ペイロードのみ
+		return &m_pData[4];
+
+	case 3U :	// アダプテーションフィールド、ペイロードあり
+		return &m_pData[m_AdaptationField.byAdaptationFieldLength + 5U];
+
+	default :	// アダプテーションフィールドのみ or 例外
+		return NULL;
+	}
 }
 
 const BYTE CTsPacket::GetPayloadSize(void) const
 {
 	// ペイロードサイズを返す
 	switch(m_Header.byAdaptationFieldCtrl){
-		case 1U :	// ペイロードのみ
-			return (TS_PACKETSIZE - 4U);
-		
-		case 3U :	// アダプテーションフィールド、ペイロードあり
-			return (TS_PACKETSIZE - m_AdaptationField.byAdaptationFieldLength - 5U);
-		
-		default :	// アダプテーションフィールドのみ or 例外
-			return 0U;
-		}
-}
+	case 1U :	// ペイロードのみ
+		return (TS_PACKETSIZE - 4U);
 
-const WORD CTsPacket::GetPID(void) const
-{
-	// PIDを返す
-	return m_Header.wPID;
-}
+	case 3U :	// アダプテーションフィールド、ペイロードあり
+		return (TS_PACKETSIZE - m_AdaptationField.byAdaptationFieldLength - 5U);
 
-const bool CTsPacket::HaveAdaptationField(void) const
-{
-	// アダプテーションフィールドの有無を返す
-	return (m_Header.byAdaptationFieldCtrl & 0x02U)? true : false;
+	default :	// アダプテーションフィールドのみ or 例外
+		return 0U;
+	}
 }
-
-const bool CTsPacket::HavePayload(void) const
-{
-	// ペイロードの有無を返す
-	return (m_Header.byAdaptationFieldCtrl & 0x01U)? true : false;
-}
-
-const bool CTsPacket::IsScrambled(void) const
-{
-	// スクランブル有無を返す
-	return (m_Header.byTransportScramblingCtrl & 0x02U)? true : false;
-}
-
 
 // バッファに書き込み
 void CTsPacket::StoreToBuffer(void *pBuffer)
@@ -189,7 +183,6 @@ void CTsPacket::StoreToBuffer(void *pBuffer)
 	p+=sizeof(m_Header);
 	::CopyMemory(p,&m_AdaptationField,sizeof(m_AdaptationField));
 }
-
 
 // バッファから読み込み
 void CTsPacket::RestoreFromBuffer(const void *pBuffer)
@@ -233,9 +226,11 @@ CPsiSection::CPsiSection(const CPsiSection &Operand)
 
 CPsiSection & CPsiSection::operator = (const CPsiSection &Operand)
 {
-	// インスタンスのコピー
-	CMediaData::operator = (Operand);
-	m_Header = Operand.m_Header;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		CMediaData::operator = (Operand);
+		m_Header = Operand.m_Header;
+	}
 
 	return *this;
 }
@@ -243,31 +238,36 @@ CPsiSection & CPsiSection::operator = (const CPsiSection &Operand)
 const bool CPsiSection::operator == (const CPsiSection &Operand) const
 {
 	// セクションの内容を比較する
-	if(GetPayloadSize() != Operand.GetPayloadSize()){
+	if (GetPayloadSize() != Operand.GetPayloadSize()) {
 		// サイズが異なる
 		return false;
-		}
+	}
 
 	const BYTE *pSrcData = GetPayloadData();
 	const BYTE *pDstData = Operand.GetPayloadData();
-	
-	if((pSrcData == pDstData) && !pSrcData){
+
+	if (!pSrcData && !pDstData) {
 		// いずれもNULL
 		return true;
-		}
-	
-	if(!pSrcData || !pDstData){
+	}
+
+	if (!pSrcData || !pDstData) {
 		// 一方だけNULL
 		return false;
-		}
-	
+	}
+
+#if 0
 	// バイナリ比較
-	for(DWORD dwPos = 0 ; dwPos < GetPayloadSize() ; dwPos++){
-		if(pSrcData[dwPos] != pDstData[dwPos])return false;
-		}
-		
+	for (DWORD dwPos = 0 ; dwPos < GetPayloadSize() ; dwPos++) {
+		if (pSrcData[dwPos] != pDstData[dwPos])
+			return false;
+	}
+
 	// 一致する
 	return true;
+#else
+	return memcmp(pSrcData, pDstData, GetPayloadSize()) == 0;
+#endif
 }
 
 const bool CPsiSection::ParseHeader(const bool bIsExtended)
@@ -275,21 +275,22 @@ const bool CPsiSection::ParseHeader(const bool bIsExtended)
 	const DWORD dwHeaderSize = (bIsExtended)? 8UL : 3UL;
 
 	// ヘッダサイズチェック
-	if(m_dwDataSize < dwHeaderSize)return false;
+	if (m_dwDataSize < dwHeaderSize)
+		return false;
 
 	// 標準形式ヘッダ解析
-	m_Header.byTableID					= m_pData[0];									// +0
-	m_Header.bSectionSyntaxIndicator	= (m_pData[1] & 0x80U)? true : false;			// +1 bit7
-	m_Header.bPrivateIndicator			= (m_pData[1] & 0x40U)? true : false;			// +1 bit6
+	m_Header.byTableID					= m_pData[0];							// +0
+	m_Header.bSectionSyntaxIndicator	= (m_pData[1] & 0x80U) != 0;			// +1 bit7
+	m_Header.bPrivateIndicator			= (m_pData[1] & 0x40U) != 0;			// +1 bit6
 	m_Header.wSectionLength = ((WORD)(m_pData[1] & 0x0FU) << 8) | (WORD)m_pData[2];		// +1 bit5-0, +2
 
 	if(m_Header.bSectionSyntaxIndicator && bIsExtended){
 		// 拡張形式のヘッダ解析
 		m_Header.wTableIdExtension		= (WORD)m_pData[3] << 8 | (WORD)m_pData[4];		// +3, +4
-		m_Header.byVersionNo			= (m_pData[5] & 0x3EU) >> 1;					// +5 bit5-1
-		m_Header.bCurrentNextIndicator	= (m_pData[5] & 0x01U)? true : false;			// +5 bit0
-		m_Header.bySectionNumber		= m_pData[6];									// +6
-		m_Header.byLastSectionNumber	= m_pData[7];									// +7
+		m_Header.byVersionNo			= (m_pData[5] & 0x3EU) >> 1;			// +5 bit5-1
+		m_Header.bCurrentNextIndicator	= (m_pData[5] & 0x01U) != 0;			// +5 bit0
+		m_Header.bySectionNumber		= m_pData[6];							// +6
+		m_Header.byLastSectionNumber	= m_pData[7];							// +7
 		}
 
 	// ヘッダのフォーマット適合性をチェックする
@@ -314,7 +315,7 @@ const bool CPsiSection::ParseHeader(const bool bIsExtended)
 void CPsiSection::Reset(void)
 {
 	// データをクリアする
-	ClearSize();	
+	ClearSize();
 	::ZeroMemory(&m_Header, sizeof(m_Header));
 }
 
@@ -323,7 +324,7 @@ BYTE * CPsiSection::GetPayloadData(void) const
 	// ペイロードポインタを返す
 	const DWORD dwHeaderSize = (m_Header.bSectionSyntaxIndicator)? 8UL : 3UL;
 
-	return (m_dwDataSize > dwHeaderSize)? &m_pData[dwHeaderSize] : NULL;
+	return m_dwDataSize > dwHeaderSize ? &m_pData[dwHeaderSize] : NULL;
 }
 
 const WORD CPsiSection::GetPayloadSize(void) const
@@ -430,14 +431,14 @@ CTsPidMapManager::~CTsPidMapManager()
 const bool CTsPidMapManager::StorePacket(const CTsPacket *pPacket)
 {
 	const WORD wPID = pPacket->GetPID();
-	
+
 	if(wPID > 0x1FFFU)return false;					// PID範囲外
-	
+
 	if(!m_PidMap[wPID].pMapTarget)return false;		// PIDマップターゲットなし
 
 	if(m_PidMap[wPID].pMapTarget->StorePacket(pPacket)){
 		// ターゲットの更新があったときはコールバックを呼び出す
-		
+
 		if(m_PidMap[wPID].pMapCallback){
 			m_PidMap[wPID].pMapCallback(wPID, m_PidMap[wPID].pMapTarget, this, m_PidMap[wPID].pMapParam);
 			}
@@ -458,7 +459,7 @@ const bool CTsPidMapManager::MapTarget(const WORD wPID, CTsPidMapTarget *pMapTar
 	m_PidMap[wPID].pMapCallback = pMapCallback;
 	m_PidMap[wPID].pMapParam = pMapParam;
 	m_wMapCount++;
-	
+
 	pMapTarget->OnPidMapped(wPID, pMapParam);
 
 	return true;
@@ -482,10 +483,10 @@ const bool CTsPidMapManager::UnmapTarget(const WORD wPID)
 
 void CTsPidMapManager::UnmapAllTarget(void)
 {
-	// 全ターゲットをマップ
-	for(WORD wPID = 0x0000U ; wPID <= 0x1FFFU ; wPID++){
+	// 全ターゲットをアンマップ
+	for (WORD wPID = 0x0000U ; wPID <= 0x1FFFU ; wPID++) {
 		UnmapTarget(wPID);
-		}
+	}
 }
 
 CTsPidMapTarget * CTsPidMapManager::GetMapTarget(const WORD wPID) const
@@ -522,14 +523,16 @@ CPsiSectionParser::CPsiSectionParser(const CPsiSectionParser &Operand)
 
 CPsiSectionParser & CPsiSectionParser::operator = (const CPsiSectionParser &Operand)
 {
-	// インスタンスのコピー
-	m_pPsiSectionHandler = Operand.m_pPsiSectionHandler;
-	m_bTargetExt = Operand.m_bTargetExt;
-	m_PsiSection = Operand.m_PsiSection;
-	m_bIsStoring = Operand.m_bIsStoring;
-	m_dwStoreCrc = Operand.m_dwStoreCrc;
-	m_wStoreSize = Operand.m_wStoreSize;
-	m_dwCrcErrorCount = Operand.m_dwCrcErrorCount;
+	if (&Operand != this) {
+		// インスタンスのコピー
+		m_pPsiSectionHandler = Operand.m_pPsiSectionHandler;
+		m_bTargetExt = Operand.m_bTargetExt;
+		m_PsiSection = Operand.m_PsiSection;
+		m_bIsStoring = Operand.m_bIsStoring;
+		m_dwStoreCrc = Operand.m_dwStoreCrc;
+		m_wStoreSize = Operand.m_wStoreSize;
+		m_dwCrcErrorCount = Operand.m_dwCrcErrorCount;
+	}
 
 	return *this;
 }
@@ -538,20 +541,21 @@ void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 {
 	const BYTE *pData = pPacket->GetPayloadData();
 	const BYTE bySize = pPacket->GetPayloadSize();
-	if(!bySize || !pData)return;
+	if (!bySize || !pData)
+		return;
 
 	const BYTE byUnitStartPos = (pPacket->m_Header.bPayloadUnitStartIndicator)? (pData[0] + 1U) : 0U;
 
-	if(byUnitStartPos){
+	if (byUnitStartPos) {
 		// [ヘッダ断片 | ペイロード断片] + [スタッフィングバイト] + ヘッダ先頭 + [ヘッダ断片] + [ペイロード断片] + [スタッフィングバイト]
 		BYTE byPos = 1U;
-		
-		if(byUnitStartPos > 1U){
+
+		if (byUnitStartPos > 1U) {
 			// ユニット開始位置が先頭ではない場合(断片がある場合)
 			byPos += StoreHeader(&pData[byPos], bySize - byPos);
 			byPos += StorePayload(&pData[byPos], bySize - byPos);
-			}
-		
+		}
+
 		// ユニット開始位置から新規セクションのストアを開始する
 		m_bIsStoring = false;
 		m_PsiSection.ClearSize();
@@ -559,13 +563,12 @@ void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 		byPos = byUnitStartPos;
 		byPos += StoreHeader(&pData[byPos], bySize - byPos);
 		byPos += StorePayload(&pData[byPos], bySize - byPos);
-		}
-	else{
+	} else {
 		// [ヘッダ断片] + ペイロード + [スタッフィングバイト]
 		BYTE byPos = 0U;
 		byPos += StoreHeader(&pData[byPos], bySize - byPos);
 		byPos += StorePayload(&pData[byPos], bySize - byPos);
-		}
+	}
 
 	return;
 }
@@ -588,68 +591,68 @@ const DWORD CPsiSectionParser::GetCrcErrorCount(void) const
 const BYTE CPsiSectionParser::StoreHeader(const BYTE *pPayload, const BYTE byRemain)
 {
 	// ヘッダを解析してセクションのストアを開始する
-	if(m_bIsStoring)return 0U;
+	if (m_bIsStoring)
+		return 0U;
 
 	const BYTE byHeaderSize = (m_bTargetExt)? 8U : 3U;
 	const BYTE byHeaderRemain = byHeaderSize - (BYTE)m_PsiSection.GetSize();
 
-	if(byRemain >= byHeaderRemain){
+	if (byRemain >= byHeaderRemain) {
 		// ヘッダストア完了、ヘッダを解析してペイロードのストアを開始する
 		m_PsiSection.AddData(pPayload, byHeaderRemain);
-		if(m_PsiSection.ParseHeader(m_bTargetExt)){
+		if (m_PsiSection.ParseHeader(m_bTargetExt)) {
 			// ヘッダフォーマットOK、ヘッダのみのCRCを計算する
 			m_wStoreSize = m_PsiSection.GetSectionLength() + 3U;
 			m_dwStoreCrc = CCrcCalculator::CalcCrc32(pPayload, byHeaderSize);
 			m_bIsStoring = true;
 			return byHeaderRemain;
-			}
-		else{
+		} else {
 			// ヘッダエラー
 			m_PsiSection.Reset();
 			return byRemain;
-			}
 		}
-	else{
+	} else {
 		// ヘッダストア未完了、次のデータを待つ
 		m_PsiSection.AddData(pPayload, byRemain);
 		return byRemain;
-		}
+	}
 }
 
 const BYTE CPsiSectionParser::StorePayload(const BYTE *pPayload, const BYTE byRemain)
 {
 	// セクションのストアを完了する
-	if(!m_bIsStoring)return 0U;
-	
+	if (!m_bIsStoring)
+		return 0U;
+
 	const WORD wStoreRemain = m_wStoreSize - (WORD)m_PsiSection.GetSize();
 
-	if(wStoreRemain <= (WORD)byRemain){
+	if (wStoreRemain <= (WORD)byRemain) {
 		// ストア完了
 		m_PsiSection.AddData(pPayload, wStoreRemain);
 
-		if(!CCrcCalculator::CalcCrc32(pPayload, wStoreRemain, m_dwStoreCrc)){
+		if (!CCrcCalculator::CalcCrc32(pPayload, wStoreRemain, m_dwStoreCrc)) {
 			// CRC正常、ハンドラにセクションを渡す
-			if(m_pPsiSectionHandler)m_pPsiSectionHandler->OnPsiSection(this, &m_PsiSection);
+			if (m_pPsiSectionHandler)
+				m_pPsiSectionHandler->OnPsiSection(this, &m_PsiSection);
 			//TRACE(TEXT("[%02X] PSI Stored: %lu / %lu\n"), m_PsiSection.GetTableID(), m_PsiSection.GetSize(), (DWORD)m_wStoreSize);
-			}
-		else{
+		} else {
 			// CRC異常
-			if(m_dwCrcErrorCount < 0xFFFFFFFFUL)m_dwCrcErrorCount++;
+			//if (m_dwCrcErrorCount < 0xFFFFFFFFUL)
+				m_dwCrcErrorCount++;
 			//TRACE(TEXT("[%02X] PSI CRC Error: %lu / %lu\n"), m_PsiSection.GetTableID(), m_PsiSection.GetSize(), (DWORD)m_wStoreSize);
-			}
-		
+		}
+
 		// 状態を初期化し、次のセクション受信に備える
 		m_PsiSection.Reset();
 		m_bIsStoring = false;
 
 		return (BYTE)wStoreRemain;
-		}
-	else{
+	} else {
 		// ストア未完了、次のペイロードを待つ
 		m_PsiSection.AddData(pPayload, byRemain);
 		m_dwStoreCrc = CCrcCalculator::CalcCrc32(pPayload, byRemain, m_dwStoreCrc);
 		return byRemain;
-		}
+	}
 }
 
 
@@ -669,11 +672,13 @@ CTsClockRef::CTsClockRef(const CTsClockRef &Operand)
 
 CTsClockRef & CTsClockRef::operator = (const CTsClockRef &Operand)
 {
-	// インスタンスのコピー
-	m_llHrcUnitFreq = Operand.m_llHrcUnitFreq;
-	m_llHrcLastTime = Operand.m_llHrcLastTime;
-	m_llCurPcrCount = Operand.m_llCurPcrCount;
-	m_lfPllFeedBack = Operand.m_lfPllFeedBack;	
+	if (&Operand != this) {
+		// インスタンスのコピー
+		m_llHrcUnitFreq = Operand.m_llHrcUnitFreq;
+		m_llHrcLastTime = Operand.m_llHrcLastTime;
+		m_llCurPcrCount = Operand.m_llCurPcrCount;
+		m_lfPllFeedBack = Operand.m_lfPllFeedBack;
+	}
 
 	return *this;
 }
@@ -773,13 +778,13 @@ void CTsClockRef::ProcPcrPll(const LONGLONG llCurPcr)
 	// ローカルPCRを計算する(高分解能タイマによる実周期の積分値)
 	m_llCurPcrCount += (LONGLONG)(((double)(llHrcCurTime - m_llHrcLastTime) * 90000.0) / (double)m_llHrcUnitFreq);	// 50ms
 	m_llHrcLastTime = llHrcCurTime;
-	
+
 	// ローカルPCRとストリームPCRの位相差にLPFを施す(フィードバックゲイン = -40dB、時定数 = 約5.5s)
 	m_lfPllFeedBack = m_lfPllFeedBack * 0.99 + (double)(m_llCurPcrCount - llCurPcr) * 0.01;
-	
+
 	// ローカルPCRに位相差をフィードバックする
 	m_llCurPcrCount -= (LONGLONG)m_lfPllFeedBack;
-	
+
 	// グローバルPCRを更新する
 	m_llGlobalPcrCount = m_llCurPcrCount - m_llBasePcrCount;
 }
@@ -792,7 +797,7 @@ void CTsClockRef::SyncPcrPll(const LONGLONG llCurPcr)
 	// PLL初期値設定
 	m_llCurPcrCount = llCurPcr;
 	m_lfPllFeedBack = 0.0;
-	
+
 	// グローバルPCRの基点再設定
 	m_llBasePcrCount = llCurPcr;
 }
