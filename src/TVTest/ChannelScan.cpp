@@ -485,8 +485,8 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_PROGRESS,PBM_SETPOS,
 								 pThis->m_ScanChannel,0);
 			pThis->m_hCancelEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-			DWORD ThreadID;
-			pThis->m_hScanThread=::CreateThread(NULL,0,ScanProc,pThis,0,&ThreadID);
+			GetAppClass().BeginChannelScan();
+			pThis->m_hScanThread=::CreateThread(NULL,0,ScanProc,pThis,0,NULL);
 			pThis->m_fScaned=true;
 		}
 		return TRUE;
@@ -537,6 +537,7 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			CChannelScan *pThis=GetThis(hDlg);
 
 			::WaitForSingleObject(pThis->m_hScanThread,INFINITE);
+			GetAppClass().EndChannelScan();
 			::EndDialog(hDlg,wParam!=0 || pThis->m_fOK?IDOK:IDCANCEL);
 		}
 		return TRUE;

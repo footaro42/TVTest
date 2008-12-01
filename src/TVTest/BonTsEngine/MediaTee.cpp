@@ -26,6 +26,8 @@ CMediaTee::~CMediaTee()
 
 const bool CMediaTee::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	/*
 	if (dwInputIndex >= GetInputNum())
 		return false;

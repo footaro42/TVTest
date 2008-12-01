@@ -54,7 +54,7 @@ public:
 	CCaMethodDesc();
 	CCaMethodDesc(const CCaMethodDesc &Operand);
 	CCaMethodDesc & operator = (const CCaMethodDesc &Operand);
-	
+
 // CBaseDesc
 	virtual void CopyDesc(const CBaseDesc *pOperand);
 	virtual void Reset(void);
@@ -97,7 +97,7 @@ public:
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
-	
+
 	BYTE m_byServiceType;			// Service Type
 	TCHAR m_szProviderName[256];	// Service Provider Name
 	TCHAR m_szServiceName[256];		// Service Name
@@ -116,7 +116,7 @@ public:
 	CShortEventDesc();
 	CShortEventDesc(const CShortEventDesc &Operand);
 	CShortEventDesc & operator = (const CShortEventDesc &Operand);
-	
+
 // CBaseDesc
 	virtual void CopyDesc(const CBaseDesc *pOperand);
 	virtual void Reset(void);
@@ -128,7 +128,7 @@ public:
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
-	
+
 	DWORD m_dwLanguageCode;			// ISO639  Language Code
 	TCHAR m_szEventName[256];		// Event Name
 	TCHAR m_szEventDesc[256];		// Event Description
@@ -147,7 +147,7 @@ public:
 	CStreamIdDesc();
 	CStreamIdDesc(const CStreamIdDesc &Operand);
 	CStreamIdDesc & operator = (const CStreamIdDesc &Operand);
-	
+
 // CBaseDesc
 	virtual void CopyDesc(const CBaseDesc *pOperand);
 	virtual void Reset(void);
@@ -180,7 +180,7 @@ public:
 	virtual void Reset(void);
 
 // CServiceDesc
-	const DWORD GetNetworkName(LPTSTR pszName) const;
+	const DWORD GetNetworkName(LPTSTR pszName, int MaxLength) const;
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
@@ -239,7 +239,7 @@ public:
 
 // CTSInfoDesc
 	const BYTE GetRemoteControlKeyID(void) const;
-	const DWORD GetTSName(LPTSTR pszName) const;
+	const DWORD GetTSName(LPTSTR pszName, int MaxLength) const;
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);

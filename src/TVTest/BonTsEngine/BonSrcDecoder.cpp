@@ -106,9 +106,9 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	*/
 
 	// ストリーム受信スレッド起動
-	m_bPauseSignal=false;
-	m_hResumeEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-	m_bKillSignal=false;
+	m_bPauseSignal = false;
+	m_hResumeEvent = ::CreateEvent(NULL,FALSE,FALSE,NULL);
+	m_bKillSignal = false;
 	m_bIsPlaying = false;
 	m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, NULL);
 	if (!m_hStreamRecvThread) {
@@ -174,7 +174,7 @@ const bool CBonSrcDecoder::IsOpen() const
 
 const bool CBonSrcDecoder::Play(void)
 {
-	if (!m_pBonDriver) {
+	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		m_dwLastError = ERR_NOTOPEN;
 		return false;
@@ -230,7 +230,7 @@ const bool CBonSrcDecoder::Stop(void)
 
 const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 {
-	if (!m_pBonDriver) {
+	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		m_dwLastError = ERR_NOTOPEN;
 		return false;
@@ -238,6 +238,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 
 	m_RequestChannel = byChannel;
 	if (!PauseStreamRecieve()) {
+		m_RequestChannel = -1;
 		m_dwLastError = ERR_TIMEOUT;
 		return false;
 	}
@@ -272,7 +273,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 
 const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel)
 {
-	if (!m_pBonDriver2) {
+	if (m_pBonDriver2 == NULL) {
 		// チューナが開かれていない
 		m_dwLastError = ERR_NOTOPEN;
 		return false;
@@ -281,6 +282,8 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 	m_RequestSpace = dwSpace;
 	m_RequestChannel = dwChannel;
 	if (!PauseStreamRecieve()) {
+		m_RequestSpace = -1;
+		m_RequestChannel = -1;
 		m_dwLastError = ERR_TIMEOUT;
 		return false;
 	}
@@ -315,7 +318,7 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 
 const float CBonSrcDecoder::GetSignalLevel(void)
 {
-	if (!m_pBonDriver) {
+	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		m_dwLastError = ERR_NOTOPEN;
 		return 0.0f;
@@ -361,7 +364,7 @@ const DWORD CBonSrcDecoder::GetLastError(void) const
 
 const bool CBonSrcDecoder::PurgeStream(void)
 {
-	if (!m_pBonDriver) {
+	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		m_dwLastError = ERR_NOTOPEN;
 		return false;
@@ -482,8 +485,8 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 {
 	::ResetEvent(m_hResumeEvent);
-	m_bPauseSignal=true;
-	if (::WaitForSingleObject(m_hResumeEvent,TimeOut) == WAIT_TIMEOUT)
+	m_bPauseSignal = true;
+	if (::WaitForSingleObject(m_hResumeEvent, TimeOut) == WAIT_TIMEOUT)
 		return false;
 	ResetBitRate();
 	return true;
@@ -492,8 +495,8 @@ bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 
 void CBonSrcDecoder::ResumeStreamRecieve()
 {
-	m_bPauseSignal=false;
-	::WaitForSingleObject(m_hResumeEvent,INFINITE);
+	m_bPauseSignal = false;
+	::WaitForSingleObject(m_hResumeEvent, INFINITE);
 }
 
 
@@ -501,7 +504,7 @@ int CBonSrcDecoder::NumSpaces() const
 {
 	int i;
 
-	for (i=0;GetSpaceName(i)!=NULL;i++);
+	for (i=0; GetSpaceName(i)!=NULL; i++);
 	return i;
 }
 
@@ -544,7 +547,7 @@ DWORD CBonSrcDecoder::GetBitRate() const
 
 void CBonSrcDecoder::ResetBitRate()
 {
-	m_BitRateTime=GetTickCount();
+	m_BitRateTime = GetTickCount();
 	m_BitRate=0;
 
 }

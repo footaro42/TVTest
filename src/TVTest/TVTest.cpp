@@ -317,6 +317,7 @@ bool CAppMain::Initialize()
 	m_fFirstExecute=!::PathFileExists(m_szIniFileName);
 	if (!m_fFirstExecute)
 		LoadSettings();
+	m_fChannelScanning=false;
 	return true;
 }
 
@@ -468,8 +469,7 @@ bool CAppMain::InitializeChannel()
 		(!fUDPDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
 											CChannelManager::SPACE_ALL:0);
 	*/
-	ChannelManager.SetCurrentSpace(0);
-	ChannelManager.SetCurrentChannel(fUDPDriver?0:-1);
+	ChannelManager.SetCurrentChannel(0,fUDPDriver?0:-1);
 	ChannelManager.SetCurrentService(0);
 	SetTuningSpaceMenu();
 	SetChannelMenu();
@@ -485,10 +485,11 @@ bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 	bool fUDPDriver=CoreEngine.IsUDPDriver();
 
 	ChannelManager.SetTuningSpaceList(pList);
-	ChannelManager.SetCurrentSpace(
+	ChannelManager.SetUseDriverChannelList(fUDPDriver);
+	ChannelManager.SetCurrentChannel(
 		(!fUDPDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
-											CChannelManager::SPACE_ALL:0);
-	ChannelManager.SetCurrentChannel(fUDPDriver?0:-1);
+												CChannelManager::SPACE_ALL:0,
+		fUDPDriver?0:-1);
 	ChannelManager.SetCurrentService(0);
 	SetTuningSpaceMenu();
 	SetChannelMenu();
@@ -655,13 +656,11 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 	const CChannelInfo *pPrevChInfo=ChannelManager.GetCurrentRealChannelInfo();
 	int OldSpace=ChannelManager.GetCurrentSpace(),OldChannel=ChannelManager.GetCurrentChannel();
 
-	if (!ChannelManager.SetCurrentSpace(Space)
-			|| !ChannelManager.SetCurrentChannel(Channel))
+	if (!ChannelManager.SetCurrentChannel(Space,Channel))
 		return false;
 	const CChannelInfo *pChInfo=ChannelManager.GetCurrentRealChannelInfo();
 	if (pChInfo==NULL) {
-		ChannelManager.SetCurrentSpace(OldSpace);
-		ChannelManager.SetCurrentChannel(OldChannel);
+		ChannelManager.SetCurrentChannel(OldSpace,OldChannel);
 		return false;
 	}
 	if (pPrevChInfo==NULL
@@ -669,8 +668,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 			|| pChInfo->GetChannelIndex()!=pPrevChInfo->GetChannelIndex()) {
 		if (!CoreEngine.m_DtvEngine.SetChannel(pChInfo->GetSpace(),
 											   pChInfo->GetChannelIndex())) {
-			ChannelManager.SetCurrentSpace(OldSpace);
-			ChannelManager.SetCurrentChannel(OldChannel);
+			ChannelManager.SetCurrentChannel(OldSpace,OldChannel);
 			return false;
 		}
 		ChannelManager.SetCurrentService(Service);
@@ -696,19 +694,55 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 }
 
 
-bool CAppMain::FollowChannelChange(int Channel)
+bool CAppMain::FollowChannelChange(WORD TransportStreamID,WORD ServiceID)
 {
-	if (!ChannelManager.SetCurrentChannel(Channel))
+	TRACE(TEXT("CAppMain::FollowChannelChange() TSID %d / EID %d\n"),
+		  TransportStreamID,ServiceID);
+
+	const CChannelList *pChannelList;
+	const CChannelInfo *pChannelInfo;
+	int i,j;
+	int Space,Channel;
+	bool fFinded=false;
+
+	pChannelList=ChannelManager.GetCurrentRealChannelList();
+	if (pChannelList!=NULL) {
+		for (i=0;i<pChannelList->NumChannels();i++) {
+			pChannelInfo=pChannelList->GetChannelInfo(i);
+			if (pChannelInfo->GetTransportStreamID()==TransportStreamID
+					&& pChannelInfo->GetServiceID()==ServiceID) {
+				Space=ChannelManager.GetCurrentSpace();
+				Channel=i;
+				fFinded=true;
+				break;
+			}
+		}
+	} else {
+		for (i=0;i<ChannelManager.NumSpaces();i++) {
+			pChannelList=ChannelManager.GetChannelList(i);
+			for (j=0;j<pChannelList->NumChannels();j++) {
+				pChannelInfo=pChannelList->GetChannelInfo(j);
+				if (pChannelInfo->GetTransportStreamID()==TransportStreamID
+						&& pChannelInfo->GetServiceID()==ServiceID) {
+					Space=i;
+					Channel=j;
+					fFinded=true;
+					break;
+				}
+			}
+		}
+	}
+	if (!fFinded)
+		return false;
+	if (!ChannelManager.SetCurrentChannel(Space,Channel))
 		return false;
 	ChannelManager.SetCurrentService(-1);
 	PluginList.SendChannelChangeEvent();
 	StatusView.UpdateItem(STATUS_ITEM_CHANNEL);
 	StatusView.UpdateItem(STATUS_ITEM_TUNER);
 	SetChannelMenu();
-	/*
 	MainMenu.CheckRadioItem(CM_SPACE_ALL,CM_SPACE_ALL+ChannelManager.NumSpaces(),
-							CM_SPACE_FIRST+ChannelManager.GetCurrentSpace());
-	*/
+							CM_SPACE_FIRST+Space);
 	MainMenu.CheckRadioItem(CM_CHANNEL_FIRST,
 		CM_CHANNEL_FIRST+ChannelManager.GetCurrentRealChannelList()->NumChannels()-1,
 		CM_CHANNEL_FIRST+Channel);
@@ -1362,6 +1396,18 @@ bool CAppMain::CancelReservedRecord()
 		return false;
 	StatusView.UpdateItem(STATUS_ITEM_RECORD);
 	return true;
+}
+
+
+void CAppMain::BeginChannelScan()
+{
+	m_fChannelScanning=true;
+}
+
+
+void CAppMain::EndChannelScan()
+{
+	m_fChannelScanning=false;
 }
 
 
@@ -5834,6 +5880,9 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		GetThis(hwnd)->SendCommand(CM_FULLSCREEN);
 		return 0;
 
+	case WM_SYSKEYDOWN:
+		if (wParam!=VK_F10)
+			break;
 	case WM_KEYDOWN:
 		{
 			CMainWindow *pThis=GetThis(hwnd);
@@ -5953,7 +6002,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CServiceUpdateInfo *pInfo=reinterpret_cast<CServiceUpdateInfo*>(lParam);
 			HMENU hmenu;
-			bool fReady=false;
 			int i;
 
 			hmenu=MainMenu.GetSubMenu(CMainMenu::SUBMENU_SERVICE);
@@ -5964,7 +6012,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					::lstrcpy(szServiceName,pInfo->m_pServiceList[i].szServiceName);
 				} else {
 					::wsprintf(szServiceName,TEXT("サービス%d"),i+1);
-					fReady=true;
 				}
 				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SERVICE_FIRST+i,szServiceName);
 			}
@@ -5986,32 +6033,29 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 									CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
 									CM_AUDIOSTREAM_FIRST+CoreEngine.m_DtvEngine.GetAudioStream());
 
-			const CChannelInfo *pChInfo=ChannelManager.GetCurrentRealChannelInfo();
-			WORD ServiceID,TransportStreamID;
-			TransportStreamID=pInfo->m_TransportStreamID;
-			ServiceID=pInfo->m_pServiceList[pInfo->m_CurService].ServiceID;
-			if (TransportStreamID!=0 && !CoreEngine.IsUDPDriver()
+			if (!AppMain.IsChannelScanning() && pInfo->m_NumServices>0) {
+				const CChannelInfo *pChInfo=ChannelManager.GetCurrentRealChannelInfo();
+				WORD ServiceID,TransportStreamID;
+
+				TransportStreamID=pInfo->m_TransportStreamID;
+				ServiceID=pInfo->m_pServiceList[pInfo->m_CurService].ServiceID;
+				if (TransportStreamID!=0 && ServiceID!=0
+					&& !CoreEngine.IsUDPDriver()
 					&& (pChInfo==NULL
-						|| (pChInfo->GetTransportStreamID()!=0
-						&& pChInfo->GetTransportStreamID()!=TransportStreamID))) {
-				// 外部からチャンネル変更された
-				const CChannelList *pChList=ChannelManager.GetCurrentRealChannelList();
-				for (i=0;i<pChList->NumChannels();i++) {
-					pChInfo=pChList->GetChannelInfo(i);
-					if (pChInfo->GetTransportStreamID()==TransportStreamID
-							&& pChInfo->GetServiceID()==ServiceID) {
-						AppMain.FollowChannelChange(i);
-						break;
-					}
+						|| ((pChInfo->GetTransportStreamID()!=0
+							&& pChInfo->GetTransportStreamID()!=TransportStreamID)
+						|| (ChannelManager.GetCurrentService()<0
+							&& pChInfo->GetServiceID()!=0
+							&& pChInfo->GetServiceID()!=ServiceID)))) {
+					// 外部からチャンネル変更された?
+					AppMain.FollowChannelChange(TransportStreamID,ServiceID);
+				} else if (pChInfo!=NULL
+						&& ChannelManager.GetCurrentService()<0
+						&& ServiceID!=0 && pChInfo->GetServiceID()!=0
+						&& ServiceID!=pChInfo->GetServiceID()) {
+					// サービスを選択する
+					AppMain.SetServiceByID(pChInfo->GetServiceID(),&pInfo->m_CurService);
 				}
-			} else if (pChInfo!=NULL
-					&& ChannelManager.GetCurrentService()<0
-					&& ServiceID!=0 && pChInfo->GetServiceID()!=0
-					&& ServiceID!=pChInfo->GetServiceID()) {
-				// サービスを選択する
-				AppMain.SetServiceByID(pChInfo->GetServiceID(),&pInfo->m_CurService);
-			}
-			if (!fReady) {
 				if (pChInfo!=NULL && !CoreEngine.IsUDPDriver()) {
 					// チャンネルの情報を更新する
 					// 古いチャンネル設定ファイルにはNIDとTSIDの情報が含まれていないため
@@ -6021,7 +6065,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 						ServiceID=pInfo->m_pServiceList[i].ServiceID;
 						if (ServiceID!=0) {
 							ChannelManager.UpdateStreamInfo(
-								pChInfo->GetSpace(),pChInfo->GetChannelIndex(),i,
+								pChInfo->GetSpace(),
+								pChInfo->GetChannelIndex(),i,
 								NetworkID,TransportStreamID,ServiceID);
 						}
 					}

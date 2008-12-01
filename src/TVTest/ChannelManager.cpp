@@ -294,7 +294,7 @@ bool CChannelManager::SetUseDriverChannelList(bool fUse)
 }
 
 
-bool CChannelManager::SetCurrentSpace(int Space)
+bool CChannelManager::SetCurrentChannel(int Space,int Channel)
 {
 	if (!m_fNetworkRemocon) {
 		if (Space!=SPACE_ALL) {
@@ -302,18 +302,10 @@ bool CChannelManager::SetCurrentSpace(int Space)
 				return false;
 		}
 	}
-	m_CurrentSpace=Space;
-	m_CurrentChannel=-1;
-	return true;
-}
-
-
-bool CChannelManager::SetCurrentChannel(int Channel)
-{
-	const CChannelList *pList=GetChannelList(m_CurrentSpace);
-
+	const CChannelList *pList=GetChannelList(Space);
 	if (pList==NULL || Channel<-1 || Channel>=pList->NumChannels())
 		return false;
+	m_CurrentSpace=Space;
 	m_CurrentChannel=Channel;
 	return true;
 }

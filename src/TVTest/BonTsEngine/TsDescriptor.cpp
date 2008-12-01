@@ -53,7 +53,7 @@ void CBaseDesc::CopyDesc(const CBaseDesc *pOperand)
 const bool CBaseDesc::ParseDesc(const BYTE *pHexData, const WORD wDataLength)
 {
 	Reset();
-	
+
 	// 共通フォーマットをチェック
 	if(!pHexData)return false;										// データが空
 	else if(wDataLength < 2U)return false;							// データが最低記述子サイズ未満
@@ -63,10 +63,10 @@ const bool CBaseDesc::ParseDesc(const BYTE *pHexData, const WORD wDataLength)
 	m_byDescLen = pHexData[1];
 
 	// ペイロード解析
-	if(StoreContents(&pHexData[2])){
+	if (StoreContents(&pHexData[2])) {
 		m_bIsValid = true;
-		}
-	
+	}
+
 	return m_bIsValid;
 }
 
@@ -131,12 +131,12 @@ void CCaMethodDesc::CopyDesc(const CBaseDesc *pOperand)
 	CBaseDesc::CopyDesc(pOperand);
 
 	const CCaMethodDesc *pSrcDesc = dynamic_cast<const CCaMethodDesc *>(pOperand);
-	
-	if(pSrcDesc){
+
+	if (pSrcDesc && pSrcDesc != this) {
 		m_wCaMethodID = pSrcDesc->m_wCaMethodID;
 		m_wCaPID = pSrcDesc->m_wCaPID;
 		m_PrivateData = pSrcDesc->m_PrivateData;
-		}
+	}
 }
 
 void CCaMethodDesc::Reset(void)
@@ -200,7 +200,7 @@ CServiceDesc::CServiceDesc(const CServiceDesc &Operand)
 CServiceDesc & CServiceDesc::operator = (const CServiceDesc &Operand)
 {
 	CopyDesc(&Operand);
-	
+
 	return *this;
 }
 
@@ -211,17 +211,17 @@ void CServiceDesc::CopyDesc(const CBaseDesc *pOperand)
 
 	const CServiceDesc *pSrcDesc = dynamic_cast<const CServiceDesc *>(pOperand);
 	
-	if(pSrcDesc){
+	if (pSrcDesc && pSrcDesc != this) {
 		m_byServiceType = pSrcDesc->m_byServiceType;
 		::lstrcpy(m_szProviderName, pSrcDesc->m_szProviderName);
 		::lstrcpy(m_szServiceName, pSrcDesc->m_szServiceName);
-		}
+	}
 }
 
 void CServiceDesc::Reset(void)
 {
 	CBaseDesc::Reset();
-	
+
 	m_byServiceType = 0x00U;			// Service Type
 	m_szProviderName[0] = TEXT('\0');	// Service Provider Name
 	m_szServiceName[0] = TEXT('\0');	// Service Name
@@ -257,15 +257,15 @@ const bool CServiceDesc::StoreContents(const BYTE *pPayload)
 
 	// 記述子を解析
 	m_byServiceType = pPayload[0];				// +0	Service Type
-	
+
 	BYTE byPos = 1U;
-	
+
 	// Provider Name
 	if(pPayload[byPos + 0]){
 		CAribString::AribToString(m_szProviderName, &pPayload[byPos + 1], pPayload[byPos + 0]);
 		byPos += pPayload[byPos + 0];
 		}
-	
+
 	byPos++;
 
 	// Service Name
@@ -296,7 +296,7 @@ CShortEventDesc::CShortEventDesc(const CShortEventDesc &Operand)
 CShortEventDesc & CShortEventDesc::operator = (const CShortEventDesc &Operand)
 {
 	CopyDesc(&Operand);
-	
+
 	return *this;
 }
 
@@ -306,18 +306,18 @@ void CShortEventDesc::CopyDesc(const CBaseDesc *pOperand)
 	CBaseDesc::CopyDesc(pOperand);
 
 	const CShortEventDesc *pSrcDesc = dynamic_cast<const CShortEventDesc *>(pOperand);
-	
-	if(pSrcDesc){
+
+	if (pSrcDesc && pSrcDesc != this) {
 		m_dwLanguageCode = pSrcDesc->m_dwLanguageCode;
 		::lstrcpy(m_szEventName, pSrcDesc->m_szEventName);
 		::lstrcpy(m_szEventDesc, pSrcDesc->m_szEventDesc);
-		}
+	}
 }
 
 void CShortEventDesc::Reset(void)
 {
 	CBaseDesc::Reset();
-	
+
 	m_dwLanguageCode = 0UL;			// ISO639  Language Code
 	m_szEventName[0] = TEXT('\0');	// Event Name
 	m_szEventDesc[0] = TEXT('\0');	// Event Description
@@ -353,15 +353,15 @@ const bool CShortEventDesc::StoreContents(const BYTE *pPayload)
 
 	// 記述子を解析
 	m_dwLanguageCode = ((DWORD)pPayload[0] << 16) | ((DWORD)pPayload[1] << 8) | (DWORD)pPayload[2];		// +0 - +2	ISO639  Language Code
-	
+
 	BYTE byPos = 3U;
-	
+
 	// Event Name
 	if(pPayload[byPos + 0]){
 		CAribString::AribToString(m_szEventName, &pPayload[byPos + 1], pPayload[byPos + 0]);
 		byPos += pPayload[byPos + 0];
 		}
-	
+
 	byPos++;
 
 	// Event Description
@@ -402,10 +402,10 @@ void CStreamIdDesc::CopyDesc(const CBaseDesc *pOperand)
 	CBaseDesc::CopyDesc(pOperand);
 
 	const CStreamIdDesc *pSrcDesc = dynamic_cast<const CStreamIdDesc *>(pOperand);
-	
-	if(pSrcDesc){
+
+	if (pSrcDesc) {
 		m_byComponentTag = pSrcDesc->m_byComponentTag;
-		}
+	}
 }
 
 void CStreamIdDesc::Reset(void)
@@ -462,7 +462,7 @@ void CNetworkNameDesc::CopyDesc(const CBaseDesc *pOperand)
 
 	const CNetworkNameDesc *pSrcDesc = dynamic_cast<const CNetworkNameDesc *>(pOperand);
 
-	if (pSrcDesc) {
+	if (pSrcDesc && pSrcDesc != this) {
 		::lstrcpy(m_szNetworkName, pSrcDesc->m_szNetworkName);
 	}
 }
@@ -473,16 +473,16 @@ void CNetworkNameDesc::Reset(void)
 	m_szNetworkName[0] = '\0';
 }
 
-const DWORD CNetworkNameDesc::GetNetworkName(LPTSTR pszName) const
+const DWORD CNetworkNameDesc::GetNetworkName(LPTSTR pszName, int MaxLength) const
 {
 	if (pszName)
-		::lstrcpy(pszName, m_szNetworkName);
+		::lstrcpyn(pszName, m_szNetworkName, MaxLength);
 	return ::lstrlen(m_szNetworkName);
 }
 
 const bool CNetworkNameDesc::StoreContents(const BYTE *pPayload)
 {
-	if (m_byDescTag!=DESC_TAG || m_byDescLen<2)
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 2)
 		return false;
 
 	CAribString::AribToString(m_szNetworkName, &pPayload[0], m_byDescLen);
@@ -492,7 +492,7 @@ const bool CNetworkNameDesc::StoreContents(const BYTE *pPayload)
 
 
 /////////////////////////////////////////////////////////////////////////////
-// [0xFE] System Management 管理記述子抽象化クラス
+// [0xFE] System Management 記述子抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
 CSystemManageDesc::CSystemManageDesc()
@@ -525,7 +525,8 @@ void CSystemManageDesc::CopyDesc(const CBaseDesc *pOperand)
 	}
 }
 
-void CSystemManageDesc::Reset(void){
+void CSystemManageDesc::Reset(void)
+{
 	CBaseDesc::Reset();
 	m_byBroadcastingFlag = 0;
 	m_byBroadcastingID = 0;
@@ -549,7 +550,7 @@ const BYTE CSystemManageDesc::GetAdditionalBroadcastingID(void) const
 
 const bool CSystemManageDesc::StoreContents(const BYTE *pPayload)
 {
-	if (m_byDescTag!=DESC_TAG || m_byDescLen<2)
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 2)
 		return false;
 
 	m_byBroadcastingFlag = (pPayload[0]&0xC0)>>6;
@@ -588,7 +589,7 @@ void CTSInfoDesc::CopyDesc(const CBaseDesc *pOperand)
 
 	const CTSInfoDesc *pSrcDesc = dynamic_cast<const CTSInfoDesc *>(pOperand);
 
-	if (pSrcDesc) {
+	if (pSrcDesc && pSrcDesc != this) {
 		m_byRemoteControlKeyID = pSrcDesc->m_byRemoteControlKeyID;
 		::lstrcpy(m_szTSName, pSrcDesc->m_szTSName);
 	}
@@ -606,20 +607,24 @@ const BYTE CTSInfoDesc::GetRemoteControlKeyID(void) const
 	return m_byRemoteControlKeyID;
 }
 
-const DWORD CTSInfoDesc::GetTSName(LPTSTR pszName) const
+const DWORD CTSInfoDesc::GetTSName(LPTSTR pszName, int MaxLength) const
 {
 	if (pszName)
-		::lstrcpy(pszName, m_szTSName);
+		::lstrcpyn(pszName, m_szTSName, MaxLength);
 	return ::lstrlen(m_szTSName);
 }
 
 const bool CTSInfoDesc::StoreContents(const BYTE *pPayload)
 {
-	if (m_byDescTag!=DESC_TAG || m_byDescLen<5)
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 2)
+		return false;
+
+	BYTE Length = (pPayload[1]&0xFC)>>2;
+	if (m_byDescLen < 2 + Length)
 		return false;
 
 	m_byRemoteControlKeyID = pPayload[0];
-	CAribString::AribToString(m_szTSName, &pPayload[2], (pPayload[1]&0xFC)>>2);
+	CAribString::AribToString(m_szTSName, &pPayload[2], Length);
 
 	return true;
 }
@@ -646,21 +651,25 @@ CDescBlock::~CDescBlock()
 
 CDescBlock & CDescBlock::operator = (const CDescBlock &Operand)
 {
+	if (&Operand == this)
+		return *this;
+
 	// インスタンスのコピー
 	Reset();
 	m_DescArray.resize(Operand.m_DescArray.size());
-	
-	for(WORD wIndex = 0UL ; wIndex < m_DescArray.size() ; wIndex++){
-		m_DescArray[wIndex] = CreateDescInstance(Operand.m_DescArray[wIndex]->GetTag());
-		m_DescArray[wIndex]->CopyDesc(Operand.m_DescArray[wIndex]);
-		}
-	
+
+	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++){
+		m_DescArray[Index] = CreateDescInstance(Operand.m_DescArray[Index]->GetTag());
+		m_DescArray[Index]->CopyDesc(Operand.m_DescArray[Index]);
+	}
+
 	return *this;
 }
 
 const WORD CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength)
 {
-	if(!pHexData || (wDataLength < 2U))return 0U;
+	if (!pHexData || wDataLength < 2U)
+		return 0U;
 
 	// 状態をクリア
 	Reset();
@@ -668,17 +677,18 @@ const WORD CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength)
 	// 指定されたブロックに含まれる記述子を解析する
 	WORD wPos = 0UL;
 	CBaseDesc *pNewDesc = NULL;
-	
-	while(wPos < wDataLength){
+
+	while (wPos < wDataLength) {
 		// ブロックを解析する
-		if(!(pNewDesc = ParseDesc(&pHexData[wPos], wDataLength - wPos)))break;
+		if (!(pNewDesc = ParseDesc(&pHexData[wPos], wDataLength - wPos)))
+			break;
 
 		// リストに追加する
 		m_DescArray.push_back(pNewDesc);
 
 		// 位置更新
 		wPos += (pNewDesc->GetLength() + 2U);
-		}
+	}
 
 	return m_DescArray.size();
 }
@@ -692,10 +702,10 @@ const CBaseDesc * CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataL
 void CDescBlock::Reset(void)
 {
 	// 全てのインスタンスを開放する
-	for(WORD wIndex = 0U ; wIndex < m_DescArray.size() ; wIndex++){
-		delete m_DescArray[wIndex];
-		}
-		
+	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++){
+		delete m_DescArray[Index];
+	}
+
 	m_DescArray.clear();
 }
 
@@ -714,29 +724,33 @@ const CBaseDesc * CDescBlock::GetDescByIndex(const WORD wIndex) const
 const CBaseDesc * CDescBlock::GetDescByTag(const BYTE byTag) const
 {
 	// 指定したタグに一致する記述子を返す
-	for(WORD wIndex = 0U ; wIndex < m_DescArray.size() ; wIndex++){
-		if(m_DescArray[wIndex]->GetTag() == byTag)return m_DescArray[wIndex];
-		}
+	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++){
+		if (m_DescArray[Index]->GetTag() == byTag)
+			return m_DescArray[Index];
+	}
 
 	return NULL;
 }
 
 CBaseDesc * CDescBlock::ParseDesc(const BYTE *pHexData, const WORD wDataLength)
 {
-	if(!pHexData || (wDataLength < 2U))return NULL;
+	if (!pHexData || wDataLength < 2U)
+		return NULL;
 
 	// タグに対応したインスタンスを生成する
 	CBaseDesc *pNewDesc = CreateDescInstance(pHexData[0]);
 
+	/*
 	// メモリ不足
 	if(!pNewDesc)return NULL;
+	*/
 
 	// 記述子を解析する
-	if(!pNewDesc->ParseDesc(pHexData, wDataLength)){
+	if (!pNewDesc->ParseDesc(pHexData, wDataLength)) {
 		// エラーあり
 		delete pNewDesc;
 		return NULL;
-		}
+	}
 
 	return pNewDesc;
 }
@@ -744,7 +758,7 @@ CBaseDesc * CDescBlock::ParseDesc(const BYTE *pHexData, const WORD wDataLength)
 CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 {
 	// タグに対応したインスタンスを生成する
-	switch(byTag){
+	switch (byTag) {
 		case CCaMethodDesc::DESC_TAG	: return new CCaMethodDesc;
 		case CServiceDesc::DESC_TAG		: return new CServiceDesc;
 		case CShortEventDesc::DESC_TAG	: return new CShortEventDesc;
@@ -753,5 +767,5 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 		case CSystemManageDesc::DESC_TAG: return new CSystemManageDesc;
 		case CTSInfoDesc::DESC_TAG		: return new CTSInfoDesc;
 		default							: return new CBaseDesc;
-		}
+	}
 }

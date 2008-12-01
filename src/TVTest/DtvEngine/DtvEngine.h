@@ -116,6 +116,7 @@ protected:
 	virtual const DWORD OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam);
 	bool CheckBuildComplete() const;
 
+	CCriticalLock m_EngineLock;
 	CDtvEngineHandler *m_pDtvEngineHandler;
 	WORD m_wCurTransportStream;
 	WORD m_wCurService;

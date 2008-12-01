@@ -31,10 +31,9 @@ public:
 	bool MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecoder);
 	bool SetUseDriverChannelList(bool fUse);
 	bool GetUseDriverChannelList() const { return m_fUseDriverChannelList; }
+	bool SetCurrentChannel(int Space,int Channel);
 	int GetCurrentSpace() const { return m_CurrentSpace; }
-	bool SetCurrentSpace(int Space);
 	int GetCurrentChannel() const { return m_CurrentChannel; }
-	bool SetCurrentChannel(int Channel);
 	int GetCurrentService() const { return m_CurrentService; }
 	bool SetCurrentService(int Service);
 	bool SetChangingChannel(int Channel);

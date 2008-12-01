@@ -114,8 +114,11 @@ CMulti2Decoder::~CMulti2Decoder(void)
 
 }
 
-void CMulti2Decoder::Initialize(const BYTE *pSystemKey, const BYTE *pInitialCbc)
+const bool CMulti2Decoder::Initialize(const BYTE *pSystemKey, const BYTE *pInitialCbc)
 {
+	if (!pSystemKey || !pInitialCbc)
+		return false;
+
 	m_bIsSysKeyValid = true;
 	m_bIsWorkKeyValid = false;
 
@@ -124,6 +127,7 @@ void CMulti2Decoder::Initialize(const BYTE *pSystemKey, const BYTE *pInitialCbc)
 
 	// Descrambler CBC Initial ValueƒZƒbƒg
 	m_InitialCbc.SetHexData(pInitialCbc);
+	return true;
 }
 
 const bool CMulti2Decoder::SetScrambleKey(const BYTE *pScrambleKey)

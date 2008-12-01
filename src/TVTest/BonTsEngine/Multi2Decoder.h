@@ -11,7 +11,7 @@ public:
 	CMulti2Decoder(void);
 	~CMulti2Decoder(void);
 
-	void Initialize(const BYTE *pSystemKey, const BYTE *pInitialCbc);
+	const bool Initialize(const BYTE *pSystemKey, const BYTE *pInitialCbc);
 	const bool SetScrambleKey(const BYTE *pScrambleKey);
 	const bool Decode(BYTE *pData, const DWORD dwSize, const BYTE byScrCtrl) const;
 

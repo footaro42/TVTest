@@ -30,6 +30,8 @@ CMediaGrabber::~CMediaGrabber()
 
 void CMediaGrabber::Reset(void)
 {
+	CBlockLock Lock(&m_DecoderLock);
+
 	// コールバックに通知する
 	if (m_pfnResetGrabFunc)
 		m_pfnResetGrabFunc(m_pResetGrabParam);

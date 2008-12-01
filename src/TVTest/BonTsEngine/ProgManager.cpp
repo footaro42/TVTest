@@ -216,15 +216,15 @@ void CProgManager::OnServiceListUpdated(void)
 	m_ServiceList.clear();
 
 	// サービスリスト構築
-	for (WORD wIndex = 0U, wServiceNum = 0U ; wIndex < m_pProgDatabase->m_ServiceList.size() ; wIndex++) {
-		if (m_pProgDatabase->m_ServiceList[wIndex].wVideoEsPID != 0xFFFFU) {
+	for (size_t Index = 0, ServiceNum = 0 ; Index < m_pProgDatabase->m_ServiceList.size() ; Index++) {
+		if (m_pProgDatabase->m_ServiceList[Index].wVideoEsPID != 0xFFFFU) {
 			// MPEG2映像のみ(ワンセグ、データ放送以外)
-			m_ServiceList.resize(wServiceNum + 1);
-			m_ServiceList[wServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[wIndex].wServiceID;
-			m_ServiceList[wServiceNum].wVideoEsPID = m_pProgDatabase->m_ServiceList[wIndex].wVideoEsPID;
-			m_ServiceList[wServiceNum].AudioEsPIDs = m_pProgDatabase->m_ServiceList[wIndex].AudioEsPIDs;
-			m_ServiceList[wServiceNum].szServiceName[0] = TEXT('\0');
-			wServiceNum++;
+			m_ServiceList.resize(ServiceNum + 1);
+			m_ServiceList[ServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[Index].wServiceID;
+			m_ServiceList[ServiceNum].wVideoEsPID = m_pProgDatabase->m_ServiceList[Index].wVideoEsPID;
+			m_ServiceList[ServiceNum].AudioEsPIDs = m_pProgDatabase->m_ServiceList[Index].AudioEsPIDs;
+			m_ServiceList[ServiceNum].szServiceName[0] = TEXT('\0');
+			ServiceNum++;
 		}
 	}
 
@@ -237,15 +237,15 @@ void CProgManager::OnServiceListUpdated(void)
 void CProgManager::OnServiceInfoUpdated(void)
 {
 	// サービス名を更新する
-	for (WORD wIndex = 0U, wServiceNum = 0U ; wIndex < GetServiceNum() ; wIndex++) {
-		const WORD wServiceIndex = m_pProgDatabase->GetServiceIndexByID(m_ServiceList[wIndex].wServiceID);
+	for (size_t Index = 0 ; Index < m_ServiceList.size() ; Index++) {
+		const WORD wServiceIndex = m_pProgDatabase->GetServiceIndexByID(m_ServiceList[Index].wServiceID);
 
 		if (wServiceIndex != 0xFFFFU) {
-			if (m_pProgDatabase->m_ServiceList[wIndex].szServiceName[0]) {
-				::lstrcpy(m_ServiceList[wIndex].szServiceName,
+			if (m_pProgDatabase->m_ServiceList[wServiceIndex].szServiceName[0]) {
+				::lstrcpy(m_ServiceList[Index].szServiceName,
 						  m_pProgDatabase->m_ServiceList[wServiceIndex].szServiceName);
 			} else {
-				::wsprintf(m_ServiceList[wIndex].szServiceName, TEXT("サービス%d"), wIndex + 1);
+				::wsprintf(m_ServiceList[Index].szServiceName, TEXT("サービス%d"), Index + 1);
 			}
 		}
 	}
@@ -259,11 +259,11 @@ void CProgManager::OnServiceInfoUpdated(void)
 void CProgManager::OnPcrTimestampUpdated(void)
 {
 	// PCRを更新する
-	for (WORD wIndex = 0U, wServiceNum = 0U ; wIndex < GetServiceNum() ; wIndex++) {
-		const WORD wServiceIndex = m_pProgDatabase->GetServiceIndexByID(m_ServiceList[wIndex].wServiceID);
+	for (size_t Index = 0 ; Index < m_ServiceList.size() ; Index++) {
+		const WORD wServiceIndex = m_pProgDatabase->GetServiceIndexByID(m_ServiceList[Index].wServiceID);
 
 		if (wServiceIndex != 0xFFFFU) {
-			m_ServiceList[wIndex].u64TimeStamp = m_pProgDatabase->m_ServiceList[wServiceIndex].u64TimeStamp;
+			m_ServiceList[Index].u64TimeStamp = m_pProgDatabase->m_ServiceList[wServiceIndex].u64TimeStamp;
 		}
 	}
 
@@ -302,15 +302,15 @@ void CProgManager::CProgDatabase::Reset(void)
 
 	// NITテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(0x0010U, new CNitTable, CProgDatabase::OnNitUpdated, this);
-	::ZeroMemory(&m_NitInfo,sizeof(m_NitInfo));
+	::ZeroMemory(&m_NitInfo, sizeof(m_NitInfo));
 }
 
 
 void CProgManager::CProgDatabase::UnmapTable(void)
 {
 	// 全PMT PIDアンマップ
-	for(WORD wIndex = 0U ; wIndex < m_ServiceList.size() ; wIndex++) {
-		m_PidMapManager.UnmapTarget(m_ServiceList[wIndex].wPmtTablePID);
+	for (size_t Index = 0 ; Index < m_ServiceList.size() ; Index++) {
+		m_PidMapManager.UnmapTarget(m_ServiceList[Index].wPmtTablePID);
 	}
 
 	// サービスリストクリア
@@ -393,7 +393,6 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 
 	// ビデオESのPIDをストア
 	pThis->m_ServiceList[wServiceIndex].wVideoEsPID = 0xFFFFU;
-
 	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
 		// 「ITU-T Rec. H.262|ISO/IEC 13818-2 Video or ISO/IEC 11172-2」のストリームタイプを検索
 		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x02U) {
@@ -404,7 +403,6 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 
 	// オーディオESのPIDをストア
 	pThis->m_ServiceList[wServiceIndex].AudioEsPIDs.clear();
-
 	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
 		// 「ISO/IEC 13818-7 Audio (ADTS Transport Syntax)」のストリームタイプを検索
 		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x0FU) {
@@ -516,7 +514,8 @@ void CALLBACK CProgManager::CProgDatabase::OnNitUpdated(const WORD wPID, CTsPidM
 	if (pDescBlock) {
 		const CNetworkNameDesc *pNetworkDesc = dynamic_cast<const CNetworkNameDesc *>(pDescBlock->GetDescByTag(CNetworkNameDesc::DESC_TAG));
 		if(pNetworkDesc) {
-			pNetworkDesc->GetNetworkName(pThis->m_NitInfo.szNetworkName);
+			pNetworkDesc->GetNetworkName(pThis->m_NitInfo.szNetworkName,
+										 sizeof(pThis->m_NitInfo.szNetworkName) / sizeof(TCHAR));
 		}
 	}
 
@@ -532,7 +531,8 @@ void CALLBACK CProgManager::CProgDatabase::OnNitUpdated(const WORD wPID, CTsPidM
 	if (pDescBlock) {
 		const CTSInfoDesc *pTsInfoDesc = dynamic_cast<const CTSInfoDesc *>(pDescBlock->GetDescByTag(CTSInfoDesc::DESC_TAG));
 		if (pTsInfoDesc) {
-			pTsInfoDesc->GetTSName(pThis->m_NitInfo.szTSName);
+			pTsInfoDesc->GetTSName(pThis->m_NitInfo.szTSName,
+								   sizeof(pThis->m_NitInfo.szTSName) / sizeof(TCHAR));
 			pThis->m_NitInfo.byRemoteControlKeyID = pTsInfoDesc->GetRemoteControlKeyID();
 		}
 	}

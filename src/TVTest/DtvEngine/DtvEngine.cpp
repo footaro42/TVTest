@@ -91,7 +91,7 @@ const bool CDtvEngine::BuildEngine(CDtvEngineHandler *pDtvEngineHandler,
 	m_MediaTee.SetOutputDecoder(&m_MediaGrabber, 1UL);
 	m_MediaGrabber.SetOutputDecoder(&m_FileWriter);
 	if (!bBuffering) {
-		m_ProgManager.SetOutputDecoder(&m_MediaViewer);			// Output #0 : CTsPacket
+		m_ProgManager.SetOutputDecoder(&m_MediaViewer);		// Output #0 : CTsPacket
 	} else {
 		m_ProgManager.SetOutputDecoder(&m_MediaBuffer);
 		m_MediaBuffer.SetOutputDecoder(&m_MediaViewer);
@@ -395,8 +395,6 @@ const bool CDtvEngine::DisplayVideoDecoderProperty(HWND hWndParent)
 
 const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel)
 {
-	if (m_MediaViewer.CheckHangUp(500))
-		return false;
 	// チャンネル変更
 	bool bRet = m_BonSrcDecoder.SetChannel((DWORD)byTuningSpace, (DWORD)wChannel);
 	//if(bRet) ResetEngine();
@@ -408,6 +406,8 @@ const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel)
 
 const bool CDtvEngine::SetService(const WORD wService)
 {
+	CBlockLock Lock(&m_EngineLock);
+
 	// サービス変更(wService==0xFFFFならPAT先頭サービス)
 
 	if(wService < m_ProgManager.GetServiceNum() || wService==0xFFFF){
@@ -507,7 +507,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 				// この時点でまだサービスが全部きてないこともあるので、いったん保留
 				if (SetService(0xFFFF)) {
 					m_wCurTransportStream = wTransportStream;
-					SendDtvEngineEvent(EID_SERVICE_LIST_UPDATED, static_cast<PVOID>(&m_ProgManager));
+					SendDtvEngineEvent(EID_SERVICE_LIST_UPDATED, &m_ProgManager);
 				}
 			} else {
 				// ストリームIDは同じだが、構成ESのPIDが変わった可能性がある
@@ -517,7 +517,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 
 		case CProgManager::EID_SERVICE_INFO_UPDATED :
 			// サービス名が更新された
-			SendDtvEngineEvent(EID_SERVICE_INFO_UPDATED, static_cast<PVOID>(&m_ProgManager));
+			SendDtvEngineEvent(EID_SERVICE_INFO_UPDATED, &m_ProgManager);
 			return 0UL;
 
 		case CProgManager::EID_PCR_TIMESTAMP_UPDATED :
@@ -555,7 +555,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 		switch (dwEventID) {
 		case CFileWriter::EID_WRITE_ERROR:
 			// 書き込みエラーが発生した
-			SendDtvEngineEvent(EID_FILE_WRITE_ERROR,pDecoder);
+			SendDtvEngineEvent(EID_FILE_WRITE_ERROR, pDecoder);
 			return 0UL;
 		}
 	} else if (pDecoder == &m_MediaViewer) {

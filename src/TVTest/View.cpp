@@ -69,12 +69,16 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 			HBRUSH hbr;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->m_pDtvEngine->m_MediaViewer.RepaintVideo(hwnd,ps.hdc);
-			pThis->m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest);
 			hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
-			::GetClientRect(hwnd,&rc);
-			if (!::EqualRect(&rc,&rcDest))
-				DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
+			if (!pThis->m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest)
+					|| ::IsRectEmpty(&rcDest)) {
+				::FillRect(ps.hdc,&ps.rcPaint,hbr);
+			} else {
+				pThis->m_pDtvEngine->m_MediaViewer.RepaintVideo(hwnd,ps.hdc);
+				::GetClientRect(hwnd,&rc);
+				if (!::EqualRect(&rc,&rcDest))
+					DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
+			}
 			/*
 			if (ps.rcPaint.top<rcDest.top) {
 				rc.left=ps.rcPaint.left;
