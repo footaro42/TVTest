@@ -282,7 +282,7 @@ FONT 9,"ＭＳ Ｐゴシック"
 BEGIN
 	DEFPUSHBUTTON "OK",IDOK,120,52,48,14
 	CONTROL "",IDC_ABOUT_LOGO,STATIC,SS_BITMAP | SS_CENTERIMAGE | WS_CHILD | WS_VISIBLE,0,0,68,64
-	CTEXT "TVTest ver.0.5.8\r\nby HDUSTestの中の人 && HDUSスレの皆さん",-1,72,8,144,16
+	CTEXT "TVTest ver.0.5.9\r\nby HDUSTestの中の人 && HDUSスレの皆さん",-1,72,8,144,16
 	CTEXT "オリジナル作者: 拡張ツール中の人 氏\r\n改造版作者: Meru-co氏",-1,72,28,144,16
 END
 

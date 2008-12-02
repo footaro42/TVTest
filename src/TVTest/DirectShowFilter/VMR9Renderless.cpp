@@ -22,8 +22,8 @@ class CVMR9Allocator : public IVMRSurfaceAllocator9,IVMRImagePresenter9
 	HWND m_window;
 	LONG m_RefCount;
 	SIZE m_WindowSize;
-	SIZE m_NativeVideoSize;
 	SIZE m_SourceSize;
+	SIZE m_NativeVideoSize;
 	RECT m_SourceRect;
 	RECT m_DestRect;
 
@@ -63,7 +63,7 @@ public:
 
 	// CVMR9Allocator
 	bool GetNativeVideoSize(LONG *pWidth,LONG *pHeight);
-	bool SetVideoPosition(const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect);
+	bool SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect);
 	bool GetVideoPosition(RECT *pSrc,RECT *pDst);
 	bool RepaintVideo();
 	bool SetCapture(bool fCapture);
@@ -92,10 +92,10 @@ CVMR9Allocator::CVMR9Allocator(HRESULT *phr,HWND wnd,IDirect3D9 *d3d,IDirect3DDe
 	::GetClientRect(wnd,&rc);
 	m_WindowSize.cx=rc.right;
 	m_WindowSize.cy=rc.bottom;
-	m_NativeVideoSize.cx=0;
-	m_NativeVideoSize.cy=0;
 	m_SourceSize.cx=0;
 	m_SourceSize.cy=0;
+	m_NativeVideoSize.cx=0;
+	m_NativeVideoSize.cy=0;
 	::ZeroMemory(&m_SourceRect,sizeof(RECT));
 	::ZeroMemory(&m_DestRect,sizeof(RECT));
 
@@ -400,6 +400,15 @@ STDMETHODIMP CVMR9Allocator::PresentImage(DWORD_PTR dwUserID,
 }
 
 
+static void MapRect(RECT *pRect,int XNum,int XDenom,int YNum,int YDenom)
+{
+	pRect->left=pRect->left*XNum/XDenom;
+	pRect->top=pRect->top*YNum/YDenom;
+	pRect->right=pRect->right*XNum/XDenom;
+	pRect->bottom=pRect->bottom*YNum/YDenom;
+}
+
+
 HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 {
 	if (lpPresInfo==NULL || lpPresInfo->lpSurf==NULL)
@@ -462,18 +471,55 @@ HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 		return hr;
 
 	return m_D3DDev->Present(NULL,NULL,NULL,NULL);
-#else
-	RECT rcSource;
+#endif
+#if 1
+	RECT rcSource,rcDest;
 	DstSurface->GetDesc(&desc);
 	if (!IsRectEmpty(&m_SourceRect)) {
-		rcSource.left=(m_SourceRect.left*desc.Width)/m_NativeVideoSize.cx;
-		rcSource.top=(m_SourceRect.top*desc.Height)/m_NativeVideoSize.cy;
-		rcSource.right=(m_SourceRect.right*desc.Width)/m_NativeVideoSize.cx;
-		rcSource.bottom=(m_SourceRect.bottom*desc.Height)/m_NativeVideoSize.cy;
+		rcSource=m_SourceRect;
+		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
+			MapRect(&rcSource,m_NativeVideoSize.cx,m_SourceSize.cx,
+							  m_NativeVideoSize.cy,m_SourceSize.cy);
+		MapRect(&rcSource,desc.Width,m_NativeVideoSize.cx,
+						  desc.Height,m_NativeVideoSize.cy);
 	} else {
 		SetRect(&rcSource,0,0,desc.Width,desc.Height);
 	}
+	if (!IsRectEmpty(&m_DestRect)) {
+		rcDest=m_DestRect;
+	} else {
+		SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
+	}
 	m_D3DDev->StretchRect(lpPresInfo->lpSurf,NULL,DstSurface,NULL,D3DTEXF_NONE);
+	hr=m_D3DDev->EndScene();
+	if (FAILED(hr))
+		return hr;
+
+	return m_D3DDev->Present(&rcSource,&rcDest,NULL,NULL);
+#else
+	RECT rcSource,rcDest;
+	DstSurface->GetDesc(&desc);
+	if (!IsRectEmpty(&m_SourceRect)) {
+		rcSource=m_SourceRect;
+		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
+			MapRect(&rcSource,m_NativeVideoSize.cx,m_SourceSize.cx,
+							  m_NativeVideoSize.cy,m_SourceSize.cy);
+		MapRect(&rcSource,desc.Width,m_NativeVideoSize.cx,
+						  desc.Height,m_NativeVideoSize.cy);
+	} else {
+		SetRect(&rcSource,0,0,desc.Width,desc.Height);
+	}
+	SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
+	if (!IsRectEmpty(&m_DestRect)) {
+		rcDest.right=(m_DestRect.right-m_DestRect.left)*m_NativeVideoSize.cx/(rcSource.right-rcSource.left);
+		rcDest.bottom=(m_DestRect.bottom-m_DestRect.top)*m_NativeVideoSize.cy/(rcSource.bottom-rcSource.top);
+		MapRect(&rcSource,
+				rcDest.right-rcDest.left,desc.Width,
+				rcDest.bottom-rcDest.top,desc.Height);
+	} else {
+		rcSource=rcDest;
+	}
+	m_D3DDev->StretchRect(lpPresInfo->lpSurf,NULL,DstSurface,&rcDest,D3DTEXF_NONE);
 	hr=m_D3DDev->EndScene();
 	if (FAILED(hr))
 		return hr;
@@ -508,23 +554,54 @@ bool CVMR9Allocator::RepaintVideo()
 	HRESULT hr;
 	CComPtr<IDirect3DSurface9> DstSurface;
 	D3DSURFACE_DESC desc;
-	RECT rcSource;
+	RECT rcSource,rcDest;
 
 	hr=m_D3DDev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&DstSurface.p);
 	if (FAILED(hr))
 		return false;
 	DstSurface->GetDesc(&desc);
+#if 1
 	if (!IsRectEmpty(&m_SourceRect)) {
-		rcSource.left=(m_SourceRect.left*desc.Width)/m_NativeVideoSize.cx;
-		rcSource.top=(m_SourceRect.top*desc.Height)/m_NativeVideoSize.cy;
-		rcSource.right=(m_SourceRect.right*desc.Width)/m_NativeVideoSize.cx;
-		rcSource.bottom=(m_SourceRect.bottom*desc.Height)/m_NativeVideoSize.cy;
+		rcSource=m_SourceRect;
+		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
+			MapRect(&rcSource,m_NativeVideoSize.cx,m_SourceSize.cx,
+							  m_NativeVideoSize.cy,m_SourceSize.cy);
+		MapRect(&rcSource,desc.Width,m_NativeVideoSize.cx,
+						  desc.Height,m_NativeVideoSize.cy);
 	} else {
 		SetRect(&rcSource,0,0,desc.Width,desc.Height);
+	}
+	if (!IsRectEmpty(&m_DestRect)) {
+		rcDest=m_DestRect;
+	} else {
+		SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
+	}
+	hr=m_D3DDev->Present(&rcSource,&rcDest,NULL,NULL);
+#else
+	if (!IsRectEmpty(&m_SourceRect)) {
+		rcSource=m_SourceRect;
+		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
+			MapRect(&rcSource,m_NativeVideoSize.cx,m_SourceSize.cx,
+							  m_NativeVideoSize.cy,m_SourceSize.cy);
+		MapRect(&rcSource,desc.Width,m_NativeVideoSize.cx,
+						  desc.Height,m_NativeVideoSize.cy);
+	} else {
+		SetRect(&rcSource,0,0,desc.Width,desc.Height);
+	}
+	SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
+	if (!IsRectEmpty(&m_DestRect)) {
+		rcDest.right=(m_DestRect.right-m_DestRect.left)*m_NativeVideoSize.cx/(rcSource.right-rcSource.left);
+		rcDest.bottom=(m_DestRect.bottom-m_DestRect.top)*m_NativeVideoSize.cy/(rcSource.bottom-rcSource.top);
+		MapRect(&rcSource,
+				rcDest.right-rcDest.left,desc.Width,
+				rcDest.bottom-rcDest.top,desc.Height);
+	} else {
+		rcSource=rcDest;
 	}
 	hr=m_D3DDev->Present(&rcSource,
 						 ::IsRectEmpty(&m_DestRect)?NULL:&m_DestRect,
 						 NULL,NULL);
+#endif
 	return SUCCEEDED(hr);
 }
 
@@ -572,10 +649,12 @@ bool CVMR9Allocator::GetNativeVideoSize(LONG *pWidth,LONG *pHeight)
 }
 
 
-bool CVMR9Allocator::SetVideoPosition(const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect)
+bool CVMR9Allocator::SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect)
 {
 	CAutoLock Lock(&m_ObjectLock);
 
+	m_SourceSize.cx=SourceWidth;
+	m_SourceSize.cy=SourceHeight;
 	if (pSrc) {
 		m_SourceRect=*pSrc;
 	} else {
@@ -728,21 +807,11 @@ bool CVideoRenderer_VMR9Renderless::SetVideoPosition(int SourceWidth,int SourceH
 		return false;
 
 	HRESULT hr;
-	RECT rcSrc,rcDest;
-	LONG Width,Height;
+	RECT rcDest;
 
-	if (SourceWidth>0 && SourceHeight>0
-			&& m_pAllocator->GetNativeVideoSize(&Width,&Height)) {
-		rcSrc.left=pSourceRect->left*Width/SourceWidth;
-		rcSrc.top=pSourceRect->top*Height/SourceHeight;
-		rcSrc.right=pSourceRect->right*Width/SourceWidth;
-		rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
-	} else {
-		rcSrc=*pSourceRect;
-	}
 	rcDest=*pDestRect;
 	::OffsetRect(&rcDest,pWindowRect->left,pWindowRect->top);
-	m_pAllocator->SetVideoPosition(&rcSrc,&rcDest,pWindowRect);
+	m_pAllocator->SetVideoPosition(SourceWidth,SourceHeight,pSourceRect,&rcDest,pWindowRect);
 	::InvalidateRect(m_hwndRender,NULL,TRUE);
 	return true;
 }

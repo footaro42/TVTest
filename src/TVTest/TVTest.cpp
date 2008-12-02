@@ -476,6 +476,7 @@ bool CAppMain::InitializeChannel()
 	ClearMenu(MainMenu.GetSubMenu(CMainMenu::SUBMENU_SERVICE));
 	NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
 											 &CoreEngine,&ChannelManager);
+	ChannelScan.SetTuningSpaceList(ChannelManager.GetTuningSpaceList());
 	return true;
 }
 
@@ -666,12 +667,15 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 	if (pPrevChInfo==NULL
 			|| pChInfo->GetSpace()!=pPrevChInfo->GetSpace()
 			|| pChInfo->GetChannelIndex()!=pPrevChInfo->GetChannelIndex()) {
+		int OldService=ChannelManager.GetCurrentService();
+
+		ChannelManager.SetCurrentService(Service);
 		if (!CoreEngine.m_DtvEngine.SetChannel(pChInfo->GetSpace(),
 											   pChInfo->GetChannelIndex())) {
 			ChannelManager.SetCurrentChannel(OldSpace,OldChannel);
+			ChannelManager.SetCurrentService(OldService);
 			return false;
 		}
-		ChannelManager.SetCurrentService(Service);
 		PluginList.SendChannelChangeEvent();
 	} else {
 		ChannelManager.SetCurrentService(Service);
@@ -796,7 +800,8 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 			return false;
 		}
 	}
-	return SetService(0);
+	//return SetService(0);
+	return false;
 }
 
 
@@ -1162,6 +1167,8 @@ bool CAppMain::LoadSettings()
 		// Experimental options
 		//Setting.Read(TEXT("UseGrabber"),&fUseGrabberFilter);
 		Setting.Read(TEXT("IncrementUDPPort"),&fIncrementUDPPort);
+		if (Setting.Read(TEXT("UseAudioRendererClock"),&f))
+			CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(f);
 		PanelOptions.Read(&Setting);
 		RecordOptions.Read(&Setting);
 		CaptureOptions.Read(&Setting);
@@ -6044,9 +6051,9 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					&& (pChInfo==NULL
 						|| ((pChInfo->GetTransportStreamID()!=0
 							&& pChInfo->GetTransportStreamID()!=TransportStreamID)
-						|| (ChannelManager.GetCurrentService()<0
+						/*|| (ChannelManager.GetCurrentService()<0
 							&& pChInfo->GetServiceID()!=0
-							&& pChInfo->GetServiceID()!=ServiceID)))) {
+							&& pChInfo->GetServiceID()!=ServiceID)*/))) {
 					// 外部からチャンネル変更された?
 					AppMain.FollowChannelChange(TransportStreamID,ServiceID);
 				} else if (pChInfo!=NULL
@@ -6472,6 +6479,16 @@ bool CMainWindow::CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Durati
 
 static bool SetCommandLineChannel(const CCommandLineParser *pCmdLine)
 {
+	if (ChannelManager.IsNetworkRemoconMode()) {
+		if (pCmdLine->m_ControllerChannel==0)
+			return false;
+		if (ChannelManager.GetCurrentChannelList()->FindChannelNo(pCmdLine->m_ControllerChannel)>=0) {
+			MainWindow.SendCommand(CM_CHANNELNO_FIRST+pCmdLine->m_ControllerChannel-1);
+			return true;
+		}
+		return false;
+	}
+
 	const CChannelList *pChannelList;
 	int i,j;
 
@@ -6945,7 +6962,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	}
 	StatusView.SetSingleText(TEXT("チャンネル設定を読み込んでいます..."));
 	AppMain.InitializeChannel();
-	ChannelScan.SetTuningSpaceList(ChannelManager.GetTuningSpaceList());
 
 	if (!fNoKeyHook && !fNoRemoteController) {
 		pRemoteController=new CRemoteController(MainWindow.GetHandle());
@@ -7049,6 +7065,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		if (CoreEngine.IsUDPDriver()) {
 			if (CmdLineParser.m_UDPPort>1234 && CmdLineParser.m_UDPPort<=1243)
 				MainWindow.PostCommand(CM_CHANNEL_FIRST+(CmdLineParser.m_UDPPort-1234));
+			if (CmdLineParser.m_ControllerChannel>0)
+				SetCommandLineChannel(&CmdLineParser);
 		} else if (AppMain.IsFirstExecute()) {
 			if (ChannelManager.GetFileAllChannelList()->NumChannels()==0) {
 				if (MainWindow.ShowMessage(

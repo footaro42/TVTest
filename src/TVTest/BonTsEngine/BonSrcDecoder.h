@@ -69,7 +69,7 @@ public:
 private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
 	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
-	bool PauseStreamRecieve(DWORD TimeOut = 1000);
+	bool PauseStreamRecieve(DWORD TimeOut = 3000);
 	void ResumeStreamRecieve();
 	void ResetBitRate();
 
@@ -86,9 +86,11 @@ private:
 	bool m_bIsPlaying;
 	DWORD m_dwLastError;
 
+	/*
 	int m_RequestSpace;
 	int m_RequestChannel;
 	bool m_bSetChannelResult;
+	*/
 
 	DWORD m_BitRateTime;
 	DWORD m_BitRate;

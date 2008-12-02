@@ -99,6 +99,8 @@ public:
 #endif
 	bool SetAudioNormalize(bool bNormalize,float Level=1.0f);
 	CVideoRenderer::RendererType GetVideoRendererType() const;
+	bool SetUseAudioRendererClock(bool bUse);
+	bool GetUseAudioRendererClock() const { return m_bUseAudioRendererClock; }
 	const bool RepaintVideo(HWND hwnd,HDC hdc);
 	const bool DisplayModeChanged();
 	const bool DrawText(LPCTSTR pszText,HFONT hfont,COLORREF crColor,
@@ -162,6 +164,7 @@ protected:
 	int m_ForceAspectX,m_ForceAspectY;
 	BYTE m_PanAndScan;
 	ViewStretchMode m_ViewStretchMode;
+	bool m_bUseAudioRendererClock;
 	CImageMixer *m_pImageMixer;
 #ifdef USE_GABBER_FILTER
 	bool m_bGrabber;

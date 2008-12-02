@@ -33,8 +33,10 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_dwLastError(ERR_NOERROR)
 	, m_BitRate(0)
 	, m_StreamRemain(0)
+	/*
 	, m_RequestSpace(-1)
 	, m_RequestChannel(-1)
+	*/
 {
 }
 
@@ -236,6 +238,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 		return false;
 	}
 
+	/*
 	m_RequestChannel = byChannel;
 	if (!PauseStreamRecieve()) {
 		m_RequestChannel = -1;
@@ -243,19 +246,23 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 		return false;
 	}
 
-	/*
-	// 未処理のストリームを破棄する
-	m_pBonDriver->PurgeTsStream();
-
-	// チャンネルを変更する
-	if (!m_pBonDriver->SetChannel(byChannel)) {
+	if (!m_bSetChannelResult) {
 		ResumeStreamRecieve();
 		m_dwLastError = ERR_TUNER;
 		return false;
 	}
 	*/
 
-	if (!m_bSetChannelResult) {
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
+
+	// 未処理のストリームを破棄する
+	m_pBonDriver->PurgeTsStream();
+
+	// チャンネルを変更する
+	if (!m_pBonDriver->SetChannel(byChannel)) {
 		ResumeStreamRecieve();
 		m_dwLastError = ERR_TUNER;
 		return false;
@@ -279,6 +286,7 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 		return false;
 	}
 
+	/*
 	m_RequestSpace = dwSpace;
 	m_RequestChannel = dwChannel;
 	if (!PauseStreamRecieve()) {
@@ -288,19 +296,23 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 		return false;
 	}
 
-	/*
-	// 未処理のストリームを破棄する
-	m_pBonDriver2->PurgeTsStream();
-
-	// チャンネルを変更する
-	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
+	if (!m_bSetChannelResult) {
 		ResumeStreamRecieve();
 		m_dwLastError = ERR_TUNER;
 		return false;
 	}
 	*/
 
-	if (!m_bSetChannelResult) {
+	if (!PauseStreamRecieve()) {
+		m_dwLastError = ERR_TIMEOUT;
+		return false;
+	}
+
+	// 未処理のストリームを破棄する
+	m_pBonDriver2->PurgeTsStream();
+
+	// チャンネルを変更する
+	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
 		ResumeStreamRecieve();
 		m_dwLastError = ERR_TUNER;
 		return false;
@@ -452,6 +464,7 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 		}
 		if (pThis->m_bKillSignal)
 			break;
+		/*
 		if (pThis->m_RequestChannel>=0) {
 			pThis->m_pBonDriver->PurgeTsStream();
 			if (pThis->m_RequestSpace>=0) {
@@ -464,6 +477,7 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 			}
 			pThis->m_RequestChannel=-1;
 		}
+		*/
 		::SetEvent(pThis->m_hResumeEvent);
 		while (pThis->m_bPauseSignal)
 			Sleep(1);

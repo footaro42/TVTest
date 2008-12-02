@@ -71,6 +71,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_ForceAspectY(0)
 	, m_PanAndScan(0)
 	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
+	, m_bUseAudioRendererClock(true)
 #ifdef VMR9_SUPPORTED
 	, m_pImageMixer(NULL)
 #endif
@@ -396,7 +397,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		Trace(TEXT("音声レンダラの構築中..."));
 
 		// 音声レンダラ構築
-		{
+		if (m_bUseAudioRendererClock) {
 			bool fOK=false;
 #if 1
 			IBaseFilter *pAudioRenderer;
@@ -430,6 +431,9 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 					throw CBonException(TEXT("音声レンダラを構築できません。"));
 				m_pFilterGraph->SetDefaultSyncSource();
 			}
+		} else {
+			if (FAILED(m_pFilterGraph->Render(pOutputAudio)))
+				throw CBonException(TEXT("音声レンダラを構築できません。"));
 		}
 
 		// オーナウィンドウ設定
@@ -1222,6 +1226,13 @@ bool CMediaViewer::SetAudioNormalize(bool bNormalize,float Level)
 CVideoRenderer::RendererType CMediaViewer::GetVideoRendererType() const
 {
 	return m_VideoRendererType;
+}
+
+
+bool CMediaViewer::SetUseAudioRendererClock(bool bUse)
+{
+	m_bUseAudioRendererClock=bUse;
+	return true;
 }
 
 

@@ -54,6 +54,7 @@ public:
 	int FindChannelInfo(const CChannelInfo *pInfo) const;
 	int NumSpaces() const;
 	bool SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList=NULL);
+	bool IsNetworkRemoconMode() const { return m_fNetworkRemocon; }
 	int GetNetworkRemoconCurrentChannel() const { return m_NetworkRemoconCurrentChannel; }
 	bool SetNetworkRemoconCurrentChannel(int Channel);
 	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
