@@ -250,6 +250,50 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0xC4] Audio Component 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CAudioComponentDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0xC4U};
+
+	CAudioComponentDesc();
+	CAudioComponentDesc(const CAudioComponentDesc &Operand);
+	CAudioComponentDesc & operator = (const CAudioComponentDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CAudioComponentDesc
+	const BYTE GetStreamContent(void) const;
+	const BYTE GetComponentType(void) const;
+	const BYTE GetComponentTag(void) const;
+	const BYTE GetSimulcastGroupTag(void) const;
+	const bool GetESMultiLingualFlag(void) const;
+	const bool GetMainComponentFlag(void) const;
+	const BYTE GetQualityIndicator(void) const;
+	const BYTE GetSamplingRate(void) const;
+	LPCTSTR GetText(void) const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	BYTE m_StreamContent;
+	BYTE m_ComponentType;
+	BYTE m_ComponentTag;
+	BYTE m_StreamType;
+	BYTE m_SimulcastGroupTag;
+	bool m_bESMultiLingualFlag;
+	bool m_bMainComponentFlag;
+	BYTE m_QualityIndicator;
+	BYTE m_SamplingRate;
+	TCHAR m_szText[64];
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 

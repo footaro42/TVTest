@@ -113,8 +113,6 @@ protected:
 	const bool ResizeVideoWindow();
 	const bool CalcSourceRect(RECT *pRect);
 
-	//CCriticalLock m_CriticalLock;
-
 	// DirectShowインタフェース
 	bool m_bInit;
 	IMediaControl *m_pMediaControl;

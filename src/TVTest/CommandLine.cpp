@@ -116,6 +116,7 @@ CCommandLineParser::CCommandLineParser()
 	m_RecordDuration=0;
 	m_szRecordFileName[0]='\0';
 	m_fFullscreen=false;
+	m_fMinimize=false;
 	m_fNoDriver=false;
 	m_fStandby;
 	m_fNoView=false;
@@ -136,6 +137,7 @@ CCommandLineParser::CCommandLineParser()
 	/f				フルスクリーン
 	/init			初期設定ダイアログを表示する
 	/log			終了時にログを保存する
+	/min			最小化状態で起動
 	/nd				スクランブル解除しない
 	/nid			ネットワークID
 	/nodriver		BonDriverを読み込まない
@@ -176,6 +178,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 				m_fInitialSettings=true;
 			} else if (Args.IsOption(TEXT("log"))) {
 				m_fSaveLog=true;
+			} else if (Args.IsOption(TEXT("min"))) {
+				m_fMinimize=true;
 			} else if (Args.IsOption(TEXT("nd"))) {
 				m_fNoDescramble=true;
 			} else if (Args.IsOption(TEXT("nid"))) {

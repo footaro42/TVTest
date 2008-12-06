@@ -152,14 +152,16 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 		mii.wID=CM_CHANNEL_FIRST+i;
 		mii.dwItemData=reinterpret_cast<ULONG_PTR>((LPVOID)NULL);
 		if (pChInfo->GetServiceID()!=0) {
+			WORD TransportStreamID=pChInfo->GetTransportStreamID();
+			WORD ServiceID=pChInfo->GetServiceID();
 			bool fOK;
 			CEventInfoData EventInfo;
 
-			if (m_pProgramList->GetEventInfo(pChInfo->GetServiceID(),&st,&EventInfo)) {
+			if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
 				fOK=true;
 			} else {
-				if (m_pProgramList->UpdateProgramList(pChInfo->GetServiceID())
-						&& m_pProgramList->GetEventInfo(pChInfo->GetServiceID(),&st,&EventInfo))
+				if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
+						&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo))
 					fOK=true;
 			}
 			if (fOK) {

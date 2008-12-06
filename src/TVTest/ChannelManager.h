@@ -10,6 +10,7 @@ class CChannelManager {
 	int m_CurrentSpace;
 	int m_CurrentChannel;
 	int m_CurrentService;
+	WORD m_CurrentServiceID;
 	int m_ChangingChannel;
 	CTuningSpaceList m_TuningSpaceList;
 	CTuningSpaceList m_DriverTuningSpaceList;
@@ -36,6 +37,8 @@ public:
 	int GetCurrentChannel() const { return m_CurrentChannel; }
 	int GetCurrentService() const { return m_CurrentService; }
 	bool SetCurrentService(int Service);
+	WORD GetCurrentServiceID() const { return m_CurrentServiceID; }
+	bool SetCurrentServiceID(WORD ServiceID);
 	bool SetChangingChannel(int Channel);
 	const CChannelInfo *GetCurrentChannelInfo() const;
 	const CChannelInfo *GetCurrentRealChannelInfo() const;

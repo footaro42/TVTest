@@ -251,8 +251,8 @@ class CProgramGuideServiceInfo {
 	bool InsertProgram(int Index,CProgramGuideItem *pItem);
 	void InsertNullItems(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime);
 public:
-	CProgramGuideServiceInfo();
-	CProgramGuideServiceInfo(const CEpgServiceInfo &Info);
+	CProgramGuideServiceInfo(const CChannelInfo *pChannelInfo);
+	CProgramGuideServiceInfo(const CChannelInfo *pChannelInfo,const CEpgServiceInfo &Info);
 	~CProgramGuideServiceInfo();
 	WORD GetOriginalNID() const { return m_ServiceData.m_OriginalNID; }
 	WORD GetTSID() const { return m_ServiceData.m_TSID; }
@@ -272,7 +272,11 @@ public:
 };
 
 
-CProgramGuideServiceInfo::CProgramGuideServiceInfo()
+CProgramGuideServiceInfo::CProgramGuideServiceInfo(const CChannelInfo *pChannelInfo)
+	: m_ServiceData(pChannelInfo->GetNetworkID(),
+					pChannelInfo->GetTransportStreamID(),
+					pChannelInfo->GetServiceID(),0,
+					pChannelInfo->GetName())
 {
 	m_ppProgramList=NULL;
 	m_NumPrograms=0;
@@ -282,9 +286,10 @@ CProgramGuideServiceInfo::CProgramGuideServiceInfo()
 }
 
 
-CProgramGuideServiceInfo::CProgramGuideServiceInfo(const CEpgServiceInfo &Info)
+CProgramGuideServiceInfo::CProgramGuideServiceInfo(const CChannelInfo *pChannelInfo,const CEpgServiceInfo &Info)
 	: m_ServiceData(Info.m_ServiceData)
 {
+	m_ServiceData.SetServiceName(pChannelInfo->GetName());
 	m_ppProgramList=NULL;
 	m_NumPrograms=0;
 	m_ProgramListLength=0;
@@ -711,6 +716,8 @@ void CProgramGuideServiceList::Clear()
 
 
 
+#if 0
+
 CProgramGuideServiceIDList::CProgramGuideServiceIDList()
 {
 	m_pServiceList=NULL;
@@ -738,6 +745,14 @@ CProgramGuideServiceIDList &CProgramGuideServiceIDList::operator=(const CProgram
 }
 
 
+WORD CProgramGuideServiceIDList::GetTransportStreamID(int Index) const
+{
+	if (Index<0 || Index>=m_NumServices)
+		return 0;
+	return m_pServiceList[Index].TransportStreamID;
+}
+
+
 WORD CProgramGuideServiceIDList::GetServiceID(int Index) const
 {
 	if (Index<0 || Index>=m_NumServices)
@@ -746,7 +761,7 @@ WORD CProgramGuideServiceIDList::GetServiceID(int Index) const
 }
 
 
-bool CProgramGuideServiceIDList::Add(WORD ServiceID)
+bool CProgramGuideServiceIDList::Add(WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_ServiceListLength==m_NumServices) {
 		if (m_ServiceListLength==0)
@@ -755,6 +770,7 @@ bool CProgramGuideServiceIDList::Add(WORD ServiceID)
 			m_ServiceListLength*=2;
 		m_pServiceList=(ServiceInfo*)realloc(m_pServiceList,m_ServiceListLength*sizeof(ServiceInfo));
 	}
+	m_pServiceList[m_NumServices++].TransportStreamID=TransportStreamID;
 	m_pServiceList[m_NumServices++].ServiceID=ServiceID;
 	return true;
 }
@@ -781,6 +797,8 @@ int CProgramGuideServiceIDList::FindServiceID(WORD ServiceID) const
 	}
 	return i;
 }
+
+#endif
 
 
 
@@ -907,21 +925,30 @@ bool CProgramGuide::UpdateList()
 		return false;
 
 	m_ServiceList.Clear();
-	for (int i=0;i<m_ServiceIDList.NumServices();i++) {
-		WORD ServiceID=m_ServiceIDList.GetServiceID(i);
-		CEpgServiceInfo *pServiceInfo=m_pProgramList->GetServiceInfo(ServiceID);
+	for (int i=0;i<m_ChannelList.NumChannels();i++) {
+		const CChannelInfo *pChannelInfo=m_ChannelList.GetChannelInfo(i);
+		CEpgServiceInfo *pServiceInfo=m_pProgramList->GetServiceInfo(
+			pChannelInfo->GetTransportStreamID(),pChannelInfo->GetServiceID());
+		CProgramGuideServiceInfo *pService;
 
-		if (pServiceInfo==NULL)
-			continue;
-		CProgramGuideServiceInfo *pService=new CProgramGuideServiceInfo(*pServiceInfo);
-		CEventInfoList::EventIterator itrEvent;
-		for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
-				itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
-				itrEvent++) {
-			pService->AddProgram(new CProgramGuideItem(itrEvent->second));
+		if (pServiceInfo!=NULL) {
+			pService=new CProgramGuideServiceInfo(pChannelInfo,*pServiceInfo);
+			CEventInfoList::EventIterator itrEvent;
+			for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
+					itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
+					itrEvent++) {
+				pService->AddProgram(new CProgramGuideItem(itrEvent->second));
+			}
+			pService->SortPrograms();
+#if 1
+			m_ServiceList.Add(pService);
 		}
-		pService->SortPrograms();
+#else
+		} else {
+			pService=new CProgramGuideServiceInfo(pChannelInfo);
+		}
 		m_ServiceList.Add(pService);
+#endif
 	}
 	return true;
 }
@@ -1139,9 +1166,18 @@ bool CProgramGuide::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 }
 
 
+/*
 bool CProgramGuide::SetServiceIDList(const CProgramGuideServiceIDList *pList)
 {
 	m_ServiceIDList=*pList;
+	return true;
+}
+*/
+
+
+bool CProgramGuide::SetChannelList(const CChannelList *pList)
+{
+	m_ChannelList=*pList;
 	return true;
 }
 

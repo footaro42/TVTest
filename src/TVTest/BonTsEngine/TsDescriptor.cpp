@@ -631,6 +631,134 @@ const bool CTSInfoDesc::StoreContents(const BYTE *pPayload)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0xC4] Audio Component 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CAudioComponentDesc::CAudioComponentDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CAudioComponentDesc::CAudioComponentDesc(const CAudioComponentDesc &Operand)
+{
+	*this = Operand;
+}
+
+CAudioComponentDesc & CAudioComponentDesc::operator = (const CAudioComponentDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CAudioComponentDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CAudioComponentDesc *pSrcDesc = dynamic_cast<const CAudioComponentDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_StreamContent=pSrcDesc->m_StreamContent;
+		m_ComponentType=pSrcDesc->m_ComponentType;
+		m_ComponentTag=pSrcDesc->m_ComponentTag;
+		m_StreamType=pSrcDesc->m_StreamType;
+		m_SimulcastGroupTag=pSrcDesc->m_SimulcastGroupTag;
+		m_bESMultiLingualFlag=pSrcDesc->m_bESMultiLingualFlag;
+		m_bMainComponentFlag=pSrcDesc->m_bMainComponentFlag;
+		m_QualityIndicator=pSrcDesc->m_QualityIndicator;
+		m_SamplingRate=pSrcDesc->m_SamplingRate;
+		::lstrcpy(m_szText,pSrcDesc->m_szText);
+	}
+}
+
+void CAudioComponentDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_StreamContent=0;
+	m_ComponentType=0;
+	m_ComponentTag=0;
+	m_StreamType=0;
+	m_SimulcastGroupTag=0;
+	m_bESMultiLingualFlag=false;
+	m_bMainComponentFlag=false;
+	m_QualityIndicator=0;
+	m_SamplingRate=0;
+	m_szText[0]='\0';
+}
+
+const BYTE CAudioComponentDesc::GetStreamContent(void) const
+{
+	return m_StreamContent;
+}
+
+const BYTE CAudioComponentDesc::GetComponentType(void) const
+{
+	return m_ComponentType;
+}
+
+const BYTE CAudioComponentDesc::GetComponentTag(void) const
+{
+	return m_ComponentTag;
+}
+
+const BYTE CAudioComponentDesc::GetSimulcastGroupTag(void) const
+{
+	return m_SimulcastGroupTag;
+}
+
+const bool CAudioComponentDesc::GetESMultiLingualFlag(void) const
+{
+	return m_bESMultiLingualFlag;
+}
+
+const bool CAudioComponentDesc::GetMainComponentFlag(void) const
+{
+	return m_bMainComponentFlag;
+}
+
+const BYTE CAudioComponentDesc::GetQualityIndicator(void) const
+{
+	return m_QualityIndicator;
+}
+
+const BYTE CAudioComponentDesc::GetSamplingRate(void) const
+{
+	return m_SamplingRate;
+}
+
+LPCTSTR CAudioComponentDesc::GetText(void) const
+{
+	return m_szText;
+}
+
+const bool CAudioComponentDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 8)
+		return false;
+
+	m_StreamContent=pPayload[0]&0x0F;
+	m_ComponentType=pPayload[1];
+	m_ComponentTag=pPayload[2];
+	m_StreamType=pPayload[3];
+	m_SimulcastGroupTag=pPayload[4];
+	m_bESMultiLingualFlag=(pPayload[5]&0x80)!=0;
+	m_bMainComponentFlag=(pPayload[5]&0x40)!=0;
+	m_QualityIndicator=(pPayload[5]&0x30)>>4;
+	m_SamplingRate=(pPayload[5]&0x0E)>>1;
+	DWORD Pos=6+3;	// ISO_639_language_code
+	if (m_bESMultiLingualFlag)
+		Pos+=3;	// ISO_639_language_code_2
+	if ((DWORD)m_byDescLen-2 > Pos)
+		CAribString::AribToString(m_szText, &pPayload[Pos], m_byDescLen - Pos);
+	else
+		m_szText[0]='\0';
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
@@ -759,13 +887,14 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 {
 	// タグに対応したインスタンスを生成する
 	switch (byTag) {
-		case CCaMethodDesc::DESC_TAG	: return new CCaMethodDesc;
-		case CServiceDesc::DESC_TAG		: return new CServiceDesc;
-		case CShortEventDesc::DESC_TAG	: return new CShortEventDesc;
-		case CStreamIdDesc::DESC_TAG	: return new CStreamIdDesc;
-		case CNetworkNameDesc::DESC_TAG	: return new CNetworkNameDesc;
-		case CSystemManageDesc::DESC_TAG: return new CSystemManageDesc;
-		case CTSInfoDesc::DESC_TAG		: return new CTSInfoDesc;
-		default							: return new CBaseDesc;
+	case CCaMethodDesc::DESC_TAG		: return new CCaMethodDesc;
+	case CServiceDesc::DESC_TAG			: return new CServiceDesc;
+	case CShortEventDesc::DESC_TAG		: return new CShortEventDesc;
+	case CStreamIdDesc::DESC_TAG		: return new CStreamIdDesc;
+	case CNetworkNameDesc::DESC_TAG		: return new CNetworkNameDesc;
+	case CSystemManageDesc::DESC_TAG	: return new CSystemManageDesc;
+	case CTSInfoDesc::DESC_TAG			: return new CTSInfoDesc;
+	case CAudioComponentDesc::DESC_TAG	: return new CAudioComponentDesc;
+	default								: return new CBaseDesc;
 	}
 }

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <shlwapi.h>
+#include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Record.h"

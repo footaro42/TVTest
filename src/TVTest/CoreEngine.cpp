@@ -26,6 +26,7 @@ CCoreEngine::CCoreEngine()
 	m_VideoWidth=0;
 	m_VideoHeight=0;
 	m_NumAudioChannels=0;
+	m_AudioComponentType=0;
 	m_fMute=false;
 	m_Volume=100;
 	m_VolumeNormalizeLevel=100;
@@ -99,8 +100,10 @@ bool CCoreEngine::OpenDriver()
 		return false;
 	m_DtvEngine.ReleaseSrcFilter();
 	m_fFileMode=false;
-	if (!m_DtvEngine.OpenSrcFilter_BonDriver(m_hDriverLib))
+	if (!m_DtvEngine.OpenSrcFilter_BonDriver(m_hDriverLib)) {
+		SetError(m_DtvEngine.GetLastErrorException());
 		return false;
+	}
 	LPCTSTR pszName=m_DtvEngine.m_BonSrcDecoder.GetTunerName();
 	m_DriverType=DRIVER_UNKNOWN;
 	if (pszName!=NULL) {
@@ -147,6 +150,12 @@ bool CCoreEngine::OpenBcasCard()
 		}
 	}
 	return true;
+}
+
+
+bool CCoreEngine::IsBcasCardOpen() const
+{
+	return m_DtvEngine.m_TsDescrambler.IsBcasCardOpen();
 }
 
 
@@ -310,6 +319,12 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 		m_NumAudioChannels=NumAudioChannels;
 		Updated|=STATUS_AUDIOCHANNELS;
 	}
+	BYTE AudioComponentType=m_DtvEngine.GetAudioComponentType();
+	if (AudioComponentType!=m_AudioComponentType) {
+		m_AudioComponentType=AudioComponentType;
+		Updated|=STATUS_AUDIOCOMPONENTTYPE;
+		TRACE(TEXT("AudioComponentType = %x\n"),AudioComponentType);
+	}
 	return Updated;
 }
 
@@ -358,6 +373,15 @@ DWORD CCoreEngine::UpdateStatistics()
 		Updated|=STATISTIC_PACKETBUFFERRATE;
 	}
 	return Updated;
+}
+
+
+void CCoreEngine::ResetErrorCount()
+{
+	m_DtvEngine.m_TsPacketParser.ResetErrorPacketCount();
+	m_ErrorPacketCount=0;
+	m_DtvEngine.m_TsDescrambler.ResetScramblePacketCount();
+	m_ScramblePacketCount=0;
 }
 
 

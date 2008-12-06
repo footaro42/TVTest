@@ -170,7 +170,7 @@ void CBonErrorHandler::SetErrorText(LPCTSTR pszText)
 }
 
 
-void CBonErrorHandler::SetAdvise(LPCTSTR pszAdvise)
+void CBonErrorHandler::SetErrorAdvise(LPCTSTR pszAdvise)
 {
 	m_Exception.SetAdvise(pszAdvise);
 }
@@ -228,9 +228,10 @@ int CBonErrorHandler::GetLastErrorCode() const
 }
 
 
-void CBonErrorHandler::FormatLastErrorText(LPTSTR pszText,int MaxLength) const
+void CBonErrorHandler::FormatLastErrorText(LPTSTR pszText,int MaxLength,LPCTSTR pszLead) const
 {
-	StdUtil::snprintf(pszText,MaxLength,TEXT("%s%s%s"),
+	StdUtil::snprintf(pszText,MaxLength,TEXT("%s%s%s%s"),
+					  pszLead!=NULL?pszLead:TEXT(""),
 					  m_Exception.GetText()!=NULL?m_Exception.GetText():TEXT(""),
 					  m_Exception.GetText()!=NULL?TEXT("\n"):TEXT(""),
 					  m_Exception.GetAdvise()!=NULL?m_Exception.GetAdvise():TEXT(""));

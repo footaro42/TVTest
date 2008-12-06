@@ -3,6 +3,7 @@
 #include <shlwapi.h>
 #include "TVTest.h"
 #include "Logger.h"
+#include "StdUtil.h"
 #include "resource.h"
 
 
@@ -48,19 +49,28 @@ CLogger::~CLogger()
 
 bool CLogger::AddLog(LPCTSTR pszText, ...)
 {
+	if (pszText==NULL)
+		return false;
 	if (m_NumLogItems==m_ListLength) {
+		CLogItem **ppNewList;
+		int ListLength;
+
 		if (m_ListLength==0)
-			m_ListLength=64;
+			ListLength=64;
 		else
-			m_ListLength*=2;
-		m_ppList=static_cast<CLogItem**>(realloc(m_ppList,m_ListLength*sizeof(CLogItem*)));
+			ListLength=m_ListLength*2;
+		ppNewList=static_cast<CLogItem**>(realloc(m_ppList,ListLength*sizeof(CLogItem*)));
+		if (ppNewList==NULL)
+			return false;
+		m_ppList=ppNewList;
+		m_ListLength=ListLength;
 	}
 
 	va_list Args;
 	TCHAR szText[1024];
 
 	va_start(Args,pszText);
-	_vsntprintf(szText,lengthof(szText),pszText,Args);
+	StdUtil::vsnprintf(szText,lengthof(szText),pszText,Args);
 	m_ppList[m_NumLogItems++]=new CLogItem(szText);
 	va_end(Args);
 	return true;
@@ -105,7 +115,7 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName) const
 		szText[Length-1]='>';
 		pszText=m_ppList[i]->GetText();
 		Length+=::WideCharToMultiByte(CP_ACP,0,pszText,::lstrlen(pszText),
-							szText+Length,lengthof(szText)-Length-1,NULL,NULL);
+							szText+Length,lengthof(szText)-Length-2,NULL,NULL);
 		szText[Length++]='\r';
 		szText[Length++]='\n';
 		::WriteFile(hFile,szText,Length,&Write,NULL);

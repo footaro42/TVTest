@@ -6,6 +6,8 @@ namespace StdUtil {
 
 int snprintf(char *s,size_t n,const char *format, ...);
 int snprintf(wchar_t *s,size_t n,const wchar_t *format, ...);
+int vsnprintf(char *s,size_t n,const char *format,va_list args);
+int vsnprintf(wchar_t *s,size_t n,const wchar_t *format,va_list args);
 inline int strlen(const char *s) { return ::strlen(s); }
 inline int strlen(const wchar_t *s) { return ::wcslen(s); }
 inline char *strcpy(char *dest,const char *src) { return ::strcpy(dest,src); }

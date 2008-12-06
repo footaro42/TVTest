@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include <math.h>
 #include <shlwapi.h>
+#include <shlobj.h>
 #include "Util.h"
 
 #ifdef _DEBUG

@@ -27,7 +27,7 @@ class CBonErrorHandler
 	CBonException m_Exception;
 protected:
 	void SetErrorText(LPCTSTR pszText);
-	void SetAdvise(LPCTSTR pszAdvise);
+	void SetErrorAdvise(LPCTSTR pszAdvise);
 	void SetErrorCode(int ErrorCode);
 	void SetError(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise=NULL);
 	void SetError(LPCTSTR pszText,LPCTSTR pszAdvise=NULL);
@@ -42,5 +42,5 @@ public:
 	LPCTSTR GetLastErrorAdvise() const;
 	int GetLastErrorCode() const;
 	const CBonException &GetLastErrorException() const { return m_Exception; }
-	void FormatLastErrorText(LPTSTR pszText,int MaxLength) const;
+	void FormatLastErrorText(LPTSTR pszText,int MaxLength,LPCTSTR pszLead=NULL) const;
 };

@@ -4,10 +4,10 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	5
-#define VERSION_BUILD	9
+#define VERSION_BUILD	10
 
-#define VERSION_TEXT_A	"0.5.9"
-#define VERSION_TEXT_W	L"0.5.9"
+#define VERSION_TEXT_A	"0.5.10"
+#define VERSION_TEXT_W	L"0.5.10"
 #ifndef UNICODE
 #define VERSION_TEXT VERSION_TEXT_A
 #else

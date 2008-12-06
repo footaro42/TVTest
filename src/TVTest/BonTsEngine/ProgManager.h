@@ -13,6 +13,13 @@
 using std::vector;
 
 
+struct EsInfo {
+	WORD PID;
+	BYTE ComponentTag;
+	EsInfo(WORD pid,BYTE Tag) : PID(pid), ComponentTag(Tag) {}
+};
+
+
 /////////////////////////////////////////////////////////////////////////////
 // 番組情報管理クラス
 /////////////////////////////////////////////////////////////////////////////
@@ -42,6 +49,8 @@ public:
 	const bool GetServiceID(WORD *pwServiceID, const WORD wIndex = 0U);
 	const bool GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex = 0U);
 	const bool GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex = 0U, const WORD wIndex = 0U);
+	const BYTE GetAudioComponentTag(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
+	const BYTE GetAudioComponentType(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
 	const WORD GetAudioEsNum(const WORD wIndex = 0U);
 	const bool GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, const WORD wServiceID = 0U);
 	const DWORD GetServiceName(LPTSTR lpszDst, const WORD wIndex = 0U);
@@ -64,7 +73,7 @@ protected:
 	{
 		WORD wServiceID;
 		WORD wVideoEsPID;
-		vector<WORD> AudioEsPIDs;
+		vector<EsInfo> AudioEsList;
 		TCHAR szServiceName[256];
 
 		// タイムスタンプ
@@ -98,7 +107,7 @@ public:
 	{
 		WORD wServiceID;
 		WORD wVideoEsPID;
-		vector<WORD> AudioEsPIDs;
+		vector<EsInfo> AudioEsList;
 		BYTE byServiceType;
 		TCHAR szServiceName[256];
 
@@ -106,7 +115,6 @@ public:
 
 		// 下記は情報として特に不要？
 		BYTE byVideoComponentTag;
-		BYTE byAudioComponentTag;
 
 		WORD wPmtTablePID;
 		BYTE byRunningStatus;

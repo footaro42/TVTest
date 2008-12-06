@@ -56,6 +56,7 @@ class CMainWindow : public CBasicWindow {
 	bool OnExecute(LPCTSTR pszCmdLine);
 	void CheckZoomMenu();
 	void ShowChannelOSD();
+	bool SetPreview(bool fPreview);
 	static CMainWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:

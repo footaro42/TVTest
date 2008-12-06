@@ -132,6 +132,7 @@ void CBonSrcFilter::SetOutputWhenPaused(bool bOutput)
 }
 
 
+/*
 // ÇªÇÃèÍÇµÇÃÇ¨ÇÃä÷êî
 bool CBonSrcFilter::CheckHangUp(DWORD TimeOut)
 {
@@ -151,3 +152,4 @@ bool CBonSrcFilter::CheckHangUp(DWORD TimeOut)
 	::LeaveCriticalSection(pCritSec);
 	return false;
 }
+*/

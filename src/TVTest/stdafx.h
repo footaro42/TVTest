@@ -35,6 +35,8 @@
 // 一般的で無視しても安全な MFC の警告メッセージの一部の非表示を解除します。
 #define _AFX_ALL_WARNINGS
 
+#ifdef _DEBUG
+
 #include <afxwin.h>         // MFC のコアおよび標準コンポーネント
 #include <afxext.h>         // MFC の拡張部分
 
@@ -44,6 +46,16 @@
 #ifndef _AFX_NO_AFXCMN_SUPPORT
 #include <afxcmn.h>			// MFC の Windows コモン コントロール サポート
 #endif // _AFX_NO_AFXCMN_SUPPORT
+
+#else // _DEBUG
+
+#include <stdio.h>
+#include <windows.h>
+#include <windowsx.h>
+#include <tchar.h>
+#include <commctrl.h>
+
+#endif // _DEBUG
 
 #ifdef _UNICODE
 #if defined _M_IX86

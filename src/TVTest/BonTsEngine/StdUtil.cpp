@@ -43,6 +43,38 @@ int StdUtil::snprintf(wchar_t *s,size_t n,const wchar_t *format, ...)
 }
 
 
+int StdUtil::vsnprintf(char *s,size_t n,const char *format,va_list args)
+{
+	int Length;
+
+#if defined(__STDC_VERSION__) && __STDC_VERSION__>=199901L
+	Length=::vsnprintf(s,n,format,args);
+#else
+	if (n>0) {
+		Length=::_vsnprintf(s,n-1,format,args);
+		s[n-1]='\0';
+	} else {
+		Length=0;
+	}
+#endif
+	return Length;
+}
+
+
+int StdUtil::vsnprintf(wchar_t *s,size_t n,const wchar_t *format,va_list args)
+{
+	int Length;
+
+	if (n>0) {
+		Length=::_vsnwprintf(s,n-1,format,args);
+		s[n-1]='\0';
+	} else {
+		Length=0;
+	}
+	return Length;
+}
+
+
 char *StdUtil::strncpy(char *dest,size_t n,const char *src)
 {
 	size_t length=::strlen(src);

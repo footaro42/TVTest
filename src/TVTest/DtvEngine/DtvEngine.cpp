@@ -136,8 +136,7 @@ const bool CDtvEngine::ResetEngine(void)
 		return false;
 
 	// デコーダグラフリセット
-	m_wCurTransportStream = 0;
-	m_wCurVideoPID = m_wCurAudioPID = 0;
+	ResetStatus();
 	if (m_bIsFileMode)
 		m_FileReader.Reset();
 	else
@@ -153,18 +152,20 @@ const bool CDtvEngine::OpenSrcFilter_BonDriver(HMODULE hBonDriverDll)
 	// ソースフィルタを開く
 	Trace(TEXT("チューナを開いています..."));
 	if (!m_BonSrcDecoder.OpenTuner(hBonDriverDll)) {
+		SetError(m_BonSrcDecoder.GetLastErrorException());
 		m_bBuildComplete=false;
 		return false;
 	}
 	m_MediaBuffer.SetFileMode(false);
 	Trace(TEXT("ストリームの再生を開始しています..."));
 	if (!m_BonSrcDecoder.Play()) {
+		SetError(m_BonSrcDecoder.GetLastErrorException());
 		m_bBuildComplete=false;
 		return false;
 	}
 	m_BonSrcDecoder.SetOutputDecoder(&m_TsPacketParser);
 	//ResetEngine();
-	ResetParams();
+	ResetStatus();
 
 	m_bBuildComplete=CheckBuildComplete();
 
@@ -375,6 +376,12 @@ const int CDtvEngine::GetAudioStream() const
 }
 
 
+const BYTE CDtvEngine::GetAudioComponentType()
+{
+	return m_ProgManager.GetAudioComponentType(m_CurAudioStream, m_wCurService);
+}
+
+
 const bool CDtvEngine::SetStereoMode(int iMode)
 {
 	return m_MediaViewer.SetStereoMode(iMode);
@@ -399,7 +406,7 @@ const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel)
 	bool bRet = m_BonSrcDecoder.SetChannel((DWORD)byTuningSpace, (DWORD)wChannel);
 	//if(bRet) ResetEngine();
 	if (bRet)
-		ResetParams();
+		ResetStatus();
 	return bRet;
 }
 
@@ -761,7 +768,7 @@ void CDtvEngine::Trace(LPCTSTR pszOutput, ...)
 }
 
 
-void CDtvEngine::ResetParams()
+void CDtvEngine::ResetStatus()
 {
 	m_wCurTransportStream = 0;
 	m_wCurVideoPID = m_wCurAudioPID = 0;

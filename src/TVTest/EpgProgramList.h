@@ -139,15 +139,15 @@ public:
 	~CEpgProgramList();
 	void SetEpgDataCapDllUtil(CEpgDataCapDllUtil *pEpgDll) { m_pEpgDll=pEpgDll; }
 	bool UpdateProgramList();
-	bool UpdateProgramList(WORD ServiceID);
+	bool UpdateProgramList(WORD TSID,WORD ServiceID);
 	void Clear();
 	int NumServices() const;
 	CEpgServiceInfo *EnumService(int ServiceIndex);
 	CEpgServiceInfo *GetServiceInfo(WORD OriginalNID,WORD TSID,WORD ServiceID);
-	CEpgServiceInfo *GetServiceInfo(WORD ServiceID);
-	bool GetEventInfo(WORD ServiceID,WORD EventID,CEventInfoData *pInfo);
-	const CEventInfoData *GetEventInfo(WORD ServiceID,WORD EventID);
-	bool GetEventInfo(WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo);
+	CEpgServiceInfo *GetServiceInfo(WORD TSID,WORD ServiceID);
+	bool GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID,CEventInfoData *pInfo);
+	const CEventInfoData *GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID);
+	bool GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo);
 	bool LoadFromFile(LPCTSTR pszFileName);
 	bool SaveToFile(LPCTSTR pszFileName);
 };

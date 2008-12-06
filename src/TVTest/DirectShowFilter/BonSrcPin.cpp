@@ -89,7 +89,7 @@ HRESULT CBonSrcPin::DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR_PROPERTIES
 	if(!pRequest->cBuffers)pRequest->cBuffers = 1;
 
 	// とりあえずTSパケット長確保
-	if(pRequest->cbBuffer < 256)pRequest->cbBuffer = 256;
+	if(pRequest->cbBuffer < 188)pRequest->cbBuffer = 188;
 
 	// アロケータプロパティを設定しなおす
 	ALLOCATOR_PROPERTIES Actual;

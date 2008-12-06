@@ -22,6 +22,7 @@ public:
 	DWORD m_RecordDuration;
 	TCHAR m_szRecordFileName[MAX_PATH];
 	bool m_fFullscreen;
+	bool m_fMinimize;
 	bool m_fNoDriver;
 	bool m_fStandby;
 	bool m_fNoView;

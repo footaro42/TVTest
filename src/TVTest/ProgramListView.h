@@ -42,7 +42,7 @@ class CProgramListView : public CBasicWindow {
 	static CProgramListView *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void DrawProgramList(HDC hdc,const RECT *prcPaint);
-	bool UpdateListInfo(WORD ServiceID);
+	bool UpdateListInfo(WORD TransportStreamID,WORD ServiceID);
 	void CalcDimentions();
 	void SetScrollBar();
 public:
@@ -51,7 +51,7 @@ public:
 	~CProgramListView();
 	void SetEpgProgramList(CEpgProgramList *pList) { m_pProgramList=pList; }
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	bool UpdateProgramList(WORD ServiceID);
+	bool UpdateProgramList(WORD TransportStreamID,WORD ServiceID);
 	bool OnProgramListChanged();
 	void ClearProgramList();
 	void SetColors(COLORREF crBackColor,COLORREF crTextColor,

@@ -328,13 +328,13 @@ bool CProgramListView::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 }
 
 
-bool CProgramListView::UpdateProgramList(WORD ServiceID)
+bool CProgramListView::UpdateProgramList(WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_pProgramList==NULL)
 		return false;
-	m_pProgramList->UpdateProgramList(ServiceID);
+	m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID);
 	if (m_hwnd!=NULL) {
-		if (UpdateListInfo(ServiceID)) {
+		if (UpdateListInfo(TransportStreamID,ServiceID)) {
 			CalcDimentions();
 			SetScrollBar();
 			Invalidate();
@@ -359,7 +359,7 @@ bool CProgramListView::OnProgramListChanged()
 }
 
 
-bool CProgramListView::UpdateListInfo(WORD ServiceID)
+bool CProgramListView::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_pProgramList==NULL)
 		return false;
@@ -373,7 +373,7 @@ bool CProgramListView::UpdateListInfo(WORD ServiceID)
 	FILETIME ftFirst,ftLast,ftPg;
 	bool fChanged;
 
-	pServiceInfo=m_pProgramList->GetServiceInfo(ServiceID);
+	pServiceInfo=m_pProgramList->GetServiceInfo(TransportStreamID,ServiceID);
 	if (pServiceInfo==NULL)
 		return false;
 	NumEvents=pServiceInfo->m_EventList.EventDataMap.size();

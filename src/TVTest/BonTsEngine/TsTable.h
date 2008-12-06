@@ -330,6 +330,57 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// H-EIT[p/f]テーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CHEitTable : public CPsiSingleTable
+{
+public:
+	CHEitTable();
+	CHEitTable(const CHEitTable &Operand);
+
+	CHEitTable & operator = (const CHEitTable &Operand);
+
+// CPsiSingleTable
+	virtual void Reset(void);
+
+// CHEitTable
+	const DWORD GetServiceNum(void) const;
+	const int GetServiceIndexByID(WORD ServiceID) const;
+	const WORD GetServiceID(DWORD Index) const;
+	const WORD GetTransportStreamID(DWORD Index) const;
+	const WORD GetOriginalNetworkID(DWORD Index) const;
+	const WORD GetEventID(DWORD Index,DWORD EventIndex) const;
+	const SYSTEMTIME &GetStartTime(DWORD Index,DWORD EventIndex) const;
+	const DWORD GetDuration(DWORD Index,DWORD EventIndex) const;
+	const BYTE GetRunningStatus(DWORD Index,DWORD EventIndex) const;
+	const bool GetFreeCaMode(DWORD Index,DWORD EventIndex) const;
+	const CDescBlock * GetItemDesc(DWORD Index,DWORD EventIndex) const;
+
+protected:
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+
+	struct EventInfo {
+		WORD EventID;
+		SYSTEMTIME StartTime;
+		DWORD Duration;
+		BYTE RunningStatus;
+		bool FreeCaMode;
+		CDescBlock DescBlock;
+	};
+
+	struct HEitInfo {
+		WORD ServiceID;
+		WORD TransportStreamID;
+		WORD OriginalNetworkID;
+		EventInfo EventList[2];
+	};
+
+	vector<HEitInfo> m_EitArray;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PCR抽象化クラス
 // 元々Demuxの箇所にあったものだが使ってないようだったので、Table側に移動
 // 現時点で使えるものとは言い硬い

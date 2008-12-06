@@ -159,6 +159,7 @@ CStatusView::CStatusView()
 	m_pszSingleText=NULL;
 	m_HotItem=-1;
 	m_fTrackMouseEvent=false;
+	m_fOnButtonDown=false;
 	m_pEventHandler=NULL;
 }
 
@@ -397,15 +398,17 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 
-			if (pStatus->m_HotItem>=0) {
-				int i=pStatus->m_HotItem;
-
-				pStatus->m_HotItem=-1;
-				pStatus->UpdateItem(pStatus->IndexToID(i));
-			}
 			pStatus->m_fTrackMouseEvent=false;
-			if (pStatus->m_pEventHandler)
-				pStatus->m_pEventHandler->OnMouseLeave();
+			if (!pStatus->m_fOnButtonDown) {
+				if (pStatus->m_HotItem>=0) {
+					int i=pStatus->m_HotItem;
+
+					pStatus->m_HotItem=-1;
+					pStatus->UpdateItem(pStatus->IndexToID(i));
+				}
+				if (pStatus->m_pEventHandler)
+					pStatus->m_pEventHandler->OnMouseLeave();
+			}
 		}
 		return 0;
 
@@ -420,10 +423,29 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 				pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
 				x-=rc.left;
+				pStatus->m_fOnButtonDown=true;
 				if (uMsg==WM_LBUTTONDOWN)
 					pStatus->m_ItemList[pStatus->m_HotItem]->OnLButtonDown(x,y);
 				else
 					pStatus->m_ItemList[pStatus->m_HotItem]->OnRButtonDown(x,y);
+				pStatus->m_fOnButtonDown=false;
+				if (!pStatus->m_fTrackMouseEvent) {
+					POINT pt;
+
+					::GetCursorPos(&pt);
+					::GetWindowRect(hwnd,&rc);
+					if (::PtInRect(&rc,pt)) {
+						::ScreenToClient(hwnd,&pt);
+						::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
+					} else {
+						int i=pStatus->m_HotItem;
+
+						pStatus->m_HotItem=-1;
+						pStatus->UpdateItem(pStatus->IndexToID(i));
+						if (pStatus->m_pEventHandler)
+							pStatus->m_pEventHandler->OnMouseLeave();
+					}
+				}
 			}
 		}
 		return 0;

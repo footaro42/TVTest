@@ -63,6 +63,7 @@ public:
 	const int GetAudioStreamNum(const WORD wService = 0);
 	const bool SetAudioStream(int StreamIndex);
 	const int GetAudioStream() const;
+	const BYTE GetAudioComponentType();
 	const bool SetStereoMode(int iMode);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
@@ -135,7 +136,7 @@ protected:
 
 	CTracer *m_pTracer;
 	void Trace(LPCTSTR pszOutput, ...);
-	void ResetParams();
+	void ResetStatus();
 };
 
 

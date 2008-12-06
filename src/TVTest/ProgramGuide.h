@@ -4,6 +4,7 @@
 
 #include "BasicWindow.h"
 #include "EpgProgramList.h"
+#include "ChannelList.h"
 
 
 class CProgramGuideServiceInfo;
@@ -21,8 +22,10 @@ public:
 	void Clear();
 };
 
+/*
 class CProgramGuideServiceIDList {
 	struct ServiceInfo {
+		WORD TransportStreamID;
 		WORD ServiceID;
 	};
 	ServiceInfo *m_pServiceList;
@@ -33,11 +36,13 @@ public:
 	~CProgramGuideServiceIDList();
 	CProgramGuideServiceIDList &operator=(const CProgramGuideServiceIDList &List);
 	int NumServices() const { return m_NumServices; }
+	WORD GetTransportStreamID(int Index) const;
 	WORD GetServiceID(int Index) const;
-	bool Add(WORD ServiceID);
+	bool Add(WORD TransportStreamID,WORD ServiceID);
 	void Clear();
 	int FindServiceID(WORD ServiceID) const;
 };
+*/
 
 class CProgramGuideEventHandler {
 protected:
@@ -105,7 +110,8 @@ class CProgramGuide : public CBasicWindow {
 	int m_TimeBarWidth;
 	HFONT m_hfontTime;
 	POINT m_ScrollPos;
-	CProgramGuideServiceIDList m_ServiceIDList;
+	//CProgramGuideServiceIDList m_ServiceIDList;
+	CChannelList m_ChannelList;
 	SYSTEMTIME m_stFirstTime;
 	SYSTEMTIME m_stLastTime;
 	int m_Hours;
@@ -164,8 +170,12 @@ public:
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool UpdateProgramGuide();
+	/*
 	bool SetServiceIDList(const CProgramGuideServiceIDList *pList);
 	const CProgramGuideServiceIDList *GetServiceIDList() const { return &m_ServiceIDList; }
+	*/
+	bool SetChannelList(const CChannelList *pList);
+	const CChannelList *GetChannelList() const { return &m_ChannelList; }
 	bool SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime);
 	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime);
 	int GetLinesPerHour() const { return m_LinesPerHour; }

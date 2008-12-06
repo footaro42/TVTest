@@ -10,14 +10,14 @@
 #include "../Grabber.h"
 #endif
 
-//#include <d3d9.h>
-//#include <vmr9.h>
-
 #ifdef _DEBUG
 #undef THIS_FILE
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
+
+
+#define LOCK_TIMEOUT 2000
 
 
 //////////////////////////////////////////////////////////////////////
@@ -102,6 +102,9 @@ void CMediaViewer::Reset(void)
 {
 	TRACE(TEXT("CMediaViewer::Reset()\n"));
 
+	CTryBlockLock Lock(&m_DecoderLock);
+	Lock.TryLock(LOCK_TIMEOUT);
+
 	/*
 	bool fResume=false;
 
@@ -131,12 +134,17 @@ void CMediaViewer::Reset(void)
 
 const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	if(dwInputIndex > GetInputNum())return false;
+	CBlockLock Lock(&m_DecoderLock);
+
+	/*
+	if(dwInputIndex >= GetInputNum())return false;
 
 	CTsPacket *pTsPacket = dynamic_cast<CTsPacket *>(pMediaData);
 
 	// 入力メディアデータは互換性がない
 	if(!pTsPacket)return false;
+	*/
+	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
 	// フィルタグラフに入力
 	if (m_pBonSrcFilterClass) {
@@ -160,8 +168,16 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			CVideoRenderer::RendererType RendererType,LPCWSTR pszMpeg2Decoder)
 {
-	if (m_bInit)
+	CTryBlockLock Lock(&m_DecoderLock);
+	if (!Lock.TryLock(LOCK_TIMEOUT)) {
+		SetError(TEXT("タイムアウトエラーです。"));
 		return false;
+	}
+
+	if (m_bInit) {
+		SetError(TEXT("既にフィルタグラフが構築されています。"));
+		return false;
+	}
 
 	HRESULT hr=S_OK;
 
@@ -428,12 +444,14 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 #endif
 			if (!fOK) {
 				if (FAILED(m_pFilterGraph->Render(pOutputAudio)))
-					throw CBonException(TEXT("音声レンダラを構築できません。"));
+					throw CBonException(TEXT("音声レンダラを構築できません。"),
+						TEXT("有効なサウンドデバイスが存在するか確認してください。"));
 				m_pFilterGraph->SetDefaultSyncSource();
 			}
 		} else {
 			if (FAILED(m_pFilterGraph->Render(pOutputAudio)))
-				throw CBonException(TEXT("音声レンダラを構築できません。"));
+				throw CBonException(TEXT("音声レンダラを構築できません。"),
+					TEXT("有効なサウンドデバイスが存在するか確認してください。"));
 		}
 
 		// オーナウィンドウ設定
@@ -470,6 +488,9 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 void CMediaViewer::CloseViewer(void)
 {
+	CTryBlockLock Lock(&m_DecoderLock);
+	Lock.TryLock(LOCK_TIMEOUT);
+
 	/*
 	if (!m_bInit)
 		return;
@@ -566,15 +587,13 @@ const bool CMediaViewer::IsOpen() const
 
 const bool CMediaViewer::Play(void)
 {
-	if(!m_pMediaControl)return false;
-
 	TRACE(TEXT("CMediaViewer::Play()\n"));
 
-	/*
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
+	CTryBlockLock Lock(&m_DecoderLock);
+	if (!Lock.TryLock(LOCK_TIMEOUT))
 		return false;
-	*/
+
+	if(!m_pMediaControl)return false;
 
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_RESET;
@@ -601,20 +620,21 @@ const bool CMediaViewer::Play(void)
 
 const bool CMediaViewer::Stop(void)
 {
-	if(!m_pMediaControl)return false;
-
 	TRACE(TEXT("CMediaViewer::Stop()\n"));
 
-	/*
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
+	CTryBlockLock Lock(&m_DecoderLock);
+	if (!Lock.TryLock(LOCK_TIMEOUT))
 		return false;
-	*/
 
+	if (!m_pMediaControl)
+		return false;
+
+	/*
 	// 既にフィルタグラフがデッドロックしている場合、止めると戻ってこないので
 	// 本当はデッドロックしないようにすべきだが...
 	if (CheckHangUp(1000))
 		return false;
+	*/
 
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_WAIT;
@@ -628,16 +648,14 @@ const bool CMediaViewer::Stop(void)
 
 const bool CMediaViewer::Pause()
 {
-	if (!m_pMediaControl)
-		return false;
-
 	TRACE(TEXT("CMediaViewer::Pause()\n"));
 
-	/*
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
+	CTryBlockLock Lock(&m_DecoderLock);
+	if (!Lock.TryLock(LOCK_TIMEOUT))
 		return false;
-	*/
+
+	if (!m_pMediaControl)
+		return false;
 
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_WAIT;
@@ -662,16 +680,14 @@ const bool CMediaViewer::Pause()
 
 const bool CMediaViewer::Flush()
 {
-	if (!m_pBonSrcFilterClass)
-		return false;
-
 	TRACE(TEXT("CMediaViewer::Flush()\n"));
 
-	/*
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
+	CTryBlockLock Lock(&m_DecoderLock);
+	if (!Lock.TryLock(LOCK_TIMEOUT))
 		return false;
-	*/
+
+	if (!m_pBonSrcFilterClass)
+		return false;
 
 	m_pBonSrcFilterClass->Flush();
 	if (m_hFlushThread) {
@@ -741,13 +757,14 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 {
 	// ビデオ情報の更新
 	CMediaViewer *pThis=static_cast<CMediaViewer*>(pParam);
+
 	CBlockLock Lock(&pThis->m_ResizeLock);
 
-	if (pThis->m_VideoInfo != *pVideoInfo) {
+	//if (pThis->m_VideoInfo != *pVideoInfo) {
 		// ビデオ情報の更新
 		pThis->m_VideoInfo = *pVideoInfo;
 		pThis->ResizeVideoWindow();
-	}
+	//}
 }
 
 const bool CMediaViewer::ResizeVideoWindow()
@@ -1092,15 +1109,14 @@ const bool CMediaViewer::GetSourceRect(RECT *pRect)
 {
 	CBlockLock Lock(&m_ResizeLock);
 
+	if (!pRect)
+		return false;
 	return CalcSourceRect(pRect);
 }
 
 
 const bool CMediaViewer::CalcSourceRect(RECT *pRect)
 {
-	if (!pRect)
-		return false;
-
 	long SrcX,SrcY,SrcWidth,SrcHeight;
 
 	if (m_PanAndScan&PANANDSCAN_HORZ) {
@@ -1127,7 +1143,7 @@ const bool CMediaViewer::CalcSourceRect(RECT *pRect)
 
 const bool CMediaViewer::GetDestRect(RECT *pRect)
 {
-	if (m_pVideoRenderer) {
+	if (m_pVideoRenderer && pRect) {
 		if (m_pVideoRenderer->GetDestPosition(pRect))
 			return true;
 	}
@@ -1350,7 +1366,12 @@ End:
 
 bool CMediaViewer::CheckHangUp(DWORD TimeOut)
 {
+	/*
 	if (m_pBonSrcFilterClass)
 		return m_pBonSrcFilterClass->CheckHangUp(TimeOut);
+	*/
+	if (!m_DecoderLock.TryLock(TimeOut))
+		return true;
+	m_DecoderLock.Unlock();
 	return false;
 }

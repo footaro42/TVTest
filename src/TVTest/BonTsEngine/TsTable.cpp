@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "TsTable.h"
+#include "TsEncode.h"
 
 
 #ifdef _DEBUG
@@ -787,6 +788,7 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 		// 記述子ブロック
 		SdtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wLength);
 
+#ifdef _DEBUG
 		// デバッグ用ここから
 		const CServiceDesc *pServiceDesc = dynamic_cast<const CServiceDesc *>(SdtItem.DescBlock.GetDescByTag(CServiceDesc::DESC_TAG));
 		if(pServiceDesc){
@@ -798,6 +800,7 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 			TRACE(TEXT("[%u] Service ID = %04X  Running Status = %01X  Free CA Mode = %u  ※サービス記述子なし\n"), m_ServiceInfoArray.size(), SdtItem.wServiceID, SdtItem.byRunningStatus, SdtItem.bFreeCaMode);		
 			}
 		// ここまで
+#endif
 
 		// テーブル追加
 		m_ServiceInfoArray.push_back(SdtItem);
@@ -918,6 +921,166 @@ const bool CNitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	}
 
 	m_NitArray.push_back(NitItem);
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// H-EIT[p/f]テーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CHEitTable::CHEitTable()
+	: CPsiSingleTable()
+{
+
+}
+
+CHEitTable::CHEitTable(const CHEitTable &Operand)
+{
+	*this = Operand;
+}
+
+CHEitTable & CHEitTable::operator = (const CHEitTable &Operand)
+{
+	CPsiSingleTable::operator = (Operand);
+
+	return *this;
+}
+
+void CHEitTable::Reset(void)
+{
+	// 状態をクリアする
+	CPsiSingleTable::Reset();
+
+	m_EitArray.clear();
+}
+
+const DWORD CHEitTable::GetServiceNum(void) const
+{
+	// サービス数を返す
+	return m_EitArray.size();
+}
+
+const int CHEitTable::GetServiceIndexByID(WORD ServiceID) const
+{
+	// サービスIDからインデックスを返す
+	for (DWORD Index = 0 ; Index < GetServiceNum() ; Index++) {
+		if (m_EitArray[Index].ServiceID == ServiceID) {
+			return Index;
+		}
+	}
+
+	// サービスIDが見つからない
+	return -1;
+}
+
+const WORD CHEitTable::GetServiceID(DWORD Index) const
+{
+	// サービスIDを返す
+	if (Index >= GetServiceNum())
+		return 0xFFFF;
+	return m_EitArray[Index].ServiceID;
+}
+
+const WORD CHEitTable::GetTransportStreamID(DWORD Index) const
+{
+	if (Index >= GetServiceNum())
+		return 0;
+	return m_EitArray[Index].TransportStreamID;
+}
+
+const WORD CHEitTable::GetOriginalNetworkID(DWORD Index) const
+{
+	if (Index >= GetServiceNum())
+		return 0;
+	return m_EitArray[Index].OriginalNetworkID;
+}
+
+const WORD CHEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex>1)
+		return 0;
+	return m_EitArray[Index].EventList[EventIndex].EventID;
+}
+
+const BYTE CHEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex>1)
+		return 0xFF;
+	return m_EitArray[Index].EventList[EventIndex].RunningStatus;
+}
+
+const bool CHEitTable::GetFreeCaMode(DWORD Index,DWORD EventIndex) const
+{
+	// Free CA Modeを返す
+	if (Index >= GetServiceNum() || EventIndex>1)
+		return false;
+	return m_EitArray[Index].EventList[EventIndex].FreeCaMode;
+}
+
+const CDescBlock * CHEitTable::GetItemDesc(DWORD Index,DWORD EventIndex) const
+{
+	// アイテムの記述子ブロックを返す
+	if (Index >= GetServiceNum() || EventIndex>1)
+		return NULL;
+	return &m_EitArray[Index].EventList[EventIndex].DescBlock;
+}
+
+const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
+{
+	if (pCurSection->GetTableID()!=0x4E
+			|| pCurSection->GetSectionNumber()>1
+			|| pCurSection->GetLastSectionNumber()!=0x01)
+		return false;
+
+	const WORD wDataSize = pCurSection->GetPayloadSize();
+	const BYTE *pHexData = pCurSection->GetPayloadData();
+
+	if (wDataSize<18)
+		return false;
+
+	WORD ServiceID,TransportStreamID,OriginalNetworkID;
+	ServiceID=pCurSection->GetTableIdExtension();
+	TransportStreamID=((WORD)pHexData[0]<<8)|pHexData[1];
+	OriginalNetworkID=((WORD)pHexData[2]<<8)|pHexData[3];
+
+	//TRACE(TEXT("------- H-EIT Table -------\nSID = %04X / TSID = %04X / ONID = %04X\n"),ServiceID,TransportStreamID,OriginalNetworkID);
+
+	int Index=GetServiceIndexByID(ServiceID);
+	if (Index<0) {
+		HEitInfo EitInfo;
+
+		EitInfo.ServiceID=ServiceID;
+		EitInfo.TransportStreamID=TransportStreamID;
+		EitInfo.OriginalNetworkID=OriginalNetworkID;
+		m_EitArray.push_back(EitInfo);
+		Index=m_EitArray.size()-1;
+	}
+
+	if (pHexData[4]!=0x01)	// segment_last_section_number
+		return false;
+	if (pHexData[5]!=0x4E)	// last_table_id
+		return false;
+
+	EventInfo &Info=m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
+
+	Info.EventID=(pHexData[6]<<8)|pHexData[7];
+	if (!CAribTime::AribToSystemTime(&pHexData[8],&Info.StartTime))
+		::ZeroMemory(&Info.StartTime,sizeof(SYSTEMTIME));
+	Info.Duration=CAribTime::AribBcdToSecond(&pHexData[13]);
+	Info.RunningStatus=pHexData[16]>>5;
+	Info.FreeCaMode=(pHexData[16]&0x10)!=0;
+	WORD DescLength=(((WORD)pHexData[16]&0x0F)<<8)|pHexData[17];
+	if (DescLength>0 && DescLength<=wDataSize-18)
+		Info.DescBlock.ParseBlock(&pHexData[18],DescLength);
+	else
+		Info.DescBlock.Reset();
+
+	/*
+	TRACE(TEXT("EventID = %02X / %04d/%d/%d %d:%02d %lu sec\n"),
+		  Info.EventID,Info.StartTime.wYear,Info.StartTime.wMonth,Info.StartTime.wDay,Info.StartTime.wHour,Info.StartTime.wMinute,Info.Duration);
+	*/
 
 	return true;
 }

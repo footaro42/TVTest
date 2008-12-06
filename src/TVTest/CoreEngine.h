@@ -27,6 +27,7 @@ private:
 	int m_VideoWidth;
 	int m_VideoHeight;
 	int m_NumAudioChannels;
+	BYTE m_AudioComponentType;
 	bool m_fMute;
 	int m_Volume;
 	int m_VolumeNormalizeLevel;
@@ -55,6 +56,7 @@ public:
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL);
 	bool OpenBcasCard();
+	bool IsBcasCardOpen() const;
 	bool IsBuildComplete() const;
 	bool EnablePreview(bool fPreview);
 	bool SetDescramble(bool fDescramble);
@@ -79,8 +81,9 @@ public:
 	bool SetStereoMode(int Mode);
 	int GetStereoMode() const { return m_StereoMode; }
 	enum {
-		STATUS_VIDEOSIZE		=0x00000001UL,
-		STATUS_AUDIOCHANNELS	=0x00000002UL
+		STATUS_VIDEOSIZE			=0x00000001UL,
+		STATUS_AUDIOCHANNELS		=0x00000002UL,
+		STATUS_AUDIOCOMPONENTTYPE	=0x00000004UL,
 	};
 	DWORD UpdateAsyncStatus();
 	enum {
@@ -94,6 +97,7 @@ public:
 	DWORD UpdateStatistics();
 	DWORD GetErrorPacketCount() const { return m_ErrorPacketCount; }
 	DWORD GetScramblePacketCount() const { return m_ScramblePacketCount; }
+	void ResetErrorCount();
 	float GetSignalLevel() const { return m_SignalLevel; }
 	DWORD GetBitRate() const { return m_BitRate; }
 	float GetBitRateFloat() const { return (float)m_BitRate/(float)(1024*1024); }

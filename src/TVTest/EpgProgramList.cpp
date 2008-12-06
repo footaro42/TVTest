@@ -395,7 +395,7 @@ bool CEpgProgramList::UpdateProgramList()
 }
 
 
-bool CEpgProgramList::UpdateProgramList(WORD ServiceID)
+bool CEpgProgramList::UpdateProgramList(WORD TSID,WORD ServiceID)
 {
 	CTryBlockLock Lock(&m_Lock);
 
@@ -409,6 +409,7 @@ bool CEpgProgramList::UpdateProgramList(WORD ServiceID)
 		return false;
 	for (DWORD i=0;i<dwServiceCount;i++) {
 		if ((pService[i].dwServiceType==0x01 || pService[i].dwServiceType==0xA5)
+				&& (TSID==0 || (WORD)pService[i].dwTSID==TSID)
 				&& (WORD)pService[i].dwServiceID==ServiceID) {
 			return UpdateService(&pService[i]);
 		}
@@ -458,22 +459,23 @@ CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD OriginalNID,WORD TSID,WORD
 }
 
 
-CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD ServiceID)
+CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD TSID,WORD ServiceID)
 {
 	CBlockLock Lock(&m_Lock);
 	ServiceIterator itrService;
 
 	for (itrService=ServiceMap.begin();itrService!=ServiceMap.end();itrService++) {
-		if (itrService->second.m_ServiceData.m_ServiceID==ServiceID)
+		if ((TSID==0 || itrService->second.m_ServiceData.m_TSID==TSID)
+				&& itrService->second.m_ServiceData.m_ServiceID==ServiceID)
 			return &itrService->second;
 	}
 	return NULL;
 }
 
 
-bool CEpgProgramList::GetEventInfo(WORD ServiceID,WORD EventID,CEventInfoData *pInfo)
+bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID,CEventInfoData *pInfo)
 {
-	const CEventInfoData *pEventInfo=GetEventInfo(ServiceID,EventID);
+	const CEventInfoData *pEventInfo=GetEventInfo(TSID,ServiceID,EventID);
 
 	if (pEventInfo==NULL)
 		return false;
@@ -482,12 +484,12 @@ bool CEpgProgramList::GetEventInfo(WORD ServiceID,WORD EventID,CEventInfoData *p
 }
 
 
-const CEventInfoData *CEpgProgramList::GetEventInfo(WORD ServiceID,WORD EventID)
+const CEventInfoData *CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID)
 {
 	if (m_pEpgDll==NULL)
 		return NULL;
 
-	CEpgServiceInfo *pServiceInfo=GetServiceInfo(ServiceID);
+	CEpgServiceInfo *pServiceInfo=GetServiceInfo(TSID,ServiceID);
 
 	if (pServiceInfo==NULL)
 		return NULL;
@@ -495,7 +497,7 @@ const CEventInfoData *CEpgProgramList::GetEventInfo(WORD ServiceID,WORD EventID)
 }
 
 
-bool CEpgProgramList::GetEventInfo(WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo)
+bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo)
 {
 	if (m_pEpgDll==NULL)
 		return NULL;
@@ -503,7 +505,7 @@ bool CEpgProgramList::GetEventInfo(WORD ServiceID,const SYSTEMTIME *pTime,CEvent
 	CEpgServiceInfo *pServiceInfo;
 	CEventInfoList::EventIterator itrEvent;
 
-	pServiceInfo=GetServiceInfo(ServiceID);
+	pServiceInfo=GetServiceInfo(TSID,ServiceID);
 	if (pServiceInfo==NULL)
 		return NULL;
 	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();

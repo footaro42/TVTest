@@ -32,7 +32,7 @@ public:
 
 	void Flush();
 	void SetOutputWhenPaused(bool bOutput);
-	bool CheckHangUp(DWORD TimeOut);
+	//bool CheckHangUp(DWORD TimeOut);
 protected:
 	CBonSrcPin *m_pSrcPin;
 	CCritSec m_cStateLock;

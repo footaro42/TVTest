@@ -70,6 +70,7 @@ class CStatusView : public CBasicWindow, public CTracer {
 	LPTSTR m_pszSingleText;
 	int m_HotItem;
 	bool m_fTrackMouseEvent;
+	bool m_fOnButtonDown;
 	CStatusViewEventHandler *m_pEventHandler;
 	static CStatusView *GetStatusView(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,

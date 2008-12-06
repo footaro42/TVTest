@@ -556,6 +556,8 @@ bool CVMR9Allocator::RepaintVideo()
 	D3DSURFACE_DESC desc;
 	RECT rcSource,rcDest;
 
+	if (m_NativeVideoSize.cx==0 || m_NativeVideoSize.cy==0)
+		return false;
 	hr=m_D3DDev->GetBackBuffer(0,0,D3DBACKBUFFER_TYPE_MONO,&DstSurface.p);
 	if (FAILED(hr))
 		return false;
@@ -703,6 +705,8 @@ bool CVMR9Allocator::GetVideoPosition(RECT *pSrc,RECT *pDst)
 	CAutoLock Lock(&m_ObjectLock);
 
 	if (pSrc) {
+		if (m_NativeVideoSize.cx==0 || m_NativeVideoSize.cy==0)
+			return false;
 		if (!::IsRectEmpty(&m_SourceRect)) {
 			*pSrc=m_SourceRect;
 		} else {
@@ -713,6 +717,8 @@ bool CVMR9Allocator::GetVideoPosition(RECT *pSrc,RECT *pDst)
 		}
 	}
 	if (pDst) {
+		if (m_NativeVideoSize.cx==0 || m_NativeVideoSize.cy==0)
+			return false;
 		if (!::IsRectEmpty(&m_DestRect)) {
 			*pDst=m_DestRect;
 		} else {

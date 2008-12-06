@@ -8,6 +8,7 @@
 #include "MediaDecoder.h"
 #include "IBonDriver.h"
 #include "IBonDriver2.h"
+#include "Exception.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -16,7 +17,7 @@
 // Output	#0	: CMediaData		平分TSストリーム
 /////////////////////////////////////////////////////////////////////////////
 
-class CBonSrcDecoder : public CMediaDecoder
+class CBonSrcDecoder : public CMediaDecoder, public CBonErrorHandler
 {
 public:
 	// エラーコード
@@ -56,7 +57,6 @@ public:
 	LPCTSTR GetSpaceName(const DWORD dwSpace) const;
 	LPCTSTR GetChannelName(const DWORD dwSpace, const DWORD dwChannel) const;
 
-	const DWORD GetLastError(void) const;
 	const bool PurgeStream(void);
 
 	// Append by HDUSTestの中の人
@@ -70,7 +70,7 @@ private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
 	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
 	bool PauseStreamRecieve(DWORD TimeOut = 3000);
-	void ResumeStreamRecieve();
+	bool ResumeStreamRecieve(DWORD TimeOut = 3000);
 	void ResetBitRate();
 
 	IBonDriver *m_pBonDriver;

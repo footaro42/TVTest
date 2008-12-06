@@ -121,11 +121,56 @@ const bool CProgManager::GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex,
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (pwAudioPID && (size_t)wIndex < m_ServiceList.size()
-			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsPIDs.size()) {
-		*pwAudioPID = m_ServiceList[wIndex].AudioEsPIDs[wAudioIndex];
+			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsList.size()) {
+		*pwAudioPID = m_ServiceList[wIndex].AudioEsList[wAudioIndex].PID;
 		return true;
 	}
 	return false;
+}
+
+
+const BYTE CProgManager::GetAudioComponentTag(const WORD wAudioIndex,const WORD wIndex)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)wIndex < m_ServiceList.size()
+			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsList.size()) {
+		return m_ServiceList[wIndex].AudioEsList[wAudioIndex].ComponentTag;
+	}
+	return 0;
+}
+
+
+const BYTE CProgManager::GetAudioComponentType(const WORD wAudioIndex,const WORD wIndex)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)wIndex < m_ServiceList.size()
+			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsList.size()) {
+		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[wIndex].wServiceID);
+
+			if (Index>=0) {
+				const CDescBlock *pDescBlock=pEitTable->GetItemDesc(Index,0);
+
+				if (pDescBlock) {
+					for (WORD i=0;i<pDescBlock->GetDescNum();i++) {
+						const CBaseDesc *pDesc=pDescBlock->GetDescByIndex(i);
+
+						if (pDesc->GetTag()==CAudioComponentDesc::DESC_TAG) {
+							const CAudioComponentDesc *pAudioDesc=dynamic_cast<const CAudioComponentDesc*>(pDesc);
+
+							if (pAudioDesc->GetComponentTag()==m_ServiceList[wIndex].AudioEsList[wAudioIndex].ComponentTag)
+								return pAudioDesc->GetComponentType();
+						}
+					}
+				}
+			}
+		}
+	}
+	return 0;
 }
 
 
@@ -134,7 +179,7 @@ const WORD CProgManager::GetAudioEsNum(const WORD wIndex)
 	CBlockLock Lock(&m_DecoderLock);
 
 	if ((size_t)wIndex < m_ServiceList.size())
-		return m_ServiceList[wIndex].AudioEsPIDs.size();
+		return m_ServiceList[wIndex].AudioEsList.size();
 	return 0;
 }
 
@@ -222,7 +267,7 @@ void CProgManager::OnServiceListUpdated(void)
 			m_ServiceList.resize(ServiceNum + 1);
 			m_ServiceList[ServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[Index].wServiceID;
 			m_ServiceList[ServiceNum].wVideoEsPID = m_pProgDatabase->m_ServiceList[Index].wVideoEsPID;
-			m_ServiceList[ServiceNum].AudioEsPIDs = m_pProgDatabase->m_ServiceList[Index].AudioEsPIDs;
+			m_ServiceList[ServiceNum].AudioEsList = m_pProgDatabase->m_ServiceList[Index].AudioEsList;
 			m_ServiceList[ServiceNum].szServiceName[0] = TEXT('\0');
 			ServiceNum++;
 		}
@@ -303,6 +348,9 @@ void CProgManager::CProgDatabase::Reset(void)
 	// NITテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(0x0010U, new CNitTable, CProgDatabase::OnNitUpdated, this);
 	::ZeroMemory(&m_NitInfo, sizeof(m_NitInfo));
+
+	// EITテーブルPIDマップ追加
+	m_PidMapManager.MapTarget(0x0012U, new CHEitTable, NULL, this);
 }
 
 
@@ -366,10 +414,10 @@ void CALLBACK CProgManager::CProgDatabase::OnPatUpdated(const WORD wPID, CTsPidM
 		pThis->m_ServiceList[Index].wServiceID = pPatTable->GetProgramID(Index);
 		pThis->m_ServiceList[Index].wPmtTablePID = pPatTable->GetPmtPID(Index);
 		pThis->m_ServiceList[Index].wVideoEsPID = 0xFFFFU;
-		pThis->m_ServiceList[Index].AudioEsPIDs.clear();
+		pThis->m_ServiceList[Index].AudioEsList.clear();
 		pThis->m_ServiceList[Index].wPcrPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].byVideoComponentTag = 0xFFU;
-		pThis->m_ServiceList[Index].byAudioComponentTag = 0xFFU;
+		//pThis->m_ServiceList[Index].byAudioComponentTag = 0xFFU;
 		pThis->m_ServiceList[Index].byServiceType = 0xFFU;
 		pThis->m_ServiceList[Index].byRunningStatus = 0xFFU;
 		pThis->m_ServiceList[Index].bIsCaService = false;
@@ -402,11 +450,21 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 	}
 
 	// オーディオESのPIDをストア
-	pThis->m_ServiceList[wServiceIndex].AudioEsPIDs.clear();
+	pThis->m_ServiceList[wServiceIndex].AudioEsList.clear();
 	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
 		// 「ISO/IEC 13818-7 Audio (ADTS Transport Syntax)」のストリームタイプを検索
 		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x0FU) {
-			pThis->m_ServiceList[wServiceIndex].AudioEsPIDs.push_back(pPmtTable->GetEsPID(wEsIndex));
+			BYTE ComponentTag=0;
+			const CDescBlock *pDescBlock=pPmtTable->GetItemDesc(wEsIndex);
+
+			if (pDescBlock) {
+				const CStreamIdDesc *pStreamIdDesc=dynamic_cast<const CStreamIdDesc*>(pDescBlock->GetDescByTag(CStreamIdDesc::DESC_TAG));
+
+				if (pStreamIdDesc)
+					ComponentTag=pStreamIdDesc->GetComponentTag();
+			}
+			pThis->m_ServiceList[wServiceIndex].AudioEsList.push_back(
+						EsInfo(pPmtTable->GetEsPID(wEsIndex),ComponentTag));
 		}
 	}
 
@@ -537,3 +595,28 @@ void CALLBACK CProgManager::CProgDatabase::OnNitUpdated(const WORD wPID, CTsPidM
 		}
 	}
 }
+
+
+/*
+void CALLBACK CProgManager::CProgDatabase::OnEitUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam)
+{
+	CProgDatabase *pThis = static_cast<CProgDatabase*>(pParam);
+	CHEitTable *pEitTable = dynamic_cast<CHEitTable*>(pMapTarget);
+
+	for (DWORD Index = 0 ; Index < pEitTable->GetServiceNum() ; Index++) {
+		const WORD ServiceIndex = pThis->GetServiceIndexByID(pEitTable->GetServiceID(Index));
+
+		if (ServiceIndex == 0xFFFFU)
+			continue;
+
+		const CDescBlock *pDescBlock=pEitTable->GetItemDesc(Index,0);
+		if (pDescBlock) {
+			const CAudioComponentDesc *pAudioDesc=dynamic_cast<const CAudioComponentDesc*>(pDescBlock->GetDescByTag(CAudioComponentDesc::DESC_TAG));
+
+			if (pAudioDesc) {
+				
+			}
+		}
+	}
+}
+*/

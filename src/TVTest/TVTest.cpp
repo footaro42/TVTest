@@ -168,11 +168,11 @@ static bool fNoMonitorLowPowerActiveOnly=false;
 static BOOL fLowPowerActiveOriginal=FALSE,fPowerOffActiveOriginal=FALSE;
 static bool fRestoreChannel=false;
 static struct {
-	int Channel;
 	int Space;
+	int Channel;
 	int Service;
 	TCHAR szDriverName[MAX_PATH];
-} RestoreChannelInfo = {-1, -1, 0};
+} RestoreChannelInfo;
 
 static bool fAdjustAspectResizing=false;
 static bool fSnapAtWindowEdge=false;
@@ -477,6 +477,27 @@ bool CAppMain::InitializeChannel()
 	NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
 											 &CoreEngine,&ChannelManager);
 	ChannelScan.SetTuningSpaceList(ChannelManager.GetTuningSpaceList());
+
+	RestoreChannelInfo.Space=-1;
+	RestoreChannelInfo.Channel=-1;
+	RestoreChannelInfo.Service=0;
+	if (!fUDPDriver) {
+		CSettings Setting;
+
+		if (Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_READ)) {
+			TCHAR szDriverName[MAX_PATH],szName[32+MAX_PATH];
+
+			::lstrcpy(szDriverName,::PathFindFileName(CoreEngine.GetDriverFileName()));
+			*::PathFindExtension(szDriverName)='\0';
+			::wsprintf(szName,TEXT("Space_%s"),szDriverName);
+			Setting.Read(szName,&RestoreChannelInfo.Space);
+			::wsprintf(szName,TEXT("ChannelIndex_%s"),szDriverName);
+			Setting.Read(szName,&RestoreChannelInfo.Channel);
+			::wsprintf(szName,TEXT("Service_%s"),szDriverName);
+			Setting.Read(szName,&RestoreChannelInfo.Service);
+			Setting.Close();
+		}
+	}
 	return true;
 }
 
@@ -800,7 +821,7 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 			return false;
 		}
 	}
-	//return SetService(0);
+	ChannelManager.SetCurrentServiceID(ServiceID);
 	return false;
 }
 
@@ -1078,6 +1099,8 @@ bool CAppMain::LoadSettings()
 		Setting.Read(TEXT("KeepSingleTask"),&fKeepSingleTask);
 		if (Setting.Read(TEXT("Resident"),&f))
 			ResidentManager.SetResident(f);
+		if (Setting.Read(TEXT("MinimizeToTray"),&f))
+			ResidentManager.SetMinimizeToTray(f);
 		if (Setting.Read(TEXT("NoDescramble"),&f))	// Backward compatibility
 			CoreEngine.SetCardReaderType(f?CCardReader::READER_NONE:CCardReader::READER_SCARD);
 		if (Setting.Read(TEXT("CardReader"),&Value))
@@ -1088,12 +1111,14 @@ bool CAppMain::LoadSettings()
 		Setting.Read(TEXT("NoMonitorLowPower"),&fNoMonitorLowPower);
 		Setting.Read(TEXT("NoMonitorLowPowerActiveOnly"),&fNoMonitorLowPowerActiveOnly);
 		Setting.Read(TEXT("RestoreChannel"),&fRestoreChannel);
+		/*
 		//Setting.Read(TEXT("CurChannel"),&RestoreChannelInfo.Channel);
 		Setting.Read(TEXT("CurChannelIndex"),&RestoreChannelInfo.Channel);
 		Setting.Read(TEXT("CurSpace"),&RestoreChannelInfo.Space);
 		Setting.Read(TEXT("CurService"),&RestoreChannelInfo.Service);
 		Setting.Read(TEXT("OldDriver"),RestoreChannelInfo.szDriverName,
 									lengthof(RestoreChannelInfo.szDriverName));
+		*/
 		if (Setting.Read(TEXT("PacketBuffering"),&f))
 			CoreEngine.SetPacketBuffering(f);
 		unsigned int BufferLength;
@@ -1176,8 +1201,7 @@ bool CAppMain::LoadSettings()
 		EpgOptions.Read(&Setting);
 		NetworkRemoconOptions.Read(&Setting);
 		Setting.Close();
-	} else
-		return false;
+	}
 	StatusOptions.Load(m_szIniFileName);
 	ColorSchemeOptions.Load(m_szIniFileName);
 	ProgramGuideOptions.Load(m_szIniFileName);
@@ -1215,6 +1239,7 @@ bool CAppMain::SaveSettings()
 		Setting.Write(TEXT("DescrambleCurServiceOnly"),fDescrambleCurServiceOnly);
 		Setting.Write(TEXT("KeepSingleTask"),fKeepSingleTask);
 		Setting.Write(TEXT("Resident"),ResidentManager.GetResident());
+		Setting.Write(TEXT("MinimizeToTray"),ResidentManager.GetMinimizeToTray());
 		Setting.Write(TEXT("NoRemoteController"),fNoRemoteController);
 		Setting.Write(TEXT("NoKeyHook"),fNoKeyHook);
 		Setting.Write(TEXT("NoScreenSaver"),fNoScreenSaver);
@@ -1222,11 +1247,13 @@ bool CAppMain::SaveSettings()
 		Setting.Write(TEXT("NoMonitorLowPowerActiveOnly"),
 												fNoMonitorLowPowerActiveOnly);
 		Setting.Write(TEXT("RestoreChannel"),fRestoreChannel);
+		/*
 		//Setting.Write(TEXT("CurChannel"),RestoreChannelInfo.Channel);
 		Setting.Write(TEXT("CurChannelIndex"),RestoreChannelInfo.Channel);
 		Setting.Write(TEXT("CurSpace"),RestoreChannelInfo.Space);
 		Setting.Write(TEXT("CurService"),RestoreChannelInfo.Service);
 		Setting.Write(TEXT("OldDriver"),RestoreChannelInfo.szDriverName);
+		*/
 		Setting.Write(TEXT("PacketBuffering"),CoreEngine.GetPacketBuffering());
 		Setting.Write(TEXT("PacketBufferLength"),
 							(unsigned int)CoreEngine.GetPacketBufferLength());
@@ -1286,8 +1313,21 @@ bool CAppMain::SaveSettings()
 		EpgOptions.Write(&Setting);
 		NetworkRemoconOptions.Write(&Setting);
 		Setting.Close();
-	} else
-		return false;
+	}
+	if (RestoreChannelInfo.Channel>=0 && RestoreChannelInfo.szDriverName[0]!='\0'
+			&& Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_WRITE)) {
+		TCHAR szDriverName[MAX_PATH],szName[32+MAX_PATH];
+
+		::lstrcpy(szDriverName,::PathFindFileName(RestoreChannelInfo.szDriverName));
+		*::PathFindExtension(szDriverName)='\0';
+		::wsprintf(szName,TEXT("Space_%s"),szDriverName);
+		Setting.Write(szName,RestoreChannelInfo.Space);
+		::wsprintf(szName,TEXT("ChannelIndex_%s"),szDriverName);
+		Setting.Write(szName,RestoreChannelInfo.Channel);
+		::wsprintf(szName,TEXT("Service_%s"),szDriverName);
+		Setting.Write(szName,RestoreChannelInfo.Service);
+		Setting.Close();
+	}
 	StatusOptions.Save(m_szIniFileName);
 	ColorSchemeOptions.Save(m_szIniFileName);
 	ProgramGuideOptions.Save(m_szIniFileName);
@@ -1330,6 +1370,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 		}
 		pszFileName=szFileName;
 	}
+	CoreEngine.ResetErrorCount();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,pszFileName)) {
 		MainWindow.ShowMessage(TEXT("ファイルが開けません。"),
 							   NULL,MB_OK | MB_ICONEXCLAMATION);
@@ -1339,6 +1380,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 							  CResidentManager::STATUS_RECORDING);
 	Logger.AddLog(TEXT("録画開始 %s"),pszFileName);
 	StatusView.UpdateItem(STATUS_ITEM_RECORD);
+	StatusView.UpdateItem(STATUS_ITEM_ERROR);
 	MainMenu.EnableItem(CM_RECORDOPTION,false);
 	MainMenu.EnableItem(CM_RECORDSTOPTIME,true);
 	PluginList.SendRecordStatusChangeEvent();
@@ -1380,6 +1422,7 @@ bool CAppMain::StartReservedRecord()
 		}
 	}
 	MainWindow.OpenTuner();
+	CoreEngine.ResetErrorCount();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,szFileName)) {
 		RecordManager.CancelReserve();
 		MainWindow.ShowMessage(TEXT("ファイルが開けません。"),NULL,
@@ -1387,6 +1430,7 @@ bool CAppMain::StartReservedRecord()
 		return false;
 	}
 	StatusView.UpdateItem(STATUS_ITEM_RECORD);
+	StatusView.UpdateItem(STATUS_ITEM_ERROR);
 	ResidentManager.SetStatus(CResidentManager::STATUS_RECORDING,
 							  CResidentManager::STATUS_RECORDING);
 	Logger.AddLog(TEXT("録画開始 %s"),szFileName);
@@ -1987,8 +2031,7 @@ void CErrorStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 
 void CErrorStatusItem::OnLButtonDown(int x,int y)
 {
-	CoreEngine.m_DtvEngine.m_TsPacketParser.ResetErrorPacketCount();
-	CoreEngine.m_DtvEngine.m_TsDescrambler.ResetScramblePacketCount();
+	CoreEngine.ResetErrorCount();
 	Update();
 }
 
@@ -2680,6 +2723,7 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		EnableDlgItems(hDlg,IDC_OPTIONS_OSD_FIRST,IDC_OPTIONS_OSD_LAST,fUseOSD);
 		CheckDlgButton(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,
 					   fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
+		DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,ResidentManager.GetMinimizeToTray());
 		return TRUE;
 
 	case WM_DRAWITEM:
@@ -2746,6 +2790,7 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(fDescrambleCurServiceOnly);
 				}
 			}
+			ResidentManager.SetMinimizeToTray(DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY));
 			break;
 		}
 	}
@@ -3377,11 +3422,13 @@ void CMyInfoPanelEventHandler::OnSelChange()
 {
 	if (InfoPanel.GetCurTab()==PANEL_TAB_PROGRAMLIST
 			&& ProgramListUpdateTimerCount>0) {
-		WORD ServiceID;
+		WORD ServiceID=ChannelManager.GetCurrentServiceID();
 
-		if (CoreEngine.m_DtvEngine.m_ProgManager.GetServiceID(&ServiceID,
-										ChannelManager.GetCurrentService()))
-			ProgramListView.UpdateProgramList(ServiceID);
+		if (ServiceID==0)
+			CoreEngine.m_DtvEngine.m_ProgManager.GetServiceID(&ServiceID,
+										CoreEngine.m_DtvEngine.GetService());
+		if (ServiceID!=0)
+			ProgramListView.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),ServiceID);
 	}
 }
 
@@ -3465,6 +3512,7 @@ bool CMyProgramGuideEventHandler::OnRefresh()
 	else
 		pList=ChannelManager.GetFileAllChannelList();
 	if (pList!=NULL) {
+		/*
 		CProgramGuideServiceIDList ServiceIDList;
 		HCURSOR hcurOld;
 
@@ -3477,6 +3525,13 @@ bool CMyProgramGuideEventHandler::OnRefresh()
 			}
 		}
 		m_pProgramGuide->SetServiceIDList(&ServiceIDList);
+		::SetCursor(hcurOld);
+		*/
+		HCURSOR hcurOld;
+
+		hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+		EpgProgramList.UpdateProgramList();
+		m_pProgramGuide->SetChannelList(pList);
 		::SetCursor(hcurOld);
 	}
 	return true;
@@ -4662,6 +4717,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			else
 				pList=ChannelManager.GetFileAllChannelList();
 			if (pList!=NULL) {
+				/*
 				CProgramGuideServiceIDList ServiceIDList;
 
 				for (int i=0;i<pList->NumChannels();i++) {
@@ -4672,6 +4728,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 					}
 				}
 				ProgramGuide.SetServiceIDList(&ServiceIDList);
+				*/
+				EpgProgramList.UpdateProgramList();
+				ProgramGuide.SetChannelList(pList);
 			}
 			ProgramGuide.UpdateProgramGuide();
 			::SetCursor(hcurOld);
@@ -4713,7 +4772,15 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		return;
 
 	case CM_SHOW:
-		SetStandby(false);
+		if (m_fStandby) {
+			SetStandby(false);
+		} else {
+			if (!GetVisible())
+				SetVisible(true);
+			if (::IsIconic(m_hwnd))
+				::ShowWindow(m_hwnd,SW_RESTORE);
+			ForegroundWindow(m_hwnd);
+		}
 		return;
 
 	case CM_CHANNEL_UP:
@@ -4909,8 +4976,9 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 				CheckZoomMenu();
 			}
 
-			if ((UpdateStatus&CCoreEngine::STATUS_AUDIOCHANNELS)!=0) {
-				SetStereoMode(0);
+			if ((UpdateStatus&(CCoreEngine::STATUS_AUDIOCHANNELS
+							 | CCoreEngine::STATUS_AUDIOCOMPONENTTYPE))!=0) {
+				SetStereoMode(CoreEngine.m_DtvEngine.GetAudioComponentType()==0x02?1:0);
 				StatusView.UpdateItem(STATUS_ITEM_AUDIOCHANNEL);
 			}
 
@@ -5040,11 +5108,13 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 	case TIMER_ID_PROGRAMLISTUPDATE:
 		if (fShowPanelWindow && InfoPanel.GetCurTab()==PANEL_TAB_PROGRAMLIST) {
-			WORD ServiceID;
+			WORD ServiceID=ChannelManager.GetCurrentServiceID();
 
-			if (CoreEngine.m_DtvEngine.m_ProgManager.GetServiceID(&ServiceID,
-										ChannelManager.GetCurrentService()))
-				ProgramListView.UpdateProgramList(ServiceID);
+			if (ServiceID==0)
+				CoreEngine.m_DtvEngine.m_ProgManager.GetServiceID(&ServiceID,
+										CoreEngine.m_DtvEngine.GetService());
+			if (ServiceID!=0)
+				ProgramListView.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),ServiceID);
 		}
 		ProgramListUpdateTimerCount++;
 		if (ProgramListUpdateTimerCount==12)
@@ -5214,6 +5284,18 @@ void CMainWindow::PopupMenu(const POINT *pPos/*=NULL*/)
 }
 
 
+bool CMainWindow::SetPreview(bool fPreview)
+{
+	// なぜか成功してもfalseが返ってくる
+	//if (!CoreEngine.EnablePreview(fPreview))
+	//	return false;
+	CoreEngine.EnablePreview(fPreview);
+	//CoreEngine.m_DtvEngine.m_MediaViewer.SetVisible(fPreview);
+	m_VideoContainer.SetVisible(fPreview);
+	return true;
+}
+
+
 bool CMainWindow::EnablePreview(bool fEnable)
 {
 	if (m_fEnablePreview!=fEnable) {
@@ -5235,12 +5317,7 @@ bool CMainWindow::EnablePreview(bool fEnable)
 			if (!fOK)
 				return false;
 		}
-		// なぜか成功してもfalseが返ってくる
-		//if (!CoreEngine.EnablePreview(fEnable))
-		//	return false;
-		CoreEngine.EnablePreview(fEnable);
-		CoreEngine.m_DtvEngine.m_MediaViewer.SetVisible(fEnable);
-		m_VideoContainer.SetVisible(fEnable);
+		SetPreview(fEnable);
 		MainMenu.CheckItem(CM_DISABLEVIEWER,!fEnable);
 		m_fEnablePreview=fEnable;
 		PluginList.SendPreviewChangeEvent(fEnable);
@@ -5654,6 +5731,17 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
+			if (wParam==SIZE_MINIMIZED) {
+				ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
+										  CResidentManager::STATUS_MINIMIZED);
+				pThis->SetPreview(false);
+				break;
+			} else if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
+				if (pThis->m_fEnablePreview)
+					pThis->SetPreview(true);
+				ResidentManager.SetStatus(0,CResidentManager::STATUS_MINIMIZED);
+			}
+
 			if (wParam==SIZE_MAXIMIZED && !pThis->m_fShowTitleBar) {
 				HMONITOR hMonitor=::MonitorFromWindow(hwnd,MONITOR_DEFAULTTONEAREST);
 				MONITORINFO mi;
@@ -5729,13 +5817,13 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 						rcClient.right-=Splitter.GetBarWidth()+Splitter.GetPaneSize(PANE_ID_PANEL);
 					}
 					if (rcClient.right<=0 || rcClient.bottom<=0)
-						goto MovingEnd;
+						goto SizingEnd;
 					XMargin=(rcWindow.right-rcWindow.left)-rcClient.right;
 					YMargin=(rcWindow.bottom-rcWindow.top)-rcClient.bottom;
 					Width=(prc->right-prc->left)-XMargin;
 					Height=(prc->bottom-prc->top)-YMargin;
 					if (Width<=0 || Height<=0)
-						goto MovingEnd;
+						goto SizingEnd;
 					if (wParam==WMSZ_LEFT || wParam==WMSZ_RIGHT)
 						Height=Width*YAspect/XAspect;
 					else if (wParam==WMSZ_TOP || wParam==WMSZ_BOTTOM)
@@ -5757,12 +5845,36 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					fChanged=true;
 				}
 			}
-		MovingEnd:
+		SizingEnd:
 			PanelStatus.OnOwnerMovingOrSizing(&rcOld,prc);
 			if (fChanged)
 				return TRUE;
 		}
 		break;
+
+	case WM_GETMINMAXINFO:
+		{
+			CMainWindow *pThis=GetThis(hwnd);
+			if (pThis==NULL)
+				break;
+
+			LPMINMAXINFO pmmi=reinterpret_cast<LPMINMAXINFO>(lParam);
+			RECT rc;
+
+			::SetRect(&rc,0,0,32,0);
+			if (fClientEdge) {
+				rc.right+=GetSystemMetrics(SM_CXEDGE)*2;
+				rc.bottom+=GetSystemMetrics(SM_CYEDGE)*2;
+			}
+			if (pThis->m_fShowStatusBar)
+				rc.bottom+=StatusView.GetHeight();
+			if (fShowPanelWindow && !PanelFrame.GetFloating())
+				rc.right+=Splitter.GetBarWidth()+Splitter.GetPaneSize(PANE_ID_PANEL);
+			::AdjustWindowRectEx(&rc,GetWindowStyle(hwnd),FALSE,GetWindowExStyle(hwnd));
+			pmmi->ptMinTrackSize.x=rc.right;
+			pmmi->ptMinTrackSize.y=rc.bottom;
+		}
+		return 0;
 
 	case WM_RBUTTONDOWN:
 		{
@@ -6056,12 +6168,22 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 							&& pChInfo->GetServiceID()!=ServiceID)*/))) {
 					// 外部からチャンネル変更された?
 					AppMain.FollowChannelChange(TransportStreamID,ServiceID);
-				} else if (pChInfo!=NULL
-						&& ChannelManager.GetCurrentService()<0
-						&& ServiceID!=0 && pChInfo->GetServiceID()!=0
-						&& ServiceID!=pChInfo->GetServiceID()) {
+				} else if (pChInfo!=NULL && ServiceID!=0) {
+					WORD SID=0;
+
+					if (ChannelManager.GetCurrentServiceID()!=0) {
+						if (ChannelManager.GetCurrentServiceID()!=ServiceID)
+							SID=ChannelManager.GetCurrentServiceID();
+					} else if (ChannelManager.GetCurrentService()<0
+							&& pChInfo->GetServiceID()!=0
+							&& ServiceID!=pChInfo->GetServiceID()) {
+						SID=pChInfo->GetServiceID();
+					}
 					// サービスを選択する
-					AppMain.SetServiceByID(pChInfo->GetServiceID(),&pInfo->m_CurService);
+					if (SID!=0) {
+						if (AppMain.SetServiceByID(SID,&pInfo->m_CurService))
+							ChannelManager.SetCurrentService(pInfo->m_CurService);
+					}
 				}
 				if (pChInfo!=NULL && !CoreEngine.IsUDPDriver()) {
 					// チャンネルの情報を更新する
@@ -6135,10 +6257,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			{
 				CMainWindow *pThis=GetThis(hwnd);
 
-				if (pThis->m_fStandby)
-					pThis->SetStandby(false);
-				else
-					ForegroundWindow(hwnd);
+				pThis->SendCommand(CM_SHOW);
 			}
 			break;
 		}
@@ -6188,7 +6307,9 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				return 0;
 
 			pThis->m_fClosing=true;
+
 			::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+
 			StatusView.SetSingleText(TEXT("終了処理を行っています..."));
 			if (!StatusView.GetVisible()) {
 				RECT rc;
@@ -6201,8 +6322,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				StatusView.Update();
 				::BringWindowToTop(StatusView.GetHandle());
 			}
-
-			PluginList.FreePlugins();
 
 			//CoreEngine.m_DtvEngine.EnablePreview(false);
 
@@ -6226,7 +6345,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			MainMenu.Destroy();
 			hAccel=NULL;
 
-			StatusView.SetSingleText(TEXT("設定を保存しています..."));
 			RestoreChannelInfo.Space=-1;
 			RestoreChannelInfo.Channel=-1;
 			RestoreChannelInfo.Service=0;
@@ -6241,11 +6359,11 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				}
 			}
 			pThis->m_fMaximize=pThis->GetMaximize();
-			AppMain.Finalize();
-			EpgOptions.SaveEpgFile(&EpgProgramList);
 
-			StatusView.SetSingleText(TEXT("DtvEngineを閉じています..."));
-			CoreEngine.Close();
+			if (PanelFrame.GetFloating())
+				PanelFrame.SetVisible(false);
+			ProgramGuide.SetVisible(false);
+			CapturePreview.SetVisible(false);
 		}
 		break;
 
@@ -6253,9 +6371,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
-			PanelFrame.Destroy();
-			ProgramGuide.Destroy();
-			CapturePreview.Destroy();
+			PluginList.FreePlugins();
+			AppMain.Finalize();
+			EpgOptions.SaveEpgFile(&EpgProgramList);
+
+			//StatusView.SetSingleText(TEXT("DtvEngineを閉じています..."));
+			CoreEngine.Close();
 			pThis->OnDestroy();
 			::PostQuitMessage(0);
 		}
@@ -6294,11 +6415,8 @@ bool CMainWindow::SetStandby(bool fStandby)
 {
 	if (m_fStandby!=fStandby) {
 		if (fStandby) {
-			if (m_fEnablePreview) {
-				CoreEngine.EnablePreview(false);
-				//CoreEngine.m_DtvEngine.m_MediaViewer.SetVisible(false);
-				m_VideoContainer.SetVisible(false);
-			}
+			if (m_fEnablePreview)
+				SetPreview(false);
 			m_fRestoreFullscreen=m_fFullscreen;
 			if (m_fFullscreen)
 				SetFullscreen(false);
@@ -6338,8 +6456,8 @@ bool CMainWindow::SetStandby(bool fStandby)
 					if (CoreEngine.LoadDriver()) {
 						Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
 						if (!CoreEngine.OpenDriver()) {
-							ShowMessage(TEXT("BonDriverの初期化ができません。"));
 							Logger.AddLog(TEXT("BonDriverの初期化ができません。"));
+							ShowMessage(TEXT("BonDriverの初期化ができません。"));
 						}
 					} else {
 						::wsprintf(szText,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
@@ -6350,21 +6468,18 @@ bool CMainWindow::SetStandby(bool fStandby)
 				CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 				if (!CoreEngine.OpenBcasCard()) {
 					CoreEngine.FormatLastErrorText(szText,lengthof(szText));
-					ShowMessage(szText);
 					Logger.AddLog(TEXT("カードリーダがオープンできません。"));
+					ShowMessage(szText);
 				}
 				if (BuildMediaViewer()) {
 					TCHAR szDecoder[128];
 					if (CoreEngine.m_DtvEngine.GetVideoDecoderName(szDecoder,lengthof(szDecoder)))
 						InfoWindow.SetDecoderName(szDecoder);
 				} else {
-					int Length;
-
-					::lstrcpy(szText,TEXT("DirectShowの初期化ができません。\n"));
-					Length=lstrlen(szText);
-					CoreEngine.FormatLastErrorText(szText+Length,lengthof(szText)-Length);
-					MainWindow.ShowMessage(szText);
+					CoreEngine.FormatLastErrorText(szText,lengthof(szText),
+									TEXT("DirectShowの初期化ができません。\n"));
 					Logger.AddLog(CoreEngine.GetLastErrorText());
+					MainWindow.ShowMessage(szText);
 				}
 				CoreEngine.m_DtvEngine.SetTracer(NULL);
 				StatusView.SetSingleText(NULL);
@@ -6390,17 +6505,15 @@ bool CMainWindow::SetStandby(bool fStandby)
 				CoreEngine.OpenDriver();
 				CoreEngine.m_DtvEngine.SetTracer(NULL);
 				StatusView.SetSingleText(NULL);
+				m_fSrcFilterReleased=false;
 			}
 			if (fRestoreCh) {
 				AppMain.SetChannel(m_RestoreChannelSpec.GetSpace(),
 								   m_RestoreChannelSpec.GetChannel(),
 								   m_RestoreChannelSpec.GetService());
 			}
-			if (m_fEnablePreview) {
-				CoreEngine.EnablePreview(true);
-				//CoreEngine.m_DtvEngine.m_MediaViewer.SetVisible(true);
-				m_VideoContainer.SetVisible(true);
-			}
+			if (m_fEnablePreview)
+				SetPreview(true);
 			::SetCursor(LoadCursor(NULL,IDC_ARROW));
 		}
 		m_fStandby=fStandby;
@@ -6436,9 +6549,22 @@ bool CMainWindow::OpenTuner()
 
 		if (m_fProgramGuideUpdating)
 			EndProgramGuideUpdate(false);
+		if (!CoreEngine.IsBcasCardOpen()) {
+			if (!CoreEngine.OpenBcasCard()) {
+				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
+			}
+		}
 		if (m_fSrcFilterReleased) {
-			if (CoreEngine.OpenDriver())
-				m_fSrcFilterReleased=false;
+			if (!CoreEngine.IsDriverLoaded())
+				CoreEngine.LoadDriver();
+			if (!CoreEngine.OpenDriver()) {
+				TCHAR szText[1024];
+
+				CoreEngine.FormatLastErrorText(szText,lengthof(szText));
+				Logger.AddLog(CoreEngine.GetLastErrorText());
+				ShowMessage(szText);
+			}
+			m_fSrcFilterReleased=false;
 		}
 		if (fRestoreCh) {
 			AppMain.SetChannel(m_RestoreChannelSpec.GetSpace(),
@@ -6523,14 +6649,7 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 		CmdLineParser.m_fSilent=true;
 	if (CmdLine.m_fSaveLog)
 		CmdLineParser.m_fSaveLog=true;
-	if (m_fStandby) {
-		SetStandby(false);
-	} else {
-		if (::IsIconic(m_hwnd))
-			::ShowWindow(m_hwnd,SW_RESTORE);
-		else
-			ForegroundWindow(m_hwnd);
-	}
+	SendCommand(CM_SHOW);
 	if (CmdLine.m_fFullscreen)
 		SetFullscreen(true);
 	if (CmdLine.IsChannelSpecified())
@@ -6827,7 +6946,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		return FALSE;
 	}
 	if (!CmdLineParser.m_fStandby) {
-		MainWindow.Show(nCmdShow);
+		MainWindow.Show(CmdLineParser.m_fMinimize?SW_MINIMIZE:nCmdShow);
 		MainWindow.Update();
 		if (!MainWindow.GetTitleBarVisible()) {
 			// この段階でスタイルを変えないとおかしくなる
@@ -6838,7 +6957,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
-	ResidentManager.Initialize(MainWindow.GetHandle(),hInst);
+	ResidentManager.Initialize(MainWindow.GetHandle());
+	if (IsIconic(MainWindow.GetHandle()))
+		ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
+								  CResidentManager::STATUS_MINIMIZED);
 
 	CoreEngine.SetDriverFileName(CmdLineParser.m_szDriverName[0]!='\0'?
 								CmdLineParser.m_szDriverName:szDriverFileName);
@@ -6851,16 +6973,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				TCHAR szMessage[MAX_PATH+64];
 
 				wsprintf(szMessage,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
+				Logger.AddLog(szMessage);
 				if (!CmdLineParser.m_fSilent)
 					MainWindow.ShowMessage(szMessage);
-				Logger.AddLog(szMessage);
 			}
 		} else {
+			Logger.AddLog(TEXT("BonDriverが設定されていません。"));
 			if (!CmdLineParser.m_fSilent)
 				MainWindow.ShowMessage(
 						TEXT("設定で使用するドライバを指定してください。"),
 						TEXT("お願い"),MB_OK | MB_ICONINFORMATION);
-			Logger.AddLog(TEXT("BonDriverが設定されていません。"));
 		}
 	}
 	CoreEngine.SetDescramble(!CmdLineParser.m_fNoDescramble);
@@ -6874,9 +6996,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		CoreEngine.FormatLastErrorText(szText,lengthof(szText));
 		MessageBox(MainWindow.GetHandle(),szText,NULL,MB_OK | MB_ICONEXCLAMATION);
 		*/
+		Logger.AddLog(TEXT("DtvEngineを構築できません。"));
 		if (!CmdLineParser.m_fSilent)
 			MainWindow.ShowMessage(TEXT("DtvEngineを構築できません。"));
-		Logger.AddLog(TEXT("DtvEngineを構築できません。"));
 	} else {
 		if (!CmdLineParser.m_fStandby && !CoreEngine.OpenBcasCard()) {
 			if (!CmdLineParser.m_fSilent) {
@@ -6891,16 +7013,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 							CurReader==CCardReader::READER_SCARD?
 							CCardReader::READER_HDUS:CCardReader::READER_SCARD)
 							&& !CoreEngine.SetCardReaderType(CurReader)) {
+						Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 						MainWindow.ShowMessage(
 							TEXT("利用可能なカードリーダが見付かりませんでした。"));
-						Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 					}
 				}
 			} else {
 				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 			}
 		}
-		if (CoreEngine.m_DtvEngine.m_TsDescrambler.IsBcasCardOpen()) {
+		if (CoreEngine.IsBcasCardOpen()) {
 			LPCTSTR pszName=CoreEngine.m_DtvEngine.m_TsDescrambler.GetCardReaderName();
 
 			if (pszName!=NULL) {
@@ -6920,21 +7042,24 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 		if (!CmdLineParser.m_fStandby && !CmdLineParser.m_fNoDirectShow
 				&& !MainWindow.BuildMediaViewer()) {
+			Logger.AddLog(CoreEngine.GetLastErrorText());
 			if (!CmdLineParser.m_fSilent) {
 				TCHAR szText[1024];
-				int Length;
 
-				lstrcpy(szText,TEXT("DirectShowの初期化ができません。\n"));
-				Length=lstrlen(szText);
-				CoreEngine.FormatLastErrorText(szText+Length,lengthof(szText)-Length);
+				CoreEngine.FormatLastErrorText(szText,lengthof(szText),
+								TEXT("DirectShowの初期化ができません。\n"));
 				MainWindow.ShowMessage(szText);
 			}
-			Logger.AddLog(CoreEngine.GetLastErrorText());
 		}
 		if (CoreEngine.IsDriverLoaded() && !CoreEngine.OpenDriver()) {
-			if (!CmdLineParser.m_fSilent)
-				MainWindow.ShowMessage(TEXT("BonDriverの初期化ができません。"));
-			Logger.AddLog(TEXT("BonDriverの初期化ができません。"));
+			Logger.AddLog(CoreEngine.GetLastErrorText());
+			if (!CmdLineParser.m_fSilent) {
+				TCHAR szText[1024];
+
+				CoreEngine.FormatLastErrorText(szText,lengthof(szText),
+									TEXT("BonDriverの初期化ができません。\n"));
+				MainWindow.ShowMessage(szText);
+			}
 		}
 		EpgOptions.InitializeEpgDataCap();
 		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
@@ -7082,7 +7207,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			SetCommandLineChannel(&CmdLineParser);
 		} else if (fRestoreChannel
 				&& RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0
-				&& lstrcmpi(RestoreChannelInfo.szDriverName,CoreEngine.GetDriverFileName())==0) {
+				/*&& lstrcmpi(RestoreChannelInfo.szDriverName,CoreEngine.GetDriverFileName())==0*/) {
 			const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 			int i;
 

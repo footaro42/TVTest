@@ -547,6 +547,10 @@ void CAribTime::SplitAribBcd(const BYTE *pAribBcd, WORD *pwHour, WORD *pwMinute,
 
 const DWORD CAribTime::AribBcdToSecond(const BYTE *pAribBcd)
 {
+	// 全ビットが1のときは未定義
+	if (pAribBcd[0] == 0xFF && pAribBcd[1] == 0xFF && pAribBcd[2] == 0xFF)
+		return 0;
+
 	// BCD形式の時刻を秒に変換する
 	const DWORD dwSecond = (((DWORD)(pAribBcd[0] >> 4) * 10U + (DWORD)(pAribBcd[0] & 0x0FU)) * 3600UL)
 						 + (((DWORD)(pAribBcd[1] >> 4) * 10U + (DWORD)(pAribBcd[1] & 0x0FU)) * 60UL)
