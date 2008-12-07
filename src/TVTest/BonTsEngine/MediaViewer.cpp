@@ -457,7 +457,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		// オーナウィンドウ設定
 		m_hOwnerWnd = hOwnerHwnd;
 
-		ResizeVideoWindow();
+		//ResizeVideoWindow();
 
 		OSVERSIONINFO osvi;
 		osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
@@ -770,7 +770,7 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 const bool CMediaViewer::ResizeVideoWindow()
 {
 	// ウィンドウサイズを変更する
-	if (m_pVideoRenderer) {
+	if (m_pVideoRenderer && m_wVideoWindowX>0 && m_wVideoWindowY>0) {
 		long WindowWidth,WindowHeight,VideoWidth,VideoHeight;
 
 		WindowWidth = m_wVideoWindowX;

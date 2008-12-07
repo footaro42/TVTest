@@ -641,7 +641,7 @@ bool CVMR9Allocator::GetNativeVideoSize(LONG *pWidth,LONG *pHeight)
 {
 	CAutoLock Lock(&m_ObjectLock);
 
-	if (m_NativeVideoSize.cx==0 && m_NativeVideoSize.cy==0)
+	if (m_NativeVideoSize.cx==0 || m_NativeVideoSize.cy==0)
 		return false;
 	if (pWidth)
 		*pWidth=m_NativeVideoSize.cx;

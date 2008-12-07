@@ -40,6 +40,7 @@ class CMainWindow : public CBasicWindow {
 	bool m_fEnablePreview;
 	bool m_fStandby;
 	bool m_fStandbyInit;
+	bool m_fMinimizeInit;
 	bool m_fSrcFilterReleased;
 	CChannelSpec m_RestoreChannelSpec;
 	bool m_fRestoreFullscreen;
@@ -87,9 +88,12 @@ public:
 	void SetTitleText();
 	bool EnablePreview(bool fEnable);
 	bool IsPreview() const { return m_fEnablePreview; }
+	void SetWindowVisible();
 	bool SetStandby(bool fStandby);
 	bool GetStandby() const { return m_fStandby; }
 	bool InitStandby();
+	bool InitMinimize();
+	bool IsMinimizeToTray() const;
 	bool OpenTuner();
 	bool ConfirmExit();
 	int GetVolume() const;

@@ -117,9 +117,9 @@ bool CEpgOptions::AsyncLoadEpgFile(CEpgProgramList *pEpgList)
 DWORD WINAPI CEpgOptions::LoadThread(LPVOID lpParameter)
 {
 	EpgLoadInfo *pInfo=static_cast<EpgLoadInfo*>(lpParameter);
-	bool fOK;
 
-	fOK=pInfo->pList->LoadFromFile(pInfo->szFileName);
+	::SetThreadPriority(::GetCurrentThread(),THREAD_PRIORITY_LOWEST);
+	bool fOK=pInfo->pList->LoadFromFile(pInfo->szFileName);
 	delete pInfo;
 	return fOK;
 }

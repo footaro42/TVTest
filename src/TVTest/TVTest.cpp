@@ -3853,16 +3853,17 @@ CServiceUpdateInfo::CServiceUpdateInfo(CDtvEngine *pEngine,CProgManager *pProgMa
 	if (m_NumServices>0) {
 		m_pServiceList=new ServiceInfo[m_NumServices];
 		for (int i=0;i<m_NumServices;i++) {
-			if (!pProgManager->GetServiceID(&m_pServiceList[i].ServiceID,i)
-					|| !pProgManager->GetServiceName(m_pServiceList[i].szServiceName,i)) {
+			if (!pProgManager->GetServiceID(&m_pServiceList[i].ServiceID,i))
 				m_pServiceList[i].ServiceID=0;
+			if (!pProgManager->GetServiceName(m_pServiceList[i].szServiceName,i))
 				m_pServiceList[i].szServiceName[0]='\0';
-			}
 		}
 	} else {
 		m_pServiceList=NULL;
 	}
 	m_CurService=pEngine->GetService();
+	if (m_CurService>=m_NumServices)
+		m_CurService=-1;
 	m_NetworkID=pProgManager->GetNetworkID();
 	m_TransportStreamID=pProgManager->GetTransportStreamID();
 }
@@ -4063,6 +4064,7 @@ CMainWindow::CMainWindow()
 	m_fEnablePreview=false;
 	m_fStandby=false;
 	m_fStandbyInit=false;
+	m_fMinimizeInit=false;
 	m_fProgramGuideUpdating=false;
 	m_fExitOnRecordingStop=false;
 	m_fClosing=false;
@@ -4775,11 +4777,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		if (m_fStandby) {
 			SetStandby(false);
 		} else {
-			if (!GetVisible())
-				SetVisible(true);
-			if (::IsIconic(m_hwnd))
-				::ShowWindow(m_hwnd,SW_RESTORE);
-			ForegroundWindow(m_hwnd);
+			SetWindowVisible();
 		}
 		return;
 
@@ -5735,11 +5733,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
 										  CResidentManager::STATUS_MINIMIZED);
 				pThis->SetPreview(false);
-				break;
 			} else if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
-				if (pThis->m_fEnablePreview)
-					pThis->SetPreview(true);
-				ResidentManager.SetStatus(0,CResidentManager::STATUS_MINIMIZED);
+				pThis->SetWindowVisible();
 			}
 
 			if (wParam==SIZE_MAXIMIZED && !pThis->m_fShowTitleBar) {
@@ -6152,35 +6147,34 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 									CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
 									CM_AUDIOSTREAM_FIRST+CoreEngine.m_DtvEngine.GetAudioStream());
 
-			if (!AppMain.IsChannelScanning() && pInfo->m_NumServices>0) {
+			if (!AppMain.IsChannelScanning()
+					&& pInfo->m_NumServices>0 && pInfo->m_CurService>=0) {
 				const CChannelInfo *pChInfo=ChannelManager.GetCurrentRealChannelInfo();
 				WORD ServiceID,TransportStreamID;
 
 				TransportStreamID=pInfo->m_TransportStreamID;
 				ServiceID=pInfo->m_pServiceList[pInfo->m_CurService].ServiceID;
 				if (TransportStreamID!=0 && ServiceID!=0
-					&& !CoreEngine.IsUDPDriver()
-					&& (pChInfo==NULL
-						|| ((pChInfo->GetTransportStreamID()!=0
-							&& pChInfo->GetTransportStreamID()!=TransportStreamID)
-						/*|| (ChannelManager.GetCurrentService()<0
-							&& pChInfo->GetServiceID()!=0
-							&& pChInfo->GetServiceID()!=ServiceID)*/))) {
-					// 外部からチャンネル変更された?
+						&& !CoreEngine.IsUDPDriver()
+						&& (pChInfo==NULL
+						|| (pChInfo->GetTransportStreamID()!=0
+						&& pChInfo->GetTransportStreamID()!=TransportStreamID))) {
+					// 外部からチャンネル変更されたか、
+					// ドライバが開かれたときのデフォルトチャンネル
 					AppMain.FollowChannelChange(TransportStreamID,ServiceID);
 				} else if (pChInfo!=NULL && ServiceID!=0) {
+					// サービスを選択する
+					// チャンネル切り替え直後はまだPMTが来ていないので
+					// サービスの選択ができないため
 					WORD SID=0;
 
 					if (ChannelManager.GetCurrentServiceID()!=0) {
-						if (ChannelManager.GetCurrentServiceID()!=ServiceID)
-							SID=ChannelManager.GetCurrentServiceID();
+						SID=ChannelManager.GetCurrentServiceID();
 					} else if (ChannelManager.GetCurrentService()<0
-							&& pChInfo->GetServiceID()!=0
-							&& ServiceID!=pChInfo->GetServiceID()) {
+							&& pChInfo->GetServiceID()!=0) {
 						SID=pChInfo->GetServiceID();
 					}
-					// サービスを選択する
-					if (SID!=0) {
+					if (SID!=0 && SID!=ServiceID) {
 						if (AppMain.SetServiceByID(SID,&pInfo->m_CurService))
 							ChannelManager.SetCurrentService(pInfo->m_CurService);
 					}
@@ -6242,7 +6236,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 				hmenu=::LoadMenu(hInst,MAKEINTRESOURCE(IDM_TRAY));
 				::EnableMenuItem(hmenu,CM_SHOW,
-					MF_BYCOMMAND | (pThis->m_fStandby?MFS_ENABLED:MFS_DISABLED));
+					MF_BYCOMMAND | (pThis->m_fStandby || pThis->IsMinimizeToTray()?MFS_ENABLED:MFS_GRAYED));
 				::GetCursorPos(&pt);
 				// お約束が必要な理由は以下を参照
 				// http://support.microsoft.com/kb/135788/en-us
@@ -6411,6 +6405,40 @@ void CMainWindow::SetTitleText()
 }
 
 
+void CMainWindow::SetWindowVisible()
+{
+	bool fRestore=false;
+
+	if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
+		ResidentManager.SetStatus(0,CResidentManager::STATUS_MINIMIZED);
+	}
+	if (!GetVisible()) {
+		SetVisible(true);
+		ForegroundWindow(m_hwnd);
+		Update();
+		fRestore=true;
+	} else if (::IsIconic(m_hwnd)) {
+		Show(SW_RESTORE);
+		Update();
+		fRestore=true;
+	}
+	if (m_fStandbyInit || m_fMinimizeInit) {
+		if (m_fMinimizeInit) {
+			// 最小化状態での起動後最初の表示
+			if (fShowPanelWindow && PanelFrame.GetFloating()) {
+				PanelFrame.SetPanelVisible(true);
+				PanelFrame.Update();
+			}
+			m_fMinimizeInit=false;
+		}
+	}
+	if (fRestore && !m_fStandby) {
+		if (m_fEnablePreview)
+			SetPreview(true);
+	}
+}
+
+
 bool CMainWindow::SetStandby(bool fStandby)
 {
 	if (m_fStandby!=fStandby) {
@@ -6421,7 +6449,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 			if (m_fFullscreen)
 				SetFullscreen(false);
 			if (fShowPanelWindow && PanelFrame.GetFloating())
-				PanelFrame.SetVisible(false);
+				PanelFrame.SetPanelVisible(false);
 			if (fShowProgramGuide)
 				ProgramGuide.SetVisible(false);
 			if (fShowCapturePreview)
@@ -6441,16 +6469,11 @@ bool CMainWindow::SetStandby(bool fStandby)
 		} else {
 			bool fRestoreCh=m_fSrcFilterReleased || m_fProgramGuideUpdating;
 
-			SetVisible(true);
-			Update();
+			SetWindowVisible();
 			::SetCursor(LoadCursor(NULL,IDC_WAIT));
 			if (m_fStandbyInit) {
 				TCHAR szText[1024];
 
-				if (!m_fShowTitleBar) {
-					SetStyle(GetStyle()^WS_CAPTION,true);
-					Update();
-				}
 				if (CoreEngine.GetDriverFileName()[0]!='\0') {
 					StatusView.SetSingleText(TEXT("ドライバの読み込み中..."));
 					if (CoreEngine.LoadDriver()) {
@@ -6490,7 +6513,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 			if (m_fRestoreFullscreen)
 				SetFullscreen(true);
 			if (fShowPanelWindow && PanelFrame.GetFloating()) {
-				PanelFrame.SetVisible(true);
+				PanelFrame.SetPanelVisible(true);
 				PanelFrame.Update();
 			}
 			if (m_fProgramGuideUpdating)
@@ -6529,8 +6552,7 @@ bool CMainWindow::InitStandby()
 	if (CoreEngine.GetDriverFileName()[0]!='\0')
 		m_fSrcFilterReleased=true;
 	if (fRestoreChannel
-			&& RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0
-			&& lstrcmpi(RestoreChannelInfo.szDriverName,CoreEngine.GetDriverFileName())==0) {
+			&& RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0) {
 		m_RestoreChannelSpec.SetSpace(RestoreChannelInfo.Space);
 		m_RestoreChannelSpec.SetChannel(RestoreChannelInfo.Channel);
 		m_RestoreChannelSpec.SetService(RestoreChannelInfo.Service);
@@ -6539,6 +6561,31 @@ bool CMainWindow::InitStandby()
 	m_fStandby=true;
 	m_fStandbyInit=true;
 	return true;
+}
+
+
+bool CMainWindow::InitMinimize()
+{
+	m_fEnablePreview=true;
+	if (fRestoreChannel
+			&& RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0) {
+		m_RestoreChannelSpec.SetSpace(RestoreChannelInfo.Space);
+		m_RestoreChannelSpec.SetChannel(RestoreChannelInfo.Channel);
+		m_RestoreChannelSpec.SetService(RestoreChannelInfo.Service);
+	}
+	ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
+							  CResidentManager::STATUS_MINIMIZED);
+	if (!ResidentManager.GetMinimizeToTray())
+		::ShowWindow(m_hwnd,SW_MINIMIZE);
+	m_fMinimizeInit=true;
+	return true;
+}
+
+
+bool CMainWindow::IsMinimizeToTray() const
+{
+	return ResidentManager.GetMinimizeToTray()
+		&& (ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0;
 }
 
 
@@ -6945,22 +6992,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 														MB_OK | MB_ICONSTOP);
 		return FALSE;
 	}
-	if (!CmdLineParser.m_fStandby) {
-		MainWindow.Show(CmdLineParser.m_fMinimize?SW_MINIMIZE:nCmdShow);
+	if (nCmdShow==SW_MINIMIZE)
+		CmdLineParser.m_fMinimize=true;
+	if (CmdLineParser.m_fStandby && CmdLineParser.m_fMinimize)
+		CmdLineParser.m_fMinimize=false;
+	if (!CmdLineParser.m_fStandby && !CmdLineParser.m_fMinimize) {
+		MainWindow.Show(nCmdShow);
 		MainWindow.Update();
-		if (!MainWindow.GetTitleBarVisible()) {
-			// この段階でスタイルを変えないとおかしくなる
-			// 最初からこのスタイルにしてもキャプションが表示される
-			// ShowWindow の前に入れると、タイトルバーを表示させてもアイコンが出ない
-			MainWindow.SetStyle(MainWindow.GetStyle()^WS_CAPTION,true);
-			MainWindow.Update();
-		}
+	} else {
+		MainWindow.Show(SW_HIDE);
+	}
+	if (!MainWindow.GetTitleBarVisible()) {
+		// この段階でスタイルを変えないとおかしくなる
+		// 最初からこのスタイルにしてもキャプションが表示される
+		// ShowWindow の前に入れると、タイトルバーを表示させてもアイコンが出ない
+		MainWindow.SetStyle(MainWindow.GetStyle()^WS_CAPTION,true);
+		MainWindow.Update();
 	}
 
 	ResidentManager.Initialize(MainWindow.GetHandle());
-	if (IsIconic(MainWindow.GetHandle()))
-		ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
-								  CResidentManager::STATUS_MINIMIZED);
+	if (CmdLineParser.m_fMinimize)
+		MainWindow.InitMinimize();
 
 	CoreEngine.SetDriverFileName(CmdLineParser.m_szDriverName[0]!='\0'?
 								CmdLineParser.m_szDriverName:szDriverFileName);
@@ -7063,7 +7115,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 		EpgOptions.InitializeEpgDataCap();
 		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
-			if (!CmdLineParser.m_fNoView)
+			if (!CmdLineParser.m_fNoView && !CmdLineParser.m_fMinimize)
 				MainWindow.EnablePreview(true);
 
 			TCHAR szDecoder[128];
@@ -7095,7 +7147,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	if (!fNoRemoteController)
 		hAccel=LoadAccelerators(hInst,
-							MAKEINTRESOURCE(fNoKeyHook?IDA_ACCEL:IDA_ACCEL2));
+						MAKEINTRESOURCE(fNoKeyHook?IDA_ACCEL:IDA_ACCEL2));
 
 	if (!CmdLineParser.m_fStandby)
 		SetDisplayStatus();
@@ -7165,7 +7217,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	PanelFrame.Create(MainWindow.GetHandle(),&Splitter,PANE_ID_PANEL,&InfoPanel,TEXT("パネル"));
 	PanelFrame.SetEventHandler(&PanelStatus);
 	if (fShowPanelWindow
-			&& (!PanelFrame.GetFloating() || !CmdLineParser.m_fStandby)) {
+			&& (!PanelFrame.GetFloating()
+				|| (!CmdLineParser.m_fStandby && !CmdLineParser.m_fMinimize))) {
 		PanelFrame.SetPanelVisible(true);
 		PanelFrame.Update();
 	}
