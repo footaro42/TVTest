@@ -187,6 +187,7 @@ static bool fUsePseudoOSD=true;
 static COLORREF crOSDTextColor=RGB(0,255,128);
 static unsigned int OSDFadeTime=2000;
 static CPseudoOSD PseudoOSD;
+static bool fDisablePreviewWhenMinimized=false;
 
 enum {
 	WHEEL_MODE_NONE,
@@ -1141,6 +1142,7 @@ bool CAppMain::LoadSettings()
 		Setting.ReadColor(TEXT("OSDTextColor"),&crOSDTextColor);
 		PseudoOSD.SetTextColor(crOSDTextColor);
 		Setting.Read(TEXT("OSDFadeTime"),&OSDFadeTime);
+		Setting.Read(TEXT("DisablePreviewWhenMinimized"),&fDisablePreviewWhenMinimized);
 		Setting.Read(TEXT("WheelMode"),&WheelMode);
 		Setting.Read(TEXT("WheelShiftMode"),&WheelShiftMode);
 		Setting.Read(TEXT("ReverseWheelChannel"),&fWheelChannelReverse);
@@ -1269,6 +1271,7 @@ bool CAppMain::SaveSettings()
 		Setting.Write(TEXT("PseudoOSD"),fUsePseudoOSD);
 		Setting.WriteColor(TEXT("OSDTextColor"),crOSDTextColor);
 		Setting.Write(TEXT("OSDFadeTime"),OSDFadeTime);
+		Setting.Write(TEXT("DisablePreviewWhenMinimized"),fDisablePreviewWhenMinimized);
 		Setting.Write(TEXT("WheelMode"),WheelMode);
 		Setting.Write(TEXT("WheelShiftMode"),WheelShiftMode);
 		Setting.Write(TEXT("ReverseWheelChannel"),fWheelChannelReverse);
@@ -2724,6 +2727,7 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		CheckDlgButton(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,
 					   fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 		DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,ResidentManager.GetMinimizeToTray());
+		DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,fDisablePreviewWhenMinimized);
 		return TRUE;
 
 	case WM_DRAWITEM:
@@ -2791,6 +2795,7 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				}
 			}
 			ResidentManager.SetMinimizeToTray(DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY));
+			fDisablePreviewWhenMinimized=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
 			break;
 		}
 	}
@@ -5284,9 +5289,6 @@ void CMainWindow::PopupMenu(const POINT *pPos/*=NULL*/)
 
 bool CMainWindow::SetPreview(bool fPreview)
 {
-	// なぜか成功してもfalseが返ってくる
-	//if (!CoreEngine.EnablePreview(fPreview))
-	//	return false;
 	CoreEngine.EnablePreview(fPreview);
 	//CoreEngine.m_DtvEngine.m_MediaViewer.SetVisible(fPreview);
 	m_VideoContainer.SetVisible(fPreview);
@@ -5732,7 +5734,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			if (wParam==SIZE_MINIMIZED) {
 				ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
 										  CResidentManager::STATUS_MINIMIZED);
-				pThis->SetPreview(false);
+				if (fDisablePreviewWhenMinimized)
+					pThis->SetPreview(false);
 			} else if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
 				pThis->SetWindowVisible();
 			}
@@ -5866,8 +5869,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			if (fShowPanelWindow && !PanelFrame.GetFloating())
 				rc.right+=Splitter.GetBarWidth()+Splitter.GetPaneSize(PANE_ID_PANEL);
 			::AdjustWindowRectEx(&rc,GetWindowStyle(hwnd),FALSE,GetWindowExStyle(hwnd));
-			pmmi->ptMinTrackSize.x=rc.right;
-			pmmi->ptMinTrackSize.y=rc.bottom;
+			pmmi->ptMinTrackSize.x=rc.right-rc.left;
+			pmmi->ptMinTrackSize.y=rc.bottom-rc.top;
 		}
 		return 0;
 
@@ -6411,6 +6414,7 @@ void CMainWindow::SetWindowVisible()
 
 	if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
 		ResidentManager.SetStatus(0,CResidentManager::STATUS_MINIMIZED);
+		fRestore=true;
 	}
 	if (!GetVisible()) {
 		SetVisible(true);
@@ -6418,19 +6422,17 @@ void CMainWindow::SetWindowVisible()
 		Update();
 		fRestore=true;
 	} else if (::IsIconic(m_hwnd)) {
-		Show(SW_RESTORE);
+		::ShowWindow(m_hwnd,SW_RESTORE);
 		Update();
 		fRestore=true;
 	}
-	if (m_fStandbyInit || m_fMinimizeInit) {
-		if (m_fMinimizeInit) {
-			// 最小化状態での起動後最初の表示
-			if (fShowPanelWindow && PanelFrame.GetFloating()) {
-				PanelFrame.SetPanelVisible(true);
-				PanelFrame.Update();
-			}
-			m_fMinimizeInit=false;
+	if (m_fMinimizeInit) {
+		// 最小化状態での起動後最初の表示
+		if (fShowPanelWindow && PanelFrame.GetFloating()) {
+			PanelFrame.SetPanelVisible(true);
+			PanelFrame.Update();
 		}
+		m_fMinimizeInit=false;
 	}
 	if (fRestore && !m_fStandby) {
 		if (m_fEnablePreview)
@@ -7000,7 +7002,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		MainWindow.Show(nCmdShow);
 		MainWindow.Update();
 	} else {
-		MainWindow.Show(SW_HIDE);
+		::ShowWindow(MainWindow.GetHandle(),SW_HIDE);
 	}
 	if (!MainWindow.GetTitleBarVisible()) {
 		// この段階でスタイルを変えないとおかしくなる

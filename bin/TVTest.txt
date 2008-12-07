@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.10
+    TVTest ver.0.5.12
 
 
 ◆ はじめに
@@ -36,7 +36,7 @@
   ・TVTest.sample.ch      チャンネル設定ファイルのサンプル
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
-  ・TVTest_0.5.10_Src.zip ソースファイル
+  ・TVTest_0.5.12_Src.zip ソースファイル
   ・TVTest_SDK_081124.zip プラグイン開発用 SDK
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
   ・Plugins\              プラグインフォルダ
@@ -347,6 +347,9 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.12
+    ・最小化時に再生を停止するかしないかを設定できるようにした
 
   ver.0.5.11
     ・最小化状態での起動時に、パネルだけ表示されたり、最小化時にタスクトレイに
