@@ -184,6 +184,19 @@ const WORD CProgManager::GetAudioEsNum(const WORD wIndex)
 }
 
 
+const bool CProgManager::GetSubtitleEsPID(WORD *pwSubtitlePID, const WORD wIndex)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (pwSubtitlePID && (size_t)wIndex < m_ServiceList.size()
+			&& m_ServiceList[wIndex].wSubtitleEsPID != 0xFFFF) {
+		*pwSubtitlePID = m_ServiceList[wIndex].wSubtitleEsPID;
+		return true;
+	}
+	return false;
+}
+
+
 const bool CProgManager::GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, const WORD wIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -268,6 +281,7 @@ void CProgManager::OnServiceListUpdated(void)
 			m_ServiceList[ServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[Index].wServiceID;
 			m_ServiceList[ServiceNum].wVideoEsPID = m_pProgDatabase->m_ServiceList[Index].wVideoEsPID;
 			m_ServiceList[ServiceNum].AudioEsList = m_pProgDatabase->m_ServiceList[Index].AudioEsList;
+			m_ServiceList[ServiceNum].wSubtitleEsPID = m_pProgDatabase->m_ServiceList[Index].wSubtitleEsPID;
 			m_ServiceList[ServiceNum].szServiceName[0] = TEXT('\0');
 			ServiceNum++;
 		}
@@ -415,6 +429,7 @@ void CALLBACK CProgManager::CProgDatabase::OnPatUpdated(const WORD wPID, CTsPidM
 		pThis->m_ServiceList[Index].wPmtTablePID = pPatTable->GetPmtPID(Index);
 		pThis->m_ServiceList[Index].wVideoEsPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].AudioEsList.clear();
+		pThis->m_ServiceList[Index].wSubtitleEsPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].wPcrPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].byVideoComponentTag = 0xFFU;
 		//pThis->m_ServiceList[Index].byAudioComponentTag = 0xFFU;
@@ -465,6 +480,16 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 			}
 			pThis->m_ServiceList[wServiceIndex].AudioEsList.push_back(
 						EsInfo(pPmtTable->GetEsPID(wEsIndex),ComponentTag));
+		}
+	}
+
+	// 字幕ESのPIDをストア
+	pThis->m_ServiceList[wServiceIndex].wSubtitleEsPID = 0xFFFFU;
+	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
+		// 「ITU-T Rec. H.222|ISO/IEC 13818-1 PES packets containing private data」のストリームタイプを検索
+		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x06U) {
+			pThis->m_ServiceList[wServiceIndex].wSubtitleEsPID = pPmtTable->GetEsPID(wEsIndex);
+			break;
 		}
 	}
 

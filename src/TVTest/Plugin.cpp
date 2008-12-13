@@ -216,6 +216,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::MESSAGE_GETTUNINGSPACE:
 		case TVTest::MESSAGE_GETTUNINGSPACEINFO:
 		case TVTest::MESSAGE_SETNEXTCHANNEL:
+		case TVTest::MESSAGE_GETAUDIOSTREAM:
+		case TVTest::MESSAGE_SETAUDIOSTREAM:
 			return TRUE;
 		}
 		return FALSE;
@@ -358,19 +360,30 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			CProgManager *pProgManager;
 
 			if (Index<0 || pServiceInfo==NULL
-					|| pServiceInfo->Size!=sizeof(TVTest::ServiceInfo))
+					|| (pServiceInfo->Size!=sizeof(TVTest::ServiceInfo)
+						&& pServiceInfo->Size!=TVTest::SERVICEINFO_SIZE_V1))
 				return FALSE;
 			pProgManager=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_ProgManager;
-			if (pProgManager->GetServiceID(&pServiceInfo->ServiceID,Index)
-					&& pProgManager->GetServiceName(
+			if (!pProgManager->GetServiceID(&pServiceInfo->ServiceID,Index)
+					|| !pProgManager->GetServiceName(
 											pServiceInfo->szServiceName,Index)
-					&& pProgManager->GetVideoEsPID(&pServiceInfo->VideoPID,Index)
-					&& pProgManager->GetAudioEsPID(&pServiceInfo->AudioPID[0],0,Index)) {
-				pServiceInfo->NumAudioPIDs=1;
-				return TRUE;
+					|| !pProgManager->GetVideoEsPID(&pServiceInfo->VideoPID,Index))
+				return FALSE;
+			pServiceInfo->NumAudioPIDs=pProgManager->GetAudioEsNum(Index);
+			for (int i=0;i<pServiceInfo->NumAudioPIDs;i++) {
+				pProgManager->GetAudioEsPID(&pServiceInfo->AudioPID[i],i,Index);
+			}
+			if (pServiceInfo->Size==sizeof(TVTest::ServiceInfo)) {
+				for (int i=0;i<pServiceInfo->NumAudioPIDs;i++) {
+					pServiceInfo->AudioComponentType[i]=
+						pProgManager->GetAudioComponentType(i,Index);
+				}
+				if (!pProgManager->GetSubtitleEsPID(&pServiceInfo->SubtitlePID,Index))
+					pServiceInfo->SubtitlePID=0;
+				pServiceInfo->Reserved=0;
 			}
 		}
-		return FALSE;
+		return TRUE;
 
 	case TVTest::MESSAGE_GETDRIVERNAME:
 		{
@@ -655,13 +668,29 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		{
 			TVTest::StatusInfo *pInfo=reinterpret_cast<TVTest::StatusInfo*>(lParam1);
 
-			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::StatusInfo))
+			if (pInfo==NULL || (pInfo->Size!=sizeof(TVTest::StatusInfo)
+								&& pInfo->Size!=TVTest::STATUSINFO_SIZE_V1))
 				return FALSE;
 			const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+			DWORD DropCount=pCoreEngine->GetContinuityErrorPacketCount();
 			pInfo->SignalLevel=pCoreEngine->GetSignalLevel();
 			pInfo->BitRate=pCoreEngine->GetBitRate();
-			pInfo->ErrorPacketCount=pCoreEngine->GetErrorPacketCount();
+			pInfo->ErrorPacketCount=pCoreEngine->GetErrorPacketCount()+DropCount;
 			pInfo->ScramblePacketCount=pCoreEngine->GetScramblePacketCount();
+			if (pInfo->Size==sizeof(TVTest::StatusInfo)) {
+				pInfo->DropPacketCount=DropCount;
+				if (pCoreEngine->GetDescramble()
+					&& pCoreEngine->GetCardReaderType()!=CCardReader::READER_NONE) {
+					if (pCoreEngine->m_DtvEngine.m_TsDescrambler.IsBcasCardOpen()) {
+						pInfo->BcasCardStatus=TVTest::BCAS_STATUS_OK;
+					} else {
+						// Žæ‚è‚ ‚¦‚¸...
+						pInfo->BcasCardStatus=TVTest::BCAS_STATUS_OPENERROR;
+					}
+				} else {
+					pInfo->BcasCardStatus=TVTest::BCAS_STATUS_NOTOPEN;
+				}
+			}
 		}
 		return TRUE;
 
@@ -969,6 +998,19 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			GetAppClass().GetMainWindow()->PostCommand(fNext?CM_CHANNEL_UP:CM_CHANNEL_DOWN);
 		}
 		return TRUE;
+
+	case TVTest::MESSAGE_GETAUDIOSTREAM:
+		return GetAppClass().GetCoreEngine()->m_DtvEngine.GetAudioStream();
+
+	case TVTest::MESSAGE_SETAUDIOSTREAM:
+		{
+			int Index=lParam1;
+
+			if (Index<0 || Index>=GetAppClass().GetCoreEngine()->m_DtvEngine.GetAudioStreamNum())
+				return FALSE;
+			GetAppClass().GetMainWindow()->PostCommand(CM_AUDIOSTREAM_FIRST+Index);
+		}
+		return TRUE;
 	}
 	return 0;
 }
@@ -1199,6 +1241,92 @@ CPluginOptions::CPluginOptions(CPluginList *pPluginList)
 
 CPluginOptions::~CPluginOptions()
 {
+	ClearList();
+}
+
+
+bool CPluginOptions::Load(LPCTSTR pszFileName)
+{
+	CSettings Settings;
+
+	if (Settings.Open(pszFileName,TEXT("PluginList"),CSettings::OPEN_READ)) {
+		int Count;
+
+		if (Settings.Read(TEXT("PluginCount"),&Count) && Count>0) {
+			for (int i=0;i<Count;i++) {
+				TCHAR szName[32],szFileName[MAX_PATH];
+
+				::wsprintf(szName,TEXT("Plugin%d_Name"),i);
+				if (Settings.Read(szName,szFileName,lengthof(szFileName))
+						&& szFileName[0]!='\0') {
+					bool fEnable;
+
+					::wsprintf(szName,TEXT("Plugin%d_Enable"),i);
+					if (Settings.Read(szName,&fEnable) && fEnable) {
+						m_EnablePluginList.push_back(DuplicateString(szFileName));
+					}
+				}
+			}
+		}
+	}
+	return true;
+}
+
+
+bool CPluginOptions::Save(LPCTSTR pszFileName) const
+{
+	CSettings Settings;
+
+	if (Settings.Open(pszFileName,TEXT("PluginList"),CSettings::OPEN_WRITE)) {
+		Settings.Clear();
+		Settings.Write(TEXT("PluginCount"),(unsigned int)m_EnablePluginList.size());
+		for (size_t i=0;i<m_EnablePluginList.size();i++) {
+			TCHAR szName[32];
+
+			::wsprintf(szName,TEXT("Plugin%d_Name"),i);
+			Settings.Write(szName,m_EnablePluginList[i]);
+			::wsprintf(szName,TEXT("Plugin%d_Enable"),i);
+			Settings.Write(szName,true);
+		}
+	}
+	return true;
+}
+
+
+bool CPluginOptions::RestorePluginOptions()
+{
+	for (size_t i=0;i<m_EnablePluginList.size();i++) {
+		for (int j=0;j<m_pPluginList->NumPlugins();j++) {
+			CPlugin *pPlugin=m_pPluginList->GetPlugin(j);
+
+			if (::lstrcmpi(m_EnablePluginList[i],::PathFindFileName(pPlugin->GetFileName()))==0)
+				pPlugin->Enable(true);
+		}
+	}
+	return true;
+}
+
+
+bool CPluginOptions::StorePluginOptions()
+{
+	ClearList();
+	for (int i=0;i<m_pPluginList->NumPlugins();i++) {
+		const CPlugin *pPlugin=m_pPluginList->GetPlugin(i);
+
+		if (pPlugin->IsEnabled()) {
+			m_EnablePluginList.push_back(DuplicateString(::PathFindFileName(pPlugin->GetFileName())));
+		}
+	}
+	return true;
+}
+
+
+void CPluginOptions::ClearList()
+{
+	for (size_t i=0;i<m_EnablePluginList.size();i++) {
+		delete [] m_EnablePluginList[i];
+	}
+	m_EnablePluginList.clear();
 }
 
 

@@ -169,6 +169,7 @@ protected:
 	class CGrabber *m_pGrabber;
 #endif
 	CTracer *m_pTracer;
+	/*
 	HANDLE m_hFlushThread;
 	HANDLE m_hFlushEvent;
 	HANDLE m_hFlushResumeEvent;
@@ -179,6 +180,7 @@ protected:
 		FLUSH_RESET
 	} m_FlushEventType;
 	static DWORD WINAPI FlushThread(LPVOID lpParameter);
+	*/
 
 #ifdef DEBUG
 private:

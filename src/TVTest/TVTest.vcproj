@@ -106,7 +106,7 @@
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="1"
-			UseOfMFC="2"
+			UseOfMFC="0"
 			CharacterSet="1"
 			WholeProgramOptimization="1"
 			>
@@ -160,7 +160,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="strmbase.lib"
+				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;"
 				GenerateDebugInformation="true"
@@ -168,6 +168,100 @@
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				LinkTimeCodeGeneration="1"
+				TargetMachine="1"
+			/>
+			<Tool
+				Name="VCALinkTool"
+			/>
+			<Tool
+				Name="VCManifestTool"
+			/>
+			<Tool
+				Name="VCXDCMakeTool"
+			/>
+			<Tool
+				Name="VCBscMakeTool"
+			/>
+			<Tool
+				Name="VCFxCopTool"
+			/>
+			<Tool
+				Name="VCAppVerifierTool"
+			/>
+			<Tool
+				Name="VCWebDeploymentTool"
+			/>
+			<Tool
+				Name="VCPostBuildEventTool"
+			/>
+		</Configuration>
+		<Configuration
+			Name="Release_PGO|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
+			ConfigurationType="1"
+			UseOfMFC="0"
+			CharacterSet="1"
+			WholeProgramOptimization="2"
+			>
+			<Tool
+				Name="VCPreBuildEventTool"
+			/>
+			<Tool
+				Name="VCCustomBuildTool"
+			/>
+			<Tool
+				Name="VCXMLDataGeneratorTool"
+			/>
+			<Tool
+				Name="VCWebServiceProxyGeneratorTool"
+			/>
+			<Tool
+				Name="VCMIDLTool"
+				PreprocessorDefinitions="NDEBUG"
+				MkTypLibCompatible="false"
+				ValidateParameters="false"
+			/>
+			<Tool
+				Name="VCCLCompilerTool"
+				Optimization="3"
+				InlineFunctionExpansion="2"
+				EnableIntrinsicFunctions="false"
+				FavorSizeOrSpeed="1"
+				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
+				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
+				StringPooling="true"
+				MinimalRebuild="false"
+				RuntimeLibrary="2"
+				BufferSecurityCheck="false"
+				EnableEnhancedInstructionSet="1"
+				UsePrecompiledHeader="0"
+				WarningLevel="3"
+				Detect64BitPortabilityProblems="false"
+				DebugInformationFormat="3"
+			/>
+			<Tool
+				Name="VCManagedResourceCompilerTool"
+			/>
+			<Tool
+				Name="VCResourceCompilerTool"
+				PreprocessorDefinitions="NDEBUG"
+				Culture="1041"
+				AdditionalIncludeDirectories="$(IntDir);Resource"
+			/>
+			<Tool
+				Name="VCPreLinkEventTool"
+			/>
+			<Tool
+				Name="VCLinkerTool"
+				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
+				LinkIncremental="1"
+				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;"
+				GenerateDebugInformation="true"
+				SubSystem="2"
+				OptimizeReferences="2"
+				EnableCOMDATFolding="2"
+				LinkTimeCodeGeneration="2"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -389,6 +483,14 @@
 				</FileConfiguration>
 				<FileConfiguration
 					Name="Release|Win32"
+					>
+					<Tool
+						Name="VCCLCompilerTool"
+						UsePrecompiledHeader="1"
+					/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release_PGO|Win32"
 					>
 					<Tool
 						Name="VCCLCompilerTool"
@@ -825,14 +927,26 @@
 						>
 						<Tool
 							Name="VCCLCompilerTool"
-							Optimization="0"
+							Optimization="2"
 							InlineFunctionExpansion="0"
 							EnableIntrinsicFunctions="false"
 							FavorSizeOrSpeed="0"
+							BasicRuntimeChecks="0"
+							DebugInformationFormat="3"
 						/>
 					</FileConfiguration>
 					<FileConfiguration
 						Name="Release|Win32"
+						>
+						<Tool
+							Name="VCCLCompilerTool"
+							Optimization="3"
+							EnableIntrinsicFunctions="false"
+							AssemblerOutput="0"
+						/>
+					</FileConfiguration>
+					<FileConfiguration
+						Name="Release_PGO|Win32"
 						>
 						<Tool
 							Name="VCCLCompilerTool"

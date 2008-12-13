@@ -2,6 +2,7 @@
 #define PLUGIN_H
 
 
+#include <vector>
 #include "TVTestPlugin.h"
 #include "PointerArray.h"
 #include "Options.h"
@@ -81,10 +82,16 @@ public:
 
 class CPluginOptions : public COptions {
 	CPluginList *m_pPluginList;
+	std::vector<LPTSTR> m_EnablePluginList;
+	void ClearList();
 	static CPluginOptions *GetThis(HWND hDlg);
 public:
 	CPluginOptions(CPluginList *pPluginList);
 	~CPluginOptions();
+	bool Load(LPCTSTR pszFileName);
+	bool Save(LPCTSTR pszFileName) const;
+	bool RestorePluginOptions();
+	bool StorePluginOptions();
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

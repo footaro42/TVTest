@@ -27,9 +27,22 @@ public:
 // CBonSrcPin
 	const bool InputMedia(CMediaData *pMediaData);
 
+	void Reset();
 	void Flush();
 	void SetOutputWhenPaused(bool bOutput) { m_bOutputWhenPaused=bOutput; }
 protected:
+	void EndStreamThread();
+	static DWORD WINAPI StreamThread(LPVOID lpParameter);
+
 	CBonSrcFilter* m_pFilter;
+
+	HANDLE m_hThread;
+	volatile bool m_bKillSignal;
+	BYTE *m_pBuffer;
+	DWORD m_BufferLength;
+	DWORD m_BufferUsed;
+	DWORD m_BufferPos;
+	CCritSec m_StreamLock;
+
 	bool m_bOutputWhenPaused;
 };

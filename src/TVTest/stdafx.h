@@ -35,6 +35,8 @@
 // 一般的で無視しても安全な MFC の警告メッセージの一部の非表示を解除します。
 #define _AFX_ALL_WARNINGS
 
+#define _WINSOCKAPI_
+
 #ifdef _DEBUG
 
 #include <afxwin.h>         // MFC のコアおよび標準コンポーネント
@@ -56,6 +58,8 @@
 #include <commctrl.h>
 
 #endif // _DEBUG
+
+#undef _WINSOCKAPI_
 
 #ifdef _UNICODE
 #if defined _M_IX86

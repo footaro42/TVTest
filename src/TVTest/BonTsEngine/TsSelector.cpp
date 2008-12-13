@@ -291,7 +291,7 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	pDstData[8+NewProgramListSize+2] = (BYTE)((CRC>>8)&0xFF);
 	pDstData[8+NewProgramListSize+3] = (BYTE)(CRC&0xFF);
 
-	pDstPacket->ParseHeader();
+	pDstPacket->ParsePacket();
 
 	return true;
 }

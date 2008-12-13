@@ -33,6 +33,7 @@ private:
 	int m_VolumeNormalizeLevel;
 	int m_StereoMode;
 	DWORD m_ErrorPacketCount;
+	DWORD m_ContinuityErrorPacketCount;
 	DWORD m_ScramblePacketCount;
 	float m_SignalLevel;
 	DWORD m_BitRate;
@@ -87,15 +88,17 @@ public:
 	};
 	DWORD UpdateAsyncStatus();
 	enum {
-		STATISTIC_ERRORPACKETCOUNT		=0x00000001UL,
-		STATISTIC_SCRAMBLEPACKETCOUNT	=0x00000002UL,
-		STATISTIC_SIGNALLEVEL			=0x00000004UL,
-		STATISTIC_BITRATE				=0x00000008UL,
-		STATISTIC_STREAMREMAIN			=0x00000010UL,
-		STATISTIC_PACKETBUFFERRATE		=0x00000020UL
+		STATISTIC_ERRORPACKETCOUNT				=0x00000001UL,
+		STATISTIC_CONTINUITYERRORPACKETCOUNT	=0x00000002UL,
+		STATISTIC_SCRAMBLEPACKETCOUNT			=0x00000004UL,
+		STATISTIC_SIGNALLEVEL					=0x00000008UL,
+		STATISTIC_BITRATE						=0x00000010UL,
+		STATISTIC_STREAMREMAIN					=0x00000020UL,
+		STATISTIC_PACKETBUFFERRATE				=0x00000040UL
 	};
 	DWORD UpdateStatistics();
 	DWORD GetErrorPacketCount() const { return m_ErrorPacketCount; }
+	DWORD GetContinuityErrorPacketCount() const { return m_ContinuityErrorPacketCount; }
 	DWORD GetScramblePacketCount() const { return m_ScramblePacketCount; }
 	void ResetErrorCount();
 	float GetSignalLevel() const { return m_SignalLevel; }

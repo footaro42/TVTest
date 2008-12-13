@@ -22,8 +22,14 @@ public:
 	CTsPacket(const CTsPacket &Operand);
 	CTsPacket & operator = (const CTsPacket &Operand);
 
-	void ParseHeader(void);
-	const bool CheckPacket(BYTE *pContinuityCounter = NULL) const;
+	enum	// ParsePacket() エラーコード
+	{
+		EC_VALID		= 0x00000000UL,		// 正常パケット
+		EC_FORMAT		= 0x00000001UL,		// フォーマットエラー
+		EC_TRANSPORT	= 0x00000002UL,		// トランスポートエラー(ビットエラー)
+		EC_CONTINUITY	= 0x00000003UL		// 連続性カウンタエラー(ドロップ)
+	};
+	DWORD ParsePacket(BYTE *pContinuityCounter = NULL);
 
 	BYTE * GetPayloadData(void);
 	const BYTE * GetPayloadData(void) const;

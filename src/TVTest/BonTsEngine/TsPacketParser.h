@@ -32,6 +32,7 @@ public:
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetOutputPacketCount(void) const;
 	const DWORD GetErrorPacketCount(void) const;
+	const DWORD GetContinuityErrorPacketCount(void) const;
 	void ResetErrorPacketCount(void);
 
 	// Append by HDUSTestÇÃíÜÇÃêl
@@ -50,6 +51,7 @@ private:
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_OutputPacketCount;
 	ULONGLONG m_ErrorPacketCount;
+	ULONGLONG m_ContinuityErrorPacketCount;
 	BYTE m_abyContCounter[0x1FFF];
 
 	// Append by HDUSTestÇÃíÜÇÃêl

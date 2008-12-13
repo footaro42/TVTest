@@ -20,9 +20,11 @@ public:
 	static IBaseFilter * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr,CBonSrcFilter **ppBonSrcFilterIf=NULL);
 
 // CBaseFilter
+#ifdef _DEBUG
 	STDMETHODIMP Run(REFERENCE_TIME tStart);
 	STDMETHODIMP Pause(void);
 	STDMETHODIMP Stop(void);
+#endif
 	STDMETHODIMP GetState(DWORD dwMSecs, __out FILTER_STATE *State);
 	int GetPinCount(void);
 	CBasePin *GetPin(int n);
@@ -30,6 +32,7 @@ public:
 // CBonSrcFilter
 	const bool InputMedia(CMediaData *pMediaData);
 
+	void Reset();
 	void Flush();
 	void SetOutputWhenPaused(bool bOutput);
 	//bool CheckHangUp(DWORD TimeOut);

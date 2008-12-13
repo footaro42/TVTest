@@ -52,6 +52,7 @@ public:
 	const BYTE GetAudioComponentTag(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
 	const BYTE GetAudioComponentType(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
 	const WORD GetAudioEsNum(const WORD wIndex = 0U);
+	const bool GetSubtitleEsPID(WORD *pwSubtitlePID, const WORD wIndex = 0U);
 	const bool GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, const WORD wServiceID = 0U);
 	const DWORD GetServiceName(LPTSTR lpszDst, const WORD wIndex = 0U);
 	const WORD GetTransportStreamID() const;
@@ -74,6 +75,7 @@ protected:
 		WORD wServiceID;
 		WORD wVideoEsPID;
 		vector<EsInfo> AudioEsList;
+		WORD wSubtitleEsPID;
 		TCHAR szServiceName[256];
 
 		// タイムスタンプ
@@ -108,6 +110,7 @@ public:
 		WORD wServiceID;
 		WORD wVideoEsPID;
 		vector<EsInfo> AudioEsList;
+		WORD wSubtitleEsPID;
 		BYTE byServiceType;
 		TCHAR szServiceName[256];
 

@@ -130,8 +130,6 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 
 	ClearError();
 
-	ResetBitRate();
-
 	return true;
 
 OnError:
@@ -434,36 +432,42 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 	BYTE *pStreamData = NULL;
 	DWORD dwStreamSize = 0UL;
 	DWORD dwStreamRemain = 0UL;
-	DWORD TotalSize=0;
 
 	// チューナからTSデータを取り出すスレッド
 	while (true) {
+		DWORD BitRateTime=::GetTickCount();
+		DWORD TotalSize=0;
+		pThis->m_BitRate=0;
+
 		while (!pThis->m_bPauseSignal) {
 			// 処理簡略化のためポーリング方式を採用する
 			do {
 				if (pThis->m_pBonDriver->GetTsStream(&pStreamData,&dwStreamSize,&dwStreamRemain)
 						&& pStreamData && dwStreamSize) {
-					//pThis->OnTsStream(pStreamData, dwStreamSize);
+#if 1
+					pThis->OnTsStream(pStreamData, dwStreamSize);
+#else
+					// 一度に送るサイズを小さくする程CPU使用率の変動が少なくなる
 					DWORD Remain,Size;
 
 					for (Remain=dwStreamSize;Remain>0;Remain-=Size) {
-						// 一度に送るサイズを小さくする程CPU使用率の変動が少なくなる
 						Size=min(Remain,188*64);
 						pThis->OnTsStream(pStreamData+(dwStreamSize-Remain),Size);
 					}
+#endif
+					TotalSize+=dwStreamSize;
 				}
-				TotalSize+=dwStreamSize;
 
 				// ビットレート計算
 				DWORD Now=::GetTickCount();
-				if (Now>=pThis->m_BitRateTime) {
-					if (Now-pThis->m_BitRateTime>=1000) {
-						pThis->m_BitRate=(DWORD)(((ULONGLONG)TotalSize*8*1000)/(ULONGLONG)(Now-pThis->m_BitRateTime));
-						pThis->m_BitRateTime=Now;
+				if (Now>=BitRateTime) {
+					if (Now-BitRateTime>=1000) {
+						pThis->m_BitRate=(DWORD)(((ULONGLONG)TotalSize*8*1000)/(ULONGLONG)(Now-BitRateTime));
+						BitRateTime=Now;
 						TotalSize=0;
 					}
 				} else {
-					pThis->m_BitRateTime=Now;
+					BitRateTime=Now;
 					TotalSize=0;
 				}
 				pThis->m_StreamRemain=dwStreamRemain;
@@ -498,6 +502,8 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 		::SetEvent(pThis->m_hResumeEvent);
 	}
 
+	pThis->m_BitRate=0;
+
 	::CoUninitialize();
 
 	TRACE(TEXT("CBonSrcDecoder::StreamRecvThread() return\n"));
@@ -516,7 +522,6 @@ bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 	m_bPauseSignal = true;
 	if (::WaitForSingleObject(m_hResumeEvent, TimeOut) == WAIT_TIMEOUT)
 		return false;
-	ResetBitRate();
 	return true;
 }
 
@@ -572,14 +577,6 @@ int CBonSrcDecoder::GetCurChannel() const
 DWORD CBonSrcDecoder::GetBitRate() const
 {
 	return m_BitRate;
-}
-
-
-void CBonSrcDecoder::ResetBitRate()
-{
-	m_BitRateTime = GetTickCount();
-	m_BitRate=0;
-
 }
 
 

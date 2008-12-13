@@ -14,6 +14,7 @@ public:
 	DWORD m_UDPPort;
 	int m_Channel;
 	int m_ControllerChannel;
+	int m_TuningSpace;
 	int m_ServiceID;
 	int m_NetworkID;
 	int m_TransportStreamID;
@@ -32,6 +33,7 @@ public:
 	bool m_fSchedule;
 	bool m_fInitialSettings;
 	bool m_fSaveLog;
+	bool m_fRecordOnly;
 };
 
 

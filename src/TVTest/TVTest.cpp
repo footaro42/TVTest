@@ -1207,6 +1207,7 @@ bool CAppMain::LoadSettings()
 	StatusOptions.Load(m_szIniFileName);
 	ColorSchemeOptions.Load(m_szIniFileName);
 	ProgramGuideOptions.Load(m_szIniFileName);
+	PluginOptions.Load(m_szIniFileName);
 	return true;
 }
 
@@ -1334,6 +1335,7 @@ bool CAppMain::SaveSettings()
 	StatusOptions.Save(m_szIniFileName);
 	ColorSchemeOptions.Save(m_szIniFileName);
 	ProgramGuideOptions.Save(m_szIniFileName);
+	PluginOptions.Save(m_szIniFileName);
 	return true;
 }
 
@@ -2011,7 +2013,7 @@ public:
 	void OnLButtonDown(int x,int y);
 };
 
-CErrorStatusItem::CErrorStatusItem() : CStatusItem(STATUS_ITEM_ERROR,100)
+CErrorStatusItem::CErrorStatusItem() : CStatusItem(STATUS_ITEM_ERROR,120)
 {
 }
 
@@ -2020,7 +2022,9 @@ void CErrorStatusItem::Draw(HDC hdc,const RECT *pRect)
 	TCHAR szText[64];
 	int Length;
 
-	Length=wsprintf(szText,TEXT("E %u"),CoreEngine.GetErrorPacketCount());
+	Length=wsprintf(szText,TEXT("D %u / E %u"),
+					CoreEngine.GetContinuityErrorPacketCount(),
+					CoreEngine.GetErrorPacketCount());
 	if (CoreEngine.GetDescramble()
 			&& CoreEngine.GetCardReaderType()!=CCardReader::READER_NONE)
 		wsprintf(szText+Length,TEXT(" / S %u"),CoreEngine.GetScramblePacketCount());
@@ -2029,7 +2033,7 @@ void CErrorStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 void CErrorStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,pRect,TEXT("E 0 / S 127"));
+	DrawText(hdc,pRect,TEXT("D 0 / E 0 / S 127"));
 }
 
 void CErrorStatusItem::OnLButtonDown(int x,int y)
@@ -4908,6 +4912,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			return;
 		}
 		if (id>=CM_SPACE_CHANNEL_FIRST && id<=CM_SPACE_CHANNEL_LAST) {
+			if (RecordManager.IsRecording()) {
+				if (!RecordOptions.ConfirmChannelChange(GetVideoHostWindow()))
+					return;
+			}
 			AppMain.ProcessTunerSelectMenu(id);
 			return;
 		}
@@ -4997,6 +5005,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 			}
 
 			if ((UpdateStatistics&(CCoreEngine::STATISTIC_ERRORPACKETCOUNT
+								 | CCoreEngine::STATISTIC_CONTINUITYERRORPACKETCOUNT
 								 | CCoreEngine::STATISTIC_SCRAMBLEPACKETCOUNT))!=0) {
 				StatusView.UpdateItem(STATUS_ITEM_ERROR);
 			}
@@ -6368,6 +6377,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
+			PluginOptions.StorePluginOptions();
 			PluginList.FreePlugins();
 			AppMain.Finalize();
 			EpgOptions.SaveEpgFile(&EpgProgramList);
@@ -6425,6 +6435,8 @@ void CMainWindow::SetWindowVisible()
 		::ShowWindow(m_hwnd,SW_RESTORE);
 		Update();
 		fRestore=true;
+	} else {
+		ForegroundWindow(m_hwnd);
 	}
 	if (m_fMinimizeInit) {
 		// Å¬‰»ó‘Ô‚Å‚Ì‹N“®ŒãÅ‰‚Ì•\Ž¦
@@ -6668,6 +6680,8 @@ static bool SetCommandLineChannel(const CCommandLineParser *pCmdLine)
 	int i,j;
 
 	for (i=0;(pChannelList=ChannelManager.GetChannelList(i))!=NULL;i++) {
+		if (pCmdLine->m_TuningSpace>=0 && i!=pCmdLine->m_TuningSpace)
+			continue;
 		for (j=0;j<pChannelList->NumChannels();j++) {
 			const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
 
@@ -7161,6 +7175,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		AppMain.GetAppDirectory(szPluginDir);
 		::PathAppend(szPluginDir,TEXT("Plugins"));
 		PluginList.LoadPlugins(szPluginDir);
+		PluginOptions.RestorePluginOptions();
 	}
 
 	CoreEngine.m_DtvEngine.SetTracer(NULL);

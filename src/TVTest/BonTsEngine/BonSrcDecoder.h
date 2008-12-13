@@ -71,7 +71,6 @@ private:
 	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
 	bool PauseStreamRecieve(DWORD TimeOut = 3000);
 	bool ResumeStreamRecieve(DWORD TimeOut = 3000);
-	void ResetBitRate();
 
 	IBonDriver *m_pBonDriver;
 	IBonDriver2 *m_pBonDriver2;	
@@ -92,7 +91,6 @@ private:
 	bool m_bSetChannelResult;
 	*/
 
-	DWORD m_BitRateTime;
 	DWORD m_BitRate;
 	DWORD m_StreamRemain;
 };

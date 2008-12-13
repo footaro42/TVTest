@@ -108,6 +108,7 @@ CCommandLineParser::CCommandLineParser()
 	m_UDPPort=1234;
 	m_Channel=0;
 	m_ControllerChannel=0;
+	m_TuningSpace=-1;
 	m_ServiceID=0;
 	m_NetworkID=0;
 	m_TransportStreamID=0;
@@ -126,6 +127,7 @@ CCommandLineParser::CCommandLineParser()
 	m_fSchedule=false;
 	m_fInitialSettings=false;
 	m_fSaveLog=false;
+	m_fRecordOnly=false;
 }
 
 
@@ -133,6 +135,7 @@ CCommandLineParser::CCommandLineParser()
 	利用可能なコマンドラインオプション
 
 	/ch				チャンネル (e.g. /ch 13)
+	/chspace		チューニング空間 (e.g. /chspace 1)
 	/d				ドライバの指定 (e.g. /d BonDriver.dll)
 	/f				フルスクリーン
 	/init			初期設定ダイアログを表示する
@@ -151,6 +154,7 @@ CCommandLineParser::CCommandLineParser()
 	/recdelay		録画までの時間(秒)
 	/recduration	録画時間(秒)
 	/recfile		録画ファイル名
+	/reconly		録画専用モード
 	/s				複数起動しない
 	/sid			サービスID
 	/silent			エラー時にダイアログを表示しない
@@ -168,6 +172,9 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 			if (Args.IsOption(TEXT("ch"))) {
 				if (Args.Next())
 					Args.GetValue(&m_Channel);
+			} else if (Args.IsOption(TEXT("chspace"))) {
+				if (Args.Next())
+					Args.GetValue(&m_TuningSpace);
 			} else if (Args.IsOption(TEXT("d"))) {
 				if (Args.Next())
 					Args.GetText(m_szDriverName,MAX_PATH);
@@ -210,6 +217,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 			} else if (Args.IsOption(TEXT("recfile"))) {
 				if (Args.Next())
 					Args.GetText(m_szRecordFileName,MAX_PATH);
+			} else if (Args.IsOption(TEXT("reconly"))) {
+				m_fRecordOnly=true;
 			} else if (Args.IsOption(TEXT("rch"))) {
 				if (Args.Next())
 					Args.GetValue(&m_ControllerChannel);
@@ -233,6 +242,9 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 				m_UDPPort=::_wtoi(Args.GetText()+8);
 		}
 	} while (Args.Next());
+	if (m_fRecordOnly) {
+		m_fNoDirectShow=true;
+	}
 }
 
 

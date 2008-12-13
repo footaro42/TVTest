@@ -41,21 +41,26 @@ const bool CFileWriter::InputMedia(CMediaData *pMediaData, const DWORD dwInputIn
 		return false;
 	*/
 
-	if (!m_OutFile.IsOpen() || m_bPause)
-		return true;
+	bool fOK=true;
 
-	// ファイルに書き込み
-	if (!m_OutFile.Write(pMediaData->GetData(), pMediaData->GetSize())) {
-		if (!m_bWriteError) {
-			SendDecoderEvent(EID_WRITE_ERROR);
-			m_bWriteError=true;
+	if (m_OutFile.IsOpen() && !m_bPause) {
+		// ファイルに書き込み
+		if (!m_OutFile.Write(pMediaData->GetData(), pMediaData->GetSize())) {
+			if (!m_bWriteError) {
+				SendDecoderEvent(EID_WRITE_ERROR);
+				m_bWriteError=true;
+			}
+			fOK=false;
 		}
-		return false;
+		if (fOK) {
+			m_llWriteSize += pMediaData->GetSize();
+			m_llWriteCount++;
+		}
 	}
 
-	m_llWriteSize += pMediaData->GetSize();
-	m_llWriteCount++;
-	return true;
+	OutputMedia(pMediaData);
+
+	return fOK;
 }
 
 

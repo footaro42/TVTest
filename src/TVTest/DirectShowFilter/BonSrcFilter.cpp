@@ -67,11 +67,11 @@ CBasePin * CBonSrcFilter::GetPin(int n)
 }
 
 
+#ifdef _DEBUG
+
 STDMETHODIMP CBonSrcFilter::Run(REFERENCE_TIME tStart)
 {
 	TRACE(L"¡CBonSrcFilter::Run()\n");
-
-	CAutoLock Lock(m_pLock);
 
 	return CBaseFilter::Run(tStart);
 }
@@ -81,19 +81,18 @@ STDMETHODIMP CBonSrcFilter::Pause(void)
 {
 	TRACE(L"¡CBonSrcFilter::Pause()\n");
 
-	CAutoLock Lock(m_pLock);
-
 	return CBaseFilter::Pause();
 }
+
 
 STDMETHODIMP CBonSrcFilter::Stop(void)
 {
 	TRACE(L"¡CBonSrcFilter::Stop()\n");
 
-	CAutoLock Lock(m_pLock);
-
 	return CBaseFilter::Stop();
 }
+
+#endif
 
 
 STDMETHODIMP CBonSrcFilter::GetState(DWORD dw, FILTER_STATE *pState)
@@ -107,11 +106,22 @@ STDMETHODIMP CBonSrcFilter::GetState(DWORD dw, FILTER_STATE *pState)
 
 const bool CBonSrcFilter::InputMedia(CMediaData *pMediaData)
 {
+	m_cStateLock.Lock();
 	if (!m_pSrcPin
 			|| m_State==State_Stopped
-			|| (m_State==State_Paused && !m_bOutputWhenPaused))
+			|| (m_State==State_Paused && !m_bOutputWhenPaused)) {
+		m_cStateLock.Unlock();
 		return false;
+	}
+	m_cStateLock.Unlock();
 	return m_pSrcPin->InputMedia(pMediaData);
+}
+
+
+void CBonSrcFilter::Reset()
+{
+	if (m_pSrcPin)
+		m_pSrcPin->Reset();
 }
 
 

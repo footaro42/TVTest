@@ -32,6 +32,7 @@ CCoreEngine::CCoreEngine()
 	m_VolumeNormalizeLevel=100;
 	m_StereoMode=0;
 	m_ErrorPacketCount=0;
+	m_ContinuityErrorPacketCount=0;
 	m_ScramblePacketCount=0;
 	m_SignalLevel=0.0;
 	m_BitRate=0;
@@ -338,6 +339,11 @@ DWORD CCoreEngine::UpdateStatistics()
 		m_ErrorPacketCount=ErrorCount;
 		Updated|=STATISTIC_ERRORPACKETCOUNT;
 	}
+	DWORD ContinuityErrorCount=m_DtvEngine.m_TsPacketParser.GetContinuityErrorPacketCount();
+	if (ContinuityErrorCount!=m_ContinuityErrorPacketCount) {
+		m_ContinuityErrorPacketCount=ContinuityErrorCount;
+		Updated|=STATISTIC_CONTINUITYERRORPACKETCOUNT;
+	}
 	DWORD ScrambleCount=m_DtvEngine.m_TsDescrambler.GetScramblePacketCount();
 	if (ScrambleCount!=m_ScramblePacketCount) {
 		m_ScramblePacketCount=ScrambleCount;
@@ -380,6 +386,7 @@ void CCoreEngine::ResetErrorCount()
 {
 	m_DtvEngine.m_TsPacketParser.ResetErrorPacketCount();
 	m_ErrorPacketCount=0;
+	m_ContinuityErrorPacketCount=0;
 	m_DtvEngine.m_TsDescrambler.ResetScramblePacketCount();
 	m_ScramblePacketCount=0;
 }

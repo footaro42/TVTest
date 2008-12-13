@@ -80,10 +80,12 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pGrabber(NULL)
 #endif
 	, m_pTracer(NULL)
+	/*
 	, m_hFlushThread(NULL)
 	, m_hFlushEvent(NULL)
 	, m_hFlushResumeEvent(NULL)
 	, m_LastFlushTime(0)
+	*/
 {
 	// COMライブラリ初期化
 	//::CoInitialize(NULL);
@@ -118,6 +120,9 @@ void CMediaViewer::Reset(void)
 	}
 	*/
 
+	if (m_pBonSrcFilterClass)
+		m_pBonSrcFilterClass->Reset();
+
 	Flush();
 	//Stop();
 
@@ -148,6 +153,7 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 
 	// フィルタグラフに入力
 	if (m_pBonSrcFilterClass) {
+		/*
 		if (m_hFlushThread) {
 			DWORD CurTime=::GetTickCount();
 
@@ -159,6 +165,7 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 				::SetEvent(m_hFlushEvent);
 			}
 		}
+		*/
 		return m_pBonSrcFilterClass->InputMedia(pTsPacket);
 	}
 
@@ -459,6 +466,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 		//ResizeVideoWindow();
 
+		/*
 		OSVERSIONINFO osvi;
 		osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
 		::GetVersionEx(&osvi);
@@ -467,9 +475,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 			m_hFlushEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
 			m_hFlushResumeEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-			m_hFlushThread=::CreateThread(NULL,0,FlushThread,this,0,&ThreadID);
+			m_hFlushThread=::CreateThread(NULL,0,FlushThread,this,0,NULL);
 		}
 		m_LastFlushTime=0;
+		*/
 
 		m_bInit=true;
 	} catch (CBonException &Exception) {
@@ -496,6 +505,7 @@ void CMediaViewer::CloseViewer(void)
 		return;
 	*/
 
+	/*
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_ABORT;
 		::SetEvent(m_hFlushEvent);
@@ -511,6 +521,7 @@ void CMediaViewer::CloseViewer(void)
 		::CloseHandle(m_hFlushResumeEvent);
 		m_hFlushResumeEvent=NULL;
 	}
+	*/
 
 	//Flush();
 	Stop();
@@ -595,11 +606,13 @@ const bool CMediaViewer::Play(void)
 
 	if(!m_pMediaControl)return false;
 
+	/*
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_RESET;
 		::SetEvent(m_hFlushEvent);
 		::SetEvent(m_hFlushResumeEvent);
 	}
+	*/
 
 	// フィルタグラフを再生する
 
@@ -636,11 +649,16 @@ const bool CMediaViewer::Stop(void)
 		return false;
 	*/
 
+	if (m_pBonSrcFilterClass)
+		m_pBonSrcFilterClass->Reset();
+
+	/*
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_WAIT;
 		::ResetEvent(m_hFlushResumeEvent);
 		::SetEvent(m_hFlushEvent);
 	}
+	*/
 
 	// フィルタグラフを停止する
 	return m_pMediaControl->Stop()==S_OK;
@@ -657,11 +675,16 @@ const bool CMediaViewer::Pause()
 	if (!m_pMediaControl)
 		return false;
 
+	if (m_pBonSrcFilterClass)
+		m_pBonSrcFilterClass->Reset();
+
+	/*
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_WAIT;
 		::ResetEvent(m_hFlushResumeEvent);
 		::SetEvent(m_hFlushEvent);
 	}
+	*/
 
 	if (m_pMediaControl->Pause()!=S_OK) {
 		int i;
@@ -682,18 +705,22 @@ const bool CMediaViewer::Flush()
 {
 	TRACE(TEXT("CMediaViewer::Flush()\n"));
 
+	/*
 	CTryBlockLock Lock(&m_DecoderLock);
 	if (!Lock.TryLock(LOCK_TIMEOUT))
 		return false;
+	*/
 
 	if (!m_pBonSrcFilterClass)
 		return false;
 
 	m_pBonSrcFilterClass->Flush();
+	/*
 	if (m_hFlushThread) {
 		m_FlushEventType=FLUSH_RESET;
 		::SetEvent(m_hFlushEvent);
 	}
+	*/
 	return true;
 }
 
@@ -1333,6 +1360,7 @@ void CMediaViewer::Trace(LPCTSTR pszOutput, ...)
 	とりあえず暫定
 	本当はソースフィルタで別スレッドからサンプルを送信するようにした方がいいと思う
 */
+/*
 DWORD WINAPI CMediaViewer::FlushThread(LPVOID lpParameter)
 {
 	CMediaViewer *pThis=static_cast<CMediaViewer*>(lpParameter);
@@ -1362,6 +1390,7 @@ End:
 	::OutputDebugString(TEXT("CMediaViewer::FlushThread() return\n"));
 	return 0;
 }
+*/
 
 
 bool CMediaViewer::CheckHangUp(DWORD TimeOut)

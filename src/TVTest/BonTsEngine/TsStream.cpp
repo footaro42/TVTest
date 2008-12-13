@@ -36,7 +36,7 @@ CTsPacket::CTsPacket(const BYTE *pHexData)
 	: CMediaData(pHexData, TS_PACKETSIZE)
 {
 	// バイナリデータからパケットを生成する
-	ParseHeader();
+	ParsePacket();
 }
 
 CTsPacket::CTsPacket(const CTsPacket &Operand)
@@ -59,7 +59,7 @@ CTsPacket & CTsPacket::operator = (const CTsPacket &Operand)
 	return *this;
 }
 
-void CTsPacket::ParseHeader(void)
+DWORD CTsPacket::ParsePacket(BYTE *pContinuityCounter)
 {
 	// TSパケットヘッダ解析
 	m_Header.bySyncByte					= m_pData[0];							// +0
@@ -93,38 +93,32 @@ void CTsPacket::ParseHeader(void)
 			}
 		}
 	}
-}
-
-const bool CTsPacket::CheckPacket(BYTE *pContinuityCounter) const
-{
-	bool bValid = true;
 
 	// パケットのフォーマット適合性をチェックする
-	if(m_Header.bySyncByte != 0x47U)bValid = false;									// 同期バイト不正
-	else if(m_Header.bTransportErrorIndicator)bValid = false;						// ビット誤りあり
-	else if(m_Header.wPID >= 0x0002U && m_Header.wPID <= 0x000FU)bValid = false;	// 未定義PID範囲
-	else if(m_Header.byTransportScramblingCtrl == 0x01)bValid = false;				// 未定義スクランブル制御値
-	else if(m_Header.byAdaptationFieldCtrl == 0x00)bValid = false;					// 未定義アダプテーションフィールド制御値
-	else if(m_Header.byAdaptationFieldCtrl == 0x02U && m_AdaptationField.byAdaptationFieldLength > 183U)bValid = false;	// アダプテーションフィールド長異常
-	else if(m_Header.byAdaptationFieldCtrl == 0x03U && m_AdaptationField.byAdaptationFieldLength > 182U)bValid = false;	// アダプテーションフィールド長異常
+	if(m_Header.bySyncByte != 0x47U)return EC_FORMAT;								// 同期バイト不正
+	if(m_Header.bTransportErrorIndicator)return EC_TRANSPORT;						// ビット誤りあり
+	if((m_Header.wPID >= 0x0002U) && (m_Header.wPID <= 0x000FU))return EC_FORMAT;	// 未定義PID範囲
+	if(m_Header.byTransportScramblingCtrl == 0x01U)return EC_FORMAT;				// 未定義スクランブル制御値
+	if(m_Header.byAdaptationFieldCtrl == 0x00U)return EC_FORMAT;					// 未定義アダプテーションフィールド制御値
+	if((m_Header.byAdaptationFieldCtrl == 0x02U) && (m_AdaptationField.byAdaptationFieldLength > 183U))return EC_FORMAT;	// アダプテーションフィールド長異常
+	if((m_Header.byAdaptationFieldCtrl == 0x03U) && (m_AdaptationField.byAdaptationFieldLength > 182U))return EC_FORMAT;	// アダプテーションフィールド長異常
 
-	if(!pContinuityCounter || m_Header.wPID == 0x1FFFU)return bValid;
+	if(!pContinuityCounter || m_Header.wPID == 0x1FFFU)return EC_VALID;
 
 	// 連続性チェック
+	const BYTE byOldCounter = pContinuityCounter[m_Header.wPID];
 	const BYTE byNewCounter = (m_Header.byAdaptationFieldCtrl & 0x01U)? m_Header.byContinuityCounter : 0x10U;
+	pContinuityCounter[m_Header.wPID] = byNewCounter;
 
 	if(!m_AdaptationField.bDiscontinuityIndicator){
-		if(*pContinuityCounter < 0x10U && byNewCounter < 0x10U){
-			if(((*pContinuityCounter + 1U) & 0x0FU) != byNewCounter){
-				bValid = false;
+		if((byOldCounter < 0x10U) && (byNewCounter < 0x10U)){
+			if(((byOldCounter + 1U) & 0x0FU) != byNewCounter){
+				return EC_CONTINUITY;
 				}
 			}
 		}
 
-	// カウンタ更新
-	*pContinuityCounter = byNewCounter;
-
-	return bValid;
+	return EC_VALID;
 }
 
 BYTE * CTsPacket::GetPayloadData(void)

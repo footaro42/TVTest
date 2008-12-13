@@ -2,7 +2,7 @@
 #define NETWORK_REMOCON_H
 
 
-#include <winsock.h>
+#include <winsock2.h>
 #include "CoreEngine.h"
 #include "ChannelManager.h"
 #include "Options.h"

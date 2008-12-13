@@ -26,6 +26,7 @@ CTsPacketParser::CTsPacketParser(IEventHandler *pEventHandler)
 	, m_InputPacketCount(0)
 	, m_OutputPacketCount(0)
 	, m_ErrorPacketCount(0)
+	, m_ContinuityErrorPacketCount(0)
 {
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -44,6 +45,7 @@ void CTsPacketParser::Reset(void)
 	m_InputPacketCount = 0;
 	m_OutputPacketCount = 0;
 	m_ErrorPacketCount = 0;
+	m_ContinuityErrorPacketCount = 0;
 
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -93,9 +95,16 @@ const DWORD CTsPacketParser::GetErrorPacketCount(void) const
 	return (DWORD)m_ErrorPacketCount;
 }
 
+const DWORD CTsPacketParser::GetContinuityErrorPacketCount(void) const
+{
+	// 連続性エラーパケット数を返す
+	return (DWORD)m_ContinuityErrorPacketCount;
+}
+
 void CTsPacketParser::ResetErrorPacketCount(void)
 {
 	m_ErrorPacketCount=0;
+	m_ContinuityErrorPacketCount=0;
 }
 
 void inline CTsPacketParser::SyncPacket(const BYTE *pData, const DWORD dwSize)
@@ -149,29 +158,34 @@ void inline CTsPacketParser::SyncPacket(const BYTE *pData, const DWORD dwSize)
 
 void inline CTsPacketParser::ParsePacket(void)
 {
-	// パケットを解析する
-	m_TsPacket.ParseHeader();
+	// 入力カウントインクリメント
+	m_InputPacketCount++;
 
-	// パケットをチェックする
-	if (m_TsPacket.CheckPacket(&m_abyContCounter[m_TsPacket.GetPID()])) {
-		// 入力カウントインクリメント
-		m_InputPacketCount++;
+	// パケットを解析/チェックする
+	switch (m_TsPacket.ParsePacket(m_abyContCounter)) {
+	case CTsPacket::EC_CONTINUITY:
+		m_ContinuityErrorPacketCount++;
+	case CTsPacket::EC_VALID:
+		{
+			// 次のデコーダにデータを渡す
+			WORD PID;
+			if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
+				if (PID == 0x0000 || PID == 0x0010 || PID == 0x0011
+						|| PID == 0x0012 || PID == 0x0014) {
+					m_EpgCap.AddTSPacket(m_TsPacket.GetData(),m_TsPacket.GetSize());
+				}
+				// 出力カウントインクリメント
+				m_OutputPacketCount++;
 
-		// 次のデコーダにデータを渡す
-		WORD PID;
-		if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
-			if (PID == 0x0000 || PID == 0x0010 || PID == 0x0011
-					|| PID == 0x0012 || PID == 0x0014) {
-				m_EpgCap.AddTSPacket(m_TsPacket.GetData(),m_TsPacket.GetSize());
+				OutputMedia(&m_TsPacket);
 			}
-			// 出力カウントインクリメント
-			m_OutputPacketCount++;
-
-			OutputMedia(&m_TsPacket);
 		}
-	} else {
+		break;
+	case CTsPacket::EC_FORMAT:
+	case CTsPacket::EC_TRANSPORT:
 		// エラーカウントインクリメント
 		m_ErrorPacketCount++;
+		break;
 	}
 
 	// サイズをクリアし次のストアに備える

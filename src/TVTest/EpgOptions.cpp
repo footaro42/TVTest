@@ -201,7 +201,7 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 				} else
 					ofn.lpstrInitialDir=NULL;
 				ofn.lpstrTitle=TEXT("DLLƒtƒ@ƒCƒ‹–¼");
-				ofn.Flags=OFN_EXPLORER | OFN_HIDEREADONLY;
+				ofn.Flags=OFN_EXPLORER | OFN_HIDEREADONLY | OFN_FILEMUSTEXIST;
 				ofn.lpstrDefExt=TEXT("dll");
 #if _WIN32_WINNT>=0x500
 				ofn.pvReserved=NULL;

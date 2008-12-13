@@ -168,7 +168,15 @@ BOOL CALLBACK CTSInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				::wsprintf(szText,TEXT("0x%x"),ServiceInfo.VideoPID);
 				::SetDlgItemText(hDlg,IDC_VIDEOPID,szText);
 				::wsprintf(szText,TEXT("0x%x"),ServiceInfo.AudioPID[0]);
+				if (ServiceInfo.NumAudioPIDs>1) {
+					::wsprintf(szText+::lstrlen(szText),TEXT(" / 0x%x"),ServiceInfo.AudioPID[1]);
+				}
 				::SetDlgItemText(hDlg,IDC_AUDIOPID,szText);
+				if (ServiceInfo.SubtitlePID!=0)
+					::wsprintf(szText,TEXT("0x%x"),ServiceInfo.SubtitlePID);
+				else
+					::lstrcpy(szText,TEXT("<none>"));
+				::SetDlgItemText(hDlg,IDC_SUBTITLEPID,szText);
 			}
 		}
 		return TRUE;

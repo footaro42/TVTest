@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.1
+	TVTest プラグインヘッダ ver.0.0.2
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -86,6 +86,11 @@
 /*
 	更新履歴
 
+	ver.0.0.2
+	・MESSAGE_GETAUDIOSTREAM と MESSAGE_SETAUDIOSTREAM を追加した
+	・ServiceInfo 構造体に AudioComponentType と SubtitlePID メンバを追加した
+	・StatusInfo 構造体に DropPacketCount と BcasCardStatus メンバを追加した
+
 	ver.0.0.1
 	・以下のメッセージを追加した
 	  ・MESSAGE_QUERYEVENT
@@ -112,8 +117,9 @@ namespace TVTest {
 // プラグインのバージョン
 #define TVTEST_PLUGIN_VERSION_0_0_0	0x00000000UL
 #define TVTEST_PLUGIN_VERSION_0_0_1	0x00000001UL
+#define TVTEST_PLUGIN_VERSION_0_0_2	0x00000002UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_1
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_2
 #endif
 
 // エクスポート関数定義用
@@ -214,6 +220,10 @@ enum {
 	MESSAGE_GETTUNINGSPACE,
 	MESSAGE_GETTUNINGSPACEINFO,
 	MESSAGE_SETNEXTCHANNEL,
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+	MESSAGE_GETAUDIOSTREAM,
+	MESSAGE_SETAUDIOSTREAM,
 #endif
 	MESSAGE_DUMMY	// Don't use
 };
@@ -353,10 +363,19 @@ struct ServiceInfo {
 	DWORD Size;					// 構造体のサイズ
 	WORD ServiceID;				// サービスID
 	WORD VideoPID;				// ビデオストリームのPID
-	int NumAudioPIDs;			// 音声PIDの数(現在は常に1)
+	int NumAudioPIDs;			// 音声PIDの数
 	WORD AudioPID[4];			// 音声ストリームのPID
 	WCHAR szServiceName[32];	// サービス名
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+	BYTE AudioComponentType[4];	// 音声コンポーネントタイプ
+	WORD SubtitlePID;			// 字幕ストリームのPID(無い場合は0)
+	WORD Reserved;				// 予約(H.264のPIDになるかも...)
+#endif
 };
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+enum { SERVICEINFO_SIZE_V1=TVTEST_OFFSETOF(ServiceInfo,AudioComponentType) };
+#endif
 
 // サービスの情報を取得する
 // 事前にServiceInfoのSizeメンバを設定しておく
@@ -407,7 +426,7 @@ enum {
 struct RecordInfo {
 	DWORD Size;				// 構造体のサイズ
 	DWORD Mask;				// マスク(RECORD_MASK_???)
-	DWORD Flags;			// フラグ(RECORD_FLAG_)
+	DWORD Flags;			// フラグ(RECORD_FLAG_???)
 	LPWSTR pszFileName;		// ファイル名(NULLでデフォルト)
 	int MaxFileName;		// ファイル名の最大長(MESSAGE_GETRECORDのみで使用)
 	FILETIME ReserveTime;	// 録画予約された時間(MESSAGE_GETRECORDのみで使用)
@@ -428,6 +447,7 @@ struct RecordInfo {
 };
 
 // 録画を開始する
+// pInfo が NULL で即時録画開始
 inline bool MsgStartRecord(PluginParam *pParam,const RecordInfo *pInfo=NULL) {
 	return (*pParam->Callback)(pParam,MESSAGE_STARTRECORD,(LPARAM)pInfo,0)!=0;
 }
@@ -490,14 +510,34 @@ inline bool MsgSetPanScan(PluginParam *pParam,const PanScanInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETPANSCAN,(LPARAM)pInfo,0)!=0;
 }
 
+// B-CAS カードの状態
+enum {
+	BCAS_STATUS_OK,				// エラーなし
+	BCAS_STATUS_NOTOPEN,		// 開かれていない(スクランブル解除なし)
+	BCAS_STATUS_NOCARDREADER,	// カードリーダが無い
+	BCAS_STATUS_NOCARD,			// カードがない
+	BCAS_STATUS_OPENERROR,		// オープンエラー
+	BCAS_STATUS_TRANSMITERROR,	// 通信エラー
+	BCAS_STATUS_ESTABLISHERROR	// コンテキスト確立失敗
+};
+
 // ステータス情報
 struct StatusInfo {
-	DWORD Size;					// 構造体のサイズ
-	float SignalLevel;			// 信号レベル(dB)
-	DWORD BitRate;				// ビットレート(Bits/Sec)
-	DWORD ErrorPacketCount;		// エラーパケット数
-	DWORD ScramblePacketCount;	// 復号漏れパケット数
+	DWORD Size;							// 構造体のサイズ
+	float SignalLevel;					// 信号レベル(dB)
+	DWORD BitRate;						// ビットレート(Bits/Sec)
+	DWORD ErrorPacketCount;				// エラーパケット数
+										// DropPacketCount も含まれる
+	DWORD ScramblePacketCount;			// 復号漏れパケット数
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+	DWORD DropPacketCount;				// ドロップパケット数
+	DWORD BcasCardStatus;				// B-CAS カードの状態(BCAS_STATUS_???)
+#endif
 };
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+enum { STATUSINFO_SIZE_V1=TVTEST_OFFSETOF(StatusInfo,DropPacketCount) };
+#endif
 
 // ステータスを取得する
 // 事前にStatusInfoのSizeメンバを設定しておく
@@ -592,6 +632,11 @@ inline bool MsgGetFullscreen(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETFULLSCREEN,0,0)!=0;
 }
 
+// 全画面表示の状態を設定する
+inline bool MsgSetFullscreen(PluginParam *pParam,bool fFullscreen) {
+	return (*pParam->Callback)(pParam,MESSAGE_SETFULLSCREEN,fFullscreen,0)!=0;
+}
+
 // 表示が有効であるか取得する
 inline bool MsgGetPreview(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETPREVIEW,0,0)!=0;
@@ -612,17 +657,12 @@ inline bool MsgSetStandby(PluginParam *pParam,bool fStandby) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETSTANDBY,fStandby,0)!=0;
 }
 
-// 全画面表示の状態を設定する
-inline bool MsgSetFullscreen(PluginParam *pParam,bool fFullscreen) {
-	return (*pParam->Callback)(pParam,MESSAGE_SETFULLSCREEN,fFullscreen,0)!=0;
-}
-
-// 常に最善面表示の状態を取得する
+// 常に最前面表示の状態を取得する
 inline bool MsgGetAlwaysOnTop(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETALWAYSONTOP,0,0)!=0;
 }
 
-// 常に最善面表示の状態を設定する
+// 常に最前面表示の状態を設定する
 inline bool MsgSetAlwaysOnTop(PluginParam *pParam,bool fAlwaysOnTop) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETALWAYSONTOP,fAlwaysOnTop,0)!=0;
 }
@@ -671,6 +711,8 @@ struct StreamCallbackInfo {
 };
 
 // ストリームコールバックを設定する
+// ストリームコールバック関数で処理が遅延すると全体が遅延するので、
+// 時間が掛かる処理は別スレッドで行うなどしてください
 inline bool MsgSetStreamCallback(PluginParam *pParam,DWORD Flags,
 					StreamCallbackFunc Callback,void *pClientData=NULL) {
 	StreamCallbackInfo Info;
@@ -772,6 +814,23 @@ inline bool MsgGetTuningSpaceInfo(PluginParam *pParam,int Index,TuningSpaceInfo 
 inline bool MsgSetNextChannel(PluginParam *pParam,bool fNext=true)
 {
 	return (*pParam->Callback)(pParam,MESSAGE_SETNEXTCHANNEL,fNext,0)!=0;
+}
+
+#endif
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+
+// 現在の音声ストリームを取得する
+// 音声ストリームの数は MESSAGE_GETSERVICEINFO で取得できる
+inline int MsgGetAudioStream(PluginParam *pParam)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_GETAUDIOSTREAM,0,0);
+}
+
+// 音声ストリームを設定する
+inline bool MsgSetAudioStream(PluginParam *pParam,int Index)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOSTREAM,Index,0)!=0;
 }
 
 #endif
@@ -969,6 +1028,14 @@ public:
 	}
 	bool SetNextChannel(bool fNext=true) {
 		return MsgSetNextChannel(m_pParam,fNext);
+	}
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+	int GetAudioStream() {
+		return MsgGetAudioStream(m_pParam);
+	}
+	bool SetAudioStream(int Index) {
+		return MsgSetAudioStream(m_pParam,Index);
 	}
 #endif
 };

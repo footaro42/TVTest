@@ -12,3 +12,4 @@
 #define IDC_SERVICENAME			109
 #define IDC_VIDEOPID			110
 #define IDC_AUDIOPID			111
+#define IDC_SUBTITLEPID			112
