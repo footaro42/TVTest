@@ -500,7 +500,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 						::FillRect(pdis->hDC,&pdis->rcItem,
 									reinterpret_cast<HBRUSH>(COLOR_WINDOW+1));
 					} else {
-						CColorScheme *pColorScheme=pThis->m_PresetList.GetColorScheme(pdis->itemID);
+						CColorScheme *pColorScheme=pThis->m_PresetList.GetColorScheme(pdis->itemData);
 						int BkColor1,BkColor2;
 
 						if ((pdis->itemState&ODS_SELECTED)==0) {

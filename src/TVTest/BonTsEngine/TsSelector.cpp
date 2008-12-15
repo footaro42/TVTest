@@ -58,6 +58,11 @@ void CTsSelector::Reset(void)
 	m_TargetServiceID = 0;
 	m_TargetPmtPID = 0;
 
+	m_LastTSID = 0;
+	m_LastPmtPID = 0;
+	m_LastVersion = 0;
+	m_Version = 0;
+
 	// 下流デコーダを初期化する
 	ResetDownstreamDecoder();
 }
@@ -176,7 +181,7 @@ void CALLBACK CTsSelector::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	CPatTable *pPatTable = static_cast<CPatTable *>(pMapTarget);
 
 	// PMTテーブルPIDマップ追加
-	for (WORD i = 0 ; i < pPatTable->GetProgramNum() ; i++){
+	for (WORD i = 0 ; i < pPatTable->GetProgramNum() ; i++) {
 		if (pThis->m_TargetServiceID == 0
 				|| pPatTable->GetProgramID(i) == pThis->m_TargetServiceID) {
 			WORD PmtPID = pPatTable->GetPmtPID(i);
@@ -239,12 +244,30 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	BYTE *pDstData = pDstPacket->GetData();
 	SIZE_T HeaderSize = pPayloadData-pSrcData;
 
+	if (!pSrcPacket->m_Header.bPayloadUnitStartIndicator)
+		return false;
+	SIZE_T UnitStartPos = pPayloadData[0] + 1;
+	pPayloadData += UnitStartPos;
+	HeaderSize += UnitStartPos;
+	if (HeaderSize >= TS_PACKETSIZE)
+		return false;
+
 	::FillMemory(pDstData, TS_PACKETSIZE, 0xFF);
 	::CopyMemory(pDstData, pSrcData, HeaderSize);
 	pDstData += HeaderSize;
 
+	if (pPayloadData[0] != 0)	// table_id 不正
+		return false;
+
 	WORD SectionLength = ((WORD)(pPayloadData[1]&0x0F)<<8) | pPayloadData[2];
 	if (SectionLength > TS_PACKETSIZE-HeaderSize-3-4 )
+		return false;
+
+	DWORD CRC = ((DWORD)pPayloadData[3+SectionLength-4+0]<<24) |
+				((DWORD)pPayloadData[3+SectionLength-4+1]<<16) |
+				((DWORD)pPayloadData[3+SectionLength-4+2]<<8) |
+				((DWORD)pPayloadData[3+SectionLength-4+3]);
+	if (CCrcCalculator::CalcCrc32(pPayloadData, 3+SectionLength-4) != CRC)
 		return false;
 
 	WORD TSID = ((WORD)pPayloadData[3]<<8) | pPayloadData[4];
@@ -261,7 +284,7 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	const BYTE *pProgramData = pPayloadData+8;
 	SIZE_T Pos = 0;
 	DWORD NewProgramListSize = 0;
-	bool bHasPmtPID = false; 
+	bool bHasPmtPID = false;
 	while (Pos < (SIZE_T)SectionLength-(5+4)) {
 		//WORD ProgramNumber = ((WORD)pProgramData[Pos]<<8) | pProgramData[Pos+1];
 		WORD PID = ((WORD)(pProgramData[Pos+2]&0x1F)<<8) | pProgramData[Pos+3];
@@ -277,7 +300,7 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	if (!bHasPmtPID)
 		return false;
 
-	pDstData[0] = pPayloadData[0];
+	pDstData[0] = 0;
 	pDstData[1] = (pPayloadData[1]&0xF0) | (BYTE)((NewProgramListSize+(5+4))>>8);
 	pDstData[2] = (BYTE)((NewProgramListSize+(5+4))&0xFF);
 	pDstData[3] = (BYTE)(TSID>>8);
@@ -285,7 +308,7 @@ bool CTsSelector::MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket)
 	pDstData[5] = (pPayloadData[5]&0xC1) | (m_Version<<1);
 	pDstData[6] = pPayloadData[6];
 	pDstData[7] = pPayloadData[7];
-	DWORD CRC = CCrcCalculator::CalcCrc32(pDstData, 8+NewProgramListSize);
+	CRC = CCrcCalculator::CalcCrc32(pDstData, 8+NewProgramListSize);
 	pDstData[8+NewProgramListSize+0] = (BYTE)(CRC>>24);
 	pDstData[8+NewProgramListSize+1] = (BYTE)((CRC>>16)&0xFF);
 	pDstData[8+NewProgramListSize+2] = (BYTE)((CRC>>8)&0xFF);

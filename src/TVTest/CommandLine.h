@@ -22,6 +22,7 @@ public:
 	DWORD m_RecordDelay;
 	DWORD m_RecordDuration;
 	TCHAR m_szRecordFileName[MAX_PATH];
+	bool m_fExitOnRecordEnd;
 	bool m_fFullscreen;
 	bool m_fMinimize;
 	bool m_fNoDriver;

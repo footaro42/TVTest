@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.13
+    TVTest ver.0.5.14
 
 
 ◆ はじめに
@@ -29,7 +29,7 @@
   ・TVTest.sample.ch      チャンネル設定ファイルのサンプル
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
-  ・TVTest_0.5.13_Src.zip ソースファイル
+  ・TVTest_0.5.14_Src.zip ソースファイル
   ・TVTest_SDK_081214.zip プラグイン開発用 SDK
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
   ・Plugins\              プラグインフォルダ
@@ -291,6 +291,7 @@
                   /rec が指定されていない場合は無視される
   /recduration    録画時間(秒単位) (e.g. /recduration 1800)
                   /rec が指定されていない場合は無視される
+  /recexit        録画終了時にプログラムを終了
   /recfile        録画ファイル名 (e.g. /recfile "C:\ReocrdFiles\Record.ts")
                   /rec が指定されていない場合は無視される
   /s              TVTest が既に起動している場合、複数起動しない
@@ -342,6 +343,16 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.14
+    ・現在のサービスのみ録画時に、PAT の書き換えが機能していなかった不具合を修
+      正
+    ・リモコンを有効にしていないと、Alt+Enter で全画面表示できない不具合を修正
+    ・チャンネルスキャンで、チャンネルの削除のみ行っても反映されない不具合を修
+      正
+    ・配色の設定で、プリセットを保存した後で正しくプリセットを選択できなくなる
+      ことがある不具合を修正
+    ・その他微修正
 
   ver.0.5.13
     ・ステータスバーのエラー表示で、ドロップを他のエラーと分けて表示するように

@@ -15,6 +15,7 @@
 
 #define IDA_ACCEL	40
 #define IDA_ACCEL2	41
+#define IDA_ACCEL3	42
 
 #define IDB_LOGO		45
 #define IDB_CAPTURE		46

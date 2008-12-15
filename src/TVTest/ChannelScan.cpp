@@ -321,6 +321,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						if (Index>=0) {
 							ListView_DeleteItem(hwndList,lvi.iItem);
 							pList->DeleteChannel(Index);
+							pThis->m_fUpdated=true;
 						}
 					}
 				}

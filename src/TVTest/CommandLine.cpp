@@ -116,6 +116,7 @@ CCommandLineParser::CCommandLineParser()
 	m_RecordDelay=0;
 	m_RecordDuration=0;
 	m_szRecordFileName[0]='\0';
+	m_fExitOnRecordEnd=false;
 	m_fFullscreen=false;
 	m_fMinimize=false;
 	m_fNoDriver=false;
@@ -153,6 +154,7 @@ CCommandLineParser::CCommandLineParser()
 	/rec			録画
 	/recdelay		録画までの時間(秒)
 	/recduration	録画時間(秒)
+	/recexit		録画終了時にプログラムを終了
 	/recfile		録画ファイル名
 	/reconly		録画専用モード
 	/s				複数起動しない
@@ -214,6 +216,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 			} else if (Args.IsOption(TEXT("recduration"))) {
 				if (Args.Next())
 					Args.GetValue(&m_RecordDuration);
+			} else if (Args.IsOption(TEXT("recexit"))) {
+				m_fExitOnRecordEnd=true;
 			} else if (Args.IsOption(TEXT("recfile"))) {
 				if (Args.Next())
 					Args.GetText(m_szRecordFileName,MAX_PATH);

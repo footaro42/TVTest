@@ -3651,6 +3651,14 @@ LRESULT CALLBACK CFullscreen::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		}
 		return 0;
 
+	case WM_WINDOWPOSCHANGING:
+		{
+			WINDOWPOS *pwp=reinterpret_cast<WINDOWPOS*>(lParam);
+
+			pwp->hwndInsertAfter=HWND_TOPMOST;
+		}
+		return 0;
+
 	case WM_KEYDOWN:
 		if (wParam==VK_ESCAPE) {
 			MainWindow.SendCommand(CM_FULLSCREEN);
@@ -7161,9 +7169,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		pRemoteController->BeginHook();
 	}
 
-	if (!fNoRemoteController)
-		hAccel=LoadAccelerators(hInst,
-						MAKEINTRESOURCE(fNoKeyHook?IDA_ACCEL:IDA_ACCEL2));
+	hAccel=LoadAccelerators(hInst,MAKEINTRESOURCE(
+			fNoRemoteController?IDA_ACCEL3:fNoKeyHook?IDA_ACCEL:IDA_ACCEL2));
 
 	if (!CmdLineParser.m_fStandby)
 		SetDisplayStatus();
@@ -7312,6 +7319,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	}
 	if (CmdLineParser.m_fStandby)
 		MainWindow.InitStandby();
+	if (CmdLineParser.m_fExitOnRecordEnd)
+		MainWindow.SendCommand(CM_EXITONRECORDINGSTOP);
 
 	MSG msg;
 
