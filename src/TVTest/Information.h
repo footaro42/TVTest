@@ -54,6 +54,7 @@ public:
 	void SetSignalLevel(float Level);
 	void ShowSignalLevel(bool fShow);
 	void SetBitRate(float BitRate);
+	void UpdateErrorCount();
 	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
 							ULONGLONG WroteSize=0,unsigned int RecordTime=0);
 	void SetProgramInfo(LPCTSTR pszInfo);

@@ -43,7 +43,7 @@ CCaptureOptions::CCaptureOptions()
 	m_SaveFormat=0;
 	m_JPEGQuality=90;
 	m_PNGCompressionLevel=6;
-	m_fCaptureSaveToFile=false;
+	m_fCaptureSaveToFile=true;
 	m_fSetComment=false;
 	m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
 	m_CaptureSize=SIZE_1920x1080;

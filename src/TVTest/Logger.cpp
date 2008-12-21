@@ -3,6 +3,7 @@
 #include <shlwapi.h>
 #include "TVTest.h"
 #include "Logger.h"
+#include "DialogUtil.h"
 #include "StdUtil.h"
 #include "resource.h"
 
@@ -31,6 +32,25 @@ void CLogItem::GetTime(SYSTEMTIME *pTime) const
 }
 
 
+int CLogItem::Format(char *pszText,int MaxLength) const
+{
+	SYSTEMTIME st;
+	int Length;
+
+	GetTime(&st);
+	Length=::GetDateFormatA(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,
+											NULL,pszText,MaxLength-1);
+	pszText[Length-1]=' ';
+	Length+=::GetTimeFormatA(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,
+								NULL,pszText+Length,MaxLength-Length);
+	pszText[Length-1]='>';
+	Length+=::WideCharToMultiByte(CP_ACP,0,m_pszText,::lstrlen(m_pszText),
+									pszText+Length,MaxLength-Length-1,NULL,NULL);
+	pszText[Length]='\0';
+	return Length;
+}
+
+
 
 
 CLogger::CLogger()
@@ -38,6 +58,7 @@ CLogger::CLogger()
 	m_NumLogItems=0;
 	m_ppList=NULL;
 	m_ListLength=0;
+	m_fOutputToFile=false;
 }
 
 
@@ -47,10 +68,41 @@ CLogger::~CLogger()
 }
 
 
+bool CLogger::Read(CSettings *pSettings)
+{
+	pSettings->Read(TEXT("OutputLogToFile"),&m_fOutputToFile);
+	if (m_fOutputToFile && m_NumLogItems>0) {
+		TCHAR szFileName[MAX_PATH];
+
+		GetDefaultLogFileName(szFileName);
+		SaveToFile(szFileName,true);
+	}
+	return true;
+}
+
+
+bool CLogger::Write(CSettings *pSettings) const
+{
+	pSettings->Write(TEXT("OutputLogToFile"),m_fOutputToFile);
+	return true;
+}
+
+
 bool CLogger::AddLog(LPCTSTR pszText, ...)
 {
 	if (pszText==NULL)
 		return false;
+
+	va_list Args;
+	va_start(Args,pszText);
+	AddLogV(pszText,Args);
+	va_end(Args);
+	return true;
+}
+
+
+bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
+{
 	if (m_NumLogItems==m_ListLength) {
 		CLogItem **ppNewList;
 		int ListLength;
@@ -66,13 +118,30 @@ bool CLogger::AddLog(LPCTSTR pszText, ...)
 		m_ListLength=ListLength;
 	}
 
-	va_list Args;
 	TCHAR szText[1024];
-
-	va_start(Args,pszText);
 	StdUtil::vsnprintf(szText,lengthof(szText),pszText,Args);
 	m_ppList[m_NumLogItems++]=new CLogItem(szText);
-	va_end(Args);
+
+	if (m_fOutputToFile) {
+		TCHAR szFileName[MAX_PATH];
+		HANDLE hFile;
+
+		GetDefaultLogFileName(szFileName);
+		hFile=::CreateFile(szFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
+						   OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+		if (hFile!=INVALID_HANDLE_VALUE) {
+			char szText[1024];
+			DWORD Length,Write;
+
+			::SetFilePointer(hFile,0,NULL,FILE_END);
+			Length=m_ppList[m_NumLogItems-1]->Format(szText,lengthof(szText)-1);
+			szText[Length++]='\r';
+			szText[Length++]='\n';
+			::WriteFile(hFile,szText,Length,&Write,NULL);
+			::CloseHandle(hFile);
+		}
+	}
+
 	return true;
 }
 
@@ -92,30 +161,29 @@ void CLogger::Clear()
 }
 
 
-bool CLogger::SaveToFile(LPCTSTR pszFileName) const
+bool CLogger::SetOutputToFile(bool fOutput)
+{
+	m_fOutputToFile=fOutput;
+	return true;
+}
+
+
+bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend) const
 {
 	HANDLE hFile;
 
-	hFile=::CreateFile(pszFileName,GENERIC_WRITE,0,NULL,CREATE_ALWAYS,
+	hFile=::CreateFile(pszFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
+					   fAppend?OPEN_ALWAYS:CREATE_ALWAYS,
 					   FILE_ATTRIBUTE_NORMAL,NULL);
 	if (hFile==INVALID_HANDLE_VALUE)
 		return false;
+	if (fAppend)
+		::SetFilePointer(hFile,0,NULL,FILE_END);
 	for (int i=0;i<m_NumLogItems;i++) {
 		char szText[1024];
-		SYSTEMTIME st;
-		LPCTSTR pszText;
 		DWORD Length,Write;
 
-		m_ppList[i]->GetTime(&st);
-		Length=::GetDateFormatA(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,
-											NULL,szText,lengthof(szText)-1);
-		szText[Length-1]=' ';
-		Length+=::GetTimeFormatA(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,
-								NULL,szText+Length,lengthof(szText)-Length);
-		szText[Length-1]='>';
-		pszText=m_ppList[i]->GetText();
-		Length+=::WideCharToMultiByte(CP_ACP,0,pszText,::lstrlen(pszText),
-							szText+Length,lengthof(szText)-Length-2,NULL,NULL);
+		Length=m_ppList[i]->Format(szText,lengthof(szText)-1);
 		szText[Length++]='\r';
 		szText[Length++]='\n';
 		::WriteFile(hFile,szText,Length,&Write,NULL);
@@ -181,6 +249,8 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
 			if (pThis->m_NumLogItems>0)
 				ListView_EnsureVisible(hwndList,pThis->m_NumLogItems-1,FALSE);
+
+			DlgCheckBox_Check(hDlg,IDC_LOG_OUTPUTTOFILE,pThis->m_fOutputToFile);
 		}
 		return TRUE;
 
@@ -201,7 +271,7 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				TCHAR szFileName[MAX_PATH];
 
 				pThis->GetDefaultLogFileName(szFileName);
-				if (!pThis->SaveToFile(szFileName)) {
+				if (!pThis->SaveToFile(szFileName,false)) {
 					::MessageBox(hDlg,TEXT("•Û‘¶‚ª‚Å‚«‚Ü‚¹‚ñB"),NULL,MB_OK | MB_ICONEXCLAMATION);
 				} else {
 					TCHAR szMessage[MAX_PATH+64];
@@ -213,6 +283,28 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			return TRUE;
 		}
 		return TRUE;
+
+	case WM_NOTIFY:
+		switch (((LPNMHDR)lParam)->code) {
+		case PSN_APPLY:
+			{
+				CLogger *pThis=GetThis(hDlg);
+
+				bool fOutput=DlgCheckBox_IsChecked(hDlg,IDC_LOG_OUTPUTTOFILE);
+
+				if (fOutput!=pThis->m_fOutputToFile) {
+					if (fOutput && pThis->m_NumLogItems>0) {
+						TCHAR szFileName[MAX_PATH];
+
+						pThis->GetDefaultLogFileName(szFileName);
+						pThis->SaveToFile(szFileName,true);
+					}
+					pThis->m_fOutputToFile=fOutput;
+				}
+			}
+			return TRUE;
+		}
+		break;
 
 	case WM_DESTROY:
 		{

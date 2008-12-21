@@ -299,6 +299,10 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
+				RelativePath=".\Accelerator.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\BasicWindow.cpp"
 				>
 			</File>
@@ -372,10 +376,6 @@
 			</File>
 			<File
 				RelativePath=".\Image.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\ImageMixer.cpp"
 				>
 			</File>
 			<File
@@ -525,6 +525,10 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
+				RelativePath=".\Accelerator.h"
+				>
+			</File>
+			<File
 				RelativePath=".\AppMain.h"
 				>
 			</File>
@@ -606,10 +610,6 @@
 			</File>
 			<File
 				RelativePath=".\Image.h"
-				>
-			</File>
-			<File
-				RelativePath=".\ImageMixer.h"
 				>
 			</File>
 			<File
@@ -847,10 +847,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\TsProgGuide.h"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\TsSelector.h"
 					>
 				</File>
@@ -985,10 +981,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\TsProgGuide.cpp"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\TsSelector.cpp"
 					>
 				</File>
@@ -1053,6 +1045,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\DirectShowFilter\ImageMixer.h"
+					>
+				</File>
+				<File
 					RelativePath=".\DirectShowFilter\Mpeg2SequenceFilter.h"
 					>
 				</File>
@@ -1086,6 +1082,10 @@
 				</File>
 				<File
 					RelativePath=".\DirectShowFilter\DirectShowUtil.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\DirectShowFilter\ImageMixer.cpp"
 					>
 				</File>
 				<File

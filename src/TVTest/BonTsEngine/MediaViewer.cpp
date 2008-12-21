@@ -72,9 +72,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_PanAndScan(0)
 	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
 	, m_bUseAudioRendererClock(true)
-#ifdef VMR9_SUPPORTED
 	, m_pImageMixer(NULL)
-#endif
 #ifdef USE_GRABBER_FILTER
 	, m_bGrabber(false)
 	, m_pGrabber(NULL)
@@ -1123,7 +1121,8 @@ const bool CMediaViewer::GetCroppedVideoSize(WORD *pWidth,WORD *pHeight)
 {
 	RECT rc;
 
-	GetSourceRect(&rc);
+	if (!GetSourceRect(&rc))
+		return false;
 	if (pWidth)
 		*pWidth = (WORD)(rc.right - rc.left);
 	if (pHeight)
@@ -1146,6 +1145,8 @@ const bool CMediaViewer::CalcSourceRect(RECT *pRect)
 {
 	long SrcX,SrcY,SrcWidth,SrcHeight;
 
+	if (m_VideoInfo.m_OrigWidth==0 || m_VideoInfo.m_OrigHeight==0)
+		return false;
 	if (m_PanAndScan&PANANDSCAN_HORZ) {
 		SrcWidth=m_VideoInfo.m_OrigWidth*12/16;
 		SrcX=(m_VideoInfo.m_OrigWidth-SrcWidth)/2;
@@ -1295,35 +1296,33 @@ const bool CMediaViewer::DisplayModeChanged()
 }
 
 
-const bool CMediaViewer::DrawText(LPCTSTR pszText,HFONT hfont,COLORREF crColor,
-												int Opacity,RECT *pDestRect)
+const bool CMediaViewer::DrawText(LPCTSTR pszText,int x,int y,
+								  HFONT hfont,COLORREF crColor,int Opacity)
 {
 	IBaseFilter *pRenderer;
-	IVMRWindowlessControl9 *pWindowlessControl;
-	HRESULT hr;
-	WORD VideoWidth,VideoHeight;
-	LONG Width,Height;
-	RECT rc;
+	int Width,Height;
 
-	if (m_pVideoRenderer==NULL || m_VideoRendererType!=CVideoRenderer::RENDERER_VMR9)
+	if (m_pVideoRenderer==NULL || !IsDrawTextSupported())
 		return false;
 	pRenderer=m_pVideoRenderer->GetRendererFilter();
 	if (pRenderer==NULL)
 		return false;
-	if (m_pImageMixer==NULL)
-		m_pImageMixer=new CImageMixer(pRenderer);
-	if (FAILED(pRenderer->QueryInterface(IID_IVMRWindowlessControl9,
-							reinterpret_cast<LPVOID*>(&pWindowlessControl))))
+	if (m_pImageMixer==NULL) {
+		m_pImageMixer=CImageMixer::CreateImageMixer(m_VideoRendererType,pRenderer);
+		if (m_pImageMixer==NULL)
+			return false;
+	}
+	if (!m_pImageMixer->GetMapSize(&Width,&Height))
 		return false;
-	hr=pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL);
-	pWindowlessControl->Release();
-	if (FAILED(hr) || !GetVideoSize(&VideoWidth,&VideoHeight))
-		return false;
-	rc.left=pDestRect->left*Width/VideoWidth;
-	rc.top=pDestRect->top*Height/VideoHeight;
-	rc.right=pDestRect->right*Width/VideoWidth;
-	rc.bottom=pDestRect->bottom*Height/VideoHeight;
-	return m_pImageMixer->SetText(pszText,hfont,crColor,Opacity,&rc);
+	x=x*Width/m_VideoInfo.m_OrigWidth;
+	y=y*Height/m_VideoInfo.m_OrigHeight;
+	return m_pImageMixer->SetText(pszText,x,y,hfont,crColor,Opacity);
+}
+
+
+const bool CMediaViewer::IsDrawTextSupported() const
+{
+	return CImageMixer::IsSupported(m_VideoRendererType);
 }
 
 

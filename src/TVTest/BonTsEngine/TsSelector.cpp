@@ -16,6 +16,7 @@ CTsSelector::CTsSelector(IEventHandler *pEventHandler)
 	, m_OutputPacketCount(0)
 	, m_TargetServiceID(0)
 	, m_TargetPmtPID(0)
+	, m_TargetStream(STREAM_ALL)
 	, m_LastTSID(0)
 	, m_LastPmtPID(0)
 	, m_LastVersion(0)
@@ -57,6 +58,7 @@ void CTsSelector::Reset(void)
 	m_TargetPIDList.clear();
 	m_TargetServiceID = 0;
 	m_TargetPmtPID = 0;
+	m_TargetStream = STREAM_ALL;
 
 	m_LastTSID = 0;
 	m_LastPmtPID = 0;
@@ -120,7 +122,7 @@ ULONGLONG CTsSelector::GetOutputPacketCount() const
 }
 
 
-bool CTsSelector::SetTargetServiceID(WORD ServiceID)
+bool CTsSelector::SetTargetServiceID(WORD ServiceID, DWORD Stream)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
@@ -128,6 +130,7 @@ bool CTsSelector::SetTargetServiceID(WORD ServiceID)
 		m_TargetServiceID = ServiceID;
 		m_TargetPIDList.clear();
 		m_TargetPmtPID = 0;
+		m_TargetStream = Stream;
 
 		CPatTable *pPatTable=dynamic_cast<CPatTable *>(m_PidMapManager.GetMapTarget(0x0000));
 		if (pPatTable!=NULL) {
@@ -212,8 +215,18 @@ void CALLBACK CTsSelector::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->AddTargetPID(EcmPID);
 
 	// ES‚ÌPID’Ç‰Á
+	static const BYTE StreamTypeList [] = { 0x01, 0x02, 0x06, 0x0D, 0x0F, 0x1B };
 	for (WORD i = 0 ; i < pPmtTable->GetEsInfoNum() ; i++) {
-		pThis->AddTargetPID(pPmtTable->GetEsPID(i));
+		bool bTarget = false;
+		BYTE StreamType = pPmtTable->GetStreamTypeID(i);
+		for (int j=0 ; j<sizeof(StreamTypeList) ; j++) {
+			if (StreamTypeList[j] == StreamType) {
+				bTarget = (pThis->m_TargetStream&(1<<j)) != 0;
+				break;
+			}
+		}
+		if (bTarget)
+			pThis->AddTargetPID(pPmtTable->GetEsPID(i));
 	}
 }
 

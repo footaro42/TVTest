@@ -90,6 +90,13 @@ bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString)
 }
 
 
+bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2)
+{
+	return pRect1->left<pRect2->right && pRect1->right>pRect2->left
+		&& pRect1->top<pRect2->bottom && pRect1->bottom>pRect2->top;
+}
+
+
 float LevelToDeciBel(int Level)
 {
 	float Volume;

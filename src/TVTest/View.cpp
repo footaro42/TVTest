@@ -50,7 +50,7 @@ bool CVideoContainerWindow::Initialize(HINSTANCE hinst)
 
 CVideoContainerWindow *CVideoContainerWindow::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CVideoContainerWindow*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return static_cast<CVideoContainerWindow*>(GetBasicWindow(hwnd));
 }
 
 
@@ -79,36 +79,6 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 				if (!::EqualRect(&rc,&rcDest))
 					DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
 			}
-			/*
-			if (ps.rcPaint.top<rcDest.top) {
-				rc.left=ps.rcPaint.left;
-				rc.top=ps.rcPaint.top;
-				rc.right=ps.rcPaint.right;
-				rc.bottom=min(rcDest.top,ps.rcPaint.bottom);
-				::FillRect(ps.hdc,&rc,hbr);
-			}
-			if (ps.rcPaint.top<rcDest.bottom && ps.rcPaint.bottom>rcDest.top) {
-				rc.top=max(rcDest.top,ps.rcPaint.top);
-				rc.bottom=min(rcDest.bottom,ps.rcPaint.bottom);
-				if (ps.rcPaint.left<rcDest.left) {
-					rc.left=ps.rcPaint.left;
-					rc.right=min(rcDest.left,ps.rcPaint.right);
-					::FillRect(ps.hdc,&rc,hbr);
-				}
-				if (ps.rcPaint.right>rcDest.right) {
-					rc.left=max(rcDest.right,ps.rcPaint.left);
-					rc.right=ps.rcPaint.right;
-					::FillRect(ps.hdc,&rc,hbr);
-				}
-			}
-			if (ps.rcPaint.bottom>rcDest.bottom) {
-				rc.left=ps.rcPaint.left;
-				rc.top=max(rcDest.bottom,ps.rcPaint.top);
-				rc.right=ps.rcPaint.right;
-				rc.bottom=ps.rcPaint.bottom;
-				::FillRect(ps.hdc,&rc,hbr);
-			}
-			*/
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -185,14 +155,14 @@ bool CViewWindow::Initialize(HINSTANCE hinst)
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
 
-		wc.style=CS_DBLCLKS;
+		wc.style=CS_DBLCLKS | CS_HREDRAW | CS_VREDRAW;
 		wc.lpfnWndProc=WndProc;
 		wc.cbClsExtra=0;
 		wc.cbWndExtra=0;
 		wc.hInstance=hinst;
 		wc.hIcon=NULL;
 		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
-		wc.hbrBackground=CreateSolidBrush(RGB(0,0,0));
+		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=VIEW_WINDOW_CLASS;
 		if (::RegisterClass(&wc)==0)
@@ -207,6 +177,14 @@ CViewWindow::CViewWindow()
 {
 	m_pVideoContainer=NULL;
 	m_hwndMessage=NULL;
+	m_hbmLogo=NULL;
+}
+
+
+CViewWindow::~CViewWindow()
+{
+	if (m_hbmLogo)
+		::DeleteObject(m_hbmLogo);
 }
 
 
@@ -236,9 +214,24 @@ void CViewWindow::SetMessageWindow(HWND hwnd)
 }
 
 
+bool CViewWindow::SetLogo(HBITMAP hbm)
+{
+	if (hbm==NULL && m_hbmLogo==NULL)
+		return true;
+	if (m_hbmLogo)
+		::DeleteObject(m_hbmLogo);
+	m_hbmLogo=hbm;
+	if (m_hwnd) {
+		Invalidate();
+		Update();
+	}
+	return true;
+}
+
+
 CViewWindow *CViewWindow::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CViewWindow*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return static_cast<CViewWindow*>(GetBasicWindow(hwnd));
 }
 
 
@@ -259,6 +252,39 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			if (pThis->m_pVideoContainer!=NULL
 					&& pThis->m_pVideoContainer->GetParent()==hwnd)
 				pThis->m_pVideoContainer->SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
+		}
+		return 0;
+
+	case WM_PAINT:
+		{
+			CViewWindow *pThis=GetThis(hwnd);
+			PAINTSTRUCT ps;
+			HBRUSH hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
+
+			::BeginPaint(hwnd,&ps);
+			if (pThis->m_hbmLogo) {
+				RECT rcImage,rcClient;
+				BITMAP bm;
+				HDC hdcMemory;
+				HBITMAP hbmOld;
+
+				::GetClientRect(hwnd,&rcClient);
+				::GetObject(pThis->m_hbmLogo,sizeof(BITMAP),&bm);
+				rcImage.left=(rcClient.right-bm.bmWidth)/2;
+				rcImage.top=(rcClient.bottom-bm.bmHeight)/2;
+				rcImage.right=rcImage.left+bm.bmWidth;
+				rcImage.bottom=rcImage.top+bm.bmHeight;
+				hdcMemory=::CreateCompatibleDC(ps.hdc);
+				hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,pThis->m_hbmLogo));
+				::BitBlt(ps.hdc,rcImage.left,rcImage.top,bm.bmWidth,bm.bmHeight,
+						 hdcMemory,0,0,SRCCOPY);
+				::SelectObject(hdcMemory,hbmOld);
+				::DeleteDC(hdcMemory);
+				DrawUtil::FillBorder(ps.hdc,&rcClient,&rcImage,&ps.rcPaint,hbr);
+			} else {
+				::FillRect(ps.hdc,&ps.rcPaint,hbr);
+			}
+			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 

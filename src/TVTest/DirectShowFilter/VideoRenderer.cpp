@@ -234,6 +234,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 
 	m_pRenderer->QueryInterface(IID_IVMRFilterConfig,
 									reinterpret_cast<LPVOID*>(&pFilterConfig));
+	pFilterConfig->SetNumberOfStreams(1);
 	pFilterConfig->SetRenderingMode(VMRMode_Windowless);
 	pFilterConfig->Release();
 	m_pRenderer->QueryInterface(IID_IVMRWindowlessControl,

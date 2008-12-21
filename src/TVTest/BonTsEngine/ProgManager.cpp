@@ -4,7 +4,7 @@
 
 #include "stdafx.h"
 #include "TsTable.h"
-#include "TsProgGuide.h"
+//#include "TsProgGuide.h"
 #include "ProgManager.h"
 
 #ifdef _DEBUG

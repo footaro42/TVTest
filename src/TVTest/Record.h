@@ -80,6 +80,7 @@ private:
 	CDtvEngine *m_pDtvEngine;
 	FileExistsOperation m_ExistsOperation;
 	bool m_fCurServiceOnly;
+	DWORD m_SaveStream;
 	bool m_fDescrambleCurServiceOnly;
 	static CRecordManager *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -114,6 +115,8 @@ public:
 	bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
 	bool SetCurServiceOnly(bool fOnly);
 	bool GetCurServiceOnly() const { return m_fCurServiceOnly; }
+	bool SetSaveStream(DWORD Stream);
+	DWORD GetSaveStream() const { return m_SaveStream; }
 	bool SetDescrambleCurServiceOnly(bool fOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
 };
@@ -125,6 +128,8 @@ class CRecordOptions : public COptions {
 	bool m_fConfirmChannelChange;
 	bool m_fConfirmExit;
 	bool m_fCurServiceOnly;
+	bool m_fSaveSubtitle;
+	bool m_fSaveDataCarrousel;
 	bool m_fDescrambleCurServiceOnly;
 	static CRecordOptions *GetThis(HWND hDlg);
 public:

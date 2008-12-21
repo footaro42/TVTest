@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include <shlwapi.h>
 #include "TVTest.h"
+#include "AppMain.h"
 #include "Information.h"
 #include "resource.h"
 
@@ -16,6 +17,7 @@ enum {
 	INFO_ITEM_VIDEO,
 	INFO_ITEM_DECODER,
 	INFO_ITEM_BITRATE,
+	INFO_ITEM_ERROR,
 	INFO_ITEM_RECORD,
 	INFO_ITEM_PROGRAMINFO
 };
@@ -209,6 +211,12 @@ void CInformation::SetBitRate(float BitRate)
 }
 
 
+void CInformation::UpdateErrorCount()
+{
+	UpdateItem(INFO_ITEM_ERROR);
+}
+
+
 void CInformation::SetRecordStatus(bool fRecording,LPCTSTR pszFileName,
 								ULONGLONG WroteSize,unsigned int RecordTime)
 {
@@ -316,46 +324,66 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			FillRect(ps.hdc,&ps.rcPaint,pThis->m_hbrBack);
 			crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTextColor);
 			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-			wsprintf(szText,TEXT("%d x %d [%d:%d]"),
-				pThis->m_VideoWidth,pThis->m_VideoHeight,
-				pThis->m_AspectX,pThis->m_AspectY);
 			pThis->GetItemRect(INFO_ITEM_VIDEO,&rc);
-			DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+			if (IsRectIntersect(&ps.rcPaint,&rc)) {
+				wsprintf(szText,TEXT("%d x %d [%d:%d]"),
+					pThis->m_VideoWidth,pThis->m_VideoHeight,
+					pThis->m_AspectX,pThis->m_AspectY);
+				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+			}
 			if (pThis->m_pszDecoderName!=NULL) {
 				pThis->GetItemRect(INFO_ITEM_DECODER,&rc);
-				DrawText(ps.hdc,pThis->m_pszDecoderName,-1,&rc,
-									DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+				if (IsRectIntersect(&ps.rcPaint,&rc))
+					DrawText(ps.hdc,pThis->m_pszDecoderName,-1,&rc,
+						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
 			}
 			pThis->GetItemRect(INFO_ITEM_BITRATE,&rc);
-			if (pThis->m_fSignalLevel) {
-				int SignalLevel=(int)(pThis->m_SignalLevel*100);
-				wsprintf(szText,TEXT("%d.%02d dB"),
+			if (IsRectIntersect(&ps.rcPaint,&rc)) {
+				if (pThis->m_fSignalLevel) {
+					int SignalLevel=(int)(pThis->m_SignalLevel*100);
+					wsprintf(szText,TEXT("%d.%02d dB"),
 											SignalLevel/100,SignalLevel%100);
-			} else
-				szText[0]='\0';
-			if (pThis->m_fBitRate) {
-				if (pThis->m_fSignalLevel)
-					lstrcat(szText,TEXT(" / "));
-				int BitRate=(int)(pThis->m_BitRate*100);
-				wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
+				} else
+					szText[0]='\0';
+				if (pThis->m_fBitRate) {
+					if (pThis->m_fSignalLevel)
+						lstrcat(szText,TEXT(" / "));
+					int BitRate=(int)(pThis->m_BitRate*100);
+					wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
 													BitRate/100,BitRate%100);
+				}
+				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
 			}
-			DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
-			pThis->GetItemRect(INFO_ITEM_RECORD,&rc);
-			if (pThis->m_fRecording) {
-				unsigned int RecordSec=pThis->m_RecordTime/1000;
-				unsigned int Size=(unsigned int)(
-						pThis->m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
-				unsigned int FreeSpace=(unsigned int)(
-					pThis->m_DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
+			pThis->GetItemRect(INFO_ITEM_ERROR,&rc);
+			if (IsRectIntersect(&ps.rcPaint,&rc)) {
+				const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+				int Length;
 
-				wsprintf(szText,
-					TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
-					RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
-					Size/100,Size%100,FreeSpace/100,FreeSpace%100);
-			} else
-				lstrcpy(szText,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"));
-			DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+				Length=wsprintf(szText,TEXT("D %u / E %u"),
+								pCoreEngine->GetContinuityErrorPacketCount(),
+								pCoreEngine->GetErrorPacketCount());
+				if (pCoreEngine->GetDescramble()
+						&& pCoreEngine->GetCardReaderType()!=CCardReader::READER_NONE)
+				wsprintf(szText+Length,TEXT(" / S %u"),pCoreEngine->GetScramblePacketCount());
+				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+			}
+			pThis->GetItemRect(INFO_ITEM_RECORD,&rc);
+			if (IsRectIntersect(&ps.rcPaint,&rc)) {
+				if (pThis->m_fRecording) {
+					unsigned int RecordSec=pThis->m_RecordTime/1000;
+					unsigned int Size=(unsigned int)(
+						pThis->m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
+					unsigned int FreeSpace=(unsigned int)(
+						pThis->m_DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
+
+					wsprintf(szText,
+						TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
+						RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
+						Size/100,Size%100,FreeSpace/100,FreeSpace%100);
+				} else
+					lstrcpy(szText,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"));
+				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+			}
 			SetBkMode(ps.hdc,OldBkMode);
 			SetTextColor(ps.hdc,crOldTextColor);
 			SelectObject(ps.hdc,hfontOld);
@@ -471,6 +499,6 @@ void CInformation::UpdateItem(int Item)
 		RECT rc;
 
 		GetItemRect(Item,&rc);
-		InvalidateRect(m_hwnd,&rc,TRUE);
+		::InvalidateRect(m_hwnd,&rc,TRUE);
 	}
 }

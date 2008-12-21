@@ -11,15 +11,17 @@ CResidentManager::CResidentManager()
 {
 	m_hwnd=NULL;
 	m_fResident=false;
-	m_fMinimizeToTray=false;
+	m_fMinimizeToTray=true;
 	m_Status=0;
 	m_TaskbarCreatedMessage=::RegisterWindowMessage(TEXT("TaskbarCreated"));
+	m_pszTipText=NULL;
 }
 
 
 CResidentManager::~CResidentManager()
 {
 	Finalize();
+	delete [] m_pszTipText;
 }
 
 
@@ -92,7 +94,7 @@ bool CResidentManager::AddTrayIcon()
 	nid.uCallbackMessage=WM_APP_TRAYICON;
 	nid.hIcon=LoadIcon(GetAppClass().GetResourceInstance(),
 		MAKEINTRESOURCE((m_Status&STATUS_RECORDING)!=0?IDI_TRAY_RECORDING:IDI_TRAY));
-	lstrcpy(nid.szTip,APP_NAME);
+	lstrcpy(nid.szTip,m_pszTipText?m_pszTipText:APP_NAME);
 	if (!Shell_NotifyIcon(NIM_ADD,&nid))
 		return false;
 	/*
@@ -129,6 +131,19 @@ bool CResidentManager::ChangeTrayIcon()
 }
 
 
+bool CResidentManager::UpdateTipText()
+{
+	NOTIFYICONDATA nid;
+
+	nid.cbSize=NOTIFYICONDATA_V2_SIZE;
+	nid.hWnd=m_hwnd;
+	nid.uID=1;
+	nid.uFlags=NIF_TIP;
+	lstrcpy(nid.szTip,m_pszTipText?m_pszTipText:APP_NAME);
+	return Shell_NotifyIcon(NIM_MODIFY,&nid)!=FALSE;
+}
+
+
 bool CResidentManager::IsTrayIconVisible() const
 {
 	return m_hwnd!=NULL && (m_fResident || (m_fMinimizeToTray && (m_Status&STATUS_MINIMIZED)!=0));
@@ -159,6 +174,38 @@ bool CResidentManager::SetStatus(UINT Status,UINT Mask)
 		m_Status=Status;
 	}
 	return true;
+}
+
+
+bool CResidentManager::SetTipText(LPCTSTR pszText)
+{
+	ReplaceString(&m_pszTipText,pszText);
+	if (IsTrayIconVisible())
+		UpdateTipText();
+	return true;
+}
+
+
+bool CResidentManager::ShowMessage(LPCTSTR pszText,LPCTSTR pszTitle,int Icon,DWORD TimeOut)
+{
+	if (!IsTrayIconVisible())
+		return false;
+
+	NOTIFYICONDATA nid;
+
+	::ZeroMemory(&nid,sizeof(nid));
+	nid.cbSize=NOTIFYICONDATA_V2_SIZE;
+	nid.hWnd=m_hwnd;
+	nid.uID=1;
+	nid.uFlags=NIF_INFO;
+	::lstrcpyn(nid.szInfo,pszText,lengthof(nid.szInfo));
+	if (pszTitle)
+		::lstrcpyn(nid.szInfoTitle,pszTitle,lengthof(nid.szInfoTitle));
+	nid.dwInfoFlags=Icon==MESSAGE_ICON_INFO?NIIF_INFO:
+					Icon==MESSAGE_ICON_WARNING?NIIF_WARNING:
+					Icon==MESSAGE_ICON_ERROR?NIIF_ERROR:NIIF_NONE;
+	nid.uTimeout=TimeOut;
+	return Shell_NotifyIcon(NIM_MODIFY,&nid)!=FALSE;
 }
 
 

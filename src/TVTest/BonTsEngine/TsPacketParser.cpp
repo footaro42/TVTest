@@ -118,14 +118,13 @@ void inline CTsPacketParser::SyncPacket(const BYTE *pData, const DWORD dwSize)
 
 		if (dwCurSize==0) {
 			// 同期バイト待ち中
-			for ( ; dwCurPos < dwSize ; dwCurPos++) {
-				if (pData[dwCurPos] == TS_HEADSYNCBYTE) {
+			do {
+				if (pData[dwCurPos++] == TS_HEADSYNCBYTE) {
 					// 同期バイト発見
 					m_TsPacket.AddByte(TS_HEADSYNCBYTE);
-					dwCurPos++;
 					break;
 				}
-			}
+			} while (dwCurPos < dwSize);
 		} else if (dwCurSize == TS_PACKETSIZE) {
 			// パケットサイズ分データがそろった
 
@@ -156,8 +155,10 @@ void inline CTsPacketParser::SyncPacket(const BYTE *pData, const DWORD dwSize)
 	}
 }
 
-void inline CTsPacketParser::ParsePacket(void)
+bool inline CTsPacketParser::ParsePacket(void)
 {
+	bool bOK;
+
 	// 入力カウントインクリメント
 	m_InputPacketCount++;
 
@@ -180,16 +181,20 @@ void inline CTsPacketParser::ParsePacket(void)
 				OutputMedia(&m_TsPacket);
 			}
 		}
+		bOK=true;
 		break;
 	case CTsPacket::EC_FORMAT:
 	case CTsPacket::EC_TRANSPORT:
 		// エラーカウントインクリメント
 		m_ErrorPacketCount++;
+		bOK=false;
 		break;
 	}
 
 	// サイズをクリアし次のストアに備える
 	m_TsPacket.ClearSize();
+
+	return bOK;
 }
 
 

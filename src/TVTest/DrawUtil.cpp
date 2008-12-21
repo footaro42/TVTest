@@ -68,30 +68,26 @@ bool DrawUtil::FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect
 	if (pPaintRect->left<pEmptyRect->right && pPaintRect->right>pEmptyRect->left) {
 		rc.left=max(pPaintRect->left,pBorderRect->left);
 		rc.right=min(pPaintRect->right,pBorderRect->right);
-		if (pPaintRect->top<pEmptyRect->top && pPaintRect->bottom>pBorderRect->top) {
-			rc.top=max(pPaintRect->top,pBorderRect->top);
-			rc.bottom=min(pPaintRect->bottom,pEmptyRect->top);
+		rc.top=max(pPaintRect->top,pBorderRect->top);
+		rc.bottom=min(pPaintRect->bottom,pEmptyRect->top);
+		if (rc.top<rc.bottom)
 			::FillRect(hdc,&rc,hbr);
-		}
-		if (pPaintRect->bottom>pEmptyRect->bottom && pPaintRect->top<pBorderRect->bottom) {
-			rc.top=max(pEmptyRect->bottom,pPaintRect->top);
-			rc.bottom=min(pPaintRect->bottom,pBorderRect->bottom);
+		rc.top=max(pEmptyRect->bottom,pPaintRect->top);
+		rc.bottom=min(pPaintRect->bottom,pBorderRect->bottom);
+		if (rc.top<rc.bottom)
 			::FillRect(hdc,&rc,hbr);
-		}
 	}
 	if (pPaintRect->top<pEmptyRect->bottom && pPaintRect->bottom>pEmptyRect->top) {
 		rc.top=max(pEmptyRect->top,pPaintRect->top);
 		rc.bottom=min(pEmptyRect->bottom,pPaintRect->bottom);
-		if (pPaintRect->left<pEmptyRect->left && pPaintRect->right>pBorderRect->left) {
-			rc.left=max(pPaintRect->left,pBorderRect->left);
-			rc.right=min(pEmptyRect->left,pPaintRect->right);
+		rc.left=max(pPaintRect->left,pBorderRect->left);
+		rc.right=min(pEmptyRect->left,pPaintRect->right);
+		if (rc.left<rc.right)
 			::FillRect(hdc,&rc,hbr);
-		}
-		if (pPaintRect->right>pEmptyRect->right && pPaintRect->left<pBorderRect->right) {
-			rc.left=max(pPaintRect->left,pEmptyRect->right);
-			rc.right=min(pPaintRect->right,pBorderRect->right);
+		rc.left=max(pPaintRect->left,pEmptyRect->right);
+		rc.right=min(pPaintRect->right,pBorderRect->right);
+		if (rc.left<rc.right)
 			::FillRect(hdc,&rc,hbr);
-		}
 	}
 	return true;
 }

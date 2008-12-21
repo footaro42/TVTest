@@ -12,6 +12,8 @@
 
 
 
+DWORD CPlugin::m_FinalizeTimeout=10000;
+
 bool CPlugin::m_fSetGrabber=false;
 CPointerVector<CPlugin::CMediaGrabberInfo> CPlugin::m_GrabberList;
 CCriticalLock CPlugin::m_GrabberLock;
@@ -118,8 +120,22 @@ void CPlugin::Free()
 
 		TVTest::FinalizeFunc pFinalize=
 			static_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
-		if (pFinalize!=NULL)
+		if (pFinalize!=NULL) {
+			/*
+			HANDLE hThread=::CreateThread(NULL,0,FinalizeThread,pFinalize,0,NULL);
+
+			if (hThread==NULL) {
+				pFinalize();
+			} else {
+				if (::WaitForSingleObject(hThread,m_FinalizeTimeout)==WAIT_TIMEOUT) {
+					GetAppClass().AddLog(TEXT("プラグイン \"%s\" の終了処理がタイムアウトしました。"),::PathFindFileName(m_pszFileName));
+					::TerminateThread(hThread,-1);
+				}
+				::CloseHandle(hThread);
+			}
+			*/
 			pFinalize();
+		}
 		::FreeLibrary(m_hLib);
 		m_hLib=NULL;
 	}
@@ -131,6 +147,15 @@ void CPlugin::Free()
 }
 
 
+DWORD WINAPI CPlugin::FinalizeThread(LPVOID lpParameter)
+{
+	TVTest::FinalizeFunc pFinalize=static_cast<TVTest::FinalizeFunc>(lpParameter);
+
+	pFinalize();
+	return 0;
+}
+
+
 bool CPlugin::Enable(bool fEnable)
 {
 	if (m_fEnabled!=fEnable) {
@@ -138,6 +163,15 @@ bool CPlugin::Enable(bool fEnable)
 			return false;
 		m_fEnabled=fEnable;
 	}
+	return true;
+}
+
+
+bool CPlugin::SetFinalizeTimeout(DWORD Timeout)
+{
+	if (Timeout<5000)
+		return false;
+	m_FinalizeTimeout=Timeout;
 	return true;
 }
 
@@ -975,8 +1009,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_GETTUNINGSPACEINFO:
 		{
-			TVTest::TuningSpaceInfo *pInfo=reinterpret_cast<TVTest::TuningSpaceInfo*>(lParam1);
-			int Index=lParam2;
+			int Index=lParam1;
+			TVTest::TuningSpaceInfo *pInfo=reinterpret_cast<TVTest::TuningSpaceInfo*>(lParam2);
 
 			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::TuningSpaceInfo))
 				return FALSE;
@@ -1242,6 +1276,23 @@ CPluginOptions::CPluginOptions(CPluginList *pPluginList)
 CPluginOptions::~CPluginOptions()
 {
 	ClearList();
+}
+
+
+bool CPluginOptions::Read(CSettings *pSettings)
+{
+	unsigned int Timeout;
+	if (pSettings->Read(TEXT("PluginFinalizeTimeout"),&Timeout))
+		CPlugin::SetFinalizeTimeout(Timeout);
+	return true;
+}
+
+
+bool CPluginOptions::Write(CSettings *pSettings) const
+{
+	pSettings->Write(TEXT("PluginFinalizeTimeout"),
+					 (unsigned int)CPlugin::GetFinalizeTimeout());
+	return true;
 }
 
 

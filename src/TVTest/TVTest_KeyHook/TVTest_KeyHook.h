@@ -16,7 +16,7 @@ extern "C" {
 #define KEYHOOK_GET_SHIFT(lParam)		(((lParam)&KEYHOOK_LPARAM_SHIFT)!=0)
 #define KEYHOOK_GET_CONTROL(lParam)		(((lParam)&KEYHOOK_LPARAM_CONTROL)!=0)
 
-typedef BOOL (WINAPI *BeginHookFunc)(HWND hwnd);
+typedef BOOL (WINAPI *BeginHookFunc)(HWND hwnd,BOOL fLocal);
 typedef BOOL (WINAPI *EndHookFunc)(void);
 
 

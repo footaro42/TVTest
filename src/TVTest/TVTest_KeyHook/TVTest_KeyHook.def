@@ -4,5 +4,5 @@ SECTIONS
 	.SHARE READ WRITE SHARED
 
 EXPORTS
-	BeginHook=_BeginHook@4
+	BeginHook=_BeginHook@8
 	EndHook=_EndHook@0

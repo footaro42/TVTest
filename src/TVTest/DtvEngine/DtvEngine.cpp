@@ -711,7 +711,7 @@ bool CDtvEngine::SetDescrambleCurServiceOnly(bool bOnly)
 }
 
 
-bool CDtvEngine::SetWriteService(WORD Service)
+bool CDtvEngine::SetWriteService(WORD Service,DWORD Stream)
 {
 	WORD ServiceID;
 
@@ -721,17 +721,17 @@ bool CDtvEngine::SetWriteService(WORD Service)
 	} else {
 		ServiceID=0;
 	}
-	return m_TsSelector.SetTargetServiceID(ServiceID);
+	return m_TsSelector.SetTargetServiceID(ServiceID,Stream);
 }
 
 
-bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly)
+bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly,DWORD Stream)
 {
 	if (m_bWriteCurServiceOnly!=bOnly) {
 		m_bWriteCurServiceOnly=bOnly;
 		if (bOnly) {
 			m_TsSelector.Reset();
-			SetWriteService(m_wCurService);
+			SetWriteService(m_wCurService,Stream);
 			m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
 			m_TsSelector.SetOutputDecoder(&m_FileWriter);
 		} else {

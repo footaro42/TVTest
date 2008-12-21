@@ -9,6 +9,7 @@
 
 
 class CPlugin {
+	static DWORD m_FinalizeTimeout;
 	HMODULE m_hLib;
 	LPTSTR m_pszFileName;
 	TVTest::PluginParam m_PluginParam;
@@ -34,6 +35,7 @@ class CPlugin {
 	static CCriticalLock m_GrabberLock;
 	static bool CALLBACK GrabMediaCallback(const CMediaData *pMediaData,const PVOID pParam);
 	static LRESULT CALLBACK Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2);
+	static DWORD WINAPI FinalizeThread(LPVOID lpParameter);
 public:
 	CPlugin();
 	~CPlugin();
@@ -49,6 +51,8 @@ public:
 	LRESULT SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
 	bool Settings(HWND hwndOwner);
 	bool HasSettings() const { return (m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)!=0; }
+	static bool SetFinalizeTimeout(DWORD Timeout);
+	static DWORD GetFinalizeTimeout() { return m_FinalizeTimeout; }
 };
 
 class CPluginList {
@@ -88,6 +92,8 @@ class CPluginOptions : public COptions {
 public:
 	CPluginOptions(CPluginList *pPluginList);
 	~CPluginOptions();
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
 	bool RestorePluginOptions();

@@ -25,7 +25,7 @@ CRemoteController::~CRemoteController()
 }
 
 
-bool CRemoteController::BeginHook()
+bool CRemoteController::BeginHook(bool fLocal)
 {
 	BeginHookFunc pBeginHook;
 
@@ -35,7 +35,7 @@ bool CRemoteController::BeginHook()
 			return false;
 	}
 	pBeginHook=(BeginHookFunc)GetProcAddress(m_hLib,"BeginHook");
-	if (pBeginHook==NULL || !pBeginHook(m_hwnd))
+	if (pBeginHook==NULL || !pBeginHook(m_hwnd,fLocal))
 		return false;
 	m_fHook=true;
 	m_Message=RegisterWindowMessage(KEYHOOK_MESSAGE);
@@ -90,17 +90,17 @@ bool CRemoteController::TranslateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 		{VK_F16,	MK_SHIFT,				CM_CHANNELNO_10},
 		{VK_F14,	MK_CONTROL,				CM_CHANNELNO_11},
 		{VK_F15,	MK_CONTROL,				CM_CHANNELNO_12},
-		{VK_F15,	MK_SHIFT,				CM_VOLUME_MUTE},
 		{VK_F13,	MK_SHIFT,				CM_ASPECTRATIO},
 		{VK_F14,	MK_SHIFT,				CM_CLOSE},
+		{VK_F15,	MK_SHIFT,				CM_VOLUME_MUTE},
 		{VK_F16,	MK_CONTROL,				CM_MENU},
 		{VK_F17,	MK_CONTROL,				CM_FULLSCREEN},
 		{VK_F19,	MK_CONTROL,				CM_SWITCHAUDIO},
 		{VK_F20,	MK_CONTROL,				CM_PROGRAMGUIDE},
 		{VK_F22,	MK_CONTROL,				CM_RECORD_START},
+		{VK_F23,	MK_CONTROL,				CM_CAPTURE},
 		{VK_F24,	MK_CONTROL,				CM_RECORD_STOP},
 		{VK_F14,	MK_CONTROL | MK_SHIFT,	CM_RECORD_PAUSE},
-		{VK_F23,	MK_CONTROL,				CM_CAPTURE},
 		/*
 		{VK_UP,		MK_SHIFT,	CM_VOLUME_UP},
 		{VK_DOWN,	MK_SHIFT,	CM_VOLUME_DOWN},

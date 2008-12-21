@@ -17,6 +17,8 @@ LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
 
+bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2);
+
 float LevelToDeciBel(int Level);
 
 COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio);

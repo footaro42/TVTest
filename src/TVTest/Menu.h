@@ -2,6 +2,7 @@
 #define MENU_H
 
 
+#include "Accelerator.h"
 #include "ChannelList.h"
 #include "EpgProgramList.h"
 
@@ -30,6 +31,7 @@ public:
 	void CheckItem(int ID,bool fCheck);
 	void CheckRadioItem(int FirstID,int LastID,int CheckID);
 	HMENU GetSubMenu(int SubMenu);
+	bool SetAccelerator(CAccelerator *pAccelerator);
 };
 
 class CChannelMenu {

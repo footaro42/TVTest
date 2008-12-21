@@ -42,7 +42,7 @@ public:
 	CEpgDataCapDllUtil *GetEpgDataCapDllUtil() { return &m_EpgCap; }
 private:
 	void inline SyncPacket(const BYTE *pData, const DWORD dwSize);
-	void inline ParsePacket(void);
+	bool inline ParsePacket(void);
 
 	CTsPacket m_TsPacket;
 

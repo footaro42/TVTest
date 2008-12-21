@@ -10,13 +10,13 @@
 #include "BonSrcFilter.h"
 #include "AacDecFilter.h"
 #include "Mpeg2SequenceFilter.h"
-#include "PcmSelectFilter.h"
+//#include "PcmSelectFilter.h"
 #include <Bdaiface.h>
 #include "DirectShowUtil.h"
 
 // Append by HDUSTestÇÃíÜÇÃêl
 #include "VideoRenderer.h"
-#include "../ImageMixer.h"
+#include "ImageMixer.h"
 #include "../Tracer.h"
 
 
@@ -103,8 +103,8 @@ public:
 	bool GetUseAudioRendererClock() const { return m_bUseAudioRendererClock; }
 	const bool RepaintVideo(HWND hwnd,HDC hdc);
 	const bool DisplayModeChanged();
-	const bool DrawText(LPCTSTR pszText,HFONT hfont,COLORREF crColor,
-												int Opacity,RECT *pDestRect);
+	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
+	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
 	bool SetTracer(CTracer *pTracer);
 	void Trace(LPCTSTR pszOutput, ...);

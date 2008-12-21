@@ -19,7 +19,16 @@ public:
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 // CTsSelector
-	bool SetTargetServiceID(WORD ServiceID=0);
+	enum {
+		STREAM_MPEG1VIDEO		= 0x00000001UL,
+		STREAM_MPEG2VIDEO		= 0x00000002UL,
+		STREAM_SUBTITLE			= 0x00000004UL,
+		STREAM_DATACARROUSEL	= 0x00000008UL,
+		STREAM_AAC				= 0x00000010UL,
+		STREAM_H264				= 0x00000020UL,
+		STREAM_ALL				= 0xFFFFFFFFUL
+	};
+	bool SetTargetServiceID(WORD ServiceID=0, DWORD Stream=STREAM_ALL);
 	ULONGLONG GetInputPacketCount() const;
 	ULONGLONG GetOutputPacketCount() const;
 
@@ -37,6 +46,7 @@ protected:
 	WORD m_TargetServiceID;
 	std::vector<WORD> m_TargetPIDList;
 	WORD m_TargetPmtPID;
+	DWORD m_TargetStream;
 
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_OutputPacketCount;

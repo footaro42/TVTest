@@ -198,6 +198,8 @@ CRecordManager::CRecordManager()
 	m_pDtvEngine=NULL;
 	m_ExistsOperation=EXISTS_CONFIRM;
 	m_fCurServiceOnly=false;
+	m_SaveStream=CTsSelector::STREAM_MPEG2VIDEO | CTsSelector::STREAM_AAC |
+				 CTsSelector::STREAM_SUBTITLE;
 	m_fDescrambleCurServiceOnly=false;
 }
 
@@ -286,7 +288,7 @@ bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
 {
 	if (m_fRecording)
 		return false;
-	pDtvEngine->SetWriteCurServiceOnly(m_fCurServiceOnly);
+	pDtvEngine->SetWriteCurServiceOnly(m_fCurServiceOnly,m_SaveStream);
 	bool fDescrambleCurOnly=pDtvEngine->GetDescrambleCurServiceOnly();
 	pDtvEngine->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
 	if (!m_RecordTask.Start(pDtvEngine,pszFileName)) {
@@ -614,8 +616,16 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			}
 			::DlgCheckBox_Check(hDlg,IDC_RECORD_CURSERVICEONLY,
 								pThis->m_fCurServiceOnly);
-			if (pThis->m_fRecording)
-				EnableDlgItem(hDlg,IDC_RECORD_CURSERVICEONLY,false);
+			::DlgCheckBox_Check(hDlg,IDC_RECORD_SAVESUBTITLE,
+				(pThis->m_SaveStream&CTsSelector::STREAM_SUBTITLE)!=0);
+			::DlgCheckBox_Check(hDlg,IDC_RECORD_SAVEDATACARROUSEL,
+				(pThis->m_SaveStream&CTsSelector::STREAM_DATACARROUSEL)!=0);
+			if (pThis->m_fRecording) {
+				EnableDlgItems(hDlg,IDC_RECORD_CURSERVICEONLY,IDC_RECORD_SAVEDATACARROUSEL,false);
+			} else {
+				EnableDlgItems(hDlg,IDC_RECORD_SAVESUBTITLE,IDC_RECORD_SAVEDATACARROUSEL,
+							   pThis->m_fCurServiceOnly);
+			}
 			EnableDlgItem(hDlg,IDC_RECORD_CANCEL,pThis->m_fReserved);
 		}
 		return TRUE;
@@ -677,6 +687,11 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				EnableDlgItems(hDlg,IDC_RECORD_STOPDATETIME,
 									IDC_RECORD_STOPTIME_SECOND_LABEL,false);
 			}
+			return TRUE;
+
+		case IDC_RECORD_CURSERVICEONLY:
+			EnableDlgItems(hDlg,IDC_RECORD_SAVESUBTITLE,IDC_RECORD_SAVEDATACARROUSEL,
+				DlgCheckBox_IsChecked(hDlg,IDC_RECORD_CURSERVICEONLY));
 			return TRUE;
 
 		case IDOK:
@@ -778,6 +793,11 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 						break;
 					}
 					pThis->m_fCurServiceOnly=DlgCheckBox_IsChecked(hDlg,IDC_RECORD_CURSERVICEONLY);
+					pThis->m_SaveStream=CTsSelector::STREAM_MPEG2VIDEO | CTsSelector::STREAM_AAC;
+					if (DlgCheckBox_IsChecked(hDlg,IDC_RECORD_SAVESUBTITLE))
+						pThis->m_SaveStream|=CTsSelector::STREAM_SUBTITLE;
+					if (DlgCheckBox_IsChecked(hDlg,IDC_RECORD_SAVEDATACARROUSEL))
+						pThis->m_SaveStream|=CTsSelector::STREAM_DATACARROUSEL;
 				}
 				if (IsDlgButtonChecked(hDlg,IDC_RECORD_STOPSPECTIME)==BST_CHECKED) {
 					TimeSpecInfo TimeSpec;
@@ -962,6 +982,13 @@ bool CRecordManager::SetCurServiceOnly(bool fOnly)
 }
 
 
+bool CRecordManager::SetSaveStream(DWORD Stream)
+{
+	m_SaveStream=Stream;
+	return true;
+}
+
+
 bool CRecordManager::SetDescrambleCurServiceOnly(bool fOnly)
 {
 	m_fDescrambleCurServiceOnly=fOnly;
@@ -979,6 +1006,8 @@ CRecordOptions::CRecordOptions()
 	m_fConfirmChannelChange=true;
 	m_fConfirmExit=true;
 	m_fCurServiceOnly=false;
+	m_fSaveSubtitle=true;
+	m_fSaveDataCarrousel=false;
 	m_fDescrambleCurServiceOnly=false;
 }
 
@@ -1013,6 +1042,8 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("ConfirmRecChChange"),&m_fConfirmChannelChange);
 	pSettings->Read(TEXT("ConfrimRecordingExit"),&m_fConfirmExit);
 	pSettings->Read(TEXT("RecordCurServiceOnly"),&m_fCurServiceOnly);
+	pSettings->Read(TEXT("RecordSubtitle"),&m_fSaveSubtitle);
+	pSettings->Read(TEXT("RecordDataCarrousel"),&m_fSaveDataCarrousel);
 	pSettings->Read(TEXT("RecordDescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
 	return true;
 }
@@ -1026,6 +1057,8 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("ConfirmRecChChange"),m_fConfirmChannelChange);
 	pSettings->Write(TEXT("ConfrimRecordingExit"),m_fConfirmExit);
 	pSettings->Write(TEXT("RecordCurServiceOnly"),m_fCurServiceOnly);
+	pSettings->Write(TEXT("RecordSubtitle"),m_fSaveSubtitle);
+	pSettings->Write(TEXT("RecordDataCarrousel"),m_fSaveDataCarrousel);
 	pSettings->Write(TEXT("RecordDescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	return true;
 }
@@ -1149,6 +1182,12 @@ bool CRecordOptions::ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordMan
 bool CRecordOptions::ApplyOptions(CRecordManager *pManager)
 {
 	pManager->SetCurServiceOnly(m_fCurServiceOnly);
+	DWORD Stream=CTsSelector::STREAM_MPEG2VIDEO | CTsSelector::STREAM_AAC;
+	if (m_fSaveSubtitle)
+		Stream|=CTsSelector::STREAM_SUBTITLE;
+	if (m_fSaveDataCarrousel)
+		Stream|=CTsSelector::STREAM_DATACARROUSEL;
+	pManager->SetSaveStream(Stream);
 	pManager->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
 	return true;
 }
@@ -1184,6 +1223,13 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				pThis->m_fConfirmExit?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY,
 				pThis->m_fCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
+			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,
+				pThis->m_fSaveSubtitle?BST_CHECKED:BST_UNCHECKED);
+			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
+				pThis->m_fSaveDataCarrousel?BST_CHECKED:BST_UNCHECKED);
+			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,
+								IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
+						   pThis->m_fCurServiceOnly);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY,
 				pThis->m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 		}
@@ -1200,6 +1246,11 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 										TEXT("録画ファイルの保存先フォルダ:")))
 					::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,szFolder);
 			}
+			return TRUE;
+
+		case IDC_RECORDOPTIONS_CURSERVICEONLY:
+			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
+				DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY));
 			return TRUE;
 		}
 		return TRUE;
@@ -1249,6 +1300,10 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					IDC_RECORDOPTIONS_CONFIRMEXIT)==BST_CHECKED;
 				pThis->m_fCurServiceOnly=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_CURSERVICEONLY)==BST_CHECKED;
+				pThis->m_fSaveSubtitle=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE);
+				pThis->m_fSaveDataCarrousel=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL);
 				pThis->m_fDescrambleCurServiceOnly=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY)==BST_CHECKED;
 			}

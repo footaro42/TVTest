@@ -58,6 +58,8 @@ class CMainWindow : public CBasicWindow {
 	void CheckZoomMenu();
 	void ShowChannelOSD();
 	bool SetPreview(bool fPreview);
+	void SetWindowVisible();
+	void ReleaseDriver();
 	static CMainWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
@@ -88,7 +90,6 @@ public:
 	void SetTitleText();
 	bool EnablePreview(bool fEnable);
 	bool IsPreview() const { return m_fEnablePreview; }
-	void SetWindowVisible();
 	bool SetStandby(bool fStandby);
 	bool GetStandby() const { return m_fStandby; }
 	bool InitStandby();
@@ -117,6 +118,7 @@ public:
 	bool BeginProgramGuideUpdate();
 	void EndProgramGuideUpdate(bool fRelease=true);
 	void BeginProgramListUpdateTimer();
+	bool SetLogo(LPCTSTR pszFileName);
 	bool SetViewWindowEdge(bool fEdge);
 	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
 	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }

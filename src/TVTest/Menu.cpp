@@ -95,6 +95,15 @@ HMENU CMainMenu::GetSubMenu(int SubMenu)
 }
 
 
+bool CMainMenu::SetAccelerator(CAccelerator *pAccelerator)
+{
+	if (m_hmenu==NULL)
+		return false;
+	pAccelerator->SetMenuAccel(m_hmenu);
+	return true;
+}
+
+
 
 
 CChannelMenu::CChannelMenu(CEpgProgramList *pProgramList)

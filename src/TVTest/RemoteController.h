@@ -10,7 +10,7 @@ class CRemoteController {
 public:
 	CRemoteController(HWND hwnd);
 	~CRemoteController();
-	bool BeginHook();
+	bool BeginHook(bool fLocal);
 	bool EndHook();
 	bool TranslateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
 };

@@ -24,13 +24,16 @@ class CViewWindow : public CBasicWindow {
 	static HINSTANCE m_hinst;
 	CVideoContainerWindow *m_pVideoContainer;
 	HWND m_hwndMessage;
+	HBITMAP m_hbmLogo;
 	static CViewWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
 	CViewWindow();
+	~CViewWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void SetVideoContainer(CVideoContainerWindow *pVideoContainer);
 	void SetMessageWindow(HWND hwnd);
+	bool SetLogo(HBITMAP hbm);
 	static bool Initialize(HINSTANCE hinst);
 };
 
