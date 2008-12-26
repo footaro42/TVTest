@@ -329,6 +329,7 @@ CPanelFrame::CPanelFrame()
 	m_WindowPosition.Height=240;
 	m_fFloating=true;
 	m_DockingWidth=-1;
+	m_Opacity=100;
 	m_DragDockingTarget=DOCKING_NONE;
 	m_pEventHandler=NULL;
 }
@@ -341,8 +342,14 @@ CPanelFrame::~CPanelFrame()
 
 bool CPanelFrame::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
-	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 PANEL_FRAME_WINDOW_CLASS,TEXT("パネル"),m_hinst);
+	if (!CreateBasicWindow(hwndParent,Style,ExStyle,ID,
+						   PANEL_FRAME_WINDOW_CLASS,TEXT("パネル"),m_hinst))
+		return false;
+	if (m_Opacity<100) {
+		SetExStyle(ExStyle|WS_EX_LAYERED);
+		::SetLayeredWindowAttributes(m_hwnd,0,m_Opacity*255/100,LWA_ALPHA);
+	}
+	return true;
 }
 
 
@@ -442,6 +449,29 @@ bool CPanelFrame::SetPanelVisible(bool fVisible)
 bool CPanelFrame::SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText)
 {
 	return m_Panel.SetTitleColor(crTitleBack,crTitleText);
+}
+
+
+bool CPanelFrame::SetOpacity(int Opacity)
+{
+	if (Opacity<0 || Opacity>100)
+		return false;
+	if (Opacity!=m_Opacity) {
+		if (m_hwnd!=NULL) {
+			DWORD ExStyle=GetExStyle();
+
+			if (Opacity<100) {
+				if ((ExStyle&WS_EX_LAYERED)==0)
+					SetExStyle(ExStyle|WS_EX_LAYERED);
+				::SetLayeredWindowAttributes(m_hwnd,0,Opacity*255/100,LWA_ALPHA);
+			} else {
+				if ((ExStyle&WS_EX_LAYERED)!=0)
+					SetExStyle(ExStyle^WS_EX_LAYERED);
+			}
+		}
+		m_Opacity=Opacity;
+	}
+	return true;
 }
 
 

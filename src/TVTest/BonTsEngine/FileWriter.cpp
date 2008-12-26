@@ -116,8 +116,6 @@ const LONGLONG CFileWriter::GetWriteCount(void) const
 
 bool CFileWriter::SetBufferSize(DWORD Size)
 {
-	CBlockLock Lock(&m_DecoderLock);
-
 	if (Size==0)
 		return false;
 	m_BufferSize=Size;

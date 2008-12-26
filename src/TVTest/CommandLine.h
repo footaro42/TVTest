@@ -8,6 +8,7 @@ public:
 	void Parse(LPCWSTR pszCmdLine);
 	bool IsChannelSpecified() const;
 //private:
+	TCHAR m_szIniFileName[MAX_PATH];
 	TCHAR m_szDriverName[MAX_PATH];
 	bool m_fNoDescramble;
 	bool m_fUseNetworkRemocon;

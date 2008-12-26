@@ -201,6 +201,7 @@ CRecordManager::CRecordManager()
 	m_SaveStream=CTsSelector::STREAM_MPEG2VIDEO | CTsSelector::STREAM_AAC |
 				 CTsSelector::STREAM_SUBTITLE;
 	m_fDescrambleCurServiceOnly=false;
+	m_BufferSize=0x200000;
 }
 
 
@@ -291,6 +292,7 @@ bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
 	pDtvEngine->SetWriteCurServiceOnly(m_fCurServiceOnly,m_SaveStream);
 	bool fDescrambleCurOnly=pDtvEngine->GetDescrambleCurServiceOnly();
 	pDtvEngine->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
+	pDtvEngine->m_FileWriter.SetBufferSize(m_BufferSize);
 	if (!m_RecordTask.Start(pDtvEngine,pszFileName)) {
 		pDtvEngine->SetWriteCurServiceOnly(false);
 		pDtvEngine->SetDescrambleCurServiceOnly(fDescrambleCurOnly);
@@ -996,6 +998,13 @@ bool CRecordManager::SetDescrambleCurServiceOnly(bool fOnly)
 }
 
 
+bool CRecordManager::SetBufferSize(SIZE_T BufferSize)
+{
+	m_BufferSize=BufferSize;
+	return true;
+}
+
+
 
 
 CRecordOptions::CRecordOptions()
@@ -1009,6 +1018,7 @@ CRecordOptions::CRecordOptions()
 	m_fSaveSubtitle=true;
 	m_fSaveDataCarrousel=false;
 	m_fDescrambleCurServiceOnly=false;
+	m_BufferSize=0x200000;
 }
 
 
@@ -1045,6 +1055,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("RecordSubtitle"),&m_fSaveSubtitle);
 	pSettings->Read(TEXT("RecordDataCarrousel"),&m_fSaveDataCarrousel);
 	pSettings->Read(TEXT("RecordDescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
+	pSettings->Read(TEXT("RecordBufferSize"),&m_BufferSize);
 	return true;
 }
 
@@ -1060,6 +1071,7 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("RecordSubtitle"),m_fSaveSubtitle);
 	pSettings->Write(TEXT("RecordDataCarrousel"),m_fSaveDataCarrousel);
 	pSettings->Write(TEXT("RecordDescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
+	pSettings->Write(TEXT("RecordBufferSize"),m_BufferSize);
 	return true;
 }
 
@@ -1189,6 +1201,7 @@ bool CRecordOptions::ApplyOptions(CRecordManager *pManager)
 		Stream|=CTsSelector::STREAM_DATACARROUSEL;
 	pManager->SetSaveStream(Stream);
 	pManager->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
+	pManager->SetBufferSize(m_BufferSize);
 	return true;
 }
 
@@ -1232,6 +1245,10 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 						   pThis->m_fCurServiceOnly);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY,
 				pThis->m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
+			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,
+							pThis->m_BufferSize/1024,FALSE);
+			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE_UD,
+								 UDM_SETRANGE32,1,0x7FFFFFFF);
 		}
 		return TRUE;
 
@@ -1306,6 +1323,7 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL);
 				pThis->m_fDescrambleCurServiceOnly=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY)==BST_CHECKED;
+				pThis->m_BufferSize=::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,NULL,FALSE)*1024;
 			}
 			break;
 		}

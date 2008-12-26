@@ -166,13 +166,13 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 	const SYSKEY &WorkKey = (byScrCtrl == 3)? m_WorkKeyOdd : m_WorkKeyEven;
 
 	DATKEY CbcData = m_InitialCbc;
-	DATKEY SrcData;
-	//BYTE *pEnd=pData+dwSize/sizeof(DATKEY)*sizeof(DATKEY);
-	BYTE *pEnd=pData+(dwSize&0xFFFFFFF8UL);
-	BYTE *p;
+	//DWORD RemainSize = dwSize/sizeof(DATKEY)*sizeof(DATKEY);
+	DWORD RemainSize = dwSize&0xFFFFFFF8UL;
+	BYTE *pEnd = pData + RemainSize;
+	BYTE *p = pData;
 
 	// CBCモード
-	p=pData;
+	DATKEY SrcData;
 	while (p<pEnd) {
 		SrcData.SetHexData(p);
 		//DecryptBlock(SrcData, WorkKey);
@@ -194,9 +194,9 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 	}
 
 	// OFBモード
-	//DWORD RemainSize=dwSize%sizeof(DATKEY);
-	DWORD RemainSize=dwSize&0x00000007UL;
-	if (RemainSize) {
+	//RemainSize=dwSize%sizeof(DATKEY);
+	RemainSize=dwSize&0x00000007UL;
+	if (RemainSize > 0) {
 		BYTE Remain[sizeof(DATKEY)];
 
 		//EncryptBlock(CbcData, WorkKey);
@@ -211,9 +211,20 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 			RoundFuncPi4(CbcData, WorkKey.dwKey8);
 		}
 		CbcData.GetHexData(Remain);
+		/*
 		pEnd+=RemainSize;
 		for (BYTE *q=Remain ; p<pEnd ; q++) {
 			*p++ ^= *q;
+		}
+		*/
+		switch (RemainSize) {
+		case 7: p[6] ^= Remain[6];
+		case 6: p[5] ^= Remain[5];
+		case 5: p[4] ^= Remain[4];
+		case 4: p[3] ^= Remain[3];
+		case 3: p[2] ^= Remain[2];
+		case 2: p[1] ^= Remain[1];
+		case 1: p[0] ^= Remain[0];
 		}
 	}
 

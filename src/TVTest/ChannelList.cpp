@@ -712,8 +712,7 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 		return false;
 	static const char szComment[]=
 		"; " APP_NAME_A " チャンネル設定ファイル\r\n"
-		"; 名称,チューニング空間,チャンネル,リモコン番号(*),サービス(*),サービスID(*),ネットワークID(*),TSID(*)\r\n"
-		"; (*) オプション\r\n";
+		"; 名称,チューニング空間,チャンネル,リモコン番号,サービス,サービスID,ネットワークID,TSID\r\n";
 	::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL);
 	for (int i=0;i<NumSpaces();i++) {
 		const CChannelList *pChannelList=m_TuningSpaceList[i]->GetChannelList();

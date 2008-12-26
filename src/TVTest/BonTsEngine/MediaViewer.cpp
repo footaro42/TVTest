@@ -118,9 +118,6 @@ void CMediaViewer::Reset(void)
 	}
 	*/
 
-	if (m_pBonSrcFilterClass)
-		m_pBonSrcFilterClass->Reset();
-
 	Flush();
 	//Stop();
 
@@ -150,7 +147,7 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
 	// フィルタグラフに入力
-	if (m_pBonSrcFilterClass) {
+	if (m_pBonSrcFilterClass && pTsPacket->GetPID()!=0x1FFF) {
 		/*
 		if (m_hFlushThread) {
 			DWORD CurTime=::GetTickCount();
@@ -521,7 +518,7 @@ void CMediaViewer::CloseViewer(void)
 	}
 	*/
 
-	//Flush();
+	Flush();
 	Stop();
 
 	// COMインスタンスを開放する

@@ -259,10 +259,9 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				pThis->SetChannelList(hDlg,pThis->m_ScanSpace);
 				LPCTSTR pszName=pThis->m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(pThis->m_ScanSpace);
-				// ‚±‚ê‚Í—]Œv‚È‚¨¢˜b‚©‚à...
 				::CheckDlgButton(hDlg,IDC_CHANNELSCAN_SCANSERVICE,
-					pszName!=NULL && (::lstrcmpi(pszName,TEXT("110CS"))==0
-								   || ::lstrcmpi(pszName,TEXT("BS"))==0)?
+					pszName!=NULL && (::StrStrI(pszName,TEXT("110CS"))!=NULL
+								   || ::StrStrI(pszName,TEXT("BS"))!=NULL)?
 													BST_CHECKED:BST_UNCHECKED);
 				pThis->m_SortColumn=-1;
 			}

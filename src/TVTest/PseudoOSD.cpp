@@ -13,20 +13,24 @@ HINSTANCE CPseudoOSD::m_hinst=NULL;
 
 bool CPseudoOSD::Initialize(HINSTANCE hinst)
 {
-	WNDCLASS wc;
+	if (m_hinst==NULL) {
+		WNDCLASS wc;
 
-	m_hinst=hinst;
-	wc.style=0;
-	wc.lpfnWndProc=WndProc;
-	wc.cbClsExtra=0;
-	wc.cbWndExtra=0;
-	wc.hInstance=hinst;
-	wc.hIcon=NULL;
-	wc.hCursor=LoadCursor(NULL,IDC_ARROW);
-	wc.hbrBackground=NULL;
-	wc.lpszMenuName=NULL;
-	wc.lpszClassName=PSEUDO_OSD_WINDOW_CLASS;
-	return RegisterClass(&wc)!=0;
+		wc.style=0;
+		wc.lpfnWndProc=WndProc;
+		wc.cbClsExtra=0;
+		wc.cbWndExtra=0;
+		wc.hInstance=hinst;
+		wc.hIcon=NULL;
+		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
+		wc.hbrBackground=NULL;
+		wc.lpszMenuName=NULL;
+		wc.lpszClassName=PSEUDO_OSD_WINDOW_CLASS;
+		if (RegisterClass(&wc)==0)
+			return false;
+		m_hinst=hinst;
+	}
+	return true;
 }
 
 
@@ -40,6 +44,7 @@ CPseudoOSD::CPseudoOSD()
 	lf.lfHeight=32;
 	m_hFont=CreateFontIndirect(&lf);
 	m_pszText=NULL;
+	m_hbm=NULL;
 	m_HideTimerID=0;
 }
 
@@ -49,6 +54,8 @@ CPseudoOSD::~CPseudoOSD()
 	Destroy();
 	DeleteObject(m_hFont);
 	delete [] m_pszText;
+	if (m_hbm)
+		DeleteObject(m_hbm);
 }
 
 
@@ -91,18 +98,24 @@ bool CPseudoOSD::Hide()
 	if (m_hwnd==NULL)
 		return false;
 	ShowWindow(m_hwnd,SW_HIDE);
+	if (m_pszText!=NULL) {
+		delete [] m_pszText;
+		m_pszText=NULL;
+	}
+	if (m_hbm!=NULL) {
+		DeleteObject(m_hbm);
+		m_hbm=NULL;
+	}
 	return true;
 }
 
 
 bool CPseudoOSD::SetText(LPCTSTR pszText)
 {
-	delete [] m_pszText;
-	if (pszText!=NULL) {
-		m_pszText=new TCHAR[lstrlen(pszText)+1];
-		lstrcpy(m_pszText,pszText);
-	} else {
-		m_pszText=NULL;
+	ReplaceString(&m_pszText,pszText);
+	if (m_hbm!=NULL) {
+		DeleteObject(m_hbm);
+		m_hbm=NULL;
 	}
 	if (m_hwnd!=NULL)
 		InvalidateRect(m_hwnd,NULL,TRUE);
@@ -169,6 +182,25 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 }
 
 
+bool CPseudoOSD::SetImage(HBITMAP hbm,int Left,int Top)
+{
+	if (m_hbm)
+		DeleteObject(m_hbm);
+	m_hbm=hbm;
+	if (m_pszText!=NULL) {
+		delete [] m_pszText;
+		m_pszText=NULL;
+	}
+	if (m_hwnd!=NULL) {
+		BITMAP bm;
+
+		GetObject(m_hbm,sizeof(BITMAP),&bm);
+		MoveWindow(m_hwnd,Left,Top,bm.bmWidth,bm.bmHeight,TRUE);
+	}
+	return true;
+}
+
+
 CPseudoOSD *CPseudoOSD::GetThis(HWND hwnd)
 {
 	return reinterpret_cast<CPseudoOSD*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
@@ -194,28 +226,37 @@ LRESULT CALLBACK CPseudoOSD::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CPseudoOSD *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			HBRUSH hbr;
 
 			BeginPaint(hwnd,&ps);
-			hbr=CreateSolidBrush(pThis->m_crBackColor);
-			FillRect(ps.hdc,&ps.rcPaint,hbr);
-			DeleteObject(hbr);
 			if (pThis->m_pszText!=NULL) {
+				HBRUSH hbr;
 				HFONT hfontOld;
 				COLORREF crOldTextColor;
 				int OldBkMode;
 				RECT rc;
 
+				hbr=CreateSolidBrush(pThis->m_crBackColor);
+				FillRect(ps.hdc,&ps.rcPaint,hbr);
+				DeleteObject(hbr);
 				hfontOld=static_cast<HFONT>(SelectObject(ps.hdc,pThis->m_hFont));
 				crOldTextColor=::SetTextColor(ps.hdc,pThis->m_crTextColor);
 				OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
 				GetClientRect(hwnd,&rc);
 				DrawText(ps.hdc,pThis->m_pszText,-1,&rc,
-					DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX |
-					DT_NOCLIP);
+					DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_NOCLIP);
 				SetBkMode(ps.hdc,OldBkMode);
 				::SetTextColor(ps.hdc,crOldTextColor);
 				SelectObject(ps.hdc,hfontOld);
+			} else if (pThis->m_hbm!=NULL) {
+				HDC hdcMem=CreateCompatibleDC(ps.hdc);
+				HBITMAP hbmOld;
+				BITMAP bm;
+
+				hbmOld=static_cast<HBITMAP>(SelectObject(hdcMem,pThis->m_hbm));
+				GetObject(pThis->m_hbm,sizeof(BITMAP),&bm);
+				BitBlt(ps.hdc,0,0,bm.bmWidth,bm.bmHeight,hdcMem,0,0,SRCCOPY);
+				SelectObject(hdcMem,hbmOld);
+				DeleteDC(hdcMem);
 			}
 			EndPaint(hwnd,&ps);
 		}

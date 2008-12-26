@@ -56,10 +56,7 @@ void CCoreEngine::Close()
 	//m_DtvEngine.EnablePreview(false);
 	//m_DtvEngine.ReleaseSrcFilter();
 	m_DtvEngine.CloseEngine();
-	if (m_hDriverLib) {
-		::FreeLibrary(m_hDriverLib);
-		m_hDriverLib=NULL;
-	}
+	UnloadDriver();
 }
 
 
@@ -86,12 +83,20 @@ bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
 
 bool CCoreEngine::LoadDriver()
 {
-	if (m_hDriverLib) {
-		m_DtvEngine.ReleaseSrcFilter();
-		::FreeLibrary(m_hDriverLib);
-	}
+	UnloadDriver();
 	m_hDriverLib=::LoadLibrary(m_szDriverFileName);
 	return m_hDriverLib!=NULL;
+}
+
+
+bool CCoreEngine::UnloadDriver()
+{
+	if (m_hDriverLib) {
+		CloseDriver();
+		::FreeLibrary(m_hDriverLib);
+		m_hDriverLib=NULL;
+	}
+	return true;
 }
 
 
@@ -114,6 +119,18 @@ bool CCoreEngine::OpenDriver()
 			m_DriverType=DRIVER_UDP;
 	}
 	return true;
+}
+
+
+bool CCoreEngine::CloseDriver()
+{
+	return m_DtvEngine.ReleaseSrcFilter();
+}
+
+
+bool CCoreEngine::IsDriverOpen() const
+{
+	return m_DtvEngine.IsSrcFilterOpen();
 }
 
 

@@ -3,15 +3,18 @@
 
 
 #include "Options.h"
+#include "Panel.h"
 
 
 class CPanelOptions : public COptions {
+	CPanelFrame *m_pPanelFrame;
 	bool m_fSnapAtMainWindow;
 	int m_SnapMargin;
 	bool m_fAttachToMainWindow;
+	int m_Opacity;
 	static CPanelOptions *GetThis(HWND hDlg);
 public:
-	CPanelOptions();
+	CPanelOptions(CPanelFrame *pPanelFrame);
 	~CPanelOptions();
 	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
 	void SetSnapAtMainWindow(bool fSnap);

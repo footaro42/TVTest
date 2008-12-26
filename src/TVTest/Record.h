@@ -82,6 +82,7 @@ private:
 	bool m_fCurServiceOnly;
 	DWORD m_SaveStream;
 	bool m_fDescrambleCurServiceOnly;
+	SIZE_T m_BufferSize;
 	static CRecordManager *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static BOOL CALLBACK StopTimeDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -119,6 +120,7 @@ public:
 	DWORD GetSaveStream() const { return m_SaveStream; }
 	bool SetDescrambleCurServiceOnly(bool fOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
+	bool SetBufferSize(SIZE_T BufferSize);
 };
 
 class CRecordOptions : public COptions {
@@ -131,6 +133,7 @@ class CRecordOptions : public COptions {
 	bool m_fSaveSubtitle;
 	bool m_fSaveDataCarrousel;
 	bool m_fDescrambleCurServiceOnly;
+	unsigned int m_BufferSize;
 	static CRecordOptions *GetThis(HWND hDlg);
 public:
 	CRecordOptions();

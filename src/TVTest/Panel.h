@@ -73,6 +73,7 @@ class CPanelFrame : public CBasicWindow, public CPanelEventHandler {
 	CPanel m_Panel;
 	bool m_fFloating;
 	int m_DockingWidth;
+	int m_Opacity;
 	CDropHelper m_DropHelper;
 	enum DockingPlace {
 		DOCKING_NONE,
@@ -98,6 +99,8 @@ public:
 	int GetDockingWidth() const { return m_DockingWidth; }
 	bool SetDockingWidth(int Width);
 	bool SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText);
+	bool SetOpacity(int Opacity);
+	int GetOpacity() const { return m_Opacity; }
 	// CPanelEventHandler
 	bool OnFloating();
 	bool OnClose();

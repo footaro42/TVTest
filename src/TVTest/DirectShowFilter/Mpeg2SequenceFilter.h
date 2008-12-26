@@ -105,4 +105,6 @@ protected:
 	CMpeg2Parser m_Mpeg2Parser;
 
 	CMpeg2VideoInfo m_VideoInfo;
+
+	CCritSec m_ParserLock;
 };

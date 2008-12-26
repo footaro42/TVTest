@@ -49,8 +49,11 @@ public:
 	bool SetDriverFileName(LPCTSTR pszFileName);
 	LPCTSTR GetDriverFileName() const { return m_szDriverFileName; }
 	bool LoadDriver();
+	bool UnloadDriver();
 	bool IsDriverLoaded() const { return m_hDriverLib!=NULL; }
 	bool OpenDriver();
+	bool CloseDriver();
+	bool IsDriverOpen() const;
 	bool OpenFile(LPCTSTR pszFileName);
 	bool IsFileMode() const { return m_fFileMode; }
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,

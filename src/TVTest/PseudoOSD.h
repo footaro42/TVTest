@@ -9,6 +9,7 @@ class CPseudoOSD {
 	COLORREF m_crTextColor;
 	HFONT m_hFont;
 	LPTSTR m_pszText;
+	HBITMAP m_hbm;
 	unsigned int m_HideTimerID;
 	static CPseudoOSD *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,
@@ -26,6 +27,7 @@ public:
 	void SetTextColor(COLORREF crText);
 	bool SetTextHeight(int Height);
 	bool CalcTextSize(SIZE *pSize);
+	bool SetImage(HBITMAP hbm,int Left,int Top);
 };
 
 

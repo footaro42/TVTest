@@ -102,6 +102,7 @@ bool CArgsParser::GetValue(DWORD *pValue) const
 
 CCommandLineParser::CCommandLineParser()
 {
+	m_szIniFileName[0]='\0';
 	m_szDriverName[0]='\0';
 	m_fNoDescramble=false;
 	m_fUseNetworkRemocon=false;
@@ -139,6 +140,7 @@ CCommandLineParser::CCommandLineParser()
 	/chspace		チューニング空間 (e.g. /chspace 1)
 	/d				ドライバの指定 (e.g. /d BonDriver.dll)
 	/f				フルスクリーン
+	/ini			INIファイル名
 	/init			初期設定ダイアログを表示する
 	/log			終了時にログを保存する
 	/min			最小化状態で起動
@@ -183,6 +185,9 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 			} else if (Args.IsOption(TEXT("fullscreen"))
 					|| Args.IsOption(TEXT("f"))) {
 				m_fFullscreen=true;
+			} else if (Args.IsOption(TEXT("ini"))) {
+				if (Args.Next())
+					Args.GetText(m_szIniFileName,MAX_PATH);
 			} else if (Args.IsOption(TEXT("init"))) {
 				m_fInitialSettings=true;
 			} else if (Args.IsOption(TEXT("log"))) {

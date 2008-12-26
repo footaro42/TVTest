@@ -59,7 +59,8 @@ class CMainWindow : public CBasicWindow {
 	void ShowChannelOSD();
 	bool SetPreview(bool fPreview);
 	void SetWindowVisible();
-	void ReleaseDriver();
+	void ShowFloatingWindows(bool fShow);
+	void CloseTuner();
 	static CMainWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
