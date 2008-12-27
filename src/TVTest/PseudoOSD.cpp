@@ -81,7 +81,8 @@ bool CPseudoOSD::Show(DWORD Time)
 	if (m_hwnd==NULL)
 		return false;
 	ShowWindow(m_hwnd,SW_SHOW);
-	SetWindowPos(m_hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE);
+	//SetWindowPos(m_hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE);
+	BringWindowToTop(m_hwnd);
 	UpdateWindow(m_hwnd);
 	if (Time>0) {
 		m_HideTimerID=SetTimer(m_hwnd,1,Time,NULL);
@@ -127,7 +128,7 @@ bool CPseudoOSD::SetPosition(int Left,int Top,int Width,int Height)
 {
 	if (m_hwnd==NULL)
 		return false;
-	MoveWindow(m_hwnd,Left,Top,Width,Height,TRUE);
+	SetWindowPos(m_hwnd,HWND_TOP,Left,Top,Width,Height,0);
 	return true;
 }
 

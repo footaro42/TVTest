@@ -309,7 +309,12 @@ bool CAppMain::Initialize()
 		::lstrcpy(m_szIniFileName,szModuleFileName);
 		::PathRenameExtension(m_szIniFileName,TEXT(".ini"));
 	} else {
-		::lstrcpy(m_szIniFileName,CmdLineParser.m_szIniFileName);
+		if (::PathIsFileSpec(CmdLineParser.m_szIniFileName)) {
+			::lstrcpy(m_szIniFileName,szModuleFileName);
+			::lstrcpy(::PathFindFileName(m_szIniFileName),CmdLineParser.m_szIniFileName);
+		} else {
+			::lstrcpy(m_szIniFileName,CmdLineParser.m_szIniFileName);
+		}
 	}
 	::lstrcpy(m_szDefaultChannelFileName,szModuleFileName);
 	::PathRenameExtension(m_szDefaultChannelFileName,TEXT(".ch2"));
@@ -1817,7 +1822,7 @@ public:
 	void OnRButtonDown(int x,int y);
 };
 
-CAudioChannelStatusItem::CAudioChannelStatusItem() : CStatusItem(STATUS_ITEM_AUDIOCHANNEL,64)
+CAudioChannelStatusItem::CAudioChannelStatusItem() : CStatusItem(STATUS_ITEM_AUDIOCHANNEL,56)
 {
 }
 
@@ -5586,9 +5591,9 @@ int CMainWindow::CalcZoomRate()
 
 bool CMainWindow::CalcZoomRate(int *pNum,int *pDenom)
 {
-	bool fOK;
+	bool fOK=false;
 	int Width,Height;
-	int Num,Denom;
+	int Num=0,Denom=1;
 
 	if (CoreEngine.GetVideoViewSize(&Width,&Height) && Width>0 && Height>0) {
 		/*
@@ -5604,10 +5609,6 @@ bool CMainWindow::CalcZoomRate(int *pNum,int *pDenom)
 			Denom=Height;
 		}
 		fOK=true;
-	} else {
-		Num=0;
-		Denom=1;
-		fOK=false;
 	}
 	if (pNum)
 		*pNum=Num;
@@ -7063,10 +7064,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	CoInitializeEx(NULL,COINIT_APARTMENTTHREADED | COINIT_SPEED_OVER_MEMORY);
 
-	AppMain.Initialize();
-
 	if (pszCmdLine[0]!='\0')
 		CmdLineParser.Parse(pszCmdLine);
+
+	AppMain.Initialize();
 
 	CAppMutex Mutex(fKeepSingleTask || CmdLineParser.m_fSchedule);
 

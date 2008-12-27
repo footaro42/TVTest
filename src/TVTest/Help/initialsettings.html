@@ -28,11 +28,19 @@
 
 <h3>デコーダ</h3>
 <p class="descript">MPEG-2 デコーダを選択します。<br>
-リストにあっても実際には使用できないものもあります。</p>
+リストにあっても実際には使用できないものもあります。<br>
+以下のデコーダは動作が確認されています。<br>
+<table class="info">
+<tr><th>名前</th><th>特記事項</th></tr>
+<tr><td>MPC Decoder Filter</td><td>レンダラに EVR を使用すると問題あり</td></tr>
+<tr><td>ATI MPEG Decoder</td><td>インターレス解除漏れが気になる場合、CCC で設定する</td></tr>
+<tr><td>CyberLink Video/SP Decoder</td><td>NHK 教育などでアスペクト比がおかしくなる問題あり</td></tr>
+</table>
+</p>
 
 <h3>レンダラ</h3>
 <p class="descript">ビデオレンダラを選択します。<br>
-キャプチャを(安定して)行いたい場合は、VMR9 Renderless を選択してください。</p>
+よく分からない場合はデフォルト、キャプチャを(安定して)行いたい場合は、VMR9 Renderless を選択してください。</p>
 
 <h3>カードリーダ</h3>
 <p class="descript">スクランブル解除に利用するカードリーダを選択します。<br>
