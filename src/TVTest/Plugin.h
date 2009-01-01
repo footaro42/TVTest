@@ -6,10 +6,12 @@
 #include "TVTestPlugin.h"
 #include "PointerArray.h"
 #include "Options.h"
+#include "MediaData.h"
+#include "TsUtilClass.h"
 
 
 class CPlugin {
-	static DWORD m_FinalizeTimeout;
+	//static DWORD m_FinalizeTimeout;
 	HMODULE m_hLib;
 	LPTSTR m_pszFileName;
 	TVTest::PluginParam m_PluginParam;
@@ -19,6 +21,7 @@ class CPlugin {
 	LPWSTR m_pszCopyright;
 	LPWSTR m_pszDescription;
 	bool m_fEnabled;
+	int m_Command;
 	TVTest::EventCallbackFunc m_pEventCallback;
 	void *m_pEventCallbackClientData;
 	class CMediaGrabberInfo {
@@ -51,8 +54,12 @@ public:
 	LRESULT SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
 	bool Settings(HWND hwndOwner);
 	bool HasSettings() const { return (m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)!=0; }
+	int GetCommand() const { return m_Command; }
+	bool SetCommand(int Command);
+	/*
 	static bool SetFinalizeTimeout(DWORD Timeout);
 	static DWORD GetFinalizeTimeout() { return m_FinalizeTimeout; }
+	*/
 };
 
 class CPluginList {
@@ -70,6 +77,7 @@ public:
 	const CPlugin *GetPlugin(int Index) const;
 	bool EnablePlugins(bool fEnable=true);
 	int FindPlugin(const CPlugin *pPlugin) const;
+	int FindPluginByCommand(int Command) const;
 	bool DeletePlugin(int Index);
 	bool SetMenu(HMENU hmenu) const;
 	bool SendChannelChangeEvent();

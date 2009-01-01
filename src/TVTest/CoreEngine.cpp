@@ -31,6 +31,7 @@ CCoreEngine::CCoreEngine()
 	m_Volume=100;
 	m_VolumeNormalizeLevel=100;
 	m_StereoMode=0;
+	m_EventID=0;
 	m_ErrorPacketCount=0;
 	m_ContinuityErrorPacketCount=0;
 	m_ScramblePacketCount=0;
@@ -104,7 +105,8 @@ bool CCoreEngine::OpenDriver()
 {
 	if (m_hDriverLib==NULL)
 		return false;
-	m_DtvEngine.ReleaseSrcFilter();
+	if (m_DtvEngine.IsSrcFilterOpen())
+		return false;
 	m_fFileMode=false;
 	if (!m_DtvEngine.OpenSrcFilter_BonDriver(m_hDriverLib)) {
 		SetError(m_DtvEngine.GetLastErrorException());
@@ -342,6 +344,12 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 		m_AudioComponentType=AudioComponentType;
 		Updated|=STATUS_AUDIOCOMPONENTTYPE;
 		TRACE(TEXT("AudioComponentType = %x\n"),AudioComponentType);
+	}
+	WORD EventID=m_DtvEngine.GetEventID();
+	if (EventID!=m_EventID) {
+		m_EventID=EventID;
+		Updated|=STATUS_EVENTID;
+		TRACE(TEXT("EventID = %d\n"),EventID);
 	}
 	return Updated;
 }

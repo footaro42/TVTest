@@ -80,7 +80,7 @@ const bool CPesPacket::ParseHeader(void)
 void CPesPacket::Reset(void)
 {
 	// データをクリアする
-	ClearSize();	
+	ClearSize();
 	::ZeroMemory(&m_Header, sizeof(m_Header));
 }
 
@@ -175,9 +175,9 @@ const BYTE CPesPacket::GetHeaderDataLength(void) const
 const LONGLONG CPesPacket::GetPtsCount(void)const
 {
 	// PTS(Presentation Time Stamp)を返す
-	if(m_Header.byPtsDtsFlags){
+	if (m_Header.byPtsDtsFlags) {
 		return HexToTimeStamp(&m_pData[9]);
-		}
+	}
 
 	// エラー(PTSがない)
 	return -1LL;
@@ -537,12 +537,13 @@ const bool CAdtsParser::StorePacket(const CPesPacket *pPacket)
 
 const bool CAdtsParser::StoreEs(const BYTE *pData, const DWORD dwSize)
 {
+	if (pData == NULL || dwSize == 0)
+		return false;
+
 	bool bTrigger = false;
 	DWORD dwPos = 0UL;
 
-	if(!dwSize || !dwSize)return bTrigger;
-
-	while (dwPos < dwSize) {
+	do {
 		if (!m_bIsStoring) {
 			// ヘッダを検索する
 			m_bIsStoring = SyncFrame(pData[dwPos++]);
@@ -569,10 +570,10 @@ const bool CAdtsParser::StoreEs(const BYTE *pData, const DWORD dwSize)
 			} else {
 				// ストア未完了、次のペイロードを待つ
 				m_AdtsFrame.AddData(&pData[dwPos], dwDataRemain);
-				dwPos += dwDataRemain;
+				break;
 			}
 		}
-	}
+	} while (dwPos < dwSize);
 
 	return bTrigger;
 }
@@ -598,40 +599,44 @@ void CAdtsParser::OnAdtsFrame(const CAdtsFrame *pFrame) const
 
 inline const bool CAdtsParser::SyncFrame(const BYTE byData)
 {
-	switch(m_AdtsFrame.GetSize()){
-		case 0UL :
-			// syncword(8bit)
-			if(byData == 0xFFU)m_AdtsFrame.AddByte(byData);
-			break;
-
-		case 1UL :
-			// syncword(4bit), ID, layer, protection_absent	※CRC付きのフレームのみ対応
-			if(byData == 0xF8U)m_AdtsFrame.AddByte(byData);
-			else m_AdtsFrame.ClearSize();
-			break;
-
-		case 2UL :
-		case 3UL :
-		case 4UL :
-		case 5UL :
-			// adts_fixed_header() - adts_variable_header()
+	switch (m_AdtsFrame.GetSize()) {
+	case 0UL :
+		// syncword(8bit)
+		if (byData == 0xFFU)
 			m_AdtsFrame.AddByte(byData);
-			break;
+		break;
 
-		case 6UL :
-			// ヘッダが全てそろった
+	case 1UL :
+		// syncword(4bit), ID, layer, protection_absent	※CRC付きのフレームのみ対応
+		if (byData == 0xF8U)
 			m_AdtsFrame.AddByte(byData);
-
-			// ヘッダを解析する
-			if(m_AdtsFrame.ParseHeader())return true;
-			else m_AdtsFrame.ClearSize();
-			break;
-
-		default:
-			// 例外
+		else
 			m_AdtsFrame.ClearSize();
-			break;
-		}
+		break;
+
+	case 2UL :
+	case 3UL :
+	case 4UL :
+	case 5UL :
+		// adts_fixed_header() - adts_variable_header()
+		m_AdtsFrame.AddByte(byData);
+		break;
+
+	case 6UL :
+		// ヘッダが全てそろった
+		m_AdtsFrame.AddByte(byData);
+
+		// ヘッダを解析する
+		if (m_AdtsFrame.ParseHeader())
+			return true;
+		m_AdtsFrame.ClearSize();
+		break;
+
+	default:
+		// 例外
+		m_AdtsFrame.ClearSize();
+		break;
+	}
 
 	return false;
 }
@@ -685,67 +690,78 @@ const bool CMpeg2Sequence::ParseHeader(void)
 	m_Header.bConstrainedParamFlag		= (m_pData[11] & 0x04U)? true : false;										// +11 bit2
 	m_Header.bLoadIntraQuantiserMatrix	= (m_pData[11] & 0x02U)? true : false;										// +11 bit1
 	m_Header.bLoadNonIntraQuantiserMatrix=(m_pData[11] & 0x01U)? true : false;										// +11 bit0
-	if(m_Header.bLoadIntraQuantiserMatrix){
-		dwHeaderSize+=64;
-		if(m_dwDataSize < dwHeaderSize)return false;
-
-		}
-	if(m_Header.bLoadNonIntraQuantiserMatrix){
-		dwHeaderSize+=64;
-		if(m_dwDataSize < dwHeaderSize)return false;
-
-		}
-
-	// 拡張ヘッダ検索する
-	DWORD dwMaxSearchSize = 1024;
-	for(DWORD i=dwHeaderSize;(unsigned)i<min(m_dwDataSize-3,dwMaxSearchSize);i++){
-		if(m_pData[i]==0x00 && m_pData[i+1]==0x00 && m_pData[i+2]==0x01 && m_pData[i+3]==0xB5) {
-			// 拡張ヘッダ発見
-			int iExtPos=i+4;
-			int iCode = (m_pData[iExtPos+0] & 0xF0U) >> 4;
-			int iPosTmp;
-			switch(iCode) {
-			case 1:
-				// シーケンス拡張(40bit)
-				m_Header.Extention.Sequence.bHave = true;
-				m_Header.Extention.Sequence.byProfileAndLevel = (m_pData[iExtPos+0] & 0x0FU) << 4 | (m_pData[iExtPos+1] & 0xF0U)>>4;
-				m_Header.Extention.Sequence.bProgressive = m_pData[iExtPos+1] & 0x08 ? true : false;
-				m_Header.Extention.Sequence.byChromaFormat = (m_pData[iExtPos+1] & 0x06U)>>1;
-//				m_Header.wHorizontalSize += ((m_pData[iExtPos+1] & 0x01U) | (m_pData[iExtPos+2] & 0x80U) >> 7) << 12
-//				m_Header.wVerticalSize   += ((m_pData[iExtPos+2] & 0x60U) >> 5) << 12
-//				m_Header.dwBitRate += (((DWORD)m_pData[iExtPos+2] & 0x1FU) << 7 | (m_pData[iExtPos+3] & 0xFEU) >> 1);
-				// Marker Bit
-				if(!m_pData[iExtPos+3]&0x01U) return false;
-				m_Header.Extention.Sequence.bLowDelay = m_pData[iExtPos+4] & 0x80 ? true : false;
-				m_Header.Extention.Sequence.byFrameRateExtN = (m_pData[iExtPos+4] & 0x60U)>>5;
-				m_Header.Extention.Sequence.byFrameRateExtD = (m_pData[iExtPos+4] & 0x18U)>>3;
-				i+=5;
-				break;
-			case 2:
-				// ディスプレイ拡張(32bit(+24bit))
-				m_Header.Extention.Display.bHave = true;
-				m_Header.Extention.Display.byVideoFormat = (m_pData[iExtPos+0] & 0x0EU) >> 1;
-				m_Header.Extention.Display.bColorDescrption = m_pData[iExtPos+0] & 0x01U;
-				if(m_Header.Extention.Display.bColorDescrption){
-					m_Header.Extention.Display.Color.byColorPrimaries = m_pData[iExtPos+1];
-					m_Header.Extention.Display.Color.byTransferCharacteristics = m_pData[iExtPos+2];
-					m_Header.Extention.Display.Color.byMatrixCoefficients = m_pData[iExtPos+3];
-					iPosTmp = 3;
-					} else {
-					iPosTmp = 0;
-					}
-				m_Header.Extention.Display.wDisplayHorizontalSize = ((WORD)m_pData[iExtPos+iPosTmp+1] << 6) | ((WORD)(m_pData[iExtPos+iPosTmp+2] & 0xFCU) >> 2);
-				m_Header.Extention.Display.wDisplayVerticalSize   = ((WORD)(m_pData[iExtPos+iPosTmp+2] & 0x01U) << 13) | (WORD)m_pData[iExtPos+iPosTmp+3] << 5 | ((WORD)(m_pData[iExtPos+iPosTmp+4] & 0xF1U) >> 3);
-				break;
-				}
-			}
-		}
+	if (m_Header.bLoadIntraQuantiserMatrix) {
+		dwHeaderSize += 64;
+		if (m_dwDataSize < dwHeaderSize)
+			return false;
+	}
+	if (m_Header.bLoadNonIntraQuantiserMatrix) {
+		dwHeaderSize += 64;
+		if (m_dwDataSize < dwHeaderSize)
+			return false;
+	}
 
 	// フォーマット適合性チェック
 	if(!m_Header.byAspectRatioInfo || m_Header.byAspectRatioInfo > 4U)return false;		// アスペクト比が異常
 	else if(!m_Header.byFrameRateCode || m_Header.byFrameRateCode > 8U)return false;	// フレームレートが異常
 	else if(!m_Header.bMarkerBit)return false;											// マーカービットが異常
 	else if(m_Header.bConstrainedParamFlag)return false;								// Constrained Parameters Flag が異常
+
+	// 拡張ヘッダ検索する
+	for (DWORD i = dwHeaderSize; i < min(m_dwDataSize - 5, 1024UL); i++) {
+		if (m_pData[i] == 0x00 && m_pData[i + 1] == 0x00 && m_pData[i + 2] == 0x01 && m_pData[i + 3] == 0xB5) {
+			// 拡張ヘッダ発見
+			DWORD ExtPos = i + 4;
+
+			switch (m_pData[ExtPos] >> 4) {
+			case 1:
+				// シーケンス拡張(48bits)
+				if (ExtPos + 6 > m_dwDataSize)
+					break;
+				m_Header.Extention.Sequence.byProfileAndLevel = (m_pData[ExtPos+0] & 0x0FU) << 4 | (m_pData[ExtPos+1] >> 4);
+				m_Header.Extention.Sequence.bProgressive = (m_pData[ExtPos+1] & 0x08) != 0;
+				m_Header.Extention.Sequence.byChromaFormat = (m_pData[ExtPos+1] & 0x06U) >> 1;
+				/*
+				m_Header.wHorizontalSize |= (((m_pData[ExtPos+1] & 0x01U) << 1) | ((m_pData[ExtPos+2] & 0x80U) >> 7)) << 12;	// horizontal size extension
+				m_Header.wVerticalSize   |= ((m_pData[ExtPos+2] & 0x60U) >> 5) << 12;	// vertical size extension
+				m_Header.dwBitRate |= (((DWORD)m_pData[ExtPos+2] & 0x1FU) << 7) | (m_pData[ExtPos+3] >> 1) << 18;	// bit rate extension
+				*/
+				if ((m_pData[ExtPos+3] & 0x01U) == 0)	// marker bit
+					break;
+				//m_Header.wVbvBufferSize |= m_pData[ExtPos+4] << 10;	// vbv buffer size extension
+				m_Header.Extention.Sequence.bLowDelay = (m_pData[ExtPos+5] & 0x80) != 0;
+				m_Header.Extention.Sequence.byFrameRateExtN = (m_pData[ExtPos+5] & 0x60U) >> 5;
+				m_Header.Extention.Sequence.byFrameRateExtD = (m_pData[ExtPos+5] & 0x18U) >> 3;
+				m_Header.Extention.Sequence.bHave = true;
+				i = ExtPos + 5;
+				break;
+
+			case 2:
+				// ディスプレイ拡張(40bits(+24bits))
+				if (ExtPos + 5 > m_dwDataSize)
+					break;
+				m_Header.Extention.Display.byVideoFormat = (m_pData[ExtPos+0] & 0x0EU) >> 1;
+				m_Header.Extention.Display.bColorDescrption = m_pData[ExtPos+0] & 0x01U;
+				if (m_Header.Extention.Display.bColorDescrption) {
+					if (ExtPos + 5 + 3 > m_dwDataSize)
+						break;
+					m_Header.Extention.Display.Color.byColorPrimaries = m_pData[ExtPos+1];
+					m_Header.Extention.Display.Color.byTransferCharacteristics = m_pData[ExtPos+2];
+					m_Header.Extention.Display.Color.byMatrixCoefficients = m_pData[ExtPos+3];
+					ExtPos += 3;
+				}
+				if ((m_pData[ExtPos+2] & 0x02) == 0)	// marker bit
+					break;
+				if ((m_pData[ExtPos+4] & 0x07) != 0)	// marker bit
+					break;
+				m_Header.Extention.Display.wDisplayHorizontalSize = ((WORD)m_pData[ExtPos+1] << 6) | ((WORD)(m_pData[ExtPos+2] & 0xFCU) >> 2);
+				m_Header.Extention.Display.wDisplayVerticalSize   = ((WORD)(m_pData[ExtPos+2] & 0x01U) << 13) | ((WORD)m_pData[ExtPos+3] << 5) | ((WORD)(m_pData[ExtPos+4] & 0xF1U) >> 3);
+				m_Header.Extention.Display.bHave = true;
+				i = ExtPos + 4;
+				break;
+			}
+		}
+	}
 
 	return true;
 }

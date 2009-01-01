@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "BcasCard.h"
+#include "StdUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -58,7 +59,8 @@ const bool CBcasCard::OpenCard(CCardReader::ReaderType ReaderType, LPCTSTR lpszR
 		return false;
 	}
 	if (!m_pCardReader->Open(lpszReader)) {
-		CloseCard();
+		delete m_pCardReader;
+		m_pCardReader=NULL;
 		m_dwLastError = BCEC_CARDOPENERROR;
 		return false;
 	}
@@ -125,14 +127,13 @@ const bool CBcasCard::InitialSetting(void)
 	}
 	*/
 
-	static const BYTE InitSettingCmd[] = {0x90U, 0x30U, 0x00U, 0x00U, 0x00U};
-
 	// バッファ準備
 	DWORD dwRecvSize;
 	BYTE RecvData[1024];
-	::ZeroMemory(RecvData, sizeof(RecvData));
 
 	// コマンド送信
+	static const BYTE InitSettingCmd[] = {0x90U, 0x30U, 0x00U, 0x00U, 0x00U};
+	::ZeroMemory(RecvData, sizeof(RecvData));
 	dwRecvSize=sizeof(RecvData);
 	if (!m_pCardReader->Transmit(InitSettingCmd, sizeof(InitSettingCmd), RecvData, &dwRecvSize)) {
 		m_dwLastError = BCEC_TRANSMITERROR;
@@ -148,6 +149,16 @@ const bool CBcasCard::InitialSetting(void)
 	::CopyMemory(m_BcasCardInfo.BcasCardID, &RecvData[8], 6UL);		// +8	Card ID
 	::CopyMemory(m_BcasCardInfo.SystemKey, &RecvData[16], 32UL);	// +16	Descrambling system key
 	::CopyMemory(m_BcasCardInfo.InitialCbc, &RecvData[48], 8UL);	// +48	Descrambler CBC initial value
+
+	const static BYTE CardIDInfoCmd[] = {0x90, 0x32, 0x00, 0x00, 0x00};
+	::ZeroMemory(RecvData, sizeof(RecvData));
+	dwRecvSize=sizeof(RecvData);
+	if (m_pCardReader->Transmit(CardIDInfoCmd, sizeof(CardIDInfoCmd), RecvData, &dwRecvSize)
+			&& dwRecvSize >= 17) {
+		m_BcasCardInfo.CardManufacturerID=RecvData[7];
+		m_BcasCardInfo.CardVersion=RecvData[8];
+		m_BcasCardInfo.CheckCode=(RecvData[15]<<8)|RecvData[16];
+	}
 
 	// ECMステータス初期化
 	::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
@@ -270,4 +281,41 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 
 	m_dwLastError = BCEC_ECMREFUSED;
 	return NULL;
+}
+
+
+const int CBcasCard::FormatCardID(LPTSTR pszText, int MaxLength) const
+{
+	if (pszText == NULL || MaxLength <= 0)
+		return 0;
+
+	ULONGLONG ID;
+
+	ID = ((((ULONGLONG)(m_BcasCardInfo.BcasCardID[0] & 0x1F) << 40) |
+		 ((ULONGLONG)m_BcasCardInfo.BcasCardID[1] << 32) |
+		 ((ULONGLONG)m_BcasCardInfo.BcasCardID[2] << 24) |
+		 ((ULONGLONG)m_BcasCardInfo.BcasCardID[3] << 16) |
+		 ((ULONGLONG)m_BcasCardInfo.BcasCardID[4] << 8) |
+		 (ULONGLONG)m_BcasCardInfo.BcasCardID[5]) * 100000ULL) +
+		 m_BcasCardInfo.CheckCode;
+	return StdUtil::snprintf(pszText, MaxLength,
+			TEXT("%d%03lu %04lu %04lu %04lu %04lu"),
+			m_BcasCardInfo.BcasCardID[0] >> 5,
+			(DWORD)(ID / (10000ULL * 10000ULL * 10000ULL * 10000ULL)) % 10000,
+			(DWORD)(ID / (10000ULL * 10000ULL * 10000ULL)) % 10000,
+			(DWORD)(ID / (10000ULL * 10000ULL) % 10000ULL),
+			(DWORD)(ID / 10000ULL % 10000ULL),
+			(DWORD)(ID % 10000ULL));
+}
+
+
+const char CBcasCard::GetCardManufacturerID() const
+{
+	return m_BcasCardInfo.CardManufacturerID;
+}
+
+
+const BYTE CBcasCard::GetCardVersion() const
+{
+	return m_BcasCardInfo.CardVersion;
 }

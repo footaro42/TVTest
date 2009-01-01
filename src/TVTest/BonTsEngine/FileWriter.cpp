@@ -17,7 +17,7 @@ static char THIS_FILE[]=__FILE__;
 
 CFileWriter::CFileWriter(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 1UL, 0UL)
-	, m_BufferSize(DEFBUFFSIZE)
+	, m_BufferSize(CNCachedFile::DEFBUFFSIZE)
 	, m_llWriteSize(0U)
 	, m_llWriteCount(0U)
 	, m_bWriteError(false)

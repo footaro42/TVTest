@@ -20,7 +20,7 @@ private:
 public:
 	CCardReader();
 	virtual ~CCardReader();
-	virtual bool Open(LPCTSTR pszReader)=0;
+	virtual bool Open(LPCTSTR pszReader=NULL)=0;
 	virtual void Close()=0;
 	virtual LPCTSTR GetReaderName() const=0;
 	virtual int NumReaders() const { return 1; }

@@ -316,3 +316,9 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	}
 	return FALSE;
 }
+
+
+void CLogger::OnTrace(LPCTSTR pszOutput)
+{
+	AddLog(pszOutput);
+}

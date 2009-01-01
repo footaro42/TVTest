@@ -12,8 +12,8 @@
 class CAribString
 {
 public:
-	static const DWORD AribToString(TCHAR *lpszDst, const BYTE *pSrcData, const DWORD dwSrcLen);
-	
+	static const DWORD AribToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
+
 private:
 	enum CODE_SET
 	{
@@ -39,23 +39,23 @@ private:
 	CODE_SET *m_pLockingGL;
 	CODE_SET *m_pLockingGR;
 	CODE_SET *m_pSingleGL;
-	
+
 	BYTE m_byEscSeqCount;
 	BYTE m_byEscSeqIndex;
 	bool m_bIsEscSeqDrcs;
-	
-	const DWORD AribToStringInternal(TCHAR *lpszDst, const BYTE *pSrcData, const DWORD dwSrcLen);
-	inline const DWORD ProcessCharCode(TCHAR *lpszDst, const WORD wCode, const CODE_SET CodeSet);
 
-	inline const DWORD PutKanjiChar(TCHAR *lpszDst, const WORD wCode);
-	inline const DWORD PutAlphanumericChar(TCHAR *lpszDst, const WORD wCode);
-	inline const DWORD PutHiraganaChar(TCHAR *lpszDst, const WORD wCode);
-	inline const DWORD PutKatakanaChar(TCHAR *lpszDst, const WORD wCode);
-	inline const DWORD PutJisKatakanaChar(TCHAR *lpszDst, const WORD wCode);
-	inline const DWORD PutSymbolsChar(TCHAR *lpszDst, const WORD wCode);
+	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
+	inline const int ProcessCharCode(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode, const CODE_SET CodeSet);
+
+	inline const int PutKanjiChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutAlphanumericChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutHiraganaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutJisKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutSymbolsChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 
 	inline void ProcessEscapeSeq(const BYTE byCode);
-	
+
 	inline void LockingShiftGL(const BYTE byIndexG);
 	inline void LockingShiftGR(const BYTE byIndexG);
 	inline void SingleShiftGL(const BYTE byIndexG);

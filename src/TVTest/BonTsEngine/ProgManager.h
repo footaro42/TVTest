@@ -63,12 +63,20 @@ public:
 	BYTE GetRemoteControlKeyID(void) const;
 	DWORD GetTSName(LPTSTR pszName,int MaxLength);
 
+	const WORD GetEventID(const WORD ServiceIndex, const bool fNext = false);
+	const bool GetStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool fNext = false);
+	const DWORD GetDuration(const WORD ServiceIndex, const bool fNext = false);
+	const int GetEventName(const WORD ServiceIndex, LPTSTR pszName, int MaxLength, const bool fNext = false);
+	const int GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool fNext = false);
+
 protected:
 	class CProgDatabase;
 
-	virtual void OnServiceListUpdated(void);
-	virtual void OnServiceInfoUpdated(void);
-	virtual void OnPcrTimestampUpdated(void);
+	void OnServiceListUpdated(void);
+	void OnServiceInfoUpdated(void);
+	void OnPcrTimestampUpdated(void);
+
+	const CDescBlock *GetHEitItemDesc(const WORD ServiceIndex, const bool fNext = false) const;
 
 	struct TAG_SERVICEINFO
 	{

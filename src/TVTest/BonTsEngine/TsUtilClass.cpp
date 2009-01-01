@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "TsUtilClass.h"
+#include "StdUtil.h"
 
 
 //////////////////////////////////////////////////////////////////////
@@ -126,6 +127,26 @@ bool CTryBlockLock::TryLock(DWORD TimeOut)
 	if (m_pCriticalLock->TryLock(TimeOut))
 		m_bLocked=true;
 	return m_bLocked;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// トレースクラス
+/////////////////////////////////////////////////////////////////////////////
+
+void CTracer::Trace(LPCTSTR pszOutput, ...)
+{
+	va_list Args;
+
+	va_start(Args,pszOutput);
+	TraceV(pszOutput,Args);
+	va_end(Args);
+}
+
+void CTracer::TraceV(LPCTSTR pszOutput,va_list Args)
+{
+	StdUtil::vsnprintf(m_szBuffer,sizeof(m_szBuffer)/sizeof(TCHAR),pszOutput,Args);
+	OnTrace(m_szBuffer);
 }
 
 

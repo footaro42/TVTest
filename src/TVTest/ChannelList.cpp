@@ -49,6 +49,13 @@ CChannelInfo &CChannelInfo::operator=(const CChannelInfo &Info)
 }
 
 
+bool CChannelInfo::SetSpace(int Space)
+{
+	m_Space=Space;
+	return true;
+}
+
+
 bool CChannelInfo::SetChannel(int Channel)
 {
 	m_Channel=Channel;

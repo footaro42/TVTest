@@ -31,20 +31,21 @@ static const bool abCharSizeTable[] =
 	true	// CODE_ADDITIONAL_SYMBOLS		Additional symbols
 };
 
-const DWORD CAribString::AribToString(TCHAR *lpszDst, const BYTE *pSrcData, const DWORD dwSrcLen)
+const DWORD CAribString::AribToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen)
 {
 	// ARIB STD-B24 Part1 → Shift-JIS / Unicode変換
 	CAribString WorkObject;
-	
-	return WorkObject.AribToStringInternal(lpszDst, pSrcData, dwSrcLen);
+
+	return WorkObject.AribToStringInternal(lpszDst, dwDstLen, pSrcData, dwSrcLen);
 }
 
-const DWORD CAribString::AribToStringInternal(TCHAR *lpszDst, const BYTE *pSrcData, const DWORD dwSrcLen)
+const DWORD CAribString::AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen)
 {
-	if(!pSrcData || !dwSrcLen || !lpszDst)return 0UL;
+	if (pSrcData == NULL || lpszDst == NULL || dwDstLen == 0)
+		return 0UL;
 
-	DWORD dwSrcPos = 0UL;
-	DWORD dwDstLen = 0UL;
+	DWORD dwSrcPos = 0UL, dwDstPos = 0UL;
+	DWORD Length;
 
 	// 状態初期設定
 	m_byEscSeqCount = 0U;
@@ -58,129 +59,137 @@ const DWORD CAribString::AribToStringInternal(TCHAR *lpszDst, const BYTE *pSrcDa
 	m_pLockingGL = &m_CodeG[0];
 	m_pLockingGR = &m_CodeG[2];
 
-
-	while(dwSrcPos < dwSrcLen){
-		if(!m_byEscSeqCount){
+	while (dwSrcPos < dwSrcLen && dwDstPos < dwDstLen - 1) {
+		if (!m_byEscSeqCount) {
 			// GL/GR領域
-			if((pSrcData[dwSrcPos] >= 0x21U) && (pSrcData[dwSrcPos] <= 0x7EU)){
+			if ((pSrcData[dwSrcPos] >= 0x21U) && (pSrcData[dwSrcPos] <= 0x7EU)) {
 				// GL領域
 				const CODE_SET CurCodeSet = (m_pSingleGL)? *m_pSingleGL : *m_pLockingGL;
 				m_pSingleGL = NULL;
-				
-				if(abCharSizeTable[CurCodeSet]){
+
+				if (abCharSizeTable[CurCodeSet]) {
 					// 2バイトコード
-					if((dwSrcLen - dwSrcPos) < 2UL)break;
-					
-					dwDstLen += ProcessCharCode(&lpszDst[dwDstLen], ((WORD)pSrcData[dwSrcPos + 0] << 8) | (WORD)pSrcData[dwSrcPos + 1], CurCodeSet);
+					if ((dwSrcLen - dwSrcPos) < 2UL)
+						break;
+
+					Length = ProcessCharCode(&lpszDst[dwDstPos], dwDstLen - dwDstPos - 1, ((WORD)pSrcData[dwSrcPos + 0] << 8) | (WORD)pSrcData[dwSrcPos + 1], CurCodeSet);
+					if (Length == 0)
+						break;
+					dwDstPos += Length;
 					dwSrcPos++;
-					}
-				else{
+				} else {
 					// 1バイトコード
-					dwDstLen += ProcessCharCode(&lpszDst[dwDstLen], (WORD)pSrcData[dwSrcPos], CurCodeSet);
-					}
+					Length = ProcessCharCode(&lpszDst[dwDstPos], dwDstLen - dwDstPos - 1, (WORD)pSrcData[dwSrcPos], CurCodeSet);
+					if (Length == 0)
+						break;
+					dwDstPos += Length;
 				}
-			else if((pSrcData[dwSrcPos] >= 0xA1U) && (pSrcData[dwSrcPos] <= 0xFEU)){
+			} else if ((pSrcData[dwSrcPos] >= 0xA1U) && (pSrcData[dwSrcPos] <= 0xFEU)) {
 				// GR領域
 				const CODE_SET CurCodeSet = *m_pLockingGR;
-				
-				if(abCharSizeTable[CurCodeSet]){
+
+				if (abCharSizeTable[CurCodeSet]) {
 					// 2バイトコード
-					if((dwSrcLen - dwSrcPos) < 2UL)break;
-					
-					dwDstLen += ProcessCharCode(&lpszDst[dwDstLen], ((WORD)(pSrcData[dwSrcPos + 0] & 0x7FU) << 8) | (WORD)(pSrcData[dwSrcPos + 1] & 0x7FU), CurCodeSet);
+					if ((dwSrcLen - dwSrcPos) < 2UL) break;
+
+					Length = ProcessCharCode(&lpszDst[dwDstPos], dwDstLen - dwDstPos -1, ((WORD)(pSrcData[dwSrcPos + 0] & 0x7FU) << 8) | (WORD)(pSrcData[dwSrcPos + 1] & 0x7FU), CurCodeSet);
+					if (Length == 0)
+						break;
+					dwDstPos += Length;
 					dwSrcPos++;
-					}
-				else{
+				} else {
 					// 1バイトコード
-					dwDstLen += ProcessCharCode(&lpszDst[dwDstLen], (WORD)(pSrcData[dwSrcPos] & 0x7FU), CurCodeSet);
-					}
+					Length = ProcessCharCode(&lpszDst[dwDstPos], dwDstLen - dwDstPos - 1, (WORD)(pSrcData[dwSrcPos] & 0x7FU), CurCodeSet);
+					if (Length == 0)
+						break;
+					dwDstPos += Length;
 				}
-			else{
+			} else {
 				// 制御コード
-				switch(pSrcData[dwSrcPos]){
-					case 0x0FU	: LockingShiftGL(0U);				break;	// LS0
-					case 0x0EU	: LockingShiftGL(1U);				break;	// LS1
-					case 0x19U	: SingleShiftGL(2U);				break;	// SS2
-					case 0x1DU	: SingleShiftGL(3U);				break;	// SS3
-					case 0x1BU	: m_byEscSeqCount = 1U;				break;	// ESC
-					case 0x20U	:
-					case 0xA0U	: lpszDst[dwDstLen++] = TEXT(' ');	break;	// SP
-					default		: break;	// 非対応
-					}
+				switch (pSrcData[dwSrcPos]) {
+				case 0x0FU	: LockingShiftGL(0U);				break;	// LS0
+				case 0x0EU	: LockingShiftGL(1U);				break;	// LS1
+				case 0x19U	: SingleShiftGL(2U);				break;	// SS2
+				case 0x1DU	: SingleShiftGL(3U);				break;	// SS3
+				case 0x1BU	: m_byEscSeqCount = 1U;				break;	// ESC
+				case 0x20U	:
+				case 0xA0U	: lpszDst[dwDstPos++] = TEXT(' ');	break;	// SP
+				default		: break;	// 非対応
 				}
 			}
-		else{
+		} else {
 			// エスケープシーケンス処理
 			ProcessEscapeSeq(pSrcData[dwSrcPos]);
-			}
-		
-		dwSrcPos++;
 		}
+
+		dwSrcPos++;
+	}
 
 	// 終端文字
-	lpszDst[dwDstLen] = TEXT('\0');
+	lpszDst[dwDstPos] = TEXT('\0');
 
-	return dwDstLen;
+	return dwDstPos;
 }
 
-inline const DWORD CAribString::ProcessCharCode(TCHAR *lpszDst, const WORD wCode, const CODE_SET CodeSet)
+inline const int CAribString::ProcessCharCode(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode, const CODE_SET CodeSet)
 {
-	switch(CodeSet){
-		case CODE_KANJI	:
-		case CODE_JIS_KANJI_PLANE_1 :
-		case CODE_JIS_KANJI_PLANE_2 :
-			// 漢字コード出力
-			return PutKanjiChar(lpszDst, wCode);
+	switch (CodeSet) {
+	case CODE_KANJI	:
+	case CODE_JIS_KANJI_PLANE_1 :
+	case CODE_JIS_KANJI_PLANE_2 :
+		// 漢字コード出力
+		return PutKanjiChar(lpszDst, dwDstLen, wCode);
 
-		case CODE_ALPHANUMERIC :
-		case CODE_PROP_ALPHANUMERIC :
-			// 英数字コード出力
-			return PutAlphanumericChar(lpszDst, wCode);
+	case CODE_ALPHANUMERIC :
+	case CODE_PROP_ALPHANUMERIC :
+		// 英数字コード出力
+		return PutAlphanumericChar(lpszDst, dwDstLen, wCode);
 
-		case CODE_HIRAGANA :
-		case CODE_PROP_HIRAGANA :
-			// ひらがなコード出力
-			return PutHiraganaChar(lpszDst, wCode);
+	case CODE_HIRAGANA :
+	case CODE_PROP_HIRAGANA :
+		// ひらがなコード出力
+		return PutHiraganaChar(lpszDst, dwDstLen, wCode);
 
-		case CODE_PROP_KATAKANA :
-		case CODE_KATAKANA :
-			// カタカナコード出力
-			return PutKatakanaChar(lpszDst, wCode);
+	case CODE_PROP_KATAKANA :
+	case CODE_KATAKANA :
+		// カタカナコード出力
+		return PutKatakanaChar(lpszDst, dwDstLen, wCode);
 
-		case CODE_JIS_X0201_KATAKANA :
-			// JISカタカナコード出力
-			return PutJisKatakanaChar(lpszDst, wCode);
+	case CODE_JIS_X0201_KATAKANA :
+		// JISカタカナコード出力
+		return PutJisKatakanaChar(lpszDst, dwDstLen, wCode);
 
-		case CODE_ADDITIONAL_SYMBOLS :
-			// 追加シンボルコード出力
-			return PutSymbolsChar(lpszDst, wCode);
+	case CODE_ADDITIONAL_SYMBOLS :
+		// 追加シンボルコード出力
+		return PutSymbolsChar(lpszDst, dwDstLen, wCode);
+	}
 
-		default :
-			return 0UL;
-		}
+	return 0;
 }
 
-inline const DWORD CAribString::PutKanjiChar(TCHAR *lpszDst, const WORD wCode)
+inline const int CAribString::PutKanjiChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode)
 {
 	// JIS→Shift-JIS漢字コード変換
 	const WORD wShiftJIS = ::_mbcjistojms(wCode);
 
 #ifdef _UNICODE
 	// Shift-JIS → UNICODE
-	const char szShiftJIS[3] = {(char)(wShiftJIS >> 8), (char)(wShiftJIS & 0x00FFU), '\0'};
-	::MultiByteToWideChar(CP_OEMCP, MB_PRECOMPOSED, szShiftJIS, 2, lpszDst, 2);
-
-	return 1UL;
+	char cShiftJIS[2];
+	cShiftJIS[0] = (char)(wShiftJIS >> 8);
+	cShiftJIS[1] = (char)(wShiftJIS & 0x00FFU);
+	return ::MultiByteToWideChar(CP_OEMCP, MB_PRECOMPOSED, cShiftJIS, 2, lpszDst, dwDstLen);
 #else
 	// Shift-JIS → Shift-JIS
+	if (dwDstLen < 2)
+		return 0;
 	lpszDst[0] = (char)(wShiftJIS >> 8);
 	lpszDst[1] = (char)(wShiftJIS & 0x00FFU);
 
-	return 2UL;
+	return 2;
 #endif
 }
 
-inline const DWORD CAribString::PutAlphanumericChar(TCHAR *lpszDst, const WORD wCode)
+inline const int CAribString::PutAlphanumericChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode)
 {
 	// 英数字文字コード変換
 	static const TCHAR *acAlphanumericTable = 
@@ -194,18 +203,22 @@ inline const DWORD CAribString::PutAlphanumericChar(TCHAR *lpszDst, const WORD w
 		TEXT("ｐｑｒｓｔｕｖｗｘｙｚ｛｜｝￣　");
 
 #ifdef _UNICODE
+	if (dwDstLen < 1)
+		return 0;
 	lpszDst[0] = acAlphanumericTable[wCode];
 
-	return 1UL;
+	return 1;
 #else
+	if (dwDstLen < 2)
+		return 0;
 	lpszDst[0] = acAlphanumericTable[wCode * 2U + 0U];
 	lpszDst[1] = acAlphanumericTable[wCode * 2U + 1U];
 
-	return 2UL;
+	return 2;
 #endif
 }
 
-inline const DWORD CAribString::PutHiraganaChar(TCHAR *lpszDst, const WORD wCode)
+inline const int CAribString::PutHiraganaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode)
 {
 	// ひらがな文字コード変換
 	static const TCHAR *acHiraganaTable = 
@@ -219,18 +232,22 @@ inline const DWORD CAribString::PutHiraganaChar(TCHAR *lpszDst, const WORD wCode
 		TEXT("ゐゑをん　　　ゝゞー。「」、・　");
 	
 #ifdef _UNICODE
+	if (dwDstLen < 1)
+		return 0;
 	lpszDst[0] = acHiraganaTable[wCode];
 
-	return 1UL;
+	return 1;
 #else
+	if (dwDstLen < 2)
+		return 0;
 	lpszDst[0] = acHiraganaTable[wCode * 2U + 0U];
 	lpszDst[1] = acHiraganaTable[wCode * 2U + 1U];
 
-	return 2UL;
+	return 2;
 #endif
 }
 
-inline const DWORD CAribString::PutKatakanaChar(TCHAR *lpszDst, const WORD wCode)
+inline const int CAribString::PutKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode)
 {
 	// カタカナ英数字文字コード変換
 	static const TCHAR *acKatakanaTable = 
@@ -242,20 +259,24 @@ inline const DWORD CAribString::PutKatakanaChar(TCHAR *lpszDst, const WORD wCode
 		TEXT("バパヒビピフブプヘベペホボポマミ")
 		TEXT("ムメモャヤュユョヨラリルレロヮワ")
 		TEXT("ヰヱヲンヴヵヶヽヾー。「」、・　");
-	
+
 #ifdef _UNICODE
+	if (dwDstLen < 1)
+		return 0;
 	lpszDst[0] = acKatakanaTable[wCode];
 
-	return 1UL;
+	return 1;
 #else
+	if (dwDstLen < 2)
+		return 0;
 	lpszDst[0] = acKatakanaTable[wCode * 2U + 0U];
 	lpszDst[1] = acKatakanaTable[wCode * 2U + 1U];
 
-	return 2UL;
+	return 2;
 #endif
 }
 
-inline const DWORD CAribString::PutJisKatakanaChar(TCHAR *lpszDst, const WORD wCode)
+inline const int CAribString::PutJisKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode)
 {
 	// JISカタカナ文字コード変換
 	static const TCHAR *acJisKatakanaTable = 
@@ -267,23 +288,27 @@ inline const DWORD CAribString::PutJisKatakanaChar(TCHAR *lpszDst, const WORD wC
 		TEXT("ミムメモヤユヨラリルレロワン゛゜")
 		TEXT("　　　　　　　　　　　　　　　　")
 		TEXT("　　　　　　　　　　　　　　　　");
-	
+
 #ifdef _UNICODE
+	if (dwDstLen < 1)
+		return 0;
 	lpszDst[0] = acJisKatakanaTable[wCode];
 
-	return 1UL;
+	return 1;
 #else
+	if (dwDstLen < 2)
+		return 0;
 	lpszDst[0] = acJisKatakanaTable[wCode * 2U + 0U];
 	lpszDst[1] = acJisKatakanaTable[wCode * 2U + 1U];
 
-	return 2UL;
+	return 2;
 #endif
 }
 
-inline const DWORD CAribString::PutSymbolsChar(TCHAR *lpszDst, const WORD wCode)
+inline const int CAribString::PutSymbolsChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode)
 {
 	// 追加シンボル文字コード変換(とりあえず必要そうなものだけ)
-	static const TCHAR *aszSymbolsTable1[] =
+	static const LPCTSTR aszSymbolsTable1[] =
 	{
 		_T("[HV]"),		_T("[SD]"),		_T("[Ｐ]"),		_T("[Ｗ]"),		_T("[MV]"),		_T("[手]"),		_T("[字]"),		_T("[双]"),			// 0x7A50 - 0x7A57	90/48 - 90/55
 		_T("[デ]"),		_T("[Ｓ]"),		_T("[二]"),		_T("[多]"),		_T("[解]"),		_T("[SS]"),		_T("[Ｂ]"),		_T("[Ｎ]"),			// 0x7A58 - 0x7A5F	90/56 - 90/63
@@ -292,7 +317,7 @@ inline const DWORD CAribString::PutSymbolsChar(TCHAR *lpszDst, const WORD wCode)
 		_T("[声]"),		_T("[吹]"),		_T("[PPV]"),	_T("(秘)"),		_T("ほか")															// 0x7A70 - 0x7A74	90/80 - 90/84
 	};
 
-	static const TCHAR *aszSymbolsTable2[] =
+	static const LPCTSTR aszSymbolsTable2[] =
 	{
 		_T("→"),		_T("←"),		_T("↑"),		_T("↓"),		_T("●"),		_T("○"),		_T("年"),		_T("月"),			// 0x7C21 - 0x7C28	92/01 - 92/08
 		_T("日"),		_T("円"),		_T("㎡"),		_T("立方ｍ"),	_T("㎝"),		_T("平方㎝"),	_T("立方㎝"),	_T("０."),			// 0x7C29 - 0x7C30	92/09 - 92/16
@@ -308,7 +333,7 @@ inline const DWORD CAribString::PutSymbolsChar(TCHAR *lpszDst, const WORD wCode)
 		_T("DJ"),		_T("[演]"),		_T("Fax")																							// 0x7C79 - 0x7C7B	92/89 - 92/91
 	};
 
-	static const TCHAR *aszSymbolsTable3[] =
+	static const LPCTSTR aszSymbolsTable3[] =
 	{
 		_T("(月)"),		_T("(火)"),		_T("(水)"),		_T("(木)"),		_T("(金)"),		_T("(土)"),		_T("(日)"),		_T("(祝)"),			// 0x7D21 - 0x7D28	93/01 - 93/08
 		_T("㍾"),		_T("㍽"),		_T("㍼"),		_T("㍻"),		_T("№"),		_T("℡"),		_T("(〒)"),		_T("○"),			// 0x7D29 - 0x7D30	93/09 - 93/16
@@ -324,7 +349,7 @@ inline const DWORD CAribString::PutSymbolsChar(TCHAR *lpszDst, const WORD wCode)
 		_T("・"),		_T("♪"),		_T("℡")																							// 0x7D79 - 0x7D7B	93/89 - 93/91
 	};
 
-	static const TCHAR *aszSymbolsTable4[] =
+	static const LPCTSTR aszSymbolsTable4[] =
 	{
 		_T("Ⅰ"),		_T("Ⅱ"),		_T("Ⅲ"),		_T("Ⅳ"),		_T("Ⅴ"),		_T("Ⅵ"),		_T("Ⅶ"),		_T("Ⅷ"),			// 0x7E21 - 0x7E28	94/01 - 94/08
 		_T("Ⅸ"),		_T("Ⅹ"),		_T("XI"),		_T("XⅡ"),		_T("⑰"),		_T("⑱"),		_T("⑲"),		_T("⑳"),			// 0x7E29 - 0x7E30	94/09 - 94/16
@@ -341,23 +366,24 @@ inline const DWORD CAribString::PutSymbolsChar(TCHAR *lpszDst, const WORD wCode)
 	};
 
 	// シンボルを変換する
-	if((wCode >= 0x7A50U) && (wCode <= 0x7A74U)){
-		::lstrcpy(lpszDst, aszSymbolsTable1[wCode - 0x7A50U]);
-		}
-	else if((wCode >= 0x7C21U) && (wCode <= 0x7C7BU)){
-		::lstrcpy(lpszDst, aszSymbolsTable2[wCode - 0x7C21U]);
-		}
-	else if((wCode >= 0x7D21U) && (wCode <= 0x7D7BU)){
-		::lstrcpy(lpszDst, aszSymbolsTable3[wCode - 0x7D21U]);
-		}
-	else if((wCode >= 0x7E21U) && (wCode <= 0x7E7DU)){
-		::lstrcpy(lpszDst, aszSymbolsTable4[wCode - 0x7E21U]);
-		}
-	else{
-		::lstrcpy(lpszDst, TEXT("・"));
-		}
+	LPCTSTR pszSrc;
+	if ((wCode >= 0x7A50U) && (wCode <= 0x7A74U)) {
+		pszSrc = aszSymbolsTable1[wCode - 0x7A50U];
+	} else if ((wCode >= 0x7C21U) && (wCode <= 0x7C7BU)) {
+		pszSrc = aszSymbolsTable2[wCode - 0x7C21U];
+	} else if((wCode >= 0x7D21U) && (wCode <= 0x7D7BU)) {
+		pszSrc = aszSymbolsTable3[wCode - 0x7D21U];
+	} else if((wCode >= 0x7E21U) && (wCode <= 0x7E7DU)) {
+		pszSrc = aszSymbolsTable4[wCode - 0x7E21U];
+	} else {
+		pszSrc = TEXT("・");
+	}
+	DWORD Length = ::lstrlen(pszSrc);
+	if (dwDstLen < Length)
+		return 0;
+	::CopyMemory(lpszDst, pszSrc, Length * sizeof(TCHAR));
 
-	return ::lstrlen(lpszDst);
+	return Length;
 }
 
 inline void CAribString::ProcessEscapeSeq(const BYTE byCode)

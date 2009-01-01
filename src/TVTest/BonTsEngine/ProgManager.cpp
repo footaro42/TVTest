@@ -147,25 +147,17 @@ const BYTE CProgManager::GetAudioComponentType(const WORD wAudioIndex,const WORD
 
 	if ((size_t)wIndex < m_ServiceList.size()
 			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsList.size()) {
-		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		const CDescBlock *pDescBlock=GetHEitItemDesc(wIndex);
 
-		if (pEitTable) {
-			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[wIndex].wServiceID);
+		if (pDescBlock) {
+			for (WORD i=0;i<pDescBlock->GetDescNum();i++) {
+				const CBaseDesc *pDesc=pDescBlock->GetDescByIndex(i);
 
-			if (Index>=0) {
-				const CDescBlock *pDescBlock=pEitTable->GetItemDesc(Index,0);
+				if (pDesc->GetTag()==CAudioComponentDesc::DESC_TAG) {
+					const CAudioComponentDesc *pAudioDesc=dynamic_cast<const CAudioComponentDesc*>(pDesc);
 
-				if (pDescBlock) {
-					for (WORD i=0;i<pDescBlock->GetDescNum();i++) {
-						const CBaseDesc *pDesc=pDescBlock->GetDescByIndex(i);
-
-						if (pDesc->GetTag()==CAudioComponentDesc::DESC_TAG) {
-							const CAudioComponentDesc *pAudioDesc=dynamic_cast<const CAudioComponentDesc*>(pDesc);
-
-							if (pAudioDesc->GetComponentTag()==m_ServiceList[wIndex].AudioEsList[wAudioIndex].ComponentTag)
-								return pAudioDesc->GetComponentType();
-						}
-					}
+					if (pAudioDesc->GetComponentTag()==m_ServiceList[wIndex].AudioEsList[wAudioIndex].ComponentTag)
+						return pAudioDesc->GetComponentType();
 				}
 			}
 		}
@@ -265,6 +257,110 @@ DWORD CProgManager::GetTSName(LPTSTR pszName,int MaxLength)
 	if (pszName)
 		::lstrcpyn(pszName,m_pProgDatabase->m_NitInfo.szTSName,MaxLength);
 	return ::lstrlen(m_pProgDatabase->m_NitInfo.szTSName);
+}
+
+
+const WORD CProgManager::GetEventID(const WORD ServiceIndex, const bool fNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index>=0)
+				return pEitTable->GetEventID(Index,fNext?1:0);
+		}
+	}
+	return 0;
+}
+
+
+const bool CProgManager::GetStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool fNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)ServiceIndex < m_ServiceList.size() && pSystemTime) {
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index >= 0) {
+				const SYSTEMTIME *pStartTime = pEitTable->GetStartTime(Index, fNext ? 1 : 0);
+				if (pStartTime)
+					*pSystemTime=*pStartTime;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+const DWORD CProgManager::GetDuration(const WORD ServiceIndex, const bool fNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index >= 0)
+				return pEitTable->GetDuration(Index, fNext ? 1 : 0);
+		}
+	}
+	return 0;
+}
+
+
+const int CProgManager::GetEventName(const WORD ServiceIndex, LPTSTR pszName, int MaxLength, const bool fNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, fNext);
+	if (pDescBlock) {
+		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
+
+		if (pShortEvent)
+			return pShortEvent->GetEventName(pszName, MaxLength);
+	}
+	return 0;
+}
+
+
+const int CProgManager::GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool fNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, fNext);
+	if (pDescBlock) {
+		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
+
+		if (pShortEvent)
+			return pShortEvent->GetEventDesc(pszText, MaxLength);
+	}
+	return 0;
+}
+
+
+const CDescBlock *CProgManager::GetHEitItemDesc(const WORD ServiceIndex, const bool fNext) const
+{
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index>=0)
+				return pEitTable->GetItemDesc(Index, fNext ? 1 : 0);
+		}
+	}
+	return NULL;
 }
 
 
@@ -555,7 +651,7 @@ void CALLBACK CProgManager::CProgDatabase::OnSdtUpdated(const WORD wPID, CTsPidM
 		const CServiceDesc *pServiceDesc = dynamic_cast<const CServiceDesc *>(pDescBlock->GetDescByTag(CServiceDesc::DESC_TAG));
 
 		if (pServiceDesc) {
-			pServiceDesc->GetServiceName(pThis->m_ServiceList[wServiceIndex].szServiceName);
+			pServiceDesc->GetServiceName(pThis->m_ServiceList[wServiceIndex].szServiceName, 256);
 			pThis->m_ServiceList[wServiceIndex].byServiceType = pServiceDesc->GetServiceType();
 		}
 	}
@@ -593,24 +689,20 @@ void CALLBACK CProgManager::CProgDatabase::OnNitUpdated(const WORD wPID, CTsPidM
 	pThis->m_NitInfo.wNetworkID = pNitTable->GetNetworkID();
 
 	const CDescBlock *pDescBlock;
-	pDescBlock = pNitTable->GetNetworkNameDesc();
+	pDescBlock = pNitTable->GetNetworkDesc();
 	if (pDescBlock) {
 		const CNetworkNameDesc *pNetworkDesc = dynamic_cast<const CNetworkNameDesc *>(pDescBlock->GetDescByTag(CNetworkNameDesc::DESC_TAG));
 		if(pNetworkDesc) {
 			pNetworkDesc->GetNetworkName(pThis->m_NitInfo.szNetworkName,
 										 sizeof(pThis->m_NitInfo.szNetworkName) / sizeof(TCHAR));
 		}
-	}
-
-	pDescBlock = pNitTable->GetSystemManageDesc();
-	if (pDescBlock) {
 		const CSystemManageDesc *pSysManageDesc = dynamic_cast<const CSystemManageDesc *>(pDescBlock->GetDescByTag(CSystemManageDesc::DESC_TAG));
 		if (pSysManageDesc) {
 			pThis->m_NitInfo.byBroadcastingID = pSysManageDesc->GetBroadcastingID();
 		}
 	}
 
-	pDescBlock = pNitTable->GetTSInfoDesc();
+	pDescBlock = pNitTable->GetItemDesc(0);
 	if (pDescBlock) {
 		const CTSInfoDesc *pTsInfoDesc = dynamic_cast<const CTSInfoDesc *>(pDescBlock->GetDescByTag(CTSInfoDesc::DESC_TAG));
 		if (pTsInfoDesc) {

@@ -171,7 +171,6 @@ public:
 
 	const bool IsPmtTablePID(const WORD wPID) const;
 
-
 protected:
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
 
@@ -309,23 +308,25 @@ public:
 	virtual void Reset(void);
 
 // CNitTable
-	WORD GetNetworkID(void) const;
-	const CDescBlock * GetNetworkNameDesc(void) const;
-	const CDescBlock * GetSystemManageDesc(void) const;
-	const CDescBlock * GetTSInfoDesc(void) const;
+	const WORD GetNetworkID(void) const;
+	const CDescBlock * GetNetworkDesc(void) const;
+	const WORD GetTransportStreamNum(void) const;
+	const WORD GetTransportStreamID(const WORD wIndex) const;
+	const WORD GetOriginalNetworkID(const WORD wIndex) const;
+	const CDescBlock * GetItemDesc(const WORD wIndex) const;
 
 protected:
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
 
-	struct TAG_NITTITEM
-	{
-		WORD wNetworkID;				// Network ID
-		CDescBlock NetworkNameDesc;		// Network Name descriptor
-		CDescBlock SystemManageDesc;	// System Management descriptor
-		CDescBlock TSInfoDesc;			// TS Information descriptor
+	struct TAG_NITITEM {
+		WORD wTransportStreamID;
+		WORD wOriginalNetworkID;
+		CDescBlock DescBlock;
 	};
 
-	vector<TAG_NITTITEM> m_NitArray;
+	WORD m_wNetworkID;				// Network ID
+	CDescBlock m_NetworkDescBlock;	// Network descriptor
+	vector<TAG_NITITEM> m_TransportStreamArray;
 };
 
 
@@ -351,7 +352,7 @@ public:
 	const WORD GetTransportStreamID(DWORD Index) const;
 	const WORD GetOriginalNetworkID(DWORD Index) const;
 	const WORD GetEventID(DWORD Index,DWORD EventIndex) const;
-	const SYSTEMTIME &GetStartTime(DWORD Index,DWORD EventIndex) const;
+	const SYSTEMTIME *GetStartTime(DWORD Index,DWORD EventIndex) const;
 	const DWORD GetDuration(DWORD Index,DWORD EventIndex) const;
 	const BYTE GetRunningStatus(DWORD Index,DWORD EventIndex) const;
 	const bool GetFreeCaMode(DWORD Index,DWORD EventIndex) const;
@@ -383,7 +384,7 @@ protected:
 /////////////////////////////////////////////////////////////////////////////
 // PCR抽象化クラス
 // 元々Demuxの箇所にあったものだが使ってないようだったので、Table側に移動
-// 現時点で使えるものとは言い硬い
+// 現時点で使えるものとは言い難い
 /////////////////////////////////////////////////////////////////////////////
 
 class CPcrTable : public CPsiNullTable
@@ -405,5 +406,4 @@ public:
 protected:
 	vector<WORD> m_ServiceIndex;
 	unsigned __int64 m_ui64_Pcr;
-
 };

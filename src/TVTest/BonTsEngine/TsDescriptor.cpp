@@ -26,7 +26,7 @@ CBaseDesc::CBaseDesc()
 CBaseDesc::CBaseDesc(const CBaseDesc &Operand)
 {
 	// コピーコンストラクタ
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CBaseDesc::~CBaseDesc()
@@ -63,7 +63,7 @@ const bool CBaseDesc::ParseDesc(const BYTE *pHexData, const WORD wDataLength)
 	m_byDescLen = pHexData[1];
 
 	// ペイロード解析
-	if (StoreContents(&pHexData[2])) {
+	if (m_byDescLen > 0 && StoreContents(&pHexData[2])) {
 		m_bIsValid = true;
 	}
 
@@ -115,7 +115,7 @@ CCaMethodDesc::CCaMethodDesc()
 
 CCaMethodDesc::CCaMethodDesc(const CCaMethodDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CCaMethodDesc & CCaMethodDesc::operator = (const CCaMethodDesc &Operand)
@@ -194,7 +194,7 @@ CServiceDesc::CServiceDesc()
 
 CServiceDesc::CServiceDesc(const CServiceDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CServiceDesc & CServiceDesc::operator = (const CServiceDesc &Operand)
@@ -233,18 +233,20 @@ const BYTE CServiceDesc::GetServiceType(void) const
 	return m_byServiceType;
 }
 
-const DWORD CServiceDesc::GetProviderName(LPTSTR lpszDst) const
+const DWORD CServiceDesc::GetProviderName(LPTSTR lpszDst, int MaxLength) const
 {
 	// Service Provider Nameを返す
-	if(lpszDst)::lstrcpy(lpszDst, m_szProviderName);
+	if (lpszDst && MaxLength > 0)
+		::lstrcpyn(lpszDst, m_szProviderName, MaxLength);
 
 	return ::lstrlen(m_szProviderName);
 }
 
-const DWORD CServiceDesc::GetServiceName(LPTSTR lpszDst) const
+const DWORD CServiceDesc::GetServiceName(LPTSTR lpszDst, int MaxLength) const
 {
 	// Service Provider Nameを返す
-	if(lpszDst)::lstrcpy(lpszDst, m_szServiceName);
+	if (lpszDst && MaxLength > 0)
+		::lstrcpyn(lpszDst, m_szServiceName, MaxLength);
 
 	return ::lstrlen(m_szServiceName);
 }
@@ -258,21 +260,24 @@ const bool CServiceDesc::StoreContents(const BYTE *pPayload)
 	// 記述子を解析
 	m_byServiceType = pPayload[0];				// +0	Service Type
 
-	BYTE byPos = 1U;
+	int Pos = 1, Length;
 
 	// Provider Name
-	if(pPayload[byPos + 0]){
-		CAribString::AribToString(m_szProviderName, &pPayload[byPos + 1], pPayload[byPos + 0]);
-		byPos += pPayload[byPos + 0];
-		}
-
-	byPos++;
+	Length = pPayload[Pos++];
+	if (Length > 0) {
+		if (Pos + Length >= m_byDescLen)
+			return false;
+		CAribString::AribToString(m_szProviderName, sizeof(m_szProviderName) / sizeof(TCHAR), &pPayload[Pos], Length);
+		Pos += Length;
+	}
 
 	// Service Name
-	if(pPayload[byPos + 0]){
-		CAribString::AribToString(m_szServiceName, &pPayload[byPos + 1], pPayload[byPos + 0]);
-		byPos += pPayload[byPos + 0];
-		}
+	Length = pPayload[Pos++];
+	if (Length > 0) {
+		if (Pos + Length > m_byDescLen)
+			return false;
+		CAribString::AribToString(m_szServiceName, sizeof(m_szServiceName) / sizeof(TCHAR), &pPayload[Pos], Length);
+	}
 
 	return true;
 }
@@ -290,7 +295,7 @@ CShortEventDesc::CShortEventDesc()
 
 CShortEventDesc::CShortEventDesc(const CShortEventDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CShortEventDesc & CShortEventDesc::operator = (const CShortEventDesc &Operand)
@@ -329,18 +334,20 @@ const DWORD CShortEventDesc::GetLanguageCode(void) const
 	return m_dwLanguageCode;
 }
 
-const DWORD CShortEventDesc::GetEventName(LPTSTR lpszDst) const
+const DWORD CShortEventDesc::GetEventName(LPTSTR lpszDst, int MaxLength) const
 {
 	// Event Nameを返す
-	if(lpszDst)::lstrcpy(lpszDst, m_szEventName);
+	if (lpszDst && MaxLength > 0)
+		::lstrcpyn(lpszDst, m_szEventName, MaxLength);
 
 	return ::lstrlen(m_szEventName);
 }
 
-const DWORD CShortEventDesc::GetEventDesc(LPTSTR lpszDst) const
+const DWORD CShortEventDesc::GetEventDesc(LPTSTR lpszDst, int MaxLength) const
 {
 	// Event Descriptionを返す
-	if(lpszDst)::lstrcpy(lpszDst, m_szEventDesc);
+	if (lpszDst && MaxLength > 0)
+		::lstrcpyn(lpszDst, m_szEventDesc, MaxLength);
 
 	return ::lstrlen(m_szEventDesc);
 }
@@ -354,21 +361,24 @@ const bool CShortEventDesc::StoreContents(const BYTE *pPayload)
 	// 記述子を解析
 	m_dwLanguageCode = ((DWORD)pPayload[0] << 16) | ((DWORD)pPayload[1] << 8) | (DWORD)pPayload[2];		// +0 - +2	ISO639  Language Code
 
-	BYTE byPos = 3U;
+	int Pos = 3, Length;
 
 	// Event Name
-	if(pPayload[byPos + 0]){
-		CAribString::AribToString(m_szEventName, &pPayload[byPos + 1], pPayload[byPos + 0]);
-		byPos += pPayload[byPos + 0];
-		}
-
-	byPos++;
+	Length = pPayload[Pos++];
+	if (Length > 0) {
+		if (Pos + Length >= m_byDescLen)
+			return false;
+		CAribString::AribToString(m_szEventName, sizeof(m_szEventName) / sizeof(TCHAR), &pPayload[Pos], Length);
+		Pos += Length;
+	}
 
 	// Event Description
-	if(pPayload[byPos + 0]){
-		CAribString::AribToString(m_szEventDesc, &pPayload[byPos + 1], pPayload[byPos + 0]);
-		byPos += pPayload[byPos + 0];
-		}
+	Length = pPayload[Pos++];
+	if (Length > 0) {
+		if (Pos + Length > m_byDescLen)
+			return false;
+		CAribString::AribToString(m_szEventDesc, sizeof(m_szEventDesc) / sizeof(TCHAR), &pPayload[Pos], Length);
+	}
 
 	return true;
 }
@@ -386,7 +396,7 @@ CStreamIdDesc::CStreamIdDesc()
 
 CStreamIdDesc::CStreamIdDesc(const CStreamIdDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CStreamIdDesc & CStreamIdDesc::operator = (const CStreamIdDesc &Operand)
@@ -446,7 +456,7 @@ CNetworkNameDesc::CNetworkNameDesc()
 
 CNetworkNameDesc::CNetworkNameDesc(const CNetworkNameDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CNetworkNameDesc & CNetworkNameDesc::operator = (const CNetworkNameDesc &Operand)
@@ -475,17 +485,17 @@ void CNetworkNameDesc::Reset(void)
 
 const DWORD CNetworkNameDesc::GetNetworkName(LPTSTR pszName, int MaxLength) const
 {
-	if (pszName)
+	if (pszName && MaxLength > 0)
 		::lstrcpyn(pszName, m_szNetworkName, MaxLength);
 	return ::lstrlen(m_szNetworkName);
 }
 
 const bool CNetworkNameDesc::StoreContents(const BYTE *pPayload)
 {
-	if (m_byDescTag != DESC_TAG || m_byDescLen < 2)
+	if (m_byDescTag != DESC_TAG)
 		return false;
 
-	CAribString::AribToString(m_szNetworkName, &pPayload[0], m_byDescLen);
+	CAribString::AribToString(m_szNetworkName, sizeof(m_szNetworkName) / sizeof(TCHAR), &pPayload[0], m_byDescLen);
 
 	return true;
 }
@@ -501,8 +511,9 @@ CSystemManageDesc::CSystemManageDesc()
 	Reset();
 }
 
-CSystemManageDesc::CSystemManageDesc(const CSystemManageDesc &Operand){
-	*this = Operand;
+CSystemManageDesc::CSystemManageDesc(const CSystemManageDesc &Operand)
+{
+	CopyDesc(&Operand);
 }
 
 CSystemManageDesc & CSystemManageDesc::operator = (const CSystemManageDesc &Operand)
@@ -553,8 +564,8 @@ const bool CSystemManageDesc::StoreContents(const BYTE *pPayload)
 	if (m_byDescTag != DESC_TAG || m_byDescLen < 2)
 		return false;
 
-	m_byBroadcastingFlag = (pPayload[0]&0xC0)>>6;
-	m_byBroadcastingID = (pPayload[0]&0x3F);
+	m_byBroadcastingFlag = (pPayload[0] & 0xC0) >> 6;
+	m_byBroadcastingID = (pPayload[0] & 0x3F);
 	m_byAdditionalBroadcastingID = pPayload[1];
 
 	return true;
@@ -573,7 +584,7 @@ CTSInfoDesc::CTSInfoDesc()
 
 CTSInfoDesc::CTSInfoDesc(const CTSInfoDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CTSInfoDesc & CTSInfoDesc::operator = (const CTSInfoDesc &Operand)
@@ -609,7 +620,7 @@ const BYTE CTSInfoDesc::GetRemoteControlKeyID(void) const
 
 const DWORD CTSInfoDesc::GetTSName(LPTSTR pszName, int MaxLength) const
 {
-	if (pszName)
+	if (pszName && MaxLength > 0)
 		::lstrcpyn(pszName, m_szTSName, MaxLength);
 	return ::lstrlen(m_szTSName);
 }
@@ -619,13 +630,108 @@ const bool CTSInfoDesc::StoreContents(const BYTE *pPayload)
 	if (m_byDescTag != DESC_TAG || m_byDescLen < 2)
 		return false;
 
-	BYTE Length = (pPayload[1]&0xFC)>>2;
-	if (m_byDescLen < 2 + Length)
+	m_byRemoteControlKeyID = pPayload[0];
+
+	BYTE Length = pPayload[1] >> 2;
+	if (2 + Length > m_byDescLen)
 		return false;
 
-	m_byRemoteControlKeyID = pPayload[0];
-	CAribString::AribToString(m_szTSName, &pPayload[2], Length);
+	CAribString::AribToString(m_szTSName, sizeof(m_szTSName) / sizeof(TCHAR), &pPayload[2], Length);
 
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x50] Component 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CComponentDesc::CComponentDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CComponentDesc::CComponentDesc(const CComponentDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CComponentDesc & CComponentDesc::operator = (const CComponentDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CComponentDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CComponentDesc *pSrcDesc = dynamic_cast<const CComponentDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_StreamContent = pSrcDesc->m_StreamContent;
+		m_ComponentType = pSrcDesc->m_ComponentType;
+		m_ComponentTag = pSrcDesc->m_ComponentTag;
+		m_LanguageCode = pSrcDesc->m_LanguageCode;
+		::lstrcpy(m_szText, pSrcDesc->m_szText);
+	}
+}
+
+void CComponentDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_StreamContent = 0;
+	m_ComponentType = 0;
+	m_ComponentTag = 0;
+	m_LanguageCode = 0;
+	m_szText[0] = '\0';
+}
+
+const BYTE CComponentDesc::GetStreamContent(void) const
+{
+	return m_StreamContent;
+}
+
+const BYTE CComponentDesc::GetComponentType(void) const
+{
+	return m_ComponentType;
+}
+
+const BYTE CComponentDesc::GetComponentTag(void) const
+{
+	return m_ComponentTag;
+}
+
+const DWORD CComponentDesc::GetLanguageCode(void) const
+{
+	return m_LanguageCode;
+}
+
+const DWORD CComponentDesc::GetText(LPTSTR pszText, int MaxLength) const
+{
+	if (pszText && MaxLength > 0)
+		::lstrcpyn(pszText, m_szText, MaxLength);
+	return ::lstrlen(m_szText);
+}
+
+const bool CComponentDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 6)
+		return false;
+
+	m_StreamContent = pPayload[0] & 0x0F;
+	if (m_StreamContent != 0x01)
+		return false;
+	m_ComponentType = pPayload[1];
+	m_ComponentTag = pPayload[2];
+	m_LanguageCode = (pPayload[3] << 16) | (pPayload[4] << 8) | pPayload[5];
+	if (m_byDescLen > 6)
+		CAribString::AribToString(m_szText, sizeof(m_szText) / sizeof(TCHAR), &pPayload[6], min(m_byDescLen - 6, 16));
+	else
+		m_szText[0]='\0';
 	return true;
 }
 
@@ -642,7 +748,7 @@ CAudioComponentDesc::CAudioComponentDesc()
 
 CAudioComponentDesc::CAudioComponentDesc(const CAudioComponentDesc &Operand)
 {
-	*this = Operand;
+	CopyDesc(&Operand);
 }
 
 CAudioComponentDesc & CAudioComponentDesc::operator = (const CAudioComponentDesc &Operand)
@@ -659,16 +765,18 @@ void CAudioComponentDesc::CopyDesc(const CBaseDesc *pOperand)
 	const CAudioComponentDesc *pSrcDesc = dynamic_cast<const CAudioComponentDesc *>(pOperand);
 
 	if (pSrcDesc && pSrcDesc != this) {
-		m_StreamContent=pSrcDesc->m_StreamContent;
-		m_ComponentType=pSrcDesc->m_ComponentType;
-		m_ComponentTag=pSrcDesc->m_ComponentTag;
-		m_StreamType=pSrcDesc->m_StreamType;
-		m_SimulcastGroupTag=pSrcDesc->m_SimulcastGroupTag;
-		m_bESMultiLingualFlag=pSrcDesc->m_bESMultiLingualFlag;
-		m_bMainComponentFlag=pSrcDesc->m_bMainComponentFlag;
-		m_QualityIndicator=pSrcDesc->m_QualityIndicator;
-		m_SamplingRate=pSrcDesc->m_SamplingRate;
-		::lstrcpy(m_szText,pSrcDesc->m_szText);
+		m_StreamContent = pSrcDesc->m_StreamContent;
+		m_ComponentType = pSrcDesc->m_ComponentType;
+		m_ComponentTag = pSrcDesc->m_ComponentTag;
+		m_StreamType = pSrcDesc->m_StreamType;
+		m_SimulcastGroupTag = pSrcDesc->m_SimulcastGroupTag;
+		m_bESMultiLingualFlag = pSrcDesc->m_bESMultiLingualFlag;
+		m_bMainComponentFlag = pSrcDesc->m_bMainComponentFlag;
+		m_QualityIndicator = pSrcDesc->m_QualityIndicator;
+		m_SamplingRate = pSrcDesc->m_SamplingRate;
+		m_LanguageCode = pSrcDesc->m_LanguageCode;
+		m_LanguageCode2 = pSrcDesc->m_LanguageCode2;
+		::lstrcpy(m_szText, pSrcDesc->m_szText);
 	}
 }
 
@@ -676,16 +784,18 @@ void CAudioComponentDesc::Reset(void)
 {
 	CBaseDesc::Reset();
 
-	m_StreamContent=0;
-	m_ComponentType=0;
-	m_ComponentTag=0;
-	m_StreamType=0;
-	m_SimulcastGroupTag=0;
-	m_bESMultiLingualFlag=false;
-	m_bMainComponentFlag=false;
-	m_QualityIndicator=0;
-	m_SamplingRate=0;
-	m_szText[0]='\0';
+	m_StreamContent = 0;
+	m_ComponentType = 0;
+	m_ComponentTag = 0;
+	m_StreamType = 0;
+	m_SimulcastGroupTag = 0;
+	m_bESMultiLingualFlag = false;
+	m_bMainComponentFlag = false;
+	m_QualityIndicator = 0;
+	m_SamplingRate = 0;
+	m_LanguageCode = 0;
+	m_LanguageCode2 = 0;
+	m_szText[0] = '\0';
 }
 
 const BYTE CAudioComponentDesc::GetStreamContent(void) const
@@ -728,30 +838,49 @@ const BYTE CAudioComponentDesc::GetSamplingRate(void) const
 	return m_SamplingRate;
 }
 
-LPCTSTR CAudioComponentDesc::GetText(void) const
+const DWORD CAudioComponentDesc::GetLanguageCode(void) const
 {
-	return m_szText;
+	return m_LanguageCode;
+}
+
+const DWORD CAudioComponentDesc::GetLanguageCode2(void) const
+{
+	return m_LanguageCode2;
+}
+
+const DWORD CAudioComponentDesc::GetText(LPTSTR pszText, int MaxLength) const
+{
+	if (pszText && MaxLength > 0)
+		::lstrcpyn(pszText, m_szText, MaxLength);
+	return ::lstrlen(m_szText);
 }
 
 const bool CAudioComponentDesc::StoreContents(const BYTE *pPayload)
 {
-	if (m_byDescTag != DESC_TAG || m_byDescLen < 8)
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 9)
 		return false;
 
-	m_StreamContent=pPayload[0]&0x0F;
-	m_ComponentType=pPayload[1];
-	m_ComponentTag=pPayload[2];
-	m_StreamType=pPayload[3];
-	m_SimulcastGroupTag=pPayload[4];
-	m_bESMultiLingualFlag=(pPayload[5]&0x80)!=0;
-	m_bMainComponentFlag=(pPayload[5]&0x40)!=0;
-	m_QualityIndicator=(pPayload[5]&0x30)>>4;
-	m_SamplingRate=(pPayload[5]&0x0E)>>1;
-	DWORD Pos=6+3;	// ISO_639_language_code
-	if (m_bESMultiLingualFlag)
-		Pos+=3;	// ISO_639_language_code_2
-	if ((DWORD)m_byDescLen-2 > Pos)
-		CAribString::AribToString(m_szText, &pPayload[Pos], m_byDescLen - Pos);
+	m_StreamContent = pPayload[0] & 0x0F;
+	if (m_StreamContent != 0x02)
+		return false;
+	m_ComponentType = pPayload[1];
+	m_ComponentTag = pPayload[2];
+	m_StreamType = pPayload[3];
+	m_SimulcastGroupTag = pPayload[4];
+	m_bESMultiLingualFlag = (pPayload[5] & 0x80) != 0;
+	m_bMainComponentFlag = (pPayload[5] & 0x40) != 0;
+	m_QualityIndicator = (pPayload[5] & 0x30) >> 4;
+	m_SamplingRate = (pPayload[5] & 0x0E) >> 1;
+	m_LanguageCode = (pPayload[6] << 16) | (pPayload[7] << 8) | pPayload[8];
+	int Pos = 9;
+	if (m_bESMultiLingualFlag) {
+		if (Pos + 3 > m_byDescLen)
+			return false;
+		m_LanguageCode2 = (pPayload[Pos] << 16) | (pPayload[Pos + 1] << 8) | pPayload[Pos + 2];
+		Pos += 3;
+	}
+	if (Pos < m_byDescLen)
+		CAribString::AribToString(m_szText, sizeof(m_szText) / sizeof(TCHAR), &pPayload[Pos], min(m_byDescLen - Pos, 33));
 	else
 		m_szText[0]='\0';
 	return true;
@@ -786,7 +915,7 @@ CDescBlock & CDescBlock::operator = (const CDescBlock &Operand)
 	Reset();
 	m_DescArray.resize(Operand.m_DescArray.size());
 
-	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++){
+	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++) {
 		m_DescArray[Index] = CreateDescInstance(Operand.m_DescArray[Index]->GetTag());
 		m_DescArray[Index]->CopyDesc(Operand.m_DescArray[Index]);
 	}
@@ -804,9 +933,10 @@ const WORD CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength)
 
 	// 指定されたブロックに含まれる記述子を解析する
 	WORD wPos = 0UL;
-	CBaseDesc *pNewDesc = NULL;
 
-	while (wPos < wDataLength) {
+	do {
+		CBaseDesc *pNewDesc;
+
 		// ブロックを解析する
 		if (!(pNewDesc = ParseDesc(&pHexData[wPos], wDataLength - wPos)))
 			break;
@@ -816,7 +946,7 @@ const WORD CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength)
 
 		// 位置更新
 		wPos += (pNewDesc->GetLength() + 2U);
-	}
+	} while (wPos < wDataLength);
 
 	return m_DescArray.size();
 }
@@ -830,7 +960,7 @@ const CBaseDesc * CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataL
 void CDescBlock::Reset(void)
 {
 	// 全てのインスタンスを開放する
-	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++){
+	for (size_t Index = 0 ; Index < m_DescArray.size() ; Index++) {
 		delete m_DescArray[Index];
 	}
 
@@ -894,6 +1024,7 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 	case CNetworkNameDesc::DESC_TAG		: return new CNetworkNameDesc;
 	case CSystemManageDesc::DESC_TAG	: return new CSystemManageDesc;
 	case CTSInfoDesc::DESC_TAG			: return new CTSInfoDesc;
+	case CComponentDesc::DESC_TAG		: return new CComponentDesc;
 	case CAudioComponentDesc::DESC_TAG	: return new CAudioComponentDesc;
 	default								: return new CBaseDesc;
 	}

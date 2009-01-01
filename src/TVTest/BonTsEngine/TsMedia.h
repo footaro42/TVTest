@@ -68,7 +68,7 @@ protected:
 		bool bCrcFlag;					// PES CRC Flag
 		bool bExtensionFlag;			// PES Extension Flag
 		BYTE byHeaderDataLength;		// PES Header Data Length
-		} m_Header;
+	} m_Header;
 };
 
 
@@ -151,7 +151,7 @@ protected:
 		WORD wFrameLength;				// Frame Length
 		WORD wBufferFullness;			// ADTS Buffer Fullness
 		BYTE byRawDataBlockNum;			// Number of Raw Data Blocks in Frame
-		} m_Header;
+	} m_Header;
 };
 
 
@@ -221,7 +221,7 @@ public:
 	const WORD GetExtendDisplayVerticalSize(void) const;
 
 protected:
-	struct TAG_MPEG2SEQHEADER{
+	struct TAG_MPEG2SEQHEADER {
 		// sequence_header()
 		WORD wHorizontalSize;				// Horizontal Size Value
 		WORD wVerticalSize;					// Vertical Size Value
@@ -243,7 +243,7 @@ protected:
 				bool bLowDelay;
 				BYTE byFrameRateExtN;
 				BYTE byFrameRateExtD;
-				} Sequence;
+			} Sequence;
 			struct {
 				bool bHave;
 				BYTE byVideoFormat;
@@ -255,9 +255,9 @@ protected:
 					} Color;
 				WORD wDisplayHorizontalSize;
 				WORD wDisplayVerticalSize;
-				} Display;
-			} Extention;
-		} m_Header;
+			} Display;
+		} Extention;
+	} m_Header;
 };
 
 

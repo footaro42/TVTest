@@ -5,6 +5,7 @@
 #pragma once
 
 
+#include "BonBaseClass.h"
 #include "BonSrcDecoder.h"
 #include "TsPacketParser.h"
 #include "TsDescrambler.h"
@@ -16,8 +17,6 @@
 #include "MediaBuffer.h"
 #include "MediaGrabber.h"
 #include "TsSelector.h"
-#include "Exception.h"
-#include "../Tracer.h"
 
 // ※この辺は全くの暫定です
 
@@ -28,7 +27,7 @@
 
 class CDtvEngineHandler;
 
-class CDtvEngine : protected CMediaDecoder::IEventHandler, public CBonErrorHandler
+class CDtvEngine : protected CMediaDecoder::IEventHandler, public CBonBaseClass
 {
 public:
 	enum EVENTID
@@ -65,6 +64,8 @@ public:
 	const int GetAudioStream() const;
 	const BYTE GetAudioComponentType();
 	const bool SetStereoMode(int iMode);
+	const WORD GetEventID();
+	const int GetEventName(LPTSTR pszName, int MaxLength, bool fNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 
@@ -96,7 +97,8 @@ public:
 	bool SetWriteCurServiceOnly(bool bOnly,DWORD Stream=CTsSelector::STREAM_ALL);
 	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
 	CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
-	bool SetTracer(CTracer *pTracer);
+// CBonBaseClass
+	void SetTracer(CTracer *pTracer);
 
 //protected:
 	// CMediaDecoder から派生したメディアデコーダクラス
@@ -134,8 +136,6 @@ protected:
 	bool m_bDescrambleCurServiceOnly;
 	bool m_bWriteCurServiceOnly;
 
-	CTracer *m_pTracer;
-	void Trace(LPCTSTR pszOutput, ...);
 	void ResetStatus();
 };
 

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Accelerator.h"
@@ -6,11 +7,17 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
 
-#define MAKE_ACCEL_PARAM(i,mod,key) (((i)<<16)|((mod)<<8)|(key))
-#define GET_ACCEL_INDEX(param) ((param)>>16)
-#define GET_ACCEL_MOD(param) ((BYTE)(((param)>>8)&0xFF))
-#define GET_ACCEL_KEY(param) ((BYTE)((param)&0xFF))
+
+#define MAKE_ACCEL_PARAM(key,mod,global) (((key)<<16)|((mod)<<8)|((global)?1:0))
+#define GET_ACCEL_KEY(param)	((WORD)((param)>>16))
+#define GET_ACCEL_MOD(param)	((BYTE)(((param)>>8)&0xFF))
+#define GET_ACCEL_GLOBAL(param)	(((param)&0xFF)!=0)
 
 
 static const struct {
@@ -153,27 +160,37 @@ static struct {
 	{TEXT("VideoDecoderProperty"),	CM_DECODERPROPERTY},
 	{TEXT("Options"),				CM_OPTIONS},
 	{TEXT("Close"),					CM_CLOSE},
+	{TEXT("Service1"),				CM_SERVICE_FIRST},
+	{TEXT("Service2"),				CM_SERVICE_FIRST+1},
+	{TEXT("Service3"),				CM_SERVICE_FIRST+2},
+	{TEXT("Service4"),				CM_SERVICE_FIRST+3},
+	{TEXT("Service5"),				CM_SERVICE_FIRST+4},
+	{TEXT("TuningSpace1"),			CM_SPACE_FIRST},
+	{TEXT("TuningSpace2"),			CM_SPACE_FIRST+1},
+	{TEXT("TuningSpace3"),			CM_SPACE_FIRST+2},
+	{TEXT("TuningSpace4"),			CM_SPACE_FIRST+3},
+	{TEXT("TuningSpace5"),			CM_SPACE_FIRST+4},
 };
 
 
 
 
 const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
-	{CM_ZOOM_100,		VK_HOME,		0},
-	{CM_ASPECTRATIO,	'A',			0},
-	{CM_FULLSCREEN,		VK_RETURN,		MOD_ALT},
-	{CM_ALWAYSONTOP,	'T',			0},
-	{CM_VOLUME_MUTE,	'M',			0},
-	{CM_VOLUME_UP,		VK_UP,			0},
-	{CM_VOLUME_DOWN,	VK_DOWN,		0},
-	{CM_SWITCHAUDIO,	'S',			0},
-	{CM_CHANNEL_DOWN,	VK_LEFT,		0},
-	{CM_CHANNEL_UP,		VK_RIGHT,		0},
-	{CM_RECORD,			'R',			0},
-	{CM_COPY,			'C',			0},
-	{CM_SAVEIMAGE,		'V',			0},
-	{CM_INFORMATION,	'I',			0},
-	{CM_PROGRAMGUIDE,	'E',			0},
+	{CM_ZOOM_100,		VK_HOME,		0,			false},
+	{CM_ASPECTRATIO,	'A',			0,			false},
+	{CM_FULLSCREEN,		VK_RETURN,		MOD_ALT,	false},
+	{CM_ALWAYSONTOP,	'T',			0,			false},
+	{CM_VOLUME_MUTE,	'M',			0,			false},
+	{CM_VOLUME_UP,		VK_UP,			0,			false},
+	{CM_VOLUME_DOWN,	VK_DOWN,		0,			false},
+	{CM_SWITCHAUDIO,	'S',			0,			false},
+	{CM_CHANNEL_DOWN,	VK_LEFT,		0,			false},
+	{CM_CHANNEL_UP,		VK_RIGHT,		0,			false},
+	{CM_RECORD,			'R',			0,			false},
+	{CM_COPY,			'C',			0,			false},
+	{CM_SAVEIMAGE,		'V',			0,			false},
+	{CM_INFORMATION,	'I',			0,			false},
+	{CM_PROGRAMGUIDE,	'E',			0,			false},
 };
 
 
@@ -182,7 +199,9 @@ CAccelerator::CAccelerator()
 	m_hAccel=NULL;
 	for (size_t i=0;i<lengthof(m_DefaultAccelList);i++)
 		m_KeyList.push_back(m_DefaultAccelList[i]);
+	m_hwndHotKey=NULL;
 	m_pMainMenu=NULL;
+	m_fRegisterHotKey=false;
 	m_fFunctionKeyChangeChannel=true;
 	m_fDigitKeyChangeChannel=true;
 	m_fNumPadChangeChannel=true;
@@ -191,8 +210,8 @@ CAccelerator::CAccelerator()
 
 CAccelerator::~CAccelerator()
 {
-	if (m_hAccel)
-		DestroyAcceleratorTable(m_hAccel);
+	Finalize();
+	m_PluginList.DeleteAll();
 }
 
 
@@ -249,26 +268,74 @@ void CAccelerator::SetMenuAccelText(HMENU hmenu,int Command)
 
 HACCEL CAccelerator::CreateAccel()
 {
-	LPACCEL paccl;
-	HACCEL hAccel;
-
 	if (m_KeyList.size()==0)
 		return NULL;
+
+	LPACCEL paccl;
+	int j;
+
 	paccl=new ACCEL[m_KeyList.size()];
+	j=0;
 	for (size_t i=0;i<m_KeyList.size();i++) {
-		paccl[i].fVirt=FVIRTKEY;
-		if ((m_KeyList[i].Modifiers&MOD_SHIFT)!=0)
-			paccl[i].fVirt|=FSHIFT;
-		if ((m_KeyList[i].Modifiers&MOD_CONTROL)!=0)
-			paccl[i].fVirt|=FCONTROL;
-		if ((m_KeyList[i].Modifiers&MOD_ALT)!=0)
-			paccl[i].fVirt|=FALT;
-		paccl[i].key=m_KeyList[i].KeyCode;
-		paccl[i].cmd=m_KeyList[i].Command;
+		if (!m_KeyList[i].fGlobal) {
+			paccl[j].fVirt=FVIRTKEY;
+			if ((m_KeyList[i].Modifiers&MOD_SHIFT)!=0)
+				paccl[j].fVirt|=FSHIFT;
+			if ((m_KeyList[i].Modifiers&MOD_CONTROL)!=0)
+				paccl[j].fVirt|=FCONTROL;
+			if ((m_KeyList[i].Modifiers&MOD_ALT)!=0)
+				paccl[j].fVirt|=FALT;
+			paccl[j].key=m_KeyList[i].KeyCode;
+			paccl[j].cmd=m_KeyList[i].Command;
+			j++;
+		}
 	}
-	hAccel=::CreateAcceleratorTable(paccl,m_KeyList.size());
+	HACCEL hAccel=NULL;
+	if (j>0)
+		hAccel=::CreateAcceleratorTable(paccl,j);
 	delete [] paccl;
 	return hAccel;
+}
+
+
+bool CAccelerator::RegisterHotKey()
+{
+	if (m_fRegisterHotKey)
+		return false;
+
+	bool fOK=true;
+
+	for (size_t i=0;i<m_KeyList.size();i++) {
+		if (m_KeyList[i].fGlobal) {
+			if (!::RegisterHotKey(m_hwndHotKey,
+					(m_KeyList[i].Modifiers<<8)|m_KeyList[i].KeyCode,
+					m_KeyList[i].Modifiers,m_KeyList[i].KeyCode)) {
+				fOK=false;
+			}
+		}
+	}
+	m_fRegisterHotKey=true;
+	return fOK;
+}
+
+
+bool CAccelerator::UnregisterHotKey()
+{
+	if (!m_fRegisterHotKey)
+		return true;
+
+	bool fOK=true;
+
+	for (size_t i=0;i<m_KeyList.size();i++) {
+		if (m_KeyList[i].fGlobal) {
+			if (!::UnregisterHotKey(m_hwndHotKey,
+					(m_KeyList[i].Modifiers<<8)|m_KeyList[i].KeyCode)) {
+				fOK=false;
+			}
+		}
+	}
+	m_fRegisterHotKey=false;
+	return fOK;
 }
 
 
@@ -306,24 +373,32 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
 				if (Settings.Read(szName,szCommand,lengthof(szCommand))
 						&& szCommand[0]!='\0') {
-					for (j=0;j<lengthof(CommandList);j++) {
-						if (::lstrcmpi(CommandList[j].pszText,szCommand)==0) {
-							unsigned int Key,Modifiers;
+					unsigned int Key,Modifiers;
 
-							::wsprintf(szName,TEXT("Accel%d_Key"),i);
-							if (Settings.Read(szName,&Key)) {
-								KeyInfo Info;
+					::wsprintf(szName,TEXT("Accel%d_Key"),i);
+					if (Settings.Read(szName,&Key)) {
+						KeyInfo Info;
 
-								Modifiers=0;
-								::wsprintf(szName,TEXT("Accel%d_Mod"),i);
-								Settings.Read(szName,&Modifiers);
-								Info.Command=CommandList[j].Command;
-								Info.KeyCode=Key;
-								Info.Modifiers=Modifiers;
-								m_KeyList.push_back(Info);
+						if (::StrStrI(szCommand,TEXT(".tvtp"))!=NULL) {
+							Info.Command=CM_PLUGIN_FIRST+m_PluginList.Length();
+							m_PluginList.Add(DuplicateString(szCommand));
+						} else {
+							for (j=0;j<lengthof(CommandList);j++) {
+								if (::lstrcmpi(CommandList[j].pszText,szCommand)==0) {
+									Info.Command=CommandList[j].Command;
+									break;
+								}
 							}
-							break;
+							if (j==lengthof(CommandList))
+								continue;
 						}
+						Info.KeyCode=Key;
+						Modifiers=0;
+						::wsprintf(szName,TEXT("Accel%d_Mod"),i);
+						Settings.Read(szName,&Modifiers);
+						Info.Modifiers=Modifiers&0x7F;
+						Info.fGlobal=(Modifiers&0x80)!=0;
+						m_KeyList.push_back(Info);
 					}
 				}
 			}
@@ -361,13 +436,17 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 				TCHAR szName[64];
 
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
-				for (j=0;CommandList[j].Command!=m_KeyList[i].Command;j++);
-				ASSERT(j<lengthof(CommandList));
-				Settings.Write(szName,CommandList[j].pszText);
+				if (m_KeyList[i].Command>=CM_PLUGIN_FIRST
+						&& m_KeyList[i].Command<=CM_PLUGIN_LAST) {
+					Settings.Write(szName,m_PluginList[m_KeyList[i].Command-CM_PLUGIN_FIRST]);
+				} else {
+					for (j=0;CommandList[j].Command!=m_KeyList[i].Command;j++);
+					Settings.Write(szName,CommandList[j].pszText);
+				}
 				::wsprintf(szName,TEXT("Accel%d_Key"),i);
 				Settings.Write(szName,(int)m_KeyList[i].KeyCode);
 				::wsprintf(szName,TEXT("Accel%d_Mod"),i);
-				Settings.Write(szName,(int)m_KeyList[i].Modifiers);
+				Settings.Write(szName,(int)(m_KeyList[i].Modifiers | (m_KeyList[i].fGlobal?0x80:0x00)));
 			}
 		} else
 			Settings.Write(TEXT("AccelCount"),-1);
@@ -377,14 +456,58 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 }
 
 
-bool CAccelerator::Initialize(CMainMenu *pMainMenu)
+bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,const CPluginList *pPluginList)
 {
+	if (pPluginList!=NULL) {
+		std::vector<KeyInfo>::iterator itr;
+
+		itr=m_KeyList.begin();
+		while (itr!=m_KeyList.end()) {
+			if (itr->Command>=CM_PLUGIN_FIRST && itr->Command<=CM_PLUGIN_LAST) {
+				LPCTSTR pszPluginName=m_PluginList[itr->Command-CM_PLUGIN_FIRST];
+				bool fFinded=false;
+
+				for (int j=0;j<pPluginList->NumPlugins();j++) {
+					const CPlugin *pPlugin=pPluginList->GetPlugin(j);
+
+					if (::lstrcmpi(::PathFindFileName(pPlugin->GetFileName()),pszPluginName)==0) {
+						itr->Command=CM_PLUGIN_FIRST+j;
+						fFinded=true;
+						break;
+					}
+				}
+				if (fFinded) {
+					itr++;
+				} else {
+					itr=m_KeyList.erase(itr);
+				}
+			} else {
+				itr++;
+			}
+		}
+		m_PluginList.DeleteAll();
+		for (int i=0;i<pPluginList->NumPlugins();i++)
+			m_PluginList.Add(DuplicateString(::PathFindFileName(pPluginList->GetPlugin(i)->GetFileName())));
+	}
 	if (m_hAccel==NULL) {
 		m_hAccel=CreateAccel();
 	}
 	m_pMainMenu=pMainMenu;
 	m_pMainMenu->SetAccelerator(this);
+	m_hwndHotKey=hwndHotKey;
+	RegisterHotKey();
 	return true;
+}
+
+
+void CAccelerator::Finalize()
+{
+	if (m_hAccel) {
+		::DestroyAcceleratorTable(m_hAccel);
+		m_hAccel=NULL;
+	}
+	if (m_fRegisterHotKey)
+		UnregisterHotKey();
 }
 
 
@@ -393,6 +516,17 @@ bool CAccelerator::TranslateMessage(HWND hwnd,LPMSG pmsg)
 	if (m_hAccel!=NULL)
 		return ::TranslateAccelerator(hwnd,m_hAccel,pmsg)!=FALSE;
 	return false;
+}
+
+
+int CAccelerator::TranslateHotKey(WPARAM wParam,LPARAM lParam)
+{
+	for (size_t i=0;i<m_KeyList.size();i++) {
+		if (((m_KeyList[i].Modifiers<<8)|m_KeyList[i].KeyCode)==wParam) {
+			return m_KeyList[i].Command;
+		}
+	}
+	return -1;
 }
 
 
@@ -413,24 +547,25 @@ void CAccelerator::SetMenuAccel(HMENU hmenu)
 }
 
 
-int CAccelerator::CheckAccelKey(HWND hwndList,BYTE Mod,BYTE Key)
+int CAccelerator::CheckAccelKey(HWND hwndList,BYTE Mod,WORD Key)
 {
 	LV_ITEM lvi;
-	int i;
+	int i,Count;
 
+	Count=ListView_GetItemCount(hwndList);
 	lvi.mask=LVIF_PARAM;
 	lvi.iSubItem=0;
-	for (i=0;i<lengthof(CommandList);i++) {
+	for (i=0;i<Count;i++) {
 		lvi.iItem=i;
 		ListView_GetItem(hwndList,&lvi);
-		if (GET_ACCEL_MOD(lvi.lParam)==Mod && GET_ACCEL_KEY(lvi.lParam)==Key)
+		if (GET_ACCEL_KEY(lvi.lParam)==Key && GET_ACCEL_MOD(lvi.lParam)==Mod)
 			return i;
 	}
 	return -1;
 }
 
 
-void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,BYTE Key)
+void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool fGlobal)
 {
 	LV_ITEM lvi;
 	TCHAR szText[64];
@@ -438,7 +573,7 @@ void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,BYTE Key)
 	lvi.mask=LVIF_PARAM;
 	lvi.iItem=Index;
 	lvi.iSubItem=0;
-	lvi.lParam=MAKE_ACCEL_PARAM(Index,Mod,Key);
+	lvi.lParam=MAKE_ACCEL_PARAM(Key,Mod,fGlobal);
 	ListView_SetItem(hwndList,&lvi);
 	lvi.mask=LVIF_TEXT;
 	lvi.iSubItem=1;
@@ -456,7 +591,8 @@ void CAccelerator::SetDlgItemStatus(HWND hDlg)
 {
 	HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 	int Sel,Index;
-	BYTE Key,Mod;
+	WORD Key;
+	BYTE Mod;
 
 	Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 	if (Sel>=0) {
@@ -466,7 +602,6 @@ void CAccelerator::SetDlgItemStatus(HWND hDlg)
 		lvi.iItem=Sel;
 		lvi.iSubItem=0;
 		ListView_GetItem(hwndList,&lvi);
-		Index=GET_ACCEL_INDEX(lvi.lParam);
 		Key=GET_ACCEL_KEY(lvi.lParam);
 		Mod=GET_ACCEL_MOD(lvi.lParam);
 		for (int i=0;i<lengthof(AccelKeyList);i++) {
@@ -478,13 +613,14 @@ void CAccelerator::SetDlgItemStatus(HWND hDlg)
 		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_SHIFT,(Mod&MOD_SHIFT)!=0);
 		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_CONTROL,(Mod&MOD_CONTROL)!=0);
 		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_ALT,(Mod&MOD_ALT)!=0);
+		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_GLOBAL,GET_ACCEL_GLOBAL(lvi.lParam));
 	} else {
 		::SendDlgItemMessage(hDlg,IDC_ACCELERATOR_KEY,CB_SETCURSEL,0,0);
-		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_SHIFT,false);
-		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_CONTROL,false);
-		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_ALT,false);
+		for (int i=IDC_ACCELERATOR_SHIFT;i<=IDC_ACCELERATOR_ALT;i++)
+			DlgCheckBox_Check(hDlg,i,false);
+		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_GLOBAL,false);
 	}
-	EnableDlgItems(hDlg,IDC_ACCELERATOR_KEY,IDC_ACCELERATOR_ALT,Sel>=0);
+	EnableDlgItems(hDlg,IDC_ACCELERATOR_KEY,IDC_ACCELERATOR_GLOBAL,Sel>=0);
 }
 
 
@@ -529,9 +665,37 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 							 CommandList[i].Command,szText,lengthof(szText));
 				lvi.pszText=szText;
 				if (pKey!=NULL)
-					lvi.lParam=MAKE_ACCEL_PARAM(i,pKey->Modifiers,pKey->KeyCode);
+					lvi.lParam=MAKE_ACCEL_PARAM(pKey->KeyCode,pKey->Modifiers,pKey->fGlobal);
 				else
-					lvi.lParam=MAKE_ACCEL_PARAM(i,0,0);
+					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false);
+				lvi.iItem=ListView_InsertItem(hwndList,&lvi);
+				if (pKey!=NULL) {
+					lvi.mask=LVIF_TEXT;
+					lvi.iSubItem=1;
+					FormatAccelText(szText,pKey->KeyCode,pKey->Modifiers);
+					ListView_SetItem(hwndList,&lvi);
+				}
+			}
+			for (int i=0;i<pThis->m_PluginList.Length();i++) {
+				const KeyInfo *pKey=NULL;
+				LV_ITEM lvi;
+				TCHAR szText[MAX_PATH+16];
+
+				for (size_t j=0;j<pThis->m_KeyList.size();j++) {
+					if (pThis->m_KeyList[j].Command==CM_PLUGIN_FIRST+i) {
+						pKey=&pThis->m_KeyList[j];
+						break;
+					}
+				}
+				lvi.mask=LVIF_TEXT | LVIF_PARAM;
+				lvi.iItem=ListView_GetItemCount(hwndList);
+				lvi.iSubItem=0;
+				::wsprintf(szText,TEXT("プラグイン(%s)"),pThis->m_PluginList[i]);
+				lvi.pszText=szText;
+				if (pKey!=NULL)
+					lvi.lParam=MAKE_ACCEL_PARAM(pKey->KeyCode,pKey->Modifiers,pKey->fGlobal);
+				else
+					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false);
 				lvi.iItem=ListView_InsertItem(hwndList,&lvi);
 				if (pKey!=NULL) {
 					lvi.mask=LVIF_TEXT;
@@ -549,12 +713,12 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 											(LPARAM)AccelKeyList[i].pszText);
 			SetDlgItemStatus(hDlg);
 
-			CheckDlgButton(hDlg,IDC_OPTIONS_CHANGECH_FUNCTION,
-				pThis->m_fFunctionKeyChangeChannel?BST_CHECKED:BST_UNCHECKED);
-			CheckDlgButton(hDlg,IDC_OPTIONS_CHANGECH_DIGIT,
-				pThis->m_fDigitKeyChangeChannel?BST_CHECKED:BST_UNCHECKED);
-			CheckDlgButton(hDlg,IDC_OPTIONS_CHANGECH_NUMPAD,
-				pThis->m_fNumPadChangeChannel?BST_CHECKED:BST_UNCHECKED);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_FUNCTION,
+							  pThis->m_fFunctionKeyChangeChannel);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_DIGIT,
+							  pThis->m_fDigitKeyChangeChannel);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_NUMPAD,
+							  pThis->m_fNumPadChangeChannel);
 		}
 		return TRUE;
 
@@ -566,6 +730,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		case IDC_ACCELERATOR_SHIFT:
 		case IDC_ACCELERATOR_CONTROL:
 		case IDC_ACCELERATOR_ALT:
+		case IDC_ACCELERATOR_GLOBAL:
 			{
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
@@ -591,24 +756,28 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						Mod|=MOD_ALT;
 					i=CheckAccelKey(hwndList,Mod,AccelKeyList[Key-1].KeyCode);
 					if (i>=0) {
-						if (i!=GET_ACCEL_INDEX(lvi.lParam)) {
-							TCHAR szCommand[64],szText[128],szMessage[128];
+						if (i!=lvi.iItem) {
+							TCHAR szCommand[MAX_PATH+16],szText[MAX_PATH+128];
 
-							::LoadString(GetAppClass().GetResourceInstance(),
-										 CommandList[i].Command,
-										 szCommand,lengthof(szCommand));
-							wsprintf(szText,TEXT("既に [%s] に割り当てられています。\r\n割り当て直しますか?"),szCommand);
+							if (i<lengthof(CommandList)) {
+								::LoadString(GetAppClass().GetResourceInstance(),
+											 CommandList[i].Command,
+											 szCommand,lengthof(szCommand));
+							} else {
+								::wsprintf(szCommand,TEXT("プラグイン(%s)"),
+										   GetThis(hDlg)->m_PluginList[i-lengthof(CommandList)]);
+							}
+							::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\r\n割り当て直しますか?"),szCommand);
 							if (::MessageBox(hDlg,szText,NULL,
 											MB_YESNO | MB_ICONQUESTION)!=IDYES)
 								return TRUE;
-							SetAccelItem(hwndList,i,0,0);
+							SetAccelItem(hwndList,i,0,0,false);
 						}
 					}
-					lvi.lParam=MAKE_ACCEL_PARAM(GET_ACCEL_INDEX(lvi.lParam),
-											Mod,AccelKeyList[Key-1].KeyCode);
+					lvi.lParam=MAKE_ACCEL_PARAM(AccelKeyList[Key-1].KeyCode,Mod,
+						DlgCheckBox_IsChecked(hDlg,IDC_ACCELERATOR_GLOBAL));
 				} else {
-					lvi.lParam=
-							MAKE_ACCEL_PARAM(GET_ACCEL_INDEX(lvi.lParam),0,0);
+					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false);
 				}
 				ListView_SetItem(hwndList,&lvi);
 				TCHAR szText[64];
@@ -628,18 +797,19 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			{
 				LV_ITEM lvi;
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
-				int i,j;
+				int Count,i,j;
 
+				Count=ListView_GetItemCount(hwndList);
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
-				for (i=0;i<lengthof(CommandList);i++) {
-					BYTE Key=0,Mod=0;
+				for (i=0;i<Count;i++) {
+					WORD Key=0;
+					BYTE Mod=0;
 
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
-					int Index=GET_ACCEL_INDEX(lvi.lParam);
 					for (j=0;j<lengthof(m_DefaultAccelList);j++) {
-						if (m_DefaultAccelList[j].Command==CommandList[Index].Command) {
+						if (m_DefaultAccelList[j].Command==CommandList[i].Command) {
 							Key=m_DefaultAccelList[j].KeyCode;
 							Mod=m_DefaultAccelList[j].Modifiers;
 							break;
@@ -647,7 +817,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					}
 					if (GET_ACCEL_KEY(lvi.lParam)!=Key
 							|| GET_ACCEL_MOD(lvi.lParam)!=Mod)
-						SetAccelItem(hwndList,Index,Mod,Key);
+						SetAccelItem(hwndList,i,Mod,Key,false);
 				}
 				SetDlgItemStatus(hDlg);
 			}
@@ -670,7 +840,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 					if (Sel>=0)
-						SetAccelItem(hwndList,Sel,0,0);
+						SetAccelItem(hwndList,Sel,0,0,false);
 				}
 			}
 			break;
@@ -680,19 +850,26 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
+				int Count,i;
 
+				pThis->UnregisterHotKey();
 				pThis->m_KeyList.clear();
+				Count=ListView_GetItemCount(hwndList);
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
-				for (int i=0;i<lengthof(CommandList);i++) {
+				for (i=0;i<Count;i++) {
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
 					if (GET_ACCEL_KEY(lvi.lParam)!=0) {
 						KeyInfo Info;
 
-						Info.Command=CommandList[i].Command;
+						if (i<lengthof(CommandList))
+							Info.Command=CommandList[i].Command;
+						else
+							Info.Command=CM_PLUGIN_FIRST+(i-lengthof(CommandList));
 						Info.KeyCode=GET_ACCEL_KEY(lvi.lParam);
 						Info.Modifiers=GET_ACCEL_MOD(lvi.lParam);
+						Info.fGlobal=GET_ACCEL_GLOBAL(lvi.lParam);
 						pThis->m_KeyList.push_back(Info);
 					}
 				}
@@ -701,13 +878,14 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					::DestroyAcceleratorTable(pThis->m_hAccel);
 				pThis->m_hAccel=hAccel;
 				pThis->m_pMainMenu->SetAccelerator(pThis);
+				pThis->RegisterHotKey();
 
-				pThis->m_fFunctionKeyChangeChannel=IsDlgButtonChecked(hDlg,
-								IDC_OPTIONS_CHANGECH_FUNCTION)==BST_CHECKED;
-				pThis->m_fDigitKeyChangeChannel=IsDlgButtonChecked(hDlg,
-									IDC_OPTIONS_CHANGECH_DIGIT)==BST_CHECKED;
-				pThis->m_fNumPadChangeChannel=IsDlgButtonChecked(hDlg,
-									IDC_OPTIONS_CHANGECH_NUMPAD)==BST_CHECKED;
+				pThis->m_fFunctionKeyChangeChannel=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_FUNCTION);
+				pThis->m_fDigitKeyChangeChannel=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_DIGIT);
+				pThis->m_fNumPadChangeChannel=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_NUMPAD);
 			}
 			break;
 		}
@@ -715,4 +893,3 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 	}
 	return FALSE;
 }
-

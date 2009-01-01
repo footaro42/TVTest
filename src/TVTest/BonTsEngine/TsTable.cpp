@@ -171,9 +171,9 @@ CPsiSingleTable & CPsiSingleTable::operator = (const CPsiSingleTable &Operand)
 const bool CPsiSingleTable::StorePacket(const CTsPacket *pPacket)
 {
 	if(!pPacket)return false;
-	
+
 	m_bTableUpdated = false;
-	
+
 	// パケットストア
 	m_PsiSectionParser.StorePacket(pPacket);
 	
@@ -191,7 +191,7 @@ void CPsiSingleTable::Reset(void)
 	// 状態初期化
 	m_PsiSectionParser.Reset();
 	m_CurSection.Reset();
-	
+
 	m_bTableUpdated = false;
 }
 
@@ -413,7 +413,7 @@ CPatTable & CPatTable::operator = (const CPatTable &Operand)
 
 	m_NitPIDArray = Operand.m_NitPIDArray;
 	m_PmtPIDArray = Operand.m_PmtPIDArray;
-	
+
 	return *this;
 }
 
@@ -459,9 +459,10 @@ const WORD CPatTable::GetProgramNum(void) const
 const bool CPatTable::IsPmtTablePID(const WORD wPID) const
 {
 	// PMTのPIDかどうかを返す
-	for(WORD wIndex = 0U ; wIndex < m_PmtPIDArray.size() ; wIndex++){
-		if(wPID == m_PmtPIDArray[wIndex].wPID)return true;
-		}
+	for (WORD wIndex = 0U ; wIndex < m_PmtPIDArray.size() ; wIndex++) {
+		if (wPID == m_PmtPIDArray[wIndex].wPID)
+			return true;
+	}
 
 	return false;
 }
@@ -478,27 +479,26 @@ const bool CPatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	m_NitPIDArray.clear();
 	m_PmtPIDArray.clear();
 
-	TAG_PATITEM PatItem;
-
 	// テーブルを解析する
 
 	TRACE(TEXT("\n------- PAT Table -------\nTS ID = %04X\n"), pCurSection->GetTableIdExtension());
 
-	for(WORD wPos = 0 ; wPos < wDataSize ; wPos += 4U, pHexData += 4){
+	for (WORD wPos = 0 ; wPos < wDataSize ; wPos += 4, pHexData += 4) {
+		TAG_PATITEM PatItem;
+
 		PatItem.wProgramID	= ((WORD)pHexData[0] << 8) | (WORD)pHexData[1];				// +1,2
 		PatItem.wPID		= ((WORD)(pHexData[2] & 0x1FU) << 8) | (WORD)pHexData[3];	// +3,4
 
-		if(!PatItem.wProgramID){
+		if (PatItem.wProgramID == 0) {
 			// NITのPID
 			TRACE(TEXT("NIT #%u [ID:%04X][PID:%04X]\n"), m_NitPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
 			m_NitPIDArray.push_back(PatItem);
-			}
-		else{
+		} else {
 			// PMTのPID
 			TRACE(TEXT("PMT #%u [ID:%04X][PID:%04X]\n"), m_PmtPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
 			m_PmtPIDArray.push_back(PatItem);
-			}
 		}
+	}
 
 	return true;
 }
@@ -520,8 +520,10 @@ CCatTable::~CCatTable(void)
 
 CCatTable  & CCatTable::operator = (const CCatTable &Operand)
 {
-	if (this != &Operand)
-		*this = Operand;
+	if (this != &Operand) {
+		CPsiSingleTable::operator=(Operand);
+		m_DescBlock = Operand.m_DescBlock;
+	}
 	return *this;
 }
 
@@ -577,11 +579,13 @@ CPmtTable::CPmtTable(const CPmtTable &Operand)
 
 CPmtTable & CPmtTable::operator = (const CPmtTable &Operand)
 {
-	CPsiSingleTable::operator = (Operand);
-	m_wPcrPID = Operand.m_wPcrPID;
-	m_TableDescBlock = Operand.m_TableDescBlock;
-	m_EsInfoArray = Operand.m_EsInfoArray;
-	
+	if (this != &Operand) {
+		CPsiSingleTable::operator=(Operand);
+		m_wPcrPID = Operand.m_wPcrPID;
+		m_TableDescBlock = Operand.m_TableDescBlock;
+		m_EsInfoArray = Operand.m_EsInfoArray;
+	}
+
 	return *this;
 }
 
@@ -644,6 +648,9 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	const WORD wDataSize = pCurSection->GetPayloadSize();
 	const BYTE *pHexData = pCurSection->GetPayloadData();
 
+	if (wDataSize < 4)
+		return false;
+
 	if(pCurSection->GetTableID() != 0x02U)return false;	// テーブルIDが不正
 
 	// 状態をクリアする
@@ -651,34 +658,35 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	m_EsInfoArray.clear();
 
 	// テーブルを解析する
-	WORD wDescLen = ((WORD)(pHexData[2] & 0x0FU) << 8) | (WORD)pHexData[3];
 	m_wPcrPID = ((WORD)(pHexData[0] & 0x1FU) << 8) | (WORD)pHexData[1];				// +0,1
+	WORD wDescLen = ((WORD)(pHexData[2] & 0x0FU) << 8) | (WORD)pHexData[3];
+	if (4 + wDescLen > wDataSize)
+		return false;
 
 	// 記述子ブロック
 	m_TableDescBlock.ParseBlock(&pHexData[4], wDescLen);
 
-	// ストリーム情報の開始位置を計算
-	WORD wPos = wDescLen + 4U;
-	TAG_PMTITEM PmtItem;
-
 	TRACE(TEXT("\n------- PMT Table -------\nProgram Number ID = %04X(%d)\nPCR PID = %04X\nECM PID = %04X\n"),
 		pCurSection->GetTableIdExtension(), pCurSection->GetTableIdExtension(), m_wPcrPID , (m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG))? dynamic_cast<const CCaMethodDesc *>(m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG))->GetCaPID() : 0xFFFFU);
-	
+
 	// ストリーム情報を解析
-	while(wPos < wDataSize){
+	for (WORD wPos = wDescLen + 4 ; wPos + 5 <= wDataSize ; wPos += 5 + wDescLen) {
+		TAG_PMTITEM PmtItem;
+
 		PmtItem.byStreamTypeID = pHexData[wPos + 0];													// +0
 		PmtItem.wEsPID = ((WORD)(pHexData[wPos + 1] & 0x1FU) << 8) | (WORD)pHexData[wPos + 2];			// +1,2	
 		wDescLen = ((WORD)(pHexData[wPos + 3] & 0x0FU) << 8) | (WORD)pHexData[wPos + 4];				// +3,4
+		if (wPos + 5 + wDescLen > wDataSize)
+			break;
 
 		// 記述子ブロック
-		PmtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wDescLen);	
+		PmtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wDescLen);
 
-		TRACE(TEXT("[%u] Stream Type ID = %02X  PID = %04X\n"), m_EsInfoArray.size(), PmtItem.byStreamTypeID, PmtItem.wEsPID);		
+		TRACE(TEXT("[%u] Stream Type ID = %02X  PID = %04X\n"), m_EsInfoArray.size(), PmtItem.byStreamTypeID, PmtItem.wEsPID);
 
 		// テーブルに追加する
 		m_EsInfoArray.push_back(PmtItem);
-		wPos += (wDescLen + 5U);
-		}
+	}
 
 	return true;
 }
@@ -701,7 +709,10 @@ CSdtTable::CSdtTable(const CSdtTable &Operand)
 
 CSdtTable & CSdtTable::operator = (const CSdtTable &Operand)
 {
-	CPsiSingleTable::operator = (Operand);
+	if (this != &Operand) {
+		CPsiSingleTable::operator = (Operand);
+		m_ServiceInfoArray = Operand.m_ServiceInfoArray;
+	}
 
 	return *this;
 }
@@ -710,7 +721,7 @@ void CSdtTable::Reset(void)
 {
 	// 状態をクリアする
 	CPsiSingleTable::Reset();
-	
+
 	m_ServiceInfoArray.clear();
 }
 
@@ -723,12 +734,12 @@ const WORD CSdtTable::GetServiceNum(void) const
 const WORD CSdtTable::GetServiceIndexByID(const WORD wServiceID)
 {
 	// サービスIDからインデックスを返す
-	for(WORD wIndex = 0U ; wIndex < GetServiceNum() ; wIndex++){
-		if(m_ServiceInfoArray[wIndex].wServiceID == wServiceID){
+	for (WORD wIndex = 0U ; wIndex < GetServiceNum() ; wIndex++) {
+		if (m_ServiceInfoArray[wIndex].wServiceID == wServiceID) {
 			return wIndex;
-			}		
 		}
-	
+	}
+
 	// サービスIDが見つからない
 	return 0xFFFFU;
 }
@@ -760,7 +771,7 @@ const CDescBlock * CSdtTable::GetItemDesc(const WORD wIndex) const
 void CSdtTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
 {
 	if(pSection->GetTableID() != 0x42U)return;
-	
+
 	// Actual Streamだけを処理する
 	CPsiSingleTable::OnPsiSection(pPsiSectionParser, pSection);
 }
@@ -776,38 +787,39 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	TRACE(TEXT("\n------- SDT Table -------\nTransport Stream ID = %04X\nOriginal Network ID = %02X%02X\n"), pCurSection->GetTableIdExtension(), pHexData[0], pHexData[1]);
 
 	// テーブルを解析する
-	for(WORD wPos = 3U ; wPos < wDataSize ; ){
+	WORD wDescLen;
+	for (WORD wPos = 3 ; wPos + 5 <= wDataSize ; wPos += 5 + wDescLen) {
 		TAG_SDTITEM SdtItem;
+
 		SdtItem.wServiceID		= ((WORD)pHexData[wPos + 0] << 8) | (WORD)pHexData[wPos + 1];
 		SdtItem.byRunningStatus	= pHexData[wPos + 3] >> 5;
 		SdtItem.bFreeCaMode		= (pHexData[wPos + 3] & 0x10U)? true : false;
-		
+
 		// Service Descriptor
-		const WORD wLength = ((WORD)(pHexData[wPos + 3] & 0x0FU) << 8) | (WORD)pHexData[wPos + 4];
+		wDescLen = ((WORD)(pHexData[wPos + 3] & 0x0FU) << 8) | (WORD)pHexData[wPos + 4];
+
+		if (wPos + 5 + wDescLen > wDataSize)
+			break;
 
 		// 記述子ブロック
-		SdtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wLength);
-
-#ifdef _DEBUG
-		// デバッグ用ここから
-		const CServiceDesc *pServiceDesc = dynamic_cast<const CServiceDesc *>(SdtItem.DescBlock.GetDescByTag(CServiceDesc::DESC_TAG));
-		if(pServiceDesc){
-			TCHAR szServiceName[1024] = {TEXT('\0')};
-			pServiceDesc->GetServiceName(szServiceName);
-			TRACE(TEXT("[%u] Service ID = %04X  Running Status = %01X  Free CA Mode = %u  Service Type = %02X  Service Name = %s\n"), m_ServiceInfoArray.size(), SdtItem.wServiceID, SdtItem.byRunningStatus, SdtItem.bFreeCaMode, pServiceDesc->GetServiceType(), szServiceName);		
-			}
-		else{
-			TRACE(TEXT("[%u] Service ID = %04X  Running Status = %01X  Free CA Mode = %u  ※サービス記述子なし\n"), m_ServiceInfoArray.size(), SdtItem.wServiceID, SdtItem.byRunningStatus, SdtItem.bFreeCaMode);		
-			}
-		// ここまで
-#endif
+		SdtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wDescLen);
 
 		// テーブル追加
 		m_ServiceInfoArray.push_back(SdtItem);
 
-		// 位置更新	
-		wPos += (wLength + 5U);
+#ifdef _DEBUG
+		// デバッグ用ここから
+		const CServiceDesc *pServiceDesc = dynamic_cast<const CServiceDesc *>(SdtItem.DescBlock.GetDescByTag(CServiceDesc::DESC_TAG));
+		if (pServiceDesc) {
+			TCHAR szServiceName[1024] = {TEXT('\0')};
+			pServiceDesc->GetServiceName(szServiceName,1024);
+			TRACE(TEXT("[%u] Service ID = %04X  Running Status = %01X  Free CA Mode = %u  Service Type = %02X  Service Name = %s\n"), m_ServiceInfoArray.size(), SdtItem.wServiceID, SdtItem.byRunningStatus, SdtItem.bFreeCaMode, pServiceDesc->GetServiceType(), szServiceName);
+		} else {
+			TRACE(TEXT("[%u] Service ID = %04X  Running Status = %01X  Free CA Mode = %u  ※サービス記述子なし\n"), m_ServiceInfoArray.size(), SdtItem.wServiceID, SdtItem.byRunningStatus, SdtItem.bFreeCaMode);
 		}
+		// ここまで
+#endif
+	}
 
 	return true;
 }
@@ -830,7 +842,12 @@ CNitTable::CNitTable(const CNitTable &Operand)
 
 CNitTable & CNitTable::operator = (const CNitTable &Operand)
 {
-	CPsiSingleTable::operator = (Operand);
+	if (this != &Operand) {
+		CPsiSingleTable::operator = (Operand);
+		m_wNetworkID = Operand.m_wNetworkID;
+		m_NetworkDescBlock = Operand.m_NetworkDescBlock;
+		m_TransportStreamArray = Operand.m_TransportStreamArray;
+	}
 
 	return *this;
 }
@@ -838,34 +855,45 @@ CNitTable & CNitTable::operator = (const CNitTable &Operand)
 void CNitTable::Reset(void)
 {
 	CPsiSingleTable::Reset();
+	m_wNetworkID = 0xFFFF;
+	m_NetworkDescBlock.Reset();
+	m_TransportStreamArray.clear();
 }
 
-WORD CNitTable::GetNetworkID(void) const
+const WORD CNitTable::GetNetworkID(void) const
 {
-	if (m_NitArray.size()==0)
-		return 0;
-	return m_NitArray[0].wNetworkID;
+	return m_wNetworkID;
 }
 
-const CDescBlock * CNitTable::GetNetworkNameDesc(void) const
+const CDescBlock * CNitTable::GetNetworkDesc(void) const
 {
-	if (m_NitArray.size()==0)
+	return &m_NetworkDescBlock;
+}
+
+const WORD CNitTable::GetTransportStreamNum(void) const
+{
+	return (WORD)m_TransportStreamArray.size();
+}
+
+const WORD CNitTable::GetTransportStreamID(const WORD wIndex) const
+{
+	if (wIndex >= GetTransportStreamNum())
+		return 0xFFFF;
+	return m_TransportStreamArray[wIndex].wTransportStreamID;
+}
+
+const WORD CNitTable::GetOriginalNetworkID(const WORD wIndex) const
+{
+	if (wIndex >= GetTransportStreamNum())
+		return 0xFFFF;
+	return m_TransportStreamArray[wIndex].wOriginalNetworkID;
+}
+
+const CDescBlock * CNitTable::GetItemDesc(const WORD wIndex) const
+{
+	if (wIndex >= GetTransportStreamNum())
 		return NULL;
-	return &m_NitArray[0].NetworkNameDesc;
-}
-
-const CDescBlock * CNitTable::GetSystemManageDesc(void) const
-{
-	if (m_NitArray.size()==0)
-		return NULL;
-	return &m_NitArray[0].SystemManageDesc;
-}
-
-const CDescBlock * CNitTable::GetTSInfoDesc(void) const
-{
-	if (m_NitArray.size()==0)
-		return NULL;
-	return &m_NitArray[0].TSInfoDesc;
+	return &m_TransportStreamArray[wIndex].DescBlock;
 }
 
 const bool CNitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
@@ -873,54 +901,41 @@ const bool CNitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	const WORD wDataSize = pCurSection->GetPayloadSize();
 	const BYTE *pHexData = pCurSection->GetPayloadData();
 
-	if (pCurSection->GetTableID()!=0x40)
+	if (wDataSize < 2)
+		return false;
+	if (pCurSection->GetTableID() != 0x40)
 		return false;
 
-	m_NitArray.clear();
+	m_TransportStreamArray.clear();
 
-	TAG_NITTITEM NitItem;
-	WORD DescLength,Size,i;
-	const BYTE *p;
+	m_wNetworkID = pCurSection->GetTableIdExtension();
 
-	NitItem.wNetworkID=pCurSection->GetTableIdExtension();
+	WORD DescLength = ((WORD)(pHexData[0] & 0x0F) << 8) | pHexData[1];
+	WORD Pos = 2;
+	if (Pos + DescLength > wDataSize)
+		return false;
+	m_NetworkDescBlock.ParseBlock(&pHexData[Pos], DescLength);
+	Pos += DescLength;
 
-	DescLength=((WORD)(pHexData[0]&0x0F)<<8) | (WORD)pHexData[1];
-	p=pHexData+2;
-	for (i=0;i<DescLength;i+=Size) {
-		Size=*(p+1)+2;
-		if (*p==0x40) {
-			NitItem.NetworkNameDesc.ParseBlock(p, Size);
-		} else if (*p==0xFE) {
-			NitItem.SystemManageDesc.ParseBlock(p, Size);
-		}
-		p+=Size;
+	WORD StreamLoopLength = ((WORD)(pHexData[Pos] & 0x0F) << 8) | pHexData[Pos + 1];
+	Pos += 2;
+	if (Pos + StreamLoopLength > wDataSize)
+		return false;
+	for (WORD i = 0 ; i < StreamLoopLength ; i += 6 + DescLength) {
+		TAG_NITITEM NitItem;
+
+		if (Pos + 6 > wDataSize)
+			return false;
+		NitItem.wTransportStreamID = ((WORD)pHexData[Pos + 0] << 8) | pHexData[Pos + 1];
+		NitItem.wOriginalNetworkID = ((WORD)pHexData[Pos + 2] << 8) | pHexData[Pos + 3];
+		DescLength = ((WORD)(pHexData[Pos + 4] & 0x0F) << 8) | pHexData[Pos + 5];
+		Pos += 6;
+		if (Pos + DescLength > wDataSize)
+			return false;
+		NitItem.DescBlock.ParseBlock(&pHexData[Pos], DescLength);
+		Pos += DescLength;
+		m_TransportStreamArray.push_back(NitItem);
 	}
-	/*
-	WORD StreamLoopLength=((WORD)(p[0]&0x0F)<<8) | (WORD)p[1];
-	p+=2;
-	for (i=0;i<StreamLoopLength;i+=6+DescLength) {
-		p+=4;
-		DescLength=((WORD)(p[0]&0x0F)<<8) | (WORD)p[1];
-		p+=2;
-		for (WORD j=0;j<DescLength;j+=Size) {
-			Size=*(p+1)+2;
-			...
-			p+=Size;
-		}
-	}
-	*/
-	p+=6;
-	DescLength=((WORD)(p[0]&0x0F)<<8) | (WORD)p[1];
-	p+=2;
-	for (i=0;i<DescLength;i+=Size) {
-		Size=*(p+1)+2;
-		if (*p==0xCD) {
-			NitItem.TSInfoDesc.ParseBlock(p, Size);
-		}
-		p+=Size;
-	}
-
-	m_NitArray.push_back(NitItem);
 
 	return true;
 }
@@ -943,7 +958,10 @@ CHEitTable::CHEitTable(const CHEitTable &Operand)
 
 CHEitTable & CHEitTable::operator = (const CHEitTable &Operand)
 {
-	CPsiSingleTable::operator = (Operand);
+	if (this != &Operand) {
+		CPsiSingleTable::operator = (Operand);
+		m_EitArray = Operand.m_EitArray;
+	}
 
 	return *this;
 }
@@ -1004,6 +1022,20 @@ const WORD CHEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
 	return m_EitArray[Index].EventList[EventIndex].EventID;
 }
 
+const SYSTEMTIME *CHEitTable::GetStartTime(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex>1)
+		return NULL;
+	return &m_EitArray[Index].EventList[EventIndex].StartTime;
+}
+
+const DWORD CHEitTable::GetDuration(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex>1)
+		return 0;
+	return m_EitArray[Index].EventList[EventIndex].Duration;
+}
+
 const BYTE CHEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
 {
 	if (Index >= GetServiceNum() || EventIndex>1)
@@ -1037,43 +1069,43 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 	const WORD wDataSize = pCurSection->GetPayloadSize();
 	const BYTE *pHexData = pCurSection->GetPayloadData();
 
-	if (wDataSize<18)
+	if (wDataSize < 18)
 		return false;
 
-	WORD ServiceID,TransportStreamID,OriginalNetworkID;
-	ServiceID=pCurSection->GetTableIdExtension();
-	TransportStreamID=((WORD)pHexData[0]<<8)|pHexData[1];
-	OriginalNetworkID=((WORD)pHexData[2]<<8)|pHexData[3];
+	WORD ServiceID, TransportStreamID, OriginalNetworkID;
+	ServiceID = pCurSection->GetTableIdExtension();
+	TransportStreamID = ((WORD)pHexData[0] << 8) | pHexData[1];
+	OriginalNetworkID = ((WORD)pHexData[2] << 8) | pHexData[3];
 
 	//TRACE(TEXT("------- H-EIT Table -------\nSID = %04X / TSID = %04X / ONID = %04X\n"),ServiceID,TransportStreamID,OriginalNetworkID);
 
-	int Index=GetServiceIndexByID(ServiceID);
-	if (Index<0) {
+	int Index = GetServiceIndexByID(ServiceID);
+	if (Index < 0) {
 		HEitInfo EitInfo;
 
-		EitInfo.ServiceID=ServiceID;
-		EitInfo.TransportStreamID=TransportStreamID;
-		EitInfo.OriginalNetworkID=OriginalNetworkID;
+		EitInfo.ServiceID = ServiceID;
+		EitInfo.TransportStreamID = TransportStreamID;
+		EitInfo.OriginalNetworkID = OriginalNetworkID;
 		m_EitArray.push_back(EitInfo);
-		Index=m_EitArray.size()-1;
+		Index=m_EitArray.size() - 1;
 	}
 
-	if (pHexData[4]!=0x01)	// segment_last_section_number
+	if (pHexData[4] != 0x01)	// segment_last_section_number
 		return false;
-	if (pHexData[5]!=0x4E)	// last_table_id
+	if (pHexData[5] != 0x4E)	// last_table_id
 		return false;
 
-	EventInfo &Info=m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
+	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
 
-	Info.EventID=(pHexData[6]<<8)|pHexData[7];
-	if (!CAribTime::AribToSystemTime(&pHexData[8],&Info.StartTime))
-		::ZeroMemory(&Info.StartTime,sizeof(SYSTEMTIME));
-	Info.Duration=CAribTime::AribBcdToSecond(&pHexData[13]);
-	Info.RunningStatus=pHexData[16]>>5;
-	Info.FreeCaMode=(pHexData[16]&0x10)!=0;
-	WORD DescLength=(((WORD)pHexData[16]&0x0F)<<8)|pHexData[17];
-	if (DescLength>0 && DescLength<=wDataSize-18)
-		Info.DescBlock.ParseBlock(&pHexData[18],DescLength);
+	Info.EventID = (pHexData[6] << 8) | pHexData[7];
+	if (!CAribTime::AribToSystemTime(&pHexData[8], &Info.StartTime))
+		::ZeroMemory(&Info.StartTime, sizeof(SYSTEMTIME));
+	Info.Duration = CAribTime::AribBcdToSecond(&pHexData[13]);
+	Info.RunningStatus = pHexData[16] >> 5;
+	Info.FreeCaMode = (pHexData[16] & 0x10) != 0;
+	WORD DescLength = (((WORD)pHexData[16] & 0x0F) << 8) | pHexData[17];
+	if (DescLength > 0 && DescLength <= wDataSize - 18)
+		Info.DescBlock.ParseBlock(&pHexData[18], DescLength);
 	else
 		Info.DescBlock.Reset();
 
@@ -1104,7 +1136,11 @@ CPcrTable::CPcrTable(const CPcrTable &Operand)
 
 CPcrTable & CPcrTable::operator = (const CPcrTable &Operand)
 {
-	CPsiNullTable::operator = (Operand);
+	if (this != &Operand) {
+		CPsiNullTable::operator = (Operand);
+		m_ServiceIndex = Operand.m_ServiceIndex;
+		m_ui64_Pcr = Operand.m_ui64_Pcr;
+	}
 
 	return *this;
 }
@@ -1131,11 +1167,11 @@ void CPcrTable::AddServiceIndex(WORD wServiceIndex)
 
 const WORD CPcrTable::GetServiceIndex(WORD *pwServiceIndex, WORD wIndex)
 {
-	if(wIndex<m_ServiceIndex.size() && pwServiceIndex){
+	if (wIndex < m_ServiceIndex.size() && pwServiceIndex) {
 		*pwServiceIndex = m_ServiceIndex[wIndex];
 		return true;
-		}
-	return false;	
+	}
+	return false;
 }
 
 const unsigned __int64 CPcrTable::GetPcrTimeStamp()

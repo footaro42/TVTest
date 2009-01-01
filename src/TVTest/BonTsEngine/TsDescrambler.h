@@ -72,6 +72,9 @@ public:
 	const bool IsBcasCardOpen() const;
 	const bool GetBcasCardID(BYTE *pCardID);
 	LPCTSTR GetCardReaderName() const;
+	int FormatBcasCardID(LPTSTR pszText,int MaxLength) const;
+	char GetBcasCardManufacturerID() const;
+	BYTE GetBcasCardVersion() const;
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetScramblePacketCount(void) const;
 	void ResetScramblePacketCount(void);

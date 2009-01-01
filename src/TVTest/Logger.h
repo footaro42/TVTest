@@ -3,6 +3,7 @@
 
 
 #include "Options.h"
+#include "TsUtilClass.h"
 
 
 class CLogItem {
@@ -16,7 +17,7 @@ public:
 	int Format(char *pszText,int MaxLength) const;
 };
 
-class CLogger : public COptions {
+class CLogger : public COptions, public CTracer {
 	int m_NumLogItems;
 	CLogItem **m_ppList;
 	int m_ListLength;
@@ -35,6 +36,9 @@ public:
 	bool SaveToFile(LPCTSTR pszFileName,bool fAppend) const;
 	void GetDefaultLogFileName(LPTSTR pszFileName) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+protected:
+	// CTracer
+	void OnTrace(LPCTSTR pszOutput);
 };
 
 

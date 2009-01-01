@@ -12,7 +12,7 @@
 
 
 
-DWORD CPlugin::m_FinalizeTimeout=10000;
+//DWORD CPlugin::m_FinalizeTimeout=10000;
 
 bool CPlugin::m_fSetGrabber=false;
 CPointerVector<CPlugin::CMediaGrabberInfo> CPlugin::m_GrabberList;
@@ -28,6 +28,7 @@ CPlugin::CPlugin()
 	, m_pszCopyright(NULL)
 	, m_pszDescription(NULL)
 	, m_fEnabled(false)
+	, m_Command(0)
 	, m_pEventCallback(NULL)
 {
 }
@@ -167,6 +168,16 @@ bool CPlugin::Enable(bool fEnable)
 }
 
 
+bool CPlugin::SetCommand(int Command)
+{
+	if (Command<CM_PLUGIN_FIRST || Command>CM_PLUGIN_LAST)
+		return false;
+	m_Command=Command;
+	return true;
+}
+
+
+/*
 bool CPlugin::SetFinalizeTimeout(DWORD Timeout)
 {
 	if (Timeout<5000)
@@ -174,6 +185,7 @@ bool CPlugin::SetFinalizeTimeout(DWORD Timeout)
 	m_FinalizeTimeout=Timeout;
 	return true;
 }
+*/
 
 
 LRESULT CPlugin::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
@@ -913,17 +925,13 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			TVTest::ARIBStringDecodeInfo *pInfo=reinterpret_cast<TVTest::ARIBStringDecodeInfo*>(lParam1);
 
 			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::ARIBStringDecodeInfo)
-					|| pInfo->pSrcData==NULL || pInfo->SrcLength==0
+					|| pInfo->pSrcData==NULL
 					|| pInfo->pszDest==NULL || pInfo->DestLength==0)
 				return FALSE;
-			LPTSTR pszBuffer=new TCHAR[32768];
-
-			if (CAribString::AribToString(pszBuffer,static_cast<const BYTE*>(pInfo->pSrcData),pInfo->SrcLength)==0) {
+			if (CAribString::AribToString(pInfo->pszDest,pInfo->DestLength,
+					static_cast<const BYTE*>(pInfo->pSrcData),pInfo->SrcLength)==0) {
 				pInfo->pszDest[0]='\0';
-			} else {
-				::lstrcpyn(pInfo->pszDest,pszBuffer,pInfo->DestLength);
 			}
-			delete [] pszBuffer;
 		}
 		return TRUE;
 
@@ -1109,14 +1117,17 @@ bool CPluginList::LoadPlugins(LPCTSTR pszDirectory)
 			CPlugin *pPlugin=new CPlugin;
 
 			::PathCombine(szFileName,pszDirectory,wfd.cFileName);
-			if (pPlugin->Load(szFileName))
+			if (pPlugin->Load(szFileName)) {
 				m_PluginList.Add(pPlugin);
-			else
+			} else {
 				delete pPlugin;
+			}
 		} while (::FindNextFile(hFind,&wfd));
 		::FindClose(hFind);
 	}
 	SortPluginsByName();
+	for (int i=0;i<m_PluginList.Length();i++)
+		m_PluginList[i]->SetCommand(CM_PLUGIN_FIRST+i);
 	return true;
 }
 
@@ -1159,6 +1170,16 @@ int CPluginList::FindPlugin(const CPlugin *pPlugin) const
 }
 
 
+int CPluginList::FindPluginByCommand(int Command) const
+{
+	for (int i=0;i<NumPlugins();i++) {
+		if (m_PluginList[i]->GetCommand()==Command)
+			return i;
+	}
+	return -1;
+}
+
+
 bool CPluginList::DeletePlugin(int Index)
 {
 	if (Index<0 || Index>=NumPlugins())
@@ -1175,8 +1196,8 @@ bool CPluginList::SetMenu(HMENU hmenu) const
 			const CPlugin *pPlugin=m_PluginList[i];
 
 			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED |
-							(pPlugin->IsEnabled()?MFS_CHECKED:MFS_UNCHECKED),
-					 CM_PLUGIN_FIRST+i,pPlugin->GetPluginName());
+						 (pPlugin->IsEnabled()?MFS_CHECKED:MFS_UNCHECKED),
+						 pPlugin->GetCommand(),pPlugin->GetPluginName());
 		}
 	} else {
 		::AppendMenu(hmenu,MFT_STRING | MFS_GRAYED,0,TEXT("‚È‚µ"));
@@ -1281,17 +1302,21 @@ CPluginOptions::~CPluginOptions()
 
 bool CPluginOptions::Read(CSettings *pSettings)
 {
+	/*
 	unsigned int Timeout;
 	if (pSettings->Read(TEXT("PluginFinalizeTimeout"),&Timeout))
 		CPlugin::SetFinalizeTimeout(Timeout);
+	*/
 	return true;
 }
 
 
 bool CPluginOptions::Write(CSettings *pSettings) const
 {
+	/*
 	pSettings->Write(TEXT("PluginFinalizeTimeout"),
 					 (unsigned int)CPlugin::GetFinalizeTimeout());
+	*/
 	return true;
 }
 

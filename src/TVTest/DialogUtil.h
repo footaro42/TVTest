@@ -52,6 +52,12 @@
 	SendDlgItemMessage(hwndDlg,ID,CB_GETLBTEXT,Index,(LPARAM)(pszString))
 #define DlgComboBox_GetLBStringLength(hwndDlg,ID,Index) \
 	SendDlgItemMessage(hwndDlg,ID,CB_GETLBTEXTLEN,Index,0)
+#define DlgComboBox_Clear(hwndDlg,ID) \
+	SendDlgItemMessage(hwndDlg,ID,CB_RESETCONTENT,0,0)
+#define DlgComboBox_FindString(hwndDlg,ID,First,pszString) \
+	SendDlgItemMessage(hwndDlg,ID,CB_FINDSTRING,First,(LPARAM)(pszString));
+#define DlgComboBox_FindStringExact(hwndDlg,ID,First,pszString) \
+	SendDlgItemMessage(hwndDlg,ID,CB_FINDSTRINGEXACT,First,(LPARAM)(pszString));
 
 void EnableDlgItem(HWND hDlg,int ID,bool fEnable);
 void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable);

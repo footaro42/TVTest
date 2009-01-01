@@ -24,6 +24,7 @@ public:
 	CChannelInfo(const CChannelInfo &Info);
 	CChannelInfo &operator=(const CChannelInfo &Info);
 	int GetSpace() const { return m_Space; }
+	bool SetSpace(int Space);
 	int GetChannel() const { return m_Channel; }
 	bool SetChannel(int Channel);
 	int GetChannelIndex() const { return m_ChannelIndex; }

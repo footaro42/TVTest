@@ -179,6 +179,10 @@ int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2)
 
 int CalcDayOfWeek(int Year,int Month,int Day)
 {
+	if (Month<=2) {
+		Year--;
+		Month+=12;
+	}
 	return (Year*365+Year/4-Year/100+Year/400+306*(Month+1)/10+Day-428)%7;
 }
 

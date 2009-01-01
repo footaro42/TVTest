@@ -5,6 +5,12 @@
 #include "DriverManager.h"
 #include "IBonDriver2.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 typedef IBonDriver *(*CreateBonDriverFunc)();
 
@@ -38,10 +44,12 @@ bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
 			::lstrcpy(szFileName,m_pszFileName);
 		}
 		::PathRenameExtension(szFileName,TEXT(".ch2"));
-		if (!m_TuningSpaceList.LoadFromFile(szFileName))
+		bool fChannelFileLoaded=m_TuningSpaceList.LoadFromFile(szFileName);
+		if (!fChannelFileLoaded && !fUseDriver)
 			return false;
-		if (fUseDriver) {
+		if (!fChannelFileLoaded && fUseDriver) {
 			HMODULE hLib=::LoadLibrary(m_pszFileName);
+			bool fDriverChannelLoaded=false;
 
 			if (hLib!=NULL) {
 				CreateBonDriverFunc pCreate=reinterpret_cast<CreateBonDriverFunc>(::GetProcAddress(hLib,"CreateBonDriver"));
@@ -51,13 +59,16 @@ bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
 					IBonDriver2 *pBonDriver2=dynamic_cast<IBonDriver2*>(pBonDriver);
 
 					if (pBonDriver2!=NULL) {
+						int NumSpaces;
+
+						for (NumSpaces=0;pBonDriver2->EnumTuningSpace(NumSpaces)!=NULL;NumSpaces++);
+						m_TuningSpaceList.Reserve(NumSpaces);
 						ReplaceString(&m_pszTunerName,pBonDriver2->GetTunerName());
-						for (int i=0;i<m_TuningSpaceList.NumSpaces();i++) {
+						for (int i=0;i<NumSpaces;i++) {
 							CTuningSpaceInfo *pTuningSpaceInfo=m_TuningSpaceList.GetTuningSpaceInfo(i);
 
 							pTuningSpaceInfo->SetName(pBonDriver2->EnumTuningSpace(i));
 
-							/*
 							CChannelList *pChannelList=pTuningSpaceInfo->GetChannelList();
 							if (pChannelList->NumChannels()==0) {
 								LPCTSTR pszName;
@@ -66,13 +77,15 @@ bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
 									pChannelList->AddChannel(i,0,j,j+1,0,pszName);
 								}
 							}
-							*/
 						}
+						fDriverChannelLoaded=true;
 					}
 					pBonDriver->Release();
 				}
 				::FreeLibrary(hLib);
 			}
+			if (!fDriverChannelLoaded && !fChannelFileLoaded)
+				return false;
 		}
 		m_fChannelFileLoaded=true;
 	}

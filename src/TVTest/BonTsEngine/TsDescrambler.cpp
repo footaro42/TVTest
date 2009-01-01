@@ -146,6 +146,21 @@ LPCTSTR CTsDescrambler::GetCardReaderName() const
 	return m_BcasCard.GetCardReaderName();
 }
 
+int CTsDescrambler::FormatBcasCardID(LPTSTR pszText,int MaxLength) const
+{
+	return m_BcasCard.FormatCardID(pszText,MaxLength);
+}
+
+char CTsDescrambler::GetBcasCardManufacturerID() const
+{
+	return m_BcasCard.GetCardManufacturerID();
+}
+
+BYTE CTsDescrambler::GetBcasCardVersion() const
+{
+	return m_BcasCard.GetCardVersion();
+}
+
 const DWORD CTsDescrambler::GetInputPacketCount(void) const
 {
 	// 入力パケット数を返す

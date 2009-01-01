@@ -24,7 +24,8 @@ class CChannelScan : public COptions {
 	bool m_fOK;
 	int m_SortColumn;
 	bool m_fSortDescending;
-	void SetChannelList(HWND hDlg,int Space);
+	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
+	void SetChannelList(int Space);
 	static DWORD WINAPI ScanProc(LPVOID lpParameter);
 	static BOOL CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static CChannelScan *GetThis(HWND hDlg);

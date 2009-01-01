@@ -26,6 +26,7 @@ public:
 	HINSTANCE GetInstance() const;
 	HINSTANCE GetResourceInstance() const;
 	bool GetAppDirectory(LPTSTR pszDirectory) const;
+	LPCTSTR GetIniFileName() const { return m_szIniFileName; }
 	bool AddLog(LPCTSTR pszText, ...);
 	bool LoadSettings();
 	bool SaveSettings();

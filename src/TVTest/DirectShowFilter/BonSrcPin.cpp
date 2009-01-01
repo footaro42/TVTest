@@ -232,7 +232,7 @@ void CBonSrcPin::Reset()
 
 void CBonSrcPin::Flush()
 {
-	TRACE(TEXT("CBonSrcPin::Flush()"));
+	TRACE(TEXT("CBonSrcPin::Flush()\n"));
 	DeliverBeginFlush();
 	DeliverEndFlush();
 	Reset();
@@ -242,7 +242,7 @@ DWORD WINAPI CBonSrcPin::StreamThread(LPVOID lpParameter)
 {
 	CBonSrcPin *pThis=static_cast<CBonSrcPin*>(lpParameter);
 
-	TRACE(TEXT("CBonSrcPin::StreamThread() Start"));
+	TRACE(TEXT("CBonSrcPin::StreamThread() Start\n"));
 
 	::CoInitialize(NULL);
 
@@ -289,7 +289,7 @@ DWORD WINAPI CBonSrcPin::StreamThread(LPVOID lpParameter)
 
 	::CoUninitialize();
 
-	TRACE(TEXT("CBonSrcPin::StreamThread() End"));
+	TRACE(TEXT("CBonSrcPin::StreamThread() End\n"));
 
 	return 0;
 }

@@ -6,9 +6,9 @@
 
 
 #include "MediaDecoder.h"
+#include "BonBaseClass.h"
 #include "IBonDriver.h"
 #include "IBonDriver2.h"
-#include "Exception.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -17,7 +17,7 @@
 // Output	#0	: CMediaData		平分TSストリーム
 /////////////////////////////////////////////////////////////////////////////
 
-class CBonSrcDecoder : public CMediaDecoder, public CBonErrorHandler
+class CBonSrcDecoder : public CMediaDecoder, public CBonBaseClass
 {
 public:
 	// エラーコード
@@ -84,12 +84,6 @@ private:
 
 	bool m_bIsPlaying;
 	DWORD m_dwLastError;
-
-	/*
-	int m_RequestSpace;
-	int m_RequestChannel;
-	bool m_bSetChannelResult;
-	*/
 
 	DWORD m_BitRate;
 	DWORD m_StreamRemain;

@@ -358,6 +358,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DriverOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\EpgOptions.cpp"
 				>
 			</File>
@@ -403,6 +407,10 @@
 			</File>
 			<File
 				RelativePath=".\NetworkRemocon.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\NotificationBar.cpp"
 				>
 			</File>
 			<File
@@ -502,10 +510,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Tracer.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\TVTest.cpp"
 				>
 			</File>
@@ -588,6 +592,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DriverOptions.h"
+				>
+			</File>
+			<File
 				RelativePath=".\EpgOptions.h"
 				>
 			</File>
@@ -641,6 +649,10 @@
 			</File>
 			<File
 				RelativePath=".\NetworkRemocon.h"
+				>
+			</File>
+			<File
+				RelativePath=".\NotificationBar.h"
 				>
 			</File>
 			<File
@@ -720,10 +732,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Tracer.h"
-				>
-			</File>
-			<File
 				RelativePath=".\TVTest.h"
 				>
 			</File>
@@ -763,6 +771,10 @@
 				>
 				<File
 					RelativePath=".\BonTsEngine\BcasCard.h"
+					>
+				</File>
+				<File
+					RelativePath="..\RecTest\BonTsEngine\BonBaseClass.h"
 					>
 				</File>
 				<File
@@ -868,6 +880,10 @@
 				>
 				<File
 					RelativePath=".\BonTsEngine\BcasCard.cpp"
+					>
+				</File>
+				<File
+					RelativePath="..\RecTest\BonTsEngine\BonBaseClass.cpp"
 					>
 				</File>
 				<File

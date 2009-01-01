@@ -32,6 +32,7 @@ private:
 	int m_Volume;
 	int m_VolumeNormalizeLevel;
 	int m_StereoMode;
+	WORD m_EventID;
 	DWORD m_ErrorPacketCount;
 	DWORD m_ContinuityErrorPacketCount;
 	DWORD m_ScramblePacketCount;
@@ -88,6 +89,7 @@ public:
 		STATUS_VIDEOSIZE			=0x00000001UL,
 		STATUS_AUDIOCHANNELS		=0x00000002UL,
 		STATUS_AUDIOCOMPONENTTYPE	=0x00000004UL,
+		STATUS_EVENTID				=0x00000008UL
 	};
 	DWORD UpdateAsyncStatus();
 	enum {

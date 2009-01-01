@@ -244,7 +244,7 @@ bool CBasicWindow::MoveToMonitorInside()
 	::GetMonitorInfo(hMonitor,&mi);
 	if (rc.left>=mi.rcMonitor.right || rc.top>=mi.rcMonitor.bottom
 			|| rc.right<=mi.rcMonitor.left || rc.bottom<=mi.rcMonitor.top) {
-		int XOffset,YOffset;
+		int XOffset=0,YOffset=0;
 
 		if (rc.left>=mi.rcMonitor.right)
 			XOffset=mi.rcMonitor.right-rc.right;

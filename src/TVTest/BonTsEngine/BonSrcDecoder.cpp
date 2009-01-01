@@ -32,10 +32,6 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_bIsPlaying(false)
 	, m_BitRate(0)
 	, m_StreamRemain(0)
-	/*
-	, m_RequestSpace(-1)
-	, m_RequestChannel(-1)
-	*/
 {
 }
 
@@ -73,6 +69,8 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 		SetError(ERR_ALREADYOPEN,NULL);
 		return false;
 	}
+
+	Trace(TEXT("チューナを開いています..."));
 
 	// ドライバポインタの取得
 	PFCREATEBONDRIVER *pf=(PFCREATEBONDRIVER*)GetProcAddress(hBonDrvDll,"CreateBonDriver");
@@ -130,6 +128,8 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 
 	ClearError();
 
+	Trace(TEXT("チューナを開きました。"));
+
 	return true;
 
 OnError:
@@ -151,12 +151,13 @@ const bool CBonSrcDecoder::CloseTuner(void)
 
 	if (m_hStreamRecvThread) {
 		// ストリーム受信スレッド停止
+		Trace(TEXT("ストリーム受信スレッドを停止しています..."));
 		m_bKillSignal=true;
 		m_bPauseSignal=true;
 		if (::WaitForSingleObject(m_hStreamRecvThread, 1000UL) != WAIT_OBJECT_0) {
 			// スレッド強制終了
-			TRACE(TEXT("Terminate stream recieve thread.\n"));
 			::TerminateThread(m_hStreamRecvThread, 0UL);
+			Trace(TEXT("ストリーム受信スレッドを強制終了しました。"));
 		}
 		::CloseHandle(m_hStreamRecvThread);
 		m_hStreamRecvThread = NULL;
@@ -168,12 +169,15 @@ const bool CBonSrcDecoder::CloseTuner(void)
 
 	if (m_pBonDriver) {
 		// チューナを閉じる
+		Trace(TEXT("チューナを閉じています..."));
 		m_pBonDriver->CloseTuner();
 
 		// ドライバインスタンス開放
+		Trace(TEXT("ドライバを解放しています..."));
 		m_pBonDriver->Release();
 		m_pBonDriver = NULL;
 		m_pBonDriver2 = NULL;
+		Trace(TEXT("チューナを閉じました。"));
 	}
 
 	ClearError();
@@ -257,21 +261,6 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 		return false;
 	}
 
-	/*
-	m_RequestChannel = byChannel;
-	if (!PauseStreamRecieve()) {
-		m_RequestChannel = -1;
-		SetError(ERR_TIMEOUT,NULL);
-		return false;
-	}
-
-	if (!m_bSetChannelResult) {
-		ResumeStreamRecieve();
-		SetError(ERR_TUNER,NULL);
-		return false;
-	}
-	*/
-
 	if (!PauseStreamRecieve()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
 		return false;
@@ -305,23 +294,6 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 		SetError(ERR_NOTOPEN,NULL);
 		return false;
 	}
-
-	/*
-	m_RequestSpace = dwSpace;
-	m_RequestChannel = dwChannel;
-	if (!PauseStreamRecieve()) {
-		m_RequestSpace = -1;
-		m_RequestChannel = -1;
-		SetError(ERR_TIMEOUT,NULL);
-		return false;
-	}
-
-	if (!m_bSetChannelResult) {
-		ResumeStreamRecieve();
-		SetError(ERR_TUNER,NULL);
-		return false;
-	}
-	*/
 
 	if (!PauseStreamRecieve()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
@@ -482,20 +454,6 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 		}
 		if (pThis->m_bKillSignal)
 			break;
-		/*
-		if (pThis->m_RequestChannel>=0) {
-			pThis->m_pBonDriver->PurgeTsStream();
-			if (pThis->m_RequestSpace>=0) {
-				pThis->m_bSetChannelResult=pThis->m_pBonDriver2->SetChannel(
-						pThis->m_RequestSpace,pThis->m_RequestChannel)!=FALSE;
-				pThis->m_RequestSpace=-1;
-			} else {
-				pThis->m_bSetChannelResult=
-					pThis->m_pBonDriver->SetChannel(pThis->m_RequestChannel)!=FALSE;
-			}
-			pThis->m_RequestChannel=-1;
-		}
-		*/
 		::SetEvent(pThis->m_hResumeEvent);
 		while (pThis->m_bPauseSignal)
 			Sleep(1);

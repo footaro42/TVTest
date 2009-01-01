@@ -12,6 +12,19 @@
 using std::vector;
 
 
+// ISO 639 language code
+#define LANGUAGE_CODE_JPN	0x6A706EUL	// 日本語
+#define LANGUAGE_CODE_ENG	0x656E67UL	// 英語
+#define LANGUAGE_CODE_DEU	0x646575UL	// ドイツ語
+#define LANGUAGE_CODE_FRA	0x667261UL	// フランス語
+#define LANGUAGE_CODE_ITA	0x697461UL	// イタリア語
+#define LANGUAGE_CODE_RUS	0x727573UL	// ロシア語
+#define LANGUAGE_CODE_ZHO	0x7A686FUL	// 中国語
+#define LANGUAGE_CODE_KOR	0x6B6F72UL	// 韓国語
+#define LANGUAGE_CODE_SPA	0x737061UL	// スペイン語
+#define LANGUAGE_CODE_ETC	0x657463UL	// その他
+
+
 /////////////////////////////////////////////////////////////////////////////
 // 記述子の基底クラス
 /////////////////////////////////////////////////////////////////////////////
@@ -25,11 +38,11 @@ public:
 	CBaseDesc & operator = (const CBaseDesc &Operand);
 
 	virtual void CopyDesc(const CBaseDesc *pOperand);
-	virtual const bool ParseDesc(const BYTE *pHexData, const WORD wDataLength);
+	const bool ParseDesc(const BYTE *pHexData, const WORD wDataLength);
 
-	virtual const bool IsValid(void) const;
-	virtual const BYTE GetTag(void) const;
-	virtual const BYTE GetLength(void) const;
+	const bool IsValid(void) const;
+	const BYTE GetTag(void) const;
+	const BYTE GetLength(void) const;
 
 	virtual void Reset(void);
 
@@ -92,8 +105,8 @@ public:
 
 // CServiceDesc
 	const BYTE GetServiceType(void) const;
-	const DWORD GetProviderName(LPTSTR lpszDst) const;
-	const DWORD GetServiceName(LPTSTR lpszDst) const;
+	const DWORD GetProviderName(LPTSTR lpszDst, int MaxLength) const;
+	const DWORD GetServiceName(LPTSTR lpszDst, int MaxLength) const;
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
@@ -123,8 +136,8 @@ public:
 
 // CShortEventDesc
 	const DWORD GetLanguageCode(void) const;
-	const DWORD GetEventName(LPTSTR lpszDst) const;
-	const DWORD GetEventDesc(LPTSTR lpszDst) const;
+	const DWORD GetEventName(LPTSTR lpszDst, int MaxLength) const;
+	const DWORD GetEventDesc(LPTSTR lpszDst, int MaxLength) const;
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
@@ -250,6 +263,41 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0x50] Component 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CComponentDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0x50U};
+
+	CComponentDesc();
+	CComponentDesc(const CComponentDesc &Operand);
+	CComponentDesc & operator = (const CComponentDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CComponentDesc
+	const BYTE GetStreamContent(void) const;
+	const BYTE GetComponentType(void) const;
+	const BYTE GetComponentTag(void) const;
+	const DWORD GetLanguageCode(void) const;
+	const DWORD GetText(LPTSTR pszText, int MaxLength) const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	BYTE m_StreamContent;
+	BYTE m_ComponentType;
+	BYTE m_ComponentTag;
+	DWORD m_LanguageCode;
+	TCHAR m_szText[64];
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // [0xC4] Audio Component 記述子抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
@@ -275,7 +323,9 @@ public:
 	const bool GetMainComponentFlag(void) const;
 	const BYTE GetQualityIndicator(void) const;
 	const BYTE GetSamplingRate(void) const;
-	LPCTSTR GetText(void) const;
+	const DWORD GetLanguageCode(void) const;
+	const DWORD GetLanguageCode2(void) const;
+	const DWORD GetText(LPTSTR pszText, int MaxLength) const;
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
@@ -289,6 +339,8 @@ protected:
 	bool m_bMainComponentFlag;
 	BYTE m_QualityIndicator;
 	BYTE m_SamplingRate;
+	DWORD m_LanguageCode;
+	DWORD m_LanguageCode2;
 	TCHAR m_szText[64];
 };
 

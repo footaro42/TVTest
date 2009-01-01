@@ -23,6 +23,15 @@ MPV Decoder Filter か ATI Mpeg Decoder Filter が動作確認がとれているので確実だと
 <p class="descript">一つのチャンネルに複数のサービスが含まれています。<br>
 <a href="options/record.html">録画の設定</a>で「現在のサービスのみ録画する」のチャックを入れるか、TsSplitterで分離するなどしてください。</p>
 
+<h3>「BonDriverの初期化ができません」と表示される</h3>
+<p class="descript">BonDriver からエラーが返ってきたためです。<br>
+具体的にどのようなエラーが起こったのかを、呼び出し元のプログラムから知る方法はありません。<br>
+大抵の場合、デバイスが認識されていないか既に使用中だと思われます。</p>
+
+<h3>NHK教育/放送大学で映像が正方形に表示される</h3>
+<p class="descript">CyberLink 等のデコーダとデフォルトレンダラの組み合わせで起こるようです。<br>
+レンダラをデフォルト以外にしてみてください。</p>
+
 <h3>キャプチャで固まる</h3>
 <p class="descript">レンダラに VMR9 Renderless を使用してください。</p>
 
@@ -30,12 +39,9 @@ MPV Decoder Filter か ATI Mpeg Decoder Filter が動作確認がとれているので確実だと
 <p class="descript">右クリックメニューから [音量] -&gt; [音量増幅] を選択してください。</p>
 
 <h3>メモリ使用量が多い</h3>
-<p class="descript">MPEG-2 デコーダで DxVA を使用するとやたらにメモリ使用量が増えるので、オフにするか、DxVA を使用しないデコーダにしてみてください。<br>
+<p class="descript">メモリを使っているのは DirectShow の部分(主に MPEG-2 デコーダ)ですので、私にはどうしようもありません。<br>
+MPEG-2 デコーダで DxVA を使用するとやたらにメモリ使用量が増えるので、オフにするか、DxVA を使用しないデコーダにしてみてください。<br>
 録画のみ行う場合は、<a href="commandline.html">コマンドラインオプション</a>で /nodshow を指定すると、メモリ使用量がかなり少なくなります。</p>
-
-<h3>「BonDriverの初期化ができません」と表示される</h3>
-<p class="descript">BonDriver からエラーが返ってきたためです。<br>
-具体的にどのようなエラーが起こったのかを、呼び出し元のプログラムから知る方法はありません。</p>
 
 <h3>かくつく・音ずれする</h3>
 <p class="descript">右クリックメニューから [リセット] で直ることもあります(ただし、固まることもある)。<br>

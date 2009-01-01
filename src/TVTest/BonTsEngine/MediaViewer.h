@@ -5,19 +5,19 @@
 #pragma once
 
 
+#include <Bdaiface.h>
 #include "MediaDecoder.h"
+#include "BonBaseClass.h"
 #include "TsUtilClass.h"
 #include "BonSrcFilter.h"
 #include "AacDecFilter.h"
 #include "Mpeg2SequenceFilter.h"
 //#include "PcmSelectFilter.h"
-#include <Bdaiface.h>
 #include "DirectShowUtil.h"
 
 // Append by HDUSTestの中の人
 #include "VideoRenderer.h"
 #include "ImageMixer.h"
-#include "../Tracer.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -26,7 +26,7 @@
 // Input	#0	: CTsPacket		入力データ
 /////////////////////////////////////////////////////////////////////////////
 
-class CMediaViewer : public CMediaDecoder, public CBonErrorHandler
+class CMediaViewer : public CMediaDecoder, public CBonBaseClass
 {
 public:
 	enum EVENTID {
@@ -106,8 +106,6 @@ public:
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
-	bool SetTracer(CTracer *pTracer);
-	void Trace(LPCTSTR pszOutput, ...);
 	bool CheckHangUp(DWORD TimeOut);
 protected:
 	const bool ResizeVideoWindow();
@@ -169,20 +167,8 @@ protected:
 	class CGrabber *m_pGrabber;
 #endif
 	CTracer *m_pTracer;
-	/*
-	HANDLE m_hFlushThread;
-	HANDLE m_hFlushEvent;
-	HANDLE m_hFlushResumeEvent;
-	DWORD m_LastFlushTime;
-	volatile enum {
-		FLUSH_ABORT,
-		FLUSH_WAIT,
-		FLUSH_RESET
-	} m_FlushEventType;
-	static DWORD WINAPI FlushThread(LPVOID lpParameter);
-	*/
 
-#ifdef DEBUG
+#ifdef _DEBUG
 private:
 	HRESULT AddToRot(IUnknown *pUnkGraph, DWORD *pdwRegister) const;
 	void RemoveFromRot(const DWORD pdwRegister) const;

@@ -4,6 +4,7 @@
 #include "AppMain.h"
 #include "InitialSettings.h"
 #include "DirectShowFilter/DirectShowUtil.h"
+#include "DialogUtil.h"
 #include "Help.h"
 #include "resource.h"
 
@@ -16,14 +17,14 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 	m_szDriverFileName[0]='\0';
 	m_szMpeg2DecoderName[0]='\0';
 	m_VideoRenderer=CVideoRenderer::RENDERER_DEFAULT;
-	// VistaではビデオレンダラのデフォルトをVMR9にする
+	// VistaではビデオレンダラのデフォルトをEVRにする
 	{
 		OSVERSIONINFO osvi;
 
 		osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
 		GetVersionEx(&osvi);
 		if (osvi.dwMajorVersion>=6)
-			m_VideoRenderer=CVideoRenderer::RENDERER_VMR9;
+			m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
 	}
 	m_CardReader=CCardReader::READER_SCARD;
 }
@@ -141,10 +142,28 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					TEXT("スマートカードリーダ"),
 					TEXT("HDUS内蔵カードリーダ")
 				};
+				CCardReader *pCardReader;
 
 				for (int i=0;i<lengthof(pszCardReaderList);i++)
 					::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_CARDREADER,
 								CB_ADDSTRING,0,(LPARAM)pszCardReaderList[i]);
+				pThis->m_CardReader=CCardReader::READER_NONE;
+				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
+				if (pCardReader!=NULL) {
+					if (pCardReader->NumReaders()>0)
+						pThis->m_CardReader=CCardReader::READER_SCARD;
+					delete pCardReader;
+				}
+				if (pThis->m_CardReader==CCardReader::READER_NONE) {
+					pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
+					if (pCardReader!=NULL) {
+						if (pCardReader->Open()) {
+							pThis->m_CardReader=CCardReader::READER_HDUS;
+							pCardReader->Close();
+						}
+						delete pCardReader;
+					}
+				}
 				::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_CARDREADER,
 								CB_SETCURSEL,(WPARAM)pThis->m_CardReader,0);
 			}
@@ -178,6 +197,48 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				ofn.Flags=OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_EXPLORER;
 				if (::GetOpenFileName(&ofn)) {
 					::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,szFileName);
+				}
+			}
+			return TRUE;
+
+		case IDC_INITIALSETTINGS_SEARCHCARDREADER:
+			{
+				CCardReader::ReaderType ReaderType=CCardReader::READER_NONE;
+				CCardReader *pCardReader;
+				TCHAR szText[1024];
+
+				::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+				::lstrcpy(szText,TEXT("以下のカードリーダが見付かりました。\n"));
+				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
+				if (pCardReader!=NULL) {
+					if (pCardReader->NumReaders()>0) {
+						for (int i=0;i<pCardReader->NumReaders();i++) {
+							LPCTSTR pszReaderName=pCardReader->EnumReader(i);
+							if (pszReaderName!=NULL) {
+								::wsprintf(szText+::lstrlen(szText),
+										   TEXT("\"%s\"\n"),pszReaderName);
+							}
+						}
+						ReaderType=CCardReader::READER_SCARD;
+					}
+					delete pCardReader;
+				}
+				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
+				if (pCardReader!=NULL) {
+					if (pCardReader->Open()) {
+						::lstrcat(szText,TEXT("\"HDUS内蔵カードリーダ\"\n"));
+						pCardReader->Close();
+						if (ReaderType==CCardReader::READER_NONE)
+							ReaderType=CCardReader::READER_HDUS;
+					}
+					delete pCardReader;
+				}
+				::SetCursor(::LoadCursor(NULL,IDC_ARROW));
+				if (ReaderType==CCardReader::READER_NONE) {
+					::MessageBox(hDlg,TEXT("カードリーダは見付かりませんでした。"),TEXT("検索結果"),MB_OK | MB_ICONINFORMATION);
+				} else {
+					DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER,(WPARAM)ReaderType);
+					::MessageBox(hDlg,szText,TEXT("検索結果"),MB_OK | MB_ICONINFORMATION);
 				}
 			}
 			return TRUE;

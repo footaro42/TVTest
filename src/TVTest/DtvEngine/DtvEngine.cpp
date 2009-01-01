@@ -42,7 +42,6 @@ CDtvEngine::CDtvEngine(void)
 	, m_bDescramble(true)
 	, m_bDescrambleCurServiceOnly(false)
 	, m_bWriteCurServiceOnly(false)
-	, m_pTracer(NULL)
 {
 }
 
@@ -113,18 +112,27 @@ const bool CDtvEngine::CloseEngine(void)
 	//if (!m_bBuiled)
 	//	return true;
 
+	Trace(TEXT("DtvEngineを閉じています..."));
+
 	//m_MediaViewer.Stop();
+
 	ReleaseSrcFilter();
+
+	Trace(TEXT("バッファのストリーミングを停止しています..."));
 	m_MediaBuffer.Stop();
-	// デコーダクローズ
-	//m_BonSrcDecoder.CloseTuner();	// ReleaseSrcFilterで既に閉じられている
+
+	Trace(TEXT("カードリーダを閉じています..."));
 	m_TsDescrambler.CloseBcasCard();
+
+	Trace(TEXT("メディアビューアを閉じています..."));
 	m_MediaViewer.CloseViewer();
 
 	// イベントハンドラ解除
 	m_pDtvEngineHandler = NULL;
 
 	m_bBuiled=false;
+
+	Trace(TEXT("DtvEngineを閉じました。"));
 
 	return true;
 }
@@ -388,6 +396,18 @@ const bool CDtvEngine::SetStereoMode(int iMode)
 }
 
 
+const WORD CDtvEngine::GetEventID()
+{
+	return m_ProgManager.GetEventID(m_wCurService);
+}
+
+
+const int CDtvEngine::GetEventName(LPTSTR pszName, int MaxLength, bool fNext)
+{
+	return m_ProgManager.GetEventName(m_wCurService,pszName,MaxLength,fNext);
+}
+
+
 const bool CDtvEngine::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
 {
 	return m_MediaViewer.GetVideoDecoderName(lpName, iBufLen);
@@ -403,11 +423,12 @@ const bool CDtvEngine::DisplayVideoDecoderProperty(HWND hWndParent)
 const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel)
 {
 	// チャンネル変更
-	bool bRet = m_BonSrcDecoder.SetChannel((DWORD)byTuningSpace, (DWORD)wChannel);
-	//if(bRet) ResetEngine();
-	if (bRet)
-		ResetStatus();
-	return bRet;
+	if (!m_BonSrcDecoder.SetChannel((DWORD)byTuningSpace, (DWORD)wChannel)) {
+		SetError(m_BonSrcDecoder.GetLastErrorException());
+		return false;
+	}
+	ResetStatus();
+	return true;
 }
 
 
@@ -749,22 +770,10 @@ CEpgDataInfo *CDtvEngine::GetEpgDataInfo(WORD ServiceID, bool bNext)
 }
 
 
-bool CDtvEngine::SetTracer(CTracer *pTracer)
+void CDtvEngine::SetTracer(CTracer *pTracer)
 {
-	m_pTracer=pTracer;
+	CBonBaseClass::SetTracer(pTracer);
 	m_MediaViewer.SetTracer(pTracer);
-	return true;
-}
-
-
-void CDtvEngine::Trace(LPCTSTR pszOutput, ...)
-{
-	va_list Args;
-
-	va_start(Args,pszOutput);
-	if (m_pTracer!=NULL)
-		m_pTracer->TraceV(pszOutput,Args);
-	va_end(Args);
 }
 
 

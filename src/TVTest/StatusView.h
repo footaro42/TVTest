@@ -3,7 +3,7 @@
 
 
 #include "BasicWindow.h"
-#include "Tracer.h"
+#include "TsUtilClass.h"
 #include "PointerArray.h"
 
 

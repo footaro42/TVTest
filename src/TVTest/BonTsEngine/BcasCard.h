@@ -40,6 +40,9 @@ public:
 	const BYTE * GetInitialCbc(void);
 	const BYTE * GetSystemKey(void);
 	const BYTE * GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize);
+	const int FormatCardID(LPTSTR pszText, int MaxLength) const;
+	const char GetCardManufacturerID() const;
+	const BYTE GetCardVersion() const;
 
 	const DWORD GetLastError(void) const;
 
@@ -50,9 +53,12 @@ protected:
 
 	struct TAG_BCASCARDINFO
 	{
-		BYTE BcasCardID[6];		// Card ID
-		BYTE SystemKey[32];		// Descrambling system key
-		BYTE InitialCbc[8];		// Descrambler CBC initial value
+		BYTE BcasCardID[6];			// Card ID
+		BYTE SystemKey[32];			// Descrambling system key
+		BYTE InitialCbc[8];			// Descrambler CBC initial value
+		BYTE CardManufacturerID;	// Manufacturer identifier
+		BYTE CardVersion;			// Version
+		WORD CheckCode;				// Check code
 	} m_BcasCardInfo;
 
 	struct TAG_ECMSTATUS
