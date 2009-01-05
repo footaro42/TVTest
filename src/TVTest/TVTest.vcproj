@@ -334,6 +334,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Command.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\CommandLine.cpp"
 				>
 			</File>
@@ -565,6 +569,10 @@
 			</File>
 			<File
 				RelativePath=".\ColorScheme.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Command.h"
 				>
 			</File>
 			<File

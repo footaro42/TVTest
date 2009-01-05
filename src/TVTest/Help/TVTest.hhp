@@ -32,6 +32,7 @@ options\colorscheme.html
 options\driver.html
 options\epg.html
 options\general.html
+options\hduscontroller.html
 options\log.html
 options\networkremocon.html
 options\operation.html
@@ -52,6 +53,7 @@ HELP_ID_OPTIONS_COLORSCHEME=options\colorscheme.html
 HELP_ID_OPTIONS_DRIVER=options\driver.html
 HELP_ID_OPTIONS_EPG=options\epg.html
 HELP_ID_OPTIONS_GENERAL=options\general.html
+HELP_ID_OPTIONS_HDUSCONTROLLER=options\hduscontroller.html
 HELP_ID_OPTIONS_LOG=options\log.html
 HELP_ID_OPTIONS_NETWORKREMOCON=options\networkremocon.html
 HELP_ID_OPTIONS_OPERATION=options\operation.html

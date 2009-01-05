@@ -3,6 +3,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Accelerator.h"
+#include "Command.h"
 #include "Menu.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -110,71 +111,6 @@ static const struct {
 	{VK_F12,		TEXT("F12")},
 };
 
-static struct {
-	LPCTSTR pszText;
-	WORD Command;
-} CommandList[] = {
-	{TEXT("Zoom20"),				CM_ZOOM_20},
-	{TEXT("Zoom25"),				CM_ZOOM_25},
-	{TEXT("Zoom33"),				CM_ZOOM_33},
-	{TEXT("Zoom50"),				CM_ZOOM_50},
-	{TEXT("Zoom66"),				CM_ZOOM_66},
-	{TEXT("Zoom100"),				CM_ZOOM_100},
-	{TEXT("Zoom150"),				CM_ZOOM_150},
-	{TEXT("Zoom200"),				CM_ZOOM_200},
-	{TEXT("AspectRatio"),			CM_ASPECTRATIO},
-	{TEXT("AspectDefault"),			CM_ASPECTRATIO_DEFAULT},
-	{TEXT("Aspect16x9"),			CM_ASPECTRATIO_16x9},
-	{TEXT("LetterBox"),				CM_ASPECTRATIO_LETTERBOX},
-	{TEXT("SuperFrame"),			CM_ASPECTRATIO_SUPERFRAME},
-	{TEXT("SideCut"),				CM_ASPECTRATIO_SIDECUT},
-	{TEXT("Aspect4x3"),				CM_ASPECTRATIO_4x3},
-	{TEXT("Fullscreen"),			CM_FULLSCREEN},
-	{TEXT("AlwaysOnTop"),			CM_ALWAYSONTOP},
-	{TEXT("ChannelUp"),				CM_CHANNEL_UP},
-	{TEXT("ChannelDown"),			CM_CHANNEL_DOWN},
-	{TEXT("Mute"),					CM_VOLUME_MUTE},
-	{TEXT("VolumeUp"),				CM_VOLUME_UP},
-	{TEXT("VolumeDown"),			CM_VOLUME_DOWN},
-	{TEXT("VolumeNormalizeNone"),	CM_VOLUMENORMALIZE_NONE},
-	{TEXT("VolumeNormalize125"),	CM_VOLUMENORMALIZE_125},
-	{TEXT("VolumeNormalize150"),	CM_VOLUMENORMALIZE_150},
-	{TEXT("VolumeNormalize200"),	CM_VOLUMENORMALIZE_200},
-	{TEXT("SwitchAudio"),			CM_SWITCHAUDIO},
-	{TEXT("Stereo"),				CM_STEREO_THROUGH},
-	{TEXT("StereoLeft"),			CM_STEREO_LEFT},
-	{TEXT("StereoRight"),			CM_STEREO_RIGHT},
-	{TEXT("Record"),				CM_RECORD},
-	{TEXT("RecordPause"),			CM_RECORD_PAUSE},
-	{TEXT("RecordOption"),			CM_RECORDOPTION},
-	{TEXT("RecordStopTime"),		CM_RECORDSTOPTIME},
-	{TEXT("DisableViewer"),			CM_DISABLEVIEWER},
-	{TEXT("CopyImage"),				CM_COPY},
-	{TEXT("SaveImage"),				CM_SAVEIMAGE},
-	{TEXT("CapturePreview"),		CM_CAPTUREPREVIEW},
-	{TEXT("Reset"),					CM_RESET},
-	{TEXT("Panel"),					CM_INFORMATION},
-	{TEXT("ProgramGuide"),			CM_PROGRAMGUIDE},
-	{TEXT("StatusBar"),				CM_STATUSBAR},
-	{TEXT("TitleBar"),				CM_TITLEBAR},
-	{TEXT("VideoDecoderProperty"),	CM_DECODERPROPERTY},
-	{TEXT("Options"),				CM_OPTIONS},
-	{TEXT("Close"),					CM_CLOSE},
-	{TEXT("Service1"),				CM_SERVICE_FIRST},
-	{TEXT("Service2"),				CM_SERVICE_FIRST+1},
-	{TEXT("Service3"),				CM_SERVICE_FIRST+2},
-	{TEXT("Service4"),				CM_SERVICE_FIRST+3},
-	{TEXT("Service5"),				CM_SERVICE_FIRST+4},
-	{TEXT("TuningSpace1"),			CM_SPACE_FIRST},
-	{TEXT("TuningSpace2"),			CM_SPACE_FIRST+1},
-	{TEXT("TuningSpace3"),			CM_SPACE_FIRST+2},
-	{TEXT("TuningSpace4"),			CM_SPACE_FIRST+3},
-	{TEXT("TuningSpace5"),			CM_SPACE_FIRST+4},
-};
-
-
-
-
 const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
 	{CM_ZOOM_100,		VK_HOME,		0,			false},
 	{CM_ASPECTRATIO,	'A',			0,			false},
@@ -201,6 +137,7 @@ CAccelerator::CAccelerator()
 		m_KeyList.push_back(m_DefaultAccelList[i]);
 	m_hwndHotKey=NULL;
 	m_pMainMenu=NULL;
+	m_pCommandList=NULL;
 	m_fRegisterHotKey=false;
 	m_fFunctionKeyChangeChannel=true;
 	m_fDigitKeyChangeChannel=true;
@@ -211,7 +148,6 @@ CAccelerator::CAccelerator()
 CAccelerator::~CAccelerator()
 {
 	Finalize();
-	m_PluginList.DeleteAll();
 }
 
 
@@ -368,7 +304,7 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 		if (Settings.Read(TEXT("AccelCount"),&NumAccel) && NumAccel>=0) {
 			m_KeyList.clear();
 			for (i=0;i<NumAccel;i++) {
-				TCHAR szName[64],szCommand[32];
+				TCHAR szName[64],szCommand[CCommandList::MAX_COMMAND_TEXT];
 
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
 				if (Settings.Read(szName,szCommand,lengthof(szCommand))
@@ -379,19 +315,9 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 					if (Settings.Read(szName,&Key)) {
 						KeyInfo Info;
 
-						if (::StrStrI(szCommand,TEXT(".tvtp"))!=NULL) {
-							Info.Command=CM_PLUGIN_FIRST+m_PluginList.Length();
-							m_PluginList.Add(DuplicateString(szCommand));
-						} else {
-							for (j=0;j<lengthof(CommandList);j++) {
-								if (::lstrcmpi(CommandList[j].pszText,szCommand)==0) {
-									Info.Command=CommandList[j].Command;
-									break;
-								}
-							}
-							if (j==lengthof(CommandList))
-								continue;
-						}
+						Info.Command=m_pCommandList->ParseText(szCommand);
+						if (Info.Command==0)
+							continue;
 						Info.KeyCode=Key;
 						Modifiers=0;
 						::wsprintf(szName,TEXT("Accel%d_Mod"),i);
@@ -413,6 +339,8 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 {
 	CSettings Settings;
 
+	if (m_pCommandList==NULL)
+		return true;
 	if (Settings.Open(pszFileName,TEXT("Accelerator"),CSettings::OPEN_WRITE)) {
 		bool fDefault=false;
 		int i,j;
@@ -436,13 +364,8 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 				TCHAR szName[64];
 
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
-				if (m_KeyList[i].Command>=CM_PLUGIN_FIRST
-						&& m_KeyList[i].Command<=CM_PLUGIN_LAST) {
-					Settings.Write(szName,m_PluginList[m_KeyList[i].Command-CM_PLUGIN_FIRST]);
-				} else {
-					for (j=0;CommandList[j].Command!=m_KeyList[i].Command;j++);
-					Settings.Write(szName,CommandList[j].pszText);
-				}
+				Settings.Write(szName,
+					m_pCommandList->GetCommandText(m_pCommandList->IDToIndex(m_KeyList[i].Command)));
 				::wsprintf(szName,TEXT("Accel%d_Key"),i);
 				Settings.Write(szName,(int)m_KeyList[i].KeyCode);
 				::wsprintf(szName,TEXT("Accel%d_Mod"),i);
@@ -456,42 +379,13 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 }
 
 
-bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,const CPluginList *pPluginList)
+bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
+				LPCTSTR pszSettingFileName,const CCommandList *pCommandList)
 {
-	if (pPluginList!=NULL) {
-		std::vector<KeyInfo>::iterator itr;
-
-		itr=m_KeyList.begin();
-		while (itr!=m_KeyList.end()) {
-			if (itr->Command>=CM_PLUGIN_FIRST && itr->Command<=CM_PLUGIN_LAST) {
-				LPCTSTR pszPluginName=m_PluginList[itr->Command-CM_PLUGIN_FIRST];
-				bool fFinded=false;
-
-				for (int j=0;j<pPluginList->NumPlugins();j++) {
-					const CPlugin *pPlugin=pPluginList->GetPlugin(j);
-
-					if (::lstrcmpi(::PathFindFileName(pPlugin->GetFileName()),pszPluginName)==0) {
-						itr->Command=CM_PLUGIN_FIRST+j;
-						fFinded=true;
-						break;
-					}
-				}
-				if (fFinded) {
-					itr++;
-				} else {
-					itr=m_KeyList.erase(itr);
-				}
-			} else {
-				itr++;
-			}
-		}
-		m_PluginList.DeleteAll();
-		for (int i=0;i<pPluginList->NumPlugins();i++)
-			m_PluginList.Add(DuplicateString(::PathFindFileName(pPluginList->GetPlugin(i)->GetFileName())));
-	}
-	if (m_hAccel==NULL) {
+	m_pCommandList=pCommandList;
+	Load(pszSettingFileName);
+	if (m_hAccel==NULL)
 		m_hAccel=CreateAccel();
-	}
 	m_pMainMenu=pMainMenu;
 	m_pMainMenu->SetAccelerator(this);
 	m_hwndHotKey=hwndHotKey;
@@ -647,50 +541,21 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			ListView_InsertColumn(hwndList,0,&lvc);
 			lvc.pszText=TEXT("キー");
 			ListView_InsertColumn(hwndList,1,&lvc);
-			for (int i=0;i<lengthof(CommandList);i++) {
+			for (int i=0;i<pThis->m_pCommandList->NumCommands();i++) {
 				const KeyInfo *pKey=NULL;
 				LV_ITEM lvi;
-				TCHAR szText[64];
+				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
 
 				for (size_t j=0;j<pThis->m_KeyList.size();j++) {
-					if (pThis->m_KeyList[j].Command==CommandList[i].Command) {
+					if (pThis->m_KeyList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
 						pKey=&pThis->m_KeyList[j];
 						break;
 					}
 				}
+				pThis->m_pCommandList->GetCommandName(i,szText,lengthof(szText));
 				lvi.mask=LVIF_TEXT | LVIF_PARAM;
 				lvi.iItem=i;
 				lvi.iSubItem=0;
-				::LoadString(GetAppClass().GetResourceInstance(),
-							 CommandList[i].Command,szText,lengthof(szText));
-				lvi.pszText=szText;
-				if (pKey!=NULL)
-					lvi.lParam=MAKE_ACCEL_PARAM(pKey->KeyCode,pKey->Modifiers,pKey->fGlobal);
-				else
-					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false);
-				lvi.iItem=ListView_InsertItem(hwndList,&lvi);
-				if (pKey!=NULL) {
-					lvi.mask=LVIF_TEXT;
-					lvi.iSubItem=1;
-					FormatAccelText(szText,pKey->KeyCode,pKey->Modifiers);
-					ListView_SetItem(hwndList,&lvi);
-				}
-			}
-			for (int i=0;i<pThis->m_PluginList.Length();i++) {
-				const KeyInfo *pKey=NULL;
-				LV_ITEM lvi;
-				TCHAR szText[MAX_PATH+16];
-
-				for (size_t j=0;j<pThis->m_KeyList.size();j++) {
-					if (pThis->m_KeyList[j].Command==CM_PLUGIN_FIRST+i) {
-						pKey=&pThis->m_KeyList[j];
-						break;
-					}
-				}
-				lvi.mask=LVIF_TEXT | LVIF_PARAM;
-				lvi.iItem=ListView_GetItemCount(hwndList);
-				lvi.iSubItem=0;
-				::wsprintf(szText,TEXT("プラグイン(%s)"),pThis->m_PluginList[i]);
 				lvi.pszText=szText;
 				if (pKey!=NULL)
 					lvi.lParam=MAKE_ACCEL_PARAM(pKey->KeyCode,pKey->Modifiers,pKey->fGlobal);
@@ -732,6 +597,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		case IDC_ACCELERATOR_ALT:
 		case IDC_ACCELERATOR_GLOBAL:
 			{
+				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
 				int Key;
@@ -757,16 +623,9 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					i=CheckAccelKey(hwndList,Mod,AccelKeyList[Key-1].KeyCode);
 					if (i>=0) {
 						if (i!=lvi.iItem) {
-							TCHAR szCommand[MAX_PATH+16],szText[MAX_PATH+128];
+							TCHAR szCommand[CCommandList::MAX_COMMAND_NAME],szText[CCommandList::MAX_COMMAND_NAME+128];
 
-							if (i<lengthof(CommandList)) {
-								::LoadString(GetAppClass().GetResourceInstance(),
-											 CommandList[i].Command,
-											 szCommand,lengthof(szCommand));
-							} else {
-								::wsprintf(szCommand,TEXT("プラグイン(%s)"),
-										   GetThis(hDlg)->m_PluginList[i-lengthof(CommandList)]);
-							}
+							pThis->m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
 							::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\r\n割り当て直しますか?"),szCommand);
 							if (::MessageBox(hDlg,szText,NULL,
 											MB_YESNO | MB_ICONQUESTION)!=IDYES)
@@ -795,21 +654,22 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 		case IDC_ACCELERATOR_DEFAULT:
 			{
-				LV_ITEM lvi;
+				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
-				int Count,i,j;
+				LV_ITEM lvi;
+				int NumCommands,i,j;
 
-				Count=ListView_GetItemCount(hwndList);
+				NumCommands=pThis->m_pCommandList->NumCommands();
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
-				for (i=0;i<Count;i++) {
+				for (i=0;i<NumCommands;i++) {
 					WORD Key=0;
 					BYTE Mod=0;
 
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
 					for (j=0;j<lengthof(m_DefaultAccelList);j++) {
-						if (m_DefaultAccelList[j].Command==CommandList[i].Command) {
+						if (m_DefaultAccelList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
 							Key=m_DefaultAccelList[j].KeyCode;
 							Mod=m_DefaultAccelList[j].Modifiers;
 							break;
@@ -854,7 +714,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				pThis->UnregisterHotKey();
 				pThis->m_KeyList.clear();
-				Count=ListView_GetItemCount(hwndList);
+				Count=pThis->m_pCommandList->NumCommands();
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				for (i=0;i<Count;i++) {
@@ -863,10 +723,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					if (GET_ACCEL_KEY(lvi.lParam)!=0) {
 						KeyInfo Info;
 
-						if (i<lengthof(CommandList))
-							Info.Command=CommandList[i].Command;
-						else
-							Info.Command=CM_PLUGIN_FIRST+(i-lengthof(CommandList));
+						Info.Command=pThis->m_pCommandList->GetCommandID(i);
 						Info.KeyCode=GET_ACCEL_KEY(lvi.lParam);
 						Info.Modifiers=GET_ACCEL_MOD(lvi.lParam);
 						Info.fGlobal=GET_ACCEL_GLOBAL(lvi.lParam);

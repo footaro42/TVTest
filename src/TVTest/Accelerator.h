@@ -4,8 +4,7 @@
 
 #include <vector>
 #include "Options.h"
-#include "Plugin.h"
-#include "PointerArray.h"
+#include "Command.h"
 
 
 class CMainMenu;
@@ -23,13 +22,16 @@ class CAccelerator : public COptions {
 		}
 	};
 	std::vector<KeyInfo> m_KeyList;
-	CPointerVector<TCHAR> m_PluginList;
 	HWND m_hwndHotKey;
 	CMainMenu *m_pMainMenu;
+	const CCommandList *m_pCommandList;
 	bool m_fRegisterHotKey;
 	bool m_fFunctionKeyChangeChannel;
 	bool m_fDigitKeyChangeChannel;
 	bool m_fNumPadChangeChannel;
+	// COptions
+	bool Load(LPCTSTR pszFileName);
+	// CAccelerator
 	static const KeyInfo m_DefaultAccelList[];
 	static void FormatAccelText(LPTSTR pszText,int Key,int Modifiers);
 	void SetMenuAccelText(HMENU hmenu,int Command);
@@ -43,11 +45,13 @@ class CAccelerator : public COptions {
 public:
 	CAccelerator();
 	~CAccelerator();
+	// COptions
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
-	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
-	bool Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,const CPluginList *pPluginList);
+	// CAccelerator
+	bool Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
+					LPCTSTR pszSettingFileName,const CCommandList *pCommandList);
 	void Finalize();
 	bool TranslateMessage(HWND hwnd,LPMSG pmsg);
 	int TranslateHotKey(WPARAM wParam,LPARAM lParam);

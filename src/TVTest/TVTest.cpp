@@ -76,8 +76,8 @@ static CStatusView StatusView;
 static CTitleBar TitleBar;
 static CSplitter Splitter;
 static CMainMenu MainMenu;
+static CCommandList CommandList;
 static CNotificationBar NotificationBar;
-static HACCEL hAccel=NULL;
 static CHtmlHelp HtmlHelpClass;
 
 static TCHAR szDriverFileName[MAX_PATH];
@@ -87,7 +87,6 @@ static bool fIncrementUDPPort=true;
 static CCommandLineParser CmdLineParser;
 
 static CChannelManager ChannelManager;
-static CRemoteController *pRemoteController=NULL;
 static CNetworkRemocon *pNetworkRemocon=NULL;
 static CResidentManager ResidentManager;
 static CDriverManager DriverManager;
@@ -148,6 +147,7 @@ static CStatusOptions StatusOptions(&StatusView);
 static CPanelOptions PanelOptions(&PanelFrame);
 static CColorSchemeOptions ColorSchemeOptions;
 static CAccelerator Accelerator;
+static CHDUSController HDUSController;
 static CDriverOptions DriverOptions;
 static CRecordOptions RecordOptions;
 static CRecordManager RecordManager;
@@ -212,8 +212,6 @@ static int VolumeStep=5;
 static bool fFunctionKeyChangeChannel=true;
 static bool fDigitKeyChangeChannel=true;
 static bool fNumPadChangeChannel=true;
-static bool fNoRemoteController=false;
-static bool fNoKeyHook=false;
 
 static CImageCodec ImageCodec;
 static CCapturePreview CapturePreview;
@@ -606,6 +604,7 @@ void CAppMain::SetTuningSpaceMenu(HMENU hmenu)
 	}
 	::CheckMenuRadioItem(hmenu,CM_DRIVER_FIRST,CM_DRIVER_FIRST+i-1,
 						 CM_DRIVER_FIRST+CurDriver,MF_BYCOMMAND);
+	Accelerator.SetMenuAccel(hmenu);
 }
 
 
@@ -875,6 +874,9 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 	HCURSOR hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 	bool fOK;
 
+	if (::lstrcmpi(CoreEngine.GetDriverFileName(),pszFileName)==0)
+		return false;
+	SaveCurrentChannel();
 	SaveChannelSettings();
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.SetDriverFileName(pszFileName);
@@ -1151,8 +1153,6 @@ bool CAppMain::LoadSettings()
 			CoreEngine.SetCardReaderType(f?CCardReader::READER_NONE:CCardReader::READER_SCARD);
 		if (Setting.Read(TEXT("CardReader"),&Value))
 			CoreEngine.SetCardReaderType((CCardReader::ReaderType)Value);
-		Setting.Read(TEXT("NoRemoteController"),&fNoRemoteController);
-		Setting.Read(TEXT("NoKeyHook"),&fNoKeyHook);
 		Setting.Read(TEXT("NoScreenSaver"),&fNoScreenSaver);
 		Setting.Read(TEXT("NoMonitorLowPower"),&fNoMonitorLowPower);
 		Setting.Read(TEXT("NoMonitorLowPowerActiveOnly"),&fNoMonitorLowPowerActiveOnly);
@@ -1245,6 +1245,7 @@ bool CAppMain::LoadSettings()
 		RecordOptions.Read(&Setting);
 		CaptureOptions.Read(&Setting);
 		Accelerator.Read(&Setting);
+		HDUSController.Read(&Setting);
 		ChannelScan.Read(&Setting);
 		PluginOptions.Read(&Setting);
 		EpgOptions.Read(&Setting);
@@ -1254,7 +1255,8 @@ bool CAppMain::LoadSettings()
 	}
 	StatusOptions.Load(m_szIniFileName);
 	ColorSchemeOptions.Load(m_szIniFileName);
-	Accelerator.Load(m_szIniFileName);
+	//Accelerator.Load(m_szIniFileName);
+	//HDUSController.Load(m_szIniFileName);
 	DriverOptions.Load(m_szIniFileName);
 	ProgramGuideOptions.Load(m_szIniFileName);
 	PluginOptions.Load(m_szIniFileName);
@@ -1293,8 +1295,6 @@ bool CAppMain::SaveSettings()
 		Setting.Write(TEXT("KeepSingleTask"),fKeepSingleTask);
 		Setting.Write(TEXT("Resident"),ResidentManager.GetResident());
 		Setting.Write(TEXT("MinimizeToTray"),ResidentManager.GetMinimizeToTray());
-		Setting.Write(TEXT("NoRemoteController"),fNoRemoteController);
-		Setting.Write(TEXT("NoKeyHook"),fNoKeyHook);
 		Setting.Write(TEXT("NoScreenSaver"),fNoScreenSaver);
 		Setting.Write(TEXT("NoMonitorLowPower"),fNoMonitorLowPower);
 		Setting.Write(TEXT("NoMonitorLowPowerActiveOnly"),
@@ -1364,6 +1364,7 @@ bool CAppMain::SaveSettings()
 		RecordOptions.Write(&Setting);
 		CaptureOptions.Write(&Setting);
 		Accelerator.Write(&Setting);
+		HDUSController.Write(&Setting);
 		ChannelScan.Write(&Setting);
 		PluginOptions.Write(&Setting);
 		EpgOptions.Write(&Setting);
@@ -1371,26 +1372,47 @@ bool CAppMain::SaveSettings()
 		Logger.Write(&Setting);
 		Setting.Close();
 	}
-	if (RestoreChannelInfo.Channel>=0 && RestoreChannelInfo.szDriverName[0]!='\0'
-			&& Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_WRITE)) {
-		TCHAR szDriverName[MAX_PATH],szName[32+MAX_PATH];
-
-		::lstrcpy(szDriverName,::PathFindFileName(RestoreChannelInfo.szDriverName));
-		*::PathFindExtension(szDriverName)='\0';
-		::wsprintf(szName,TEXT("Space_%s"),szDriverName);
-		Setting.Write(szName,RestoreChannelInfo.Space);
-		::wsprintf(szName,TEXT("ChannelIndex_%s"),szDriverName);
-		Setting.Write(szName,RestoreChannelInfo.Channel);
-		::wsprintf(szName,TEXT("Service_%s"),szDriverName);
-		Setting.Write(szName,RestoreChannelInfo.Service);
-		Setting.Close();
-	}
 	StatusOptions.Save(m_szIniFileName);
 	ColorSchemeOptions.Save(m_szIniFileName);
 	Accelerator.Save(m_szIniFileName);
+	HDUSController.Save(m_szIniFileName);
 	DriverOptions.Save(m_szIniFileName);
 	ProgramGuideOptions.Save(m_szIniFileName);
 	PluginOptions.Save(m_szIniFileName);
+	return true;
+}
+
+
+bool CAppMain::SaveCurrentChannel()
+{
+	if (*CoreEngine.GetDriverFileName()!='\0') {
+		const CChannelInfo *pInfo=ChannelManager.GetCurrentRealChannelInfo();
+		int Space,Channel,Service;
+		CSettings Setting;
+
+		if (pInfo!=NULL) {
+			Space=pInfo->GetSpace();
+			Channel=pInfo->GetChannelIndex();
+			Service=pInfo->GetService();
+		} else {
+			Space=-1;
+			Channel=-1;
+			Service=0;
+		}
+		if (Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_WRITE)) {
+			TCHAR szDriverName[MAX_PATH],szName[32+MAX_PATH];
+
+			::lstrcpy(szDriverName,::PathFindFileName(CoreEngine.GetDriverFileName()));
+			*::PathFindExtension(szDriverName)='\0';
+			::wsprintf(szName,TEXT("Space_%s"),szDriverName);
+			Setting.Write(szName,Space);
+			::wsprintf(szName,TEXT("ChannelIndex_%s"),szDriverName);
+			Setting.Write(szName,Channel);
+			::wsprintf(szName,TEXT("Service_%s"),szDriverName);
+			Setting.Write(szName,Service);
+			Setting.Close();
+		}
+	}
 	return true;
 }
 
@@ -2589,8 +2611,6 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			ResidentManager.GetResident()?BST_CHECKED:BST_UNCHECKED);
 		CheckDlgButton(hDlg,IDC_OPTIONS_KEEPSINGLETASK,
 									fKeepSingleTask?BST_CHECKED:BST_UNCHECKED);
-		EnableDlgItem(hDlg,IDC_OPTIONS_REMOTECONTROLLERACTIVEONLY,
-														!fNoRemoteController);
 		CheckDlgButton(hDlg,IDC_OPTIONS_NOSCREENSAVER,
 									fNoScreenSaver?BST_CHECKED:BST_UNCHECKED);
 		CheckDlgButton(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER,
@@ -2698,8 +2718,15 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 							&& !CmdLineParser.m_fNoDirectShow)
 						MainWindow.EnablePreview(true);
 				}
-				CoreEngine.SetCardReaderType((CCardReader::ReaderType)
-					SendDlgItemMessage(hDlg,IDC_OPTIONS_CARDREADER,CB_GETCURSEL,0,0));
+				if (!CoreEngine.SetCardReaderType((CCardReader::ReaderType)
+						SendDlgItemMessage(hDlg,IDC_OPTIONS_CARDREADER,CB_GETCURSEL,0,0))) {
+					TCHAR szText[256];
+
+					Logger.AddLog(CoreEngine.GetLastErrorText());
+					CoreEngine.FormatLastErrorText(szText,lengthof(szText));
+					::MessageBox(hDlg,szText,NULL,MB_OK | MB_ICONEXCLAMATION);
+					CoreEngine.SetCardReaderType(CCardReader::READER_NONE);
+				}
 			}
 			ResidentManager.SetResident(
 				IsDlgButtonChecked(hDlg,IDC_OPTIONS_RESIDENT)==BST_CHECKED);
@@ -2925,10 +2952,6 @@ BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 													WheelChannelDelay,FALSE);
 			SetDlgItemInt(hDlg,IDC_OPTIONS_VOLUMESTEP,VolumeStep,TRUE);
 			SendDlgItemMessage(hDlg,IDC_OPTIONS_VOLUMESTEP_UD,UDM_SETRANGE32,1,100);
-			CheckDlgButton(hDlg,IDC_OPTIONS_USEREMOTECONTROLLER,
-						fNoRemoteController?BST_UNCHECKED:BST_CHECKED);
-			CheckDlgButton(hDlg,IDC_OPTIONS_REMOTECONTROLLERACTIVEONLY,
-						fNoKeyHook?BST_CHECKED:BST_UNCHECKED);
 		}
 		return TRUE;
 
@@ -2955,23 +2978,6 @@ BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 									IDC_OPTIONS_WHEELCHANNELDELAY,NULL,FALSE);
 			}
 			VolumeStep=::GetDlgItemInt(hDlg,IDC_OPTIONS_VOLUMESTEP,NULL,TRUE);
-			{
-				bool f1,f2;
-				f1=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEREMOTECONTROLLER);
-				f2=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_REMOTECONTROLLERACTIVEONLY);
-				if (f1!=fNoRemoteController || f2!=fNoKeyHook) {
-					SAFE_DELETE(pRemoteController);
-					if (!f1) {
-						pRemoteController=new CRemoteController(MainWindow.GetHandle());
-						pRemoteController->BeginHook(f2);
-						hAccel=LoadAccelerators(hInst,MAKEINTRESOURCE(IDA_ACCEL));
-					} else {
-						hAccel=NULL;
-					}
-					fNoRemoteController=f1;
-					fNoKeyHook=f2;
-				}
-			}
 			break;
 		}
 		break;
@@ -2986,7 +2992,7 @@ static COperationOptions OperationOptions;
 
 
 class COptionDialog {
-	enum { NUM_PAGES=16 };
+	enum { NUM_PAGES=17 };
 	struct PageInfo {
 		LPCTSTR pszTitle;
 		LPCTSTR pszTemplate;
@@ -3013,6 +3019,7 @@ public:
 		PAGE_COLORSCHEME,
 		PAGE_OPERATION,
 		PAGE_ACCELERATOR,
+		PAGE_HDUSCONTROLLER,
 		PAGE_DRIVER,
 		PAGE_RECORD,
 		PAGE_CAPTURE,
@@ -3044,6 +3051,8 @@ const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 		COperationOptions::DlgProc,		&OperationOptions,	RGB(128,128,0)},
 	{TEXT("キー割り当て"),			MAKEINTRESOURCE(IDD_OPTIONS_ACCELERATOR),
 		CAccelerator::DlgProc,			&Accelerator,		RGB(128,255,64)},
+	{TEXT("HDUSリモコン"),			MAKEINTRESOURCE(IDD_OPTIONS_HDUSCONTROLLER),
+		CHDUSController::DlgProc,	&HDUSController,		RGB(255,255,128)},
 	{TEXT("ドライバ別設定"),		MAKEINTRESOURCE(IDD_OPTIONS_DRIVER),
 		CDriverOptions::DlgProc,		&DriverOptions,		RGB(128,255,128)},
 	{TEXT("録画"),					MAKEINTRESOURCE(IDD_OPTIONS_RECORD),
@@ -5789,13 +5798,12 @@ static BOOL CALLBACK SnapWindowProc(HWND hwnd,LPARAM lParam)
 						pInfo->rcNearest.bottom=rc.top-pInfo->rcOriginal.bottom;
 				}
 				if (abs(rc.bottom-pInfo->rcOriginal.top)<abs(pInfo->rcNearest.top)) {
-					pInfo->rcNearest.top=rc.bottom-pInfo->rcOriginal.top;
 					rcEdge.left=max(rc.left,pInfo->rcOriginal.left);
 					rcEdge.right=min(rc.right,pInfo->rcOriginal.right);
 					rcEdge.top=rc.bottom;
 					rcEdge.bottom=rc.bottom;
 					if (IsWindowEdgeVisible(hwnd,GetTopWindow(GetDesktopWindow()),&rcEdge,pInfo->hwnd))
-						pInfo->rcNearest.top=rc.top-pInfo->rcOriginal.bottom;
+						pInfo->rcNearest.top=rc.bottom-pInfo->rcOriginal.top;
 				}
 			}
 		}
@@ -6525,23 +6533,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 			SAFE_DELETE(pThis->m_pFullscreen);
 			SAFE_DELETE(pNetworkRemocon);
-			SAFE_DELETE(pRemoteController);
 			ResidentManager.Finalize();
 			HtmlHelpClass.Finalize();
 			MainMenu.Destroy();
 			Accelerator.Finalize();
-			hAccel=NULL;
-
-			RestoreChannelInfo.Space=-1;
-			RestoreChannelInfo.Channel=-1;
-			RestoreChannelInfo.Service=0;
-			::lstrcpy(RestoreChannelInfo.szDriverName,CoreEngine.GetDriverFileName());
-			const CChannelInfo *pInfo=ChannelManager.GetCurrentRealChannelInfo();
-			if (pInfo!=NULL) {
-				RestoreChannelInfo.Space=pInfo->GetSpace();
-				RestoreChannelInfo.Channel=pInfo->GetChannelIndex();
-				RestoreChannelInfo.Service=pInfo->GetService();
-			}
+			HDUSController.Finalize();
+			AppMain.SaveCurrentChannel();
 			pThis->m_fMaximize=pThis->GetMaximize();
 
 			pThis->ShowFloatingWindows(false);
@@ -6572,8 +6569,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 	HANDLE_MSG(hwnd,WM_TIMER,GetThis(hwnd)->OnTimer);
 
 	default:
-		if (pRemoteController!=NULL
-				&& pRemoteController->TranslateMessage(uMsg,wParam,lParam))
+		if (HDUSController.HandleMessage(hwnd,uMsg,wParam,lParam))
 			return 0;
 		if (ResidentManager.HandleMessage(uMsg,wParam,lParam))
 			return 0;
@@ -7471,6 +7467,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	CapturePreview.SetEventHandler(&CapturePreviewEvent);
 
+	CommandList.Initialize(&DriverManager,&PluginList);
+	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
+						   AppMain.GetIniFileName(),&CommandList);
+	HDUSController.Initialize(MainWindow.GetHandle(),
+							  AppMain.GetIniFileName(),&CommandList);
+
 	if (CoreEngine.m_DtvEngine.IsSrcFilterOpen()) {
 		if (CoreEngine.IsBuildComplete()) {
 			if (CmdLineParser.m_fFullscreen)
@@ -7529,21 +7531,13 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	if (CmdLineParser.m_fExitOnRecordEnd)
 		MainWindow.SendCommand(CM_EXITONRECORDINGSTOP);
 
-	if (!fNoRemoteController) {
-		pRemoteController=new CRemoteController(MainWindow.GetHandle());
-		pRemoteController->BeginHook(fNoKeyHook);
-		hAccel=LoadAccelerators(hInst,MAKEINTRESOURCE(IDA_ACCEL));
-	}
-
-	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,&PluginList);
-
 	MSG msg;
 
 	while (GetMessage(&msg,NULL,0,0)) {
 		if (HtmlHelpClass.PreTranslateMessage(&msg))
 			continue;
-		if ((hAccel==NULL || !TranslateAccelerator(MainWindow.GetHandle(),hAccel,&msg))
-				&& !Accelerator.TranslateMessage(MainWindow.GetHandle(),&msg)) {
+		if (!Accelerator.TranslateMessage(MainWindow.GetHandle(),&msg)
+				&& !HDUSController.TranslateMessage(MainWindow.GetHandle(),&msg)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}

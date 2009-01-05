@@ -30,6 +30,7 @@ public:
 	bool AddLog(LPCTSTR pszText, ...);
 	bool LoadSettings();
 	bool SaveSettings();
+	bool SaveCurrentChannel();
 	bool IsFirstExecute() const;
 	bool SaveChannelSettings();
 	bool InitializeChannel();

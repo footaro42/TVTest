@@ -388,20 +388,29 @@ const CChannelInfo *CChannelManager::GetNextChannelInfo(bool fNext) const
 							m_pNetworkRemoconChannelList->FindChannelNo(No));
 	} else {
 		const CChannelList *pList=GetCurrentChannelList();
+		int i;
 
+		if (pList==NULL)
+			return NULL;
 		if (Channel<0) {
 			if (m_CurrentChannel<0)
 				return NULL;
 			Channel=m_CurrentChannel;
 		}
-		if (pList==NULL)
-			return NULL;
-		No=pList->GetChannelNo(Channel);
-		if (fNext)
-			No=pList->GetNextChannelNo(No,true);
-		else
-			No=pList->GetPrevChannelNo(No,true);
-		pInfo=pList->GetChannelInfo(pList->FindChannelNo(No));
+		for (i=0;i<pList->NumChannels();i++) {
+			if (pList->GetChannelNo(i)!=0)
+				break;
+		}
+		if (i==pList->NumChannels()) {
+			pInfo=pList->GetChannelInfo((Channel+1)%pList->NumChannels());
+		} else {
+			No=pList->GetChannelNo(Channel);
+			if (fNext)
+				No=pList->GetNextChannelNo(No,true);
+			else
+				No=pList->GetPrevChannelNo(No,true);
+			pInfo=pList->GetChannelInfo(pList->FindChannelNo(No));
+		}
 	}
 	return pInfo;
 }

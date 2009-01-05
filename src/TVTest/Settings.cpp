@@ -79,7 +79,7 @@ void CSettings::Close()
 
 bool CSettings::Clear()
 {
-	return WritePrivateProfileSection(m_szSection,TEXT("\0"),m_szFileName);
+	return WritePrivateProfileSection(m_szSection,TEXT("\0"),m_szFileName)!=FALSE;
 }
 
 
@@ -127,6 +127,8 @@ bool CSettings::Read(LPCTSTR pszValueName,LPTSTR pszData,unsigned int Max)
 {
 	TCHAR cBack[2];
 
+	if (pszData==NULL)
+		return false;
 	cBack[0]=pszData[0];
 	if (Max>1)
 		cBack[1]=pszData[1];
@@ -144,6 +146,8 @@ bool CSettings::Read(LPCTSTR pszValueName,LPTSTR pszData,unsigned int Max)
 
 bool CSettings::Write(LPCTSTR pszValueName,LPCTSTR pszData)
 {
+	if (pszData==NULL)
+		return false;
 	// •¶š—ñ‚ª ' ‚© " ‚ÅˆÍ‚Ü‚ê‚Ä‚¢‚é‚Æ“Ç‚İ‚İ‚Éœ‹‚³‚ê‚Ä‚µ‚Ü‚¤‚Ì‚ÅA
 	// —]•ª‚É " ‚ÅˆÍ‚Á‚Ä‚¨‚­B
 	if (pszData[0]=='"' || pszData[0]=='\'') {
@@ -172,7 +176,7 @@ bool CSettings::Write(LPCTSTR pszValueName,LPCTSTR pszData)
 			return fOK;
 		}
 	}
-	return WritePrivateProfileString(m_szSection,pszValueName,pszData,m_szFileName);
+	return WritePrivateProfileString(m_szSection,pszValueName,pszData,m_szFileName)!=FALSE;
 }
 
 

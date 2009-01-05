@@ -2,17 +2,40 @@
 #define REMOTE_CONTROLLER_H
 
 
-class CRemoteController {
-	HMODULE m_hLib;
-	bool m_fHook;
-	UINT m_Message;
-	HWND m_hwnd;
+#include "Options.h"
+#include "Command.h"
+
+
+class CHDUSController : public COptions {
+	enum { NUM_BUTTONS=36 };
+	bool m_fUseHDUSController;
+	bool m_fActiveOnly;
+	WORD m_AssignList[NUM_BUTTONS];
+	class CRemoteController *m_pRemoteController;
+	HACCEL m_hAccel;
+	const CCommandList *m_pCommandList;
+	HBITMAP m_hbmController;
+	HBITMAP m_hbmSelButtons;
+	RECT m_ImageRect;
+	HWND m_hwndToolTip;
+	void SetButtonCommand(HWND hwndList,int Index,int Command);
+	void SetDlgItemStatus();
+	static CHDUSController *GetThis(HWND hDlg);
+	// COptions
+	bool Load(LPCTSTR pszFileName);
 public:
-	CRemoteController(HWND hwnd);
-	~CRemoteController();
-	bool BeginHook(bool fLocal);
-	bool EndHook();
-	bool TranslateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
+	CHDUSController();
+	~CHDUSController();
+	// COptions
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
+	bool Save(LPCTSTR pszFileName) const;
+	// CHDUSController
+	bool Initialize(HWND hwnd,LPCTSTR pszSettingFileName,const CCommandList *pCommandList);
+	void Finalize();
+	bool TranslateMessage(HWND hwnd,LPMSG pmsg);
+	bool HandleMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

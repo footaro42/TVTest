@@ -435,7 +435,8 @@ CTsDescrambler::CEsProcessor::~CEsProcessor()
 const bool CTsDescrambler::CEsProcessor::StorePacket(const CTsPacket *pPacket)
 {
 	// ƒXƒNƒ‰ƒ“ƒuƒ‹‰ðœ
-	m_pEcmProcessor->DescramblePacket(const_cast<CTsPacket *>(pPacket));
+	if (pPacket->IsScrambled())
+		m_pEcmProcessor->DescramblePacket(const_cast<CTsPacket *>(pPacket));
 
 	return false;
 }

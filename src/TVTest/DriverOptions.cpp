@@ -43,7 +43,7 @@ public:
 
 CDriverSettings::CDriverSettings()
 	: m_pszFileName(NULL)
-	, m_InitialChannelType(INITIALCHANNEL_NONE)
+	, m_InitialChannelType(INITIALCHANNEL_LAST)
 	, m_InitialSpace(0)
 	, m_InitialChannel(0)
 {
