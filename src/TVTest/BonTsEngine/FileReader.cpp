@@ -33,14 +33,6 @@ CFileReader::~CFileReader()
 	if(m_hReadAnsyncThread)::CloseHandle(m_hReadAnsyncThread);
 }
 
-/*
-void CFileReader::Reset(void)
-{
-	// 下位デコーダをリセットする
-	CMediaDecoder::Reset();
-}
-*/
-
 const bool CFileReader::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
 	// ソースデコーダのため常にエラーを返す
@@ -77,20 +69,20 @@ const DWORD CFileReader::ReadSync(const DWORD dwReadSize)
 
 	// バッファ確保
 	m_ReadBuffer.SetSize(dwReadSize);
-	
+
 	// ファイル読み込み
-	if(!m_InFile.Read(m_ReadBuffer.GetData(), dwReqSize))return 0UL;
-	
+	if(m_InFile.Read(m_ReadBuffer.GetData(), dwReqSize) != dwReqSize)return 0UL;
+
 	// データ出力
 	OutputMedia(&m_ReadBuffer);
-	
+
 	return dwReqSize;
 }
 
 const DWORD CFileReader::ReadSync(const DWORD dwReadSize, const ULONGLONG llReadPos)
 {
 	// ファイルシーク
-	if(!m_InFile.Seek(llReadPos))return 0UL;
+	if(!m_InFile.SetPos(llReadPos))return 0UL;
 
 	// データ出力
 	return ReadSync(dwReadSize);
@@ -106,7 +98,7 @@ const bool CFileReader::StartReadAnsync(const DWORD dwReadSize, const ULONGLONG 
 		}
 
 	// ファイルシーク
-	if(!m_InFile.Seek(llReadPos))return false;
+	if(!m_InFile.SetPos(llReadPos))return false;
 
 	// 非同期リードスレッド起動
 	m_dwReadAnsyncThreadID = 0UL;
@@ -141,13 +133,13 @@ const bool CFileReader::IsAnsyncReadBusy(void) const
 	return m_bIsAnsyncRead;
 }
 
-const ULONGLONG CFileReader::GetReadPos(void) const
+const ULONGLONG CFileReader::GetReadPos(void)
 {
 	// ファイルポジションを返す
 	return m_InFile.GetPos();
 }
 
-const ULONGLONG CFileReader::GetFileSize(void) const
+const ULONGLONG CFileReader::GetFileSize(void)
 {
 	// ファイルサイズを返す
 	return m_InFile.GetSize();
@@ -156,7 +148,7 @@ const ULONGLONG CFileReader::GetFileSize(void) const
 const bool CFileReader::SetReadPos(const ULONGLONG llReadPos)
 {
 	// ファイルシーク
-	return m_InFile.Seek(llReadPos);
+	return m_InFile.SetPos(llReadPos);
 }
 
 DWORD WINAPI CFileReader::ReadAnsyncThread(LPVOID pParam)

@@ -25,8 +25,8 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_pBonDriver(NULL)
 	, m_pBonDriver2(NULL)
 	, m_hStreamRecvThread(NULL)
-	, m_bPauseSignal(false)
-	, m_hResumeEvent(NULL)
+	, m_PauseEvent()
+	, m_ResumeEvent()
 	, m_bKillSignal(false)
 	, m_TsStream(0x10000UL)
 	, m_bIsPlaying(false)
@@ -45,13 +45,13 @@ void CBonSrcDecoder::Reset(void)
 	if (m_pBonDriver == NULL)
 		return;
 
-	PauseStreamRecieve();
+	if (!PauseStreamRecieve()) {
+		Trace(TEXT("ストリーム受信スレッドが応答しません。"));
+		return;
+	}
 
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
-
-	// 下位デコーダをリセットする
-	ResetDownstreamDecoder();
 
 	ResumeStreamRecieve();
 }
@@ -73,7 +73,7 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	Trace(TEXT("チューナを開いています..."));
 
 	// ドライバポインタの取得
-	PFCREATEBONDRIVER *pf=(PFCREATEBONDRIVER*)GetProcAddress(hBonDrvDll,"CreateBonDriver");
+	PFCREATEBONDRIVER *pf=(PFCREATEBONDRIVER*)::GetProcAddress(hBonDrvDll,"CreateBonDriver");
 	if (pf == NULL) {
 		SetError(ERR_DRIVER,TEXT("CreateBonDriver()のアドレスを取得できません。"),
 							TEXT("指定されたDLLがBonDriverではありません。"));
@@ -116,13 +116,15 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	*/
 
 	// ストリーム受信スレッド起動
-	m_bPauseSignal = false;
-	m_hResumeEvent = ::CreateEvent(NULL,FALSE,FALSE,NULL);
+	if (!m_PauseEvent.Create(true) || !m_ResumeEvent.Create()) {
+		SetError(ERR_INTERNAL, TEXT("イベントオブジェクトを作成できません。"));
+		goto OnError;
+	}
 	m_bKillSignal = false;
 	m_bIsPlaying = false;
 	m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, NULL);
 	if (!m_hStreamRecvThread) {
-		SetError(ERR_INTERNAL,TEXT("ストリーム受信スレッドを作成できません。"));
+		SetError(ERR_INTERNAL, TEXT("ストリーム受信スレッドを作成できません。"));
 		goto OnError;
 	}
 
@@ -137,10 +139,8 @@ OnError:
 	m_pBonDriver->Release();
 	m_pBonDriver = NULL;
 	m_pBonDriver2 = NULL;
-	if (m_hResumeEvent) {
-		::CloseHandle(m_hResumeEvent);
-		m_hResumeEvent=NULL;
-	}
+	m_PauseEvent.Close();
+	m_ResumeEvent.Close();
 	return false;
 }
 
@@ -152,8 +152,8 @@ const bool CBonSrcDecoder::CloseTuner(void)
 	if (m_hStreamRecvThread) {
 		// ストリーム受信スレッド停止
 		Trace(TEXT("ストリーム受信スレッドを停止しています..."));
-		m_bKillSignal=true;
-		m_bPauseSignal=true;
+		m_bKillSignal = true;
+		m_PauseEvent.Set();
 		if (::WaitForSingleObject(m_hStreamRecvThread, 1000UL) != WAIT_OBJECT_0) {
 			// スレッド強制終了
 			::TerminateThread(m_hStreamRecvThread, 0UL);
@@ -162,10 +162,8 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		::CloseHandle(m_hStreamRecvThread);
 		m_hStreamRecvThread = NULL;
 	}
-	if (m_hResumeEvent) {
-		::CloseHandle(m_hResumeEvent);
-		m_hResumeEvent=NULL;
-	}
+	m_PauseEvent.Close();
+	m_ResumeEvent.Close();
 
 	if (m_pBonDriver) {
 		// チューナを閉じる
@@ -401,19 +399,20 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 
 	::CoInitialize(NULL);
 
-	BYTE *pStreamData = NULL;
-	DWORD dwStreamSize = 0UL;
-	DWORD dwStreamRemain = 0UL;
-
 	// チューナからTSデータを取り出すスレッド
 	while (true) {
 		DWORD BitRateTime=::GetTickCount();
 		DWORD TotalSize=0;
 		pThis->m_BitRate=0;
 
-		while (!pThis->m_bPauseSignal) {
+		while (!pThis->m_PauseEvent.IsSignaled()) {
 			// 処理簡略化のためポーリング方式を採用する
+			DWORD dwStreamRemain = 0UL;
+
 			do {
+				BYTE *pStreamData = NULL;
+				DWORD dwStreamSize = 0UL;
+
 				if (pThis->m_pBonDriver->GetTsStream(&pStreamData,&dwStreamSize,&dwStreamRemain)
 						&& pStreamData && dwStreamSize) {
 #if 1
@@ -443,21 +442,22 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 					TotalSize=0;
 				}
 				pThis->m_StreamRemain=dwStreamRemain;
-			} while (dwStreamRemain>0 && !pThis->m_bPauseSignal);
-
-			if (pThis->m_bPauseSignal)
-				break;
+				if (pThis->m_PauseEvent.IsSignaled())
+					goto Break;
+			} while (dwStreamRemain>0);
 
 			// ウェイト(24Mbpsとして次のデータ到着まで約15msかかる)
 			::Sleep(5UL);
 			//pThis->m_pBonDriver->WaitTsStream(20);
 		}
+	Break:
 		if (pThis->m_bKillSignal)
 			break;
-		::SetEvent(pThis->m_hResumeEvent);
-		while (pThis->m_bPauseSignal)
-			Sleep(1);
-		::SetEvent(pThis->m_hResumeEvent);
+		pThis->m_PauseEvent.Reset();
+		pThis->m_ResumeEvent.Set();
+		pThis->m_PauseEvent.Wait(5000);
+		pThis->m_PauseEvent.Reset();
+		//pThis->m_ResumeEvent.Set();
 	}
 
 	pThis->m_BitRate=0;
@@ -476,9 +476,9 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 */
 bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 {
-	::ResetEvent(m_hResumeEvent);
-	m_bPauseSignal = true;
-	if (::WaitForSingleObject(m_hResumeEvent, TimeOut) == WAIT_TIMEOUT)
+	m_ResumeEvent.Reset();
+	m_PauseEvent.Set();
+	if (m_ResumeEvent.Wait(TimeOut) == WAIT_TIMEOUT)
 		return false;
 	return true;
 }
@@ -486,9 +486,11 @@ bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 
 bool CBonSrcDecoder::ResumeStreamRecieve(DWORD TimeOut)
 {
-	m_bPauseSignal = false;
-	if (::WaitForSingleObject(m_hResumeEvent, TimeOut) == WAIT_TIMEOUT)
+	m_PauseEvent.Set();
+	/*
+	if (m_ResumeEvent.Wait(TimeOut) == WAIT_TIMEOUT)
 		return false;
+	*/
 	return true;
 }
 

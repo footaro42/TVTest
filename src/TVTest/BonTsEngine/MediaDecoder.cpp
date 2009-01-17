@@ -4,8 +4,6 @@
 
 #include "stdafx.h"
 #include "MediaDecoder.h"
-#include "MediaData.h"
-
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -33,8 +31,13 @@ CMediaDecoder::~CMediaDecoder()
 
 void CMediaDecoder::Reset()
 {
+}
+
+void CMediaDecoder::ResetGraph(void)
+{
 	CBlockLock Lock(&m_DecoderLock);
 
+	Reset();
 	ResetDownstreamDecoder();
 }
 
@@ -63,6 +66,14 @@ const bool CMediaDecoder::SetOutputDecoder(CMediaDecoder *pDecoder, const DWORD 
 	return true;
 }
 
+const bool CMediaDecoder::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	OutputMedia(pMediaData, dwInputIndex);
+	return true;
+}
+
 const bool CMediaDecoder::OutputMedia(CMediaData *pMediaData, const DWORD dwOutptIndex)
 {
 	// 出力処理
@@ -76,13 +87,12 @@ const bool CMediaDecoder::OutputMedia(CMediaData *pMediaData, const DWORD dwOutp
 	return false;
 }
 
-void CMediaDecoder::ResetDownstreamDecoder()
+void CMediaDecoder::ResetDownstreamDecoder(void)
 {
 	// 次のフィルタをリセットする
 	for (DWORD dwOutputIndex = 0UL ; dwOutputIndex < m_dwOutputNum ; dwOutputIndex++) {
-		if (m_aOutputDecoder[dwOutputIndex].pDecoder) {
-			m_aOutputDecoder[dwOutputIndex].pDecoder->Reset();
-		}
+		if (m_aOutputDecoder[dwOutputIndex].pDecoder)
+			m_aOutputDecoder[dwOutputIndex].pDecoder->ResetGraph();
 	}
 }
 

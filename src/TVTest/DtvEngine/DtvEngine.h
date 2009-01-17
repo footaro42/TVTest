@@ -124,14 +124,13 @@ protected:
 	WORD m_wCurTransportStream;
 	WORD m_wCurService;
 	int m_CurAudioStream;
-	WORD m_wCurVideoPID;
-	WORD m_wCurAudioPID;
 	unsigned __int64 m_u64CurPcrTimeStamp;
 
 	bool m_bBuiled;
 	bool m_bBuildComplete;
 	bool m_bIsFileMode;
 	bool m_bDescramble;
+	bool m_bBuffering;
 
 	bool m_bDescrambleCurServiceOnly;
 	bool m_bWriteCurServiceOnly;

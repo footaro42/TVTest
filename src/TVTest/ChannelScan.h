@@ -12,6 +12,7 @@ class CChannelScan : public COptions {
 	int m_ScanSpace;
 	int m_ScanChannel;
 	int m_NumChannels;
+	const CTuningSpaceList *m_pOriginalTuningSpaceList;
 	CTuningSpaceList m_TuningSpaceList;
 	CChannelList m_ScanningChannelList;
 	bool m_fScanService;
@@ -24,10 +25,13 @@ class CChannelScan : public COptions {
 	bool m_fOK;
 	int m_SortColumn;
 	bool m_fSortDescending;
+	bool m_fChanging;
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
+	CChannelInfo *GetSelectedChannelInfo() const;
 	static DWORD WINAPI ScanProc(LPVOID lpParameter);
 	static BOOL CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static BOOL CALLBACK ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static CChannelScan *GetThis(HWND hDlg);
 public:
 	CChannelScan(CCoreEngine *pCoreEngine);

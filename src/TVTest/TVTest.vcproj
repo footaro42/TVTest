@@ -842,10 +842,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\StdUtil.h"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\TsDescrambler.h"
 					>
 				</File>
@@ -977,10 +973,6 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\ProgManager.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\BonTsEngine\StdUtil.cpp"
 					>
 				</File>
 				<File
@@ -1147,6 +1139,10 @@
 					RelativePath=".\HelperClass\NFile.h"
 					>
 				</File>
+				<File
+					RelativePath=".\HelperClass\StdUtil.h"
+					>
+				</File>
 			</Filter>
 			<Filter
 				Name="Source Files"
@@ -1157,6 +1153,10 @@
 				</File>
 				<File
 					RelativePath=".\HelperClass\NFile.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\HelperClass\StdUtil.cpp"
 					>
 				</File>
 			</Filter>

@@ -74,7 +74,8 @@ LPWSTR DuplicateString(LPCWSTR pszString)
 
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString)
 {
-	ASSERT(ppszString);
+	if (ppszString==NULL)
+		return false;
 	delete [] *ppszString;
 	*ppszString=DuplicateString(pszNewString);
 	return true;
@@ -83,7 +84,8 @@ bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString)
 
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString)
 {
-	ASSERT(ppszString);
+	if (ppszString==NULL)
+		return false;
 	delete [] *ppszString;
 	*ppszString=DuplicateString(pszNewString);
 	return true;

@@ -47,7 +47,6 @@ void CMediaBuffer::Reset(void)
 {
 	TRACE(TEXT("CMediaBuffer::Reset()\n"));
 	ResetBuffer();
-	ResetDownstreamDecoder();
 }
 
 

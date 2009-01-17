@@ -19,6 +19,7 @@ class CChannelInfo {
 	WORD m_NetworkID;			// ネットワークID
 	WORD m_TransportStreamID;	// トランスポートストリームID
 	WORD m_ServiceID;			// サービスID
+	bool m_fEnabled;			// 有効
 public:
 	CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);
 	CChannelInfo(const CChannelInfo &Info);
@@ -28,6 +29,7 @@ public:
 	int GetChannel() const { return m_Channel; }
 	bool SetChannel(int Channel);
 	int GetChannelIndex() const { return m_ChannelIndex; }
+	bool SetChannelNo(int ChannelNo);
 	int GetChannelNo() const { return m_ChannelNo; }
 	int GetService() const { return m_Service; }
 	LPCTSTR GetName() const { return m_szName; }
@@ -38,6 +40,8 @@ public:
 	WORD GetTransportStreamID() const { return m_TransportStreamID; }
 	bool SetServiceID(WORD ServiceID);
 	WORD GetServiceID() const { return m_ServiceID; }
+	void Enable(bool fEnable) { m_fEnabled=fEnable; }
+	bool IsEnabled() const { return m_fEnabled; }
 };
 
 class CChannelList {
@@ -60,6 +64,7 @@ public:
 	int GetChannelNo(int Index) const;
 	int GetService(int Index) const;
 	LPCTSTR GetName(int Index) const;
+	bool IsEnabled(int Index) const;
 	bool DeleteChannel(int Index);
 	void Clear();
 	int Find(const CChannelInfo *pInfo) const;
@@ -83,6 +88,7 @@ public:
 	void Sort(SortType Type,bool fDescending=false);
 	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
+	bool HasRemoteControlKeyID() const;
 private:
 	void SortSub(SortType Type,bool fDescending,int First,int Last,CChannelInfo **ppTemp);
 };

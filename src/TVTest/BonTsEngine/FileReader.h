@@ -49,8 +49,8 @@ public:
 	void StopReadAnsync(void);
 	const bool IsAnsyncReadBusy(void) const;
 
-	const ULONGLONG GetReadPos(void) const;
-	const ULONGLONG GetFileSize(void) const;
+	const ULONGLONG GetReadPos(void);
+	const ULONGLONG GetFileSize(void);
 	const bool SetReadPos(const ULONGLONG llReadPos);
 
 protected:

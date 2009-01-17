@@ -214,14 +214,21 @@ const DWORD CMediaData::GetBuffer(const DWORD dwGetSize)
 	// 少なくとも指定サイズを格納できるバッファを確保する
 	if (!m_pData) {
 		// バッファ確保まだ
-		m_dwBuffSize = max(dwGetSize, MINBUFSIZE);
-		m_pData = static_cast<BYTE*>(malloc(m_dwBuffSize));
+		DWORD dwBuffSize = max(dwGetSize, MINBUFSIZE);
+
+		m_pData = static_cast<BYTE*>(malloc(dwBuffSize));
+		if (m_pData)
+			m_dwBuffSize = dwBuffSize;
 	} else if (dwGetSize > m_dwBuffSize) {
 		// 要求サイズはバッファサイズを超える
-		DWORD dwBuffSize = m_dwBuffSize;
-		do {
-			dwBuffSize <<= 1;
-		} while (dwBuffSize < dwGetSize);
+		DWORD dwBuffSize = dwGetSize;
+
+		if (dwBuffSize < 0x100000UL) {
+			if (dwBuffSize < m_dwDataSize * 2)
+				dwBuffSize = m_dwDataSize * 2;
+		} else {
+			dwBuffSize = (dwBuffSize / 0x100000UL + 1) * 0x100000UL;
+		}
 
 		BYTE *pNewBuffer = static_cast<BYTE*>(realloc(m_pData, dwBuffSize));
 
@@ -264,4 +271,14 @@ void CMediaData::ClearSize(void)
 {
 	// データサイズをクリアする
 	m_dwDataSize = 0UL;
+}
+
+void CMediaData::ClearBuffer(void)
+{
+	m_dwDataSize = 0UL;
+	m_dwBuffSize = 0UL;
+	if (m_pData) {
+		free(m_pData);
+		m_pData = NULL;
+	}
 }

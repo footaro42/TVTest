@@ -265,8 +265,8 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 				::GetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATACAPDLLPATH,
 								 szPath,lengthof(szPath));
 				if (::lstrcmpi(szPath,pThis->m_szEpgDataCapDllPath)!=0) {
+					pThis->m_pCoreEngine->m_DtvEngine.m_TsPacketParser.UnInitializeEpgDataCap();
 					if (szPath[0]!='\0') {
-						pThis->m_pCoreEngine->m_DtvEngine.m_TsPacketParser.UnInitializeEpgDataCap();
 						pThis->m_pCoreEngine->m_DtvEngine.m_TsPacketParser.InitializeEpgDataCap(szPath);
 					}
 					::lstrcpy(pThis->m_szEpgDataCapDllPath,szPath);

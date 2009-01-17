@@ -103,6 +103,9 @@ bool CLogger::AddLog(LPCTSTR pszText, ...)
 
 bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 {
+	if (pszText==NULL)
+		return false;
+
 	if (m_NumLogItems==m_ListLength) {
 		CLogItem **ppNewList;
 		int ListLength;

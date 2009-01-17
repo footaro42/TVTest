@@ -5,6 +5,7 @@
 #pragma once
 
 
+#include "BonBaseClass.h"
 #include "CardReader.h"
 
 
@@ -21,7 +22,7 @@
 #define BCEC_ECMREFUSED			0x00000009UL	// ECM受付拒否
 
 
-class CBcasCard
+class CBcasCard : public CBonBaseClass
 {
 public:
 	CBcasCard();
@@ -44,8 +45,6 @@ public:
 	const char GetCardManufacturerID() const;
 	const BYTE GetCardVersion() const;
 
-	const DWORD GetLastError(void) const;
-
 protected:
 	const bool InitialSetting(void);
 
@@ -67,6 +66,4 @@ protected:
 		BYTE LastEcmData[256];	// 最後に問い合わせのあったECMデータ
 		BYTE KsData[16];		// Ks Odd + Even	
 	} m_EcmStatus;
-
-	DWORD m_dwLastError;
 };

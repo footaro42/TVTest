@@ -151,6 +151,9 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 	mii.fState=MFS_ENABLED;
 	for (i=0;i<pChannelList->NumChannels();i++) {
 		const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(i);
+		if (!pChInfo->IsEnabled())
+			continue;
+
 		TCHAR szText[256];
 		int Length;
 

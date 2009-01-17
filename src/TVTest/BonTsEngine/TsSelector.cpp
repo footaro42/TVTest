@@ -64,9 +64,6 @@ void CTsSelector::Reset(void)
 	m_LastPmtPID = 0;
 	m_LastVersion = 0;
 	m_Version = 0;
-
-	// 下流デコーダを初期化する
-	ResetDownstreamDecoder();
 }
 
 

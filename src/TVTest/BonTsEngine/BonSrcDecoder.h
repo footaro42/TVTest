@@ -6,7 +6,6 @@
 
 
 #include "MediaDecoder.h"
-#include "BonBaseClass.h"
 #include "IBonDriver.h"
 #include "IBonDriver2.h"
 
@@ -17,7 +16,7 @@
 // Output	#0	: CMediaData		平分TSストリーム
 /////////////////////////////////////////////////////////////////////////////
 
-class CBonSrcDecoder : public CMediaDecoder, public CBonBaseClass
+class CBonSrcDecoder : public CMediaDecoder
 {
 public:
 	// エラーコード
@@ -76,8 +75,8 @@ private:
 	IBonDriver2 *m_pBonDriver2;	
 
 	HANDLE m_hStreamRecvThread;
-	volatile bool m_bPauseSignal;
-	HANDLE m_hResumeEvent;
+	CLocalEvent m_PauseEvent;
+	CLocalEvent m_ResumeEvent;
 	volatile bool m_bKillSignal;
 
 	CMediaData m_TsStream;

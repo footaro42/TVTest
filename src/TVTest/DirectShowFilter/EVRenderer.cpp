@@ -73,22 +73,27 @@ CVideoRenderer_EVR::~CVideoRenderer_EVR()
 bool CVideoRenderer_EVR::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain)
 {
 #ifdef EVR_USE_VIDEO_WINDOW
+	static bool fRegistered=false;
 	HINSTANCE hinst=GetWindowInstance(hwndRender);
-	WNDCLASS wc;
 
-	wc.style=CS_DBLCLKS | CS_HREDRAW | CS_VREDRAW;
-	wc.lpfnWndProc=VideoWndProc;
-	wc.cbClsExtra=0;
-	wc.cbWndExtra=0;
-	wc.hInstance=hinst;
-	wc.hIcon=NULL;
-	wc.hCursor=NULL;
-	wc.hbrBackground=CreateSolidBrush(RGB(0,0,0));
-	wc.lpszMenuName=NULL;
-	wc.lpszClassName=EVR_VIDEO_WINDOW_CLASS;
-	if (::RegisterClass(&wc)==0) {
-		SetError(TEXT("EVRウィンドウクラスを登録できません。"));
-		return false;
+	if (!fRegistered) {
+		WNDCLASS wc;
+
+		wc.style=CS_DBLCLKS | CS_HREDRAW | CS_VREDRAW;
+		wc.lpfnWndProc=VideoWndProc;
+		wc.cbClsExtra=0;
+		wc.cbWndExtra=0;
+		wc.hInstance=hinst;
+		wc.hIcon=NULL;
+		wc.hCursor=NULL;
+		wc.hbrBackground=CreateSolidBrush(RGB(0,0,0));
+		wc.lpszMenuName=NULL;
+		wc.lpszClassName=EVR_VIDEO_WINDOW_CLASS;
+		if (::RegisterClass(&wc)==0) {
+			SetError(TEXT("EVRウィンドウクラスを登録できません。"));
+			return false;
+		}
+		fRegistered=true;
 	}
 	m_hwndVideo=::CreateWindowEx(0,EVR_VIDEO_WINDOW_CLASS,NULL,
 								 WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,0,0,0,0,

@@ -131,6 +131,70 @@ bool CTryBlockLock::TryLock(DWORD TimeOut)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// イベントクラス
+/////////////////////////////////////////////////////////////////////////////
+
+CLocalEvent::CLocalEvent()
+	: m_hEvent(NULL)
+{
+}
+
+CLocalEvent::~CLocalEvent()
+{
+	Close();
+}
+
+bool CLocalEvent::Create(bool bManual, bool bInitialState)
+{
+	if (m_hEvent)
+		return false;
+	m_hEvent = ::CreateEvent(NULL, bManual, bInitialState, NULL);
+	return m_hEvent != NULL;
+}
+
+bool CLocalEvent::IsCreated() const
+{
+	return m_hEvent != NULL;
+}
+
+void CLocalEvent::Close()
+{
+	if (m_hEvent) {
+		::CloseHandle(m_hEvent);
+		m_hEvent = NULL;
+	}
+}
+
+bool CLocalEvent::Set()
+{
+	if (!m_hEvent)
+		return false;
+	return ::SetEvent(m_hEvent) != FALSE;
+}
+
+bool CLocalEvent::Reset()
+{
+	if (!m_hEvent)
+		return false;
+	return ::ResetEvent(m_hEvent) != FALSE;
+}
+
+DWORD CLocalEvent::Wait(DWORD Timeout)
+{
+	if (!m_hEvent)
+		return WAIT_FAILED;
+	return ::WaitForSingleObject(m_hEvent, Timeout);
+}
+
+bool CLocalEvent::IsSignaled()
+{
+	if (!m_hEvent)
+		return false;
+	return ::WaitForSingleObject(m_hEvent, 0) == WAIT_OBJECT_0;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // トレースクラス
 /////////////////////////////////////////////////////////////////////////////
 

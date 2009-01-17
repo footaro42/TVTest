@@ -23,6 +23,7 @@ CChannelInfo::CChannelInfo(int Space,int Channel,int Index,int No,int Service,LP
 	m_NetworkID=0;
 	m_TransportStreamID=0;
 	m_ServiceID=0;
+	m_fEnabled=true;
 }
 
 
@@ -45,6 +46,7 @@ CChannelInfo &CChannelInfo::operator=(const CChannelInfo &Info)
 	m_NetworkID=Info.m_NetworkID;
 	m_TransportStreamID=Info.m_TransportStreamID;
 	m_ServiceID=Info.m_ServiceID;
+	m_fEnabled=Info.m_fEnabled;
 	return *this;
 }
 
@@ -59,6 +61,13 @@ bool CChannelInfo::SetSpace(int Space)
 bool CChannelInfo::SetChannel(int Channel)
 {
 	m_Channel=Channel;
+	return true;
+}
+
+
+bool CChannelInfo::SetChannelNo(int ChannelNo)
+{
+	m_ChannelNo=ChannelNo;
 	return true;
 }
 
@@ -228,6 +237,14 @@ int CChannelList::GetService(int Index) const
 }
 
 
+bool CChannelList::IsEnabled(int Index) const
+{
+	if (Index<0 || Index>=m_NumChannels)
+		return false;
+	return m_ppList[Index]->IsEnabled();
+}
+
+
 bool CChannelList::DeleteChannel(int Index)
 {
 	if (Index<0 || Index>=m_NumChannels)
@@ -318,13 +335,19 @@ int CChannelList::GetNextChannelNo(int ChannelNo,bool fWrap) const
 	Channel=1000;
 	Min=1000;
 	for (i=0;i<m_NumChannels;i++) {
-		No=GetChannelNo(i);
-		if (No>ChannelNo && No<Channel)
-			Channel=No;
-		if (No<Min)
-			Min=No;
+		const CChannelInfo *pChInfo=m_ppList[i];
+
+		if (pChInfo->IsEnabled()) {
+			No=pChInfo->GetChannelNo();
+			if (No>ChannelNo && No<Channel)
+				Channel=No;
+			if (No<Min)
+				Min=No;
+		}
 	}
 	if (Channel==1000) {
+		if (Min==1000)
+			return 0;
 		if (fWrap)
 			return Min;
 		return 0;
@@ -341,11 +364,15 @@ int CChannelList::GetPrevChannelNo(int ChannelNo,bool fWrap) const
 	Channel=0;
 	Max=0;
 	for (i=0;i<m_NumChannels;i++) {
-		No=GetChannelNo(i);
-		if (No<ChannelNo && No>Channel)
-			Channel=No;
-		if (No>Max)
-			Max=No;
+		const CChannelInfo *pChInfo=m_ppList[i];
+
+		if (pChInfo->IsEnabled()) {
+			No=pChInfo->GetChannelNo();
+			if (No<ChannelNo && No>Channel)
+				Channel=No;
+			if (No>Max)
+				Max=No;
+		}
 	}
 	if (Channel==0) {
 		if (fWrap)
@@ -460,6 +487,16 @@ bool CChannelList::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 		}
 	}
 	return true;
+}
+
+
+bool CChannelList::HasRemoteControlKeyID() const
+{
+	for (int i=0;i<m_NumChannels;i++) {
+		if (m_ppList[i]->GetChannelNo()!=0)
+			return true;
+	}
+	return false;
 }
 
 
@@ -719,7 +756,7 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 		return false;
 	static const char szComment[]=
 		"; " APP_NAME_A " チャンネル設定ファイル\r\n"
-		"; 名称,チューニング空間,チャンネル,リモコン番号,サービス,サービスID,ネットワークID,TSID\r\n";
+		"; 名称,チューニング空間,チャンネル,リモコン番号,サービス,サービスID,ネットワークID,TSID,状態\r\n";
 	::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL);
 	for (int i=0;i<NumSpaces();i++) {
 		const CChannelList *pChannelList=m_TuningSpaceList[i]->GetChannelList();
@@ -746,6 +783,8 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 			szText[Length++]=',';
 			if (pChInfo->GetTransportStreamID()!=0)
 				Length+=::wsprintfA(szText+Length,"%d",pChInfo->GetTransportStreamID());
+			szText[Length++]=',';
+			szText[Length++]=pChInfo->IsEnabled()?'1':'0';
 			szText[Length++]='\r';
 			szText[Length++]='\n';
 			if (!::WriteFile(hFile,szText,Length,&Write,NULL) || Write!=Length) {
@@ -801,6 +840,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 	do {
 		TCHAR szName[MAX_CHANNEL_NAME];
 		int Space,Channel,ControlKey,Service,ServiceID,NetworkID,TransportStreamID;
+		bool fEnabled;
 
 		while (*p=='\r' || *p=='\n' || *p==' ' || *p=='\t')
 			p++;
@@ -851,6 +891,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 		ServiceID=0;
 		NetworkID=0;
 		TransportStreamID=0;
+		fEnabled=true;
 		if (*p==',') {
 			p++;
 			SkipSpaces(&p);
@@ -895,6 +936,20 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 								TransportStreamID=TransportStreamID*10+(*p-'0');
 								p++;
 							}
+							SkipSpaces(&p);
+							// 有効状態(オプション)
+							if (*p==',') {
+								p++;
+								SkipSpaces(&p);
+								if (IsDigit(*p)) {
+									int Value=0;
+									while (IsDigit(*p)) {
+										Value=Value*10+(*p-'0');
+										p++;
+									}
+									fEnabled=(Value&1)!=0;
+								}
+							}
 						}
 					}
 				}
@@ -908,6 +963,8 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 				ChInfo.SetNetworkID(NetworkID);
 			if (TransportStreamID!=0)
 				ChInfo.SetTransportStreamID(TransportStreamID);
+			if (!fEnabled)
+				ChInfo.Enable(false);
 			m_AllChannelList.AddChannel(ChInfo);
 		}
 	Next:

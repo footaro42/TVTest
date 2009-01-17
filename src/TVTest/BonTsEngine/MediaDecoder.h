@@ -6,6 +6,7 @@
 
 
 #include "MediaData.h"
+#include "BonBaseClass.h"
 #include "TsUtilClass.h"
 
 
@@ -13,7 +14,7 @@
 // メディアデコーダ基底クラス
 //////////////////////////////////////////////////////////////////////
 
-class CMediaDecoder
+class CMediaDecoder : public CBonBaseClass
 {
 public:
 	class IEventHandler
@@ -26,16 +27,17 @@ public:
 	virtual ~CMediaDecoder();
 
 	virtual void Reset(void);
+	void ResetGraph(void);
 
 	virtual const DWORD GetInputNum(void) const;
 	virtual const DWORD GetOutputNum(void) const;
 
 	const bool SetOutputDecoder(CMediaDecoder *pDecoder, const DWORD dwOutputIndex = 0UL, const DWORD dwInputIndex = 0UL);
-	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL) = 0;
+	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 protected:
 	const bool OutputMedia(CMediaData *pMediaData, const DWORD dwOutptIndex = 0UL);
-	void ResetDownstreamDecoder();
+	void ResetDownstreamDecoder(void);
 	const DWORD SendDecoderEvent(const DWORD dwEventID, PVOID pParam = NULL);
 
 	// 出力ピンデータベース

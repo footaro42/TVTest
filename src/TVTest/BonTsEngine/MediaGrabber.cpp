@@ -35,8 +35,6 @@ void CMediaGrabber::Reset(void)
 	// コールバックに通知する
 	if (m_pfnResetGrabFunc)
 		m_pfnResetGrabFunc(m_pResetGrabParam);
-
-	ResetDownstreamDecoder();
 }
 
 const bool CMediaGrabber::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)

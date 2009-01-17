@@ -22,8 +22,6 @@ CDtvEngine::CDtvEngine(void)
 	, m_wCurTransportStream(0U)
 	, m_wCurService(0xFFFFU)
 	, m_CurAudioStream(0)
-	, m_wCurVideoPID(0x1FFFU)
-	, m_wCurAudioPID(0x1FFFU)
 	, m_u64CurPcrTimeStamp(0UL)
 	, m_BonSrcDecoder(this)
 	, m_TsPacketParser(this)
@@ -40,6 +38,7 @@ CDtvEngine::CDtvEngine(void)
 	, m_bBuildComplete(false)
 	, m_bIsFileMode(false)
 	, m_bDescramble(true)
+	, m_bBuffering(false)
 	, m_bDescrambleCurServiceOnly(false)
 	, m_bWriteCurServiceOnly(false)
 {
@@ -96,6 +95,7 @@ const bool CDtvEngine::BuildEngine(CDtvEngineHandler *pDtvEngineHandler,
 		m_MediaBuffer.SetOutputDecoder(&m_MediaViewer);
 		m_MediaBuffer.Play();
 	}
+	m_bBuffering=bBuffering;
 
 	// イベントハンドラ設定
 	m_pDtvEngineHandler = pDtvEngineHandler;
@@ -146,9 +146,9 @@ const bool CDtvEngine::ResetEngine(void)
 	// デコーダグラフリセット
 	ResetStatus();
 	if (m_bIsFileMode)
-		m_FileReader.Reset();
+		m_FileReader.ResetGraph();
 	else
-		m_BonSrcDecoder.Reset();
+		m_BonSrcDecoder.ResetGraph();
 
 	return true;
 }
@@ -366,11 +366,8 @@ const bool CDtvEngine::SetAudioStream(int StreamIndex)
 	if (!m_ProgManager.GetAudioEsPID(&wAudioPID, StreamIndex, m_wCurService))
 		return false;
 
-	if (m_wCurAudioPID != wAudioPID) {
-		m_MediaViewer.SetAudioPID(wAudioPID);
-		m_wCurAudioPID = wAudioPID;
-		TRACE(TEXT("Change Audio PID = %04X\n"),wAudioPID);
-	}
+	if (!m_MediaViewer.SetAudioPID(wAudioPID))
+		return false;
 
 	m_CurAudioStream = StreamIndex;
 
@@ -440,15 +437,14 @@ const bool CDtvEngine::SetService(const WORD wService)
 
 	if(wService < m_ProgManager.GetServiceNum() || wService==0xFFFF){
 		WORD wServiceID = 0xFFFF;
-		WORD wVideoPID = 0xFFFF;
-		WORD wAudioPID = 0xFFFF;
+		WORD wVideoPID = CMediaViewer::PID_INVALID;
+		WORD wAudioPID = CMediaViewer::PID_INVALID;
 
 		// 先頭PMTが到着するまで失敗にする
 		if (!m_ProgManager.GetServiceID(&wServiceID,wService))
 			return false;
 		if (wService==0xFFFF) {
 			m_wCurService = 0;
-			m_wCurVideoPID = m_wCurAudioPID = 0;
 		} else {
 			m_wCurService = wService;
 		}
@@ -461,18 +457,10 @@ const bool CDtvEngine::SetService(const WORD wService)
 		}
 
 		TRACE(TEXT("------- Service Select -------\n"));
-		TRACE(TEXT("ServiceID = %04X(%d)\n"),m_wCurService,wServiceID);
+		TRACE(TEXT("%d (ServiceID = %04X)\n"),m_wCurService,wServiceID);
 
-		if (m_wCurVideoPID != wVideoPID) {
-			m_MediaViewer.SetVideoPID(wVideoPID);
-			m_wCurVideoPID = wVideoPID;
-			TRACE(TEXT("Change Video PID = %04X\n"),wVideoPID);
-		}
-		if (m_wCurAudioPID != wAudioPID) {
-			m_MediaViewer.SetAudioPID(wAudioPID);
-			m_wCurAudioPID = wAudioPID;
-			TRACE(TEXT("Change Audio PID = %04X\n"),wAudioPID);
-		}
+		m_MediaViewer.SetVideoPID(wVideoPID);
+		m_MediaViewer.SetAudioPID(wAudioPID);
 
 		if (m_bDescrambleCurServiceOnly)
 			SetDescrambleService(m_wCurService);
@@ -574,7 +562,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 			if (pFileReader->GetReadPos() >= pFileReader->GetFileSize()) {
 				// 最初に巻き戻す(ループ再生)
 				pFileReader->SetReadPos(0ULL);
-				pFileReader->Reset();
+				//pFileReader->Reset();
 				ResetEngine();
 			}
 			return 0UL;
@@ -610,12 +598,10 @@ bool CDtvEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 {
 	if (!m_MediaViewer.OpenViewer(hwndHost,hwndMessage,VideoRenderer,pszMpeg2Decoder)) {
 		SetError(m_MediaViewer.GetLastErrorException());
-		m_bBuildComplete=false;
+		m_bBuildComplete=CheckBuildComplete();
 		return false;
 	}
 	m_bBuildComplete=CheckBuildComplete();
-	if (m_bBuildComplete)
-		ResetEngine();
 	return true;
 }
 
@@ -635,9 +621,12 @@ bool CDtvEngine::RebuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 	} else {
 		m_bBuildComplete=CheckBuildComplete();
 	}
-	m_ProgManager.SetOutputDecoder(&m_MediaViewer);
-	if (m_bBuildComplete)
-		ResetEngine();
+	if (m_bBuffering) {
+		m_MediaBuffer.SetOutputDecoder(&m_MediaViewer);
+		m_ProgManager.SetOutputDecoder(&m_MediaBuffer);
+	} else {
+		m_ProgManager.SetOutputDecoder(&m_MediaViewer);
+	}
 	return bOK;
 }
 
@@ -657,8 +646,10 @@ bool CDtvEngine::OpenBcasCard(CCardReader::ReaderType CardReaderType)
 		m_TsDescrambler.CloseBcasCard();
 	}
 	m_bBuildComplete=CheckBuildComplete();
+	/*
 	if (m_bBuildComplete)
 		ResetEngine();
+	*/
 	return true;
 }
 
@@ -674,10 +665,12 @@ bool CDtvEngine::SetDescramble(bool bDescramble)
 		return true;
 
 	if (bDescramble) {
-		m_TsPacketParser.SetOutputDecoder(&m_TsDescrambler);
+		m_TsDescrambler.Reset();
 		m_TsDescrambler.SetOutputDecoder(&m_MediaTee);
+		m_TsPacketParser.SetOutputDecoder(&m_TsDescrambler);
 	} else {
 		m_TsPacketParser.SetOutputDecoder(&m_MediaTee);
+		m_TsDescrambler.SetOutputDecoder(NULL);
 	}
 	m_bDescramble=bDescramble;
 	m_bBuildComplete=CheckBuildComplete();
@@ -753,11 +746,11 @@ bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly,DWORD Stream)
 		if (bOnly) {
 			m_TsSelector.Reset();
 			SetWriteService(m_wCurService,Stream);
-			m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
 			m_TsSelector.SetOutputDecoder(&m_FileWriter);
+			m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
 		} else {
-			m_TsSelector.SetOutputDecoder(NULL);
 			m_MediaGrabber.SetOutputDecoder(&m_FileWriter);
+			m_TsSelector.SetOutputDecoder(NULL);
 		}
 	}
 	return true;
@@ -780,7 +773,6 @@ void CDtvEngine::SetTracer(CTracer *pTracer)
 void CDtvEngine::ResetStatus()
 {
 	m_wCurTransportStream = 0;
-	m_wCurVideoPID = m_wCurAudioPID = 0;
 }
 
 

@@ -444,6 +444,14 @@ const BYTE CAdtsFrame::GetSamplingFreqIndex(void) const
 	return m_Header.bySamplingFreqIndex;
 }
 
+const DWORD CAdtsFrame::GetSamplingFreq(void) const
+{
+	static const DWORD FreqTable[] = {
+		96000, 88200, 64000, 48000, 44100, 32000, 24000, 22050, 16000, 12000, 11025, 8000
+	};
+	return FreqTable[m_Header.bySamplingFreqIndex];
+}
+
 const bool CAdtsFrame::IsPrivateBit(void) const
 {
 	// Private Bit ‚ð•Ô‚·

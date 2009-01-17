@@ -39,6 +39,7 @@ public:
 	const DWORD SetSize(const DWORD dwSetSize, const BYTE byFiller);
 
 	void ClearSize(void);
+	void ClearBuffer(void);
 
 protected:
 	DWORD m_dwDataSize;

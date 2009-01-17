@@ -10,7 +10,11 @@ class CPseudoOSD {
 	HFONT m_hFont;
 	LPTSTR m_pszText;
 	HBITMAP m_hbm;
-	unsigned int m_HideTimerID;
+	struct {
+		int Left,Top,Width,Height;
+	} m_Position;
+	unsigned int m_TimerID;
+	int m_AnimationCount;
 	static CPseudoOSD *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,
 												WPARAM wParam,LPARAM lParam);
@@ -20,10 +24,12 @@ public:
 	~CPseudoOSD();
 	bool Create(HWND hwndParent);
 	bool Destroy();
-	bool Show(DWORD Time=0);
+	bool Show(DWORD Time=0,bool fAnimation=false);
 	bool Hide();
+	bool IsVisible() const;
 	bool SetText(LPCTSTR pszText);
 	bool SetPosition(int Left,int Top,int Width,int Height);
+	void GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const;
 	void SetTextColor(COLORREF crText);
 	bool SetTextHeight(int Height);
 	bool CalcTextSize(SIZE *pSize);

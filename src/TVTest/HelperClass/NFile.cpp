@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "NFile.h"
+#include "StdUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -18,181 +19,252 @@ static char THIS_FILE[]=__FILE__;
 CNFile::CNFile()
 	: m_hFile(INVALID_HANDLE_VALUE)
 	, m_pszFileName(NULL)
+	, m_LastError(ERROR_SUCCESS)
 {
-
 }
+
 
 CNFile::~CNFile()
 {
 	Close();
 }
 
+
 const bool CNFile::Open(LPCTSTR lpszName, const BYTE bFlags)
 {
-	if(m_hFile != INVALID_HANDLE_VALUE){
-		::SetLastError(0x000000AAUL);	// 「要求したリソースは使用中です。」
+	if (m_hFile != INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_BUSY;	// 「要求したリソースは使用中です。」
 		return false;
-		}
+	}
+
+	if (lpszName == NULL) {
+		m_LastError = ERROR_INVALID_PARAMETER;	// 「パラメータが正しくありません。」
+		return false;
+	}
 
 	// ファイルアクセス属性構築
 	DWORD dwAccess = 0x00000000UL;
 
-	if(bFlags & CNF_READ )dwAccess |= GENERIC_READ;
-	if(bFlags & CNF_WRITE)dwAccess |= GENERIC_WRITE;
+	if (bFlags & CNF_READ)
+		dwAccess |= GENERIC_READ;
+	if (bFlags & CNF_WRITE)
+		dwAccess |= GENERIC_WRITE;
 
-	if(!dwAccess){
-		::SetLastError(0x00000057UL);	// 「パラメータが正しくありません。」
+	if (!dwAccess) {
+		m_LastError = ERROR_INVALID_PARAMETER;
 		return false;
-		}
+	}
 
 	// ファイル共有属性構築
 	DWORD dwShare = 0x00000000UL;
 
-	if(bFlags & CNF_SHAREREAD )dwShare |= FILE_SHARE_READ;
-	if(bFlags & CNF_SHAREWRITE)dwShare |= FILE_SHARE_WRITE;
+	if (bFlags & CNF_SHAREREAD)
+		dwShare |= FILE_SHARE_READ;
+	if (bFlags & CNF_SHAREWRITE)
+		dwShare |= FILE_SHARE_WRITE;
 
 	// ファイル作成属性構築
-	DWORD dwCreate = 0x00000000UL;
+	DWORD dwCreate;
 
-	if(bFlags & CNF_NEW)dwCreate |= CREATE_ALWAYS;
-	else dwCreate |= OPEN_EXISTING;
+	if (bFlags & CNF_NEW)
+		dwCreate = CREATE_ALWAYS;
+	else
+		dwCreate = OPEN_EXISTING;
 
 	// ファイルオープン
-	m_hFile = ::CreateFile(lpszName, dwAccess, dwShare, NULL, dwCreate, 0UL, NULL);
-	if (m_hFile == INVALID_HANDLE_VALUE)
+	m_hFile = ::CreateFile(lpszName, dwAccess, dwShare, NULL, dwCreate,
+						   FILE_ATTRIBUTE_NORMAL, NULL);
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ::GetLastError();
 		return false;
+	}
 
-	m_pszFileName=new TCHAR[::lstrlen(lpszName)+1];
-	::lstrcpy(m_pszFileName,lpszName);
+	m_pszFileName = StdUtil::strdup(lpszName);
+
+	m_LastError = ERROR_SUCCESS;
+
 	return true;
 }
 
-void CNFile::Close(void)
+
+const bool CNFile::Close(void)
 {
 	// ファイルクローズ
-	if(m_hFile != INVALID_HANDLE_VALUE){
-		::CloseHandle(m_hFile);
+
+	m_LastError = ERROR_SUCCESS;
+
+	if (m_hFile != INVALID_HANDLE_VALUE) {
+		if (!::CloseHandle(m_hFile))
+			m_LastError = ::GetLastError();
 		m_hFile = INVALID_HANDLE_VALUE;
 		delete [] m_pszFileName;
-		m_pszFileName=NULL;
-		}
+		m_pszFileName = NULL;
+	}
+
+	return m_LastError == ERROR_SUCCESS;
 }
 
-const bool CNFile::Read(BYTE *pBuff, const DWORD dwLen)
+
+const bool CNFile::IsOpen() const
 {
-	if (m_hFile==INVALID_HANDLE_VALUE)
-		return false;
+	return m_hFile != INVALID_HANDLE_VALUE;
+}
+
+
+const DWORD CNFile::Read(BYTE *pBuff, const DWORD dwLen)
+{
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return 0;
+	}
+
+	if (pBuff == NULL || dwLen == 0) {
+		m_LastError = ERROR_INVALID_PARAMETER;
+		return 0;
+	}
 
 	// ファイルリード
 	DWORD dwRead = 0;
 
-	if(::ReadFile(m_hFile, pBuff, dwLen, &dwRead, NULL)){
-		if(dwRead == dwLen){
-			return true;
-			}
-		}
-	
-	return false;
+	if (!::ReadFile(m_hFile, pBuff, dwLen, &dwRead, NULL)) {
+		m_LastError = ::GetLastError();
+		return 0;
+	}
+
+	m_LastError = ERROR_SUCCESS;
+
+	return dwRead;
 }
 
-const bool CNFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
+
+const DWORD CNFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
 	// ファイルリード
-	if(Seek(llPos)){
-		return Read(pBuff, dwLen);
-		}
+	if (!SetPos(llPos))
+		return 0;
 
-	return false;
+	return Read(pBuff, dwLen);
 }
+
 
 const bool CNFile::Write(const BYTE *pBuff, const DWORD dwLen)
 {
-	if (m_hFile==INVALID_HANDLE_VALUE)
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
 		return false;
+	}
+
+	if (pBuff == NULL || dwLen == 0) {
+		m_LastError = ERROR_INVALID_PARAMETER;
+		return false;
+	}
 
 	// ファイルライト
 	DWORD dwWritten = 0UL;
 
-	if(::WriteFile(m_hFile, pBuff, dwLen, &dwWritten, NULL)){
-		if(dwWritten == dwLen){
-			return true;
-			}		
-		}
-
-	return false;
-}
-
-const bool CNFile::Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
-{
-	// ファイルシーク
-	if(Seek(llPos)){
-		return Write(pBuff, dwLen);
-		}
-
-	return false;
-}
-
-const ULONGLONG CNFile::GetSize(void) const
-{
-	if (m_hFile==INVALID_HANDLE_VALUE)
-		return 0;
-
-	// ファイルサイズ取得
-	DWORD dwSizeHi = 0UL;
-	DWORD dwSizeLo = 0UL;
-
-	dwSizeLo = ::GetFileSize(m_hFile, &dwSizeHi);
-
-	if((dwSizeLo == 0xFFFFFFFFUL) && (::GetLastError() != NO_ERROR)){
-		return 0ULL;
-		}
-	
-	return ((ULONGLONG)dwSizeHi << 32) | (ULONGLONG)dwSizeLo;
-}
-
-const ULONGLONG CNFile::GetPos(void) const
-{
-	if (m_hFile==INVALID_HANDLE_VALUE)
-		return 0;
-
-	// ポジション取得
-	LONG lPosHigh = 0LL;
-	DWORD dwPosLow = ::SetFilePointer(m_hFile, 0LL, &lPosHigh, FILE_CURRENT);
-
-	if(dwPosLow == 0xFFFFFFFFUL){
-		if(::GetLastError() != NO_ERROR){
-			return 0ULL;
-			}
-		}
-
-	return ((ULONGLONG)lPosHigh << 32) | (ULONGLONG)dwPosLow;
-}
-
-const bool CNFile::Seek(const ULONGLONG llPos)
-{
-	if (m_hFile==INVALID_HANDLE_VALUE)
+	if (!::WriteFile(m_hFile, pBuff, dwLen, &dwWritten, NULL)) {
+		m_LastError = ::GetLastError();
 		return false;
+	}
+	if (dwWritten != dwLen) {
+		m_LastError = ERROR_WRITE_FAULT;
+		return false;
+	}
 
-	// ファイルシーク
-	LONG lPosHigh = (LONG)(llPos >> 32);
-
-	if(::SetFilePointer(m_hFile, (LONG)(llPos & 0xFFFFFFFFULL), &lPosHigh, FILE_BEGIN) == 0xFFFFFFFFUL){
-		if(::GetLastError() != NO_ERROR){
-			return false;
-			}		
-		}
+	m_LastError = ERROR_SUCCESS;
 
 	return true;
 }
 
-LPCTSTR CNFile::GetErrorMessage(void) const
+
+const bool CNFile::Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
-	static TCHAR szMessage[1024] = {TEXT('\0')};
+	// ファイルシーク
+	if (!SetPos(llPos))
+		return false;
+	return Write(pBuff, dwLen);
+}
 
-	::FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, 0x00000000, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), szMessage, sizeof(szMessage), NULL);
-	::FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, ::GetLastError(), MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), szMessage, sizeof(szMessage), NULL);
 
-	return szMessage;
+const bool CNFile::Flush(void)
+{
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return false;
+	}
+
+	if (!::FlushFileBuffers(m_hFile)) {
+		m_LastError = ::GetLastError();
+		return false;
+	}
+
+	m_LastError = ERROR_SUCCESS;
+
+	return true;
+}
+
+
+const ULONGLONG CNFile::GetSize(void)
+{
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return 0;
+	}
+
+	// ファイルサイズ取得
+	LARGE_INTEGER FileSize;
+
+	if (!::GetFileSizeEx(m_hFile, &FileSize)) {
+		m_LastError = ::GetLastError();
+		return 0;
+	}
+
+	m_LastError = ERROR_SUCCESS;
+
+	return FileSize.QuadPart;
+}
+
+
+const ULONGLONG CNFile::GetPos(void)
+{
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return 0;
+	}
+
+	// ポジション取得
+	static const LARGE_INTEGER DistanceToMove = {0, 0};
+	LARGE_INTEGER NewPos;
+
+	if (!::SetFilePointerEx(m_hFile, DistanceToMove, &NewPos, FILE_CURRENT)) {
+		m_LastError = ::GetLastError();
+		return 0;
+	}
+
+	m_LastError = ERROR_SUCCESS;
+
+	return NewPos.QuadPart;
+}
+
+
+const bool CNFile::SetPos(const ULONGLONG llPos)
+{
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return false;
+	}
+
+	// ファイルシーク
+	LARGE_INTEGER DistanceToMove;
+	DistanceToMove.QuadPart = llPos;
+	if (!::SetFilePointerEx(m_hFile, DistanceToMove, NULL, FILE_BEGIN)) {
+		m_LastError = ::GetLastError();
+		return false;
+	}
+
+	m_LastError = ERROR_SUCCESS;
+
+	return true;
 }
 
 
@@ -202,7 +274,22 @@ LPCTSTR CNFile::GetFileName() const
 }
 
 
-bool CNFile::IsOpen() const
+DWORD CNFile::GetLastError(void) const
 {
-	return m_hFile!=INVALID_HANDLE_VALUE;
+	return m_LastError;
+}
+
+
+DWORD CNFile::GetLastErrorMessage(LPTSTR pszMessage, const DWORD MaxLength) const
+{
+	if (pszMessage == NULL || MaxLength == 0)
+		return 0;
+
+	DWORD Length = ::FormatMessage(
+		FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
+		m_LastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		pszMessage, MaxLength, NULL);
+	if (Length == 0)
+		pszMessage[0] = '\0';
+	return Length;
 }

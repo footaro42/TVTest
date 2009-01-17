@@ -42,9 +42,6 @@ void CProgManager::Reset()
 
 	// プログラムデータベースリセット
 	m_pProgDatabase->Reset();
-
-	// 下位デコーダをリセット
-	ResetDownstreamDecoder();
 }
 
 

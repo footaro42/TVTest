@@ -50,9 +50,6 @@ void CTsDescrambler::Reset(void)
 	// スクランブル解除ターゲット初期化
 	m_DescramblePIDList.clear();
 	m_DescrambleServiceID=0;
-
-	// 下流デコーダを初期化する
-	ResetDownstreamDecoder();
 }
 
 const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
@@ -91,7 +88,7 @@ const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 	return true;
 }
 
-const bool CTsDescrambler::OpenBcasCard(CCardReader::ReaderType ReaderType,DWORD *pErrorCode)
+const bool CTsDescrambler::OpenBcasCard(CCardReader::ReaderType ReaderType)
 {
 	CloseBcasCard();
 
@@ -111,8 +108,7 @@ const bool CTsDescrambler::OpenBcasCard(CCardReader::ReaderType ReaderType,DWORD
 	// HDUSのカードリーダがCOMを使うため、アクセスするスレッドでCoInitializeする
 	bool bOK=m_Queue.BeginBcasThread(ReaderType);
 
-	// エラーコードセット
-	if(pErrorCode)*pErrorCode = m_BcasCard.GetLastError();
+	SetError(m_Queue.GetLastErrorException());
 
 	return bOK;
 #endif
@@ -387,7 +383,8 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 	const BYTE *pKsData = m_pBcasCard->GetKsFromEcm(pEcmData, EcmSize);
 
 	// ECM処理失敗時は一度だけB-CASカードを再初期化する
-	if (!pKsData && m_bLastEcmSucceed && (m_pBcasCard->GetLastError() != BCEC_ECMREFUSED)){
+	if (!pKsData && m_bLastEcmSucceed
+			&& (m_pBcasCard->GetLastErrorCode() != BCEC_ECMREFUSED)) {
 		if (m_pBcasCard->ReOpenCard()) {
 			TRACE(TEXT("CTsDescrambler::CEcmProcessor::SetScrambleKey() Re open card.\n"));
 			pKsData = m_pBcasCard->GetKsFromEcm(pEcmData, EcmSize);
@@ -496,7 +493,6 @@ bool CBcasAccess::SetScrambleKey()
 CBcasAccessQueue::CBcasAccessQueue(CBcasCard *pBcasCard)
 	: m_pBcasCard(pBcasCard)
 	, m_hThread(NULL)
-	, m_hEvent(NULL)
 {
 }
 
@@ -505,8 +501,6 @@ CBcasAccessQueue::~CBcasAccessQueue()
 {
 	EndBcasThread();
 	//Clear();
-	if (m_hEvent)
-		::CloseHandle(m_hEvent);
 }
 
 
@@ -527,7 +521,7 @@ bool CBcasAccessQueue::Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, 
 
 	CBcasAccess BcasAccess(pEcmProcessor, pData, Size);
 	m_Queue.push_back(BcasAccess);
-	::SetEvent(m_hEvent);
+	m_Event.Set();
 	return true;
 }
 
@@ -537,16 +531,16 @@ bool CBcasAccessQueue::BeginBcasThread(CCardReader::ReaderType ReaderType)
 	if (m_hThread)
 		return false;
 	m_ReaderType = ReaderType;
-	if (m_hEvent == NULL)
-		m_hEvent = ::CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (m_Event.IsCreated())
+		m_Event.Reset();
 	else
-		::ResetEvent(m_hEvent);
+		m_Event.Create();
 	m_bKillEvent = false;
 	m_bStartEvent = false;
 	m_hThread = ::CreateThread(NULL, 0, BcasAccessThread, this, 0, NULL);
 	if (m_hThread == NULL)
 		return false;
-	::WaitForSingleObject(m_hEvent, INFINITE);
+	m_Event.Wait();
 	if (!m_pBcasCard->IsCardOpen()) {
 		::WaitForSingleObject(m_hThread, INFINITE);
 		::CloseHandle(m_hThread);
@@ -554,6 +548,7 @@ bool CBcasAccessQueue::BeginBcasThread(CCardReader::ReaderType ReaderType)
 		return false;
 	}
 	m_bStartEvent = true;
+	ClearError();
 	return true;
 }
 
@@ -562,9 +557,10 @@ bool CBcasAccessQueue::EndBcasThread()
 {
 	if (m_hThread) {
 		m_bKillEvent = true;
-		::SetEvent(m_hEvent);
+		m_Event.Set();
 		Clear();
 		if (::WaitForSingleObject(m_hThread, 1000) == WAIT_TIMEOUT) {
+			TRACE(TEXT("Terminate BcasAccessThread\n"));
 			::TerminateThread(m_hThread, 1);
 		}
 		::CloseHandle(m_hThread);
@@ -579,15 +575,17 @@ DWORD CALLBACK CBcasAccessQueue::BcasAccessThread(LPVOID lpParameter)
 	CBcasAccessQueue *pThis=static_cast<CBcasAccessQueue*>(lpParameter);
 
 	// カードリーダからB-CASカードを検索して開く
-	bool bOK = pThis->m_pBcasCard->OpenCard(pThis->m_ReaderType);
-	::SetEvent(pThis->m_hEvent);
-	if (!bOK)
+	if (!pThis->m_pBcasCard->OpenCard(pThis->m_ReaderType)) {
+		pThis->SetError(pThis->m_pBcasCard->GetLastErrorException());
+		pThis->m_Event.Set();
 		return 1;
+	}
+	pThis->m_Event.Set();
 	while (!pThis->m_bStartEvent)
 		::Sleep(0);
 
 	while (true) {
-		::WaitForSingleObject(pThis->m_hEvent, INFINITE);
+		pThis->m_Event.Wait();
 		if (pThis->m_bKillEvent)
 			break;
 		while (true) {

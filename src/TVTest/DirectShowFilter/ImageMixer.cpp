@@ -28,6 +28,8 @@ CImageMixer *CImageMixer::CreateImageMixer(CVideoRenderer::RendererType Renderer
 		return new CImageMixer_VMR7(pRendererFilter);
 	case CVideoRenderer::RENDERER_VMR9:
 		return new CImageMixer_VMR9(pRendererFilter);
+	case CVideoRenderer::RENDERER_EVR:
+		return new CImageMixer_EVR(pRendererFilter);
 	}
 	return NULL;
 }
@@ -38,6 +40,7 @@ bool CImageMixer::IsSupported(CVideoRenderer::RendererType RendererType)
 	switch (RendererType) {
 	case CVideoRenderer::RENDERER_VMR7:
 	case CVideoRenderer::RENDERER_VMR9:
+	case CVideoRenderer::RENDERER_EVR:
 		return true;
 	}
 	return false;
@@ -46,15 +49,15 @@ bool CImageMixer::IsSupported(CVideoRenderer::RendererType RendererType)
 
 
 
-CImageMixer_VMR7::CImageMixer_VMR7(IBaseFilter *pRenderer)
+CImageMixer_VMR::CImageMixer_VMR(IBaseFilter *pRenderer)
 	: CImageMixer(pRenderer)
+	, m_hdc(NULL)
+	, m_hbm(NULL)
 {
-	m_hdc=NULL;
-	m_hbm=NULL;
 }
 
 
-CImageMixer_VMR7::~CImageMixer_VMR7()
+CImageMixer_VMR::~CImageMixer_VMR()
 {
 	if (m_hdc!=NULL) {
 		::SelectObject(m_hdc,m_hbmOld);
@@ -65,7 +68,7 @@ CImageMixer_VMR7::~CImageMixer_VMR7()
 }
 
 
-bool CImageMixer_VMR7::CreateMemDC()
+bool CImageMixer_VMR::CreateMemDC()
 {
 	if (m_hdc==NULL) {
 		m_hdc=::CreateCompatibleDC(NULL);
@@ -74,6 +77,72 @@ bool CImageMixer_VMR7::CreateMemDC()
 		m_hbmOld=static_cast<HBITMAP>(::GetCurrentObject(m_hdc,OBJ_BITMAP));
 	}
 	return true;
+}
+
+
+bool CImageMixer_VMR::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF Color,int Opacity)
+{
+	HDC hdc;
+	HFONT hfontOld;
+	RECT rc;
+	HBITMAP hbm;
+	HBRUSH hbr;
+	COLORREF crTransColor,crOldTextColor;
+	int OldBkMode;
+	RECT rcDest;
+
+	if (!CreateMemDC())
+		return false;
+	hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+	hfontOld=static_cast<HFONT>(::SelectObject(hdc,hfont));
+	::SetRect(&rc,0,0,0,0);
+	::DrawText(hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX | DT_CALCRECT);
+	::OffsetRect(&rc,-rc.left,-rc.top);
+	hbm=::CreateCompatibleBitmap(hdc,rc.right,rc.bottom);
+	::SelectObject(hdc,hfontOld);
+	::DeleteDC(hdc);
+	if (hbm==NULL)
+		return false;
+	::SelectObject(m_hdc,hbm);
+	// ‚±‚ê‚¾‚Æ‚È‚º‚©EVR‚Å“§‰ß‚³‚ê‚È‚¢
+	//crTransColor=Color^0x00FFFFFF;
+	crTransColor=RGB(0,0,0);
+	hbr=::CreateSolidBrush(crTransColor);
+	::FillRect(m_hdc,&rc,hbr);
+	::DeleteObject(hbr);
+	hfontOld=static_cast<HFONT>(::SelectObject(m_hdc,hfont));
+	crOldTextColor=::SetTextColor(m_hdc,Color);
+	OldBkMode=::SetBkMode(m_hdc,TRANSPARENT);
+	::DrawText(m_hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX);
+	::SetTextColor(m_hdc,crOldTextColor);
+	::SetBkMode(m_hdc,OldBkMode);
+	::SelectObject(m_hdc,hfontOld);
+	::SelectObject(m_hdc,m_hbmOld);
+	rcDest.left=x;
+	rcDest.top=y;
+	rcDest.right=x+rc.right;
+	rcDest.bottom=y+rc.bottom;
+	if (!SetBitmap(hbm,Opacity,crTransColor,&rcDest)) {
+		::DeleteObject(hbm);
+		return false;
+	}
+	if (m_hbm!=NULL)
+		::DeleteObject(m_hbm);
+	m_hbm=hbm;
+	return true;
+}
+
+
+
+
+CImageMixer_VMR7::CImageMixer_VMR7(IBaseFilter *pRenderer)
+	: CImageMixer_VMR(pRenderer)
+{
+}
+
+
+CImageMixer_VMR7::~CImageMixer_VMR7()
+{
 }
 
 
@@ -141,57 +210,6 @@ bool CImageMixer_VMR7::SetBitmap(HBITMAP hbm,int Opacity,COLORREF TransColor,REC
 }
 
 
-bool CImageMixer_VMR7::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF Color,int Opacity)
-{
-	HDC hdc;
-	HFONT hfontOld;
-	RECT rc;
-	HBITMAP hbm;
-	HBRUSH hbr;
-	COLORREF crTransColor,crOldTextColor;
-	int OldBkMode;
-	RECT rcDest;
-
-	if (!CreateMemDC())
-		return false;
-	hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,hfont));
-	::SetRect(&rc,0,0,0,0);
-	::DrawText(hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX | DT_CALCRECT);
-	::OffsetRect(&rc,-rc.left,-rc.top);
-	hbm=::CreateCompatibleBitmap(hdc,rc.right,rc.bottom);
-	::SelectObject(hdc,hfontOld);
-	::DeleteDC(hdc);
-	if (hbm==NULL)
-		return false;
-	::SelectObject(m_hdc,hbm);
-	crTransColor=Color^0x00FFFFFF;
-	hbr=::CreateSolidBrush(crTransColor);
-	::FillRect(m_hdc,&rc,hbr);
-	::DeleteObject(hbr);
-	hfontOld=static_cast<HFONT>(::SelectObject(m_hdc,hfont));
-	crOldTextColor=::SetTextColor(m_hdc,Color);
-	OldBkMode=::SetBkMode(m_hdc,TRANSPARENT);
-	::DrawText(m_hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX);
-	::SetTextColor(m_hdc,crOldTextColor);
-	::SetBkMode(m_hdc,OldBkMode);
-	::SelectObject(m_hdc,hfontOld);
-	::SelectObject(m_hdc,m_hbmOld);
-	rcDest.left=x;
-	rcDest.top=y;
-	rcDest.right=x+rc.right;
-	rcDest.bottom=y+rc.bottom;
-	if (!SetBitmap(hbm,Opacity,crTransColor,&rcDest)) {
-		::DeleteObject(hbm);
-		return false;
-	}
-	if (m_hbm!=NULL)
-		::DeleteObject(m_hbm);
-	m_hbm=hbm;
-	return true;
-}
-
-
 bool CImageMixer_VMR7::GetMapSize(int *pWidth,int *pHeight)
 {
 	bool fOK=false;
@@ -217,33 +235,13 @@ bool CImageMixer_VMR7::GetMapSize(int *pWidth,int *pHeight)
 
 
 CImageMixer_VMR9::CImageMixer_VMR9(IBaseFilter *pRenderer)
-	: CImageMixer(pRenderer)
+	: CImageMixer_VMR(pRenderer)
 {
-	m_hdc=NULL;
-	m_hbm=NULL;
 }
 
 
 CImageMixer_VMR9::~CImageMixer_VMR9()
 {
-	if (m_hdc!=NULL) {
-		::SelectObject(m_hdc,m_hbmOld);
-		::DeleteDC(m_hdc);
-	}
-	if (m_hbm!=NULL)
-		::DeleteObject(m_hbm);
-}
-
-
-bool CImageMixer_VMR9::CreateMemDC()
-{
-	if (m_hdc==NULL) {
-		m_hdc=::CreateCompatibleDC(NULL);
-		if (m_hdc==NULL)
-			return false;
-		m_hbmOld=static_cast<HBITMAP>(::GetCurrentObject(m_hdc,OBJ_BITMAP));
-	}
-	return true;
 }
 
 
@@ -310,57 +308,6 @@ bool CImageMixer_VMR9::SetBitmap(HBITMAP hbm,int Opacity,COLORREF TransColor,REC
 }
 
 
-bool CImageMixer_VMR9::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF Color,int Opacity)
-{
-	HDC hdc;
-	HFONT hfontOld;
-	RECT rc;
-	HBITMAP hbm;
-	HBRUSH hbr;
-	COLORREF crTransColor,crOldTextColor;
-	int OldBkMode;
-	RECT rcDest;
-
-	if (!CreateMemDC())
-		return false;
-	hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,hfont));
-	::SetRect(&rc,0,0,0,0);
-	::DrawText(hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX | DT_CALCRECT);
-	::OffsetRect(&rc,-rc.left,-rc.top);
-	hbm=::CreateCompatibleBitmap(hdc,rc.right,rc.bottom);
-	::SelectObject(hdc,hfontOld);
-	::DeleteDC(hdc);
-	if (hbm==NULL)
-		return false;
-	::SelectObject(m_hdc,hbm);
-	crTransColor=Color^0x00FFFFFF;
-	hbr=::CreateSolidBrush(crTransColor);
-	::FillRect(m_hdc,&rc,hbr);
-	::DeleteObject(hbr);
-	hfontOld=static_cast<HFONT>(::SelectObject(m_hdc,hfont));
-	crOldTextColor=::SetTextColor(m_hdc,Color);
-	OldBkMode=::SetBkMode(m_hdc,TRANSPARENT);
-	::DrawText(m_hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX);
-	::SetTextColor(m_hdc,crOldTextColor);
-	::SetBkMode(m_hdc,OldBkMode);
-	::SelectObject(m_hdc,hfontOld);
-	::SelectObject(m_hdc,m_hbmOld);
-	rcDest.left=x;
-	rcDest.top=y;
-	rcDest.right=x+rc.right;
-	rcDest.bottom=y+rc.bottom;
-	if (!SetBitmap(hbm,Opacity,crTransColor,&rcDest)) {
-		::DeleteObject(hbm);
-		return false;
-	}
-	if (m_hbm!=NULL)
-		::DeleteObject(m_hbm);
-	m_hbm=hbm;
-	return true;
-}
-
-
 bool CImageMixer_VMR9::GetMapSize(int *pWidth,int *pHeight)
 {
 	bool fOK=false;
@@ -378,6 +325,138 @@ bool CImageMixer_VMR9::GetMapSize(int *pWidth,int *pHeight)
 			fOK=true;
 		}
 		pWindowlessControl->Release();
+	}
+	return fOK;
+}
+
+
+
+
+#include <evr.h>
+#include <evr9.h>
+#include <mfapi.h>
+#include <mferror.h>
+#include <mfidl.h>
+
+
+CImageMixer_EVR::CImageMixer_EVR(IBaseFilter *pRenderer)
+	: CImageMixer_VMR(pRenderer)
+{
+}
+
+
+CImageMixer_EVR::~CImageMixer_EVR()
+{
+}
+
+
+void CImageMixer_EVR::Clear()
+{
+	if (m_hdc!=NULL) {
+		IMFGetService *pGetService;
+
+		if (SUCCEEDED(m_pRenderer->QueryInterface(IID_IMFGetService,
+								reinterpret_cast<LPVOID*>(&pGetService)))) {
+			IMFVideoMixerBitmap *pMixerBitmap;
+
+			if (SUCCEEDED(pGetService->GetService(MR_VIDEO_MIXER_SERVICE,
+								IID_IMFVideoMixerBitmap,
+								reinterpret_cast<LPVOID*>(&pMixerBitmap)))) {
+				pMixerBitmap->ClearAlphaBitmap();
+				pMixerBitmap->Release();
+			}
+			pGetService->Release();
+		}
+	}
+}
+
+
+bool CImageMixer_EVR::SetBitmap(HBITMAP hbm,int Opacity,COLORREF TransColor,RECT *pDestRect)
+{
+	IMFGetService *pGetService;
+	IMFVideoDisplayControl *pDisplayControl;
+	IMFVideoMixerBitmap *pMixerBitmap;
+	SIZE NativeSize;
+	BITMAP bm;
+	MFVideoAlphaBitmap ab;
+	HRESULT hr;
+
+	if (!CreateMemDC())
+		return false;
+	if (FAILED(m_pRenderer->QueryInterface(IID_IMFGetService,
+									reinterpret_cast<LPVOID*>(&pGetService))))
+		return false;
+	if (FAILED(pGetService->GetService(MR_VIDEO_MIXER_SERVICE,
+									   IID_IMFVideoMixerBitmap,
+									   reinterpret_cast<LPVOID*>(&pMixerBitmap)))) {
+		pGetService->Release();
+		return false;
+	}
+	if (FAILED(pGetService->GetService(MR_VIDEO_RENDER_SERVICE,
+							IID_IMFVideoDisplayControl,
+							reinterpret_cast<LPVOID*>(&pDisplayControl)))) {
+		pMixerBitmap->Release();
+		pGetService->Release();
+		return false;
+	}
+	hr=pDisplayControl->GetNativeVideoSize(&NativeSize,NULL);
+	pDisplayControl->Release();
+	if (FAILED(hr)) {
+		pMixerBitmap->Release();
+		pGetService->Release();
+		return false;
+	}
+	::SelectObject(m_hdc,hbm);
+	ab.GetBitmapFromDC=TRUE;
+	ab.bitmap.hdc=m_hdc;
+	ab.params.dwFlags=MFVideoAlphaBitmap_SrcRect | MFVideoAlphaBitmap_DestRect |
+					  MFVideoAlphaBitmap_Alpha;
+	if (TransColor!=CLR_INVALID) {
+		ab.params.dwFlags|=MFVideoAlphaBitmap_SrcColorKey;
+		ab.params.clrSrcKey=TransColor;
+	}
+	::GetObject(hbm,sizeof(BITMAP),&bm);
+	::SetRect(&ab.params.rcSrc,0,0,bm.bmWidth,bm.bmHeight);
+	ab.params.nrcDest.left=(float)pDestRect->left/(float)NativeSize.cx;
+	ab.params.nrcDest.top=(float)pDestRect->top/(float)NativeSize.cy;
+	ab.params.nrcDest.right=(float)pDestRect->right/(float)NativeSize.cx;
+	ab.params.nrcDest.bottom=(float)pDestRect->bottom/(float)NativeSize.cy;
+	ab.params.fAlpha=(float)Opacity/100.0f;
+	hr=pMixerBitmap->SetAlphaBitmap(&ab);
+	pMixerBitmap->Release();
+	pGetService->Release();
+	if (FAILED(hr)) {
+		::SelectObject(m_hdc,m_hbmOld);
+		return false;
+	}
+	return true;
+}
+
+
+bool CImageMixer_EVR::GetMapSize(int *pWidth,int *pHeight)
+{
+	bool fOK=false;
+	IMFGetService *pGetService;
+
+	if (SUCCEEDED(m_pRenderer->QueryInterface(IID_IMFGetService,
+								reinterpret_cast<LPVOID*>(&pGetService)))) {
+		IMFVideoDisplayControl *pDisplayControl;
+
+		if (SUCCEEDED(pGetService->GetService(MR_VIDEO_RENDER_SERVICE,
+							IID_IMFVideoDisplayControl,
+							reinterpret_cast<LPVOID*>(&pDisplayControl)))) {
+			SIZE Size;
+
+			if (SUCCEEDED(pDisplayControl->GetNativeVideoSize(&Size,NULL))) {
+				if (pWidth)
+					*pWidth=Size.cx;
+				if (pHeight)
+					*pHeight=Size.cy;
+				fOK=true;
+			}
+			pDisplayControl->Release();
+		}
+		pGetService->Release();
 	}
 	return fOK;
 }

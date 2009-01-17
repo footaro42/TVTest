@@ -52,8 +52,6 @@ void CTsPacketParser::Reset(void)
 
 	// ó‘Ô‚ğƒŠƒZƒbƒg‚·‚é
 	m_TsPacket.ClearSize();
-
-	ResetDownstreamDecoder();
 }
 
 const bool CTsPacketParser::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)

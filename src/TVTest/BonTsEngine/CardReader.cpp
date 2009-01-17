@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "CardReader.h"
+#include "StdUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -102,30 +103,39 @@ CSCardReader::~CSCardReader()
 
 bool CSCardReader::Open(LPCTSTR pszReader)
 {
-	bool bOK=false;
-
-	if (!m_bIsEstablish)
+	if (!m_bIsEstablish) {
+		SetError(TEXT("コンテキストを確立できません。"));
 		return false;
+	}
 
 	// 一旦クローズする
 	Close();
 
 	if (pszReader) {
 		// 指定されたカードリーダに対してオープンを試みる
+		LONG Result;
 		DWORD dwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
 
-		if (::SCardConnect(m_ScardContext,pszReader,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol)!=SCARD_S_SUCCESS)
+		Result=::SCardConnect(m_ScardContext,pszReader,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol);
+		if (Result!=SCARD_S_SUCCESS) {
+			TCHAR szText[64];
+
+			::wsprintf(szText,TEXT("カードリーダに接続できません。(エラーコード %ld)"),Result);
+			SetError(szText);
 			return false;
+		}
 
 		if (dwActiveProtocol!=SCARD_PROTOCOL_T1) {
 			Close();
+			SetError(TEXT("アクティブプロトコルが不正です。"));
 			return false;
 		}
-		bOK=true;
 	} else {
 		// 全てのカードリーダに対してオープンを試みる
-		if (m_pReaderList==NULL)
+		if (m_pReaderList==NULL) {
+			SetError(TEXT("カードリーダが見付かりません。"));
 			return false;
+		}
 
 		LPCTSTR p=m_pReaderList;
 
@@ -134,12 +144,14 @@ bool CSCardReader::Open(LPCTSTR pszReader)
 				return true;
 			p+=lstrlen(p)+1;
 		}
+		return false;
 	}
-	if (bOK) {
-		m_pszReaderName=new TCHAR[::lstrlen(pszReader)+1];
-		::lstrcpy(m_pszReaderName,pszReader);
-	}
-	return bOK;
+
+	m_pszReaderName=StdUtil::strdup(pszReader);
+
+	ClearError();
+
+	return true;
 }
 
 
@@ -179,9 +191,23 @@ LPCTSTR CSCardReader::EnumReader(int Index) const
 
 bool CSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
 {
-	if (m_hBcasCard==NULL)
+	if (m_hBcasCard==NULL) {
+		SetError(TEXT("カードリーダが開かれていません。"));
 		return false;
-	return ::SCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize)==SCARD_S_SUCCESS;
+	}
+
+	LONG Result=::SCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize);
+
+	if (Result!=SCARD_S_SUCCESS) {
+		TCHAR szText[64];
+		::wsprintf(szText,TEXT("コマンド送信エラー(エラーコード %ld)"),Result);
+		SetError(szText);
+		return false;
+	}
+
+	ClearError();
+
+	return true;
 }
 
 
@@ -218,9 +244,12 @@ CHdusCardReader::~CHdusCardReader()
 bool CHdusCardReader::Open(LPCTSTR pszReader)
 {
 	Close();
-	m_pTuner=FindDevice(CLSID_KSCATEGORY_BDA_NETWORK_TUNER,L"SKNET HDTV BDA Digital Tuner_0");
-	if (m_pTuner==NULL)
+	m_pTuner = FindDevice(CLSID_KSCATEGORY_BDA_NETWORK_TUNER,L"SKNET HDTV BDA Digital Tuner_0");
+	if (m_pTuner == NULL) {
+		SetError(TEXT("デバイスが見付かりません。"));
 		return false;
+	}
+	ClearError();
 	return true;
 }
 
@@ -243,8 +272,10 @@ LPCTSTR CHdusCardReader::GetReaderName() const
 
 bool CHdusCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
 {
-	if (m_pTuner==NULL)
+	if (m_pTuner==NULL) {
+		SetError(TEXT("カードリーダが開かれていません。"));
 		return false;
+	}
 
 #ifdef USE_MUTEX
 	HANDLE hMutex=::CreateMutex(NULL,TRUE,L"hduscard");
@@ -257,11 +288,23 @@ bool CHdusCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvD
 #endif
 
 	bool bOK=false;
+	HRESULT hr;
+	TCHAR szText[64];
 
-	if (SUCCEEDED(Send(pSendData,SendSize))) {
+	hr=Send(pSendData,SendSize);
+	if (FAILED(hr)) {
+		::wsprintf(szText,TEXT("コマンド送信エラー(エラーコード %08x)"),hr);
+		SetError(szText);
+	} else {
 		::Sleep(50);
-		if (SUCCEEDED(Receive(pRecvData,pRecvSize)))
+		hr=Receive(pRecvData,pRecvSize);
+		if (SUCCEEDED(hr)) {
+			ClearError();
 			bOK=true;
+		} else {
+			::wsprintf(szText,TEXT("受信エラー(エラーコード %08x)"),hr);
+			SetError(szText);
+		}
 	}
 
 #ifdef USE_MUTEX

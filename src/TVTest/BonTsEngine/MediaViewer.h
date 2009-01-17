@@ -7,7 +7,6 @@
 
 #include <Bdaiface.h>
 #include "MediaDecoder.h"
-#include "BonBaseClass.h"
 #include "TsUtilClass.h"
 #include "BonSrcFilter.h"
 #include "AacDecFilter.h"
@@ -26,7 +25,7 @@
 // Input	#0	: CTsPacket		ì¸óÕÉfÅ[É^
 /////////////////////////////////////////////////////////////////////////////
 
-class CMediaViewer : public CMediaDecoder, public CBonBaseClass
+class CMediaViewer : public CMediaDecoder
 {
 public:
 	enum EVENTID {
@@ -55,6 +54,8 @@ public:
 
 	const bool SetVideoPID(const WORD wPID);
 	const bool SetAudioPID(const WORD wPID);
+	const WORD GetVideoPID(void) const;
+	const WORD GetAudioPID(void) const;
 
 	// Append by Meru
 	const bool SetViewSize(const int x,const int y);

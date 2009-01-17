@@ -29,12 +29,12 @@ public:
 	bool SetScrambleKey();
 };
 
-class CBcasAccessQueue {
+class CBcasAccessQueue : public CBonBaseClass {
 	std::deque<CBcasAccess> m_Queue;
 	CBcasCard *m_pBcasCard;
 	CCardReader::ReaderType m_ReaderType;
 	HANDLE m_hThread;
-	HANDLE m_hEvent;
+	CLocalEvent m_Event;
 	volatile bool m_bKillEvent;
 	volatile bool m_bStartEvent;
 	CCriticalLock m_Lock;
@@ -67,7 +67,7 @@ public:
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 // CTsDescrambler
-	const bool OpenBcasCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD, DWORD *pErrorCode = NULL);
+	const bool OpenBcasCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD);
 	void CloseBcasCard(void);
 	const bool IsBcasCardOpen() const;
 	const bool GetBcasCardID(BYTE *pCardID);

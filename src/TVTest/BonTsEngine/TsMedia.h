@@ -125,6 +125,7 @@ public:
 
 	const BYTE GetProfile(void) const;
 	const BYTE GetSamplingFreqIndex(void) const;
+	const DWORD GetSamplingFreq(void) const;
 	const bool IsPrivateBit(void) const;
 	const BYTE GetChannelConfig(void) const;
 	const bool IsOriginalCopy(void) const;

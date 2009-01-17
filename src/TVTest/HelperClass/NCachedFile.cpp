@@ -20,43 +20,47 @@ CNCachedFile::CNCachedFile()
 	: CNFile()
 	, m_bIsWritable(false)
 	, m_pBuff(NULL)
-	, m_dwBuffSize(0UL)
-	, m_llDataPos(0ULL)
-	, m_llDataSize(0ULL)
-	, m_llCurPos(0ULL)
+	, m_BuffSize(0UL)
+	, m_DataSize(0UL)
+	, m_FilePos(0)
+	, m_CurPos(0)
 {
-
 }
+
 
 CNCachedFile::~CNCachedFile()
 {
 	Close();
-	CNFile::~CNFile();
 }
+
+
+const bool CNCachedFile::Open(LPCTSTR lpszName, const BYTE bFlags)
+{
+	return Open(lpszName, bFlags, DEFBUFFSIZE);
+}
+
 
 const bool CNCachedFile::Open(LPCTSTR lpszName, const BYTE bFlags, const DWORD dwBuffSize)
 {
 	if (IsOpen()) {
-		::SetLastError(0x000000AAUL);	// 「要求したリソースは使用中です。」
+		m_LastError = ERROR_BUSY;	// 「要求したリソースは使用中です。」
 		return false;
 	}
 
-	if((bFlags & CNFile::CNF_WRITE) && !(bFlags & CNFile::CNF_READ)){
+	if ((bFlags & CNFile::CNF_WRITE) && !(bFlags & CNFile::CNF_READ)) {
 		// ライトキャッシュ有効
 		m_bIsWritable = true;
-		}
-	else if(!(bFlags & CNFile::CNF_WRITE) && (bFlags & CNFile::CNF_READ) && !(bFlags & CNFile::CNF_NEW)){
+	} else if (!(bFlags & CNFile::CNF_WRITE) && (bFlags & CNFile::CNF_READ) && !(bFlags & CNFile::CNF_NEW)) {
 		// リードキャッシュ有効
 		m_bIsWritable = false;
-		}
-	else{
+	} else {
 		// フラグの組み合わせが非対応
-		::SetLastError(0x00000057UL);	// 「パラメータが正しくありません。」
+		m_LastError = ERROR_INVALID_PARAMETER;
 		return false;
-		}
+	}
 
 	if (dwBuffSize==0) {
-		::SetLastError(0x00000057UL);	// 「パラメータが正しくありません。」
+		m_LastError = ERROR_INVALID_PARAMETER;
 		return false;
 	}
 
@@ -65,162 +69,178 @@ const bool CNCachedFile::Open(LPCTSTR lpszName, const BYTE bFlags, const DWORD d
 		return false;
 
 	// バッファ確保
-	if (!m_bIsWritable) {
+	m_BuffSize = dwBuffSize;
+	if (!m_bIsWritable && (ULONGLONG)dwBuffSize > GetSize()) {
 		// 読み込みバッファ
-		m_dwBuffSize = (dwBuffSize <= GetSize())? dwBuffSize : (DWORD)GetSize();
-	}
-	if (m_pBuff) {
-		delete [] m_pBuff;
-		m_pBuff=NULL;
+		m_BuffSize = (DWORD)GetSize();
 	}
 	try {
-		m_pBuff = new BYTE [m_dwBuffSize];
+		m_pBuff = new BYTE [m_BuffSize];
 	} catch (std::bad_alloc&) {
 		Close();
-		::SetLastError(0x0000000EUL);	// 「この操作を完了するのに十分な記憶領域がありません。」
+		m_LastError = ERROR_OUTOFMEMORY;
 		return false;
 	}
 
 	// バッファ初期化
-	m_llDataPos = 0ULL;
-	m_llDataSize = 0ULL;
-	m_llCurPos = 0ULL;
+	m_DataSize = 0;
+	m_FilePos = 0;
+	m_CurPos = 0;
 
-	::SetLastError(0x00000000UL);	// 「操作は正常に終了しました。」
+	m_LastError = ERROR_SUCCESS;
 
 	return true;
 }
 
-void CNCachedFile::Close(void)
+
+const bool CNCachedFile::Close(void)
 {
-	// 未書き込みデータフラッシュ
-	Flush();
+	m_LastError = ERROR_SUCCESS;
 
-	CNFile::Close();
+	if (IsOpen()) {
+		// 未書き込みデータフラッシュ
+		Flush();
+		DWORD FlushError = m_LastError;
 
-	if (m_pBuff) {
-		delete [] m_pBuff;
-		m_pBuff = NULL;
+		CNFile::Close();
+		if (FlushError != ERROR_SUCCESS)
+			m_LastError = FlushError;
+
+		if (m_pBuff) {
+			delete [] m_pBuff;
+			m_pBuff = NULL;
+		}
 	}
+
+	return m_LastError == ERROR_SUCCESS;
 }
 
-const bool CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen)
+
+const DWORD CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen)
 {
 	// エラー処理
-	if(m_bIsWritable){
-		::SetLastError(0x00000001UL);	// 「不正な関数です。」
-		return false;
-		}
-
-	if(!dwLen){
-		::SetLastError(0x00000057UL);	// 「パラメータが正しくありません。」
-		return false;
-		}
+	if (m_bIsWritable) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return 0;
+	}
 
 	return CNFile::Read(pBuff, dwLen);
 }
 
-const bool CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
+
+const DWORD CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
-	if(m_bIsWritable){
-		::SetLastError(0x00000001UL);	// 「不正な関数です。」
-		return false;
-		}
+	if (m_bIsWritable) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return 0;
+	}
 
 	// ファイルシーク
-	if(Seek(llPos)){
-		return Read(pBuff, dwLen);
-		}
+	if (!SetPos(llPos))
+		return 0;
 
-	return false;
+	return Read(pBuff, dwLen);
 }
+
 
 const bool CNCachedFile::Write(const BYTE *pBuff, const DWORD dwLen)
 {
 	// ファイル書き込み
-	if(!m_bIsWritable){
-		::SetLastError(0x00000001UL);	// 「不正な関数です。」
+	if (!m_bIsWritable) {
+		m_LastError = ERROR_INVALID_FUNCTION;
 		return false;
-		}
+	}
 
-	if(!dwLen){
-		::SetLastError(0x00000057UL);	// 「パラメータが正しくありません。」
+	if (pBuff == NULL || dwLen == 0) {
+		m_LastError = ERROR_INVALID_PARAMETER;
 		return false;
-		}
+	}
 
 	// バッファリング判定
-	if((m_dwBuffSize - (DWORD)m_llDataSize) <= dwLen){
+	if ((m_BuffSize - m_DataSize) < dwLen) {
 		// バッファ不足
-		if(!Flush())return false;
-		}
+		if (!Flush())
+			return false;
+	}
 
 	// バッファリング
-	if((m_dwBuffSize - (DWORD)m_llDataSize) >= dwLen){
-		::CopyMemory(m_pBuff + m_llDataSize, pBuff, dwLen);
-		m_llDataSize += dwLen;
+	if ((m_BuffSize - m_DataSize) >= dwLen) {
+		::CopyMemory(m_pBuff + m_DataSize, pBuff, dwLen);
+		m_DataSize += dwLen;
+		if (m_DataSize == m_BuffSize) {
+			if (!Flush())
+				return false;
 		}
-	else{
-		if(!CNFile::Write(pBuff, dwLen, m_llCurPos))return false;
-		}
+	} else {
+		if (!CNFile::SetPos(m_CurPos) || !CNFile::Write(pBuff, dwLen))
+			return false;
+		m_FilePos += dwLen;
+	}
 
 	// ファイルポジション更新
-	m_llCurPos += (ULONGLONG)dwLen;
+	m_CurPos += (ULONGLONG)dwLen;
 
-	::SetLastError(0x00000000UL);	// 「操作は正常に終了しました。」
+	m_LastError = ERROR_SUCCESS;
 
 	return true;
 }
+
 
 const bool CNCachedFile::Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
 	// ファイル書き込み
-	if(!m_bIsWritable){
-		::SetLastError(0x00000001UL);	// 「不正な関数です。」
+	if (!m_bIsWritable) {
+		m_LastError = ERROR_INVALID_FUNCTION;
 		return false;
-		}
+	}
 
 	// ファイルシーク
-	if(Seek(llPos)){
-		return Write(pBuff, dwLen);
-		}
+	if (!SetPos(llPos))
+		return false;
 
-	return false;
+	return Write(pBuff, dwLen);
 }
 
-const ULONGLONG CNCachedFile::GetPos(void) const
+
+const ULONGLONG CNCachedFile::GetPos(void)
 {
 	// 論理的なファイルポジションを返す
-	return (m_bIsWritable)? m_llCurPos : CNFile::GetPos();
+	return m_bIsWritable ? m_CurPos : CNFile::GetPos();
 }
 
-const bool CNCachedFile::Seek(const ULONGLONG llPos)
+
+const bool CNCachedFile::SetPos(const ULONGLONG llPos)
 {
 	// シーク前にフラッシュ
-	if(!Flush())return false;
+	if (!Flush())
+		return false;
 
 	// シーク
-	if(!CNFile::Seek(llPos))return false;
+	if (!CNFile::SetPos(llPos))
+		return false;
 
 	// ファイルポジション更新
-	m_llCurPos = llPos;
-	m_llDataPos = llPos;
+	m_FilePos = llPos;
+	m_CurPos = llPos;
 
 	return true;
 }
 
+
 const bool CNCachedFile::Flush(void)
 {
-	if(!m_bIsWritable || !m_llDataSize)return true;
+	m_LastError = ERROR_SUCCESS;
+
+	if (!m_bIsWritable || m_DataSize == 0)
+		return true;
 
 	// バッファ先頭位置に書き込み
-	if(!CNFile::Write(m_pBuff, (DWORD)m_llDataSize, m_llDataPos))return false;
-
-	// ファイルポジションを復帰
-	if(!CNFile::Seek(m_llCurPos))return false;
+	if (!CNFile::SetPos(m_FilePos) || !CNFile::Write(m_pBuff, m_DataSize))
+		return false;
+	m_FilePos += m_DataSize;
 
 	// バッファサイズクリア
-	m_llDataSize = 0ULL;
-	m_llDataPos = m_llCurPos;
+	m_DataSize = 0;
 
 	return true;
 }

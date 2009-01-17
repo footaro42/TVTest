@@ -8,31 +8,39 @@
 class CNFile
 {
 public:
-	enum {CNF_READ = 0x01U, CNF_WRITE = 0x02U, CNF_NEW = 0x04U, CNF_SHAREREAD = 0x08U, CNF_SHAREWRITE = 0x10U};
+	enum {
+		CNF_READ		= 0x01U,
+		CNF_WRITE		= 0x02U,
+		CNF_NEW			= 0x04U,
+		CNF_SHAREREAD	= 0x08U,
+		CNF_SHAREWRITE	= 0x10U
+	};
 
 	CNFile();
 	virtual ~CNFile();
 
-	const bool Open(LPCTSTR lpszName, const BYTE bFlags);
-	void Close(void);
+	virtual const bool Open(LPCTSTR lpszName, const BYTE bFlags);
+	virtual const bool Close(void);
+	virtual const bool IsOpen() const;
 
-	const bool Read(BYTE *pBuff, const DWORD dwLen);
-	const bool Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	virtual const DWORD Read(BYTE *pBuff, const DWORD dwLen);
+	virtual const DWORD Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
 
-	const bool Write(const BYTE *pBuff, const DWORD dwLen);
-	const bool Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	virtual const bool Write(const BYTE *pBuff, const DWORD dwLen);
+	virtual const bool Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	virtual const bool Flush(void);
 
-	const ULONGLONG GetSize(void) const;
-	const ULONGLONG GetPos(void) const;
-	const bool Seek(const ULONGLONG llPos);
+	virtual const ULONGLONG GetSize(void);
+	virtual const ULONGLONG GetPos(void);
+	virtual const bool SetPos(const ULONGLONG llPos);
 
-	LPCTSTR GetErrorMessage(void) const;
+	LPCTSTR GetFileName(void) const;
 
-	// Append by HDUSTestÇÃíÜÇÃêl
-	LPCTSTR GetFileName() const;
-	bool IsOpen() const;
+	DWORD GetLastError(void) const;
+	DWORD GetLastErrorMessage(LPTSTR pszMessage, const DWORD MaxLength) const;
+
 protected:
 	HANDLE m_hFile;
-private:
 	LPTSTR m_pszFileName;
+	DWORD m_LastError;
 };

@@ -4,9 +4,10 @@
 
 #include <winscard.h>
 #include <dshow.h>
+#include "BonBaseClass.h"
 
 
-class CCardReader
+class CCardReader : public CBonBaseClass
 {
 public:
 	enum ReaderType {

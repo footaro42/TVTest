@@ -149,9 +149,16 @@ bool CCoreEngine::OpenFile(LPCTSTR pszFileName)
 bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer,LPCWSTR pszMpeg2Decoder)
 {
-	if (!m_DtvEngine.BuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,pszMpeg2Decoder)) {
-		SetError(m_DtvEngine.GetLastErrorException());
-		return false;
+	if (!m_DtvEngine.m_MediaViewer.IsOpen()) {
+		if (!m_DtvEngine.BuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,pszMpeg2Decoder))	 {
+			SetError(m_DtvEngine.GetLastErrorException());
+			return false;
+		}
+	} else {
+		if (!m_DtvEngine.RebuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,pszMpeg2Decoder))	 {
+			SetError(m_DtvEngine.GetLastErrorException());
+			return false;
+		}
 	}
 	m_DtvEngine.SetVolume(m_fMute?-100.0f:LevelToDeciBel(m_Volume));
 	m_DtvEngine.m_MediaViewer.SetAudioNormalize(m_VolumeNormalizeLevel!=100,

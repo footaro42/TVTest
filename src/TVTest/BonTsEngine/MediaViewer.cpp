@@ -117,8 +117,6 @@ void CMediaViewer::Reset(void)
 	SetVideoPID(PID_INVALID);
 	SetAudioPID(PID_INVALID);
 
-	ResetDownstreamDecoder();
-
 	/*
 	if (fResume)
 		Play();
@@ -245,7 +243,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			MediaTypeVideo.SetFormatType(&FORMAT_MPEG2Video);
 			 // フォーマット構造体確保
 			MPEG2VIDEOINFO *pVideoInfo = (MPEG2VIDEOINFO *)MediaTypeVideo.AllocFormatBuffer(sizeof(MPEG2VIDEOINFO));
-			if(!pVideoInfo) throw 1UL;
+			if (!pVideoInfo)
+				throw CBonException(TEXT("メモリが確保できません。"));
 			::ZeroMemory(pVideoInfo, sizeof(MPEG2VIDEOINFO));
 			// ビデオヘッダ設定
 			VIDEOINFOHEADER2 &VideoHeader = pVideoInfo->hdr;
@@ -295,6 +294,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 		Trace(TEXT("AACデコーダの接続中..."));
 
+#if 1
 		/* CAacDecFilter */
 		{
 			// CAacDecFilterインスタンス作成
@@ -306,6 +306,60 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 					m_pAacDecFilter,L"AacDecFilter",&pOutputAudio))
 				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
 		}
+#else
+		/* CAacParserFilter */
+		{
+			IBaseFilter *m_pAacParserFilter;
+			CAacParserFilter *m_pAacParserClass;
+			// CAacParserFilterインスタンス作成
+			m_pAacParserFilter=CAacParserFilter::CreateInstance(NULL,&hr,&m_pAacParserClass);
+			if (!m_pAacParserFilter || hr!=S_OK)
+				throw CBonException(TEXT("AACパーサフィルタを作成できません。"));
+			// フィルタの追加と接続
+			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					m_pAacParserFilter,L"AacParserFilter",&pOutputAudio))
+				throw CBonException(TEXT("AACパーサフィルタをフィルタグラフに追加できません。"));
+			m_pAacParserFilter->Release();
+		}
+
+		/* AACデコーダー */
+		{
+			CDirectShowFilterFinder FilterFinder;
+
+			// 検索
+			if(!FilterFinder.FindFilter(&MEDIATYPE_Audio,&MEDIASUBTYPE_AAC))
+				throw CBonException(TEXT("AACデコーダが見付かりません。"),
+									TEXT("AACデコーダがインストールされているか確認してください。"));
+
+			WCHAR szAacDecoder[128];
+			CLSID idAac;
+			bool bConnectSuccess=false;
+			IBaseFilter *m_pAacDecFilter=NULL;
+
+			for (int i=0;i<FilterFinder.GetFilterCount();i++){
+				if (FilterFinder.GetFilterInfo(i,&idAac,szAacDecoder,128)) {
+					TRACE(TEXT("AacDecoder %d : %s\n"),i,szAacDecoder);
+					if (!bConnectSuccess) {
+						if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+								idAac,szAacDecoder,&m_pAacDecFilter,
+								&pOutputAudio)) {
+							TRACE(TEXT("AAC decoder connected : %s\n"),szAacDecoder);
+							bConnectSuccess=true;
+							//break;
+						}
+					}
+				}
+			}
+			// どれかのフィルタで接続できたか
+			if (bConnectSuccess) {
+				SAFE_RELEASE(m_pAacDecFilter);
+				//m_pszAacDecoderName=StdUtil::strdup(szAacDecoder);
+			} else {
+				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"),
+									TEXT("設定で有効なAACデコーダが選択されているか確認してください。"));
+			}
+		}
+#endif
 
 #if 0
 		Trace(TEXT("PCMセレクトフィルタの接続中..."));
@@ -338,7 +392,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			CLSID idMpeg2Vid;
 			bool bConnectSuccess=false;
 
-			for (int i=0;!bConnectSuccess && i<FilterFinder.GetFilterCount();i++){
+			for (int i=0;i<FilterFinder.GetFilterCount();i++){
 				if (FilterFinder.GetFilterInfo(i,&idMpeg2Vid,szMpeg2Decoder,128)) {
 					if (pszMpeg2Decoder!=NULL && pszMpeg2Decoder[0]!='\0'
 							&& ::lstrcmpi(szMpeg2Decoder,pszMpeg2Decoder)!=0)
@@ -442,6 +496,18 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		//ResizeVideoWindow();
 
 		m_bInit=true;
+
+		ULONG PID;
+		if (m_wVideoEsPID != PID_INVALID) {
+			PID = m_wVideoEsPID;
+			if (FAILED(m_pMp2DemuxVideoMap->MapPID(1, &PID, MEDIA_ELEMENTARY_STREAM)))
+				m_wVideoEsPID = PID_INVALID;
+		}
+		if (m_wAudioEsPID != PID_INVALID) {
+			PID = m_wAudioEsPID;
+			if (FAILED(m_pMp2DemuxAudioMap->MapPID(1, &PID, MEDIA_ELEMENTARY_STREAM)))
+				m_wAudioEsPID = PID_INVALID;
+		}
 	} catch (CBonException &Exception) {
 		SetError(Exception);
 		CloseViewer();
@@ -642,25 +708,29 @@ const bool CMediaViewer::Flush()
 const bool CMediaViewer::SetVideoPID(const WORD wPID)
 {
 	// 映像出力ピンにPIDをマッピングする
-	if(!m_pMp2DemuxVideoMap)return false;
 
-	if(wPID == m_wVideoEsPID)return true;
+	if (wPID == m_wVideoEsPID)
+		return true;
 
-	TRACE(TEXT("CMediaViewer::SetVideoPID() %04X <- %04X\n"),wPID,m_wVideoEsPID);
+	TRACE(TEXT("CMediaViewer::SetVideoPID() %04X <- %04X\n"), wPID, m_wVideoEsPID);
 
-	DWORD dwTempPID;
+	if (m_pMp2DemuxVideoMap) {
+		ULONG TempPID;
 
-	// 現在のPIDをアンマップ
-	if(m_wVideoEsPID != PID_INVALID){
-		dwTempPID = (DWORD)m_wVideoEsPID;
-		if(m_pMp2DemuxVideoMap->UnmapPID(1UL, &dwTempPID) != S_OK)return false;
+		// 現在のPIDをアンマップ
+		if (m_wVideoEsPID != PID_INVALID) {
+			TempPID = m_wVideoEsPID;
+			if (m_pMp2DemuxVideoMap->UnmapPID(1UL, &TempPID) != S_OK)
+				return false;
 		}
 
-	// 新規にPIDをマップ
-	if(wPID != PID_INVALID){
-		dwTempPID = wPID;
-		if(m_pMp2DemuxVideoMap->MapPID(1UL, &dwTempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)return false;
+		// 新規にPIDをマップ
+		if (wPID != PID_INVALID) {
+			TempPID = wPID;
+			if (m_pMp2DemuxVideoMap->MapPID(1UL, &TempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)
+				return false;
 		}
+	}
 
 	m_wVideoEsPID = wPID;
 
@@ -670,29 +740,43 @@ const bool CMediaViewer::SetVideoPID(const WORD wPID)
 const bool CMediaViewer::SetAudioPID(const WORD wPID)
 {
 	// 音声出力ピンにPIDをマッピングする
-	if(!m_pMp2DemuxAudioMap)return false;
 
-	if(wPID == m_wAudioEsPID)return true;
+	if (wPID == m_wAudioEsPID)
+		return true;
 
-	TRACE(TEXT("CMediaViewer::SetAudioPID() %04X <- %04X\n"),wPID,m_wAudioEsPID);
+	TRACE(TEXT("CMediaViewer::SetAudioPID() %04X <- %04X\n"), wPID, m_wAudioEsPID);
 
-	DWORD dwTempPID;
+	if (m_pMp2DemuxAudioMap) {
+		ULONG TempPID;
 
-	// 現在のPIDをアンマップ
-	if(m_wAudioEsPID != PID_INVALID){
-		dwTempPID = (DWORD)m_wAudioEsPID;
-		if(m_pMp2DemuxAudioMap->UnmapPID(1UL, &dwTempPID) != S_OK)return false;
+		// 現在のPIDをアンマップ
+		if (m_wAudioEsPID != PID_INVALID) {
+			TempPID = m_wAudioEsPID;
+			if (m_pMp2DemuxAudioMap->UnmapPID(1UL, &TempPID) != S_OK)
+				return false;
 		}
 
-	// 新規にPIDをマップ
-	if(wPID != PID_INVALID){
-		dwTempPID = wPID;
-		if(m_pMp2DemuxAudioMap->MapPID(1UL, &dwTempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)return false;
+		// 新規にPIDをマップ
+		if (wPID != PID_INVALID) {
+			TempPID = wPID;
+			if (m_pMp2DemuxAudioMap->MapPID(1UL, &TempPID, MEDIA_ELEMENTARY_STREAM) != S_OK)
+				return false;
 		}
+	}
 
 	m_wAudioEsPID = wPID;
 
 	return true;
+}
+
+const WORD CMediaViewer::GetVideoPID(void) const
+{
+	return m_wVideoEsPID;
+}
+
+const WORD CMediaViewer::GetAudioPID(void) const
+{
+	return m_wAudioEsPID;
 }
 
 void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam)
