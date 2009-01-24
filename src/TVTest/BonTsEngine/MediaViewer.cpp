@@ -248,7 +248,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			::ZeroMemory(pVideoInfo, sizeof(MPEG2VIDEOINFO));
 			// ビデオヘッダ設定
 			VIDEOINFOHEADER2 &VideoHeader = pVideoInfo->hdr;
-			::SetRect(&VideoHeader.rcSource, 0, 0, 720, 480);
+			//::SetRect(&VideoHeader.rcSource, 0, 0, 720, 480);
 			VideoHeader.bmiHeader.biWidth = 720;
 			VideoHeader.bmiHeader.biHeight = 480;
 			// 映像出力ピン作成
@@ -492,8 +492,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 		// オーナウィンドウ設定
 		m_hOwnerWnd = hOwnerHwnd;
-
-		//ResizeVideoWindow();
+		RECT rc;
+		::GetClientRect(hOwnerHwnd, &rc);
+		m_wVideoWindowX = rc.right;
+		m_wVideoWindowY = rc.bottom;
 
 		m_bInit=true;
 

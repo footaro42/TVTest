@@ -24,8 +24,10 @@ CImageMixer *CImageMixer::CreateImageMixer(CVideoRenderer::RendererType Renderer
 										   IBaseFilter *pRendererFilter)
 {
 	switch (RendererType) {
+#ifdef IMAGE_MIXER_VMR7_SUPPORTED
 	case CVideoRenderer::RENDERER_VMR7:
 		return new CImageMixer_VMR7(pRendererFilter);
+#endif
 	case CVideoRenderer::RENDERER_VMR9:
 		return new CImageMixer_VMR9(pRendererFilter);
 	case CVideoRenderer::RENDERER_EVR:
@@ -38,7 +40,9 @@ CImageMixer *CImageMixer::CreateImageMixer(CVideoRenderer::RendererType Renderer
 bool CImageMixer::IsSupported(CVideoRenderer::RendererType RendererType)
 {
 	switch (RendererType) {
+#ifdef IMAGE_MIXER_VMR7_SUPPORTED
 	case CVideoRenderer::RENDERER_VMR7:
+#endif
 	case CVideoRenderer::RENDERER_VMR9:
 	case CVideoRenderer::RENDERER_EVR:
 		return true;
@@ -133,6 +137,9 @@ bool CImageMixer_VMR::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF C
 }
 
 
+
+
+#ifdef IMAGE_MIXER_VMR7_SUPPORTED
 
 
 CImageMixer_VMR7::CImageMixer_VMR7(IBaseFilter *pRenderer)
@@ -230,6 +237,9 @@ bool CImageMixer_VMR7::GetMapSize(int *pWidth,int *pHeight)
 	}
 	return fOK;
 }
+
+
+#endif	// IMAGE_MIXER_VMR7_SUPPORTED
 
 
 

@@ -325,7 +325,9 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 		SetError(TEXT("IVMRFilterConfig‚ðŽæ“¾‚Å‚«‚Ü‚¹‚ñB"));
 		return false;
 	}
+#ifdef IMAGE_MIXER_VMR7_SUPPORTED
 	pFilterConfig->SetNumberOfStreams(1);
+#endif
 	pFilterConfig->SetRenderingMode(VMRMode_Windowless);
 	pFilterConfig->Release();
 

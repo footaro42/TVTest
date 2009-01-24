@@ -119,7 +119,14 @@
 		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="EPG番組表">
 			<param name="Local" value="options\programguide.html">
+			<param name="ImageNumber" value="11">
 			</OBJECT>
+		<UL>
+			<LI> <OBJECT type="text/sitemap">
+				<param name="Name" value="外部プログラム">
+				<param name="Local" value="options\programguidetool.html">
+				</OBJECT>
+		</UL>
 		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="プラグイン">
 			<param name="Local" value="options\plugin.html">

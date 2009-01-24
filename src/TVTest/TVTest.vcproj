@@ -314,6 +314,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ChannelHistory.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\ChannelList.cpp"
 				>
 			</File>
@@ -549,6 +553,10 @@
 			</File>
 			<File
 				RelativePath=".\CaptureOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ChannelHistory.h"
 				>
 			</File>
 			<File

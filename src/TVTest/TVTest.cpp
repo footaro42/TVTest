@@ -34,6 +34,7 @@
 #include "EpgOptions.h"
 #include "ProgramGuideOptions.h"
 #include "InitialSettings.h"
+#include "ChannelHistory.h"
 #include "Settings.h"
 #include "CommandLine.h"
 #include "Logger.h"
@@ -159,6 +160,7 @@ static CPluginList PluginList;
 static CPluginOptions PluginOptions(&PluginList);
 static CNetworkRemoconOptions NetworkRemoconOptions;
 static CLogger Logger;
+static CChannelHistory ChannelHistory;
 
 #define MAX_MPEG2_DECODER_NAME 128
 static TCHAR szMpeg2DecoderName[MAX_MPEG2_DECODER_NAME];
@@ -583,12 +585,12 @@ void CAppMain::SetTuningSpaceMenu(HMENU hmenu)
 	ClearMenu(hmenu);
 	if ((!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL)
 			&& ChannelManager.GetAllChannelList()->NumChannels()>0)
-		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_ALL,TEXT("&0: ‚·‚×‚Ä"));
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_ALL,TEXT("&A: ‚·‚×‚Ä"));
 	const CTuningSpaceList *pTuningSpaceList=ChannelManager.GetDriverTuningSpaceList();
 	for (i=0;i<pTuningSpaceList->NumSpaces();i++) {
 		LPCTSTR pszName=pTuningSpaceList->GetTuningSpaceName(i);
 
-		Length=::wsprintf(szText,TEXT("&%d: "),i+1);
+		Length=::wsprintf(szText,TEXT("&%d: "),i);
 		CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
 					   szText+Length,lengthof(szText)-Length);
 		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_FIRST+i,szText);
@@ -753,6 +755,8 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 			ChannelManager.SetCurrentService(OldService);
 			return false;
 		}
+		if (pChInfo->GetService()>0 && pChInfo->GetServiceID() != 0)
+			CoreEngine.m_DtvEngine.SetServiceByID(pChInfo->GetServiceID());
 		PluginList.SendChannelChangeEvent();
 	} else {
 		ChannelManager.SetCurrentService(Service);
@@ -981,7 +985,7 @@ HMENU CAppMain::CreateTunerSelectMenu()
 								 FirstCommand+ChannelManager.GetCurrentChannel(),
 								 MF_BYCOMMAND);
 		}
-		Length=::wsprintf(szText,TEXT("&%d: "),i+1);
+		Length=::wsprintf(szText,TEXT("&%d: "),i);
 		pszName=pTuningSpaceList->GetTuningSpaceName(i);
 		CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
 					   szText+Length,lengthof(szText)-Length);
@@ -1281,6 +1285,7 @@ bool CAppMain::LoadSettings()
 	DriverOptions.Load(m_szIniFileName);
 	ProgramGuideOptions.Load(m_szIniFileName);
 	PluginOptions.Load(m_szIniFileName);
+	ChannelHistory.Load(m_szIniFileName);
 	return true;
 }
 
@@ -1402,6 +1407,7 @@ bool CAppMain::SaveSettings()
 	DriverOptions.Save(m_szIniFileName);
 	ProgramGuideOptions.Save(m_szIniFileName);
 	PluginOptions.Save(m_szIniFileName);
+	ChannelHistory.Save(m_szIniFileName);
 	return true;
 }
 
@@ -5042,18 +5048,20 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 					ChannelManager.GetCurrentChannelList()->FindChannelNo(No+1));
 				OnChannelChange();
 				PluginList.SendChannelChangeEvent();
+				return;
 			} else {
 				const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 				int Index;
 
-				if (pList->HasRemoteControlKeyID())
+				if (pList->HasRemoteControlKeyID()) {
 					Index=pList->FindChannelNo(No+1);
-				else
+					if (Index<0)
+						return;
+				} else {
 					Index=No;
-				if (Index>=0)
-					SendCommand(CM_CHANNEL_FIRST+Index);
+				}
+				id=CM_CHANNEL_FIRST+Index;
 			}
-			return;
 		}
 		if (id>=CM_CHANNEL_FIRST && id<=CM_CHANNEL_LAST) {
 			int Channel=id-CM_CHANNEL_FIRST;
@@ -5126,6 +5134,38 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 					return;
 			}
 			AppMain.ProcessTunerSelectMenu(id);
+			return;
+		}
+		if (id>=CM_CHANNELHISTORY_FIRST && id<=CM_CHANNELHISTORY_LAST) {
+			const CDriverChannelInfo *pChannelInfo=ChannelHistory.GetChannelInfo(id-CM_CHANNELHISTORY_FIRST);
+
+			if (pChannelInfo!=NULL) {
+				if (RecordManager.IsRecording()) {
+					if (!RecordOptions.ConfirmChannelChange(GetVideoHostWindow()))
+						return;
+				}
+				if (::lstrcmpi(pChannelInfo->GetDriverFileName(),CoreEngine.GetDriverFileName())!=0) {
+					if (!AppMain.SetDriver(pChannelInfo->GetDriverFileName()))
+						return;
+					::lstrcpy(szDriverFileName,pChannelInfo->GetDriverFileName());
+				}
+				const CChannelList *pList=ChannelManager.GetChannelList(pChannelInfo->GetSpace());
+				if (pList!=NULL) {
+					int Index=-1;
+					bool fService=false;
+
+					if (pChannelInfo->GetServiceID()!=0)
+						Index=pList->FindServiceID(pChannelInfo->GetServiceID());
+					if (Index<0) {
+						Index=pList->Find(-1,pChannelInfo->GetChannelIndex(),-1);
+						fService=true;
+					}
+					if (Index>=0) {
+						AppMain.SetChannel(pChannelInfo->GetSpace(),Index,
+									fService?pChannelInfo->GetService():-1);
+					}
+				}
+			}
 			return;
 		}
 	}
@@ -5336,8 +5376,14 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 			fWheelChannelChanging=false;
 			ChannelManager.SetChangingChannel(-1);
-			if (pInfo!=NULL)
-				SendCommand(CM_CHANNELNO_FIRST+pInfo->GetChannelNo()-1);
+			if (pInfo!=NULL) {
+				const CChannelList *pList=ChannelManager.GetCurrentChannelList();
+
+				if (pList->HasRemoteControlKeyID())
+					SendCommand(CM_CHANNELNO_FIRST+pInfo->GetChannelNo()-1);
+				else
+					SendCommand(CM_CHANNELNO_FIRST+pInfo->GetChannelIndex());
+			}
 			::KillTimer(hwnd,TIMER_ID_WHEELCHANNELCHANGE);
 		}
 		break;
@@ -5384,6 +5430,8 @@ void CMainWindow::OnChannelChange()
 	if ((pInfo=ChannelManager.GetCurrentChannelInfo())!=NULL)
 		ControlPanel.CheckRadioItem(CM_CHANNELNO_FIRST,CM_CHANNELNO_LAST,
 								CM_CHANNELNO_FIRST+pInfo->GetChannelNo()-1);
+	ChannelHistory.Add(CoreEngine.GetDriverFileName(),
+					   ChannelManager.GetCurrentRealChannelInfo());
 }
 
 
@@ -5415,7 +5463,7 @@ void CMainWindow::ShowChannelOSD()
 				lf.lfQuality=NONANTIALIASED_QUALITY;
 				hfont=CreateFontIndirect(&lf);
 				rc.left+=16;
-				rc.top+=24;
+				rc.top+=48;
 				if (CoreEngine.m_DtvEngine.m_MediaViewer.DrawText(szText,
 							rc.left,rc.top,hfont,crOSDTextColor,OSDOpacity)) {
 					if (OSDFadeTime>0)
@@ -6301,6 +6349,10 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				PluginList.SetMenu(hmenu);
 				Accelerator.SetMenuAccel(hmenu);
 				return 0;
+			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_CHANNELHISTORY)) {
+				ChannelHistory.SetMenu(hmenu);
+				//Accelerator.SetMenuAccel(hmenu);
+				return 0;
 			}
 		}
 		break;
@@ -6964,6 +7016,8 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 	if (CmdLine.m_fRecord)
 		CommandLineRecord(CmdLine.m_szRecordFileName,
 						  CmdLine.m_RecordDelay,CmdLine.m_RecordDuration);
+	else if (CmdLine.m_fRecordStop)
+		SendCommand(CM_RECORD_STOP);
 	return true;
 }
 

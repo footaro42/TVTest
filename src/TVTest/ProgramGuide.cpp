@@ -4,6 +4,7 @@
 #include "AppMain.h"
 #include "ProgramGuide.h"
 #include "DialogUtil.h"
+#include "Help/HelpID.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -603,7 +604,7 @@ bool CProgramGuideServiceInfo::SaveiEpgFile(int Program,LPCTSTR pszFileName,bool
 	SYSTEMTIME stStart,stEnd;
 	DWORD Length,Write;
 
-	hFile=::CreateFile(pszFileName,GENERIC_WRITE,0,NULL,
+	hFile=::CreateFile(pszFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
 					   CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
 	if (hFile==INVALID_HANDLE_VALUE)
 		return false;
@@ -1774,11 +1775,11 @@ bool CProgramGuideTool::Execute(const CProgramGuideServiceInfo *pServiceInfo,
 					p++;
 				szKeyword[i]='\0';
 				if (::lstrcmpi(szKeyword,TEXT("tvpid"))==0) {
-					TCHAR sziEpgFileName[MAX_PATH];
+					TCHAR sziEpgFileName[MAX_PATH+2];
 
 					GetAppClass().GetAppDirectory(sziEpgFileName);
 					::PathAppend(sziEpgFileName,TEXT("iepg.tvpid"));
-					pServiceInfo->SaveiEpgFile(Program,szFileName,true);
+					pServiceInfo->SaveiEpgFile(Program,sziEpgFileName,true);
 					::lstrcpy(q,sziEpgFileName);
 					q+=::lstrlen(q);
 				} else if (::lstrcmpi(szKeyword,TEXT("eid"))==0) {
@@ -1890,7 +1891,7 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				if (szCommand[0]!='\0') {
 					LPCTSTR p;
 
-					p=szFileName;
+					p=szCommand;
 					GetCommandFileName(&p,szFileName);
 				} else
 					szFileName[0]='\0';
@@ -1979,6 +1980,10 @@ BOOL CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				}
 				return TRUE;
 			}
+			return TRUE;
+
+		case IDC_PROGRAMGUIDETOOL_HELP:
+			GetAppClass().ShowHelpContent(HELP_ID_PROGRAMGUIDETOOL);
 			return TRUE;
 
 		case IDOK:

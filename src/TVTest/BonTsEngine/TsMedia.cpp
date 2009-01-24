@@ -419,7 +419,7 @@ const bool CAdtsFrame::ParseHeader(void)
 	// フォーマット適合性チェック
 	if(m_Header.byProfile == 3U)return false;							// 未定義のプロファイル
 	else if(m_Header.bySamplingFreqIndex > 0x0BU)return false;			// 未定義のサンプリング周波数
-	else if(m_Header.wFrameLength < 2U)return false;					// データなしの場合も最低CRCのサイズが必要
+	else if(m_Header.wFrameLength < 2U || m_Header.wFrameLength > 0x2000 - 7)return false;					// データなしの場合も最低CRCのサイズが必要
 	else if(m_Header.byRawDataBlockNum)return false;					// 本クラスは単一のRaw Data Blockにしか対応しない
 
 	return true;
@@ -973,5 +973,108 @@ inline const DWORD CMpeg2Parser::FindStartCode(const BYTE *pData, const DWORD dw
 		}
 
 	return dwPos;
+}
+*/
+
+
+
+
+//////////////////////////////////////////////////////////////////////
+// CH264Parserクラスの構築/消滅
+//////////////////////////////////////////////////////////////////////
+
+/*
+CH264Parser::CH264Parser(IAccessUnitHandler *pAccessUnitHandler)
+	: m_pAccessUnitHandler(pAccessUnitHandler)
+{
+	Reset();
+}
+
+CH264Parser::CH264Parser(const CH264Parser &Operand)
+{
+	*this = Operand;
+}
+
+CH264Parser & CH264Parser::operator = (const CH264Parser &Operand)
+{
+	// インスタンスのコピー
+	m_pAccessUnitHandler = Operand.m_pAccessUnitHandler;
+	m_AccessUnit = Operand.m_AccessUnit;
+	m_dwSyncState = Operand.m_dwSyncState;
+
+	return *this;
+}
+
+const bool CH264Parser::StorePacket(const CPesPacket *pPacket)
+{
+	return StoreEs(pPacket->GetPayloadData(), pPacket->GetPayloadSize());
+}
+
+const bool CH264Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
+{
+	static const BYTE StartCode[] = {0x00, 0x00, 0x01, 0x06};
+	bool bTrigger=false;
+	DWORD dwPos,dwStart;
+
+	for (dwPos = 0UL ; dwPos < dwSize ; dwPos += dwStart) {
+		// スタートコードを検索する
+		DWORD Remain = dwSize - dwPos;
+		DWORD SyncState = m_dwSyncState;
+		for (dwStart = 0UL ; dwStart < Remain ; dwStart++) {
+			SyncState = (SyncState << 8) | (DWORD)pData[dwStart + dwPos];
+			if (SyncState == 0x00000106UL) {
+				// スタートコード発見、シフトレジスタを初期化する
+				SyncState = 0xFFFFFFFFUL;
+				break;
+			}
+		}
+		m_dwSyncState = SyncState;
+
+		if (dwStart < Remain) {
+			dwStart++;
+			if (m_AccessUnit.GetSize() >= 4UL) {
+				// スタートコードの断片を取り除く
+				if (dwStart < 4UL)
+					m_AccessUnit.TrimTail(4UL - dwStart);
+
+				// シーケンスを出力する
+				if (m_AccessUnit.ParseHeader())
+					OnAccessUnit(&m_AccessUnit);
+			}
+
+			// スタートコードをセットする
+			m_AccessUnit.SetData(StartCode, sizeof(StartCode));
+			bTrigger = true;
+		} else if (m_AccessUnit.GetSize() >= sizeof(StartCode)) {
+			// シーケンスストア
+			if (m_AccessUnit.AddData(&pData[dwPos],Remain) >= 0x1000000UL) {
+				// 例外(シーケンスが16MBを超える)
+				m_AccessUnit.ClearSize();
+			}
+		}
+	}
+
+	return bTrigger;
+}
+
+void CH264Parser::Reset(void)
+{
+	// 状態を初期化する
+	m_dwSyncState = 0xFFFFFFFFUL;
+
+	m_AccessUnit.Reset();
+}
+
+void CH264Parser::OnPesPacket(const CPesParser *pPesParser, const CPesPacket *pPacket)
+{
+	// CPesParser::IPacketHandlerインタフェースの実装
+	StorePacket(pPacket);
+}
+
+void CH264Parser::OnAccessUnit(const CMpeg2AccessUnit *pAccessUnit) const
+{
+	// ハンドラ呼び出し
+	if (m_pAccessUnitHandler)
+		m_pAccessUnitHandler->OnAccessUnit(this, pAccessUnit);
 }
 */

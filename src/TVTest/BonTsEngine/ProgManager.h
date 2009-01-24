@@ -47,6 +47,7 @@ public:
 // CProgManager
 	const WORD GetServiceNum(void);
 	const bool GetServiceID(WORD *pwServiceID, const WORD wIndex = 0U);
+	const WORD GetServiceIndexByID(const WORD ServiceID);
 	const bool GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex = 0U);
 	const bool GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex = 0U, const WORD wIndex = 0U);
 	const BYTE GetAudioComponentTag(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
@@ -116,6 +117,7 @@ public:
 	struct TAG_SERVICEINFO
 	{
 		WORD wServiceID;
+		BYTE VideoStreamType;
 		WORD wVideoEsPID;
 		vector<EsInfo> AudioEsList;
 		WORD wSubtitleEsPID;

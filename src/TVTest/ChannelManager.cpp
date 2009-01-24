@@ -230,12 +230,12 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 
 			pTuningSpace->SetName(pDriverTuningSpace->GetName());
 			for (int j=0;j<pChannelList->NumChannels();j++) {
-				CChannelInfo *pChInfo=pChannelList->GetChannelInfo(i);
+				CChannelInfo *pChInfo=pChannelList->GetChannelInfo(j);
 
 				if (pChInfo->GetChannel()==0) {
 					int Channel=pDriverChannelList->GetChannel(pChInfo->GetChannelIndex());
 
-					if (Channel>=0)
+					if (Channel>0)
 						pChInfo->SetChannel(Channel);
 				}
 			}

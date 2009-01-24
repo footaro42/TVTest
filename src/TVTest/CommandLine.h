@@ -20,6 +20,7 @@ public:
 	int m_NetworkID;
 	int m_TransportStreamID;
 	bool m_fRecord;
+	bool m_fRecordStop;
 	DWORD m_RecordDelay;
 	DWORD m_RecordDuration;
 	TCHAR m_szRecordFileName[MAX_PATH];

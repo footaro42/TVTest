@@ -296,3 +296,83 @@ private:
 	//bool m_bIsStoring;
 	DWORD m_dwSyncState;
 };
+
+
+/*
+/////////////////////////////////////////////////////////////////////////////
+// ISO/IEC 14496-10Video H.264 アクセスユニット抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CH264AccessUnit : public CMediaData
+{
+public:
+	CH264AccessUnit();
+	CH264AccessUnit(const CH264AccessUnit &Operand);
+
+	CH264AccessUnit & operator = (const CH264AccessUnit &Operand);
+
+	const bool ParseHeader(void);
+	void Reset(void);
+
+protected:
+	struct TAG_H264ACCESSUNIT {
+		// Sequence parameter set
+		struct {
+			BYTE ProfileIDC;
+			bool bConstraintSet0Flag;
+			bool bConstraintSet1Flag;
+			bool bConstraintSet2Flag;
+			bool bConstraintSet3Flag;
+			BYTE LevelIDC;
+			BYTE SeqParameterSetID;
+			BYTE Log2MaxFrameNumMinus4;
+			BYTE PicOrderCntType;
+			BYTE NumRefFrames;
+			bool bGapsInFrameNumValueAllowedFlag;
+			BYTE PicWidthInMbsMinus1;
+			BYTE PicHeightInMapUnitsMinus1;
+			bool bFramesMbsOnlyFlag;
+			bool bDirect8x8InferenceFlag;
+			bool bFrameCorppingFlag;
+			WORD FrameCorpLeftOffset;
+			WORD FrameCropRightOffset;
+			WORD FrameCropTopOffset;
+			WORD FrameCropBottomOffset;
+			bool bVuiParametersPresentFlag;
+		} SPS;
+	} m_Header;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+// ISO/IEC 14496-10Video H.264 アクセスユニット抽出クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CH264Parser : public CPesParser::IPacketHandler
+{
+public:
+	class IAccessUnitHandler
+	{
+	public:
+		virtual void OnH264Sequence(const CH264Parser *pH264Parser, const CH264AccessUnit *pAccessUnit) {}//= 0;
+	};
+
+	CH264Parser(ISequenceHandler *pSequenceHandler);
+	CH264Parser(const CH264Parser &Operand);
+	CH264Parser & operator = (const CH264Parser &Operand);
+
+	const bool StorePacket(const CPesPacket *pPacket);
+	const bool StoreEs(const BYTE *pData, const DWORD dwSize);
+	void Reset(void);
+
+protected:
+	virtual void OnPesPacket(const CPesParser *pPesParser, const CPesPacket *pPacket);
+	virtual void OnAceessUnit(const CH264AccessUnit *pAccessUnit) const;
+
+	IAccessUnitHandler *m_pAccessUnitHandler;
+	CH264AccessUnit m_AccessUnit;
+
+private:
+	DWORD m_dwSyncState;
+};
+*/

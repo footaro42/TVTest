@@ -89,8 +89,10 @@ void CFileWriter::CloseFile(void)
 	// ƒtƒ@ƒCƒ‹‚ð•Â‚¶‚é
 	m_OutFile.Close();
 
+	/*
 	m_llWriteSize = 0U;
 	m_llWriteCount = 0U;
+	*/
 }
 
 

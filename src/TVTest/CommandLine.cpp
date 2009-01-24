@@ -118,6 +118,7 @@ CCommandLineParser::CCommandLineParser()
 	m_RecordDuration=0;
 	m_szRecordFileName[0]='\0';
 	m_fExitOnRecordEnd=false;
+	m_fRecordStop=false;
 	m_fFullscreen=false;
 	m_fMinimize=false;
 	m_fNoDriver=false;
@@ -159,6 +160,7 @@ CCommandLineParser::CCommandLineParser()
 	/recexit		録画終了時にプログラムを終了
 	/recfile		録画ファイル名
 	/reconly		録画専用モード
+	/recstop		録画停止
 	/s				複数起動しない
 	/sid			サービスID
 	/silent			エラー時にダイアログを表示しない
@@ -228,6 +230,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					Args.GetText(m_szRecordFileName,MAX_PATH);
 			} else if (Args.IsOption(TEXT("reconly"))) {
 				m_fRecordOnly=true;
+			} else if (Args.IsOption(TEXT("recstop"))) {
+				m_fRecordStop=true;
 			} else if (Args.IsOption(TEXT("rch"))) {
 				if (Args.Next())
 					Args.GetValue(&m_ControllerChannel);

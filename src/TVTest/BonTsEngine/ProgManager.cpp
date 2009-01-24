@@ -101,6 +101,18 @@ const bool CProgManager::GetServiceID(WORD *pwServiceID, const WORD wIndex)
 }
 
 
+const WORD CProgManager::GetServiceIndexByID(const WORD ServiceID)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	for (size_t i = 0; i < m_ServiceList.size(); i++) {
+		if (m_ServiceList[i].wServiceID == ServiceID)
+			return i;
+	}
+	return 0xFFFF;
+}
+
+
 const bool CProgManager::GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -368,7 +380,7 @@ void CProgManager::OnServiceListUpdated(void)
 
 	// サービスリスト構築
 	for (size_t Index = 0, ServiceNum = 0 ; Index < m_pProgDatabase->m_ServiceList.size() ; Index++) {
-		if (m_pProgDatabase->m_ServiceList[Index].wVideoEsPID != 0xFFFFU) {
+		if (m_pProgDatabase->m_ServiceList[Index].VideoStreamType == 0x02) {
 			// MPEG2映像のみ(ワンセグ、データ放送以外)
 			m_ServiceList.resize(ServiceNum + 1);
 			m_ServiceList[ServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[Index].wServiceID;
@@ -505,11 +517,8 @@ void CALLBACK CProgManager::CProgDatabase::OnPatUpdated(const WORD wPID, CTsPidM
 
 	// 現PMT/PCRのPIDをアンマップする
 	for (size_t Index = 0 ; Index < pThis->m_ServiceList.size() ; Index++) {
-		WORD wPID;
-		wPID = pThis->m_ServiceList[Index].wPmtTablePID;
-		pMapManager->UnmapTarget(wPID);
-		wPID = pThis->m_ServiceList[Index].wPcrPID;
-		pMapManager->UnmapTarget(wPID);
+		pMapManager->UnmapTarget(pThis->m_ServiceList[Index].wPmtTablePID);
+		pMapManager->UnmapTarget(pThis->m_ServiceList[Index].wPcrPID);
 	}
 
 	// 新PMTをストアする
@@ -520,12 +529,12 @@ void CALLBACK CProgManager::CProgDatabase::OnPatUpdated(const WORD wPID, CTsPidM
 		pThis->m_ServiceList[Index].bIsUpdated = false;
 		pThis->m_ServiceList[Index].wServiceID = pPatTable->GetProgramID(Index);
 		pThis->m_ServiceList[Index].wPmtTablePID = pPatTable->GetPmtPID(Index);
+		pThis->m_ServiceList[Index].VideoStreamType = 0xFF;
 		pThis->m_ServiceList[Index].wVideoEsPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].AudioEsList.clear();
 		pThis->m_ServiceList[Index].wSubtitleEsPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].wPcrPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].byVideoComponentTag = 0xFFU;
-		//pThis->m_ServiceList[Index].byAudioComponentTag = 0xFFU;
 		pThis->m_ServiceList[Index].byServiceType = 0xFFU;
 		pThis->m_ServiceList[Index].byRunningStatus = 0xFFU;
 		pThis->m_ServiceList[Index].bIsCaService = false;
@@ -545,50 +554,59 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 
 	// サービスインデックスを検索
 	const WORD wServiceIndex = pThis->GetServiceIndexByID(pPmtTable->m_CurSection.GetTableIdExtension());
-	if(wServiceIndex == 0xFFFFU)return;
+	if (wServiceIndex == 0xFFFFU)
+		return;
+	TAG_SERVICEINFO &ServiceInfo = pThis->m_ServiceList[wServiceIndex];
 
-	// ビデオESのPIDをストア
-	pThis->m_ServiceList[wServiceIndex].wVideoEsPID = 0xFFFFU;
+	// ESのPIDをストア
+	ServiceInfo.VideoStreamType = 0xFF;
+	ServiceInfo.wVideoEsPID = 0xFFFF;
+	ServiceInfo.AudioEsList.clear();
+	ServiceInfo.wSubtitleEsPID = 0xFFFF;
 	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
-		// 「ITU-T Rec. H.262|ISO/IEC 13818-2 Video or ISO/IEC 11172-2」のストリームタイプを検索
-		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x02U) {
-			pThis->m_ServiceList[wServiceIndex].wVideoEsPID = pPmtTable->GetEsPID(wEsIndex);
-			break;
-		}
-	}
-
-	// オーディオESのPIDをストア
-	pThis->m_ServiceList[wServiceIndex].AudioEsList.clear();
-	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
-		// 「ISO/IEC 13818-7 Audio (ADTS Transport Syntax)」のストリームタイプを検索
-		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x0FU) {
-			BYTE ComponentTag=0;
-			const CDescBlock *pDescBlock=pPmtTable->GetItemDesc(wEsIndex);
-
-			if (pDescBlock) {
-				const CStreamIdDesc *pStreamIdDesc=dynamic_cast<const CStreamIdDesc*>(pDescBlock->GetDescByTag(CStreamIdDesc::DESC_TAG));
-
-				if (pStreamIdDesc)
-					ComponentTag=pStreamIdDesc->GetComponentTag();
+		const BYTE StreamType = pPmtTable->GetStreamTypeID(wEsIndex);
+		const WORD EsPID = pPmtTable->GetEsPID(wEsIndex);
+		switch (StreamType) {
+		case 0x02:	// ITU-T Rec. H.262 | ISO/IEC 13818-2 Video or ISO/IEC 11172-2
+			if (ServiceInfo.wVideoEsPID == 0xFFFF
+					|| ServiceInfo.VideoStreamType != 0x02) {
+				ServiceInfo.VideoStreamType = StreamType;
+				ServiceInfo.wVideoEsPID = EsPID;
 			}
-			pThis->m_ServiceList[wServiceIndex].AudioEsList.push_back(
-						EsInfo(pPmtTable->GetEsPID(wEsIndex),ComponentTag));
-		}
-	}
+			break;
 
-	// 字幕ESのPIDをストア
-	pThis->m_ServiceList[wServiceIndex].wSubtitleEsPID = 0xFFFFU;
-	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
-		// 「ITU-T Rec. H.222|ISO/IEC 13818-1 PES packets containing private data」のストリームタイプを検索
-		if (pPmtTable->GetStreamTypeID(wEsIndex) == 0x06U) {
-			pThis->m_ServiceList[wServiceIndex].wSubtitleEsPID = pPmtTable->GetEsPID(wEsIndex);
+		case 0x06:	// ITU-T Rec.H.222 | ISO/IEC 13818-1
+			if (ServiceInfo.wSubtitleEsPID == 0xFFFF)
+				ServiceInfo.wSubtitleEsPID = EsPID;
+			break;
+
+		case 0x0F:	// ISO/IEC 13818-7 Audio (ADTS Transport Syntax)
+			{
+				BYTE ComponentTag = 0;
+				const CDescBlock *pDescBlock = pPmtTable->GetItemDesc(wEsIndex);
+
+				if (pDescBlock) {
+					const CStreamIdDesc *pStreamIdDesc = dynamic_cast<const CStreamIdDesc*>(pDescBlock->GetDescByTag(CStreamIdDesc::DESC_TAG));
+
+					if (pStreamIdDesc)
+						ComponentTag = pStreamIdDesc->GetComponentTag();
+				}
+				ServiceInfo.AudioEsList.push_back(EsInfo(EsPID, ComponentTag));
+			}
+			break;
+
+		case 0x1B:	// ITU-T Rec.H.264 | ISO/IEC 14496-10Video
+			if (ServiceInfo.wVideoEsPID == 0xFFFF) {
+				ServiceInfo.VideoStreamType = StreamType;
+				ServiceInfo.wVideoEsPID = EsPID;
+			}
 			break;
 		}
 	}
 
 	WORD wPcrPID = pPmtTable->GetPcrPID();
 	if (wPcrPID < 0x1FFFU) {
-		pThis->m_ServiceList[wServiceIndex].wPcrPID = wPcrPID;
+		ServiceInfo.wPcrPID = wPcrPID;
 		CTsPidMapTarget *pMap = pMapManager->GetMapTarget(wPcrPID);
 		if (!pMap) {
 			// 新規Map
@@ -604,7 +622,7 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 	}
 
 	// 更新済みマーク
-	pThis->m_ServiceList[wServiceIndex].bIsUpdated = true;
+	ServiceInfo.bIsUpdated = true;
 
 /*
 	放送局によってはPATに含まれるサービス全てのPMTを流していない場合がある。

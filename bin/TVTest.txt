@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.23
+    TVTest ver.0.5.24
 
 
 ◆ はじめに
@@ -30,7 +30,7 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.5.23_Src.zip ソースファイル
+  ・TVTest_0.5.24_Src.zip ソースファイル
   ・TVTest_SDK_081214.zip プラグイン開発用 SDK
   ・EpgDataCap.dll        EPG 用 DLL (EpgDataCapの中の人氏作)
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
@@ -304,6 +304,7 @@
   /recexit        録画終了時にプログラムを終了
   /recfile        録画ファイル名 (e.g. /recfile "C:\ReocrdFiles\Record.ts")
                   /rec が指定されていない場合は無視される
+  /recstop        録画停止
   /s              TVTest が既に起動している場合、複数起動しない
   /silent         エラー時にダイアログを表示しない
   /standby        待機状態で起動する
@@ -364,6 +365,18 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.24
+    ・メニューから最近見たチャンネルを選択する機能を追加した
+    ・チャンネル切り替え時に、一瞬 PAT の先頭にあるサービスが表示される現象が出
+      ないようにした
+    ・VMR-7 使用時にミキサーをロードしないようにした
+      (OSD 表示できなくなりました。どうも副作用が多いようなので…)
+    ・コマンドラインオプションの /ch が機能しなくなっていた不具合を修正
+    ・EPG 番組表の外部プログラムのコマンドで %tvpid% を指定すると正常に動作しな
+      い不具合を修正
+    ・リモコン番号が設定されていない場合でのチャンネル送りができない不具合を修正
+    ・その他微修正
 
   ver.0.5.23
     ・特定のチャンネルをメニューに表示しないようにできるようにした
