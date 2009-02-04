@@ -898,7 +898,7 @@ const bool CMpeg2Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 		DWORD Remain=dwSize-dwPos;
 		DWORD SyncState=m_dwSyncState;
 		for (dwStart=0UL;dwStart<Remain;dwStart++) {
-			SyncState=(SyncState<<8)|(DWORD)pData[dwStart+dwPos];
+			SyncState=(SyncState<<8)|(DWORD)pData[dwPos+dwStart];
 			if (SyncState==0x000001B3UL) {
 				// スタートコード発見、シフトレジスタを初期化する
 				SyncState=0xFFFFFFFFUL;
@@ -913,6 +913,8 @@ const bool CMpeg2Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 				// スタートコードの断片を取り除く
 				if (dwStart<4UL)
 					m_Mpeg2Sequence.TrimTail(4UL-dwStart);
+				else if (dwStart > 4UL)
+					m_Mpeg2Sequence.AddData(&pData[dwPos], dwStart - 4);
 
 				// シーケンスを出力する
 				if (m_Mpeg2Sequence.ParseHeader())
@@ -922,12 +924,15 @@ const bool CMpeg2Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 			// スタートコードをセットする
 			m_Mpeg2Sequence.SetData(StartCode,4UL);
 			bTrigger=true;
-		} else if (m_Mpeg2Sequence.GetSize()>=4UL) {
-			// シーケンスストア
-			if (m_Mpeg2Sequence.AddData(&pData[dwPos],Remain)>=0x1000000UL) {
-				// 例外(シーケンスが16MBを超える)
-				m_Mpeg2Sequence.ClearSize();
+		} else {
+			if (m_Mpeg2Sequence.GetSize()>=4UL) {
+				// シーケンスストア
+				if (m_Mpeg2Sequence.AddData(&pData[dwPos],Remain)>=0x1000000UL) {
+					// 例外(シーケンスが16MBを超える)
+					m_Mpeg2Sequence.ClearSize();
+				}
 			}
+			break;
 		}
 	}
 
@@ -978,12 +983,86 @@ inline const DWORD CMpeg2Parser::FindStartCode(const BYTE *pData, const DWORD dw
 
 
 
+/*
+// H.264のNALユニットを解析するコードを書こうと思ったが、結構面倒なので後回し
+
+//////////////////////////////////////////////////////////////////////
+// CH264AccessUnitクラスの構築/消滅
+//////////////////////////////////////////////////////////////////////
+
+CH264AccessUnit::CH264AccessUnit()
+{
+	Reset();
+}
+
+CH264AccessUnit::CH264AccessUnit(const CH264AccessUnit &Operand)
+{
+	*this = Operand;
+}
+
+CH264AccessUnit::~CH264AccessUnit()
+{
+}
+
+CH264AccessUnit & CH264AccessUnit::operator = (const CH264AccessUnit &Operand)
+{
+	if (this != &Operand) {
+		m_Header = Operand.m_Header;
+	}
+	return *this;
+}
+
+const bool CH264AccessUnit::ParseHeader(void)
+{
+	if (m_pData[0]!=0 || m_pData[1]!=0 || m_pData[2] != 0x01 || m_pData[3] != 0x09)
+		return false;
+
+	DWORD Pos = 0;
+	do {
+		BYTE NALUnitType = m_pData[Pos] & 0x1F;
+		DWORD NumBytesInRBSP = 0, NALUnitHeaderBytes = 1;
+
+		if (NALUnitType == 14 || NALUnitType == 20) {
+			NALUnitHeaderBytes += 3;
+		}
+		for (DWORD i = NALUnitHeaderBytes ; i < m_dwDataSize - Pos ; i++) {
+			if (i + 2 < m_dwDataSize - Pos
+				&& m_pData[Pos] == 0x00 && m_pData[Pos + 1] == 0x00 && m_pData[Pos + 2] == 0x03) {
+				NumBytesInRBSP += 3;
+				i += 3;
+			} else {
+				NumBytesInRBSP++;
+			}
+		}
+		if (NALUnitType == 0x07) {
+			// Sequence parameter set
+			m_Header.SPS.ProfileIDC = m_pData[Pos];
+			if (m_Header.SPS.ProfileIDC != 66)
+				return false;
+			m_Header.SPS.bConstraintSet0Flag = (m_pData[Pos + 1] & 0x80) != 0;
+			m_Header.SPS.bConstraintSet1Flag = (m_pData[Pos + 1] & 0x40) != 0;
+			m_Header.SPS.bConstraintSet2Flag = (m_pData[Pos + 1] & 0x20) != 0;
+			m_Header.SPS.bConstraintSet3Flag = (m_pData[Pos + 1] & 0x10) != 0;
+			if ((m_pData[Pos + 1] & 0x0F) != 0)	// reserved_zero_4bits
+				return false;
+			m_Header.SPS.LevelIDC = m_pData[Pos + 2];
+		}
+	} while ();
+}
+
+void CH264AccessUnit::Reset(void)
+{
+	::ZeroMemory(&m_Header, sizeof(TAG_H264ACCESSUNIT));
+}
+
+
+
 
 //////////////////////////////////////////////////////////////////////
 // CH264Parserクラスの構築/消滅
 //////////////////////////////////////////////////////////////////////
 
-/*
+
 CH264Parser::CH264Parser(IAccessUnitHandler *pAccessUnitHandler)
 	: m_pAccessUnitHandler(pAccessUnitHandler)
 {
@@ -1012,7 +1091,7 @@ const bool CH264Parser::StorePacket(const CPesPacket *pPacket)
 
 const bool CH264Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 {
-	static const BYTE StartCode[] = {0x00, 0x00, 0x01, 0x06};
+	static const BYTE StartCode[] = {0x00, 0x00, 0x01, 0x09};
 	bool bTrigger=false;
 	DWORD dwPos,dwStart;
 
@@ -1022,7 +1101,7 @@ const bool CH264Parser::StoreEs(const BYTE *pData, const DWORD dwSize)
 		DWORD SyncState = m_dwSyncState;
 		for (dwStart = 0UL ; dwStart < Remain ; dwStart++) {
 			SyncState = (SyncState << 8) | (DWORD)pData[dwStart + dwPos];
-			if (SyncState == 0x00000106UL) {
+			if (SyncState == 0x00000109UL) {
 				// スタートコード発見、シフトレジスタを初期化する
 				SyncState = 0xFFFFFFFFUL;
 				break;
@@ -1077,4 +1156,5 @@ void CH264Parser::OnAccessUnit(const CMpeg2AccessUnit *pAccessUnit) const
 	if (m_pAccessUnitHandler)
 		m_pAccessUnitHandler->OnAccessUnit(this, pAccessUnit);
 }
+
 */

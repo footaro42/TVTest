@@ -128,23 +128,23 @@ bool CVideoRenderer_EVR::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,
 	hr=::CoCreateInstance(CLSID_EnhancedVideoRenderer,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(TEXT("EVRのインスタンスを作成できません。"),
-				 TEXT("システムがEVRに対応していない可能性があります。"));
+		SetError(hr,TEXT("EVRのインスタンスを作成できません。"),
+					TEXT("システムがEVRに対応していない可能性があります。"));
 		goto OnError;
 	}
 
 	IEVRFilterConfig *pFilterConfig;
 	hr=m_pRenderer->QueryInterface(IID_IEVRFilterConfig,reinterpret_cast<LPVOID*>(&pFilterConfig));
 	if (FAILED(hr)) {
-		SetError(TEXT("IEVRFilterConfigを取得できません。"));
+		SetError(hr,TEXT("IEVRFilterConfigを取得できません。"));
 		goto OnError;
 	}
 	pFilterConfig->SetNumberOfStreams(1);
 	pFilterConfig->Release();
 
-	hr=pFilterGraph->AddFilter(m_pRenderer,L"VMR7");
+	hr=pFilterGraph->AddFilter(m_pRenderer,L"EVR");
 	if (FAILED(hr)) {
-		SetError(TEXT("EVRをフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("EVRをフィルタグラフに追加できません。"));
 		goto OnError;
 	}
 
@@ -152,21 +152,21 @@ bool CVideoRenderer_EVR::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
-		SetError(TEXT("IFilterGraph2を取得できません。"));
+		SetError(hr,TEXT("IFilterGraph2を取得できません。"));
 		goto OnError;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
 								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		goto OnError;
 	}
 
 	IMFGetService *pGetService;
 	hr=m_pRenderer->QueryInterface(IID_IMFGetService,reinterpret_cast<LPVOID*>(&pGetService));
 	if (FAILED(hr)) {
-		SetError(TEXT("IMFGetServiceを取得できません。"));
+		SetError(hr,TEXT("IMFGetServiceを取得できません。"));
 		goto OnError;
 	}
 
@@ -174,7 +174,7 @@ bool CVideoRenderer_EVR::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,
 	hr=pGetService->GetService(MR_VIDEO_RENDER_SERVICE,IID_IMFVideoDisplayControl,reinterpret_cast<LPVOID*>(&pDisplayControl));
 	if (FAILED(hr)) {
 		pGetService->Release();
-		SetError(TEXT("IMFVideoDisplayControlを取得できません。"));
+		SetError(hr,TEXT("IMFVideoDisplayControlを取得できません。"));
 		goto OnError;
 	}
 #ifdef EVR_USE_VIDEO_WINDOW
@@ -195,7 +195,7 @@ bool CVideoRenderer_EVR::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,
 	hr=pGetService->GetService(MR_VIDEO_MIXER_SERVICE,IID_IMFVideoProcessor,reinterpret_cast<LPVOID*>(&pVideoProcessor));
 	if (FAILED(hr)) {
 		pGetService->Release();
-		SetError(TEXT("IMFVideoProcessorを取得できません。"));
+		SetError(hr,TEXT("IMFVideoProcessorを取得できません。"));
 		goto OnError;
 	}
 	pVideoProcessor->SetBackgroundColor(RGB(0,0,0));

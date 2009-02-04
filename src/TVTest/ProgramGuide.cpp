@@ -1178,7 +1178,15 @@ bool CProgramGuide::SetServiceIDList(const CProgramGuideServiceIDList *pList)
 
 bool CProgramGuide::SetChannelList(const CChannelList *pList)
 {
-	m_ChannelList=*pList;
+	if (pList==NULL)
+		return false;
+	m_ChannelList.Clear();
+	for (int i=0;i<pList->NumChannels();i++) {
+		const CChannelInfo *pChannelInfo=pList->GetChannelInfo(i);
+
+		if (pChannelInfo->IsEnabled())
+			m_ChannelList.AddChannel(*pChannelInfo);
+	}
 	return true;
 }
 

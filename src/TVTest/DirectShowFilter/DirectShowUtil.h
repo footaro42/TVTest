@@ -85,13 +85,13 @@ void RemoveFromRot(const DWORD dwRegister);
 IPin* GetFilterPin(IBaseFilter *pFilter, const PIN_DIRECTION dir, const AM_MEDIA_TYPE *pMediaType=NULL);
 bool ShowPropertyPage(IBaseFilter *pFilter, HWND hWndParent);
 //bool AppendMpeg2Decoder_and_Connect(IGraphBuilder *pFilterGraph, CDirectShowUtil *pUtil, IBaseFilter **ppMpeg2DecoderFilter,wchar_t *lpszDecoderName,int iDecNameBufLen, IPin **ppCurrentOutputPin, IPin **ppNewOutputPin=NULL);
-bool AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
+HRESULT AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 	IBaseFilter *pFilter,LPCWSTR lpwszFilterName,
 	IPin **ppCurrentOutputPin,IPin **ppNewOutputPin=NULL,bool fDirect=false);
-bool AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
+HRESULT AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 	const CLSID guidFilter,LPCWSTR lpwszFilterName,IBaseFilter **ppAppendedFilter,
 	IPin **ppCurrentOutputPin, IPin **ppNewOutputPin=NULL, bool fDirect=false);
-bool AppendColorSpaceConverterFilter_and_Connect(IGraphBuilder *pFilterGraph, IBaseFilter **ppColorSpaceConverterFilter, IPin **ppCurrentOutputPin, IPin **ppNewOutputPin=NULL);
+HRESULT AppendColorSpaceConverterFilter_and_Connect(IGraphBuilder *pFilterGraph, IBaseFilter **ppColorSpaceConverterFilter, IPin **ppCurrentOutputPin, IPin **ppNewOutputPin=NULL);
 
 // 汎用ユーティリティ
 IVideoWindow* GetVideoWindow(IGraphBuilder *pGraph);

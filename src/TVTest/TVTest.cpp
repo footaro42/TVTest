@@ -39,6 +39,7 @@
 #include "CommandLine.h"
 #include "Logger.h"
 #include "Help.h"
+#include "Error.h"
 #include "Image.h"
 #include "MiscDialog.h"
 #include "DialogUtil.h"
@@ -79,6 +80,7 @@ static CSplitter Splitter;
 static CMainMenu MainMenu;
 static CCommandList CommandList;
 static CNotificationBar NotificationBar;
+static CErrorDialog ErrorDialog;
 static CHtmlHelp HtmlHelpClass;
 
 static TCHAR szDriverFileName[MAX_PATH];
@@ -393,12 +395,12 @@ bool CAppMain::AddLog(LPCTSTR pszText, ...)
 
 bool CAppMain::InitializeChannel()
 {
-	bool fUDPDriver=CoreEngine.IsUDPDriver();
+	bool fNetworkDriver=CoreEngine.IsNetworkDriver();
 	CFilePath ChannelFilePath;
 
 	ChannelManager.Clear();
 	ChannelManager.MakeDriverTuningSpaceList(&CoreEngine.m_DtvEngine.m_BonSrcDecoder);
-	if (!fUDPDriver) {
+	if (!fNetworkDriver) {
 		ChannelFilePath.SetPath(CoreEngine.GetDriverFileName());
 		if (!ChannelFilePath.HasDirectory()) {
 			TCHAR szDir[MAX_PATH];
@@ -465,8 +467,7 @@ bool CAppMain::InitializeChannel()
 			}
 		}
 		if (!fOK && szDriverFileName[0]!='\0'
-				&& ::lstrcmpi(::PathFindFileName(szDriverFileName),
-							  TEXT("BonDriver_UDP.dll"))!=0) {
+				&& !CoreEngine.IsNetworkDriverFileName(szDriverFileName)) {
 			ChannelFilePath.SetPath(szDriverFileName);
 			ChannelFilePath.SetExtension(TEXT(".ch2"));
 			if (!ChannelFilePath.IsExists())
@@ -484,10 +485,10 @@ bool CAppMain::InitializeChannel()
 												ChannelFilePath.GetFileName());
 	TCHAR szFileName[MAX_PATH];
 	bool fLoadChannelSettings=true;
-	if (!fUDPDriver) {
+	if (!fNetworkDriver) {
 		::lstrcpy(szFileName,CoreEngine.GetDriverFileName());
 	} else {
-		if (::lstrcmpi(::PathFindFileName(szDriverFileName),TEXT("BonDriver_UDP.dll"))!=0) {
+		if (!CoreEngine.IsNetworkDriverFileName(szDriverFileName)) {
 			::lstrcpy(szFileName,szDriverFileName);
 		} else {
 			fLoadChannelSettings=false;
@@ -504,7 +505,7 @@ bool CAppMain::InitializeChannel()
 		RestoreChannelInfo.Space=InitChInfo.Space;
 		RestoreChannelInfo.Channel=InitChInfo.Channel;
 		RestoreChannelInfo.Service=InitChInfo.Service;
-	} else if (!fUDPDriver) {
+	} else if (!fNetworkDriver) {
 		CSettings Setting;
 
 		if (Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_READ)) {
@@ -522,15 +523,15 @@ bool CAppMain::InitializeChannel()
 		}
 	}
 
-	ChannelManager.SetUseDriverChannelList(fUDPDriver);
+	ChannelManager.SetUseDriverChannelList(fNetworkDriver);
 	/*
 	ChannelManager.SetCurrentSpace(
-		(!fUDPDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
+		(!fNetworkDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
 											CChannelManager::SPACE_ALL:0);
 	*/
 	ChannelManager.SetCurrentChannel(
 		RestoreChannelInfo.Space>=0?RestoreChannelInfo.Space:0,
-		fUDPDriver?0:-1);
+		CoreEngine.IsUDPDriver()?0:-1);
 	ChannelManager.SetCurrentService(0);
 	SetTuningSpaceMenu();
 	SetChannelMenu();
@@ -544,17 +545,17 @@ bool CAppMain::InitializeChannel()
 
 bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 {
-	bool fUDPDriver=CoreEngine.IsUDPDriver();
+	bool fNetworkDriver=CoreEngine.IsNetworkDriver();
 
 	ChannelManager.SetTuningSpaceList(pList);
-	ChannelManager.SetUseDriverChannelList(fUDPDriver);
+	ChannelManager.SetUseDriverChannelList(fNetworkDriver);
 	/*
 	ChannelManager.SetCurrentChannel(
-		(!fUDPDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
+		(!fNetworkDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
 												CChannelManager::SPACE_ALL:0,
-		fUDPDriver?0:-1);
+		CoreEngine.IsUDPDriver()?0:-1);
 	*/
-	ChannelManager.SetCurrentChannel(0,fUDPDriver?0:-1);
+	ChannelManager.SetCurrentChannel(0,CoreEngine.IsUDPDriver()?0:-1);
 	ChannelManager.SetCurrentService(0);
 	SetTuningSpaceMenu();
 	//SetChannelMenu();
@@ -569,7 +570,7 @@ bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 
 bool CAppMain::SaveChannelSettings()
 {
-	if (!CoreEngine.IsDriverLoaded() || CoreEngine.IsUDPDriver())
+	if (!CoreEngine.IsDriverLoaded() || CoreEngine.IsNetworkDriver())
 		return true;
 	return ChannelManager.SaveChannelSettings(m_szChannelSettingFileName,
 											  CoreEngine.GetDriverFileName());
@@ -583,7 +584,7 @@ void CAppMain::SetTuningSpaceMenu(HMENU hmenu)
 	int i,j;
 
 	ClearMenu(hmenu);
-	if ((!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL)
+	if ((!CoreEngine.IsNetworkDriver() || pNetworkRemocon==NULL)
 			&& ChannelManager.GetAllChannelList()->NumChannels()>0)
 		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SPACE_ALL,TEXT("&A: すべて"));
 	const CTuningSpaceList *pTuningSpaceList=ChannelManager.GetDriverTuningSpaceList();
@@ -910,15 +911,15 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 			PluginList.SendDriverChangeEvent();
 		} else {
 			::SetCursor(hcurOld);
-			MainWindow.ShowMessage(TEXT("BonDriverの初期化ができません。"),NULL,
-								   MB_OK | MB_ICONEXCLAMATION);
+			Logger.AddLog(CoreEngine.GetLastErrorText());
+			MainWindow.ShowErrorMessage(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 		}
 	} else {
 		TCHAR szMessage[MAX_PATH+64];
 
 		::SetCursor(hcurOld);
 		::wsprintf(szMessage,TEXT("\"%s\" をロードできません。"),pszFileName);
-		MainWindow.ShowMessage(szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
+		MainWindow.ShowErrorMessage(szMessage);
 	}
 	CoreEngine.m_DtvEngine.SetTracer(NULL);
 	StatusView.SetSingleText(NULL);
@@ -947,7 +948,7 @@ HMENU CAppMain::CreateTunerSelectMenu()
 
 	Command=CM_SPACE_CHANNEL_FIRST;
 	/*
-	if ((!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL)
+	if ((!CoreEngine.IsNetworkDriver() || pNetworkRemocon==NULL)
 			&& ChannelManager.GetAllChannelList()->NumChannels()>0) {
 		hmenuSpace=::CreatePopupMenu();
 		pChannelList=ChannelManager.GetAllChannelList();
@@ -1079,7 +1080,7 @@ bool CAppMain::ProcessTunerSelectMenu(int Command)
 
 	CommandBase=CM_SPACE_CHANNEL_FIRST;
 	/*
-	if (!CoreEngine.IsUDPDriver() || pNetworkRemocon==NULL) {
+	if (!CoreEngine.IsNetworkDriver() || pNetworkRemocon==NULL) {
 		pChannelList=ChannelManager.GetAllChannelList();
 		if (pChannelList->NumChannels()>0) {
 			if (Command-CommandBase<pChannelList->NumChannels())
@@ -1475,8 +1476,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 
 		if (!RecordOptions.GenerateFileName(szFileName,lengthof(szFileName),
 											NULL,&pszErrorMessage)) {
-			MainWindow.ShowMessage(pszErrorMessage,NULL,
-								   MB_OK | MB_ICONEXCLAMATION);
+			MainWindow.ShowErrorMessage(pszErrorMessage);
 			return false;
 		}
 		pszFileName=szFileName;
@@ -1484,8 +1484,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 	}
 	CoreEngine.ResetErrorCount();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,pszFileName)) {
-		MainWindow.ShowMessage(TEXT("ファイルが開けません。"),
-							   NULL,MB_OK | MB_ICONEXCLAMATION);
+		MainWindow.ShowErrorMessage(&RecordManager);
 		return false;
 	}
 	ResidentManager.SetStatus(CResidentManager::STATUS_RECORDING,
@@ -1528,8 +1527,7 @@ bool CAppMain::StartReservedRecord()
 
 		if (!RecordOptions.GenerateFileName(szFileName,lengthof(szFileName),
 													NULL,&pszErrorMessage)) {
-			MainWindow.ShowMessage(pszErrorMessage,NULL,
-								   MB_OK | MB_ICONEXCLAMATION);
+			MainWindow.ShowErrorMessage(pszErrorMessage);
 			return false;
 		}
 		RecordManager.SetFileName(szFileName);
@@ -1538,8 +1536,7 @@ bool CAppMain::StartReservedRecord()
 	CoreEngine.ResetErrorCount();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,szFileName)) {
 		RecordManager.CancelReserve();
-		MainWindow.ShowMessage(TEXT("ファイルが開けません。"),NULL,
-							   MB_OK | MB_ICONEXCLAMATION);
+		MainWindow.ShowErrorMessage(&RecordManager);
 		return false;
 	}
 	StatusView.UpdateItem(STATUS_ITEM_RECORD);
@@ -1726,7 +1723,7 @@ void CChannelStatusItem::OnLButtonDown(int x,int y)
 	const CChannelList *pList;
 
 	GetMenuPos(&pt);
-	if (!CoreEngine.IsUDPDriver()
+	if (!CoreEngine.IsNetworkDriver()
 			&& (pList=ChannelManager.GetCurrentChannelList())!=NULL
 			&& pList->NumChannels()<=20) {
 		ChannelMenu.Create(pList);
@@ -3639,8 +3636,8 @@ void CMyProgramGuideEventHandler::OnServiceTitleLButtonDown(WORD ServiceID)
 
 bool CMyProgramGuideEventHandler::OnBeginUpdate()
 {
-	if (CoreEngine.IsUDPDriver()) {
-		MainWindow.ShowMessage(TEXT("UDPでは番組表の取得はできません。"),
+	if (CoreEngine.IsNetworkDriver()) {
+		MainWindow.ShowMessage(TEXT("UDP/TCPでは番組表の取得はできません。"),
 							   TEXT("ごめん"),MB_OK | MB_ICONINFORMATION);
 		return false;
 	}
@@ -3662,7 +3659,7 @@ bool CMyProgramGuideEventHandler::OnRefresh()
 {
 	const CChannelList *pList;
 
-	if (!CoreEngine.IsUDPDriver())
+	if (!CoreEngine.IsNetworkDriver())
 		pList=ChannelManager.GetCurrentChannelList();
 	else
 		pList=ChannelManager.GetFileAllChannelList();
@@ -4258,10 +4255,9 @@ bool CMainWindow::BuildMediaViewer()
 									 VideoRendererType,szMpeg2DecoderName)) {
 		Logger.AddLog(CoreEngine.GetLastErrorText());
 		if (!CmdLineParser.m_fSilent) {
-			CoreEngine.FormatLastErrorText(szText,lengthof(szText),
-								TEXT("DirectShowの初期化ができません。\n"));
-			ShowMessage(szText);
+			ShowErrorMessage(&CoreEngine,TEXT("DirectShowの初期化ができません。"));
 		}
+		InfoWindow.SetDecoderName(NULL);
 		return false;
 	}
 	if (CoreEngine.m_DtvEngine.GetVideoDecoderName(szText,lengthof(szText)))
@@ -4305,6 +4301,22 @@ HWND CMainWindow::GetVideoHostWindow() const
 int CMainWindow::ShowMessage(LPCTSTR pszText,LPCTSTR pszCaption,UINT Type) const
 {
 	return ::MessageBox(GetVideoHostWindow(),pszText,pszCaption,Type);
+}
+
+
+void CMainWindow::ShowErrorMessage(LPCTSTR pszText)
+{
+	ErrorDialog.Show(GetVideoHostWindow(),CErrorDialog::TYPE_WARNING,pszText);
+}
+
+
+void CMainWindow::ShowErrorMessage(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle)
+{
+	TCHAR szText[1024];
+
+	pErrorHandler->FormatLastErrorText(szText,lengthof(szText));
+	ErrorDialog.Show(GetVideoHostWindow(),CErrorDialog::TYPE_WARNING,szText,
+					 pszTitle,pErrorHandler->GetLastErrorSystemMessage());
 }
 
 
@@ -4646,7 +4658,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			pDib=static_cast<BYTE*>(CoreEngine.GetCurrentImage());
 			if (pDib==NULL) {
 				::SetCursor(hcurOld);
-				ShowMessage(TEXT("現在の画像を取得できません。\nレンダラを変えてみてください。"),TEXT("ごめん"),
+				ShowMessage(TEXT("現在の画像を取得できません。\n")
+							TEXT("レンダラやデコーダを変えてみてください。"),TEXT("ごめん"),
 							MB_OK | MB_ICONEXCLAMATION);
 				return;
 			}
@@ -4735,15 +4748,11 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				CapturePreview.SetImage(pImage);
 				if (id==CM_COPY) {
 					if (!pImage->SetClipboard(hwnd)) {
-						ShowMessage(
-							TEXT("クリップボードにデータを設定できません。"),
-							NULL,MB_OK | MB_ICONEXCLAMATION);
+						ShowErrorMessage(TEXT("クリップボードにデータを設定できません。"));
 					}
 				} else {
 					if (!CaptureOptions.SaveImage(pImage)) {
-						ShowMessage(
-							TEXT("画像の保存でエラーが発生しました。"),NULL,
-							MB_OK | MB_ICONEXCLAMATION);
+						ShowErrorMessage(TEXT("画像の保存でエラーが発生しました。"));
 					}
 				}
 				if (!CapturePreview.HasImage())
@@ -4915,7 +4924,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			ProgramGuideOptions.GetTimeRange(&stFirst,&stLast);
 			ProgramGuide.SetTimeRange(&stFirst,&stLast);
 			const CChannelList *pList;
-			if (!CoreEngine.IsUDPDriver())
+			if (!CoreEngine.IsNetworkDriver())
 				pList=ChannelManager.GetCurrentChannelList();
 			else
 				pList=ChannelManager.GetFileAllChannelList();
@@ -6462,7 +6471,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				TransportStreamID=pInfo->m_TransportStreamID;
 				ServiceID=pInfo->m_pServiceList[pInfo->m_CurService].ServiceID;
 				if (TransportStreamID!=0 && ServiceID!=0
-						&& !CoreEngine.IsUDPDriver()
+						&& !CoreEngine.IsNetworkDriver()
 						&& (pChInfo==NULL
 						|| (pChInfo->GetTransportStreamID()!=0
 						&& pChInfo->GetTransportStreamID()!=TransportStreamID))) {
@@ -6491,7 +6500,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					if (fUseOSD && wParam!=0)
 						GetThis(hwnd)->ShowChannelOSD();
 				}
-				if (pChInfo!=NULL && !CoreEngine.IsUDPDriver()) {
+				if (pChInfo!=NULL && !CoreEngine.IsNetworkDriver()) {
 					// チャンネルの情報を更新する
 					// 古いチャンネル設定ファイルにはNIDとTSIDの情報が含まれていないため
 					WORD NetworkID=pInfo->m_NetworkID;
@@ -6585,8 +6594,9 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
-			if (pThis!=NULL && !pThis->m_fClosing && CoreEngine.IsUDPDriver()) {
-				WORD Port=ChannelManager.GetCurrentChannel()+1234;
+			if (pThis!=NULL && !pThis->m_fClosing && CoreEngine.IsNetworkDriver()) {
+				WORD Port=ChannelManager.GetCurrentChannel()+
+										(CoreEngine.IsUDPDriver()?1234:2230);
 				WORD RemoconPort=pNetworkRemocon!=NULL?pNetworkRemocon->GetPort():0;
 				return MAKELRESULT(Port,RemoconPort);
 			}
@@ -6594,7 +6604,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_APP_FILEWRITEERROR:
-		GetThis(hwnd)->ShowMessage(TEXT("ファイルへの書き出しでエラーが発生しました。"));
+		GetThis(hwnd)->ShowErrorMessage(TEXT("ファイルへの書き出しでエラーが発生しました。"));
 		return 0;
 
 	case WM_DISPLAYCHANGE:
@@ -6769,7 +6779,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 			m_RestoreChannelSpec.Store(&ChannelManager);
 			if (EpgOptions.GetUpdateWhenStandby()
 					&& !RecordManager.IsRecording()
-					&& !CoreEngine.IsUDPDriver())
+					&& !CoreEngine.IsNetworkDriver())
 				BeginProgramGuideUpdate();
 			if (!RecordManager.IsRecording() && !m_fProgramGuideUpdating)
 				CloseTuner();
@@ -6784,20 +6794,20 @@ bool CMainWindow::SetStandby(bool fStandby)
 					if (CoreEngine.LoadDriver()) {
 						Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
 						if (!CoreEngine.OpenDriver()) {
-							Logger.AddLog(TEXT("BonDriverの初期化ができません。"));
-							ShowMessage(TEXT("BonDriverの初期化ができません。"));
+							Logger.AddLog(CoreEngine.GetLastErrorText());
+							ShowErrorMessage(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 						}
 					} else {
 						::wsprintf(szText,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
 						Logger.AddLog(szText);
-						ShowMessage(szText);
+						ShowErrorMessage(szText);
 					}
 				}
 				CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 				if (!CoreEngine.OpenBcasCard()) {
 					CoreEngine.FormatLastErrorText(szText,lengthof(szText));
 					Logger.AddLog(TEXT("カードリーダがオープンできません。"));
-					ShowMessage(szText);
+					ShowErrorMessage(szText);
 				}
 				BuildMediaViewer();
 				CoreEngine.m_DtvEngine.SetTracer(NULL);
@@ -6823,7 +6833,8 @@ bool CMainWindow::SetStandby(bool fStandby)
 
 bool CMainWindow::InitStandby()
 {
-	m_fEnablePreview=!fRestorePlayStatus || fEnablePlay;
+	m_fEnablePreview=!CmdLineParser.m_fNoDirectShow && !CmdLineParser.m_fNoView
+									&& (!fRestorePlayStatus || fEnablePlay);
 	m_fRestoreFullscreen=CmdLineParser.m_fFullscreen;
 	if (CoreEngine.GetDriverFileName()[0]!='\0')
 		m_fSrcFilterReleased=true;
@@ -6849,7 +6860,8 @@ bool CMainWindow::InitStandby()
 
 bool CMainWindow::InitMinimize()
 {
-	m_fEnablePreview=!fRestorePlayStatus || fEnablePlay;
+	m_fEnablePreview=!CmdLineParser.m_fNoDirectShow && !CmdLineParser.m_fNoView
+									&& (!fRestorePlayStatus || fEnablePlay);
 	if (RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0) {
 		const CChannelList *pList=ChannelManager.GetChannelList(RestoreChannelInfo.Space);
 		if (pList!=NULL) {
@@ -6910,14 +6922,13 @@ bool CMainWindow::OpenTuner()
 			if (!CoreEngine.LoadDriver()) {
 				::wsprintf(szText,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
 				Logger.AddLog(szText);
-				ShowMessage(szText);
+				ShowErrorMessage(szText);
 				fOK=false;
 			}
 		}
 		if (fOK && !CoreEngine.OpenDriver()) {
-			CoreEngine.FormatLastErrorText(szText,lengthof(szText));
 			Logger.AddLog(CoreEngine.GetLastErrorText());
-			ShowMessage(szText);
+			ShowErrorMessage(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 			fOK=false;
 		}
 		m_fSrcFilterReleased=false;
@@ -7109,10 +7120,10 @@ class CPortQuery {
 	std::vector<WORD> m_RemoconPortList;
 	static BOOL CALLBACK EnumProc(HWND hwnd,LPARAM lParam);
 public:
-	bool Query(WORD *pUDPPort,WORD *pRemoconPort);
+	bool Query(WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort);
 };
 
-bool CPortQuery::Query(WORD *pUDPPort,WORD *pRemoconPort)
+bool CPortQuery::Query(WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort)
 {
 	size_t i;
 
@@ -7122,7 +7133,7 @@ bool CPortQuery::Query(WORD *pUDPPort,WORD *pRemoconPort)
 	if (m_UDPPortList.size()>0) {
 		WORD UDPPort;
 
-		for (UDPPort=*pUDPPort;UDPPort<=1243;UDPPort++) {
+		for (UDPPort=*pUDPPort;UDPPort<=MaxPort;UDPPort++) {
 			for (i=0;i<m_UDPPortList.size();i++) {
 				if (m_UDPPortList[i]==UDPPort)
 					break;
@@ -7130,7 +7141,7 @@ bool CPortQuery::Query(WORD *pUDPPort,WORD *pRemoconPort)
 			if (i==m_UDPPortList.size())
 				break;
 		}
-		if (UDPPort>1243)
+		if (UDPPort>MaxPort)
 			UDPPort=0;
 		*pUDPPort=UDPPort;
 	}
@@ -7206,7 +7217,7 @@ CAppMutex::CAppMutex(bool fEnable)
 		::ZeroMemory(&sa,sizeof(sa));
 		sa.nLength=sizeof(sa);
 		sa.lpSecurityDescriptor=&sd;
-		m_hMutex=CreateMutex(&sa,TRUE,szName);
+		m_hMutex=CreateMutex(&sa,FALSE,szName);
 		m_fAlreadyExists=m_hMutex!=NULL && GetLastError()==ERROR_ALREADY_EXISTS;
 	} else {
 		m_hMutex=NULL;
@@ -7217,10 +7228,39 @@ CAppMutex::CAppMutex(bool fEnable)
 CAppMutex::~CAppMutex()
 {
 	if (m_hMutex!=NULL) {
+		/*
 		if (!m_fAlreadyExists)
 			ReleaseMutex(m_hMutex);
+		*/
 		CloseHandle(m_hMutex);
 	}
+}
+
+
+struct FindWindowInfo {
+	LPCTSTR pszFileName;
+	HWND hwndFirst;
+	HWND hwndFind;
+};
+
+static BOOL CALLBACK FindWindowCallback(HWND hwnd,LPARAM lParam)
+{
+	FindWindowInfo *pInfo=reinterpret_cast<FindWindowInfo*>(lParam);
+	TCHAR szClassName[64],szFileName[MAX_PATH];
+
+	if (::GetClassName(hwnd,szClassName,lengthof(szClassName))>0
+			&& ::lstrcmpi(szClassName,MAIN_WINDOW_CLASS)==0) {
+		if (pInfo->hwndFirst==NULL)
+			pInfo->hwndFirst=hwnd;
+		if (::GetModuleFileName(
+				reinterpret_cast<HINSTANCE>(::GetWindowLongPtr(hwnd,GWLP_HINSTANCE)),
+				szFileName,lengthof(szFileName))>0
+				&& ::lstrcmpi(szFileName,pInfo->pszFileName)==0) {
+			pInfo->hwndFind=hwnd;
+			return FALSE;
+		}
+	}
+	return TRUE;
 }
 
 
@@ -7254,13 +7294,21 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	AppMain.Initialize();
 
-	CAppMutex Mutex(fKeepSingleTask || CmdLineParser.m_fSchedule);
+	//CAppMutex Mutex(fKeepSingleTask || CmdLineParser.m_fSchedule);
+	CAppMutex Mutex(true);
 
 	// 複数起動のチェック
-	if (Mutex.AlreadyExists()) {
-		HWND hwnd;
+	if (Mutex.AlreadyExists()
+			&& (fKeepSingleTask || CmdLineParser.m_fSchedule)) {
+		TCHAR szFileName[MAX_PATH];
+		FindWindowInfo Info;
 
-		hwnd=::FindWindow(MAIN_WINDOW_CLASS,NULL);
+		::GetModuleFileName(hInst,szFileName,lengthof(szFileName));
+		Info.pszFileName=szFileName;
+		Info.hwndFirst=NULL;
+		Info.hwndFind=NULL;
+		::EnumWindows(FindWindowCallback,reinterpret_cast<LPARAM>(&Info));
+		HWND hwnd=Info.hwndFind!=NULL?Info.hwndFind:Info.hwndFirst;
 		if (::IsWindow(hwnd)) {
 			ATOM atom;
 
@@ -7374,7 +7422,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				wsprintf(szMessage,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
 				Logger.AddLog(szMessage);
 				if (!CmdLineParser.m_fSilent)
-					MainWindow.ShowMessage(szMessage);
+					MainWindow.ShowErrorMessage(szMessage);
 			}
 		} else {
 			Logger.AddLog(TEXT("BonDriverが設定されていません。"));
@@ -7398,7 +7446,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		*/
 		Logger.AddLog(TEXT("DtvEngineを構築できません。"));
 		if (!CmdLineParser.m_fSilent)
-			MainWindow.ShowMessage(TEXT("DtvEngineを構築できません。"));
+			MainWindow.ShowErrorMessage(TEXT("DtvEngineを構築できません。"));
 	} else {
 		if (!CmdLineParser.m_fStandby && !CoreEngine.OpenBcasCard()) {
 			if (!CmdLineParser.m_fSilent) {
@@ -7414,7 +7462,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 							CCardReader::READER_HDUS:CCardReader::READER_SCARD)
 							&& !CoreEngine.SetCardReaderType(CurReader)) {
 						Logger.AddLog(TEXT("カードリーダがオープンできません。"));
-						MainWindow.ShowMessage(
+						MainWindow.ShowErrorMessage(
 							TEXT("利用可能なカードリーダが見付かりませんでした。"));
 					}
 				}
@@ -7442,11 +7490,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		if (CoreEngine.IsDriverLoaded() && !CoreEngine.OpenDriver()) {
 			Logger.AddLog(CoreEngine.GetLastErrorText());
 			if (!CmdLineParser.m_fSilent) {
-				TCHAR szText[1024];
-
-				CoreEngine.FormatLastErrorText(szText,lengthof(szText),
-									TEXT("BonDriverの初期化ができません。\n"));
-				MainWindow.ShowMessage(szText);
+				MainWindow.ShowErrorMessage(&CoreEngine,
+									TEXT("BonDriverの初期化ができません。"));
 			}
 		}
 		EpgOptions.InitializeEpgDataCap();
@@ -7456,14 +7501,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				MainWindow.EnablePreview(true);
 		}
 	}
-	if (CoreEngine.IsUDPDriver()) {
+	if (CoreEngine.IsNetworkDriver()) {
 		if (fIncrementUDPPort) {
 			CPortQuery PortQuery;
-			WORD UDPPort=CmdLineParser.m_UDPPort>0?(WORD)CmdLineParser.m_UDPPort:1234;
+			WORD UDPPort=CmdLineParser.m_UDPPort>0?(WORD)CmdLineParser.m_UDPPort:
+											CoreEngine.IsUDPDriver()?1234:2230;
 			WORD RemoconPort=NetworkRemoconOptions.GetPort();
 
-			StatusView.SetSingleText(TEXT("UDPの空きポートを検索しています..."));
-			PortQuery.Query(&UDPPort,&RemoconPort);
+			StatusView.SetSingleText(TEXT("空きポートを検索しています..."));
+			PortQuery.Query(&UDPPort,CoreEngine.IsUDPDriver()?1243:2239,&RemoconPort);
 			CmdLineParser.m_UDPPort=UDPPort;
 			NetworkRemoconOptions.SetTempPort(RemoconPort);
 		}
@@ -7571,14 +7617,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				MainWindow.SetFullscreen(true);
 		}
 
-		if (CoreEngine.IsUDPDriver()) {
-			int Port=1234;
-			if (CmdLineParser.m_UDPPort>1234 && CmdLineParser.m_UDPPort<=1243)
+		if (CoreEngine.IsNetworkDriver()) {
+			const int FirstPort=CoreEngine.IsUDPDriver()?1234:2230;
+			int Port=FirstPort;
+			if ((int)CmdLineParser.m_UDPPort>FirstPort && (int)CmdLineParser.m_UDPPort<FirstPort+10)
 				Port=CmdLineParser.m_UDPPort;
 			else if (RestoreChannelInfo.Channel>=0 && RestoreChannelInfo.Channel<10)
-				Port=1234+RestoreChannelInfo.Channel;
-			if (Port!=1234)
-				MainWindow.PostCommand(CM_CHANNEL_FIRST+(Port-1234));
+				Port=FirstPort+RestoreChannelInfo.Channel;
+			if (Port!=FirstPort)
+				MainWindow.SendCommand(CM_CHANNEL_FIRST+(Port-FirstPort));
 			if (CmdLineParser.m_ControllerChannel>0)
 				SetCommandLineChannel(&CmdLineParser);
 		} else if (AppMain.IsFirstExecute()) {
@@ -7611,7 +7658,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				CoreEngine.m_DtvEngine.m_BonSrcDecoder.GetCurChannel(),0);
 
 			if (i>=0)
-				MainWindow.PostCommand(CM_CHANNEL_FIRST+i);
+				MainWindow.SendCommand(CM_CHANNEL_FIRST+i);
 		}
 
 		if (CmdLineParser.m_fRecord)

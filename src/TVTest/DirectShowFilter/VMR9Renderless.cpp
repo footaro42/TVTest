@@ -753,13 +753,13 @@ bool CVideoRenderer_VMR9Renderless::Initialize(IGraphBuilder *pFilterGraph,IPin 
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer9,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(TEXT("VMR-9のインスタンスを作成できません。"));
+		SetError(hr,TEXT("VMR-9のインスタンスを作成できません。"));
 		return false;
 	}
 	hr=pFilterGraph->AddFilter(m_pRenderer,L"VMR9");
 	if (FAILED(hr)) {
 		CHECK_RELEASE(m_pRenderer);
-		SetError(TEXT("VMR-9をフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("VMR-9をフィルタグラフに追加できません。"));
 		return false;
 	}
 
@@ -782,18 +782,19 @@ bool CVideoRenderer_VMR9Renderless::Initialize(IGraphBuilder *pFilterGraph,IPin 
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
-		SetError(TEXT("IFilterGraph2を取得できません。"));
+		SetError(hr,TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
 								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
 	m_hwndRender=hwndRender;
+	ClearError();
 	return true;
 }
 

@@ -27,8 +27,8 @@ bool CRecordTime::SetCurrentTime()
 	SYSTEMTIME st;
 
 	::GetLocalTime(&st);
-	::SystemTimeToFileTime(&st,&m_Time);
 	m_TickTime=::GetTickCount();
+	::SystemTimeToFileTime(&st,&m_Time);
 	return true;
 }
 
@@ -296,12 +296,14 @@ bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
 	if (!m_RecordTask.Start(pDtvEngine,pszFileName)) {
 		pDtvEngine->SetWriteCurServiceOnly(false);
 		pDtvEngine->SetDescrambleCurServiceOnly(fDescrambleCurOnly);
+		SetError(pDtvEngine->m_FileWriter.GetLastErrorException());
 		return false;
 	}
 	m_pDtvEngine=pDtvEngine;
 	m_fRecording=true;
 	m_fReserved=false;
 	m_StartTimeSpec.Type=TIME_NOTSPECIFIED;
+	ClearError();
 	return true;
 }
 
@@ -313,7 +315,7 @@ void CRecordManager::StopRecord()
 		m_fRecording=false;
 		if (m_fCurServiceOnly)
 			m_pDtvEngine->SetWriteCurServiceOnly(false);
-		//SAFE_DELETE(m_pszFileName);
+		//SAFE_DELETE_ARRAY(m_pszFileName);
 		m_pDtvEngine=NULL;
 	}
 }
@@ -381,10 +383,12 @@ bool CRecordManager::QueryStart(int Offset) const
 			DWORD Diff;
 
 			Diff=DiffTime(m_ReserveTime.GetTickTime(),::GetTickCount());
-			if ((LONGLONG)Offset<=-(LONGLONG)Diff)
-				return true;
-			Diff+=Offset;
-			if (Diff>=m_StartTimeSpec.Time.Duration)
+			if (Offset!=0) {
+				if ((LONGLONG)Offset<=-(LONGLONG)Diff)
+					return true;
+				Diff+=Offset;
+			}
+			if ((ULONGLONG)Diff>=m_StartTimeSpec.Time.Duration)
 				return true;
 		}
 		break;
@@ -416,10 +420,12 @@ bool CRecordManager::QueryStop(int Offset) const
 			DWORD Diff;
 
 			Diff=DiffTime(m_RecordTask.GetStartTime(),::GetTickCount());
-			if ((LONGLONG)Offset<=-(LONGLONG)Diff)
-				return true;
-			Diff+=Offset;
-			if (Diff>=m_StopTimeSpec.Time.Duration)
+			if (Offset!=0) {
+				if ((LONGLONG)Offset<=-(LONGLONG)Diff)
+					return true;
+				Diff+=Offset;
+			}
+			if ((ULONGLONG)Diff>=m_StopTimeSpec.Time.Duration)
 				return true;
 		}
 		break;
@@ -1221,8 +1227,11 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 			::SetProp(hDlg,TEXT("This"),pThis);
 			if (pThis->m_szSaveFolder[0]=='\0') {
-				::GetModuleFileName(NULL,pThis->m_szSaveFolder,lengthof(pThis->m_szSaveFolder));
-				*(::PathFindFileName(pThis->m_szSaveFolder)-1)='\0';
+				if (!::SHGetSpecialFolderPath(hDlg,pThis->m_szSaveFolder,
+											  CSIDL_MYVIDEO,FALSE)
+						&& !::SHGetSpecialFolderPath(hDlg,pThis->m_szSaveFolder,
+													 CSIDL_PERSONAL,FALSE))
+					pThis->m_szSaveFolder[0]='\0';
 			}
 			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
 			::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,pThis->m_szSaveFolder);

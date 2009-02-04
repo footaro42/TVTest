@@ -288,7 +288,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
 				*/
 			}
-			if (GetAppClass().GetCoreEngine()->IsUDPDriver())
+			if (GetAppClass().GetCoreEngine()->IsNetworkDriver())
 				EnableDlgItems(hDlg,IDC_CHANNELSCAN_FIRST,IDC_CHANNELSCAN_LAST,false);
 		}
 		return TRUE;
@@ -594,7 +594,9 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			const CChannelInfo *pChInfo=reinterpret_cast<const CChannelInfo*>(lParam);
 			HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
 
+			pThis->m_fChanging=true;
 			pThis->InsertChannelInfo(ListView_GetItemCount(hwndList),pChInfo);
+			pThis->m_fChanging=false;
 			::UpdateWindow(hwndList);
 		}
 		return TRUE;

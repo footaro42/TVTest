@@ -74,10 +74,16 @@ const bool CFileWriter::OpenFile(LPCTSTR lpszFileName, BYTE bFlags)
 	m_llWriteCount = 0U;
 
 	// ファイルを開く
-	if (!m_OutFile.Open(lpszFileName, CNCachedFile::CNF_WRITE | CNCachedFile::CNF_NEW | bFlags,m_BufferSize))
+	if (!m_OutFile.Open(lpszFileName, CNCachedFile::CNF_WRITE | CNCachedFile::CNF_NEW | bFlags,m_BufferSize)) {
+		TCHAR szMessage[1024];
+
+		m_OutFile.GetLastErrorMessage(szMessage,1024);
+		SetError(m_OutFile.GetLastError(),TEXT("ファイルが開けません。"),NULL,szMessage);
 		return false;
+	}
 	m_bWriteError=false;
 	m_bPause=false;
+	ClearError();
 	return true;
 }
 

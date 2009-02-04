@@ -378,6 +378,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Error.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Grabber.cpp"
 				>
 			</File>
@@ -620,6 +624,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Error.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Grabber.h"
 				>
 			</File>
@@ -790,7 +798,7 @@
 					>
 				</File>
 				<File
-					RelativePath="..\RecTest\BonTsEngine\BonBaseClass.h"
+					RelativePath=".\BonTsEngine\BonBaseClass.h"
 					>
 				</File>
 				<File
@@ -895,7 +903,7 @@
 					>
 				</File>
 				<File
-					RelativePath="..\RecTest\BonTsEngine\BonBaseClass.cpp"
+					RelativePath=".\BonTsEngine\BonBaseClass.cpp"
 					>
 				</File>
 				<File

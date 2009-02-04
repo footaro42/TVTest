@@ -10,6 +10,7 @@ public:
 	enum DriverType {
 		DRIVER_UNKNOWN,
 		DRIVER_UDP,
+		DRIVER_TCP,
 		DRIVER_HDUS
 	};
 	enum { MAX_VOLUME=100 };
@@ -70,6 +71,9 @@ public:
 	CCardReader::ReaderType GetCardReaderType() const { return m_CardReaderType; }
 	DriverType GetDriverType() const { return m_DriverType; }
 	bool IsUDPDriver() const { return m_DriverType==DRIVER_UDP; }
+	bool IsTCPDriver() const { return m_DriverType==DRIVER_TCP; }
+	bool IsNetworkDriver() const { return IsUDPDriver() || IsTCPDriver(); }
+	bool IsNetworkDriverFileName(LPCTSTR pszFileName) const;
 	bool SetPacketBuffering(bool fBuffering);
 	bool GetPacketBuffering() const { return m_fPacketBuffering; }
 	bool SetPacketBufferLength(DWORD BufferLength);

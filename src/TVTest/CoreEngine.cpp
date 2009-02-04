@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <shlwapi.h>
 #include "TVTest.h"
 #include "CoreEngine.h"
 
@@ -119,6 +120,8 @@ bool CCoreEngine::OpenDriver()
 			m_DriverType=DRIVER_HDUS;
 		else if (::_tcsncmp(pszName,TEXT("UDP/"),4)==0)
 			m_DriverType=DRIVER_UDP;
+		else if (::_tcsncmp(pszName,TEXT("TCP"),3)==0)
+			m_DriverType=DRIVER_TCP;
 	}
 	return true;
 }
@@ -233,6 +236,17 @@ bool CCoreEngine::SetCardReaderType(CCardReader::ReaderType Type)
 		m_CardReaderType=Type;
 	}
 	return true;
+}
+
+
+bool CCoreEngine::IsNetworkDriverFileName(LPCTSTR pszFileName) const
+{
+	LPCTSTR pszName=::PathFindFileName(pszFileName);
+
+	if (::lstrcmpi(pszName,TEXT("BonDriver_UDP.dll"))==0
+			|| ::lstrcmpi(pszName,TEXT("BonDriver_TCP.dll"))==0)
+		return true;
+	return false;
 }
 
 

@@ -17,6 +17,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#pragma comment(lib,"quartz.lib")
+
+
 #define LOCK_TIMEOUT 2000
 
 
@@ -167,17 +170,19 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 	try {
 		// フィルタグラフマネージャを構築する
-		if (::CoCreateInstance(CLSID_FilterGraph,NULL,CLSCTX_INPROC_SERVER,
-				IID_IGraphBuilder,reinterpret_cast<LPVOID*>(&m_pFilterGraph)) != S_OK) {
-			throw CBonException(TEXT("フィルタグラフマネージャを作成できません。"));
+		hr=::CoCreateInstance(CLSID_FilterGraph,NULL,CLSCTX_INPROC_SERVER,
+				IID_IGraphBuilder,reinterpret_cast<LPVOID*>(&m_pFilterGraph));
+		if (hr != S_OK) {
+			throw CBonException(hr,TEXT("フィルタグラフマネージャを作成できません。"));
 		}
 #ifdef _DEBUG
 		AddToRot(m_pFilterGraph, &m_dwRegister);
 #endif
 
 		// IMediaControlインタフェースのクエリー
-		if (m_pFilterGraph->QueryInterface(IID_IMediaControl, reinterpret_cast<LPVOID*>(&m_pMediaControl)) != S_OK) {
-			throw CBonException(TEXT("メディアコントロールを取得できません。"));
+		hr=m_pFilterGraph->QueryInterface(IID_IMediaControl, reinterpret_cast<LPVOID*>(&m_pMediaControl));
+		if (hr != S_OK) {
+			throw CBonException(hr,TEXT("メディアコントロールを取得できません。"));
 		}
 
 		Trace(TEXT("ソースフィルタの接続中..."));
@@ -187,11 +192,12 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			// インスタンス作成
 			m_pSrcFilter = CBonSrcFilter::CreateInstance(NULL, &hr, &m_pBonSrcFilterClass);
 			if (m_pSrcFilter==NULL || hr!=S_OK)
-				throw CBonException(TEXT("ソースフィルタを作成できません。"));
+				throw CBonException(hr,TEXT("ソースフィルタを作成できません。"));
 			m_pBonSrcFilterClass->SetOutputWhenPaused(RendererType==CVideoRenderer::RENDERER_DEFAULT);
 			// フィルタグラフに追加
-			if (m_pFilterGraph->AddFilter(m_pSrcFilter, L"BonSrcFilter") != S_OK)
-				throw CBonException(TEXT("ソースフィルタをフィルタグラフに追加できません。"));
+			hr=m_pFilterGraph->AddFilter(m_pSrcFilter, L"BonSrcFilter");
+			if (hr != S_OK)
+				throw CBonException(hr,TEXT("ソースフィルタをフィルタグラフに追加できません。"));
 			// 出力ピンを取得
 			pOutput = DirectShowUtil::GetFilterPin(m_pSrcFilter,PINDIR_OUTPUT);
 			if (pOutput==NULL)
@@ -207,30 +213,34 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			IReferenceClock *pMp2DemuxRefClock;
 			IMpeg2Demultiplexer *pMpeg2Demuxer;
 
-			if (::CoCreateInstance(CLSID_MPEG2Demultiplexer,NULL,
+			hr=::CoCreateInstance(CLSID_MPEG2Demultiplexer,NULL,
 					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
-					reinterpret_cast<LPVOID*>(&m_pMp2DemuxFilter))!=S_OK)
-				throw CBonException(TEXT("MPEG-2 Demultiplexerフィルタを作成できません。"),
+					reinterpret_cast<LPVOID*>(&m_pMp2DemuxFilter));
+			if (hr!=S_OK)
+				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerフィルタを作成できません。"),
 									TEXT("MPEG-2 Demultiplexerフィルタがインストールされているか確認してください。"));
-			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pMp2DemuxFilter,L"Mpeg2Demuxer",&pOutput))
-				throw CBonException(TEXT("MPEG-2 Demultiplexerをフィルタグラフに追加できません。"));
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+								m_pMp2DemuxFilter,L"Mpeg2Demuxer",&pOutput);
+			if (FAILED(hr))
+				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerをフィルタグラフに追加できません。"));
 			// この時点でpOutput==NULLのはずだが念のため
 			SAFE_RELEASE(pOutput);
 			// IReferenceClockインタフェースのクエリー
-			if (m_pMp2DemuxFilter->QueryInterface(IID_IReferenceClock,
-						reinterpret_cast<LPVOID*>(&pMp2DemuxRefClock)) != S_OK)
-				throw CBonException(TEXT("IReferenceClockを取得できません。"));
+			hr=m_pMp2DemuxFilter->QueryInterface(IID_IReferenceClock,
+						reinterpret_cast<LPVOID*>(&pMp2DemuxRefClock));
+			if (hr != S_OK)
+				throw CBonException(hr,TEXT("IReferenceClockを取得できません。"));
 			// リファレンスクロック選択
 			hr=m_pMp2DemuxFilter->SetSyncSource(pMp2DemuxRefClock);
 			pMp2DemuxRefClock->Release();
 			if (hr != S_OK)
-				throw CBonException(TEXT("リファレンスクロックを設定できません。"));
+				throw CBonException(hr,TEXT("リファレンスクロックを設定できません。"));
 
 			// IMpeg2Demultiplexerインタフェースのクエリー
-			if (FAILED(m_pMp2DemuxFilter->QueryInterface(IID_IMpeg2Demultiplexer,
-									reinterpret_cast<LPVOID*>(&pMpeg2Demuxer))))
-				throw CBonException(TEXT("MPEG-2 Demultiplexerインターフェースを取得できません。"),
+			hr=m_pMp2DemuxFilter->QueryInterface(IID_IMpeg2Demultiplexer,
+									reinterpret_cast<LPVOID*>(&pMpeg2Demuxer));
+			if (FAILED(hr))
+				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerインターフェースを取得できません。"),
 									TEXT("互換性のないスプリッタの優先度がMPEG-2 Demultiplexerより高くなっている可能性があります。"));
 
 			// 映像メディアフォーマット設定
@@ -252,9 +262,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			VideoHeader.bmiHeader.biWidth = 720;
 			VideoHeader.bmiHeader.biHeight = 480;
 			// 映像出力ピン作成
-			if (pMpeg2Demuxer->CreateOutputPin(&MediaTypeVideo,L"Video",&pOutputVideo) != S_OK) {
+			hr=pMpeg2Demuxer->CreateOutputPin(&MediaTypeVideo,L"Video",&pOutputVideo);
+			if (hr != S_OK) {
 				pMpeg2Demuxer->Release();
-				throw CBonException(TEXT("MPEG-2 Demultiplexerの映像出力ピンを作成できません。"));
+				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerの映像出力ピンを作成できません。"));
 			}
 			// 音声メディアフォーマット設定	
 			MediaTypeAudio.InitMediaType();
@@ -268,13 +279,15 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			hr=pMpeg2Demuxer->CreateOutputPin(&MediaTypeAudio,L"Audio",&pOutputAudio);
 			pMpeg2Demuxer->Release();
 			if (hr != S_OK)
-				throw CBonException(TEXT("MPEG-2 Demultiplexerの音声出力ピンを作成できません。"));
+				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerの音声出力ピンを作成できません。"));
 			// 映像出力ピンのIMPEG2PIDMapインタフェースのクエリー
-			if (pOutputVideo->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxVideoMap) != S_OK)
-				throw CBonException(TEXT("映像出力ピンのIMPEG2PIDMapを取得できません。"));
+			hr=pOutputVideo->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxVideoMap);
+			if (hr != S_OK)
+				throw CBonException(hr,TEXT("映像出力ピンのIMPEG2PIDMapを取得できません。"));
 			// 音声出力ピンのIMPEG2PIDMapインタフェースのクエリ
-			if (pOutputAudio->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxAudioMap) != S_OK)
-				throw CBonException(TEXT("音声出力ピンのIMPEG2PIDMapを取得できません。"));
+			hr=pOutputAudio->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxAudioMap);
+			if (hr != S_OK)
+				throw CBonException(hr,TEXT("音声出力ピンのIMPEG2PIDMapを取得できません。"));
 		}
 
 		Trace(TEXT("MPEG-2シーケンスフィルタの接続中..."));
@@ -284,12 +297,13 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			// インスタンス作成
 			m_pMpeg2SeqFilter = CMpeg2SequenceFilter::CreateInstance(NULL, &hr,&m_pMpeg2SeqClass);
 			if((!m_pMpeg2SeqFilter) || (hr != S_OK))
-				throw CBonException(TEXT("MPEG-2シーケンスフィルタを作成できません。"));
+				throw CBonException(hr,TEXT("MPEG-2シーケンスフィルタを作成できません。"));
 			m_pMpeg2SeqClass->SetRecvCallback(OnMpeg2VideoInfo,this);
 			// フィルタの追加と接続
-			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pMpeg2SeqFilter,L"Mpeg2SequenceFilter",&pOutputVideo))
-				throw CBonException(TEXT("MPEG-2シーケンスフィルタをフィルタグラフに追加できません。"));
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					m_pMpeg2SeqFilter,L"Mpeg2SequenceFilter",&pOutputVideo);
+			if (FAILED(hr))
+				throw CBonException(hr,TEXT("MPEG-2シーケンスフィルタをフィルタグラフに追加できません。"));
 		}
 
 		Trace(TEXT("AACデコーダの接続中..."));
@@ -300,11 +314,12 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			// CAacDecFilterインスタンス作成
 			m_pAacDecFilter=CAacDecFilter::CreateInstance(NULL,&hr,&m_pAacDecClass);
 			if (!m_pAacDecFilter || hr!=S_OK)
-				throw CBonException(TEXT("AACデコーダフィルタを作成できません。"));
+				throw CBonException(hr,TEXT("AACデコーダフィルタを作成できません。"));
 			// フィルタの追加と接続
-			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pAacDecFilter,L"AacDecFilter",&pOutputAudio))
-				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+								m_pAacDecFilter,L"AacDecFilter",&pOutputAudio);
+			if (FAILED(hr))
+				throw CBonException(hr,TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
 		}
 #else
 		/* CAacParserFilter */
@@ -314,10 +329,11 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			// CAacParserFilterインスタンス作成
 			m_pAacParserFilter=CAacParserFilter::CreateInstance(NULL,&hr,&m_pAacParserClass);
 			if (!m_pAacParserFilter || hr!=S_OK)
-				throw CBonException(TEXT("AACパーサフィルタを作成できません。"));
+				throw CBonException(hr,TEXT("AACパーサフィルタを作成できません。"));
 			// フィルタの追加と接続
-			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pAacParserFilter,L"AacParserFilter",&pOutputAudio))
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+						m_pAacParserFilter,L"AacParserFilter",&pOutputAudio);
+			if (FAILED(hr))
 				throw CBonException(TEXT("AACパーサフィルタをフィルタグラフに追加できません。"));
 			m_pAacParserFilter->Release();
 		}
@@ -340,9 +356,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 				if (FilterFinder.GetFilterInfo(i,&idAac,szAacDecoder,128)) {
 					TRACE(TEXT("AacDecoder %d : %s\n"),i,szAacDecoder);
 					if (!bConnectSuccess) {
-						if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+						hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 								idAac,szAacDecoder,&m_pAacDecFilter,
-								&pOutputAudio)) {
+								&pOutputAudio);
+						if (SUCCEEDED(hr)) {
 							TRACE(TEXT("AAC decoder connected : %s\n"),szAacDecoder);
 							bConnectSuccess=true;
 							//break;
@@ -369,10 +386,11 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			// インスタンス作成
 			m_pPcmSelFilter=CPcmSelectFilter::CreateInstance(NULL,&hr,&m_pPcmSelClass);
 			if (!m_pPcmSelFilter || hr!=S_OK)
-				throw CBonException(TEXT("PCMセレクトフィルタを作成できません。"));
+				throw CBonException(TEXT(hr,"PCMセレクトフィルタを作成できません。"));
 			// フィルタの追加と接続
-			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pPcmSelFilter,L"PcmSelFilter",&pOutputAudio))
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+								m_pPcmSelFilter,L"PcmSelFilter",&pOutputAudio);
+			if (FAILED(hr))
 				throw CBonException(TEXT("PCMセレクトフィルタをフィルタグラフに追加できません。"));
 		}
 #endif
@@ -397,9 +415,10 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 					if (pszMpeg2Decoder!=NULL && pszMpeg2Decoder[0]!='\0'
 							&& ::lstrcmpi(szMpeg2Decoder,pszMpeg2Decoder)!=0)
 						continue;
-					if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+					hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 							idMpeg2Vid,szMpeg2Decoder,&m_pMpeg2DecFilter,
-							&pOutputVideo,NULL,true)) {
+							&pOutputVideo,NULL,true);
+					if (SUCCEEDED(hr)) {
 						bConnectSuccess=true;
 						break;
 					}
@@ -411,7 +430,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			if (bConnectSuccess) {
 				m_pszMpeg2DecoderName=StdUtil::strdup(szMpeg2Decoder);
 			} else {
-				throw CBonException(TEXT("MPEG-2デコーダフィルタをフィルタグラフに追加できません。"),
+				throw CBonException(hr,TEXT("MPEG-2デコーダフィルタをフィルタグラフに追加できません。"),
 									TEXT("設定で有効なMPEG-2デコーダが選択されているか確認してください。"));
 			}
 		}
@@ -426,8 +445,9 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 			m_pGrabber->Init();
 			pGrabberFilter=m_pGrabber->GetGrabberFilter();
-			if (!DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-									pGrabberFilter,L"Grabber",&pOutputVideo)) {
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+									pGrabberFilter,L"Grabber",&pOutputVideo);
+			if (FAILED(hr)) {
 				delete m_pGrabber;
 				m_pGrabber=NULL;
 			}
@@ -458,8 +478,9 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
 					reinterpret_cast<LPVOID*>(&pAudioRenderer)))) {
 				//if (SUCCEEDED(m_pFilterGraph->AddFilter(pAudioRenderer,L"Audio Renderer"))) {
-				if (DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							pAudioRenderer,L"Audio Renderer",&pOutputAudio)) {
+				hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+							pAudioRenderer,L"Audio Renderer",&pOutputAudio);
+				if (SUCCEEDED(hr)) {
 					IMediaFilter *pMediaFilter;
 
 					if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IMediaFilter,
@@ -479,14 +500,16 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 			}
 #endif
 			if (!fOK) {
-				if (FAILED(m_pFilterGraph->Render(pOutputAudio)))
-					throw CBonException(TEXT("音声レンダラを構築できません。"),
+				hr=m_pFilterGraph->Render(pOutputAudio);
+				if (FAILED(hr))
+					throw CBonException(hr,TEXT("音声レンダラを構築できません。"),
 						TEXT("有効なサウンドデバイスが存在するか確認してください。"));
 				m_pFilterGraph->SetDefaultSyncSource();
 			}
 		} else {
-			if (FAILED(m_pFilterGraph->Render(pOutputAudio)))
-				throw CBonException(TEXT("音声レンダラを構築できません。"),
+			hr=m_pFilterGraph->Render(pOutputAudio);
+			if (FAILED(hr))
+				throw CBonException(hr,TEXT("音声レンダラを構築できません。"),
 					TEXT("有効なサウンドデバイスが存在するか確認してください。"));
 		}
 
@@ -494,8 +517,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		m_hOwnerWnd = hOwnerHwnd;
 		RECT rc;
 		::GetClientRect(hOwnerHwnd, &rc);
-		m_wVideoWindowX = rc.right;
-		m_wVideoWindowY = rc.bottom;
+		m_wVideoWindowX = (WORD)rc.right;
+		m_wVideoWindowY = (WORD)rc.bottom;
 
 		m_bInit=true;
 
@@ -512,6 +535,14 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		}
 	} catch (CBonException &Exception) {
 		SetError(Exception);
+		if (Exception.GetErrorCode()!=0) {
+			TCHAR szText[MAX_ERROR_TEXT_LEN+32];
+			int Length;
+
+			Length=::AMGetErrorText(Exception.GetErrorCode(),szText,MAX_ERROR_TEXT_LEN);
+			::wsprintf(szText+Length,TEXT("\nエラーコード(HRESULT) 0x%08X"),Exception.GetErrorCode());
+			SetErrorSystemMessage(szText);
+		}
 		CloseViewer();
 		TRACE(TEXT("フィルタグラフ構築失敗 : %s\n"), GetLastErrorText());
 		return false;
@@ -519,6 +550,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 
 	SAFE_RELEASE(pOutputVideo);
 	SAFE_RELEASE(pOutputAudio);
+
+	ClearError();
 
 	TRACE(TEXT("フィルタグラフ構築成功\n"));
 	return true;

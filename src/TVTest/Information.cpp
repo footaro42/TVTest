@@ -173,10 +173,9 @@ void CInformation::SetAspectRatio(int AspectX,int AspectY)
 
 void CInformation::SetDecoderName(LPCTSTR pszName)
 {
-	if (m_pszDecoderName==NULL || lstrcmp(pszName,m_pszDecoderName)!=0) {
-		delete [] m_pszDecoderName;
-		m_pszDecoderName=new TCHAR[lstrlen(pszName)+1];
-		lstrcpy(m_pszDecoderName,pszName);
+	if (m_pszDecoderName==NULL || pszName==NULL
+			|| lstrcmp(pszName,m_pszDecoderName)!=0) {
+		ReplaceString(&m_pszDecoderName,pszName);
 		UpdateItem(INFO_ITEM_DECODER);
 	}
 }

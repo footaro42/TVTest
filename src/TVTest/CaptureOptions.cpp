@@ -2,6 +2,7 @@
 #include <commctrl.h>
 #include <shlwapi.h>
 #include "TVTest.h"
+#include "AppMain.h"
 #include "CaptureOptions.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -38,7 +39,7 @@ const CCaptureOptions::PercentageType CCaptureOptions::m_PercentageList[PERCENTA
 
 CCaptureOptions::CCaptureOptions()
 {
-	m_szSaveFolder[0]='\0';
+	GetAppClass().GetAppDirectory(m_szSaveFolder);
 	::lstrcpy(m_szFileName,TEXT("Capture"));
 	m_SaveFormat=0;
 	m_JPEGQuality=90;

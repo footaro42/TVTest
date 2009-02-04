@@ -425,7 +425,7 @@ bool DirectShowUtil::AppendMpeg2Decoder_and_Connect(IGraphBuilder *pFilterGraph,
 // ppCurrentOutputPin は正常終了なら解放され、フィルタの出力ピンが*ppNewOutputPinになる。
 // ppNewOutputPin==NULL の場合、フィルタの出力ピンが*ppCurrentOutputPinになる。元の*ppCurrentOutputPinは解放される
 //
-bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
+HRESULT DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 				IBaseFilter *pFilter,LPCWSTR lpwszFilterName,
 				IPin **ppCurrentOutputPin,IPin **ppNewOutputPin,bool fDirect)
 {
@@ -433,7 +433,7 @@ bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 
 	// ポインタチェック
 	if (!pFilterGraph || !pFilter || !ppCurrentOutputPin)
-		return false;
+		return E_INVALIDARG;
 	// 同じピンアドレスなら New==NULL で入力されたのと同義
 	if (ppCurrentOutputPin==ppNewOutputPin)
 		ppNewOutputPin = NULL;
@@ -442,13 +442,13 @@ bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 	hr = pFilterGraph->AddFilter(pFilter, lpwszFilterName);
 	if (FAILED(hr)) {
 		// フィルタに追加失敗
-		return false;
+		return hr;
 	}
 	IPin *pInput = GetFilterPin(pFilter, PINDIR_INPUT);
 	if (!pInput) {
 		// 入力ピンが見つからない
 		pFilterGraph->RemoveFilter(pFilter);
-		return false;
+		return E_FAIL;
 	}
 	// 接続
 	if (fDirect)
@@ -459,7 +459,7 @@ bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 		// 接続できない
 		SAFE_RELEASE(pInput);
 		pFilterGraph->RemoveFilter(pFilter);
-		return false;
+		return hr;
 	}
 	// 接続に使ったピン解放
 	SAFE_RELEASE(*ppCurrentOutputPin);
@@ -478,7 +478,7 @@ bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 #ifdef _DEBUG
 	LONG refCount = GetRefCount(pFilter);
 #endif
-	return true;
+	return S_OK;
 }
 
 // 指定フィルタ経由してピン接続を行う(主に入力=1/出力=1の経由型フィルタ接続用)
@@ -487,7 +487,7 @@ bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 // AppendFilterAndConnect(Filter指定版)の説明を参照。
 // guidFilterは有効なDirectShowフィルタのGUIDを指定する。
 // ppAppendedFilter は追加したフィルタを受け取る。
-bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
+HRESULT DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 	const CLSID guidFilter,LPCWSTR lpwszFilterName,IBaseFilter **ppAppendedFilter,
 	IPin **ppCurrentOutputPin,IPin **ppNewOutputPin,bool fDirect)
 {
@@ -496,22 +496,22 @@ bool DirectShowUtil::AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 				IID_IBaseFilter, reinterpret_cast<LPVOID*>(ppAppendedFilter));
 	if (FAILED(hr)) {
 		// インスタンス作成失敗
-		return false;
+		return hr;
 	}
-	bool bRet = AppendFilterAndConnect(pFilterGraph,*ppAppendedFilter,lpwszFilterName,
-									ppCurrentOutputPin,ppNewOutputPin,fDirect);
-	if (!bRet) {
+	hr = AppendFilterAndConnect(pFilterGraph,*ppAppendedFilter,lpwszFilterName,
+								ppCurrentOutputPin,ppNewOutputPin,fDirect);
+	if (FAILED(hr)) {
 		SAFE_RELEASE(*ppAppendedFilter);
-		return false;
+		return hr;
 	}
-	return true;
+	return S_OK;
 }
 
 // 色空間変換フィルタを経由してピン接続を行う(特定エフェクトフィルタへの対応のための色空間変換が必要な場合のため)
 //
 // AppendFilterAndConnect(Filter指定版)の説明を参照
 // ppColorSpaceConverterFilter は追加したフィルタを受け取る為のポインタ
-bool DirectShowUtil::AppendColorSpaceConverterFilter_and_Connect(IGraphBuilder *pFilterGraph, IBaseFilter **ppColorSpaceConverterFilter, IPin **ppCurrentOutputPin, IPin **ppNewOutputPin)
+HRESULT DirectShowUtil::AppendColorSpaceConverterFilter_and_Connect(IGraphBuilder *pFilterGraph, IBaseFilter **ppColorSpaceConverterFilter, IPin **ppCurrentOutputPin, IPin **ppNewOutputPin)
 {
 	return AppendFilterAndConnect(pFilterGraph,CLSID_ColorSpaceConverter,L"Color Space Converter",ppColorSpaceConverterFilter,ppCurrentOutputPin,ppNewOutputPin);
 }

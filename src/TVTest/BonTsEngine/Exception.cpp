@@ -41,43 +41,48 @@ CBonException::CBonException(int ErrorCode,LPCTSTR pszFormat, ...)
 CBonException::CBonException()
 	: m_pszText(NULL)
 	, m_pszAdvise(NULL)
+	, m_pszSystemMessage(NULL)
 	, m_ErrorCode(0)
 {
 }
 
 
-CBonException::CBonException(LPCTSTR pszText,LPCTSTR pszAdvise)
+CBonException::CBonException(LPCTSTR pszText,LPCTSTR pszAdvise,LPCTSTR pszSystemMessage)
 	: m_pszText(NULL)
 	, m_pszAdvise(NULL)
+	, m_pszSystemMessage(NULL)
 	, m_ErrorCode(0)
 {
 	SetText(pszText);
 	SetAdvise(pszAdvise);
+	SetSystemMessage(pszSystemMessage);
 }
 
 
-CBonException::CBonException(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise)
+CBonException::CBonException(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise,LPCTSTR pszSystemMessage)
 	: m_pszText(NULL)
 	, m_pszAdvise(NULL)
+	, m_pszSystemMessage(NULL)
 	, m_ErrorCode(ErrorCode)
 {
 	SetText(pszText);
 	SetAdvise(pszAdvise);
+	SetSystemMessage(pszSystemMessage);
 }
 
 
 CBonException::CBonException(const CBonException &Exception)
+	: m_pszText(NULL)
+	, m_pszAdvise(NULL)
+	, m_pszSystemMessage(NULL)
 {
-	m_pszText=NULL;
-	m_pszAdvise=NULL;
 	*this=Exception;
 }
 
 
 CBonException::~CBonException()
 {
-	delete [] m_pszText;
-	delete [] m_pszAdvise;
+	Clear();
 }
 
 
@@ -86,6 +91,7 @@ CBonException &CBonException::operator=(const CBonException &Exception)
 	if (&Exception!=this) {
 		SetText(Exception.m_pszText);
 		SetAdvise(Exception.m_pszAdvise);
+		SetSystemMessage(Exception.m_pszSystemMessage);
 		m_ErrorCode=Exception.m_ErrorCode;
 	}
 	return *this;
@@ -124,6 +130,22 @@ void CBonException::SetAdvise(LPCTSTR pszAdvise)
 }
 
 
+void CBonException::SetSystemMessage(LPCTSTR pszSystemMessage)
+{
+	if (m_pszSystemMessage!=NULL) {
+		delete [] m_pszSystemMessage;
+		m_pszSystemMessage=NULL;
+	}
+	if (pszSystemMessage!=NULL) {
+		try {
+			m_pszSystemMessage=StdUtil::strdup(pszSystemMessage);
+		} catch (std::bad_alloc&) {
+			//m_pszSystemMessage=NULL;
+		}
+	}
+}
+
+
 void CBonException::Clear()
 {
 	if (m_pszText!=NULL) {
@@ -133,6 +155,10 @@ void CBonException::Clear()
 	if (m_pszAdvise!=NULL) {
 		delete [] m_pszAdvise;
 		m_pszAdvise=NULL;
+	}
+	if (m_pszSystemMessage!=NULL) {
+		delete [] m_pszSystemMessage;
+		m_pszSystemMessage=NULL;
 	}
 	m_ErrorCode=0;
 }
@@ -176,25 +202,33 @@ void CBonErrorHandler::SetErrorAdvise(LPCTSTR pszAdvise)
 }
 
 
+void CBonErrorHandler::SetErrorSystemMessage(LPCTSTR pszSystemMessage)
+{
+	m_Exception.SetSystemMessage(pszSystemMessage);
+}
+
+
 void CBonErrorHandler::SetErrorCode(int ErrorCode)
 {
 	m_Exception.m_ErrorCode=ErrorCode;
 }
 
 
-void CBonErrorHandler::SetError(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise)
+void CBonErrorHandler::SetError(int ErrorCode,LPCTSTR pszText,LPCTSTR pszAdvise,LPCTSTR pszSystemMessage)
 {
 	m_Exception.m_ErrorCode=ErrorCode;
 	m_Exception.SetText(pszText);
 	m_Exception.SetAdvise(pszAdvise);
+	m_Exception.SetSystemMessage(pszSystemMessage);
 }
 
 
-void CBonErrorHandler::SetError(LPCTSTR pszText,LPCTSTR pszAdvise)
+void CBonErrorHandler::SetError(LPCTSTR pszText,LPCTSTR pszAdvise,LPCTSTR pszSystemMessage)
 {
 	m_Exception.m_ErrorCode=0;
 	m_Exception.SetText(pszText);
 	m_Exception.SetAdvise(pszAdvise);
+	m_Exception.SetSystemMessage(pszSystemMessage);
 }
 
 
@@ -219,6 +253,12 @@ LPCTSTR CBonErrorHandler::GetLastErrorText() const
 LPCTSTR CBonErrorHandler::GetLastErrorAdvise() const
 {
 	return m_Exception.GetAdvise();
+}
+
+
+LPCTSTR CBonErrorHandler::GetLastErrorSystemMessage() const
+{
+	return m_Exception.GetSystemMessage();
 }
 
 

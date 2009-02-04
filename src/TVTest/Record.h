@@ -50,7 +50,7 @@ public:
 	LPCTSTR GetFileName() const;
 };
 
-class CRecordManager {
+class CRecordManager : public CBonErrorHandler {
 public:
 	enum TimeSpecType {
 		TIME_NOTSPECIFIED,

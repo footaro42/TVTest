@@ -68,7 +68,10 @@ bool AdjustDialogPos(HWND hwndOwner,HWND hDlg)
 
 	if (!SystemParametersInfo(SPI_GETWORKAREA,0,&rcWork,0))
 		return false;
-	GetWindowRect(hwndOwner,&rcWnd);
+	if (hwndOwner)
+		GetWindowRect(hwndOwner,&rcWnd);
+	else
+		rcWnd=rcWork;
 	GetWindowRect(hDlg,&rcDlg);
 	x=((rcWnd.right-rcWnd.left)-(rcDlg.right-rcDlg.left))/2+rcWnd.left;
 	if (x<rcWork.left)

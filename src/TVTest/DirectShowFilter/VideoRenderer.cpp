@@ -72,7 +72,7 @@ bool CVideoRenderer_Default::InitializeBasicVideo(IGraphBuilder *pFilterGraph,
 
 	hr=pFilterGraph->QueryInterface(IID_IVideoWindow,reinterpret_cast<LPVOID *>(&m_pVideoWindow));
 	if (FAILED(hr)) {
-		SetError(TEXT("IVideoWindowを取得できません。"));
+		SetError(hr,TEXT("IVideoWindowを取得できません。"));
 		return false;
 	}
 	m_pVideoWindow->put_Owner((OAHWND)hwndRender);
@@ -90,7 +90,7 @@ bool CVideoRenderer_Default::InitializeBasicVideo(IGraphBuilder *pFilterGraph,
 	hr=pFilterGraph->QueryInterface(IID_IBasicVideo2,reinterpret_cast<LPVOID *>(&m_pBasicVideo));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pVideoWindow);
-		SetError(TEXT("IBasicVideo2を取得できません。"));
+		SetError(hr,TEXT("IBasicVideo2を取得できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
@@ -104,11 +104,12 @@ bool CVideoRenderer_Default::Initialize(IGraphBuilder *pFilterGraph,IPin *pInput
 
 	hr=pFilterGraph->Render(pInputPin);
 	if (FAILED(hr)) {
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	if (!InitializeBasicVideo(pFilterGraph,hwndRender,hwndMessageDrain))
 		return false;
+	ClearError();
 	return true;
 }
 
@@ -226,13 +227,13 @@ bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *
 	hr=::CoCreateInstance(CLSID_VideoRenderer,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(TEXT("Video Rendererのインスタンスを作成できません。"));
+		SetError(hr,TEXT("Video Rendererのインスタンスを作成できません。"));
 		return false;
 	}
 	hr=pFilterGraph->AddFilter(m_pRenderer,L"Video Renderer");
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("Video Rendererをフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("Video Rendererをフィルタグラフに追加できません。"));
 		return false;
 	}
 
@@ -257,7 +258,7 @@ bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *
 
 	hr=pFilterGraph->Render(pInputPin);
 	if (FAILED(hr)) {
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 
@@ -265,6 +266,7 @@ bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *
 		SAFE_RELEASE(m_pRenderer);
 		return false;
 	}
+	ClearError();
 	return true;
 }
 
@@ -313,7 +315,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(TEXT("VMRのインスタンスを作成できません。"));
+		SetError(hr,TEXT("VMRのインスタンスを作成できません。"));
 		return false;
 	}
 
@@ -322,7 +324,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 									reinterpret_cast<LPVOID*>(&pFilterConfig));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IVMRFilterConfigを取得できません。"));
+		SetError(hr,TEXT("IVMRFilterConfigを取得できません。"));
 		return false;
 	}
 #ifdef IMAGE_MIXER_VMR7_SUPPORTED
@@ -348,7 +350,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 							reinterpret_cast<LPVOID*>(&pWindowlessControl));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IVMRWindowlessControlを取得できません。"));
+		SetError(hr,TEXT("IVMRWindowlessControlを取得できません。"));
 		return false;
 	}
 	pWindowlessControl->SetVideoClippingWindow(hwndRender);
@@ -361,7 +363,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=pFilterGraph->AddFilter(m_pRenderer,L"VMR7");
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("VMRをフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("VMRをフィルタグラフに追加できません。"));
 		return false;
 	}
 
@@ -370,7 +372,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IFilterGraph2を取得できません。"));
+		SetError(hr,TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
@@ -378,7 +380,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
@@ -548,7 +550,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer9,NULL,CLSCTX_INPROC_SERVER,
 						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(TEXT("VMR-9のインスタンスを作成できません。"));
+		SetError(hr,TEXT("VMR-9のインスタンスを作成できません。"));
 		return false;
 	}
 
@@ -557,7 +559,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 									reinterpret_cast<LPVOID*>(&pFilterConfig));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IVMRFilterConfig9を取得できません。"));
+		SetError(hr,TEXT("IVMRFilterConfig9を取得できません。"));
 		return false;
 	}
 	pFilterConfig->SetRenderingMode(VMR9Mode_Windowless);
@@ -580,7 +582,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 							reinterpret_cast<LPVOID*>(&pWindowlessControl));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IVMRWindowlessControl9を取得できません。"));
+		SetError(hr,TEXT("IVMRWindowlessControl9を取得できません。"));
 		return false;
 	}
 	pWindowlessControl->SetVideoClippingWindow(hwndRender);
@@ -593,7 +595,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	hr=pFilterGraph->AddFilter(m_pRenderer,L"VMR9");
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("VMR-9をフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("VMR-9をフィルタグラフに追加できません。"));
 		return false;
 	}
 
@@ -602,7 +604,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IFilterGraph2を取得できません。"));
+		SetError(hr,TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
@@ -610,11 +612,12 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
 	m_hwndRender=hwndRender;
+	ClearError();
 	return true;
 }
 
@@ -1111,12 +1114,12 @@ bool CVideoRenderer_VMR7Renderless::Initialize(IGraphBuilder *pFilterGraph,
 	hr=::CoCreateInstance(CLSID_VideoMixingRenderer,NULL,CLSCTX_INPROC,
 					IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(TEXT("VMRのインスタンスを作成できません。"));
+		SetError(hr,TEXT("VMRのインスタンスを作成できません。"));
 		return false;
 	}
 	hr=pFilterGraph->AddFilter(m_pRenderer, L"VMR");
 	if (FAILED(hr)) {
-		SetError(TEXT("VMRをフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("VMRをフィルタグラフに追加できません。"));
 		return false;
 	}
 	IVMRFilterConfig *pFilterConfig;
@@ -1131,18 +1134,19 @@ bool CVideoRenderer_VMR7Renderless::Initialize(IGraphBuilder *pFilterGraph,
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
-		SetError(TEXT("IFilterGraph2を取得できません。"));
+		SetError(hr,TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
 								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
-		SetError(TEXT("映像レンダラを構築できません。"));
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
 	m_hwndRender=hwndRender;
+	ClearError();
 	return true;
 }
 

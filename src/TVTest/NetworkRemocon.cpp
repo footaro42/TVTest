@@ -426,7 +426,7 @@ bool CNetworkRemoconOptions::InitNetworkRemocon(CNetworkRemocon **ppNetworkRemoc
 		const CCoreEngine *pCoreEngine,CChannelManager *pChannelManager) const
 {
 	if ((m_fUseNetworkRemocon || m_fTempEnable)
-			&& pCoreEngine->IsUDPDriver()) {
+			&& pCoreEngine->IsNetworkDriver()) {
 		TCHAR szChannelFile[MAX_PATH];
 
 		if (*ppNetworkRemocon==NULL)
