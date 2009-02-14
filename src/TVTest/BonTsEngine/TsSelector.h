@@ -33,8 +33,8 @@ public:
 	ULONGLONG GetOutputPacketCount() const;
 
 protected:
-	bool IsTargetPID(WORD PID);
-	bool AddTargetPID(WORD PID);
+	bool IsTargetPID(WORD PID) const;
+	int GetServiceIndexByID(WORD ServiceID) const;
 	bool MakePat(const CTsPacket *pSrcPacket, CTsPacket *pDstPacket);
 
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
@@ -44,9 +44,18 @@ protected:
 	CTsPidMapManager m_PidMapManager;
 
 	WORD m_TargetServiceID;
-	std::vector<WORD> m_TargetPIDList;
 	WORD m_TargetPmtPID;
+	WORD m_TargetEmmPID;
 	DWORD m_TargetStream;
+
+	struct TAG_PMTPIDINFO {
+		WORD ServiceID;
+		WORD PmtPID;
+		WORD PcrPID;
+		WORD EcmPID;
+		std::vector<WORD> EsPIDs;
+	};
+	std::vector<TAG_PMTPIDINFO> m_PmtPIDList;
 
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_OutputPacketCount;

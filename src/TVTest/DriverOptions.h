@@ -42,6 +42,7 @@ public:
 		int Space,Channel,Service;
 	};
 	bool GetInitialChannel(LPCTSTR pszFileName,InitialChannelInfo *pChannelInfo) const;
+	bool IsNoSignalLevel(LPCTSTR pszFileName) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

@@ -201,7 +201,7 @@ CRecordManager::CRecordManager()
 	m_SaveStream=CTsSelector::STREAM_MPEG2VIDEO | CTsSelector::STREAM_AAC |
 				 CTsSelector::STREAM_SUBTITLE;
 	m_fDescrambleCurServiceOnly=false;
-	m_BufferSize=0x200000;
+	m_BufferSize=0x100000;
 }
 
 
@@ -1024,7 +1024,7 @@ CRecordOptions::CRecordOptions()
 	m_fSaveSubtitle=true;
 	m_fSaveDataCarrousel=false;
 	m_fDescrambleCurServiceOnly=false;
-	m_BufferSize=0x200000;
+	m_BufferSize=0x100000;
 }
 
 
@@ -1078,6 +1078,13 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("RecordDataCarrousel"),m_fSaveDataCarrousel);
 	pSettings->Write(TEXT("RecordDescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	pSettings->Write(TEXT("RecordBufferSize"),m_BufferSize);
+	return true;
+}
+
+
+bool CRecordOptions::SetSaveFolder(LPCTSTR pszFolder)
+{
+	::lstrcpy(m_szSaveFolder,pszFolder);
 	return true;
 }
 
@@ -1226,6 +1233,7 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			CRecordOptions *pThis=dynamic_cast<CRecordOptions*>(OnInitDialog(hDlg,lParam));
 
 			::SetProp(hDlg,TEXT("This"),pThis);
+			/*
 			if (pThis->m_szSaveFolder[0]=='\0') {
 				if (!::SHGetSpecialFolderPath(hDlg,pThis->m_szSaveFolder,
 											  CSIDL_MYVIDEO,FALSE)
@@ -1233,6 +1241,7 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 													 CSIDL_PERSONAL,FALSE))
 					pThis->m_szSaveFolder[0]='\0';
 			}
+			*/
 			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
 			::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,pThis->m_szSaveFolder);
 			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_FILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
@@ -1289,11 +1298,11 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				TCHAR szSaveFolder[MAX_PATH],szFileName[MAX_PATH];
 
 				::GetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,szSaveFolder,MAX_PATH);
-				if (!::PathIsDirectory(szSaveFolder)) {
+				if (szSaveFolder[0]!='\0' && !::PathIsDirectory(szSaveFolder)) {
 					TCHAR szMessage[MAX_PATH+64];
 
 					::wsprintf(szMessage,
-						TEXT("録画ファイルの保存先フォルダ \"%s\" がありません。\r\n")
+						TEXT("録画ファイルの保存先フォルダ \"%s\" がありません。\n")
 						TEXT("作成しますか?"),szSaveFolder);
 					if (::MessageBox(hDlg,szMessage,TEXT("フォルダ作成の確認"),
 										MB_YESNO | MB_ICONQUESTION)==IDYES) {

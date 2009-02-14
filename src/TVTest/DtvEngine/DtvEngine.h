@@ -8,6 +8,7 @@
 #include "BonBaseClass.h"
 #include "BonSrcDecoder.h"
 #include "TsPacketParser.h"
+#include "TsAnalyzer.h"
 #include "TsDescrambler.h"
 #include "ProgManager.h"
 #include "MediaViewer.h"
@@ -42,7 +43,7 @@ public:
 	~CDtvEngine(void);
 
 	const bool BuildEngine(CDtvEngineHandler *pDtvEngineHandler,
-								bool bDescramble=true,bool bBuffering=false);
+						   bool bDescramble = true, bool bBuffering = false);
 	const bool IsEngineBuild() const { return m_bBuiled; };
 	const bool IsBuildComplete() const { return m_bBuildComplete; }
 	const bool CloseEngine(void);
@@ -73,6 +74,7 @@ public:
 	const bool SetService(const WORD wService);
 	const WORD GetService(void) const;
 	const bool GetServiceID(WORD *pServiceID);
+	const bool SetServiceByID(const WORD ServiceID);
 	const unsigned __int64 GetPcrTimeStamp() const;
 
 	/*
@@ -82,10 +84,10 @@ public:
 
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
-		LPCWSTR pszMpeg2Decoder=NULL);
+		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
 	bool RebuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
-		LPCWSTR pszMpeg2Decoder=NULL);
+		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
 	bool OpenBcasCard(CCardReader::ReaderType CardReaderType);
 	bool SetDescramble(bool bDescramble);
 	bool ResetBuffer();
@@ -104,6 +106,7 @@ public:
 	// CMediaDecoder から派生したメディアデコーダクラス
 	CBonSrcDecoder m_BonSrcDecoder;			// TSソースチューナー(HAL化すべき)
 	CTsPacketParser m_TsPacketParser;		// TSパケッタイザー
+	CTsAnalyzer m_TsAnalyzer;
 	CTsDescrambler m_TsDescrambler;			// TSデスクランブラー
 	CProgManager m_ProgManager;				// TSプログラムマネージャー
 	CMediaViewer m_MediaViewer;				// メディアビューアー
@@ -123,6 +126,7 @@ protected:
 	CDtvEngineHandler *m_pDtvEngineHandler;
 	WORD m_wCurTransportStream;
 	WORD m_wCurService;
+	WORD m_SpecServiceID;
 	int m_CurAudioStream;
 	unsigned __int64 m_u64CurPcrTimeStamp;
 

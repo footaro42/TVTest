@@ -73,6 +73,10 @@
 			<param name="Local" value="options\view.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="OSD">
+			<param name="Local" value="options\osd.html">
+			</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="ステータスバー">
 			<param name="Local" value="options\statusbar.html">
 			</OBJECT>
@@ -99,6 +103,10 @@
 		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="ドライバ別設定">
 			<param name="Local" value="options\driver.html">
+			</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="音声">
+			<param name="Local" value="options\audio.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="録画">

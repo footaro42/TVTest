@@ -59,6 +59,7 @@ static const struct {
 	{TEXT("TitleBar"),				CM_TITLEBAR},
 	{TEXT("VideoDecoderProperty"),	CM_DECODERPROPERTY},
 	{TEXT("Options"),				CM_OPTIONS},
+	{TEXT("StreamInfo"),			CM_STREAMINFO},
 	{TEXT("Close"),					CM_CLOSE},
 	{TEXT("Menu"),					CM_MENU},
 	{TEXT("Channel1"),				CM_CHANNELNO_1},

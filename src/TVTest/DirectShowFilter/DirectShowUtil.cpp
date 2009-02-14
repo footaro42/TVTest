@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "DirectShowUtil.h"
+#include "StdUtil.h"
 
 #ifdef USE_MEDIA_FOUNDATION
 #pragma comment(lib,"mf.lib")
@@ -40,18 +41,18 @@ int CDirectShowFilterFinder::GetFilterCount()
 }
 
 
-bool CDirectShowFilterFinder::GetFilterInfo(const int iIndex,CLSID *pidClass,LPWSTR pwszFriendryName,int iBufLen)
+bool CDirectShowFilterFinder::GetFilterInfo(const int iIndex,CLSID *pidClass,LPWSTR pwszFriendlyName,int iBufLen)
 {
 	if (iIndex<0 || iIndex>=GetFilterCount())
 		return false;
 	CFilterInfo &Info = m_FilterList[iIndex];
 	if (pidClass)
 		*pidClass = Info.m_clsid;
-	if (pwszFriendryName) {
-		if (Info.m_pwszFriendryName) {
-			::lstrcpynW(pwszFriendryName,Info.m_pwszFriendryName,iBufLen);
+	if (pwszFriendlyName) {
+		if (Info.m_pwszFriendlyName) {
+			::lstrcpynW(pwszFriendlyName,Info.m_pwszFriendlyName,iBufLen);
 		} else if (iBufLen>0) {
-			pwszFriendryName[0]='\0';
+			pwszFriendlyName[0]='\0';
 		}
 	}
 	return true;
@@ -108,7 +109,7 @@ bool CDirectShowFilterFinder::FindFilter(const CLSID *pidInType,const CLSID *pid
 						if(SUCCEEDED(hr)){
 							bRet = true;
 							CFilterInfo FilterInfo;
-							FilterInfo.SetFriendryName(varName.bstrVal);
+							FilterInfo.SetFriendlyName(varName.bstrVal);
 							CLSIDFromString(varID.bstrVal,&FilterInfo.m_clsid);
 							m_FilterList.push_back(FilterInfo);
 							SysFreeString(varID.bstrVal);
@@ -178,13 +179,13 @@ bool CDirectShowFilterFinder::IgnoreFilterGoToTail(const CLSID idIgnoreClass,boo
 
 
 CDirectShowFilterFinder::CFilterInfo::CFilterInfo()
-	: m_pwszFriendryName(NULL)
+	: m_pwszFriendlyName(NULL)
 {
 }
 
 
 CDirectShowFilterFinder::CFilterInfo::CFilterInfo(const CFilterInfo &Info)
-	: m_pwszFriendryName(NULL)
+	: m_pwszFriendlyName(NULL)
 {
 	*this=Info;
 }
@@ -192,28 +193,183 @@ CDirectShowFilterFinder::CFilterInfo::CFilterInfo(const CFilterInfo &Info)
 
 CDirectShowFilterFinder::CFilterInfo::~CFilterInfo()
 {
-	delete m_pwszFriendryName;
+	delete m_pwszFriendlyName;
 }
 
 
 CDirectShowFilterFinder::CFilterInfo &CDirectShowFilterFinder::CFilterInfo::operator=(const CFilterInfo &Info)
 {
-	SetFriendryName(Info.m_pwszFriendryName);
-	m_clsid=Info.m_clsid;
+	if (&Info!=this) {
+		SetFriendlyName(Info.m_pwszFriendlyName);
+		m_clsid=Info.m_clsid;
+	}
 	return *this;
 }
 
 
-void CDirectShowFilterFinder::CFilterInfo::SetFriendryName(LPCWSTR pwszFriendryName)
+void CDirectShowFilterFinder::CFilterInfo::SetFriendlyName(LPCWSTR pwszFriendlyName)
 {
-	if (m_pwszFriendryName) {
-		delete [] m_pwszFriendryName;
-		m_pwszFriendryName=NULL;
+	if (m_pwszFriendlyName) {
+		delete [] m_pwszFriendlyName;
+		m_pwszFriendlyName=NULL;
 	}
-	if (pwszFriendryName) {
-		m_pwszFriendryName=new WCHAR[::lstrlenW(pwszFriendryName)+1];
-		::lstrcpyW(m_pwszFriendryName,pwszFriendryName);
+	if (pwszFriendlyName) {
+		m_pwszFriendlyName=StdUtil::strdup(pwszFriendlyName);
 	}
+}
+
+
+
+
+CDirectShowDeviceEnumerator::CDirectShowDeviceEnumerator()
+{
+}
+
+
+CDirectShowDeviceEnumerator::~CDirectShowDeviceEnumerator()
+{
+}
+
+
+void CDirectShowDeviceEnumerator::Clear()
+{
+	m_DeviceList.clear();
+}
+
+
+bool CDirectShowDeviceEnumerator::EnumDevice(REFCLSID clsidDeviceClass)
+{
+	HRESULT hr;
+	ICreateDevEnum *pDevEnum;
+
+	hr=::CoCreateInstance(CLSID_SystemDeviceEnum,NULL,CLSCTX_INPROC_SERVER,
+						  IID_ICreateDevEnum,reinterpret_cast<void**>(&pDevEnum));
+	if (FAILED(hr))
+		return false;
+
+	IEnumMoniker *pEnumCategory;
+	hr=pDevEnum->CreateClassEnumerator(clsidDeviceClass,&pEnumCategory,0);
+	if (hr==S_OK) {
+		IMoniker *pMoniker;
+		ULONG cFetched;
+
+		while (pEnumCategory->Next(1,&pMoniker,&cFetched)==S_OK) {
+			IPropertyBag *pPropBag;
+
+			hr=pMoniker->BindToStorage(0,0,IID_IPropertyBag,reinterpret_cast<void**>(&pPropBag));
+			if (SUCCEEDED(hr)) {
+				VARIANT varName;
+
+				::VariantInit(&varName);
+				hr=pPropBag->Read(L"FriendlyName",&varName,0);
+				if (SUCCEEDED(hr)) {
+					m_DeviceList.push_back(CDeviceInfo(varName.bstrVal));
+				}
+				::VariantClear(&varName);
+				pPropBag->Release();
+			}
+			pMoniker->Release();
+		}
+		pEnumCategory->Release();
+	}
+	pDevEnum->Release();
+	return true;
+}
+
+
+bool CDirectShowDeviceEnumerator::CreateFilter(REFCLSID clsidDeviceClass,LPCWSTR pszFriendlyName,IBaseFilter **ppFilter)
+{
+	HRESULT hr;
+	ICreateDevEnum *pDevEnum;
+
+	hr=::CoCreateInstance(CLSID_SystemDeviceEnum,NULL,CLSCTX_INPROC_SERVER,
+						  IID_ICreateDevEnum,reinterpret_cast<void**>(&pDevEnum));
+	if (FAILED(hr))
+		return false;
+
+	IEnumMoniker *pEnumCategory;
+	hr=pDevEnum->CreateClassEnumerator(clsidDeviceClass,&pEnumCategory,0);
+	bool fFinded=false;
+	if (hr==S_OK) {
+		IMoniker *pMoniker;
+		ULONG cFetched;
+
+		while (pEnumCategory->Next(1,&pMoniker,&cFetched)==S_OK) {
+			IPropertyBag *pPropBag;
+
+			hr=pMoniker->BindToStorage(0,0,IID_IPropertyBag,reinterpret_cast<void**>(&pPropBag));
+			if (SUCCEEDED(hr)) {
+				VARIANT varName;
+
+				::VariantInit(&varName);
+				hr=pPropBag->Read(L"FriendlyName",&varName,0);
+				if (SUCCEEDED(hr)) {
+					if (::lstrcmpiW(varName.bstrVal,pszFriendlyName)==0) {
+						hr=pMoniker->BindToObject(NULL,NULL,IID_IBaseFilter,
+										reinterpret_cast<void**>(ppFilter));
+						fFinded=true;
+					}
+				}
+				::VariantClear(&varName);
+				pPropBag->Release();
+			}
+			pMoniker->Release();
+			if (fFinded)
+				break;
+		}
+		pEnumCategory->Release();
+	}
+	pDevEnum->Release();
+
+	if (!fFinded)
+		return false;
+	return SUCCEEDED(hr);
+}
+
+
+int CDirectShowDeviceEnumerator::GetDeviceCount() const
+{
+	return m_DeviceList.size();
+}
+
+
+LPCWSTR CDirectShowDeviceEnumerator::GetDeviceFriendlyName(int Index) const
+{
+	if (Index<0 || Index>=(int)m_DeviceList.size())
+		return false;
+	return m_DeviceList[Index].GetFriendlyName();
+}
+
+
+CDirectShowDeviceEnumerator::CDeviceInfo::CDeviceInfo(LPCWSTR pszFriendlyName)
+{
+	m_pszFriendlyName=StdUtil::strdup(pszFriendlyName);
+}
+
+
+CDirectShowDeviceEnumerator::CDeviceInfo::CDeviceInfo(const CDeviceInfo &Info)
+{
+	m_pszFriendlyName=StdUtil::strdup(Info.m_pszFriendlyName);
+}
+
+
+CDirectShowDeviceEnumerator::CDeviceInfo::~CDeviceInfo()
+{
+	delete [] m_pszFriendlyName;
+}
+
+
+CDirectShowDeviceEnumerator::CDeviceInfo &CDirectShowDeviceEnumerator::CDeviceInfo::operator=(const CDeviceInfo &Info)
+{
+	if (&Info!=this) {
+		if (m_pszFriendlyName) {
+			delete [] m_pszFriendlyName;
+			m_pszFriendlyName=NULL;
+		}
+		if (Info.m_pszFriendlyName)
+			m_pszFriendlyName=StdUtil::strdup(Info.m_pszFriendlyName);
+	}
+	return *this;
 }
 
 

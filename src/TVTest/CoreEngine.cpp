@@ -32,6 +32,7 @@ CCoreEngine::CCoreEngine()
 	m_Volume=100;
 	m_VolumeNormalizeLevel=100;
 	m_StereoMode=0;
+	m_fDownMixSurround=true;
 	m_EventID=0;
 	m_ErrorPacketCount=0;
 	m_ContinuityErrorPacketCount=0;
@@ -150,15 +151,17 @@ bool CCoreEngine::OpenFile(LPCTSTR pszFileName)
 
 
 bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
-		CVideoRenderer::RendererType VideoRenderer,LPCWSTR pszMpeg2Decoder)
+		CVideoRenderer::RendererType VideoRenderer,LPCWSTR pszMpeg2Decoder,LPCWSTR pszAudioDevice)
 {
 	if (!m_DtvEngine.m_MediaViewer.IsOpen()) {
-		if (!m_DtvEngine.BuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,pszMpeg2Decoder))	 {
+		if (!m_DtvEngine.BuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,
+										  pszMpeg2Decoder,pszAudioDevice)) {
 			SetError(m_DtvEngine.GetLastErrorException());
 			return false;
 		}
 	} else {
-		if (!m_DtvEngine.RebuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,pszMpeg2Decoder))	 {
+		if (!m_DtvEngine.RebuildMediaViewer(hwndHost,hwndMessage,VideoRenderer,
+											pszMpeg2Decoder,pszAudioDevice)) {
 			SetError(m_DtvEngine.GetLastErrorException());
 			return false;
 		}
@@ -167,6 +170,7 @@ bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 	m_DtvEngine.m_MediaViewer.SetAudioNormalize(m_VolumeNormalizeLevel!=100,
 										(float)m_VolumeNormalizeLevel/100.0f);
 	m_DtvEngine.SetStereoMode(m_StereoMode);
+	m_DtvEngine.m_MediaViewer.SetDownMixSurround(m_fDownMixSurround);
 	return true;
 }
 
@@ -338,6 +342,16 @@ bool CCoreEngine::SetStereoMode(int Mode)
 	if (Mode!=m_StereoMode) {
 		m_DtvEngine.SetStereoMode(Mode);
 		m_StereoMode=Mode;
+	}
+	return true;
+}
+
+
+bool CCoreEngine::SetDownMixSurround(bool fDownMix)
+{
+	if (fDownMix!=m_fDownMixSurround) {
+		m_DtvEngine.m_MediaViewer.SetDownMixSurround(fDownMix);
+		m_fDownMixSurround=fDownMix;
 	}
 	return true;
 }

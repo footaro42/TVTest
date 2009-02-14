@@ -381,7 +381,6 @@ void CProgManager::OnServiceListUpdated(void)
 	// サービスリスト構築
 	for (size_t Index = 0, ServiceNum = 0 ; Index < m_pProgDatabase->m_ServiceList.size() ; Index++) {
 		if (m_pProgDatabase->m_ServiceList[Index].VideoStreamType == 0x02) {
-			// MPEG2映像のみ(ワンセグ、データ放送以外)
 			m_ServiceList.resize(ServiceNum + 1);
 			m_ServiceList[ServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[Index].wServiceID;
 			m_ServiceList[ServiceNum].wVideoEsPID = m_pProgDatabase->m_ServiceList[Index].wVideoEsPID;

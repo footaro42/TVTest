@@ -138,8 +138,11 @@ class CRecordOptions : public COptions {
 public:
 	CRecordOptions();
 	~CRecordOptions();
+	// COptions
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+	// CRecordOptions
+	bool SetSaveFolder(LPCTSTR pszFolder);
 	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,SYSTEMTIME *pTime=NULL,LPCTSTR *ppszErrorMessage=NULL) const;
 	bool GetFilePath(LPTSTR pszFileName,int MaxLength) const;
 	bool ConfirmChannelChange(HWND hwndOwner) const;

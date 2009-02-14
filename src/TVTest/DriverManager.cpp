@@ -47,7 +47,7 @@ bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
 		bool fChannelFileLoaded=m_TuningSpaceList.LoadFromFile(szFileName);
 		if (!fChannelFileLoaded && !fUseDriver)
 			return false;
-		if (!fChannelFileLoaded && fUseDriver) {
+		if (fUseDriver) {
 			HMODULE hLib=::LoadLibrary(m_pszFileName);
 			bool fDriverChannelLoaded=false;
 

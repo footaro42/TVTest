@@ -302,6 +302,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\AudioOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\BasicWindow.cpp"
 				>
 			</File>
@@ -430,6 +434,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\OSDOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Panel.cpp"
 				>
 			</File>
@@ -518,6 +526,10 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath=".\StreamInfo.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\TitleBar.cpp"
 				>
 			</File>
@@ -533,6 +545,10 @@
 				RelativePath=".\View.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\ViewOptions.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="ヘッダー ファイル"
@@ -545,6 +561,10 @@
 			</File>
 			<File
 				RelativePath=".\AppMain.h"
+				>
+			</File>
+			<File
+				RelativePath=".\AudioOptions.h"
 				>
 			</File>
 			<File
@@ -684,6 +704,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\OSDOptions.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Panel.h"
 				>
 			</File>
@@ -752,6 +776,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\StreamInfo.h"
+				>
+			</File>
+			<File
 				RelativePath=".\TitleBar.h"
 				>
 			</File>
@@ -773,6 +801,10 @@
 			</File>
 			<File
 				RelativePath=".\View.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ViewOptions.h"
 				>
 			</File>
 		</Filter>
@@ -855,6 +887,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\ProgManager.h"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\TsAnalyzer.h"
 					>
 				</File>
 				<File
@@ -989,6 +1025,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\ProgManager.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\TsAnalyzer.cpp"
 					>
 				</File>
 				<File

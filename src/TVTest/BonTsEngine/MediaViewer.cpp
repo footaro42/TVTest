@@ -148,8 +148,9 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 	return false;
 }
 
-const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
-			CVideoRenderer::RendererType RendererType,LPCWSTR pszMpeg2Decoder)
+const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
+			CVideoRenderer::RendererType RendererType,
+			LPCWSTR pszMpeg2Decoder, LPCWSTR pszAudioDevice)
 {
 	CTryBlockLock Lock(&m_DecoderLock);
 	if (!Lock.TryLock(LOCK_TIMEOUT)) {
@@ -469,10 +470,63 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 		Trace(TEXT("音声レンダラの構築中..."));
 
 		// 音声レンダラ構築
+		{
+			IBaseFilter *pAudioRenderer;
+			bool fOK = false;
+
+			if (pszAudioDevice != NULL && pszAudioDevice[0] != '\0') {
+				CDirectShowDeviceEnumerator DevEnum;
+
+				if (DevEnum.CreateFilter(CLSID_AudioRendererCategory,
+										 pszAudioDevice, &pAudioRenderer))
+					fOK = true;
+			}
+			if (!fOK) {
+				hr = ::CoCreateInstance(CLSID_DSoundRender, NULL,
+									CLSCTX_INPROC_SERVER, IID_IBaseFilter,
+									reinterpret_cast<void**>(&pAudioRenderer));
+				fOK = SUCCEEDED(hr);
+			}
+			if (fOK) {
+				hr = DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+							pAudioRenderer, L"Audio Renderer", &pOutputAudio);
+				if (SUCCEEDED(hr)) {
+#ifdef _DEBUG
+					if (pszAudioDevice != NULL && pszAudioDevice[0] != '\0')
+						TRACE(TEXT("音声デバイス %s を接続\n"), pszAudioDevice);
+#endif
+					if (m_bUseAudioRendererClock) {
+						IMediaFilter *pMediaFilter;
+
+						if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IMediaFilter,
+								reinterpret_cast<LPVOID*>(&pMediaFilter)))) {
+							IReferenceClock *pReferenceClock;
+
+							if (SUCCEEDED(pAudioRenderer->QueryInterface(IID_IReferenceClock,
+									reinterpret_cast<LPVOID*>(&pReferenceClock)))) {
+								pMediaFilter->SetSyncSource(pReferenceClock);
+								pReferenceClock->Release();
+							}
+							pMediaFilter->Release();
+						}
+					}
+					fOK = true;
+				} else {
+					fOK = false;
+				}
+				pAudioRenderer->Release();
+			}
+			if (!fOK) {
+				hr = m_pFilterGraph->Render(pOutputAudio);
+				if (FAILED(hr))
+					throw CBonException(hr, TEXT("音声レンダラを構築できません。"),
+						TEXT("有効なサウンドデバイスが存在するか確認してください。"));
+			}
+		}
+
+#if 0
 		if (m_bUseAudioRendererClock) {
 			bool fOK=false;
-#if 1
-			IBaseFilter *pAudioRenderer;
 
 			if (SUCCEEDED(::CoCreateInstance(CLSID_DSoundRender,NULL,
 					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
@@ -498,7 +552,6 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 				}
 				pAudioRenderer->Release();
 			}
-#endif
 			if (!fOK) {
 				hr=m_pFilterGraph->Render(pOutputAudio);
 				if (FAILED(hr))
@@ -512,6 +565,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd,HWND hMessageDrainHwnd,
 				throw CBonException(hr,TEXT("音声レンダラを構築できません。"),
 					TEXT("有効なサウンドデバイスが存在するか確認してください。"));
 		}
+#endif
 
 		// オーナウィンドウ設定
 		m_hOwnerWnd = hOwnerHwnd;
@@ -1295,6 +1349,22 @@ void *CMediaViewer::DoCapture(DWORD WaitTime)
 }
 
 #endif
+
+
+bool CMediaViewer::SetDownMixSurround(bool bDownMix)
+{
+	if (m_pAacDecClass)
+		return m_pAacDecClass->SetDownMixSurround(bDownMix);
+	return false;
+}
+
+
+bool CMediaViewer::GetDownMixSurround() const
+{
+	if (m_pAacDecClass)
+		return m_pAacDecClass->GetDownMixSurround();
+	return false;
+}
 
 
 bool CMediaViewer::SetAudioNormalize(bool bNormalize,float Level)

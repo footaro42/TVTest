@@ -16,18 +16,15 @@ CTsSelector::CTsSelector(IEventHandler *pEventHandler)
 	, m_OutputPacketCount(0)
 	, m_TargetServiceID(0)
 	, m_TargetPmtPID(0)
+	, m_TargetEmmPID(0)
 	, m_TargetStream(STREAM_ALL)
 	, m_LastTSID(0)
 	, m_LastPmtPID(0)
 	, m_LastVersion(0)
 	, m_Version(0)
 {
-	// PATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0000, new CPatTable, OnPatUpdated, this);
-	// CATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0001, new CCatTable, OnCatUpdated, this);
-
 	m_PatPacket.SetSize(TS_PACKETSIZE);
+	Reset();
 }
 
 
@@ -55,10 +52,12 @@ void CTsSelector::Reset(void)
 	*/
 
 	// 対象サービス初期化
-	m_TargetPIDList.clear();
 	m_TargetServiceID = 0;
 	m_TargetPmtPID = 0;
+	m_TargetEmmPID = 0;
 	m_TargetStream = STREAM_ALL;
+
+	m_PmtPIDList.clear();
 
 	m_LastTSID = 0;
 	m_LastPmtPID = 0;
@@ -90,7 +89,7 @@ const bool CTsSelector::InputMedia(CMediaData *pMediaData, const DWORD dwInputIn
 	m_PidMapManager.StorePacket(pTsPacket);
 
 	WORD PID = pTsPacket->GetPID();
-	if (PID<0x0030 || IsTargetPID(PID)) {
+	if (PID < 0x0030 || IsTargetPID(PID)) {
 		m_OutputPacketCount++;
 		// パケットを下流デコーダにデータを渡す
 		if (PID == 0x0000 && m_TargetPmtPID != 0
@@ -121,26 +120,33 @@ ULONGLONG CTsSelector::GetOutputPacketCount() const
 
 bool CTsSelector::SetTargetServiceID(WORD ServiceID, DWORD Stream)
 {
-	CBlockLock Lock(&m_DecoderLock);
+	if (m_TargetServiceID != ServiceID) {
+		CBlockLock Lock(&m_DecoderLock);
 
-	if (ServiceID != m_TargetServiceID) {
 		m_TargetServiceID = ServiceID;
-		m_TargetPIDList.clear();
 		m_TargetPmtPID = 0;
 		m_TargetStream = Stream;
+		m_PmtPIDList.clear();
 
-		CPatTable *pPatTable=dynamic_cast<CPatTable *>(m_PidMapManager.GetMapTarget(0x0000));
-		if (pPatTable!=NULL) {
-			for (WORD i=0;i<pPatTable->GetProgramNum();i++) {
+		CPatTable *pPatTable = dynamic_cast<CPatTable *>(m_PidMapManager.GetMapTarget(0x0000));
+		if (pPatTable != NULL) {
+			for (WORD i = 0 ; i < pPatTable->GetProgramNum() ; i++) {
 				WORD PmtPID = pPatTable->GetPmtPID(i);
 
-				if (m_TargetServiceID==0
-						|| pPatTable->GetProgramID(i)==m_TargetServiceID) {
+				if (m_TargetServiceID == 0
+						|| pPatTable->GetProgramID(i) == m_TargetServiceID) {
 
 					if (m_TargetServiceID != 0)
 						m_TargetPmtPID = PmtPID;
-					AddTargetPID(PmtPID);
-					m_PidMapManager.MapTarget(PmtPID,new CPmtTable,OnPmtUpdated,this);
+
+					TAG_PMTPIDINFO PIDInfo;
+					PIDInfo.ServiceID = pPatTable->GetProgramID(i);
+					PIDInfo.PmtPID = PmtPID;
+					PIDInfo.PcrPID = 0xFFFF;
+					PIDInfo.EcmPID = 0xFFFF;
+					m_PmtPIDList.push_back(PIDInfo);
+
+					m_PidMapManager.MapTarget(PmtPID, new CPmtTable, OnPmtUpdated, this);
 				} else {
 					m_PidMapManager.UnmapTarget(PmtPID);
 				}
@@ -151,26 +157,37 @@ bool CTsSelector::SetTargetServiceID(WORD ServiceID, DWORD Stream)
 }
 
 
-bool CTsSelector::IsTargetPID(WORD PID)
+bool CTsSelector::IsTargetPID(WORD PID) const
 {
-	if (m_TargetPIDList.size() == 0)
+	if (m_PmtPIDList.size() == 0)
 		return m_TargetServiceID == 0;
-	for (size_t i = 0 ; i < m_TargetPIDList.size() ; i++) {
-		if (m_TargetPIDList[i] == PID)
+	if (PID == m_TargetEmmPID)
+		return true;
+	for (size_t i = 0 ; i < m_PmtPIDList.size() ; i++) {
+		if (m_PmtPIDList[i].PmtPID == PID
+				|| m_PmtPIDList[i].PcrPID == PID
+				|| m_PmtPIDList[i].EcmPID == PID)
 			return true;
+		for (size_t j = 0 ; j < m_PmtPIDList[i].EsPIDs.size() ; j++) {
+			if (m_PmtPIDList[i].EsPIDs[j] == PID)
+				return true;
+		}
 	}
 	return false;
 }
 
 
-bool CTsSelector::AddTargetPID(WORD PID)
+int CTsSelector::GetServiceIndexByID(WORD ServiceID) const
 {
-	for (int i = m_TargetPIDList.size()-1 ; i >= 0  ; i--) {
-		if (m_TargetPIDList[i] == PID)
-			return true;
+	int Index;
+
+	// プログラムIDからサービスインデックスを検索する
+	for (Index = m_PmtPIDList.size() - 1 ; Index >= 0  ; Index--) {
+		if (m_PmtPIDList[Index].ServiceID == ServiceID)
+			break;
 	}
-	m_TargetPIDList.push_back(PID);
-	return true;
+
+	return Index;
 }
 
 
@@ -180,6 +197,11 @@ void CALLBACK CTsSelector::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	CTsSelector *pThis = static_cast<CTsSelector *>(pParam);
 	CPatTable *pPatTable = static_cast<CPatTable *>(pMapTarget);
 
+	for (size_t i = 0 ; i < pThis->m_PmtPIDList.size() ; i++)
+		pMapManager->UnmapTarget(pThis->m_PmtPIDList[i].PmtPID);
+	pThis->m_PmtPIDList.clear();
+	pThis->m_TargetPmtPID = 0;
+
 	// PMTテーブルPIDマップ追加
 	for (WORD i = 0 ; i < pPatTable->GetProgramNum() ; i++) {
 		if (pThis->m_TargetServiceID == 0
@@ -188,7 +210,14 @@ void CALLBACK CTsSelector::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 
 			if (pThis->m_TargetServiceID != 0)
 				pThis->m_TargetPmtPID = PmtPID;
-			pThis->AddTargetPID(PmtPID);
+
+			TAG_PMTPIDINFO PIDInfo;
+			PIDInfo.ServiceID = pPatTable->GetProgramID(i);
+			PIDInfo.PmtPID = PmtPID;
+			PIDInfo.PcrPID = 0xFFFF;
+			PIDInfo.EcmPID = 0xFFFF;
+			pThis->m_PmtPIDList.push_back(PIDInfo);
+
 			pMapManager->MapTarget(PmtPID, new CPmtTable, OnPmtUpdated, pParam);
 		}
 	}
@@ -201,29 +230,41 @@ void CALLBACK CTsSelector::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	CTsSelector *pThis = static_cast<CTsSelector *>(pParam);
 	CPmtTable *pPmtTable = static_cast<CPmtTable *>(pMapTarget);
 
+	const int ServiceIndex = pThis->GetServiceIndexByID(pPmtTable->m_CurSection.GetTableIdExtension());
+	if (ServiceIndex < 0)
+		return;
+	TAG_PMTPIDINFO &PIDInfo = pThis->m_PmtPIDList[ServiceIndex];
+
 	// PCRのPID追加
 	WORD PcrPID = pPmtTable->GetPcrPID();
-	if (PcrPID < 0x1FFF)
-		pThis->AddTargetPID(PcrPID);
+	if (PcrPID < 0x1FFF) {
+		PIDInfo.PcrPID = PcrPID;
+	} else {
+		PIDInfo.PcrPID = 0xFFFF;
+	}
 
 	// ECMのPID追加
 	WORD EcmPID = pPmtTable->GetEcmPID();
-	if (EcmPID < 0x1FFF)
-		pThis->AddTargetPID(EcmPID);
+	if (EcmPID < 0x1FFF) {
+		PIDInfo.EcmPID = EcmPID;
+	} else {
+		PIDInfo.EcmPID = 0xFFFF;
+	}
 
 	// ESのPID追加
+	PIDInfo.EsPIDs.clear();
 	static const BYTE StreamTypeList [] = { 0x01, 0x02, 0x06, 0x0D, 0x0F, 0x1B };
 	for (WORD i = 0 ; i < pPmtTable->GetEsInfoNum() ; i++) {
 		bool bTarget = false;
 		BYTE StreamType = pPmtTable->GetStreamTypeID(i);
-		for (int j=0 ; j<sizeof(StreamTypeList) ; j++) {
+		for (int j = 0 ; j < sizeof(StreamTypeList) ; j++) {
 			if (StreamTypeList[j] == StreamType) {
-				bTarget = (pThis->m_TargetStream&(1<<j)) != 0;
+				bTarget = (pThis->m_TargetStream & (1 << j)) != 0;
 				break;
 			}
 		}
 		if (bTarget)
-			pThis->AddTargetPID(pPmtTable->GetEsPID(i));
+			PIDInfo.EsPIDs.push_back(pPmtTable->GetEsPID(i));
 	}
 }
 
@@ -240,8 +281,9 @@ void CALLBACK CTsSelector::OnCatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 
 	// EMMのPID追加
 	WORD EmmPID = pCaMethodDesc->GetCaPID();
-	if (EmmPID < 0x1FFF)
-		pThis->AddTargetPID(EmmPID);
+	if (EmmPID >= 0x1FFFF)
+		EmmPID = 0;
+	pThis->m_TargetEmmPID = EmmPID;
 }
 
 

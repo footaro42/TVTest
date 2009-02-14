@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include <mmreg.h>
 #include "AacDecFilter.h"
 
 #ifdef _DEBUG
@@ -38,11 +39,55 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_pOutSample(NULL)
 	, m_byCurChannelNum(0)
 	, m_StereoMode(STEREOMODE_STEREO)
+	, m_bDownMixSurround(true)
 	, m_bNormalize(false)
 {
 	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"),this);
 
-	*phr=S_OK;
+	// メディアタイプ設定
+	m_MediaType.InitMediaType();
+	m_MediaType.SetType(&MEDIATYPE_Audio);
+	m_MediaType.SetSubtype(&MEDIASUBTYPE_PCM);
+	m_MediaType.SetTemporalCompression(FALSE);
+	m_MediaType.SetSampleSize(0);
+	m_MediaType.SetFormatType(&FORMAT_WaveFormatEx);
+
+	 // フォーマット構造体確保
+#if 1
+	WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(m_MediaType.AllocFormatBuffer(sizeof(WAVEFORMATEX)));
+	if (pWaveInfo == NULL) {
+		*phr = E_OUTOFMEMORY;
+		return;
+	}
+	// WAVEFORMATEX構造体設定(48KHz 16bit ステレオ固定)
+	pWaveInfo->wFormatTag = WAVE_FORMAT_PCM;
+	pWaveInfo->nChannels = 2;
+	pWaveInfo->nSamplesPerSec = 48000;
+	pWaveInfo->wBitsPerSample = 16;
+	pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
+	pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
+#else
+	WAVEFORMATEXTENSIBLE *pWaveInfo = reinterpret_cast<WAVEFORMATEXTENSIBLE *>(m_MediaType.AllocFormatBuffer(sizeof(WAVEFORMATEXTENSIBLE)));
+	if (pWaveInfo == NULL) {
+		*phr = E_OUTOFMEMORY;
+		return;
+	}
+	// WAVEFORMATEXTENSIBLE構造体設定(48KHz 16bit 5.1ch固定)
+	pWaveInfo->Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+	pWaveInfo->Format.nChannels = 6;
+	pWaveInfo->Format.nSamplesPerSec = 48000;
+	pWaveInfo->Format.wBitsPerSample = 16;
+	pWaveInfo->Format.nBlockAlign = pWaveInfo->Format.wBitsPerSample * pWaveInfo->Format.nChannels / 8;
+	pWaveInfo->Format.nAvgBytesPerSec = pWaveInfo->Format.nSamplesPerSec * pWaveInfo->Format.nBlockAlign;
+	pWaveInfo->Format.cbSize  = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+	pWaveInfo->dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+							   SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
+							   SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
+	pWaveInfo->Samples.wValidBitsPerSample = 16;
+	pWaveInfo->SubFormat = MEDIASUBTYPE_PCM;
+#endif
+
+	*phr = S_OK;
 }
 
 CAacDecFilter::~CAacDecFilter(void)
@@ -53,23 +98,29 @@ CAacDecFilter::~CAacDecFilter(void)
 IBaseFilter* WINAPI CAacDecFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CAacDecFilter **ppClassIf)
 {
 	// インスタンスを作成する
-	if(ppClassIf) *ppClassIf = NULL;
 	CAacDecFilter *pNewFilter = new CAacDecFilter(pUnk, phr);
 	/*
 	if (!pNewFilter) {
 		*phr = E_OUTOFMEMORY;
-		return NULL;
+		goto OnError;
 	}
 	*/
+	if (FAILED(*phr))
+		goto OnError;
 
 	IBaseFilter *pFilter;
-	*phr=pNewFilter->QueryInterface(IID_IBaseFilter,(void**)&pFilter);
-	if (FAILED(*phr)) {
-		delete pNewFilter;
-		return NULL;
-	}
-	if(ppClassIf) *ppClassIf = pNewFilter;
+	*phr = pNewFilter->QueryInterface(IID_IBaseFilter, (void**)&pFilter);
+	if (FAILED(*phr))
+		goto OnError;
+	if (ppClassIf)
+		*ppClassIf = pNewFilter;
 	return pFilter;
+
+OnError:
+	delete pNewFilter;
+	if (ppClassIf)
+		*ppClassIf = NULL;
+	return NULL;
 }
 
 HRESULT CAacDecFilter::CheckInputType(const CMediaType* mtIn)
@@ -86,21 +137,21 @@ HRESULT CAacDecFilter::CheckTransform(const CMediaType* mtIn, const CMediaType* 
     CheckPointer(mtIn, E_POINTER);
     CheckPointer(mtOut, E_POINTER);
     
-	if(*mtOut->Type() == MEDIATYPE_Audio){
-		if(*mtOut->Subtype() == MEDIASUBTYPE_PCM){
+	if (*mtOut->Type() == MEDIATYPE_Audio) {
+		if (*mtOut->Subtype() == MEDIASUBTYPE_PCM) {
 
-			// GUID_NULLではデバッグアサートが発生するのでダミーを設定して回避			
+			// GUID_NULLではデバッグアサートが発生するのでダミーを設定して回避
 			CMediaType MediaType;
 			MediaType.InitMediaType();
 			MediaType.SetType(&MEDIATYPE_Stream);
 			MediaType.SetSubtype(&MEDIASUBTYPE_None);
-			
+
 			m_pInput->SetMediaType(&MediaType);
-			
+
 			return S_OK;
-			}
 		}
-    
+	}
+
 	return VFW_E_TYPE_NOT_ACCEPTED;
 }
 
@@ -132,29 +183,12 @@ HRESULT CAacDecFilter::GetMediaType(int iPosition, CMediaType *pMediaType)
 	CAutoLock AutoLock(m_pLock);
 	CheckPointer(pMediaType, E_POINTER);
 
-	if(iPosition < 0)return E_INVALIDARG;
-	if(iPosition > 0)return VFW_S_NO_MORE_ITEMS;
+	if (iPosition < 0)
+		return E_INVALIDARG;
+	if (iPosition > 0)
+		return VFW_S_NO_MORE_ITEMS;
 
-	// メディアタイプ設定
-	pMediaType->InitMediaType();
-	pMediaType->SetType(&MEDIATYPE_Audio);
-	pMediaType->SetSubtype(&MEDIASUBTYPE_PCM);
-	pMediaType->SetTemporalCompression(FALSE);
-	pMediaType->SetSampleSize(0);
-	pMediaType->SetFormatType(&FORMAT_WaveFormatEx);
-
-	 // フォーマット構造体確保
-	WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(pMediaType->AllocFormatBuffer(sizeof(WAVEFORMATEX)));
-	if(!pWaveInfo)return E_OUTOFMEMORY;
-	//::ZeroMemory(pWaveInfo, sizeof(WAVEFORMATEX));
-
-	// WAVEFORMATEX構造体設定(48KHz 16bit ステレオ固定)
-	pWaveInfo->wFormatTag = WAVE_FORMAT_PCM;
-	pWaveInfo->nChannels = 2U;
-	pWaveInfo->nSamplesPerSec = 48000UL;
-	pWaveInfo->wBitsPerSample = 16U;
-	pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8U;
-	pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
+	*pMediaType = m_MediaType;
 
 	return S_OK;
 }
@@ -192,12 +226,12 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	CAutoLock AutoLock(m_pLock);
 
 	// 入力データポインタを取得する
-	BYTE *pInData = NULL;
+	BYTE *pInData;
 	pIn->GetPointer(&pInData);
 
 	// 出力メディアサンプル設定
 	m_pOutSample = pOut;
-	pOut->SetActualDataLength(0UL);
+	pOut->SetActualDataLength(0);
 
 	// ADTSパーサに入力
 	m_AdtsParser.StoreEs(pInData, pIn->GetActualDataLength());
@@ -247,14 +281,58 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 	CAutoLock AutoLock(m_pLock);
 
 	// 出力ポインタ取得
-	const DWORD dwOffset = m_pOutSample->GetActualDataLength();
+	DWORD dwOffset = m_pOutSample->GetActualDataLength();
 	DWORD dwOutSize;
 
 	BYTE *pOutBuff = NULL;
-	m_pOutSample->GetPointer(&pOutBuff);
-	pOutBuff = &pOutBuff[dwOffset];
+	if (FAILED(m_pOutSample->GetPointer(&pOutBuff)))
+		return;
+
+	if ((!m_bDownMixSurround && byChannel != m_byCurChannelNum
+								&& (byChannel == 6 || m_byCurChannelNum == 6))
+			|| (m_bDownMixSurround && reinterpret_cast<WAVEFORMATEX*>(m_MediaType.Format())->nChannels > 2)) {
+		WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(m_MediaType.AllocFormatBuffer(
+			byChannel == 2 ? sizeof(WAVEFORMATEX) : sizeof(WAVEFORMATEXTENSIBLE)));
+		if (pWaveInfo == NULL)
+			return;
+
+		if (byChannel == 2) {
+			pWaveInfo->wFormatTag = WAVE_FORMAT_PCM;
+			pWaveInfo->nChannels = 2;
+		} else {
+			WAVEFORMATEXTENSIBLE *pwfex = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pWaveInfo);
+
+			pWaveInfo->wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+			pWaveInfo->nChannels = 6;
+			pWaveInfo->cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+			pwfex->dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+								   SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
+								   SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
+			pwfex->Samples.wValidBitsPerSample = 16;
+			pwfex->SubFormat = MEDIASUBTYPE_PCM;
+		}
+		pWaveInfo->nSamplesPerSec = 48000;
+		pWaveInfo->wBitsPerSample = 16;
+		pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
+		pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
+
+		if (FAILED(m_pOutSample->SetMediaType(&m_MediaType)))
+			return;
+		m_pOutput->SetMediaType(&m_MediaType);
+
+		if (dwOffset > 0) {
+			if (byChannel == 2) {
+				dwOffset = DownMixSurround((short*)pOutBuff, (const short*)pOutBuff, dwOffset / (sizeof(short) * 2));
+			} else if (byChannel == 6) {
+				// 手抜き
+				dwOffset *= 3;
+				::ZeroMemory(pOutBuff, dwOffset);
+			}
+		}
+	}
 	m_byCurChannelNum = byChannel;
 
+	pOutBuff = &pOutBuff[dwOffset];
 	// ダウンミックス
 	switch (byChannel) {
 	case 1U:
@@ -264,18 +342,21 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 		dwOutSize = DownMixStereo((short *)pOutBuff, (const short *)pData, dwSamples);
 		break;
 	case 6U:
-		dwOutSize = DownMixSurround((short *)pOutBuff, (const short *)pData, dwSamples);
+		if (m_bDownMixSurround) {
+			dwOutSize = DownMixSurround((short *)pOutBuff, (const short *)pData, dwSamples);
+		} else {
+			dwOutSize = MapSurroundChannels((short *)pOutBuff, (const short *)pData, dwSamples);
+		}
 		break;
 	default:
-		dwOutSize = 0;
-		break;
+		return;
 	}
 
 	if (m_bNormalize)
-		Normalize((short*)pOutBuff, dwOutSize/sizeof(short));
+		Normalize((short*)pOutBuff, dwOutSize / sizeof(short));
 
 	// メディアサンプル有効サイズ設定
-    m_pOutSample->SetActualDataLength(dwOffset + dwOutSize);
+	m_pOutSample->SetActualDataLength(dwOffset + dwOutSize);
 }
 
 const DWORD CAacDecFilter::DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples)
@@ -296,8 +377,8 @@ const DWORD CAacDecFilter::DownMixMono(short *pDst, const short *pSrc, const DWO
 
 const DWORD CAacDecFilter::DownMixStereo(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
-	// 2ch → 2ch スルー
 	if (m_StereoMode == STEREOMODE_STEREO) {
+		// 2ch → 2ch スルー
 		::CopyMemory(pDst, pSrc, dwSamples * (sizeof(short) * 2));
 	} else {
 		const short *p = pSrc, *pEnd = pSrc + dwSamples * 2;
@@ -337,7 +418,7 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 
 	int iOutLch, iOutRch;
 
-	for(register DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++){
+	for(DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++){
 		// ダウンミックス
 		iOutLch = (int)(
 					(double)pSrc[dwPos * 6UL + 1UL]	* DMR_FRONT		+
@@ -379,7 +460,7 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 
 	int iOutLch, iOutRch;
 
-	for (register DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++) {
+	for (DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++) {
 		// ダウンミックス
 		iOutLch =	((int)pSrc[dwPos * 6UL + 1UL] * IDOWNMIX_FRONT	+
 					 (int)pSrc[dwPos * 6UL + 3UL] * IDOWNMIX_REAR	+
@@ -411,6 +492,22 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 #endif
 
 
+const DWORD CAacDecFilter::MapSurroundChannels(short *pDst, const short *pSrc, const DWORD dwSamples)
+{
+	for (DWORD i = 0 ; i < dwSamples ; i++) {
+		pDst[i * 6 + 0] = pSrc[i * 6 + 1];	// Front left
+		pDst[i * 6 + 1] = pSrc[i * 6 + 2];	// Font right
+		pDst[i * 6 + 2] = pSrc[i * 6 + 0];	// Front center
+		pDst[i * 6 + 3] = pSrc[i * 6 + 5];	// Low frequency
+		pDst[i * 6 + 4] = pSrc[i * 6 + 3];	// Back left
+		pDst[i * 6 + 5] = pSrc[i * 6 + 4];	// Back right
+	}
+
+	// バッファサイズを返す
+	return dwSamples * (sizeof(short) * 6);
+}
+
+
 bool CAacDecFilter::SetStereoMode(int StereoMode)
 {
 	switch (StereoMode) {
@@ -421,6 +518,17 @@ bool CAacDecFilter::SetStereoMode(int StereoMode)
 		return true;
 	}
 	return false;
+}
+
+
+bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
+{
+	if (bDownMix != m_bDownMixSurround) {
+		CAutoLock AutoLock(m_pLock);
+
+		m_bDownMixSurround = bDownMix;
+	}
+	return true;
 }
 
 
@@ -442,7 +550,6 @@ bool CAacDecFilter::GetNormalize(float *pLevel) const
 
 #define NORMALIZE_SHIFT_BITS	12
 #define NORMALIZE_DENOM			(1<<NORMALIZE_SHIFT_BITS)
-
 
 /*
 	本当はダウンミックスと同時に行った方が良い

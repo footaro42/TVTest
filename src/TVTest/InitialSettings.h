@@ -13,6 +13,7 @@ class CInitialSettings {
 	TCHAR m_szMpeg2DecoderName[128];
 	CVideoRenderer::RendererType m_VideoRenderer;
 	CCardReader::ReaderType m_CardReader;
+	TCHAR m_szRecordFolder[MAX_PATH];
 	static CInitialSettings *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
@@ -24,6 +25,7 @@ public:
 	bool GetMpeg2DecoderName(LPTSTR pszDecoderName,int MaxLength) const;
 	CVideoRenderer::RendererType GetVideoRenderer() const { return m_VideoRenderer; }
 	CCardReader::ReaderType GetCardReader() const { return m_CardReader; }
+	LPCTSTR GetRecordFolder() const { return m_szRecordFolder; }
 	bool ShowDialog(HWND hwndOwner);
 };
 

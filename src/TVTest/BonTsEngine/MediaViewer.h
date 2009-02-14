@@ -45,7 +45,7 @@ public:
 // CMediaViewer
 	const bool OpenViewer(HWND hOwnerHwnd = NULL,HWND hMessageDrainHwnd = NULL,
 		CVideoRenderer::RendererType RendererType = CVideoRenderer::RENDERER_DEFAULT,
-		LPCWSTR pszMpeg2Decoder = NULL);
+		LPCWSTR pszMpeg2Decoder = NULL, LPCWSTR pszAudioDevice = NULL);
 	void CloseViewer(void);
 	const bool IsOpen() const;
 
@@ -98,6 +98,8 @@ public:
 	bool GetGrabber() const { return m_pGrabber!=NULL; }
 	void *DoCapture(DWORD WaitTime);
 #endif
+	bool SetDownMixSurround(bool bDownMix);
+	bool GetDownMixSurround() const;
 	bool SetAudioNormalize(bool bNormalize,float Level=1.0f);
 	CVideoRenderer::RendererType GetVideoRendererType() const;
 	bool SetUseAudioRendererClock(bool bUse);

@@ -17,6 +17,7 @@ public:
 
 	void AddRef(void);
 	void ReleaseRef(void);
+	DWORD GetRefCount(void) const;
 
 private:
 	DWORD m_dwRefCount;

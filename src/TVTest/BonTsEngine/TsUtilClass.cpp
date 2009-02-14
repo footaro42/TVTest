@@ -42,6 +42,11 @@ void CDynamicReferenceable::ReleaseRef(void)
 #endif
 }
 
+DWORD CDynamicReferenceable::GetRefCount(void) const
+{
+	return m_dwRefCount;
+}
+
 
 //////////////////////////////////////////////////////////////////////
 // CCriticalLock ÉNÉâÉXÇÃç\íz/è¡ñ≈

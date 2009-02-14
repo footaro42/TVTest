@@ -3,6 +3,8 @@
 // EVRを利用しない場合はコメントアウトする
 //#define USE_MEDIA_FOUNDATION
 
+// TVTestでの注意: 上のコメントはMeru-co氏によるオリジナルにおけるものです
+
 #include <vector>
 #include <streams.h>
 #include <d3d9.h>
@@ -56,19 +58,41 @@ public:
 	bool PriorityFilterGoToHead(const CLSID idPriorityClass);
 	bool IgnoreFilterGoToTail(const CLSID idIgnoreClass,bool bRemoveIt=false);
 	int GetFilterCount();
-	bool GetFilterInfo(const int iIndex,CLSID *pidClass=NULL,LPWSTR pwszFriendryName=NULL,int iBufLen=0);
+	bool GetFilterInfo(const int iIndex,CLSID *pidClass=NULL,LPWSTR pwszFriendlyName=NULL,int iBufLen=0);
 protected:
 	class CFilterInfo {
 	public:
-		LPWSTR m_pwszFriendryName;
+		LPWSTR m_pwszFriendlyName;
 		CLSID m_clsid;
 		CFilterInfo();
 		CFilterInfo(const CFilterInfo &Info);
 		~CFilterInfo();
 		CFilterInfo &operator=(const CFilterInfo &Info);
-		void SetFriendryName(LPCWSTR pwszFriendryName);
+		void SetFriendlyName(LPCWSTR pwszFriendlyName);
 	};
 	std::vector<CFilterInfo> m_FilterList;
+};
+
+class CDirectShowDeviceEnumerator
+{
+	class CDeviceInfo {
+		LPWSTR m_pszFriendlyName;
+	public:
+		CDeviceInfo(LPCWSTR pszFriendlyName);
+		CDeviceInfo(const CDeviceInfo &Info);
+		~CDeviceInfo();
+		CDeviceInfo &operator=(const CDeviceInfo &Info);
+		LPCWSTR GetFriendlyName() const { return m_pszFriendlyName; }
+	};
+	std::vector<CDeviceInfo> m_DeviceList;
+public:
+	CDirectShowDeviceEnumerator();
+	~CDirectShowDeviceEnumerator();
+	void Clear();
+	bool EnumDevice(REFCLSID clsidDeviceClass);
+	bool CreateFilter(REFCLSID clsidDeviceClass,LPCWSTR pszFriendlyName,IBaseFilter **ppFilter);
+	int GetDeviceCount() const;
+	LPCWSTR GetDeviceFriendlyName(int Index) const;
 };
 
 namespace DirectShowUtil {

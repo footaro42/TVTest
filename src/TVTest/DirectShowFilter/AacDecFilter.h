@@ -13,10 +13,8 @@
 // このフィルタのGUID {8D1E3E25-D92B-4849-8D38-C787DA78352C}
 DEFINE_GUID(CLSID_AACDECFILTER, 0x8d1e3e25, 0xd92b, 0x4849, 0x8d, 0x38, 0xc7, 0x87, 0xda, 0x78, 0x35, 0x2c);
 
-
 // フィルタ情報の外部参照宣言
-extern const AMOVIESETUP_FILTER g_AacDecFilterInfo;
-
+//extern const AMOVIESETUP_FILTER g_AacDecFilterInfo;
 
 class CAacDecFilter :	public CTransformFilter,
 						protected CAacDecoder::IPcmHandler
@@ -45,6 +43,8 @@ public:
 	enum { STEREOMODE_STEREO, STEREOMODE_LEFT, STEREOMODE_RIGHT };
 	bool SetStereoMode(int StereoMode);
 	int GetStereoMode() const { return m_StereoMode; }
+	bool SetDownMixSurround(bool bDownMix);
+	bool GetDownMixSurround() const { return m_bDownMixSurround; }
 	bool SetNormalize(bool bNormalize,float Level=1.0f);
 	bool GetNormalize(float *pLevel) const;
 protected:
@@ -57,6 +57,7 @@ protected:
 // CAacDecFilter
 	CAdtsParser m_AdtsParser;
 	CAacDecoder m_AacDecoder;
+	CMediaType m_MediaType;
 	IMediaSample *m_pOutSample;
 	BYTE m_byCurChannelNum;
 
@@ -64,9 +65,11 @@ private:
 	const DWORD DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples);
 	const DWORD DownMixStereo(short *pDst, const short *pSrc, const DWORD dwSamples);
 	const DWORD DownMixSurround(short *pDst, const short *pSrc, const DWORD dwSamples);
+	const DWORD MapSurroundChannels(short *pDst, const short *pSrc, const DWORD dwSamples);
 
 	// Append by HDUSTestの中の人
 	int m_StereoMode;
+	bool m_bDownMixSurround;
 	bool m_bNormalize;
 	float m_NormalizeLevel;
 	void Normalize(short *pBuffer,DWORD Samples);

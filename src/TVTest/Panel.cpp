@@ -383,7 +383,7 @@ bool CPanelFrame::Create(HWND hwndOwner,CSplitter *pSplitter,int PanelID,CBasicW
 		m_pSplitter->SetPane(m_pSplitter->IDToIndex(PanelID),&m_Panel,PanelID);
 		m_pSplitter->SetPaneSize(PanelID,m_DockingWidth);
 		m_Panel.ShowTitle(true);
-		m_pSplitter->SetPaneVisible(PanelID,true);
+		//m_pSplitter->SetPaneVisible(PanelID,true);
 	}
 	return true;
 }

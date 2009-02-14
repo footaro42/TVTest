@@ -57,6 +57,7 @@ public:
 	void BeginChannelScan();
 	void EndChannelScan();
 	bool IsChannelScanning() const { return m_fChannelScanning; }
+	bool IsDriverNoSignalLevel(LPCTSTR pszFileName) const;
 	COLORREF GetColor(LPCTSTR pszText) const;
 	CCoreEngine *GetCoreEngine();
 	const CCoreEngine *GetCoreEngine() const;

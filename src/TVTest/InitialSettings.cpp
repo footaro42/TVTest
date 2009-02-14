@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <shlwapi.h>
+#include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "InitialSettings.h"
@@ -17,6 +18,7 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 	m_szDriverFileName[0]='\0';
 	m_szMpeg2DecoderName[0]='\0';
 	m_VideoRenderer=CVideoRenderer::RENDERER_DEFAULT;
+#if 0
 	// VistaではビデオレンダラのデフォルトをEVRにする
 	{
 		OSVERSIONINFO osvi;
@@ -26,7 +28,11 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 		if (osvi.dwMajorVersion>=6)
 			m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
 	}
+#endif
 	m_CardReader=CCardReader::READER_SCARD;
+	if (!::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_MYVIDEO,FALSE)
+			&& !::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_PERSONAL,FALSE))
+		m_szRecordFolder[0]='\0';
 }
 
 
@@ -167,6 +173,8 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_CARDREADER,
 								CB_SETCURSEL,(WPARAM)pThis->m_CardReader,0);
 			}
+			::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,pThis->m_szRecordFolder);
+			::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
 		}
 		return TRUE;
 
@@ -243,6 +251,17 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			}
 			return TRUE;
 
+		case IDC_INITIALSETTINGS_RECORDFOLDER_BROWSE:
+			{
+				TCHAR szFolder[MAX_PATH];
+
+				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,szFolder,MAX_PATH);
+				if (BrowseFolderDialog(hDlg,szFolder,
+										TEXT("録画ファイルの保存先フォルダ:")))
+					::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,szFolder);
+			}
+			return TRUE;
+
 		case IDC_INITIALSETTINGS_HELP:
 			GetAppClass().ShowHelpContent(HELP_ID_INITIALSETTINGS);
 			return TRUE;
@@ -264,6 +283,30 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_VIDEORENDERER,CB_GETCURSEL,0,0);
 				pThis->m_CardReader=(CCardReader::ReaderType)
 					::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_CARDREADER,CB_GETCURSEL,0,0);
+
+				TCHAR szRecordFolder[MAX_PATH];
+				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,
+								 szRecordFolder,lengthof(szRecordFolder));
+				if (szRecordFolder[0]!='\0'
+						&& !::PathIsDirectory(szRecordFolder)) {
+					TCHAR szMessage[MAX_PATH+64];
+
+					::wsprintf(szMessage,
+						TEXT("録画ファイルの保存先フォルダ \"%s\" がありません。\n")
+						TEXT("作成しますか?"),szRecordFolder);
+					if (::MessageBox(hDlg,szMessage,TEXT("フォルダ作成の確認"),
+										MB_YESNO | MB_ICONQUESTION)==IDYES) {
+						int Result;
+
+						Result=::SHCreateDirectoryEx(hDlg,szRecordFolder,NULL);
+						if (Result!=ERROR_SUCCESS
+								&& Result!=ERROR_ALREADY_EXISTS) {
+							::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
+											NULL,MB_OK | MB_ICONEXCLAMATION);
+						}
+					}
+				}
+				::lstrcpy(pThis->m_szRecordFolder,szRecordFolder);
 			}
 		case IDCANCEL:
 			::EndDialog(hDlg,LOWORD(wParam));

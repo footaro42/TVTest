@@ -33,6 +33,7 @@ private:
 	int m_Volume;
 	int m_VolumeNormalizeLevel;
 	int m_StereoMode;
+	bool m_fDownMixSurround;
 	WORD m_EventID;
 	DWORD m_ErrorPacketCount;
 	DWORD m_ContinuityErrorPacketCount;
@@ -60,7 +61,7 @@ public:
 	bool IsFileMode() const { return m_fFileMode; }
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
-		LPCWSTR pszMpeg2Decoder=NULL);
+		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
 	bool OpenBcasCard();
 	bool IsBcasCardOpen() const;
 	bool IsBuildComplete() const;
@@ -89,6 +90,8 @@ public:
 	int GetVolumeNormalizeLevel() const { return m_VolumeNormalizeLevel; }
 	bool SetStereoMode(int Mode);
 	int GetStereoMode() const { return m_StereoMode; }
+	bool SetDownMixSurround(bool fDownMix);
+	bool GetDownMixSurround() const { return m_fDownMixSurround; }
 	enum {
 		STATUS_VIDEOSIZE			=0x00000001UL,
 		STATUS_AUDIOCHANNELS		=0x00000002UL,

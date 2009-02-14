@@ -67,6 +67,7 @@ public:
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 // CTsDescrambler
+	const bool EnableDescramble(bool bDescramble);
 	const bool OpenBcasCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD);
 	void CloseBcasCard(void);
 	const bool IsBcasCardOpen() const;
@@ -78,28 +79,36 @@ public:
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetScramblePacketCount(void) const;
 	void ResetScramblePacketCount(void);
-	bool SetTargetPID(const WORD *pPIDList=NULL,int NumPIDs=0);
 	bool SetTargetServiceID(WORD ServiceID=0);
 	void IncrementScramblePacketCount();
-	bool HasTargetPID(const std::vector<WORD> *pList);
 protected:
 	class CEsProcessor;
 
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 
-	bool IsTargetPID(WORD PID);
+	int GetServiceIndexByID(WORD ServiceID) const;
 
+	bool m_bDescramble;
 	CTsPidMapManager m_PidMapManager;
 	CBcasCard m_BcasCard;
 	CBcasAccessQueue m_Queue;
 
-	std::vector<WORD> m_DescramblePIDList;
-	CCriticalLock m_DescrambleListLock;
 	WORD m_DescrambleServiceID;
+
+	struct TAG_SERVICEINFO {
+		bool bTarget;
+		WORD ServiceID;
+		WORD PmtPID;
+		WORD EcmPID;
+		std::vector<WORD> EsPIDList;
+	};
+	std::vector<TAG_SERVICEINFO> m_ServiceList;
 
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_ScramblePacketCount;
+
+	friend class CDescramblePmtTable;
 };
 
 
@@ -114,10 +123,13 @@ public:
 	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
 	virtual void OnPidUnmapped(const WORD wPID);
 
+// CEcmProcessor
 	const bool DescramblePacket(CTsPacket *pTsPacket);
 	const bool SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize);
 
-	const bool AddEsPID(WORD PID);
+	void IncrementTargetCount() { m_TargetCount++; }
+	void DecrementTargetCount() { m_TargetCount--; }
+	int GetTargetCount() const { return m_TargetCount; }
 
 protected:
 // CPsiSingleTable
@@ -131,14 +143,15 @@ private:
 	bool m_bInQueue;
 	volatile bool m_bSetScrambleKey;
 	CCriticalLock m_Multi2Lock;
-	std::vector<WORD> m_EsPIDList;
 
 	bool m_bLastEcmSucceed;
+	int m_TargetCount;
 };
 
 
 // ESスクランブル解除内部クラス
-class CTsDescrambler::CEsProcessor : public CTsPidMapTarget
+class CTsDescrambler::CEsProcessor : public CTsPidMapTarget,
+									 public CDynamicReferenceable
 {
 public:
 	CEsProcessor(CEcmProcessor *pEcmProcessor);
@@ -146,6 +159,7 @@ public:
 
 // CTsPidMapTarget
 	virtual const bool StorePacket(const CTsPacket *pPacket);
+	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
 	virtual void OnPidUnmapped(const WORD wPID);
 
 private:
