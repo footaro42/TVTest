@@ -27,6 +27,7 @@ CTsPacketParser::CTsPacketParser(IEventHandler *pEventHandler)
 	, m_OutputPacketCount(0)
 	, m_ErrorPacketCount(0)
 	, m_ContinuityErrorPacketCount(0)
+	, m_bLockEpgDataCap(false)
 {
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -169,8 +170,9 @@ bool inline CTsPacketParser::ParsePacket(void)
 			// 次のデコーダにデータを渡す
 			WORD PID;
 			if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
-				if (PID == 0x0000 || PID == 0x0010 || PID == 0x0011
-						|| PID == 0x0012 || PID == 0x0014) {
+				if (!m_bLockEpgDataCap
+						&& (PID == 0x0000 || PID == 0x0010 || PID == 0x0011 || PID == 0x0012
+						|| PID == 0x0014 || PID==0x0026 || PID==0x0027)) {
 					m_EpgCap.AddTSPacket(m_TsPacket.GetData(),m_TsPacket.GetSize());
 				}
 				// 出力カウントインクリメント
@@ -198,7 +200,7 @@ bool inline CTsPacketParser::ParsePacket(void)
 
 bool CTsPacketParser::InitializeEpgDataCap(LPCTSTR pszDllFileName)
 {
-	return m_EpgCap.Initialize(pszDllFileName,TRUE)==NO_ERR;
+	return m_EpgCap.Initialize(pszDllFileName,FALSE)==NO_ERR;
 }
 
 
@@ -218,4 +220,22 @@ CEpgDataInfo *CTsPacketParser::GetEpgDataInfo(WORD wSID,bool bNext)
 		pInfo=new CEpgDataInfo(&Item);
 	m_EpgCap.ReleasePFData(&Item);
 	return pInfo;
+}
+
+
+bool CTsPacketParser::LockEpgDataCap()
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	m_bLockEpgDataCap=true;
+	return true;
+}
+
+
+bool CTsPacketParser::UnlockEpgDataCap()
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	m_bLockEpgDataCap=false;
+	return true;
 }

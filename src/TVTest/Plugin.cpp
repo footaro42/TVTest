@@ -145,6 +145,7 @@ void CPlugin::Free()
 	SAFE_DELETE(m_pszCopyright);
 	SAFE_DELETE(m_pszDescription);
 	m_fEnabled=false;
+	m_CommandList.DeleteAll();
 }
 
 
@@ -174,6 +175,35 @@ bool CPlugin::SetCommand(int Command)
 		return false;
 	m_Command=Command;
 	return true;
+}
+
+
+int CPlugin::NumPluginCommands() const
+{
+	return m_CommandList.Length();
+}
+
+
+bool CPlugin::GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const
+{
+	if (Index<0 || Index>=m_CommandList.Length())
+		return false;
+	pInfo->ID=m_CommandList[Index]->GetID();
+	pInfo->pszText=m_CommandList[Index]->GetText();
+	pInfo->pszName=m_CommandList[Index]->GetName();
+	return true;
+}
+
+
+bool CPlugin::NotifyCommand(LPCWSTR pszCommand)
+{
+	for (int i=0;i<m_CommandList.Length();i++) {
+		if (::lstrcmpi(m_CommandList[i]->GetText(),pszCommand)==0) {
+			SendEvent(TVTest::EVENT_COMMAND,m_CommandList[i]->GetID(),0);
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -264,6 +294,9 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::MESSAGE_SETNEXTCHANNEL:
 		case TVTest::MESSAGE_GETAUDIOSTREAM:
 		case TVTest::MESSAGE_SETAUDIOSTREAM:
+		case TVTest::MESSAGE_ISPLUGINENABLED:
+		case TVTest::MESSAGE_REGISTERCOMMAND:
+		case TVTest::MESSAGE_ADDLOG:
 			return TRUE;
 		}
 		return FALSE;
@@ -989,6 +1022,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::EVENT_VOLUMECHANGE:
 		case TVTest::EVENT_STEREOMODECHANGE:
 		case TVTest::EVENT_COLORCHANGE:
+		case TVTest::EVENT_STANDBY:
 			return TRUE;
 		}
 		return FALSE;
@@ -1053,6 +1087,43 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			GetAppClass().GetMainWindow()->PostCommand(CM_AUDIOSTREAM_FIRST+Index);
 		}
 		return TRUE;
+
+	case TVTest::MESSAGE_ISPLUGINENABLED:
+		{
+			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+
+			return pThis->IsEnabled();
+		}
+
+	case TVTest::MESSAGE_REGISTERCOMMAND:
+		{
+			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			const TVTest::CommandInfo *pCommandList=reinterpret_cast<TVTest::CommandInfo*>(lParam1);
+			int NumCommands=(int)lParam2;
+
+			if (pCommandList==NULL || NumCommands<=0)
+				return FALSE;
+			for (int i=0;i<NumCommands;i++) {
+				pThis->m_CommandList.Add(new CPluginCommandInfo(pCommandList[i]));
+			}
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_ADDLOG:
+		{
+			LPCWSTR pszText=reinterpret_cast<LPCWSTR>(lParam1);
+
+			if (pszText==NULL)
+				return FALSE;
+
+			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			LPCTSTR pszFileName=::PathFindFileName(pThis->m_pszFileName);
+			LPWSTR pszLog=new TCHAR[::lstrlen(pszFileName)+3+::lstrlen(pszText)+1];
+			::wsprintf(pszLog,TEXT("%s : %s"),pszFileName,pszText);
+			GetAppClass().AddLog(pszLog);
+			delete [] pszLog;
+		}
+		return TRUE;
 	}
 	return 0;
 }
@@ -1070,6 +1141,31 @@ bool CALLBACK CPlugin::GrabMediaCallback(const CMediaData *pMediaData, const PVO
 			return false;
 	}
 	return true;
+}
+
+
+
+
+CPlugin::CPluginCommandInfo::CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName)
+{
+	m_ID=ID;
+	m_pszText=DuplicateString(pszText);
+	m_pszName=DuplicateString(pszName);
+}
+
+
+CPlugin::CPluginCommandInfo::CPluginCommandInfo(const TVTest::CommandInfo &Info)
+{
+	m_ID=Info.ID;
+	m_pszText=DuplicateString(Info.pszText);
+	m_pszName=DuplicateString(Info.pszName);
+}
+
+
+CPlugin::CPluginCommandInfo::~CPluginCommandInfo()
+{
+	delete [] m_pszText;
+	delete [] m_pszName;
 }
 
 
@@ -1206,6 +1302,24 @@ bool CPluginList::SetMenu(HMENU hmenu) const
 }
 
 
+bool CPluginList::OnPluginCommand(LPCTSTR pszCommand)
+{
+	TCHAR szFileName[MAX_PATH];
+	int Length;
+
+	for (Length=0;pszCommand[Length]!=':';Length++)
+		szFileName[Length]=pszCommand[Length];
+	szFileName[Length]='\0';
+	for (int i=0;i<NumPlugins();i++) {
+		CPlugin *pPlugin=GetPlugin(i);
+
+		if (::lstrcmpi(::PathFindFileName(pPlugin->GetFileName()),szFileName)==0)
+			return pPlugin->NotifyCommand(&pszCommand[Length+1]);
+	}
+	return false;
+}
+
+
 bool CPluginList::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
 {
 	for (int i=0;i<NumPlugins();i++) {
@@ -1283,6 +1397,12 @@ bool CPluginList::SendStereoModeChangeEvent(int StereoMode)
 bool CPluginList::SendColorChangeEvent()
 {
 	return SendEvent(TVTest::EVENT_COLORCHANGE);
+}
+
+
+bool CPluginList::SendStandbyEvent(bool fStandby)
+{
+	return SendEvent(TVTest::EVENT_STANDBY,fStandby);
 }
 
 

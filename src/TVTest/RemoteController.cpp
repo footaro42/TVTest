@@ -366,10 +366,14 @@ void CHDUSController::SetDlgItemStatus()
 		lvi.iItem=Sel;
 		lvi.iSubItem=0;
 		ListView_GetItem(hwndList,&lvi);
-		for (int i=0;i<m_pCommandList->NumCommands();i++) {
-			if (m_pCommandList->GetCommandID(i)==(int)lvi.lParam) {
-				DlgComboBox_SetCurSel(m_hDlg,IDC_HDUSCONTROLLER_COMMAND,i+1);
-				break;
+		if (lvi.lParam==0) {
+			DlgComboBox_SetCurSel(m_hDlg,IDC_HDUSCONTROLLER_COMMAND,0);
+		} else {
+			for (int i=0;i<m_pCommandList->NumCommands();i++) {
+				if (m_pCommandList->GetCommandID(i)==(int)lvi.lParam) {
+					DlgComboBox_SetCurSel(m_hDlg,IDC_HDUSCONTROLLER_COMMAND,i+1);
+					break;
+				}
 			}
 		}
 	} else {

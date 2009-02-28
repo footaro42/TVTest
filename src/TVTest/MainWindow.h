@@ -71,7 +71,8 @@ public:
 		TIMER_ID_WHEELCHANNELCHANGE,
 		TIMER_ID_WHEELCHANNELCHANGE_DONE,
 		TIMER_ID_PROGRAMLISTUPDATE,
-		TIMER_ID_PROGRAMGUIDEUPDATE
+		TIMER_ID_PROGRAMGUIDEUPDATE,
+		TIMER_ID_CHANNELPANELUPDATE
 	};
 	CMainWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
@@ -113,6 +114,7 @@ public:
 	void SetMaximizeStatus(bool fMaximize) { m_fMaximize=fMaximize; }
 	bool GetMaximizeStatus() const { return m_fMaximize; }
 	void OnChannelChange();
+	void OnDriverChange();
 	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fStatus);
 	void PopupMenu(const POINT *pPos=NULL);
 	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }

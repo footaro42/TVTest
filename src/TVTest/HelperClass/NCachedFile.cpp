@@ -116,7 +116,7 @@ const bool CNCachedFile::Close(void)
 }
 
 
-const DWORD CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen)
+const DWORD CNCachedFile::Read(void *pBuff, const DWORD dwLen)
 {
 	// エラー処理
 	if (m_bIsWritable) {
@@ -128,7 +128,7 @@ const DWORD CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen)
 }
 
 
-const DWORD CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
+const DWORD CNCachedFile::Read(void *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
 	if (m_bIsWritable) {
 		m_LastError = ERROR_INVALID_FUNCTION;
@@ -143,7 +143,7 @@ const DWORD CNCachedFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG l
 }
 
 
-const bool CNCachedFile::Write(const BYTE *pBuff, const DWORD dwLen)
+const bool CNCachedFile::Write(const void *pBuff, const DWORD dwLen)
 {
 	// ファイル書き込み
 	if (!m_bIsWritable) {
@@ -186,7 +186,7 @@ const bool CNCachedFile::Write(const BYTE *pBuff, const DWORD dwLen)
 }
 
 
-const bool CNCachedFile::Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
+const bool CNCachedFile::Write(const void *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
 	// ファイル書き込み
 	if (!m_bIsWritable) {

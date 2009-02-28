@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "EpgProgramList.h"
+#include "NFile.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -397,7 +398,7 @@ bool CEpgProgramList::UpdateProgramList()
 
 bool CEpgProgramList::UpdateProgramList(WORD TSID,WORD ServiceID)
 {
-	CTryBlockLock Lock(&m_Lock);
+	CBlockLock Lock(&m_Lock);
 
 	if (m_pEpgDll==NULL)
 		return false;
@@ -420,6 +421,8 @@ bool CEpgProgramList::UpdateProgramList(WORD TSID,WORD ServiceID)
 
 void CEpgProgramList::Clear()
 {
+	CBlockLock Lock(&m_Lock);
+
 	ServiceMap.clear();
 }
 
@@ -499,6 +502,8 @@ const CEventInfoData *CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,WOR
 
 bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo)
 {
+	CBlockLock Lock(&m_Lock);
+
 	if (m_pEpgDll==NULL)
 		return NULL;
 
@@ -586,17 +591,16 @@ struct EventInfoHeader {
 #include <poppack.h>
 
 
-static bool ReadString(HANDLE hFile,LPWSTR *ppszString)
+static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 {
 	DWORD Length,Read;
 
 	*ppszString=NULL;
-	if (!::ReadFile(hFile,&Length,sizeof(DWORD),&Read,NULL) || Read!=sizeof(DWORD))
+	if (pFile->Read(&Length,sizeof(DWORD))!=sizeof(DWORD))
 		return false;
 	if (Length>0) {
 		*ppszString=new WCHAR[Length+1];
-		if (!::ReadFile(hFile,*ppszString,Length*sizeof(WCHAR),&Read,NULL)
-				|| Read!=Length*sizeof(WCHAR)) {
+		if (pFile->Read(*ppszString,Length*sizeof(WCHAR))!=Length*sizeof(WCHAR)) {
 			delete [] *ppszString;
 			*ppszString=NULL;
 			return false;
@@ -607,7 +611,7 @@ static bool ReadString(HANDLE hFile,LPWSTR *ppszString)
 }
 
 
-static bool WriteString(HANDLE hFile,LPCWSTR pszString)
+static bool WriteString(CNFile *pFile,LPCWSTR pszString)
 {
 	DWORD Length,Write;
 
@@ -615,11 +619,10 @@ static bool WriteString(HANDLE hFile,LPCWSTR pszString)
 		Length=::lstrlenW(pszString);
 	else
 		Length=0;
-	if (!::WriteFile(hFile,&Length,sizeof(DWORD),&Write,NULL) || Write!=sizeof(DWORD))
+	if (!pFile->Write(&Length,sizeof(DWORD)))
 		return false;
 	if (Length>0) {
-		if (!::WriteFile(hFile,pszString,Length*sizeof(WCHAR),&Write,NULL)
-				|| Write!=Length*sizeof(WCHAR))
+		if (!pFile->Write(pszString,Length*sizeof(WCHAR)))
 			return false;
 	}
 	return true;
@@ -629,30 +632,27 @@ static bool WriteString(HANDLE hFile,LPCWSTR pszString)
 bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
-	HANDLE hFile;
-	DWORD Read;
+	CNFile File;
 
-	hFile=::CreateFile(pszFileName,GENERIC_READ,FILE_SHARE_READ,NULL,
-									OPEN_EXISTING,FILE_ATTRIBUTE_NORMAL,NULL);
-	if (hFile==INVALID_HANDLE_VALUE)
+	if (!File.Open(pszFileName,CNFile::CNF_READ | CNFile::CNF_SHAREREAD))
 		return false;
 
 	EpgListFileHeader FileHeader;
 
-	::ReadFile(hFile,&FileHeader,sizeof(EpgListFileHeader),&Read,NULL);
-	if (memcmp(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type))!=0
-			|| FileHeader.Version!=EPGLISTFILEHEADER_VERSION) {
-		::CloseHandle(hFile);
+	if (File.Read(&FileHeader,sizeof(EpgListFileHeader))!=sizeof(EpgListFileHeader))
 		return false;
-	}
+	if (memcmp(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type))!=0
+			|| FileHeader.Version!=EPGLISTFILEHEADER_VERSION)
+		return false;
 
 	Clear();
 	for (DWORD i=0;i<FileHeader.NumServices;i++) {
 		ServiceInfoHeader ServiceHeader;
 		LPWSTR pszText;
 
-		::ReadFile(hFile,&ServiceHeader,sizeof(ServiceInfoHeader),&Read,NULL);
-		ReadString(hFile,&pszText);
+		if (File.Read(&ServiceHeader,sizeof(ServiceInfoHeader))!=sizeof(ServiceInfoHeader))
+			goto OnError;
+		ReadString(&File,&pszText);
 		CServiceInfoData ServiceData(ServiceHeader.OriginalNID,
 									 ServiceHeader.TSID,
 									 ServiceHeader.ServiceID,
@@ -664,7 +664,8 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			EventInfoHeader EventHeader;
 			CEventInfoData EventData;
 
-			::ReadFile(hFile,&EventHeader,sizeof(EventInfoHeader),&Read,NULL);
+			if (File.Read(&EventHeader,sizeof(EventInfoHeader))!=sizeof(EventInfoHeader))
+				goto OnError;
 			EventData.m_OriginalNID=ServiceHeader.OriginalNID;
 			EventData.m_TSID=ServiceHeader.TSID;
 			EventData.m_ServiceID=EventHeader.ServiceID;
@@ -679,27 +680,38 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			if (EventHeader.ContentNibbleListCount>0) {
 				for (DWORD k=0;k<EventHeader.ContentNibbleListCount;k++) {
 					CEventInfoData::NibbleData Nibble;
-					::ReadFile(hFile,&Nibble,sizeof(Nibble),&Read,NULL);
+					if (File.Read(&Nibble,sizeof(Nibble))!=sizeof(Nibble))
+						goto OnError;
 					EventData.m_NibbleList.push_back(Nibble);
 				}
 			}
-			if (ReadString(hFile,&pszText)) {
+			if (!ReadString(&File,&pszText))
+				goto OnError;
+			if (pszText!=NULL) {
 				EventData.SetEventName(pszText);
 				delete [] pszText;
 			}
-			if (ReadString(hFile,&pszText)) {
+			if (!ReadString(&File,&pszText))
+				goto OnError;
+			if (pszText!=NULL) {
 				EventData.SetEventText(pszText);
 				delete [] pszText;
 			}
-			if (ReadString(hFile,&pszText)) {
+			if (!ReadString(&File,&pszText))
+				goto OnError;
+			if (pszText!=NULL) {
 				EventData.SetEventExtText(pszText);
 				delete [] pszText;
 			}
-			if (ReadString(hFile,&pszText)) {
+			if (!ReadString(&File,&pszText))
+				goto OnError;
+			if (pszText!=NULL) {
 				EventData.SetComponentTypeText(pszText);
 				delete [] pszText;
 			}
-			if (ReadString(hFile,&pszText)) {
+			if (!ReadString(&File,&pszText))
+				goto OnError;
+			if (pszText!=NULL) {
 				EventData.SetAudioComponentTypeText(pszText);
 				delete [] pszText;
 			}
@@ -710,20 +722,20 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 								ServiceData.m_TSID,ServiceData.m_ServiceID);
 		ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo));
 	}
-	::CloseHandle(hFile);
 	return true;
+
+OnError:
+	Clear();
+	return false;
 }
 
 
 bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
-	HANDLE hFile;
-	DWORD Write;
+	CNFile File;
 
-	hFile=::CreateFile(pszFileName,GENERIC_WRITE,0,NULL,CREATE_ALWAYS,
-												FILE_ATTRIBUTE_NORMAL,NULL);
-	if (hFile==INVALID_HANDLE_VALUE)
+	if (!File.Open(pszFileName,CNFile::CNF_WRITE | CNFile::CNF_NEW))
 		return false;
 
 	EpgListFileHeader FileHeader;
@@ -732,39 +744,55 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 	FileHeader.Version=EPGLISTFILEHEADER_VERSION;
 	FileHeader.NumServices=ServiceMap.size();
 
-	::WriteFile(hFile,&FileHeader,sizeof(EpgListFileHeader),&Write,NULL);
+	if (!File.Write(&FileHeader,sizeof(EpgListFileHeader)))
+		return false;
+
+	SYSTEMTIME stCurrent,st;
+	::GetLocalTime(&stCurrent);
 
 	ServiceIterator itrService;
 
 	for (itrService=ServiceMap.begin();itrService!=ServiceMap.end();itrService++) {
 		ServiceInfoHeader ServiceHeader(itrService->second.m_ServiceData);
+		CEventInfoList::EventIterator itrEvent;
 
-		ServiceHeader.NumEvents=itrService->second.m_EventList.EventDataMap.size();
-		::WriteFile(hFile,&ServiceHeader,sizeof(ServiceInfoHeader),&Write,NULL);
-		WriteString(hFile,itrService->second.m_ServiceData.GetServiceName());
+		for (itrEvent=itrService->second.m_EventList.EventDataMap.begin();
+				itrEvent!=itrService->second.m_EventList.EventDataMap.end();
+				itrEvent++) {
+			if (itrEvent->second.GetEndTime(&st)
+					&& CompareSystemTime(&st,&stCurrent)>0)
+				ServiceHeader.NumEvents++;
+		}
+		if (!File.Write(&ServiceHeader,sizeof(ServiceInfoHeader)))
+			return false;
+		if (!WriteString(&File,itrService->second.m_ServiceData.GetServiceName()))
+			return false;
 		if (ServiceHeader.NumEvents>0) {
-			CEventInfoList::EventIterator itrEvent;
-
 			for (itrEvent=itrService->second.m_EventList.EventDataMap.begin();
 					itrEvent!=itrService->second.m_EventList.EventDataMap.end();
 					itrEvent++) {
 				EventInfoHeader EventHeader(itrEvent->second);
 
-				::WriteFile(hFile,&EventHeader,sizeof(EventInfoHeader),&Write,NULL);
-				if (EventHeader.ContentNibbleListCount>0) {
-					for (DWORD i=0;i<EventHeader.ContentNibbleListCount;i++) {
-						CEventInfoData::NibbleData Nibble=itrEvent->second.m_NibbleList[i];
-						::WriteFile(hFile,&Nibble,sizeof(Nibble),&Write,NULL);
+				if (itrEvent->second.GetEndTime(&st)
+						&& CompareSystemTime(&st,&stCurrent)>0) {
+					if (!File.Write(&EventHeader,sizeof(EventInfoHeader)))
+						return false;
+					if (EventHeader.ContentNibbleListCount>0) {
+						for (DWORD i=0;i<EventHeader.ContentNibbleListCount;i++) {
+							CEventInfoData::NibbleData Nibble=itrEvent->second.m_NibbleList[i];
+							if (!File.Write(&Nibble,sizeof(Nibble)))
+								return false;
+						}
 					}
+					if (!WriteString(&File,itrEvent->second.GetEventName())
+							|| !WriteString(&File,itrEvent->second.GetEventText())
+							|| !WriteString(&File,itrEvent->second.GetEventExtText())
+							|| !WriteString(&File,itrEvent->second.GetComponentTypeText())
+							|| !WriteString(&File,itrEvent->second.GetAudioComponentTypeText()))
+						return false;
 				}
-				WriteString(hFile,itrEvent->second.GetEventName());
-				WriteString(hFile,itrEvent->second.GetEventText());
-				WriteString(hFile,itrEvent->second.GetEventExtText());
-				WriteString(hFile,itrEvent->second.GetComponentTypeText());
-				WriteString(hFile,itrEvent->second.GetAudioComponentTypeText());
 			}
 		}
 	}
-	::CloseHandle(hFile);
 	return true;
 }

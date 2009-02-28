@@ -19,11 +19,11 @@ public:
 	const bool Open(LPCTSTR lpszName, const BYTE bFlags, const DWORD dwBuffSize);
 	const bool Close(void);
 
-	const DWORD Read(BYTE *pBuff, const DWORD dwLen);
-	const DWORD Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	const DWORD Read(void *pBuff, const DWORD dwLen);
+	const DWORD Read(void *pBuff, const DWORD dwLen, const ULONGLONG llPos);
 
-	const bool Write(const BYTE *pBuff, const DWORD dwLen);
-	const bool Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	const bool Write(const void *pBuff, const DWORD dwLen);
+	const bool Write(const void *pBuff, const DWORD dwLen, const ULONGLONG llPos);
 	const bool Flush(void);
 
 	const ULONGLONG GetPos(void);

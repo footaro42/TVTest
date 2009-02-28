@@ -166,7 +166,7 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 		if (pChInfo->GetServiceID()!=0) {
 			WORD TransportStreamID=pChInfo->GetTransportStreamID();
 			WORD ServiceID=pChInfo->GetServiceID();
-			bool fOK;
+			bool fOK=false;
 			CEventInfoData EventInfo;
 
 			if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {

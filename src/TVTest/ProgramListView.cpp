@@ -528,13 +528,14 @@ LRESULT CALLBACK CProgramListView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 	case WM_VSCROLL:
 		{
 			CProgramListView *pThis=GetThis(hwnd);
-			int Pos;
+			int Pos,Max;
 			RECT rc;
 			int Page;
 
 			Pos=pThis->m_ScrollPos;
 			pThis->GetClientRect(&rc);
 			Page=rc.bottom/(pThis->m_FontHeight+pThis->m_LineMargin);
+			Max=max(pThis->m_TotalLines-Page,0);
 			switch (LOWORD(wParam)) {
 			case SB_LINEUP:		Pos--;				break;
 			case SB_LINEDOWN:	Pos++;				break;
@@ -542,13 +543,13 @@ LRESULT CALLBACK CProgramListView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 			case SB_PAGEDOWN:	Pos+=Page;			break;
 			case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
 			case SB_TOP:		Pos=0;				break;
-			case SB_BOTTOM:		Pos=max(pThis->m_TotalLines-Page,0);	break;
+			case SB_BOTTOM:		Pos=Max;			break;
 			default:	return 0;
 			}
 			if (Pos<0)
 				Pos=0;
-			else if (Pos>max(pThis->m_TotalLines-Page,0))
-				Pos=max(pThis->m_TotalLines-Page,0);
+			else if (Pos>Max)
+				Pos=Max;
 			if (Pos!=pThis->m_ScrollPos) {
 				int Offset=Pos-pThis->m_ScrollPos;
 				SCROLLINFO si;
@@ -558,11 +559,12 @@ LRESULT CALLBACK CProgramListView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 				si.fMask=SIF_POS;
 				si.nPos=Pos;
 				SetScrollInfo(hwnd,SB_VERT,&si,TRUE);
-				if (abs(-Offset*(pThis->m_FontHeight+pThis->m_LineMargin))<rc.bottom) {
+				if (abs(Offset*(pThis->m_FontHeight+pThis->m_LineMargin))<rc.bottom) {
 					ScrollWindowEx(hwnd,0,-Offset*(pThis->m_FontHeight+pThis->m_LineMargin),
 								NULL,NULL,NULL,NULL,SW_ERASE | SW_INVALIDATE);
-				} else
+				} else {
 					InvalidateRect(hwnd,NULL,TRUE);
+				}
 			}
 		}
 		return 0;

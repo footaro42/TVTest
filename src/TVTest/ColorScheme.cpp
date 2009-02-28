@@ -35,6 +35,10 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 	{RGB(64,96,80),		TEXT("ProgramListText"),			TEXT("番組表文字")},
 	{RGB(64,96,80),		TEXT("ProgramListTitleBack"),		TEXT("番組表番組名背景")},
 	{RGB(128,192,160),	TEXT("ProgramListTitleText"),		TEXT("番組表番組名文字")},
+	{RGB(64,96,80),		TEXT("ChannelPanelChannelNameBack"),	TEXT("チャンネル名背景")},
+	{RGB(128,192,160),	TEXT("ChannelPanelChannelNameText"),	TEXT("チャンネル名文字")},
+	{RGB(64,96,80),		TEXT("ChannelPanelEventNameBack"),	TEXT("チャンネル番組名背景")},
+	{RGB(128,192,160),	TEXT("ChannelPanelEventNameText"),	TEXT("チャンネル番組名文字")},
 	{RGB(64,96,80),		TEXT("ControlPanelHighlightBack"),	TEXT("操作パネル選択背景")},
 	{RGB(128,192,160),	TEXT("ControlPanelHighlightText"),	TEXT("操作パネル選択文字")},
 	{RGB(255,255,255),	TEXT("ProgramGuideBack"),			TEXT("EPG番組表背景")},
@@ -141,6 +145,14 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 		if (Settings.ReadColor(m_ColorInfoList[i].pszText,&m_ColorList[i]))
 			m_LoadedFlags[i/32]|=1<<(i%32);
 	}
+	if (!IsLoaded(COLOR_CHANNELPANELCHANNELNAMEBACK))
+		m_ColorList[COLOR_CHANNELPANELCHANNELNAMEBACK]=m_ColorList[COLOR_PROGRAMLISTTITLEBACK];
+	if (!IsLoaded(COLOR_CHANNELPANELCHANNELNAMETEXT))
+		m_ColorList[COLOR_CHANNELPANELCHANNELNAMETEXT]=m_ColorList[COLOR_PROGRAMLISTTITLETEXT];
+	if (!IsLoaded(COLOR_CHANNELPANELEVENTNAMEBACK))
+		m_ColorList[COLOR_CHANNELPANELEVENTNAMEBACK]=m_ColorList[COLOR_PANELBACK];
+	if (!IsLoaded(COLOR_CHANNELPANELEVENTNAMETEXT))
+		m_ColorList[COLOR_CHANNELPANELEVENTNAMETEXT]=m_ColorList[COLOR_PANELTEXT];
 	SetFileName(pszFileName);
 	return true;
 }

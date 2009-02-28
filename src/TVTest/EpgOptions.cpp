@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <shlwapi.h>
+#include <shlobj.h>
 #include "TVTest.h"
 #include "EpgOptions.h"
 #include "DialogUtil.h"
@@ -20,17 +21,32 @@ CEpgOptions::CEpgOptions(CCoreEngine *pCoreEngine)
 	m_fSaveEpgFile=true;
 	::lstrcpy(m_szEpgFileName,TEXT("EpgData"));
 	m_fUpdateWhenStandby=false;
+	m_fUseEpgData=false;
+	if (::SHGetSpecialFolderPath(NULL,m_szEpgDataFolder,CSIDL_PERSONAL,FALSE))
+		::PathAppend(m_szEpgDataFolder,TEXT("EpgTimerBon\\EpgData"));
+	else
+		m_szEpgDataFolder[0]='\0';
 	m_pCoreEngine=pCoreEngine;
 	m_hLoadThread=NULL;
+	m_pEpgDataLoader=NULL;
+	m_EpgDataLoaderEventHandler.SetPacketParser(&pCoreEngine->m_DtvEngine.m_TsPacketParser);
 }
 
 
 CEpgOptions::~CEpgOptions()
 {
+	Finalize();
+}
+
+
+void CEpgOptions::Finalize()
+{
 	if (m_hLoadThread) {
 		::WaitForSingleObject(m_hLoadThread,INFINITE);
 		::CloseHandle(m_hLoadThread);
+		m_hLoadThread=NULL;
 	}
+	SAFE_DELETE(m_pEpgDataLoader);
 }
 
 
@@ -40,6 +56,8 @@ bool CEpgOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("SaveEpgData"),&m_fSaveEpgFile);
 	pSettings->Read(TEXT("EpgDataFileName"),m_szEpgFileName,lengthof(m_szEpgFileName));
 	pSettings->Read(TEXT("EpgUpdateWhenStandby"),&m_fUpdateWhenStandby);
+	pSettings->Read(TEXT("UseEpgData"),&m_fUseEpgData);
+	pSettings->Read(TEXT("EpgDataFolder"),m_szEpgDataFolder,lengthof(m_szEpgDataFolder));
 	return true;
 }
 
@@ -50,6 +68,8 @@ bool CEpgOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("SaveEpgData"),m_fSaveEpgFile);
 	pSettings->Write(TEXT("EpgDataFileName"),m_szEpgFileName);
 	pSettings->Write(TEXT("EpgUpdateWhenStandby"),m_fUpdateWhenStandby);
+	pSettings->Write(TEXT("UseEpgData"),m_fUseEpgData);
+	pSettings->Write(TEXT("EpgDataFolder"),m_szEpgDataFolder);
 	return true;
 }
 
@@ -135,11 +155,41 @@ bool CEpgOptions::SaveEpgFile(CEpgProgramList *pEpgList)
 		GetEpgFileFullPath(szFileName);
 		if (pEpgList->NumServices()>0) {
 			fOK=pEpgList->SaveToFile(szFileName);
+			if (!fOK)
+				::DeleteFile(szFileName);
 		} else {
 			if (::DeleteFile(szFileName)
 					|| ::GetLastError()==ERROR_FILE_NOT_FOUND)
 				fOK=true;
 		}
+	}
+	return fOK;
+}
+
+
+bool CEpgOptions::LoadEpgData()
+{
+	bool fOK=true;
+
+	if (m_fUseEpgData && m_szEpgDataFolder[0]!='\0') {
+		CEpgDataLoader Loader(m_pCoreEngine->m_DtvEngine.m_TsPacketParser.GetEpgDataCapDllUtil());
+
+		fOK=Loader.Load(m_szEpgDataFolder);
+	}
+	return fOK;
+}
+
+
+bool CEpgOptions::AsyncLoadEpgData()
+{
+	bool fOK=true;
+
+	if (m_fUseEpgData && m_szEpgDataFolder[0]!='\0') {
+		delete m_pEpgDataLoader;
+		m_pEpgDataLoader=
+			new CEpgDataLoader(m_pCoreEngine->m_DtvEngine.m_TsPacketParser.GetEpgDataCapDllUtil());
+
+		fOK=m_pEpgDataLoader->LoadAsync(m_szEpgDataFolder,&m_EpgDataLoaderEventHandler);
 	}
 	return fOK;
 }
@@ -172,6 +222,12 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 							 pThis->m_szEpgFileName);
 			::CheckDlgButton(hDlg,IDC_EPGOPTIONS_UPDATEWHENSTANDBY,
 						pThis->m_fUpdateWhenStandby?BST_CHECKED:BST_UNCHECKED);
+			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_USEEPGDATA,pThis->m_fUseEpgData);
+			::SendDlgItemMessage(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
+			::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,pThis->m_szEpgDataFolder);
+			EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
+								IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
+						   pThis->m_fUseEpgData);
 		}
 		return TRUE;
 
@@ -252,6 +308,22 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGFILENAME,szFileName);
 			}
 			return TRUE;
+
+		case IDC_EPGOPTIONS_USEEPGDATA:
+			EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
+								IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
+						   DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_USEEPGDATA));
+			return TRUE;
+
+		case IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE:
+			{
+				TCHAR szFolder[MAX_PATH];
+
+				::GetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,szFolder,lengthof(szFolder));
+				if (BrowseFolderDialog(hDlg,szFolder,TEXT("EPGデータのフォルダ")))
+					::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,szFolder);
+			}
+			return TRUE;
 		}
 		return TRUE;
 
@@ -277,6 +349,10 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					 pThis->m_szEpgFileName,lengthof(pThis->m_szEpgFileName));
 				pThis->m_fUpdateWhenStandby=
 					::IsDlgButtonChecked(hDlg,IDC_EPGOPTIONS_UPDATEWHENSTANDBY)==BST_CHECKED;
+				pThis->m_fUseEpgData=
+					DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_USEEPGDATA);
+				::GetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,
+					pThis->m_szEpgDataFolder,lengthof(pThis->m_szEpgDataFolder));
 			}
 			break;
 		}

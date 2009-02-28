@@ -8,8 +8,9 @@
 
 
 class CCommandList {
-	CPointerVector<TCHAR> m_PluginList;
 	CPointerVector<TCHAR> m_DriverList;
+	CPointerVector<TCHAR> m_PluginList;
+	CPointerVector<TCHAR> m_PluginCommandList;
 public:
 	enum {
 		MAX_COMMAND_TEXT=MAX_PATH,

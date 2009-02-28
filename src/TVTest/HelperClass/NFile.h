@@ -23,11 +23,11 @@ public:
 	virtual const bool Close(void);
 	virtual const bool IsOpen() const;
 
-	virtual const DWORD Read(BYTE *pBuff, const DWORD dwLen);
-	virtual const DWORD Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	virtual const DWORD Read(void *pBuff, const DWORD dwLen);
+	virtual const DWORD Read(void *pBuff, const DWORD dwLen, const ULONGLONG llPos);
 
-	virtual const bool Write(const BYTE *pBuff, const DWORD dwLen);
-	virtual const bool Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos);
+	virtual const bool Write(const void *pBuff, const DWORD dwLen);
+	virtual const bool Write(const void *pBuff, const DWORD dwLen, const ULONGLONG llPos);
 	virtual const bool Flush(void);
 
 	virtual const ULONGLONG GetSize(void);

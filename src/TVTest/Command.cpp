@@ -99,8 +99,9 @@ CCommandList::CCommandList()
 
 CCommandList::~CCommandList()
 {
-	m_PluginList.DeleteAll();
 	m_DriverList.DeleteAll();
+	m_PluginList.DeleteAll();
+	m_PluginCommandList.DeleteAll();
 }
 
 
@@ -112,9 +113,24 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,const CPlugin
 			m_DriverList.Add(DuplicateString(::PathFindFileName(pDriverManager->GetDriverInfo(i)->GetFileName())));
 	}
 	m_PluginList.DeleteAll();
+	m_PluginCommandList.DeleteAll();
 	if (pPluginList!=NULL) {
-		for (int i=0;i<pPluginList->NumPlugins();i++)
-			m_PluginList.Add(DuplicateString(::PathFindFileName(pPluginList->GetPlugin(i)->GetFileName())));
+		for (int i=0;i<pPluginList->NumPlugins();i++) {
+			const CPlugin *pPlugin=pPluginList->GetPlugin(i);
+			LPCTSTR pszFileName=::PathFindFileName(pPlugin->GetFileName());
+
+			m_PluginList.Add(DuplicateString(pszFileName));
+			for (int j=0;j<pPlugin->NumPluginCommands();j++) {
+				TVTest::CommandInfo Info;
+				LPTSTR pszText;
+
+				pPlugin->GetPluginCommandInfo(j,&Info);
+				pszText=new TCHAR[::lstrlen(pszFileName)+1+::lstrlen(Info.pszText)+1+::lstrlen(Info.pszName)+1];
+				::wsprintf(pszText,TEXT("%s:%s%c%s"),
+						   pszFileName,Info.pszText,'\0',Info.pszName);
+				m_PluginCommandList.Add(pszText);
+			}
+		}
 	}
 	return true;
 }
@@ -122,36 +138,53 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,const CPlugin
 
 int CCommandList::NumCommands() const
 {
-	return lengthof(CommandList)+m_DriverList.Length()+m_PluginList.Length();
+	return lengthof(CommandList)+m_DriverList.Length()+
+		m_PluginList.Length()+m_PluginCommandList.Length();
 }
 
 
 int CCommandList::GetCommandID(int Index) const
 {
+	int Base;
+
 	if (Index<0 || Index>=NumCommands())
 		return 0;
 	if (Index<lengthof(CommandList))
 		return CommandList[Index].Command;
-	if (Index<(int)lengthof(CommandList)+m_DriverList.Length())
-		return CM_DRIVER_FIRST+Index-lengthof(CommandList);
-	return CM_PLUGIN_FIRST+Index-lengthof(CommandList)-m_DriverList.Length();
+	Base=lengthof(CommandList);
+	if (Index<Base+m_DriverList.Length())
+		return CM_DRIVER_FIRST+Index-Base;
+	Base+=m_DriverList.Length();
+	if (Index<Base+m_PluginList.Length())
+		return CM_PLUGIN_FIRST+Index-Base;
+	Base+=m_PluginList.Length();
+	return CM_PLUGINCOMMAND_FIRST+Index-Base;
 }
 
 
 LPCTSTR CCommandList::GetCommandText(int Index) const
 {
+	int Base;
+
 	if (Index<0 || Index>=NumCommands())
 		return NULL;
 	if (Index<lengthof(CommandList))
 		return CommandList[Index].pszText;
-	if (Index<(int)lengthof(CommandList)+m_DriverList.Length())
-		return m_DriverList[Index-lengthof(CommandList)];
-	return m_PluginList[Index-lengthof(CommandList)-m_DriverList.Length()];
+	Base=lengthof(CommandList);
+	if (Index<Base+m_DriverList.Length())
+		return m_DriverList[Index-Base];
+	Base+=m_DriverList.Length();
+	if (Index<Base+m_PluginList.Length())
+		return m_PluginList[Index-Base];
+	Base+=m_PluginList.Length();
+	return m_PluginCommandList[Index-Base];
 }
 
 
 int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 {
+	int Base;
+
 	if (pszName==NULL || MaxLength<1)
 		return 0;
 	if (Index<0 || Index>=NumCommands()) {
@@ -161,24 +194,43 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 	if (Index<lengthof(CommandList))
 		return ::LoadString(GetAppClass().GetResourceInstance(),
 							CommandList[Index].Command,pszName,MaxLength);
-	if (Index<(int)lengthof(CommandList)+m_DriverList.Length())
+	Base=lengthof(CommandList);
+	if (Index<Base+m_DriverList.Length())
 		return StdUtil::snprintf(pszName,MaxLength,TEXT("ドライバ(%s)"),
-								 m_DriverList[Index-lengthof(CommandList)]);
-	return StdUtil::snprintf(pszName,MaxLength,TEXT("プラグイン(%s)"),
-			m_PluginList[Index-lengthof(CommandList)-m_DriverList.Length()]);
+								 m_DriverList[Index-Base]);
+	Base+=m_DriverList.Length();
+	if (Index<Base+m_PluginList.Length())
+		return StdUtil::snprintf(pszName,MaxLength,TEXT("プラグイン(%s)"),
+								 m_PluginList[Index-Base]);
+	Base+=m_PluginList.Length();
+	LPCTSTR pszText=m_PluginCommandList[Index-Base];
+	int Length;
+	TCHAR szFileName[MAX_PATH];
+	for (Length=0;pszText[Length]!=':';Length++)
+		szFileName[Length]=pszText[Length];
+	szFileName[Length]='\0';
+	return StdUtil::snprintf(pszName,MaxLength,TEXT("%s(%s)"),
+							 szFileName,pszText+::lstrlen(pszText)+1);
 }
 
 
 int CCommandList::IDToIndex(int ID) const
 {
+	int Base;
+
 	for (int i=0;i<lengthof(CommandList);i++) {
 		if (CommandList[i].Command==ID)
 			return i;
 	}
+	Base=lengthof(CommandList);
 	if (ID>=CM_DRIVER_FIRST && ID<CM_DRIVER_FIRST+m_DriverList.Length())
-		return lengthof(CommandList)+ID-CM_DRIVER_FIRST;
+		return Base+ID-CM_DRIVER_FIRST;
+	Base+=m_DriverList.Length();
 	if (ID>=CM_PLUGIN_FIRST && ID<CM_PLUGIN_FIRST+m_PluginList.Length())
-		return lengthof(CommandList)+m_DriverList.Length()+ID-CM_PLUGIN_FIRST;
+		return Base+ID-CM_PLUGIN_FIRST;
+	Base+=m_PluginList.Length();
+	if (ID>=CM_PLUGINCOMMAND_FIRST && ID<CM_PLUGINCOMMAND_LAST+m_PluginCommandList.Length())
+		return Base+ID-CM_PLUGINCOMMAND_FIRST;
 	return -1;
 }
 
@@ -200,6 +252,10 @@ int CCommandList::ParseText(LPCTSTR pszText) const
 	for (i=0;i<m_PluginList.Length();i++) {
 		if (::lstrcmpi(m_PluginList[i],pszText)==0)
 			return CM_PLUGIN_FIRST+i;
+	}
+	for (i=0;i<m_PluginCommandList.Length();i++) {
+		if (::lstrcmpi(m_PluginCommandList[i],pszText)==0)
+			return CM_PLUGINCOMMAND_FIRST+i;
 	}
 	return 0;
 }

@@ -330,6 +330,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ChannelPanel.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\ChannelScan.cpp"
 				>
 			</File>
@@ -589,6 +593,10 @@
 			</File>
 			<File
 				RelativePath=".\ChannelManager.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ChannelPanel.h"
 				>
 			</File>
 			<File
@@ -1239,6 +1247,10 @@
 					RelativePath=".\EpgDataCap\EpgDataCapDllUtil.h"
 					>
 				</File>
+				<File
+					RelativePath=".\EpgDataCap\EpgDataLoader.h"
+					>
+				</File>
 			</Filter>
 			<Filter
 				Name="Source Files"
@@ -1249,6 +1261,10 @@
 				</File>
 				<File
 					RelativePath=".\EpgDataCap\EpgDataCapDllUtil.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\EpgDataCap\EpgDataLoader.cpp"
 					>
 				</File>
 			</Filter>

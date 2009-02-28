@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.26
+    TVTest ver.0.5.27
 
 
 ◆ はじめに
@@ -30,8 +30,8 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.5.26_Src.zip ソースファイル
-  ・TVTest_SDK_090215.zip プラグイン開発用 SDK
+  ・TVTest_0.5.27_Src.zip ソースファイル
+  ・TVTest_SDK_090301.zip プラグイン開発用 SDK
   ・EpgDataCap.dll        EPG 用 DLL (EpgDataCapの中の人氏作)
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
   ・Preset_BS.ch2         BS 用チャンネルプリセット
@@ -365,6 +365,14 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.27
+    ・パネルウィンドウにチャンネル選択タブを追加した
+    ・EpgDataCap_Bon の EPG データを利用できるようにした
+    ・プラグインからコマンドの登録などの機能を追加した
+    ・EPG データの読み書き時のエラーチェックが抜けていた問題を修正
+    ・UDP 及び TCP のドライバ使用時に、前回のポートが保存されない不具合を修正
+    ・その他微修正
 
   ver.0.5.26
     ・音声の再生に使用するデバイスを選択できるようにした

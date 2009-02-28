@@ -17,6 +17,7 @@
 #include "EpgProgramList.h"
 #include "ProgramListView.h"
 #include "ProgramGuide.h"
+#include "ChannelPanel.h"
 #include "ControlPanel.h"
 #include "Splitter.h"
 #include "TitleBar.h"
@@ -67,9 +68,12 @@ static char THIS_FILE[]=__FILE__;
 #define PANE_ID_VIEW	1
 #define PANE_ID_PANEL	2
 
-#define PANEL_TAB_INFORMATION	0
-#define PANEL_TAB_PROGRAMLIST	1
-#define PANEL_TAB_CONTROL		2
+enum {
+	PANEL_TAB_INFORMATION,
+	PANEL_TAB_PROGRAMLIST,
+	PANEL_TAB_CHANNEL,
+	PANEL_TAB_CONTROL
+};
 
 // 以下グローバル変数使いまくり
 // 改善中...
@@ -90,7 +94,6 @@ static CPseudoOSD ChannelOSD;
 static CPseudoOSD VolumeOSD;
 
 static TCHAR szDriverFileName[MAX_PATH];
-//static bool fNewHDUSDriver=true;
 static bool fIncrementUDPPort=true;
 
 static CCommandLineParser CmdLineParser;
@@ -111,6 +114,8 @@ static CInformation InfoWindow;
 static CEpgProgramList EpgProgramList;
 static CProgramListView ProgramListView;
 static unsigned int ProgramListUpdateTimerCount=0;
+
+static CChannelPanel ChannelPanel;
 
 static CControlPanel ControlPanel;
 enum {
@@ -497,7 +502,7 @@ bool CAppMain::InitializeChannel()
 		RestoreChannelInfo.Space=InitChInfo.Space;
 		RestoreChannelInfo.Channel=InitChInfo.Channel;
 		RestoreChannelInfo.Service=InitChInfo.Service;
-	} else if (!fNetworkDriver) {
+	} else /*if (!fNetworkDriver)*/ {
 		CSettings Setting;
 
 		if (Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_READ)) {
@@ -899,9 +904,10 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 			if (i>=0)
 				MainWindow.PostCommand(CM_CHANNEL_FIRST+i);
 			*/
-			::SetCursor(hcurOld);
 			PluginList.SendDriverChangeEvent();
+			::SetCursor(hcurOld);
 		} else {
+			PluginList.SendDriverChangeEvent();
 			::SetCursor(hcurOld);
 			Logger.AddLog(CoreEngine.GetLastErrorText());
 			MainWindow.ShowErrorMessage(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
@@ -909,12 +915,14 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 	} else {
 		TCHAR szMessage[MAX_PATH+64];
 
+		PluginList.SendDriverChangeEvent();
 		::SetCursor(hcurOld);
 		::wsprintf(szMessage,TEXT("\"%s\" をロードできません。"),pszFileName);
 		MainWindow.ShowErrorMessage(szMessage);
 	}
 	CoreEngine.m_DtvEngine.SetTracer(NULL);
 	StatusView.SetSingleText(NULL);
+	MainWindow.OnDriverChange();
 	return fOK;
 }
 
@@ -2524,6 +2532,11 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 		pColorScheme->GetColor(CColorScheme::COLOR_PROGRAMLISTTEXT),
 		pColorScheme->GetColor(CColorScheme::COLOR_PROGRAMLISTTITLEBACK),
 		pColorScheme->GetColor(CColorScheme::COLOR_PROGRAMLISTTITLETEXT));
+	ChannelPanel.SetColors(
+		pColorScheme->GetColor(CColorScheme::COLOR_CHANNELPANELCHANNELNAMEBACK),
+		pColorScheme->GetColor(CColorScheme::COLOR_CHANNELPANELCHANNELNAMETEXT),
+		pColorScheme->GetColor(CColorScheme::COLOR_CHANNELPANELEVENTNAMEBACK),
+		pColorScheme->GetColor(CColorScheme::COLOR_CHANNELPANELEVENTNAMETEXT));
 	ControlPanel.SetColors(
 		pColorScheme->GetColor(CColorScheme::COLOR_PANELBACK),
 		pColorScheme->GetColor(CColorScheme::COLOR_PANELTEXT),
@@ -3426,6 +3439,10 @@ void CMyInfoPanelEventHandler::OnSelChange()
 										CoreEngine.m_DtvEngine.GetService());
 		if (ServiceID!=0)
 			ProgramListView.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),ServiceID);
+	} else if (InfoPanel.GetCurTab()==PANEL_TAB_CHANNEL) {
+		::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList());
+		::SetCursor(::LoadCursor(NULL,IDC_ARROW));
 	}
 }
 
@@ -3441,8 +3458,31 @@ bool CMyInfoPanelEventHandler::OnKeyDown(UINT KeyCode,UINT Flags)
 }
 
 
+class CMyChannelPanelEventHandler : public CChannelPanel::CEventHandler {
+public:
+	void OnChannelClick(WORD ServiceID);
+};
+
+void CMyChannelPanelEventHandler::OnChannelClick(WORD ServiceID)
+{
+	const CChannelList *pList=ChannelManager.GetCurrentChannelList();
+
+	if (pList!=NULL) {
+		int Index=pList->FindServiceID(ServiceID);
+
+		if (Index>=0) {
+			const CChannelInfo *pChInfo=pList->GetChannelInfo(Index);
+
+			if (pChInfo!=NULL)
+				MainWindow.PostCommand(CM_CHANNELNO_FIRST+pChInfo->GetChannelNo()-1);
+		}
+	}
+}
+
+
 static CPanelStatus PanelStatus;
 static CMyInfoPanelEventHandler InfoPanelEventHandler;
+static CMyChannelPanelEventHandler ChannelPanelEventHandler;
 
 
 
@@ -5028,6 +5068,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			}
 			return;
 		}
+		if (id>=CM_PLUGINCOMMAND_FIRST && id<=CM_PLUGINCOMMAND_LAST) {
+			PluginList.OnPluginCommand(CommandList.GetCommandText(CommandList.IDToIndex(id)));
+		}
 	}
 }
 
@@ -5265,14 +5308,16 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_PROGRAMLISTUPDATE:
-		if (fShowPanelWindow && InfoPanel.GetCurTab()==PANEL_TAB_PROGRAMLIST) {
-			WORD ServiceID=ChannelManager.GetCurrentServiceID();
+		if (fShowPanelWindow) {
+			if (InfoPanel.GetCurTab()==PANEL_TAB_PROGRAMLIST) {
+				WORD ServiceID=ChannelManager.GetCurrentServiceID();
 
-			if (ServiceID==0)
-				CoreEngine.m_DtvEngine.m_ProgManager.GetServiceID(&ServiceID,
-										CoreEngine.m_DtvEngine.GetService());
-			if (ServiceID!=0)
-				ProgramListView.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),ServiceID);
+				if (ServiceID==0)
+					CoreEngine.m_DtvEngine.m_ProgManager.GetServiceID(&ServiceID,
+											CoreEngine.m_DtvEngine.GetService());
+				if (ServiceID!=0)
+					ProgramListView.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),ServiceID);
+			}
 		}
 		ProgramListUpdateTimerCount++;
 		if (ProgramListUpdateTimerCount==12)
@@ -5283,12 +5328,21 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 	case TIMER_ID_PROGRAMGUIDEUPDATE:
 		if (!m_fStandby)
 			ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_REFRESH,0);
-		const CChannelInfo *pChInfo=ChannelManager.GetNextChannelInfo(true);
-		if (pChInfo==NULL
-				|| pChInfo->GetChannelIndex()==m_ProgramGuideUpdateStartChannel)
-			ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
-		else
-			PostCommand(CM_CHANNEL_UP);
+		{
+			const CChannelInfo *pChInfo=ChannelManager.GetNextChannelInfo(true);
+			if (pChInfo==NULL
+					|| pChInfo->GetChannelIndex()==m_ProgramGuideUpdateStartChannel)
+				ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
+			else
+				PostCommand(CM_CHANNEL_UP);
+		}
+		break;
+
+	case TIMER_ID_CHANNELPANELUPDATE:
+		if (fShowPanelWindow && InfoPanel.GetCurTab()==PANEL_TAB_CHANNEL) {
+			ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList());
+		}
+		::KillTimer(hwnd,TIMER_ID_CHANNELPANELUPDATE);
 		break;
 	}
 }
@@ -5364,6 +5418,14 @@ void CMainWindow::ShowChannelOSD()
 			ChannelOSD.SetTextColor(cr);
 			ChannelOSD.Show(OSDOptions.GetFadeTime(),!fWheelChannelChanging && !ChannelOSD.IsVisible());
 		}
+	}
+}
+
+
+void CMainWindow::OnDriverChange()
+{
+	if (fShowPanelWindow && InfoPanel.GetCurTab()==PANEL_TAB_CHANNEL) {
+		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList());
 	}
 }
 
@@ -5871,8 +5933,10 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			if (wParam==SIZE_MINIMIZED) {
 				ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
 										  CResidentManager::STATUS_MINIMIZED);
-				if (ViewOptions.GetDisablePreviewWhenMinimized())
+				if (ViewOptions.GetDisablePreviewWhenMinimized()) {
 					pThis->SetPreview(false);
+					PluginList.SendPreviewChangeEvent(false);
+				}
 			} else if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
 				pThis->SetWindowVisible();
 			}
@@ -6550,6 +6614,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			PluginList.FreePlugins();
 			AppMain.Finalize();
 			EpgOptions.SaveEpgFile(&EpgProgramList);
+			EpgOptions.Finalize();
 
 			pThis->OnDestroy();
 			::PostQuitMessage(0);
@@ -6609,10 +6674,7 @@ void CMainWindow::SetWindowVisible()
 	}
 	if (m_fMinimizeInit) {
 		// 最小化状態での起動後最初の表示
-		if (fShowPanelWindow && PanelFrame.GetFloating()) {
-			PanelFrame.SetPanelVisible(true);
-			PanelFrame.Update();
-		}
+		ShowFloatingWindows(true);
 		m_fMinimizeInit=false;
 	}
 	if (fRestore && !m_fStandby) {
@@ -6647,6 +6709,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 				SetFullscreen(false);
 			ShowFloatingWindows(false);
 			SetVisible(false);
+			PluginList.SendStandbyEvent(true);
 			m_RestoreChannelSpec.Store(&ChannelManager);
 			if (EpgOptions.GetUpdateWhenStandby()
 					&& !RecordManager.IsRecording()
@@ -6691,6 +6754,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 				SetFullscreen(true);
 			ShowFloatingWindows(true);
 			ForegroundWindow(m_hwnd);
+			PluginList.SendStandbyEvent(false);
 			OpenTuner();
 			if (m_fEnablePreview)
 				SetPreview(true);
@@ -7243,6 +7307,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CInfoPanel::Initialize(hInst);
 	CInformation::Initialize(hInst);
 	CProgramListView::Initialize(hInst);
+	CChannelPanel::Initialize(hInst);
 	CControlPanel::Initialize(hInst);
 	CProgramGuide::Initialize(hInst);
 	CCapturePreview::Initialize(hInst);
@@ -7360,6 +7425,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		if (!CmdLineParser.m_fStandby && !CmdLineParser.m_fNoDirectShow) {
 			MainWindow.BuildMediaViewer();
 		}
+		EpgOptions.InitializeEpgDataCap();
+		EpgOptions.AsyncLoadEpgData();
 		if (CoreEngine.IsDriverLoaded() && !CoreEngine.OpenDriver()) {
 			Logger.AddLog(CoreEngine.GetLastErrorText());
 			if (!CmdLineParser.m_fSilent) {
@@ -7367,7 +7434,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 									TEXT("BonDriverの初期化ができません。"));
 			}
 		}
-		EpgOptions.InitializeEpgDataCap();
 		CoreEngine.SetDownMixSurround(AudioOptions.GetDownMixSurround());
 		if (AudioOptions.GetRestoreMute() && fMuteStatus)
 			MainWindow.SetMute(true);
@@ -7426,6 +7492,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	ProgramListView.Create(InfoPanel.GetHandle(),WS_CHILD | WS_VSCROLL);
 	InfoPanel.AddWindow(&ProgramListView,TEXT("番組表"));
 	MainWindow.BeginProgramListUpdateTimer();
+
+	ChannelPanel.SetEpgProgramList(&EpgProgramList);
+	ChannelPanel.SetEventHandler(&ChannelPanelEventHandler);
+	ChannelPanel.Create(InfoPanel.GetHandle(),WS_CHILD | WS_VSCROLL);
+	InfoPanel.AddWindow(&ChannelPanel,TEXT("チャンネル"));
+	::SetTimer(MainWindow.GetHandle(),CMainWindow::TIMER_ID_CHANNELPANELUPDATE,5000,NULL);
 
 	ControlPanel.SetSendMessageWindow(MainWindow.GetHandle());
 	{

@@ -141,6 +141,7 @@ private:
 	CBcasCard *m_pBcasCard;
 	CBcasAccessQueue *m_pQueue;
 	bool m_bInQueue;
+	CLocalEvent m_SetScrambleKeyEvent;
 	volatile bool m_bSetScrambleKey;
 	CCriticalLock m_Multi2Lock;
 

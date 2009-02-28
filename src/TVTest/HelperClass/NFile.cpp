@@ -111,7 +111,7 @@ const bool CNFile::IsOpen() const
 }
 
 
-const DWORD CNFile::Read(BYTE *pBuff, const DWORD dwLen)
+const DWORD CNFile::Read(void *pBuff, const DWORD dwLen)
 {
 	if (m_hFile == INVALID_HANDLE_VALUE) {
 		m_LastError = ERROR_INVALID_FUNCTION;
@@ -137,7 +137,7 @@ const DWORD CNFile::Read(BYTE *pBuff, const DWORD dwLen)
 }
 
 
-const DWORD CNFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
+const DWORD CNFile::Read(void *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
 	// ファイルリード
 	if (!SetPos(llPos))
@@ -147,7 +147,7 @@ const DWORD CNFile::Read(BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 }
 
 
-const bool CNFile::Write(const BYTE *pBuff, const DWORD dwLen)
+const bool CNFile::Write(const void *pBuff, const DWORD dwLen)
 {
 	if (m_hFile == INVALID_HANDLE_VALUE) {
 		m_LastError = ERROR_INVALID_FUNCTION;
@@ -177,7 +177,7 @@ const bool CNFile::Write(const BYTE *pBuff, const DWORD dwLen)
 }
 
 
-const bool CNFile::Write(const BYTE *pBuff, const DWORD dwLen, const ULONGLONG llPos)
+const bool CNFile::Write(const void *pBuff, const DWORD dwLen, const ULONGLONG llPos)
 {
 	// ファイルシーク
 	if (!SetPos(llPos))

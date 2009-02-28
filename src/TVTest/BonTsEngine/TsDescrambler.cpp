@@ -457,7 +457,6 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler, CBcasCard *pBcasCard,
 	, m_pBcasCard(pBcasCard)
 	, m_pQueue(pQueue)
 	, m_bInQueue(false)
-	, m_bSetScrambleKey(false)
 	, m_bLastEcmSucceed(true)
 	, m_TargetCount(0)
 {
@@ -465,6 +464,8 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler, CBcasCard *pBcasCard,
 	if (m_pBcasCard->IsCardOpen())
 		m_Multi2Decoder.Initialize(m_pBcasCard->GetSystemKey(),
 								   m_pBcasCard->GetInitialCbc());
+
+	m_SetScrambleKeyEvent.Create(true);
 }
 
 void CEcmProcessor::OnPidMapped(const WORD wPID, const PVOID pParam)
@@ -489,17 +490,20 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 		m_pDescrambler->IncrementScramblePacketCount();
 		return false;
 	}
-	for (int i = 0 ; !m_bSetScrambleKey ; i++) {
-		if (i == 500)	// デッドロック回避
-			return false;
-		Sleep(1);
-	}
+	if (m_SetScrambleKeyEvent.Wait(500) == WAIT_TIMEOUT)
+		return false;
+
 	// スクランブル解除
-	m_Multi2Lock.Lock();
-	bool bOK = m_Multi2Decoder.Decode(pTsPacket->GetPayloadData(),
-									  (DWORD)pTsPacket->GetPayloadSize(),
-									  pTsPacket->m_Header.byTransportScramblingCtrl);
-	m_Multi2Lock.Unlock();
+	bool bOK;
+	if (m_bLastEcmSucceed) {
+		CBlockLock Lock(&m_Multi2Lock);
+
+		bOK = m_Multi2Decoder.Decode(pTsPacket->GetPayloadData(),
+									 (DWORD)pTsPacket->GetPayloadSize(),
+									 pTsPacket->m_Header.byTransportScramblingCtrl);
+	} else {
+		bOK = false;
+	}
 	if (bOK) {
 		// トランスポートスクランブル制御再設定
 		pTsPacket->SetAt(3UL, pTsPacket->GetAt(3UL) & 0x3FU);
@@ -544,7 +548,7 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 	// ECM処理成功状態更新
 	m_bLastEcmSucceed = pKsData != NULL;
 
-	m_bSetScrambleKey = true;
+	m_SetScrambleKeyEvent.Set();
 
 	return true;
 }

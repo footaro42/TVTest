@@ -24,6 +24,19 @@ class CPlugin {
 	int m_Command;
 	TVTest::EventCallbackFunc m_pEventCallback;
 	void *m_pEventCallbackClientData;
+	class CPluginCommandInfo {
+		int m_ID;
+		LPWSTR m_pszText;
+		LPWSTR m_pszName;
+	public:
+		CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName);
+		CPluginCommandInfo(const TVTest::CommandInfo &Info);
+		~CPluginCommandInfo();
+		int GetID() const { return m_ID; }
+		LPCWSTR GetText() const { return m_pszText; }
+		LPCWSTR GetName() const { return m_pszName; }
+	};
+	CPointerVector<CPluginCommandInfo> m_CommandList;
 	class CMediaGrabberInfo {
 	public:
 		CPlugin *m_pPlugin;
@@ -56,6 +69,9 @@ public:
 	bool HasSettings() const { return (m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)!=0; }
 	int GetCommand() const { return m_Command; }
 	bool SetCommand(int Command);
+	int NumPluginCommands() const;
+	bool GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const;
+	bool NotifyCommand(LPCWSTR pszCommand);
 	/*
 	static bool SetFinalizeTimeout(DWORD Timeout);
 	static DWORD GetFinalizeTimeout() { return m_FinalizeTimeout; }
@@ -80,6 +96,7 @@ public:
 	int FindPluginByCommand(int Command) const;
 	bool DeletePlugin(int Index);
 	bool SetMenu(HMENU hmenu) const;
+	bool OnPluginCommand(LPCTSTR pszCommand);
 	bool SendChannelChangeEvent();
 	bool SendServiceChangeEvent();
 	bool SendDriverChangeEvent();
@@ -90,6 +107,7 @@ public:
 	bool SendVolumeChangeEvent(int Volume,bool fMute);
 	bool SendStereoModeChangeEvent(int StereoMode);
 	bool SendColorChangeEvent();
+	bool SendStandbyEvent(bool fStandby);
 };
 
 class CPluginOptions : public COptions {
