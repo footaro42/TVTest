@@ -19,7 +19,7 @@ public:
 	class CEventHandler {
 	public:
 		virtual ~CEventHandler() {}
-		virtual void OnChannelClick(WORD ServiceID) {}
+		virtual void OnChannelClick(const CChannelInfo *pChannelInfo) {}
 	};
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetColors(COLORREF ChannelBackColor,COLORREF ChannelTextColor,
@@ -39,16 +39,15 @@ private:
 	COLORREF m_EventTextColor;
 	int m_ScrollPos;
 	class CChannelEventInfo {
-		TCHAR m_szChannelName[MAX_CHANNEL_NAME];
-		WORD m_TransportStreamID;
-		WORD m_ServiceID;
+		CChannelInfo m_ChannelInfo;
 		CEventInfoData m_EventInfo[2];
 	public:
 		CChannelEventInfo(const CChannelInfo *pChannelInfo);
 		~CChannelEventInfo();
 		bool SetEventInfo(int Index,const CEventInfoData *pInfo);
-		WORD GetTransportStreamID() const { return m_TransportStreamID; }
-		WORD GetServiceID() const { return m_ServiceID; }
+		const CChannelInfo *GetChannelInfo() const { return &m_ChannelInfo; }
+		WORD GetTransportStreamID() const { return m_ChannelInfo.GetTransportStreamID(); }
+		WORD GetServiceID() const { return m_ChannelInfo.GetServiceID(); }
 		int FormatEventText(LPTSTR pszText,int MaxLength,int Index) const;
 		void DrawChannelName(HDC hdc,const RECT *pRect);
 		void DrawEventName(HDC hdc,const RECT *pRect,int Index);

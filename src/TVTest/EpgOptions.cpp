@@ -349,10 +349,15 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					 pThis->m_szEpgFileName,lengthof(pThis->m_szEpgFileName));
 				pThis->m_fUpdateWhenStandby=
 					::IsDlgButtonChecked(hDlg,IDC_EPGOPTIONS_UPDATEWHENSTANDBY)==BST_CHECKED;
-				pThis->m_fUseEpgData=
+				bool fUseEpgData=
 					DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_USEEPGDATA);
 				::GetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,
 					pThis->m_szEpgDataFolder,lengthof(pThis->m_szEpgDataFolder));
+				if (!pThis->m_fUseEpgData && fUseEpgData) {
+					pThis->m_fUseEpgData=fUseEpgData;
+					pThis->AsyncLoadEpgData();
+				}
+				pThis->m_fUseEpgData=fUseEpgData;
 			}
 			break;
 		}

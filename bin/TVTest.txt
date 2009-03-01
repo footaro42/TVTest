@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.27
+    TVTest ver.0.5.28
 
 
 ◆ はじめに
@@ -30,7 +30,7 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.5.27_Src.zip ソースファイル
+  ・TVTest_0.5.28_Src.zip ソースファイル
   ・TVTest_SDK_090301.zip プラグイン開発用 SDK
   ・EpgDataCap.dll        EPG 用 DLL (EpgDataCapの中の人氏作)
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
@@ -365,6 +365,15 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.28
+    ・EpgDataCap_Bon の設定で、BS/CS は1チャンネルから全チャンネルの基本情報の
+      み取得するようにしている場合も番組情報が表示されるようにした
+    ・設定で EpgDataCap_Bon の EPG データを利用するようにした際に、即座に EPG
+      データを読み込むようにした
+    ・チャンネル選択パネルでチャンネル選択できないことがある不具合を修正
+    ・Preset_CS.ch2 のサービスIDを更新した
+    ・その他微修正
 
   ver.0.5.27
     ・パネルウィンドウにチャンネル選択タブを追加した

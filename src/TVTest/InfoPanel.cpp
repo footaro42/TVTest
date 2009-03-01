@@ -116,6 +116,7 @@ bool CInfoPanel::SetCurTab(int Index)
 		}
 		m_CurTab=Index;
 		Invalidate();
+		Update();
 	}
 	return true;
 }

@@ -3460,21 +3460,22 @@ bool CMyInfoPanelEventHandler::OnKeyDown(UINT KeyCode,UINT Flags)
 
 class CMyChannelPanelEventHandler : public CChannelPanel::CEventHandler {
 public:
-	void OnChannelClick(WORD ServiceID);
+	void OnChannelClick(const CChannelInfo *pChannelInfo);
 };
 
-void CMyChannelPanelEventHandler::OnChannelClick(WORD ServiceID)
+void CMyChannelPanelEventHandler::OnChannelClick(const CChannelInfo *pChannelInfo)
 {
 	const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 
 	if (pList!=NULL) {
-		int Index=pList->FindServiceID(ServiceID);
-
-		if (Index>=0) {
-			const CChannelInfo *pChInfo=pList->GetChannelInfo(Index);
-
-			if (pChInfo!=NULL)
-				MainWindow.PostCommand(CM_CHANNELNO_FIRST+pChInfo->GetChannelNo()-1);
+		if (pNetworkRemocon!=NULL) {
+			MainWindow.PostCommand(CM_CHANNELNO_FIRST+pChannelInfo->GetChannelNo()-1);
+		} else {
+			int Index=pList->Find(pChannelInfo->GetSpace(),
+								  pChannelInfo->GetChannelIndex(),
+								  pChannelInfo->GetService());
+			if (Index>=0)
+				AppMain.SetChannel(ChannelManager.GetCurrentSpace(),Index);
 		}
 	}
 }
@@ -6813,7 +6814,7 @@ bool CMainWindow::InitMinimize()
 	ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
 							  CResidentManager::STATUS_MINIMIZED);
 	if (!ResidentManager.GetMinimizeToTray())
-		::ShowWindow(m_hwnd,SW_MINIMIZE);
+		::ShowWindow(m_hwnd,SW_SHOWMINNOACTIVE/*SW_SHOWMINIMIZED*/);
 	m_fMinimizeInit=true;
 	return true;
 }
@@ -7320,7 +7321,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 														MB_OK | MB_ICONSTOP);
 		return FALSE;
 	}
-	if (nCmdShow==SW_MINIMIZE)
+	if (nCmdShow==SW_SHOWMINIMIZED || nCmdShow==SW_MINIMIZE)
 		CmdLineParser.m_fMinimize=true;
 	if (CmdLineParser.m_fStandby && CmdLineParser.m_fMinimize)
 		CmdLineParser.m_fMinimize=false;

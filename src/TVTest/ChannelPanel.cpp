@@ -304,7 +304,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			Index=(GET_Y_LPARAM(lParam)+pThis->m_ScrollPos)/pThis->m_ItemHeight;
 			if (Index>=0 && Index<pThis->m_ChannelList.Length()) {
 				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnChannelClick(pThis->m_ChannelList[Index]->GetServiceID());
+					pThis->m_pEventHandler->OnChannelClick(pThis->m_ChannelList[Index]->GetChannelInfo());
 			}
 		}
 		return 0;
@@ -474,10 +474,8 @@ void CChannelPanel::SetToolTips()
 
 
 CChannelPanel::CChannelEventInfo::CChannelEventInfo(const CChannelInfo *pInfo)
+	: m_ChannelInfo(*pInfo)
 {
-	::lstrcpy(m_szChannelName,pInfo->GetName());
-	m_TransportStreamID=pInfo->GetTransportStreamID();
-	m_ServiceID=pInfo->GetServiceID();
 }
 
 
@@ -516,7 +514,7 @@ int CChannelPanel::CChannelEventInfo::FormatEventText(LPTSTR pszText,int MaxLeng
 
 void CChannelPanel::CChannelEventInfo::DrawChannelName(HDC hdc,const RECT *pRect)
 {
-	::DrawText(hdc,m_szChannelName,-1,const_cast<LPRECT>(pRect),
+	::DrawText(hdc,m_ChannelInfo.GetName(),-1,const_cast<LPRECT>(pRect),
 			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }
 
