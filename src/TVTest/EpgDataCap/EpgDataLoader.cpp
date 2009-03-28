@@ -35,6 +35,8 @@ bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 	BYTE Buffer[188*BUFFER_LENGTH];
 	DWORD Size,Read;
 
+	m_pEpgDataCap->SetBasicMode(TRUE);
+	m_pEpgDataCap->SetPFOnly(FALSE);
 	hFile=::CreateFile(pszFileName,GENERIC_READ,FILE_SHARE_READ,NULL,
 					   OPEN_EXISTING,FILE_FLAG_SEQUENTIAL_SCAN,NULL);
 	if (hFile==INVALID_HANDLE_VALUE)

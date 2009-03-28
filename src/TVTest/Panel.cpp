@@ -281,6 +281,16 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 		}
 		return 0;
 
+	case WM_KEYDOWN:
+		{
+			CPanel *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL
+					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+				return 0;
+		}
+		break;
+
 	case WM_DESTROY:
 		{
 			CPanel *pThis=GetThis(hwnd);
@@ -663,9 +673,7 @@ bool CPanelFrame::OnFloating()
 
 bool CPanelFrame::OnClose()
 {
-	if (m_pEventHandler!=NULL && !m_pEventHandler->OnClose())
-		return false;
-	return true;
+	return m_pEventHandler==NULL || m_pEventHandler->OnClose();
 }
 
 
@@ -678,6 +686,12 @@ bool CPanelFrame::OnMoving(RECT *pRect)
 bool CPanelFrame::OnEnterSizeMove()
 {
 	return m_pEventHandler!=NULL && m_pEventHandler->OnEnterSizeMove();
+}
+
+
+bool CPanelFrame::OnKeyDown(UINT KeyCode,UINT Flags)
+{
+	return m_pEventHandler!=NULL && m_pEventHandler->OnKeyDown(KeyCode,Flags);
 }
 
 

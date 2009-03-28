@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="8.00"
-	Name="TVTest_KeyHook"
-	ProjectGUID="{4FF4BAED-FBAA-44A1-B797-FF9132274017}"
-	RootNamespace="TVTest_KeyHook"
+	Name="Command"
+	ProjectGUID="{12DB0781-4C1D-49EE-BDA8-226D44E9182F}"
+	RootNamespace="Command"
 	Keyword="Win32Proj"
 	>
 	<Platforms>
@@ -21,6 +21,7 @@
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			CharacterSet="1"
+			WholeProgramOptimization="0"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -40,14 +41,14 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;HDUSTEST_KEYHOOK_EXPORTS"
+				AdditionalIncludeDirectories="..\..\"
+				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;COMMAND_EXPORTS"
 				MinimalRebuild="true"
-				BasicRuntimeChecks="0"
-				RuntimeLibrary="1"
-				BufferSecurityCheck="false"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="3"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="true"
+				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="4"
 			/>
 			<Tool
@@ -61,14 +62,11 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib"
+				OutputFile="$(OutDir)\$(ProjectName).tvtp"
 				LinkIncremental="2"
-				GenerateManifest="false"
-				IgnoreAllDefaultLibraries="true"
-				ModuleDefinitionFile="TVTest_KeyHook.def"
+				ModuleDefinitionFile="..\Exports.def"
 				GenerateDebugInformation="true"
 				SubSystem="2"
-				EntryPointSymbol="DllMain"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -102,7 +100,7 @@
 			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="2"
 			CharacterSet="1"
-			WholeProgramOptimization="1"
+			WholeProgramOptimization="0"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -121,13 +119,12 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				FavorSizeOrSpeed="1"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;HDUSTEST_KEYHOOK_EXPORTS"
-				RuntimeLibrary="0"
-				BufferSecurityCheck="false"
+				AdditionalIncludeDirectories="..\..\"
+				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;COMMAND_EXPORTS"
+				RuntimeLibrary="2"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="true"
+				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
 			/>
 			<Tool
@@ -141,16 +138,13 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="kernel32.lib user32.lib"
+				OutputFile="$(OutDir)\$(ProjectName).tvtp"
 				LinkIncremental="1"
-				GenerateManifest="false"
-				IgnoreAllDefaultLibraries="true"
-				ModuleDefinitionFile="TVTest_KeyHook.def"
+				ModuleDefinitionFile="..\Exports.def"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				EntryPointSymbol="DllMain"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -188,7 +182,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\TVTest_KeyHook.c"
+				RelativePath=".\Command.cpp"
 				>
 			</File>
 		</Filter>
@@ -197,10 +191,6 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
-			<File
-				RelativePath=".\TVTest_KeyHook.h"
-				>
-			</File>
 		</Filter>
 		<Filter
 			Name="リソース ファイル"

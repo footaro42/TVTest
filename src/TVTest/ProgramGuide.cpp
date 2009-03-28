@@ -1600,6 +1600,11 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 					return 0;
 				}
 			}
+
+			CProgramGuide *pThis=GetThis(hwnd);
+			if (pThis->m_pEventHandler!=NULL
+					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+				return 0;
 		}
 		break;
 

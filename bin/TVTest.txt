@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.28
+    TVTest ver.0.5.29
 
 
 ◆ はじめに
@@ -30,7 +30,7 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.5.28_Src.zip ソースファイル
+  ・TVTest_0.5.29_Src.zip ソースファイル
   ・TVTest_SDK_090301.zip プラグイン開発用 SDK
   ・EpgDataCap.dll        EPG 用 DLL (EpgDataCapの中の人氏作)
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
@@ -218,6 +218,11 @@
     また、INI ファイルの [Settings] に UseAudioRendererClock=no と指定すると改
     善することもあります。
 
+  ・ウィンドウのサイズが変更できない/ウィンドウの挙動がおかしい
+    TVTest ではウィンドウのスナップ処理などを行っている関係で、びすたちお等同様
+    の機能を提供するプログラムと相性が悪いです。TVTest.exe を除外指定してくださ
+    い。
+
   ・ネットワークリモコンが使えない/リモコンの番号がおかしい
     EpgDataCap_Bon のチャンネルファイルのパスを正しく設定します(詳しくはヘルプ
     参照)。
@@ -297,17 +302,17 @@
   /nr             ネットワークリモコンを使用する
   /port /p        UDP のポート番号 (e.g. /port 1234)
   /rec            起動時録画開始
-  /recdelay       録画開始までの時間(秒単位) (e.g. /recdelay 60)
-                  /rec が指定されていない場合は無視される
-  /recduration    録画時間(秒単位) (e.g. /recduration 1800)
-                  /rec が指定されていない場合は無視される
+  /reccurservice  (*1)現在のサービスのみ録画する
+  /recdelay       (*1)録画開始までの時間(秒単位) (e.g. /recdelay 60)
+  /recduration    (*1)録画時間(秒単位) (e.g. /recduration 1800)
   /recexit        録画終了時にプログラムを終了
-  /recfile        録画ファイル名 (e.g. /recfile "C:\ReocrdFiles\Record.ts")
-                  /rec が指定されていない場合は無視される
+  /recfile        (*1)録画ファイル名 (e.g. /recfile "C:\ReocrdFiles\Record.ts")
   /recstop        録画停止
   /s              TVTest が既に起動している場合、複数起動しない
   /silent         エラー時にダイアログを表示しない
   /standby        待機状態で起動する
+
+  (*1) /rec が指定されていない場合は無視される
 
   ※複数あるものはどちらでも可。/ の代わりに - でも可。
 
@@ -365,6 +370,23 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.29
+    ・現在のサービスのみ録画が有効でない場合も、字幕/データ放送のデータを録画し
+      ないように設定できるようにした
+    ・現在のサービスのみ録画するコマンドラインオプション /reccurservice を追加
+      した
+    ・複数起動しないようにしている場合に、コマンドラインでドライバを指定して新
+      しく起動しようとした時に既に起動している TVTest に反映されるようにした
+    ・待機中にプラグインからチャンネル変更要求を受けた場合、チューナーを開くよ
+      うにした
+    ・スクランブル解除処理を変更した
+    ・キャプチャウィンドウにステータスバーを追加した
+    ・プラグインの初期化のタイミングを変更してみた
+    ・TVTest_KeyHook.dll を軽量化した
+    ・本体以外のウィンドウがアクティブな際に、キーボードでチャンネル切り替えで
+      きない問題を修正
+    ・その他微修正
 
   ver.0.5.28
     ・EpgDataCap_Bon の設定で、BS/CS は1チャンネルから全チャンネルの基本情報の

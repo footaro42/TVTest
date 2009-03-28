@@ -126,6 +126,14 @@ LRESULT CALLBACK CSignalGraph::EventCallback(UINT Event,LPARAM lParam1,LPARAM lP
 		// プラグインの有効状態が変化した
 		::ShowWindow(pThis->m_hwnd,lParam1!=0?SW_SHOW:SW_HIDE);
 		return TRUE;
+
+	case TVTest::EVENT_STANDBY:
+		// 待機状態が変化した
+		if (pThis->m_pApp->IsPluginEnabled()) {
+			// 待機状態の時はウィンドウを隠す
+			::ShowWindow(pThis->m_hwnd,lParam1!=0?SW_HIDE:SW_SHOW);
+		}
+		return TRUE;
 	}
 	return 0;
 }

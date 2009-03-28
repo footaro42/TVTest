@@ -111,14 +111,15 @@ void CMediaData::SetAt(const DWORD dwPos, const BYTE byData)
 const BYTE CMediaData::GetAt(const DWORD dwPos) const
 {
 	// 1バイト取得する
-	return dwPos < m_dwDataSize ? m_pData[dwPos] : 0x00U;
+	return dwPos < m_dwDataSize ? m_pData[dwPos] : 0x00;
 }
 
-const DWORD CMediaData::SetData(const BYTE *pData, const DWORD dwDataSize)
+const DWORD CMediaData::SetData(const void *pData, const DWORD dwDataSize)
 {
 	if (dwDataSize > 0) {
 		// バッファ確保
-		GetBuffer(dwDataSize);
+		if (GetBuffer(dwDataSize) < dwDataSize)
+			return m_dwDataSize;
 
 		// データセット
 		::CopyMemory(m_pData, pData, dwDataSize);
@@ -130,11 +131,13 @@ const DWORD CMediaData::SetData(const BYTE *pData, const DWORD dwDataSize)
 	return m_dwDataSize;
 }
 
-const DWORD CMediaData::AddData(const BYTE *pData, const DWORD dwDataSize)
+const DWORD CMediaData::AddData(const void *pData, const DWORD dwDataSize)
 {
 	if (dwDataSize > 0) {
 		// バッファ確保
-		GetBuffer(m_dwDataSize + dwDataSize);
+		DWORD NewSize = m_dwDataSize + dwDataSize;
+		if (GetBuffer(NewSize) < NewSize)
+			return m_dwDataSize;
 
 		// データ追加
 		::CopyMemory(&m_pData[m_dwDataSize], pData, dwDataSize);
@@ -150,13 +153,15 @@ const DWORD CMediaData::AddData(const CMediaData *pData)
 	//return AddData(pData->m_pData, pData->m_dwDataSize);
 	if (pData->m_dwDataSize > 0) {
 		// バッファ確保
-		GetBuffer(m_dwDataSize + pData->m_dwDataSize);
+		DWORD NewSize = m_dwDataSize + pData->m_dwDataSize;
+		if (GetBuffer(NewSize) < NewSize)
+			return m_dwDataSize;
 
 		// データ追加
 		::CopyMemory(&m_pData[m_dwDataSize], pData->m_pData, pData->m_dwDataSize);
 
 		// サイズセット
-		m_dwDataSize += pData->m_dwDataSize;
+		m_dwDataSize = NewSize;
 	}
 	return m_dwDataSize;
 }
@@ -164,7 +169,8 @@ const DWORD CMediaData::AddData(const CMediaData *pData)
 const DWORD CMediaData::AddByte(const BYTE byData)
 {
 	// バッファ確保
-	GetBuffer(m_dwDataSize + 1UL);
+	if (GetBuffer(m_dwDataSize + 1) <= m_dwDataSize)
+		return m_dwDataSize;
 
 	// データ追加
 	m_pData[m_dwDataSize] = byData;
@@ -245,7 +251,8 @@ const DWORD CMediaData::SetSize(const DWORD dwSetSize)
 {
 	if (dwSetSize > 0) {
 		// バッファ確保
-		GetBuffer(dwSetSize);
+		if (GetBuffer(dwSetSize) < dwSetSize)
+			return m_dwDataSize;
 	}
 
 	// サイズセット
@@ -257,12 +264,12 @@ const DWORD CMediaData::SetSize(const DWORD dwSetSize)
 const DWORD CMediaData::SetSize(const DWORD dwSetSize, const BYTE byFiller)
 {
 	// サイズセット
-	SetSize(dwSetSize);
+	if (SetSize(dwSetSize) < dwSetSize)
+		return m_dwDataSize;
 
 	// データセット
-	if (dwSetSize) {
+	if (dwSetSize > 0)
 		::FillMemory(m_pData, dwSetSize, byFiller);
-	}
 
 	return m_dwDataSize;
 }

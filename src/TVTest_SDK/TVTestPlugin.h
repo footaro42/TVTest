@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.2
+	TVTest プラグインヘッダ ver.0.0.3
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -29,7 +29,7 @@
 	BOOL WINAPI TVTFinalize()
 
 	各関数については、このヘッダの最後の方にあるプラグインクラスでのエクスポート
-	関数の実装を参照してください。
+	関数の実装(#ifdef TVTEST_PLUGIN_CLASS_IMPLEMENT の部分)を参照してください。
 
 	プラグインからは、コールバック関数を通じてメッセージを送信することにより、
 	TVTest の機能を利用することができます。
@@ -86,6 +86,13 @@
 /*
 	更新履歴
 
+	ver.0.0.3 (TVTest ver.0.5.27 or later)
+	・以下のメッセージを追加した
+	  ・MESSAGE_ISPLUGINENABLED
+	  ・MESSAGE_REGISTERCOMMAND
+	  ・MESSAGE_ADDLOG
+	・EVENT_STANDBY と EVENT_COMMAND を追加した
+
 	ver.0.0.2
 	・MESSAGE_GETAUDIOSTREAM と MESSAGE_SETAUDIOSTREAM を追加した
 	・ServiceInfo 構造体に AudioComponentType と SubtitlePID メンバを追加した
@@ -118,8 +125,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_0	0x00000000UL
 #define TVTEST_PLUGIN_VERSION_0_0_1	0x00000001UL
 #define TVTEST_PLUGIN_VERSION_0_0_2	0x00000002UL
+#define TVTEST_PLUGIN_VERSION_0_0_3	0x00000003UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_2
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_3
 #endif
 
 // エクスポート関数定義用
@@ -225,7 +233,12 @@ enum {
 	MESSAGE_GETAUDIOSTREAM,
 	MESSAGE_SETAUDIOSTREAM,
 #endif
-	MESSAGE_DUMMY	// Don't use
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+	MESSAGE_ISPLUGINENABLED,
+	MESSAGE_REGISTERCOMMAND,
+	MESSAGE_ADDLOG,
+#endif
+	MESSAGE_TRAILER	// Don't use
 };
 
 // イベント用コールバック関数
@@ -245,7 +258,12 @@ enum {
 	EVENT_PREVIEWCHANGE,		// プレビュー表示状態が変化した
 	EVENT_VOLUMECHANGE,			// 音量が変化した
 	EVENT_STEREOMODECHANGE,		// ステレオモードが変化した
-	EVENT_COLORCHANGE			// 色の設定が変化した
+	EVENT_COLORCHANGE,			// 色の設定が変化した
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+	EVENT_STANDBY,				// 待機状態が変化した
+	EVENT_COMMAND,				// コマンドが選択された
+#endif
+	EVENT_TRAILER	// Don't use
 };
 
 inline DWORD MakeVersion(BYTE Major,WORD Minor,WORD Build) {
@@ -369,7 +387,7 @@ struct ServiceInfo {
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
 	BYTE AudioComponentType[4];	// 音声コンポーネントタイプ
 	WORD SubtitlePID;			// 字幕ストリームのPID(無い場合は0)
-	WORD Reserved;				// 予約(H.264のPIDになるかも...)
+	WORD Reserved;				// 予約
 #endif
 };
 
@@ -835,11 +853,59 @@ inline bool MsgSetAudioStream(PluginParam *pParam,int Index)
 
 #endif
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+
+// プラグインの有効状態を取得する
+inline bool MsgIsPluginEnabled(PluginParam *pParam)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_ISPLUGINENABLED,0,0)!=0;
+}
+
+// コマンドの情報
+struct CommandInfo {
+	int ID;				// 識別子
+	LPCWSTR pszText;	// コマンドの文字列
+	LPCWSTR pszName;	// コマンドの名前
+};
+
+// コマンドを登録する
+// TVTInitialize 内で呼びます。
+// 以下のように使用します。
+// MsgRegisterCommand(pParam, ID_MYCOMMAND, L"MyCommand", L"私のコマンド");
+// コマンドが実行されると EVENT_COMMAND イベントが送られます。
+// その際、パラメータとして識別子が渡されます。
+inline bool MsgRegisterCommand(PluginParam *pParam,int ID,LPCWSTR pszText,LPCWSTR pszName)
+{
+	CommandInfo Info;
+	Info.ID=ID;
+	Info.pszText=pszText;
+	Info.pszName=pszName;
+	return (*pParam->Callback)(pParam,MESSAGE_REGISTERCOMMAND,(LPARAM)&Info,1)!=0;
+}
+
+// コマンドを登録する
+// TVTInitialize 内で呼びます。
+inline bool MsgRegisterCommand(PluginParam *pParam,const CommandInfo *pCommandList,int NumCommands)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_REGISTERCOMMAND,(LPARAM)pCommandList,NumCommands)!=0;
+}
+
+// ログを記録する
+// 設定のログの項目に表示されます。
+inline bool MsgAddLog(PluginParam *pParam,LPCWSTR pszText)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_ADDLOG,(LPARAM)pszText,0)!=0;
+}
+
+#endif
 
 /*
 	TVTest アプリケーションクラス
 
+	TVTest の各種機能を呼び出すためのクラス。
 	ただのラッパーなので使わなくてもいいです。
+	TVTInitialize 関数が呼ばれた時に、引数の PluginParam 構造体へのポインタを
+	コンストラクタに渡してインスタンスを生成します。
 */
 class CTVTestApp
 {
@@ -1038,6 +1104,20 @@ public:
 		return MsgSetAudioStream(m_pParam,Index);
 	}
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+	bool IsPluginEnabled() {
+		return MsgIsPluginEnabled(m_pParam);
+	}
+	bool RegisterCommand(int ID,LPCWSTR pszText,LPCWSTR pszName) {
+		return MsgRegisterCommand(m_pParam,ID,pszText,pszName);
+	}
+	bool RegisterCommand(const CommandInfo *pCommandList,int NumCommands) {
+		return MsgRegisterCommand(m_pParam,pCommandList,NumCommands);
+	}
+	bool AddLog(LPCWSTR pszText) {
+		return MsgAddLog(m_pParam,pszText);
+	}
+#endif
 };
 
 /*
@@ -1072,6 +1152,13 @@ public:
 	このクラスを派生させてイベント処理を行うことができます。
 	イベントコールバック関数として登録した関数内で HandleEvent を呼びます。
 	もちろん使わなくてもいいです。
+
+	CMyEventHandler Handler;
+
+	LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData)
+	{
+		Handler.HandleEvent(Event,lParam1,lParam2,pClientData);
+	}
 */
 class CTVTestEventHandler
 {
@@ -1089,6 +1176,10 @@ protected:
 	virtual bool OnVolumeChange(int Volume,bool fMute) { return false; }
 	virtual bool OnStereoModeChange(int StereoMode) { return false; }
 	virtual bool OnColorChange() { return false; }
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+	virtual bool OnStandby(bool fStandby) { return false; }
+	virtual bool OnCommand(int ID) { return false; }
+#endif
 public:
 	virtual ~CTVTestEventHandler() {}
 	LRESULT HandleEvent(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData) {
@@ -1106,13 +1197,17 @@ public:
 		case EVENT_VOLUMECHANGE:		return OnVolumeChange(lParam1,lParam2!=0);
 		case EVENT_STEREOMODECHANGE:	return OnStereoModeChange(lParam1);
 		case EVENT_COLORCHANGE:			return OnColorChange();
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+		case EVENT_STANDBY:				return OnStandby(lParam1!=0);
+		case EVENT_COMMAND:				return OnCommand(lParam1);
+#endif
 		}
 		return 0;
 	}
 };
 
 
-}
+}	// namespace TVTest
 
 
 #include <poppack.h>

@@ -101,6 +101,38 @@ void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const
 }
 
 
+void CStatusItem::DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX,int SrcY,
+							int IconWidth,int IconHeight,bool fEnabled) const
+{
+	HDC hdcMem;
+	HBITMAP hbmOld;
+	RGBQUAD Palette[2];
+	COLORREF cr,crTrans;
+
+	if (hbm==NULL)
+		return;
+	hdcMem=::CreateCompatibleDC(hdc);
+	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,hbm));
+	cr=::GetTextColor(hdc);
+	if (!fEnabled)
+		cr=MixColor(cr,::GetBkColor(hdc),128);
+	Palette[0].rgbBlue=GetBValue(cr);
+	Palette[0].rgbGreen=GetGValue(cr);
+	Palette[0].rgbRed=GetRValue(cr);
+	crTrans=cr^0x00FFFFFF;
+	Palette[1].rgbBlue=GetBValue(crTrans);
+	Palette[1].rgbGreen=GetGValue(crTrans);
+	Palette[1].rgbRed=GetRValue(crTrans);
+	::SetDIBColorTable(hdcMem,0,2,Palette);
+	::TransparentBlt(hdc,
+					 pRect->left+(pRect->right-pRect->left-16)/2,
+					 pRect->top+(pRect->bottom-pRect->top-16)/2,
+					 16,16,hdcMem,SrcX,SrcY,IconWidth,IconHeight,crTrans);
+	::SelectObject(hdcMem,hbmOld);
+	::DeleteDC(hdcMem);
+}
+
+
 
 
 CStatusViewEventHandler::CStatusViewEventHandler()

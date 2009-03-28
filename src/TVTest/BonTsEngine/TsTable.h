@@ -162,6 +162,8 @@ public:
 	virtual void Reset(void);
 
 // CPatTable
+	const WORD GetTransportStreamID(void) const;
+
 	const WORD GetNitPID(const WORD wIndex = 0U) const;
 	const WORD GetNitNum(void) const;
 
@@ -177,10 +179,10 @@ protected:
 	struct TAG_PATITEM
 	{
 		WORD wProgramID;	// ï˙ëóî‘ëgî‘çÜID
-		WORD wPID;			// NIT or PMTÇÃPID
+		WORD wPID;			// PMTÇÃPID
 	};
 
-	vector<TAG_PATITEM> m_NitPIDArray;
+	vector<WORD> m_NitPIDArray;
 	vector<TAG_PATITEM> m_PmtPIDArray;
 };
 
@@ -227,6 +229,8 @@ public:
 	virtual void Reset(void);
 
 // CPmtTable
+	const WORD GetProgramNumberID(void) const;
+
 	const WORD GetPcrPID(void) const;
 	const CDescBlock * GetTableDesc(void) const;
 	const WORD GetEcmPID(void) const;

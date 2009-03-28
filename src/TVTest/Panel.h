@@ -11,6 +11,7 @@ public:
 	virtual bool OnClose() { return false; }
 	virtual bool OnEnterSizeMove() { return false; }
 	virtual bool OnMoving(RECT *pRect) { return false; }
+	virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
 };
 
 class CPanel : public CBasicWindow {
@@ -106,6 +107,7 @@ public:
 	bool OnClose();
 	bool OnEnterSizeMove();
 	bool OnMoving(RECT *pRect);
+	bool OnKeyDown(UINT KeyCode,UINT Flags);
 };
 
 

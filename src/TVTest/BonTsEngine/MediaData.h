@@ -26,8 +26,8 @@ public:
 	void SetAt(const DWORD dwPos, const BYTE byData);
 	const BYTE GetAt(const DWORD dwPos) const;
 
-	const DWORD SetData(const BYTE *pData, const DWORD dwDataSize);
-	const DWORD AddData(const BYTE *pData, const DWORD dwDataSize);
+	const DWORD SetData(const void *pData, const DWORD dwDataSize);
+	const DWORD AddData(const void *pData, const DWORD dwDataSize);
 	const DWORD AddData(const CMediaData *pData);
 	const DWORD AddByte(const BYTE byData);
 	const DWORD TrimHead(const DWORD dwTrimSize = 1UL);

@@ -117,6 +117,7 @@ CCommandLineParser::CCommandLineParser()
 	m_RecordDelay=0;
 	m_RecordDuration=0;
 	m_szRecordFileName[0]='\0';
+	m_fRecordCurServiceOnly=false;
 	m_fExitOnRecordEnd=false;
 	m_fRecordStop=false;
 	m_fFullscreen=false;
@@ -155,6 +156,7 @@ CCommandLineParser::CCommandLineParser()
 	/p				UDP のポート番号 (e.g. /p 1234)
 	/rch			リモコンチャンネル
 	/rec			録画
+	/reccurservice	現在のサービスのみ録画
 	/recdelay		録画までの時間(秒)
 	/recduration	録画時間(秒)
 	/recexit		録画終了時にプログラムを終了
@@ -217,6 +219,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					Args.GetValue(&m_UDPPort);
 			} else if (Args.IsOption(TEXT("rec"))) {
 				m_fRecord=true;
+			} else if (Args.IsOption(TEXT("reccurservice"))) {
+				m_fRecordCurServiceOnly=true;
 			} else if (Args.IsOption(TEXT("recdelay"))) {
 				if (Args.Next())
 					Args.GetValue(&m_RecordDelay);

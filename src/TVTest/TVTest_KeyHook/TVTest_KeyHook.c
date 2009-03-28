@@ -2,6 +2,10 @@
 #include "TVTest_KeyHook.h"
 
 
+#pragma comment(linker, "/NODEFAULTLIB")
+#pragma comment(linker, "/ENTRY:DllMain")
+
+
 #pragma data_seg(".SHARE")
 HHOOK hHook=NULL;
 HWND hwndTarget=NULL;
@@ -133,3 +137,22 @@ __declspec(dllexport) BOOL WINAPI EndHook(void)
 	}
 	return TRUE;
 }
+
+
+#ifdef _DEBUG
+
+const TCHAR stack_level_unmatch[] = TEXT("Stack level doesn't match!\n");
+
+void __declspec(naked) _chkesp()
+{
+	__asm {
+		jz ok;
+		push offset stack_level_unmatch;
+		call dword ptr OutputDebugString;
+		call dword ptr DebugBreak;
+ok:
+		ret;
+	};
+}
+
+#endif	/* _DEBUG */

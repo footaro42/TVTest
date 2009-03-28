@@ -13,8 +13,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define CAPTURE_PREVIEW_WINDOW_CLASS APP_NAME TEXT(" Capture Preview")
-#define TITLE_TEXT TEXT("キャプチャプレビュー")
+#define CAPTURE_WINDOW_CLASS			APP_NAME TEXT(" Capture Window")
+#define CAPTURE_PREVIEW_WINDOW_CLASS	APP_NAME TEXT(" Capture Preview")
+#define TITLE_TEXT TEXT("キャプチャ")
 
 
 
@@ -143,9 +144,14 @@ bool CCaptureImage::SetComment(LPCTSTR pszComment)
 
 
 
-CCapturePreviewEvent::CCapturePreviewEvent()
+CCapturePreview::CEventHandler::CEventHandler()
 {
 	m_pCapturePreview=NULL;
+}
+
+
+CCapturePreview::CEventHandler::~CEventHandler()
+{
 }
 
 
@@ -179,43 +185,21 @@ bool CCapturePreview::Initialize(HINSTANCE hinst)
 
 CCapturePreview::CCapturePreview()
 {
-	m_WindowPosition.Left=0;
-	m_WindowPosition.Top=0;
-	m_WindowPosition.Width=320;
-	m_WindowPosition.Height=240;
 	m_pImage=NULL;
 	m_crBackColor=RGB(0,0,0);
-	m_pEvent=NULL;
+	m_pEventHandler=NULL;
 }
 
 
 CCapturePreview::~CCapturePreview()
 {
-	if (m_pImage!=NULL)
-		delete m_pImage;
 }
 
 
 bool CCapturePreview::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 CAPTURE_PREVIEW_WINDOW_CLASS,TITLE_TEXT,m_hinst);
-}
-
-
-bool CCapturePreview::SetImage(const BITMAPINFO *pbmi,const void *pBits)
-{
-	SIZE_T InfoSize,BitsSize;
-	BYTE *pData;
-
-	ClearImage();
-	m_pImage=new CCaptureImage(pbmi,pBits);
-	if (m_hwnd!=NULL) {
-		Invalidate();
-		Update();
-		SetTitle();
-	}
-	return true;
+							 CAPTURE_PREVIEW_WINDOW_CLASS,NULL,m_hinst);
 }
 
 
@@ -226,7 +210,6 @@ bool CCapturePreview::SetImage(CCaptureImage *pImage)
 	if (m_hwnd!=NULL) {
 		Invalidate();
 		Update();
-		SetTitle();
 	}
 	return true;
 }
@@ -235,11 +218,9 @@ bool CCapturePreview::SetImage(CCaptureImage *pImage)
 bool CCapturePreview::ClearImage()
 {
 	if (m_pImage!=NULL) {
-		delete m_pImage;
 		m_pImage=NULL;
 		if (m_hwnd!=NULL) {
 			Invalidate();
-			SetTitle();
 		}
 	}
 	return true;
@@ -252,39 +233,20 @@ bool CCapturePreview::HasImage() const
 }
 
 
-bool CCapturePreview::SetEventHandler(CCapturePreviewEvent *pEvent)
+bool CCapturePreview::SetEventHandler(CEventHandler *pEventHandler)
 {
-	if (m_pEvent!=NULL)
-		m_pEvent->m_pCapturePreview=NULL;
-	if (pEvent!=NULL)
-		pEvent->m_pCapturePreview=this;
-	m_pEvent=pEvent;
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pCapturePreview=NULL;
+	if (pEventHandler!=NULL)
+		pEventHandler->m_pCapturePreview=this;
+	m_pEventHandler=pEventHandler;
 	return true;
-}
-
-
-void CCapturePreview::SetTitle()
-{
-	if (m_hwnd!=NULL) {
-		TCHAR szTitle[64];
-
-		if (m_pImage!=NULL) {
-			BITMAPINFOHEADER bmih;
-
-			if (m_pImage->GetBitmapInfoHeader(&bmih)) {
-				::wsprintf(szTitle,TITLE_TEXT TEXT(" - %d x %d (%d bpp)"),
-							bmih.biWidth,abs(bmih.biHeight),bmih.biBitCount);
-			}
-		} else
-			::lstrcpy(szTitle,TITLE_TEXT);
-		::SetWindowText(m_hwnd,szTitle);
-	}
 }
 
 
 CCapturePreview *CCapturePreview::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CCapturePreview*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return static_cast<CCapturePreview*>(GetBasicWindow(hwnd));
 }
 
 
@@ -294,10 +256,7 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CCapturePreview *pThis=dynamic_cast<CCapturePreview*>(OnCreate(hwnd,lParam));
-
-			if (pThis->m_pImage!=NULL)
-				pThis->SetTitle();
+			CCapturePreview *pThis=static_cast<CCapturePreview*>(OnCreate(hwnd,lParam));
 		}
 		return 0;
 
@@ -349,69 +308,32 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 		}
 		return 0;
 
+	case WM_LBUTTONDOWN:
+		{
+			CCapturePreview *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL)
+				pThis->m_pEventHandler->OnLButtonDown(
+									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
+		}
+		return TRUE;
+
 	case WM_RBUTTONDOWN:
 		{
 			CCapturePreview *pThis=GetThis(hwnd);
-			HMENU hmenu;
-			POINT pt;
 
-			hmenu=::LoadMenu(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDM_CAPTUREPREVIEW));
-			::EnableMenuItem(hmenu,CM_COPY,MF_BYCOMMAND |
-							 (pThis->m_pImage!=NULL?MFS_ENABLED:MFS_GRAYED));
-			::EnableMenuItem(hmenu,CM_SAVEIMAGE,MF_BYCOMMAND |
-							 (pThis->m_pImage!=NULL?MFS_ENABLED:MFS_GRAYED));
-			pt.x=GET_X_LPARAM(lParam);
-			pt.y=GET_Y_LPARAM(lParam);
-			::ClientToScreen(hwnd,&pt);
-			::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,
-							 hwnd,NULL);
-			::DestroyMenu(hmenu);
+			if (pThis->m_pEventHandler!=NULL)
+				pThis->m_pEventHandler->OnRButtonDown(
+									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		}
 		return TRUE;
 
-	case WM_COMMAND:
-		switch (LOWORD(wParam)) {
-		case CM_COPY:
-			{
-				CCapturePreview *pThis=GetThis(hwnd);
-
-				if (pThis->m_pImage!=NULL) {
-					if (!pThis->m_pImage->SetClipboard(hwnd)) {
-						::MessageBox(hwnd,TEXT("クリップボードにデータを設定できません。"),NULL,
-									 MB_OK | MB_ICONEXCLAMATION);
-					}
-				}
-			}
-			return TRUE;
-
-		case CM_SAVEIMAGE:
-			{
-				CCapturePreview *pThis=GetThis(hwnd);
-
-				if (pThis->m_pImage!=NULL && pThis->m_pEvent!=NULL) {
-					if (!pThis->m_pEvent->OnSave(pThis->m_pImage)) {
-						::MessageBox(hwnd,TEXT("画像の保存ができません。"),NULL,
-									 MB_OK | MB_ICONEXCLAMATION);
-					}
-				}
-			}
-			return TRUE;
-		}
-		return TRUE;
-
-	/*
-	case WM_NCHITTEST:
-		if (::DefWindowProc(hwnd,uMsg,wParam,lParam)==HTCLIENT)
-			return HTCAPTION;
-		break;
-	*/
-
-	case WM_CLOSE:
+	case WM_KEYDOWN:
 		{
 			CCapturePreview *pThis=GetThis(hwnd);
 
-			if (pThis->m_pEvent!=NULL
-					&& !pThis->m_pEvent->OnClose())
+			if (pThis->m_pEventHandler!=NULL
+					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
 				return 0;
 		}
 		break;
@@ -425,6 +347,458 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+}
+
+
+
+
+CCaptureWindow::CEventHandler::CEventHandler()
+{
+	m_pCaptureWindow=NULL;
+}
+
+
+CCaptureWindow::CEventHandler::~CEventHandler()
+{
+}
+
+
+
+
+HINSTANCE CCaptureWindow::m_hinst=NULL;
+
+
+bool CCaptureWindow::Initialize(HINSTANCE hinst)
+{
+	if (m_hinst==NULL) {
+		WNDCLASS wc;
+
+		wc.style=0;
+		wc.lpfnWndProc=WndProc;
+		wc.cbClsExtra=0;
+		wc.cbWndExtra=0;
+		wc.hInstance=hinst;
+		wc.hIcon=NULL;
+		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
+		wc.hbrBackground=(HBRUSH)(COLOR_3DFACE+1);
+		wc.lpszMenuName=NULL;
+		wc.lpszClassName=CAPTURE_WINDOW_CLASS;
+		if (::RegisterClass(&wc)==0)
+			return false;
+		if (!CCapturePreview::Initialize(hinst))
+			return false;
+		m_hinst=hinst;
+	}
+	return true;
+}
+
+
+CCaptureWindow::CCaptureWindow()
+	: m_PreviewEventHandler(this)
+{
+	m_WindowPosition.Left=0;
+	m_WindowPosition.Top=0;
+	m_WindowPosition.Width=320;
+	m_WindowPosition.Height=240;
+	m_fShowStatusBar=true;
+	m_pImage=NULL;
+	m_pEventHandler=NULL;
+	m_hbmStatusIcons=NULL;
+}
+
+
+CCaptureWindow::~CCaptureWindow()
+{
+	if (m_pImage!=NULL)
+		delete m_pImage;
+	if (m_hbmStatusIcons!=NULL)
+		::DeleteObject(m_hbmStatusIcons);
+}
+
+
+bool CCaptureWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
+{
+	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
+							 CAPTURE_WINDOW_CLASS,TITLE_TEXT,m_hinst);
+}
+
+
+bool CCaptureWindow::SetImage(const BITMAPINFO *pbmi,const void *pBits)
+{
+	SIZE_T InfoSize,BitsSize;
+	BYTE *pData;
+
+	ClearImage();
+	m_pImage=new CCaptureImage(pbmi,pBits);
+	if (m_hwnd!=NULL) {
+		m_Preview.SetImage(m_pImage);
+		SetTitle();
+	}
+	return true;
+}
+
+
+bool CCaptureWindow::SetImage(CCaptureImage *pImage)
+{
+	ClearImage();
+	m_pImage=pImage;
+	if (m_hwnd!=NULL) {
+		m_Preview.SetImage(m_pImage);
+		SetTitle();
+	}
+	return true;
+}
+
+
+bool CCaptureWindow::ClearImage()
+{
+	if (m_pImage!=NULL) {
+		delete m_pImage;
+		m_pImage=NULL;
+		if (m_hwnd!=NULL) {
+			m_Preview.ClearImage();
+			Invalidate();
+			SetTitle();
+		}
+	}
+	return true;
+}
+
+
+bool CCaptureWindow::HasImage() const
+{
+	return m_pImage!=NULL;
+}
+
+
+bool CCaptureWindow::SetEventHandler(CEventHandler *pEventHandler)
+{
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pCaptureWindow=NULL;
+	if (pEventHandler!=NULL)
+		pEventHandler->m_pCaptureWindow=this;
+	m_pEventHandler=pEventHandler;
+	return true;
+}
+
+
+void CCaptureWindow::ShowStatusBar(bool fShow)
+{
+	if (m_fShowStatusBar!=fShow) {
+		m_fShowStatusBar=fShow;
+		if (m_hwnd!=NULL) {
+			RECT rc;
+
+			GetClientRect(&rc);
+			SendMessage(WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
+			m_Status.SetVisible(fShow);
+		}
+	}
+}
+
+
+void CCaptureWindow::SetStatusColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
+		COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText)
+{
+	m_Status.SetColor(crBack1,crBack2,crText,
+					  crHighlightBack1,crHighlightBack2,crHighlightText);
+}
+
+
+void CCaptureWindow::SetTitle()
+{
+	if (m_hwnd!=NULL) {
+		TCHAR szTitle[64];
+
+		if (m_pImage!=NULL) {
+			BITMAPINFOHEADER bmih;
+
+			if (m_pImage->GetBitmapInfoHeader(&bmih)) {
+				::wsprintf(szTitle,TITLE_TEXT TEXT(" - %d x %d (%d bpp)"),
+							bmih.biWidth,abs(bmih.biHeight),bmih.biBitCount);
+			}
+		} else
+			::lstrcpy(szTitle,TITLE_TEXT);
+		::SetWindowText(m_hwnd,szTitle);
+	}
+}
+
+
+CCaptureWindow *CCaptureWindow::GetThis(HWND hwnd)
+{
+	return static_cast<CCaptureWindow*>(GetBasicWindow(hwnd));
+}
+
+
+LRESULT CALLBACK CCaptureWindow::WndProc(HWND hwnd,UINT uMsg,
+												WPARAM wParam,LPARAM lParam)
+{
+	switch (uMsg) {
+	case WM_CREATE:
+		{
+			CCaptureWindow *pThis=dynamic_cast<CCaptureWindow*>(OnCreate(hwnd,lParam));
+
+			pThis->m_Preview.Create(hwnd,WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
+									WS_EX_CLIENTEDGE);
+			pThis->m_Preview.SetEventHandler(&pThis->m_PreviewEventHandler);
+			pThis->m_Status.Create(hwnd,WS_CHILD | WS_CLIPSIBLINGS |
+								   (pThis->m_fShowStatusBar?WS_VISIBLE:0),
+								   WS_EX_STATICEDGE);
+			//pThis->m_Status.SetEventHandler(pThis);
+			if (pThis->m_Status.NumItems()==0) {
+				if (pThis->m_hbmStatusIcons==NULL)
+					pThis->m_hbmStatusIcons=
+						static_cast<HBITMAP>(::LoadImage(GetAppClass().GetResourceInstance(),
+						MAKEINTRESOURCE(IDB_CAPTURE),IMAGE_BITMAP,0,0,
+						LR_DEFAULTCOLOR | LR_CREATEDIBSECTION));
+				pThis->m_Status.AddItem(new CCaptureStatusItem(pThis->m_hbmStatusIcons));
+				//pThis->m_Status.AddItem(new CContinuousStatusItem(pThis->m_hbmStatusIcons));
+				pThis->m_Status.AddItem(new CSaveStatusItem(pThis,pThis->m_hbmStatusIcons));
+				pThis->m_Status.AddItem(new CCopyStatusItem(pThis,pThis->m_hbmStatusIcons));
+			}
+			if (pThis->m_pImage!=NULL) {
+				pThis->m_Preview.SetImage(pThis->m_pImage);
+				pThis->SetTitle();
+			}
+		}
+		return 0;
+
+	case WM_SIZE:
+		{
+			CCaptureWindow *pThis=GetThis(hwnd);
+			int Width=LOWORD(lParam),Height=HIWORD(lParam);
+
+			if (pThis->m_fShowStatusBar) {
+				Height-=pThis->m_Status.GetHeight();
+				pThis->m_Status.SetPosition(0,Height,Width,pThis->m_Status.GetHeight());
+			}
+			pThis->m_Preview.SetPosition(0,0,Width,Height);
+		}
+		return 0;
+
+	case WM_KEYDOWN:
+		{
+			CCaptureWindow *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL
+					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+				return 0;
+		}
+		break;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case CM_SAVEIMAGE:
+			{
+				CCaptureWindow *pThis=GetThis(hwnd);
+
+				if (pThis->m_pImage!=NULL && pThis->m_pEventHandler!=NULL) {
+					if (!pThis->m_pEventHandler->OnSave(pThis->m_pImage)) {
+						::MessageBox(hwnd,TEXT("画像の保存ができません。"),NULL,
+									 MB_OK | MB_ICONEXCLAMATION);
+					}
+				}
+			}
+			return 0;
+
+		case CM_COPY:
+			{
+				CCaptureWindow *pThis=GetThis(hwnd);
+
+				if (pThis->m_pImage!=NULL) {
+					if (!pThis->m_pImage->SetClipboard(hwnd)) {
+						::MessageBox(hwnd,TEXT("クリップボードにデータを設定できません。"),NULL,
+									 MB_OK | MB_ICONEXCLAMATION);
+					}
+				}
+			}
+			return 0;
+
+		case CM_CAPTURESTATUSBAR:
+			{
+				CCaptureWindow *pThis=GetThis(hwnd);
+
+				pThis->ShowStatusBar(!pThis->m_fShowStatusBar);
+			}
+			return 0;
+		}
+		return 0;
+
+	/*
+	case WM_NCHITTEST:
+		if (::DefWindowProc(hwnd,uMsg,wParam,lParam)==HTCLIENT)
+			return HTCAPTION;
+		break;
+	*/
+
+	case WM_CLOSE:
+		{
+			CCaptureWindow *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL
+					&& !pThis->m_pEventHandler->OnClose())
+				return 0;
+		}
+		break;
+
+	case WM_DESTROY:
+		{
+			CCaptureWindow *pThis=GetThis(hwnd);
+
+			pThis->OnDestroy();
+		}
+		return 0;
+	}
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+}
+
+
+
+
+CCaptureWindow::CPreviewEventHandler::CPreviewEventHandler(CCaptureWindow *pCaptureWindow)
+{
+	m_pCaptureWindow=pCaptureWindow;
+}
+
+
+void CCaptureWindow::CPreviewEventHandler::OnRButtonDown(int x,int y)
+{
+	HMENU hmenu;
+	POINT pt;
+
+	hmenu=::LoadMenu(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDM_CAPTUREPREVIEW));
+	::EnableMenuItem(hmenu,CM_COPY,MF_BYCOMMAND |
+					 (m_pCaptureWindow->HasImage()?MFS_ENABLED:MFS_GRAYED));
+	::EnableMenuItem(hmenu,CM_SAVEIMAGE,MF_BYCOMMAND |
+					 (m_pCaptureWindow->HasImage()?MFS_ENABLED:MFS_GRAYED));
+	::CheckMenuItem(hmenu,CM_CAPTURESTATUSBAR,MF_BYCOMMAND |
+					(m_pCaptureWindow->IsStatusBarVisible()?MFS_CHECKED:MFS_UNCHECKED));
+	pt.x=x;
+	pt.y=y;
+	::ClientToScreen(m_pCapturePreview->GetHandle(),&pt);
+	::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,m_pCaptureWindow->GetHandle(),NULL);
+	::DestroyMenu(hmenu);
+}
+
+
+bool CCaptureWindow::CPreviewEventHandler::OnKeyDown(UINT KeyCode,UINT Flags)
+{
+	::SendMessage(m_pCaptureWindow->GetHandle(),WM_KEYDOWN,KeyCode,Flags);
+	return true;
+}
+
+
+
+
+CCaptureWindow::CCaptureStatusItem::CCaptureStatusItem(HBITMAP hbmIcon) : CStatusItem(STATUS_ITEM_CAPTURE,16)
+{
+	m_MinWidth=16;
+	m_hbmIcon=hbmIcon;
+}
+
+void CCaptureWindow::CCaptureStatusItem::Draw(HDC hdc,const RECT *pRect)
+{
+	DrawIcon(hdc,pRect,m_hbmIcon,0,0,16,16);
+}
+
+void CCaptureWindow::CCaptureStatusItem::OnLButtonDown(int x,int y)
+{
+	GetAppClass().GetMainWindow()->SendCommand(CM_CAPTURE);
+}
+
+void CCaptureWindow::CCaptureStatusItem::OnRButtonDown(int x,int y)
+{
+	/*
+	HMENU hmenu;
+	POINT pt;
+
+	hmenu=LoadMenu(hInst,MAKEINTRESOURCE(IDM_CAPTURE));
+	CheckMenuRadioItem(hmenu,CM_CAPTURESIZE_FIRST,CM_CAPTURESIZE_LAST,
+		CM_CAPTURESIZE_FIRST+CaptureOptions.GetPresetCaptureSize(),MF_BYCOMMAND);
+	if (fShowCapturePreview)
+		CheckMenuItem(hmenu,CM_CAPTUREPREVIEW,MF_BYCOMMAND | MFS_CHECKED);
+	Accelerator.SetMenuAccel(GetSubMenu(hmenu,0));
+	GetMenuPos(&pt);
+	TrackPopupMenu(GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,
+												MainWindow.GetHandle(),NULL);
+	DestroyMenu(hmenu);
+	*/
+}
+
+
+#if 0
+
+CCaptureWindow::CContinuousStatusItem::CContinuousStatusItem(HBITMAP hbmIcon) : CStatusItem(STATUS_ITEM_CONTINUOUS,16)
+{
+	m_MinWidth=16;
+	m_hbmIcon=hbmIcon;
+}
+
+void CCaptureWindow::CContinuousStatusItem::Draw(HDC hdc,const RECT *pRect)
+{
+	DrawIcon(hdc,pRect,m_hbmIcon,16,0,16,16);
+}
+
+void CCaptureWindow::CContinuousStatusItem::OnLButtonDown(int x,int y)
+{
+	GetAppClass().GetMainWindow()->SendCommand(CM_CONTINUOUSSHOOTING);
+}
+
+void CCaptureWindow::CContinuousStatusItem::OnRButtonDown(int x,int y)
+{
+	/*
+	HMENU hmenu;
+	POINT pt;
+
+	hmenu=LoadMenu(hInst,MAKEINTRESOURCE(IDM_CAPTURE));
+	CheckMenuRadioItem(hmenu,CM_CAPTURESIZE_FIRST,CM_CAPTURESIZE_LAST,
+		CM_CAPTURESIZE_FIRST+CaptureOptions.GetPresetCaptureSize(),MF_BYCOMMAND);
+	if (fShowCapturePreview)
+		CheckMenuItem(hmenu,CM_CAPTUREPREVIEW,MF_BYCOMMAND | MFS_CHECKED);
+	Accelerator.SetMenuAccel(GetSubMenu(hmenu,0));
+	GetMenuPos(&pt);
+	TrackPopupMenu(GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,
+												MainWindow.GetHandle(),NULL);
+	DestroyMenu(hmenu);
+	*/
+}
+
+#endif
+
+
+CCaptureWindow::CSaveStatusItem::CSaveStatusItem(CCaptureWindow *pCaptureWindow,HBITMAP hbmIcon) : CStatusItem(STATUS_ITEM_SAVE,16)
+{
+	m_MinWidth=16;
+	m_pCaptureWindow=pCaptureWindow;
+	m_hbmIcon=hbmIcon;
+}
+
+void CCaptureWindow::CSaveStatusItem::Draw(HDC hdc,const RECT *pRect)
+{
+	DrawIcon(hdc,pRect,m_hbmIcon,32,0,16,16);
+}
+
+void CCaptureWindow::CSaveStatusItem::OnLButtonDown(int x,int y)
+{
+	m_pCaptureWindow->SendMessage(WM_COMMAND,CM_SAVEIMAGE,0);
+}
+
+
+CCaptureWindow::CCopyStatusItem::CCopyStatusItem(CCaptureWindow *pCaptureWindow,HBITMAP hbmIcon) : CStatusItem(STATUS_ITEM_COPY,16)
+{
+	m_MinWidth=16;
+	m_pCaptureWindow=pCaptureWindow;
+	m_hbmIcon=hbmIcon;
+}
+
+void CCaptureWindow::CCopyStatusItem::Draw(HDC hdc,const RECT *pRect)
+{
+	DrawIcon(hdc,pRect,m_hbmIcon,48,0,16,16);
+}
+
+void CCaptureWindow::CCopyStatusItem::OnLButtonDown(int x,int y)
+{
+	m_pCaptureWindow->SendMessage(WM_COMMAND,CM_COPY,0);
 }
 
 

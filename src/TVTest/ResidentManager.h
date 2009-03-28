@@ -8,9 +8,11 @@ class CResidentManager {
 	bool m_fMinimizeToTray;
 	UINT m_Status;
 	UINT m_TaskbarCreatedMessage;
+	LPTSTR m_pszTipText;
 	bool AddTrayIcon();
 	bool RemoveTrayIcon();
 	bool ChangeTrayIcon();
+	bool UpdateTipText();
 	bool IsTrayIconVisible() const;
 public:
 	enum {
@@ -27,6 +29,14 @@ public:
 	bool GetMinimizeToTray() const { return m_fMinimizeToTray; }
 	bool SetStatus(UINT Status,UINT Mask=(UINT)-1);
 	UINT GetStatus() const { return m_Status; }
+	bool SetTipText(LPCTSTR pszText);
+	enum {
+		MESSAGE_ICON_NONE,
+		MESSAGE_ICON_INFO,
+		MESSAGE_ICON_WARNING,
+		MESSAGE_ICON_ERROR
+	};
+	bool ShowMessage(LPCTSTR pszText,LPCTSTR pszTitle,int Icon=0,DWORD TimeOut=5000);
 	bool HandleMessage(UINT Message,WPARAM wParam,LPARAM lParam);
 };
 

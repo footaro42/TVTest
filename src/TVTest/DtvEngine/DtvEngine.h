@@ -67,6 +67,7 @@ public:
 	const bool SetStereoMode(int iMode);
 	const WORD GetEventID();
 	const int GetEventName(LPTSTR pszName, int MaxLength, bool fNext = false);
+	const bool GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime, bool bNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 
@@ -92,11 +93,11 @@ public:
 	bool SetDescramble(bool bDescramble);
 	bool ResetBuffer();
 	bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight);
-	bool SetDescrambleService(WORD Service);
+	bool SetDescrambleService(WORD ServiceID);
 	bool SetDescrambleCurServiceOnly(bool bOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_bDescrambleCurServiceOnly; }
-	bool SetWriteService(WORD Service,DWORD Stream=CTsSelector::STREAM_ALL);
-	bool SetWriteCurServiceOnly(bool bOnly,DWORD Stream=CTsSelector::STREAM_ALL);
+	bool SetWriteService(WORD ServiceID, DWORD Stream=CTsSelector::STREAM_ALL);
+	bool SetWriteCurServiceOnly(bool bOnly, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
 	CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
 // CBonBaseClass
@@ -126,6 +127,7 @@ protected:
 	CDtvEngineHandler *m_pDtvEngineHandler;
 	WORD m_wCurTransportStream;
 	WORD m_wCurService;
+	WORD m_CurServiceID;
 	WORD m_SpecServiceID;
 	int m_CurAudioStream;
 	unsigned __int64 m_u64CurPcrTimeStamp;
@@ -138,6 +140,7 @@ protected:
 
 	bool m_bDescrambleCurServiceOnly;
 	bool m_bWriteCurServiceOnly;
+	DWORD m_WriteStream;
 
 	void ResetStatus();
 };

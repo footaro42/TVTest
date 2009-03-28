@@ -80,7 +80,6 @@ public:
 	const DWORD GetScramblePacketCount(void) const;
 	void ResetScramblePacketCount(void);
 	bool SetTargetServiceID(WORD ServiceID=0);
-	void IncrementScramblePacketCount();
 protected:
 	class CEsProcessor;
 
@@ -89,11 +88,16 @@ protected:
 
 	int GetServiceIndexByID(WORD ServiceID) const;
 
+#ifdef _DEBUG
+	void PrintStatus(void) const;
+#endif
+
 	bool m_bDescramble;
 	CTsPidMapManager m_PidMapManager;
 	CBcasCard m_BcasCard;
 	CBcasAccessQueue m_Queue;
 
+	WORD m_CurTransportStreamID;
 	WORD m_DescrambleServiceID;
 
 	struct TAG_SERVICEINFO {
@@ -108,61 +112,6 @@ protected:
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_ScramblePacketCount;
 
+	friend class CEcmProcessor;
 	friend class CDescramblePmtTable;
-};
-
-
-// ECM処理内部クラス
-class CEcmProcessor :	public CDynamicReferenceable,
-						public CPsiSingleTable
-{
-public:
-	CEcmProcessor(CTsDescrambler *pDescrambler, CBcasCard *pBcasCard, CBcasAccessQueue *pQueue);
-
-// CTsPidMapTarget
-	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
-	virtual void OnPidUnmapped(const WORD wPID);
-
-// CEcmProcessor
-	const bool DescramblePacket(CTsPacket *pTsPacket);
-	const bool SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize);
-
-	void IncrementTargetCount() { m_TargetCount++; }
-	void DecrementTargetCount() { m_TargetCount--; }
-	int GetTargetCount() const { return m_TargetCount; }
-
-protected:
-// CPsiSingleTable
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
-
-private:
-	CTsDescrambler *m_pDescrambler;
-	CMulti2Decoder m_Multi2Decoder;
-	CBcasCard *m_pBcasCard;
-	CBcasAccessQueue *m_pQueue;
-	bool m_bInQueue;
-	CLocalEvent m_SetScrambleKeyEvent;
-	volatile bool m_bSetScrambleKey;
-	CCriticalLock m_Multi2Lock;
-
-	bool m_bLastEcmSucceed;
-	int m_TargetCount;
-};
-
-
-// ESスクランブル解除内部クラス
-class CTsDescrambler::CEsProcessor : public CTsPidMapTarget,
-									 public CDynamicReferenceable
-{
-public:
-	CEsProcessor(CEcmProcessor *pEcmProcessor);
-	virtual ~CEsProcessor();
-
-// CTsPidMapTarget
-	virtual const bool StorePacket(const CTsPacket *pPacket);
-	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
-	virtual void OnPidUnmapped(const WORD wPID);
-
-private:
-	CEcmProcessor *m_pEcmProcessor;
 };

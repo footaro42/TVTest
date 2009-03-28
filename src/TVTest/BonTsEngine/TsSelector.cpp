@@ -88,15 +88,19 @@ const bool CTsSelector::InputMedia(CMediaData *pMediaData, const DWORD dwInputIn
 	// PIDルーティング
 	m_PidMapManager.StorePacket(pTsPacket);
 
-	WORD PID = pTsPacket->GetPID();
-	if (PID < 0x0030 || IsTargetPID(PID)) {
-		m_OutputPacketCount++;
-		// パケットを下流デコーダにデータを渡す
-		if (PID == 0x0000 && m_TargetPmtPID != 0
-				&& MakePat(pTsPacket, &m_PatPacket)) {
-			OutputMedia(&m_PatPacket);
-		} else {
-			OutputMedia(pMediaData);
+	if (m_TargetServiceID == 0 && m_TargetStream == STREAM_ALL) {
+		OutputMedia(pMediaData);
+	} else {
+		WORD PID = pTsPacket->GetPID();
+		if (PID < 0x0030 || IsTargetPID(PID)) {
+			m_OutputPacketCount++;
+			// パケットを下流デコーダにデータを渡す
+			if (PID == 0x0000 && m_TargetPmtPID != 0
+					&& MakePat(pTsPacket, &m_PatPacket)) {
+				OutputMedia(&m_PatPacket);
+			} else {
+				OutputMedia(pMediaData);
+			}
 		}
 	}
 
@@ -120,7 +124,7 @@ ULONGLONG CTsSelector::GetOutputPacketCount() const
 
 bool CTsSelector::SetTargetServiceID(WORD ServiceID, DWORD Stream)
 {
-	if (m_TargetServiceID != ServiceID) {
+	if (m_TargetServiceID != ServiceID || m_TargetStream != Stream) {
 		CBlockLock Lock(&m_DecoderLock);
 
 		m_TargetServiceID = ServiceID;

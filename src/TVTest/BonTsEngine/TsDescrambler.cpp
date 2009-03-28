@@ -12,16 +12,67 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+// ECM処理内部クラス
+class CEcmProcessor : public CPsiSingleTable
+					, public CDynamicReferenceable
+{
+public:
+	CEcmProcessor(CTsDescrambler *pDescrambler);
+
+// CTsPidMapTarget
+	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
+	virtual void OnPidUnmapped(const WORD wPID);
+
+// CEcmProcessor
+	const bool DescramblePacket(CTsPacket *pTsPacket);
+	const bool SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize);
+
+protected:
+// CPsiSingleTable
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+
+private:
+	CTsDescrambler *m_pDescrambler;
+	CMulti2Decoder m_Multi2Decoder;
+	bool m_bInQueue;
+	CLocalEvent m_SetScrambleKeyEvent;
+	volatile bool m_bSetScrambleKey;
+	CCriticalLock m_Multi2Lock;
+
+	bool m_bLastEcmSucceed;
+};
+
+
+// ESスクランブル解除内部クラス
+class CTsDescrambler::CEsProcessor : public CTsPidMapTarget
+{
+	CEcmProcessor *m_pEcmProcessor;
+
+public:
+	CEsProcessor(CEcmProcessor *pEcmProcessor);
+	virtual ~CEsProcessor();
+	const CEcmProcessor *GetEcmProcessor() const { return m_pEcmProcessor; }
+
+// CTsPidMapTarget
+	virtual const bool StorePacket(const CTsPacket *pPacket);
+	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
+	virtual void OnPidUnmapped(const WORD wPID);
+};
+
+
 class CDescramblePmtTable : public CPmtTable
 {
 	CTsDescrambler *m_pDescrambler;
 	CTsPidMapManager *m_pMapManager;
 	CEcmProcessor *m_pEcmProcessor;
 	WORD m_EcmPID;
+	WORD m_ServiceID;
 	std::vector<WORD> m_EsPIDList;
+	void UnmapEcmTarget();
+
 public:
 	CDescramblePmtTable(CTsDescrambler *pDescrambler);
-	void OnTableUpdate();
+	void UpdateTarget();
 	void SetTarget();
 	void ResetTarget();
 	// CTsPidMapTarget
@@ -38,6 +89,7 @@ CTsDescrambler::CTsDescrambler(IEventHandler *pEventHandler)
 	, m_bDescramble(true)
 	, m_InputPacketCount(0)
 	, m_ScramblePacketCount(0)
+	, m_CurTransportStreamID(0)
 	, m_DescrambleServiceID(0)
 	, m_Queue(&m_BcasCard)
 {
@@ -65,6 +117,8 @@ void CTsDescrambler::Reset(void)
 	m_InputPacketCount = 0;
 	m_ScramblePacketCount = 0;
 
+	m_CurTransportStreamID = 0;
+
 	// スクランブル解除ターゲット初期化
 	m_DescrambleServiceID = 0;
 	m_ServiceList.clear();
@@ -88,10 +142,10 @@ const bool CTsDescrambler::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 	// 入力パケット数カウント
 	m_InputPacketCount++;
 
-	if (m_bDescramble) {
+	if (!pTsPacket->IsScrambled() || m_bDescramble) {
 		// PIDルーティング
 		m_PidMapManager.StorePacket(pTsPacket);
-	} else if (pTsPacket->IsScrambled()) {
+	} else {
 		// 復号漏れパケット数カウント
 		m_ScramblePacketCount++;
 	}
@@ -150,14 +204,18 @@ const bool CTsDescrambler::IsBcasCardOpen() const
 
 const bool CTsDescrambler::GetBcasCardID(BYTE *pCardID)
 {
+	if (pCardID == NULL)
+		return false;
+
 	// カードID取得
 	const BYTE *pBuff = m_BcasCard.GetBcasCardID();
+	if (pBuff == NULL)
+		return false;
 
 	// バッファにコピー
-	if (pCardID && pBuff)
-		::CopyMemory(pCardID, pBuff, 6UL);
+	::CopyMemory(pCardID, pBuff, 6UL);
 
-	return (pBuff)? true : false;
+	return true;
 }
 
 LPCTSTR CTsDescrambler::GetCardReaderName() const
@@ -213,6 +271,9 @@ int CTsDescrambler::GetServiceIndexByID(WORD ServiceID) const
 bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 {
 	if (m_DescrambleServiceID != ServiceID) {
+		TRACE(TEXT("CTsDescrambler::SetTargetServiceID() SID = %d (%04x)\n"),
+			  ServiceID, ServiceID);
+
 		CBlockLock Lock(&m_DecoderLock);
 
 		m_DescrambleServiceID = ServiceID;
@@ -244,13 +305,12 @@ bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 				}
 			}
 		}
+
+#ifdef _DEBUG
+		PrintStatus();
+#endif
 	}
 	return true;
-}
-
-void CTsDescrambler::IncrementScramblePacketCount()
-{
-	m_ScramblePacketCount++;
 }
 
 void CALLBACK CTsDescrambler::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam)
@@ -259,21 +319,61 @@ void CALLBACK CTsDescrambler::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMa
 	CTsDescrambler *pThis = static_cast<CTsDescrambler *>(pParam);
 	CPatTable *pPatTable = dynamic_cast<CPatTable *>(pMapTarget);
 
-	for (size_t i = 0 ; i < pThis->m_ServiceList.size() ; i++)
-		pThis->m_PidMapManager.UnmapTarget(pThis->m_ServiceList[i].PmtPID);
+	TRACE(TEXT("CTsDescrambler::OnPatUpdated()\n"));
 
-	pThis->m_ServiceList.resize(pPatTable->GetProgramNum());
+	const WORD TsID = pPatTable->GetTransportStreamID();
+	if (TsID != pThis->m_CurTransportStreamID) {
+		// TSIDが変化したらリセットする
+		pThis->m_Queue.Clear();
+		for (WORD PID = 0x0001 ; PID < 0x2000 ; PID++)
+			pThis->m_PidMapManager.UnmapTarget(PID);
+		pThis->m_ServiceList.clear();
+		pThis->m_CurTransportStreamID = TsID;
+	} else {
+		// 無くなったPMTをスクランブル解除対象から除外する
+		for (size_t i = 0 ; i < pThis->m_ServiceList.size() ; i++) {
+			const WORD PmtPID = pThis->m_ServiceList[i].PmtPID;
+			WORD j;
+
+			for (j = 0 ; j < pPatTable->GetProgramNum() ; j++) {
+				if (pPatTable->GetPmtPID(j) == PmtPID)
+					break;
+			}
+			if (j == pPatTable->GetProgramNum()) {
+				pThis->m_PidMapManager.UnmapTarget(PmtPID);
+				pThis->m_ServiceList[i].bTarget = false;
+			}
+		}
+	}
+
+	std::vector<TAG_SERVICEINFO> ServiceList;
+	ServiceList.resize(pPatTable->GetProgramNum());
 	for (WORD i = 0 ; i < pPatTable->GetProgramNum() ; i++) {
 		const WORD PmtPID = pPatTable->GetPmtPID(i);
+		const WORD ServiceID = pPatTable->GetProgramID(i);
 
-		pThis->m_ServiceList[i].bTarget = false;
-		pThis->m_ServiceList[i].ServiceID = pPatTable->GetProgramID(i);
-		pThis->m_ServiceList[i].PmtPID = PmtPID;
-		pThis->m_ServiceList[i].EcmPID = 0xFFFF;
-		pThis->m_ServiceList[i].EsPIDList.clear();
+		ServiceList[i].bTarget = pThis->m_DescrambleServiceID == 0
+								|| ServiceID == pThis->m_DescrambleServiceID;
+		ServiceList[i].ServiceID = ServiceID;
+		ServiceList[i].PmtPID = PmtPID;
+		size_t j;
+		for (j = 0 ; j < pThis->m_ServiceList.size() ; j++) {
+			if (pThis->m_ServiceList[j].PmtPID == PmtPID)
+				break;
+		}
+		if (j < pThis->m_ServiceList.size()) {
+			ServiceList[i].EcmPID = pThis->m_ServiceList[j].EcmPID;
+			ServiceList[i].EsPIDList = pThis->m_ServiceList[j].EsPIDList;
+		} else {
+			ServiceList[i].EcmPID = 0xFFFF;
+			ServiceList[i].EsPIDList.clear();
+		}
 
-		pThis->m_PidMapManager.MapTarget(PmtPID, new CDescramblePmtTable(pThis), OnPmtUpdated, pThis);
+		CDescramblePmtTable *pPmtTable = dynamic_cast<CDescramblePmtTable *>(pThis->m_PidMapManager.GetMapTarget(PmtPID));
+		if (pPmtTable == NULL)
+			pThis->m_PidMapManager.MapTarget(PmtPID, new CDescramblePmtTable(pThis), OnPmtUpdated, pThis);
 	}
+	pThis->m_ServiceList = ServiceList;
 }
 
 void CALLBACK CTsDescrambler::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam)
@@ -282,24 +382,50 @@ void CALLBACK CTsDescrambler::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMa
 	CTsDescrambler *pThis = static_cast<CTsDescrambler *>(pParam);
 	CDescramblePmtTable *pPmtTable = dynamic_cast<CDescramblePmtTable *>(pMapTarget);
 
-	const WORD ServiceID = pPmtTable->m_CurSection.GetTableIdExtension();
+	const WORD ServiceID = pPmtTable->GetProgramNumberID();
 	const int ServiceIndex = pThis->GetServiceIndexByID(ServiceID);
 	if (ServiceIndex < 0)
 		return;
 
+	TRACE(TEXT("CTsDescrambler::OnPmtUpdated() SID = %04d\n"), ServiceID);
+
 	pThis->m_ServiceList[ServiceIndex].EcmPID = pPmtTable->GetEcmPID();
 
-	pThis->m_ServiceList[ServiceIndex].EsPIDList.clear();
+	pThis->m_ServiceList[ServiceIndex].EsPIDList.resize(pPmtTable->GetEsInfoNum());
 	for (WORD i = 0 ; i < pPmtTable->GetEsInfoNum() ; i++)
-		pThis->m_ServiceList[ServiceIndex].EsPIDList.push_back(pPmtTable->GetEsPID(i));
+		pThis->m_ServiceList[ServiceIndex].EsPIDList[i] = pPmtTable->GetEsPID(i);
 
 	pThis->m_ServiceList[ServiceIndex].bTarget = pThis->m_DescrambleServiceID == 0
 								|| ServiceID == pThis->m_DescrambleServiceID;
 	if (pThis->m_ServiceList[ServiceIndex].bTarget)
-		pPmtTable->OnTableUpdate();
+		pPmtTable->UpdateTarget();
 	else
 		pPmtTable->ResetTarget();
+
+#ifdef _DEBUG
+	pThis->PrintStatus();
+#endif
 }
+
+#ifdef _DEBUG
+void CTsDescrambler::PrintStatus(void) const
+{
+	TRACE(TEXT("****** Descramble ES PIDs ******\n"));
+	for (WORD PID = 0x0001 ; PID < 0x2000 ; PID++) {
+		CEsProcessor *pEsProcessor = dynamic_cast<CEsProcessor*>(m_PidMapManager.GetMapTarget(PID));
+
+		if (pEsProcessor)
+			TRACE(TEXT("ES PID = %04x (%d)\n"), PID, PID);
+	}
+	TRACE(TEXT("****** Descramble ECM PIDs ******\n"));
+	for (WORD PID = 0x0001 ; PID < 0x2000 ; PID++) {
+		CEcmProcessor *pEcmProcessor = dynamic_cast<CEcmProcessor*>(m_PidMapManager.GetMapTarget(PID));
+
+		if (pEcmProcessor)
+			TRACE(TEXT("ECM PID = %04x (%d)\n"), PID, PID);
+	}
+}
+#endif
 
 
 CDescramblePmtTable::CDescramblePmtTable(CTsDescrambler *pDescrambler)
@@ -307,34 +433,66 @@ CDescramblePmtTable::CDescramblePmtTable(CTsDescrambler *pDescrambler)
 	, m_pMapManager(&pDescrambler->m_PidMapManager)
 	, m_pEcmProcessor(NULL)
 	, m_EcmPID(0)
+	, m_ServiceID(0)
 {
 }
 
-void CDescramblePmtTable::OnTableUpdate()
+void CDescramblePmtTable::UnmapEcmTarget()
 {
-	// ECMのPIDマップ追加
+	// ECMが他のスクランブル解除対象サービスと異なる場合はアンマップ
+	bool bFinded = false;
+	for (size_t i = 0 ; i < m_pDescrambler->m_ServiceList.size() ; i++) {
+		if (m_pDescrambler->m_ServiceList[i].ServiceID != m_ServiceID
+				&& m_pDescrambler->m_ServiceList[i].bTarget
+				&& m_pDescrambler->m_ServiceList[i].EcmPID == m_EcmPID) {
+			bFinded = true;
+			break;
+		}
+	}
+	if (!bFinded)
+		m_pMapManager->UnmapTarget(m_EcmPID);
+
+	// ESのPIDマップ削除
+	for (size_t i = 0 ; i < m_EsPIDList.size() ; i++) {
+		const WORD EsPID = m_EsPIDList[i];
+
+		bFinded = false;
+		for (size_t j = 0 ; j < m_pDescrambler->m_ServiceList.size() ; j++) {
+			if (m_pDescrambler->m_ServiceList[j].ServiceID != m_ServiceID
+					&& m_pDescrambler->m_ServiceList[j].bTarget) {
+				for (size_t k = 0 ; k < m_pDescrambler->m_ServiceList[j].EsPIDList.size() ; k++) {
+					if (m_pDescrambler->m_ServiceList[j].EsPIDList[k] == EsPID) {
+						bFinded = true;
+						break;
+					}
+				}
+				if (bFinded)
+					break;
+			}
+		}
+		if (!bFinded)
+			m_pMapManager->UnmapTarget(EsPID);
+	}
+}
+
+void CDescramblePmtTable::UpdateTarget()
+{
+	// PMTが更新された
 	WORD EcmPID = GetEcmPID();
-	if (EcmPID >= 0x1FFFU)
+	if (EcmPID >= 0x1FFF)
 		EcmPID = 0;
 
 	if (m_EcmPID != EcmPID) {
+		// ECMのPIDが変わった
 		if (m_EcmPID != 0) {
-			if (m_pEcmProcessor->GetTargetCount() > 1) {
-				m_pEcmProcessor->DecrementTargetCount();
-			} else {
-				m_pMapManager->UnmapTarget(m_EcmPID);
-			}
-			m_pEcmProcessor = NULL;
+			ResetTarget();
 		}
 		if (EcmPID != 0) {
-			// 既存のECM処理ターゲットを確認
-			m_pEcmProcessor = dynamic_cast<CEcmProcessor *>(m_pMapManager->GetMapTarget(EcmPID));
+			m_pEcmProcessor = dynamic_cast<CEcmProcessor*>(m_pMapManager->GetMapTarget(EcmPID));
 
-			if (m_pEcmProcessor) {
-				m_pEcmProcessor->IncrementTargetCount();
-			} else {
+			if (m_pEcmProcessor == NULL) {
 				// ECM処理内部クラス新規マップ
-				m_pEcmProcessor = new CEcmProcessor(m_pDescrambler, &m_pDescrambler->m_BcasCard, &m_pDescrambler->m_Queue);
+				m_pEcmProcessor = new CEcmProcessor(m_pDescrambler);
 				m_pMapManager->MapTarget(EcmPID, m_pEcmProcessor);
 			}
 		}
@@ -343,97 +501,37 @@ void CDescramblePmtTable::OnTableUpdate()
 
 	if (m_pEcmProcessor) {
 		// ESのPIDマップ追加
+		m_EsPIDList.resize(GetEsInfoNum());
 		for (WORD i = 0 ; i < GetEsInfoNum() ; i++) {
 			const WORD EsPID = GetEsPID(i);
-			CTsDescrambler::CEsProcessor *pEsProcessor = dynamic_cast<CTsDescrambler::CEsProcessor *>(m_pMapManager->GetMapTarget(EsPID));
+			const CTsDescrambler::CEsProcessor *pEsProcessor = dynamic_cast<CTsDescrambler::CEsProcessor*>(m_pMapManager->GetMapTarget(EsPID));
 
-			if (pEsProcessor) {
-				pEsProcessor->AddRef();
-			} else {
+			if (pEsProcessor == NULL
+					|| pEsProcessor->GetEcmProcessor() != m_pEcmProcessor)
 				m_pMapManager->MapTarget(EsPID, new CTsDescrambler::CEsProcessor(m_pEcmProcessor));
-			}
+			m_EsPIDList[i] = EsPID;
 		}
 	}
 
-	for (size_t i = 0 ; i < m_EsPIDList.size() ; i++) {
-		CTsDescrambler::CEsProcessor *pEsProcessor = dynamic_cast<CTsDescrambler::CEsProcessor *>(m_pMapManager->GetMapTarget(m_EsPIDList[i]));
-
-		if (pEsProcessor) {
-			if (pEsProcessor->GetRefCount() > 1)
-				pEsProcessor->ReleaseRef();
-			else
-				m_pMapManager->UnmapTarget(m_EsPIDList[i]);
-		}
-	}
-
-	m_EsPIDList.resize(GetEsInfoNum());
-	for (WORD i = 0 ; i < GetEsInfoNum() ; i++ )
-		m_EsPIDList[i] = GetEsPID(i);
+	m_ServiceID = GetProgramNumberID();
 }
 
 void CDescramblePmtTable::SetTarget()
 {
-	// ECMのPIDマップ追加
-	m_EcmPID = GetEcmPID();
-	if (m_EcmPID >= 0x1FFFU)
-		m_EcmPID = 0;
-
-	if (m_EcmPID != 0) {
-		// 既存のECM処理ターゲットを確認
-		m_pEcmProcessor = dynamic_cast<CEcmProcessor *>(m_pMapManager->GetMapTarget(m_EcmPID));
-
-		if (m_pEcmProcessor) {
-			m_pEcmProcessor->IncrementTargetCount();
-		} else {
-			// ECM処理内部クラス新規マップ
-			m_pEcmProcessor = new CEcmProcessor(m_pDescrambler, &m_pDescrambler->m_BcasCard, &m_pDescrambler->m_Queue);
-			m_pMapManager->MapTarget(m_EcmPID, m_pEcmProcessor);
-		}
-	}
-
-	if (m_pEcmProcessor) {
-		// ESのPIDマップ追加
-		for (WORD i = 0 ; i < GetEsInfoNum() ; i++) {
-			const WORD EsPID = GetEsPID(i);
-			CTsDescrambler::CEsProcessor *pEsProcessor = dynamic_cast<CTsDescrambler::CEsProcessor *>(m_pMapManager->GetMapTarget(EsPID));
-
-			if (pEsProcessor) {
-				pEsProcessor->AddRef();
-			} else {
-				m_pMapManager->MapTarget(EsPID, new CTsDescrambler::CEsProcessor(m_pEcmProcessor));
-			}
-		}
-	}
-
-	m_EsPIDList.resize(GetEsInfoNum());
-	for (WORD i = 0 ; i < GetEsInfoNum() ; i++ )
-		m_EsPIDList[i] = GetEsPID(i);
+	// スクランブル解除対象に設定
+	if (m_EcmPID == 0)
+		UpdateTarget();
 }
 
 void CDescramblePmtTable::ResetTarget()
 {
+	// スクランブル解除対象から除外
 	if (m_EcmPID != 0) {
-		if (m_pEcmProcessor->GetTargetCount() > 1) {
-			m_pEcmProcessor->DecrementTargetCount();
-		} else {
-			m_pMapManager->UnmapTarget(m_EcmPID);
-		}
+		// ECMとESのPIDをアンマップ
+		UnmapEcmTarget();
+
 		m_pEcmProcessor = NULL;
 		m_EcmPID = 0;
-	}
-
-	if (m_EsPIDList.size() > 0) {
-		for (size_t i = 0 ; i < m_EsPIDList.size() ; i++) {
-			CTsDescrambler::CEsProcessor *pEsProcessor = dynamic_cast<CTsDescrambler::CEsProcessor *>(m_pMapManager->GetMapTarget(m_EsPIDList[i]));
-
-			if (pEsProcessor) {
-				if (pEsProcessor->GetRefCount() > 1)
-					pEsProcessor->ReleaseRef();
-				else
-					m_pMapManager->UnmapTarget(m_EsPIDList[i]);
-			}
-		}
-
 		m_EsPIDList.clear();
 	}
 }
@@ -450,20 +548,16 @@ void CDescramblePmtTable::OnPidUnmapped(const WORD wPID)
 // CEcmProcessor 構築/消滅
 //////////////////////////////////////////////////////////////////////
 
-CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler, CBcasCard *pBcasCard, CBcasAccessQueue *pQueue)
-	: CDynamicReferenceable()
-	, CPsiSingleTable(true)
+CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
+	: CPsiSingleTable(true)
 	, m_pDescrambler(pDescrambler)
-	, m_pBcasCard(pBcasCard)
-	, m_pQueue(pQueue)
 	, m_bInQueue(false)
 	, m_bLastEcmSucceed(true)
-	, m_TargetCount(0)
 {
 	// MULTI2デコーダにシステムキーと初期CBCをセット
-	if (m_pBcasCard->IsCardOpen())
-		m_Multi2Decoder.Initialize(m_pBcasCard->GetSystemKey(),
-								   m_pBcasCard->GetInitialCbc());
+	if (m_pDescrambler->m_BcasCard.IsCardOpen())
+		m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
+								   m_pDescrambler->m_BcasCard.GetInitialCbc());
 
 	m_SetScrambleKeyEvent.Create(true);
 }
@@ -471,56 +565,60 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler, CBcasCard *pBcasCard,
 void CEcmProcessor::OnPidMapped(const WORD wPID, const PVOID pParam)
 {
 	TRACE(TEXT("CEcmProcessor::OnPidMapped() PID = %d (0x%04x)\n"), wPID, wPID);
-	// 参照カウント追加
 	AddRef();
-	m_TargetCount++;
 }
 
 void CEcmProcessor::OnPidUnmapped(const WORD wPID)
 {
 	TRACE(TEXT("CEcmProcessor::OnPidUnmapped() PID = %d (0x%04x)\n"), wPID, wPID);
-	m_TargetCount--;
-	// 参照カウント開放
+
+	//CPsiSingleTable::OnPidUnmapped(wPID);
 	ReleaseRef();
 }
 
 const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 {
-	if (!m_bInQueue) {	// まだECMが来ていない
-		m_pDescrambler->IncrementScramblePacketCount();
+	if (!m_bInQueue) {
+		// まだECMが来ていない
+		m_pDescrambler->m_ScramblePacketCount++;
 		return false;
 	}
-	if (m_SetScrambleKeyEvent.Wait(500) == WAIT_TIMEOUT)
+
+	// キー取得中だったら待つ
+	if (m_SetScrambleKeyEvent.Wait(500) == WAIT_TIMEOUT) {
+		m_pDescrambler->m_ScramblePacketCount++;
 		return false;
+	}
 
 	// スクランブル解除
-	bool bOK;
 	if (m_bLastEcmSucceed) {
 		CBlockLock Lock(&m_Multi2Lock);
 
-		bOK = m_Multi2Decoder.Decode(pTsPacket->GetPayloadData(),
-									 (DWORD)pTsPacket->GetPayloadSize(),
-									 pTsPacket->m_Header.byTransportScramblingCtrl);
-	} else {
-		bOK = false;
+		if (m_Multi2Decoder.Decode(pTsPacket->GetPayloadData(),
+								   (DWORD)pTsPacket->GetPayloadSize(),
+								   pTsPacket->m_Header.byTransportScramblingCtrl)) {
+			// トランスポートスクランブル制御再設定
+			pTsPacket->SetAt(3UL, pTsPacket->GetAt(3UL) & 0x3FU);
+			pTsPacket->m_Header.byTransportScramblingCtrl = 0U;
+			return true;
+		}
 	}
-	if (bOK) {
-		// トランスポートスクランブル制御再設定
-		pTsPacket->SetAt(3UL, pTsPacket->GetAt(3UL) & 0x3FU);
-		pTsPacket->m_Header.byTransportScramblingCtrl = 0U;
-	} else {
-		m_pDescrambler->IncrementScramblePacketCount();
-	}
-	return bOK;
+
+	m_pDescrambler->m_ScramblePacketCount++;
+
+	return false;
 }
 
 const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
 {
+	if (pCurSection->GetTableID() != 0x82)
+		return false;
+
 #if 0
 	return SetScrambleKey(pCurSection->GetPayloadData(), pCurSection->GetPayloadSize());
 #else
 	// B-CASアクセスキューに追加
-	if (m_pQueue->Enqueue(this, pCurSection->GetPayloadData(), pCurSection->GetPayloadSize()))
+	if (m_pDescrambler->m_Queue.Enqueue(this, pCurSection->GetPayloadData(), pCurSection->GetPayloadSize()))
 		m_bInQueue = true;
 #endif
 	return true;
@@ -529,14 +627,16 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 {
 	// ECMをB-CASカードに渡してキー取得
-	const BYTE *pKsData = m_pBcasCard->GetKsFromEcm(pEcmData, EcmSize);
+	const BYTE *pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
 
 	// ECM処理失敗時は一度だけB-CASカードを再初期化する
 	if (!pKsData && m_bLastEcmSucceed
-			&& (m_pBcasCard->GetLastErrorCode() != BCEC_ECMREFUSED)) {
-		if (m_pBcasCard->ReOpenCard()) {
+			&& (m_pDescrambler->m_BcasCard.GetLastErrorCode() != BCEC_ECMREFUSED)) {
+		if (m_pDescrambler->m_BcasCard.ReOpenCard()) {
 			TRACE(TEXT("CEcmProcessor::SetScrambleKey() Re open card.\n"));
-			pKsData = m_pBcasCard->GetKsFromEcm(pEcmData, EcmSize);
+			m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
+									   m_pDescrambler->m_BcasCard.GetInitialCbc());
+			pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
 		}
 	}
 
@@ -562,36 +662,30 @@ CTsDescrambler::CEsProcessor::CEsProcessor(CEcmProcessor *pEcmProcessor)
 	: CTsPidMapTarget()
 	, m_pEcmProcessor(pEcmProcessor)
 {
-	// 参照カウント追加
-	m_pEcmProcessor->AddRef();
 }
 
 CTsDescrambler::CEsProcessor::~CEsProcessor()
 {
-	// 参照カウント削除
-	m_pEcmProcessor->ReleaseRef();
 }
 
 const bool CTsDescrambler::CEsProcessor::StorePacket(const CTsPacket *pPacket)
 {
 	// スクランブル解除
-	if (pPacket->IsScrambled())
-		m_pEcmProcessor->DescramblePacket(const_cast<CTsPacket *>(pPacket));
+	if (pPacket->IsScrambled()
+			&& !m_pEcmProcessor->DescramblePacket(const_cast<CTsPacket *>(pPacket)))
+		return false;
 
-	return false;
+	return true;
 }
 
 void CTsDescrambler::CEsProcessor::OnPidMapped(const WORD wPID, const PVOID pParam)
 {
 	TRACE(TEXT("CEsProcessor::OnPidMapped() PID = %d (0x%04x)\n"), wPID, wPID);
-	// 参照カウント追加
-	AddRef();
 }
 
 void CTsDescrambler::CEsProcessor::OnPidUnmapped(const WORD wPID)
 {
 	TRACE(TEXT("CEsProcessor::OnPidUnmapped() PID = %d (0x%04x)\n"), wPID, wPID);
-	// 参照カウント削除
 	delete this;
 }
 

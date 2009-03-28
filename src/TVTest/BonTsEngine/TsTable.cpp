@@ -409,10 +409,12 @@ CPatTable::CPatTable(const CPatTable &Operand)
 
 CPatTable & CPatTable::operator = (const CPatTable &Operand)
 {
-	CPsiSingleTable::operator = (Operand);
+	if (&Operand != this) {
+		CPsiSingleTable::operator = (Operand);
 
-	m_NitPIDArray = Operand.m_NitPIDArray;
-	m_PmtPIDArray = Operand.m_PmtPIDArray;
+		m_NitPIDArray = Operand.m_NitPIDArray;
+		m_PmtPIDArray = Operand.m_PmtPIDArray;
+	}
 
 	return *this;
 }
@@ -426,10 +428,15 @@ void CPatTable::Reset(void)
 	m_PmtPIDArray.clear();
 }
 
+const WORD CPatTable::GetTransportStreamID(void) const
+{
+	return m_CurSection.GetTableIdExtension();
+}
+
 const WORD CPatTable::GetNitPID(const WORD wIndex) const
 {
 	// NIT‚ÌPID‚ð•Ô‚·
-	return (wIndex < m_NitPIDArray.size())? m_NitPIDArray[wIndex].wPID : 0xFFFFU;	// 0xFFFF‚Í–¢’è‹`‚ÌPID
+	return (wIndex < m_NitPIDArray.size())? m_NitPIDArray[wIndex] : 0xFFFFU;	// 0xFFFF‚Í–¢’è‹`‚ÌPID
 }
 
 const WORD CPatTable::GetNitNum(void) const
@@ -492,7 +499,7 @@ const bool CPatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 		if (PatItem.wProgramID == 0) {
 			// NIT‚ÌPID
 			TRACE(TEXT("NIT #%u [ID:%04X][PID:%04X]\n"), m_NitPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
-			m_NitPIDArray.push_back(PatItem);
+			m_NitPIDArray.push_back(PatItem.wPID);
 		} else {
 			// PMT‚ÌPID
 			TRACE(TEXT("PMT #%u [ID:%04X][PID:%04X]\n"), m_PmtPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
@@ -597,6 +604,11 @@ void CPmtTable::Reset(void)
 	m_wPcrPID = 0xFFFFU;
 	m_TableDescBlock.Reset();
 	m_EsInfoArray.clear();
+}
+
+const WORD CPmtTable::GetProgramNumberID(void) const
+{
+	return m_CurSection.GetTableIdExtension();
 }
 
 const WORD CPmtTable::GetPcrPID(void) const

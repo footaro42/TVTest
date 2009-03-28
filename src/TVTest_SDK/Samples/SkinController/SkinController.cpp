@@ -87,6 +87,7 @@ static const ButtonInfo ButtonList[] = {
 class CSkinController : public TVTest::CTVTestPlugin
 {
 	TCHAR m_szIniFileName[MAX_PATH];
+	POINT m_WindowPos;
 	HWND m_hwnd;
 	HFONT m_hfont;
 	HBITMAP m_hbmBase;
@@ -140,14 +141,14 @@ bool CSkinController::Initialize()
 
 	::GetModuleFileName(g_hinstDLL,m_szIniFileName,MAX_PATH);
 	::PathRenameExtension(m_szIniFileName,TEXT(".ini"));
-	int WindowLeft=::GetPrivateProfileInt(TEXT("Settings"),TEXT("WindowLeft"),
+	m_WindowPos.x=::GetPrivateProfileInt(TEXT("Settings"),TEXT("WindowLeft"),
 										  CW_USEDEFAULT,m_szIniFileName);
-	int WindowTop=::GetPrivateProfileInt(TEXT("Settings"),TEXT("WindowTop"),
+	m_WindowPos.y=::GetPrivateProfileInt(TEXT("Settings"),TEXT("WindowTop"),
 										 CW_USEDEFAULT,m_szIniFileName);
 
 	if (::CreateWindowEx(0,SKIN_CONTROLLER_WINDOW_CLASS,TEXT("Skin Controller"),
 						 WS_POPUP,
-						 WindowLeft,WindowTop,BASE_WIDTH,BASE_HEIGHT,
+						 m_WindowPos.x,m_WindowPos.y,BASE_WIDTH,BASE_HEIGHT,
 						 m_pApp->GetAppWindow(),NULL,g_hinstDLL,this)==NULL)
 		return false;
 
@@ -171,12 +172,10 @@ bool CSkinController::Finalize()
 {
 	// 終了処理
 
-	RECT rc;
-	::GetWindowRect(m_hwnd,&rc);
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("WindowLeft"),rc.left,m_szIniFileName);
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("WindowTop"),rc.top,m_szIniFileName);
-
 	::DestroyWindow(m_hwnd);
+
+	::WritePrivateProfileInt(TEXT("Settings"),TEXT("WindowLeft"),m_WindowPos.x,m_szIniFileName);
+	::WritePrivateProfileInt(TEXT("Settings"),TEXT("WindowTop"),m_WindowPos.y,m_szIniFileName);
 
 	return true;
 }
@@ -201,6 +200,14 @@ LRESULT CALLBACK CSkinController::EventCallback(UINT Event,LPARAM lParam1,LPARAM
 
 			::SetRect(&rc,TEXT_LEFT,TEXT_TOP,TEXT_LEFT+TEXT_WIDTH,TEXT_TOP+TEXT_HEIGHT);
 			::InvalidateRect(pThis->m_hwnd,&rc,FALSE);
+		}
+		return TRUE;
+
+	case TVTest::EVENT_STANDBY:
+		// 待機状態が変化した
+		if (pThis->m_pApp->IsPluginEnabled()) {
+			// 待機状態の時はウィンドウを隠す
+			::ShowWindow(pThis->m_hwnd,lParam1!=0?SW_HIDE:SW_SHOW);
 		}
 		return TRUE;
 	}
@@ -425,7 +432,14 @@ LRESULT CALLBACK CSkinController::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 	case WM_DESTROY:
 		{
 			CSkinController *pThis=GetThis(hwnd);
+			RECT rc;
 
+			// ウィンドウ位置保存
+			::GetWindowRect(hwnd,&rc);
+			pThis->m_WindowPos.x=rc.left;
+			pThis->m_WindowPos.y=rc.top;
+
+			// リソース開放
 			::DeleteObject(pThis->m_hfont);
 			::DeleteObject(pThis->m_hbmBase);
 			::DeleteObject(pThis->m_hbmPush);
