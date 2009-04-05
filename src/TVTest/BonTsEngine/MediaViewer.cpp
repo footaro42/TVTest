@@ -74,6 +74,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_ForceAspectY(0)
 	, m_PanAndScan(0)
 	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
+	, m_bIgnoreDisplayExtension(false)
 	, m_bUseAudioRendererClock(true)
 	, m_pImageMixer(NULL)
 #ifdef USE_GRABBER_FILTER
@@ -901,15 +902,21 @@ const bool CMediaViewer::ResizeVideoWindow()
 			} else if (m_VideoInfo.m_AspectRatioX>0 && m_VideoInfo.m_AspectRatioY>0) {
 				AspectX = m_VideoInfo.m_AspectRatioX;
 				AspectY = m_VideoInfo.m_AspectRatioY;
+				if (m_bIgnoreDisplayExtension
+						&& m_VideoInfo.m_DisplayWidth > 0
+						&& m_VideoInfo.m_DisplayHeight > 0) {
+					AspectX = AspectX * 3 * m_VideoInfo.m_OrigWidth / m_VideoInfo.m_DisplayWidth;
+					AspectY = AspectY * 3 * m_VideoInfo.m_OrigHeight / m_VideoInfo.m_DisplayHeight;
+				}
 			} else {
 				if (((m_VideoInfo.m_DisplayWidth==1920
 							|| m_VideoInfo.m_DisplayWidth==1440)
 						&& m_VideoInfo.m_DisplayHeight==1080)) {
-					AspectX=16;
-					AspectY=9;
+					AspectX = 16;
+					AspectY = 9;
 				} else {
-					AspectX=WindowWidth;
-					AspectY=WindowHeight;
+					AspectX = WindowWidth;
+					AspectY = WindowHeight;
 				}
 			}
 			aspect_rate = (double)AspectX / (double)AspectY;
@@ -1000,6 +1007,9 @@ const bool CMediaViewer::SetVolume(const float fVolume)
 
 const bool CMediaViewer::GetVideoSize(WORD *pwWidth,WORD *pwHeight)
 {
+	if (m_bIgnoreDisplayExtension)
+		return GetOriginalVideoSize(pwWidth, pwHeight);
+
 	CBlockLock Lock(&m_ResizeLock);
 
 	// ビデオのサイズを取得する
@@ -1150,16 +1160,36 @@ const bool CMediaViewer::GetForceAspectRatio(int *pAspectX,int *pAspectY) const
 }
 
 
-const bool CMediaViewer::GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY)
+const bool CMediaViewer::GetEffectiveAspectRatio(BYTE *pAspectX, BYTE *pAspectY)
 {
-	if (m_ForceAspectX!=0 && m_ForceAspectY!=0) {
+	if (m_ForceAspectX != 0 && m_ForceAspectY != 0) {
 		if (pAspectX)
-			*pAspectX=m_ForceAspectX;
+			*pAspectX = m_ForceAspectX;
 		if (pAspectY)
-			*pAspectY=m_ForceAspectY;
+			*pAspectY = m_ForceAspectY;
 		return true;
 	}
-	return GetVideoAspectRatio(pAspectX,pAspectY);
+	BYTE AspectX, AspectY;
+	if (!GetVideoAspectRatio(&AspectX, &AspectY))
+		return false;
+	if (m_bIgnoreDisplayExtension
+			&& (m_VideoInfo.m_DisplayWidth != m_VideoInfo.m_OrigWidth
+				|| m_VideoInfo.m_DisplayHeight != m_VideoInfo.m_OrigHeight)) {
+		if (m_VideoInfo.m_DisplayWidth == 0
+				|| m_VideoInfo.m_DisplayHeight == 0)
+			return false;
+		AspectX = AspectX * 3 * m_VideoInfo.m_OrigWidth / m_VideoInfo.m_DisplayWidth;
+		AspectY = AspectY * 3 * m_VideoInfo.m_OrigHeight / m_VideoInfo.m_DisplayHeight;
+		if (AspectX % 4 == 0 && AspectY % 4 == 0) {
+			AspectX /= 4;
+			AspectY /= 4;
+		}
+	}
+	if (pAspectX)
+		*pAspectX = AspectX;
+	if (pAspectY)
+		*pAspectY = AspectY;
+	return true;
 }
 
 
@@ -1185,6 +1215,20 @@ const bool CMediaViewer::SetViewStretchMode(ViewStretchMode Mode)
 
 		m_ViewStretchMode=Mode;
 		return ResizeVideoWindow();
+	}
+	return true;
+}
+
+
+const bool CMediaViewer::SetIgnoreDisplayExtension(bool bIgnore)
+{
+	if (bIgnore != m_bIgnoreDisplayExtension) {
+		CBlockLock Lock(&m_ResizeLock);
+
+		m_bIgnoreDisplayExtension = bIgnore;
+		if (m_VideoInfo.m_DisplayWidth != m_VideoInfo.m_OrigWidth
+				|| m_VideoInfo.m_DisplayHeight != m_VideoInfo.m_OrigHeight)
+			ResizeVideoWindow();
 	}
 	return true;
 }
@@ -1239,16 +1283,28 @@ const bool CMediaViewer::CalcSourceRect(RECT *pRect)
 
 	if (m_VideoInfo.m_OrigWidth==0 || m_VideoInfo.m_OrigHeight==0)
 		return false;
-	if (m_PanAndScan&PANANDSCAN_HORZ) {
+	if (m_PanAndScan&PANANDSCAN_HORZ_NONE) {
+		SrcWidth=m_VideoInfo.m_OrigWidth;
+		SrcX=0;
+	} else if (m_PanAndScan&PANANDSCAN_HORZ_CUT) {
 		SrcWidth=m_VideoInfo.m_OrigWidth*12/16;
 		SrcX=(m_VideoInfo.m_OrigWidth-SrcWidth)/2;
+	} else if (m_bIgnoreDisplayExtension) {
+		SrcWidth=m_VideoInfo.m_OrigWidth;
+		SrcX=0;
 	} else {
 		SrcWidth=m_VideoInfo.m_DisplayWidth;
 		SrcX=m_VideoInfo.m_PosX;
 	}
-	if (m_PanAndScan&PANANDSCAN_VERT) {
+	if (m_PanAndScan&PANANDSCAN_VERT_NONE) {
+		SrcHeight=m_VideoInfo.m_OrigHeight;
+		SrcY=0;
+	} else if (m_PanAndScan&PANANDSCAN_VERT_CUT) {
 		SrcHeight=m_VideoInfo.m_OrigHeight*9/12;
 		SrcY=(m_VideoInfo.m_OrigHeight-SrcHeight)/2;
+	} else if (m_bIgnoreDisplayExtension) {
+		SrcHeight=m_VideoInfo.m_OrigHeight;
+		SrcY=0;
 	} else {
 		SrcHeight=m_VideoInfo.m_DisplayHeight;
 		SrcY=m_VideoInfo.m_PosY;

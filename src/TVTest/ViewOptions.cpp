@@ -23,6 +23,7 @@ CViewOptions::CViewOptions()
 	m_fResetPanScanEventChange=false;
 	m_fShowLogo=true;
 	::lstrcpy(m_szLogoFileName,TEXT("TVTest_Logo.bmp"));
+	m_fIgnoreDisplayExtension=false;
 }
 
 
@@ -47,6 +48,7 @@ bool CViewOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
 	pSettings->Read(TEXT("ShowLogo"),&m_fShowLogo);
 	pSettings->Read(TEXT("LogoFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
+	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
 	return true;
 }
 
@@ -66,6 +68,7 @@ bool CViewOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
 	pSettings->Write(TEXT("ShowLogo"),m_fShowLogo);
 	pSettings->Write(TEXT("LogoFileName"),m_szLogoFileName);
+	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
 	return true;
 }
 
@@ -106,6 +109,8 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LOGOFILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
 			::EnableDlgItems(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
 							 pThis->m_fShowLogo);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE,
+							  pThis->m_fIgnoreDisplayExtension);
 		}
 		return TRUE;
 
@@ -196,6 +201,9 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						::lstrcpy(pThis->m_szLogoFileName,szFileName);
 					}
 				}
+				pThis->m_fIgnoreDisplayExtension=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
+				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(pThis->m_fIgnoreDisplayExtension);
 			}
 			break;
 		}

@@ -21,6 +21,7 @@ class CViewOptions : public COptions {
 	bool m_fRestorePlayStatus;
 	bool m_fShowLogo;
 	TCHAR m_szLogoFileName[MAX_PATH];
+	bool m_fIgnoreDisplayExtension;
 	static CViewOptions *GetThis(HWND hDlg);
 public:
 	CViewOptions();
@@ -38,6 +39,7 @@ public:
 	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
 	bool GetShowLogo() const { return m_fShowLogo; }
 	LPCTSTR GetLogoFileName() const { return m_szLogoFileName; }
+	bool GetIgnoreDisplayExtension() const { return m_fIgnoreDisplayExtension; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	// COptions
 	bool Read(CSettings *pSettings);

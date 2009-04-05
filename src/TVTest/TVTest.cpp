@@ -1752,12 +1752,12 @@ CVideoSizeStatusItem::CVideoSizeStatusItem() : CStatusItem(STATUS_ITEM_VIDEOSIZE
 
 void CVideoSizeStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	WORD Width,Height;
 	TCHAR szText[32];
 
-	if (!CoreEngine.m_DtvEngine.GetVideoSize(&Width,&Height))
-		Width=Height=0;
-	::wsprintf(szText,TEXT("%d x %d (%d %%)"),Width,Height,MainWindow.CalcZoomRate());
+	::wsprintf(szText,TEXT("%d x %d (%d %%)"),
+			   CoreEngine.GetOriginalVideoWidth(),
+			   CoreEngine.GetOriginalVideoHeight(),
+			   MainWindow.CalcZoomRate());
 	DrawText(hdc,pRect,szText);
 }
 
@@ -4423,13 +4423,12 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				BYTE XAspect,YAspect;
 				BYTE PanAndScan;
 			} AspectRatioList[] = {
-				{ 0,0,0},
-				{16,9,0},
-				{16,9,CMediaViewer::PANANDSCAN_VERT},
-				{16,9,CMediaViewer::PANANDSCAN_HORZ |
-												CMediaViewer::PANANDSCAN_VERT},
-				{ 4,3,CMediaViewer::PANANDSCAN_HORZ},
-				{ 4,3,0},
+				{ 0,0,CMediaViewer::PANANDSCAN_HORZ_DEFAULT | CMediaViewer::PANANDSCAN_VERT_DEFAULT},
+				{16,9,CMediaViewer::PANANDSCAN_HORZ_NONE | CMediaViewer::PANANDSCAN_VERT_NONE},
+				{16,9,CMediaViewer::PANANDSCAN_HORZ_NONE | CMediaViewer::PANANDSCAN_VERT_CUT},
+				{16,9,CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_CUT},
+				{ 4,3,CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_NONE},
+				{ 4,3,CMediaViewer::PANANDSCAN_HORZ_NONE | CMediaViewer::PANANDSCAN_VERT_NONE},
 			};
 			int i=id-CM_ASPECTRATIO_FIRST;
 
@@ -5118,12 +5117,11 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 			DWORD UpdateStatistics=CoreEngine.UpdateStatistics();
 
 			if ((UpdateStatus&CCoreEngine::STATUS_VIDEOSIZE)!=0) {
-				WORD Width,Height;
-
 				StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
-				if (!CoreEngine.m_DtvEngine.GetVideoSize(&Width,&Height))
-					Width=Height=0;
-				InfoWindow.SetVideoSize(Width,Height);
+				InfoWindow.SetVideoSize(CoreEngine.GetOriginalVideoWidth(),
+										CoreEngine.GetOriginalVideoHeight(),
+										CoreEngine.GetDisplayVideoWidth(),
+										CoreEngine.GetDisplayVideoHeight());
 				CheckZoomMenu();
 			}
 
@@ -5247,7 +5245,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 			if (InfoWindow.IsVisible()) {
 				BYTE AspectX,AspectY;
-				if (CoreEngine.m_DtvEngine.GetVideoAspectRatio(&AspectX,&AspectY))
+				if (CoreEngine.m_DtvEngine.m_MediaViewer.GetEffectiveAspectRatio(&AspectX,&AspectY))
 					InfoWindow.SetAspectRatio(AspectX,AspectY);
 
 				if ((UpdateStatistics&(CCoreEngine::STATISTIC_SIGNALLEVEL
@@ -6283,6 +6281,74 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		if (ChannelMenu.OnDrawItem(hwnd,wParam,lParam))
 			return TRUE;
 		break;
+
+#if 0
+// ògÇç◊Ç≠Ç≈Ç´Ç»Ç¢Ç©ééÇµÇΩÇ™ÅAVistaÇ≈ñ‚ëËÇ™ëΩÇ¢ÇÃÇ≈Ç‚ÇﬂÇΩ
+	case WM_NCACTIVATE:
+		if (!MainWindow.GetTitleBarVisible())
+			return TRUE;
+		break;
+
+	case WM_NCCALCSIZE:
+		if (wParam!=0 && !MainWindow.GetTitleBarVisible()) {
+			NCCALCSIZE_PARAMS *pnccsp=reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
+
+			pnccsp->rgrc[0].left+=2;
+			pnccsp->rgrc[0].top+=2;
+			pnccsp->rgrc[0].right-=2;
+			pnccsp->rgrc[0].bottom-=2;
+			return 0;
+		}
+		break;
+
+	case WM_NCPAINT:
+		if (!MainWindow.GetTitleBarVisible()) {
+			HDC hdc=::GetDCEx(hwnd,(HRGN)wParam,DCX_WINDOW | DCX_INTERSECTRGN);
+			RECT rc;
+
+			::GetWindowRect(hwnd,&rc);
+			::OffsetRect(&rc,-rc.left,-rc.top);
+			::FillRect(hdc,&rc,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
+			::ReleaseDC(hwnd,hdc);
+			return 0;
+		}
+		break;
+	case WM_NCHITTEST:
+		if (!MainWindow.GetTitleBarVisible()) {
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+			RECT rc;
+			const int BorderWidth=::GetSystemMetrics(SM_CXSIZEFRAME);
+			const int BorderHeight=::GetSystemMetrics(SM_CYSIZEFRAME);
+			int Code=HTCLIENT;
+
+			::GetWindowRect(hwnd,&rc);
+			if (x>=rc.left && x<rc.left+BorderWidth) {
+				if (y>=rc.top) {
+					if (y<rc.top+BorderHeight)
+						Code=HTTOPLEFT;
+					else if (y<rc.bottom-BorderHeight)
+						Code=HTLEFT;
+					else if (y<rc.bottom)
+						Code=HTBOTTOMLEFT;
+				}
+			} else if (x>=rc.right-BorderWidth && x<rc.right) {
+				if (y>=rc.top) {
+					if (y<rc.top+BorderHeight)
+						Code=HTTOPRIGHT;
+					else if (y<rc.bottom-BorderHeight)
+						Code=HTRIGHT;
+					else if (y<rc.bottom)
+						Code=HTBOTTOMRIGHT;
+				}
+			} else if (y>=rc.top && y<rc.top+BorderHeight) {
+				Code=HTTOP;
+			} else if (y>=rc.bottom-BorderHeight && y<rc.bottom) {
+				Code=HTBOTTOM;
+			}
+			return Code;
+		}
+		break;
+#endif
 
 	case WM_INITMENUPOPUP:
 		{
@@ -7444,6 +7510,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(ViewOptions.GetIgnoreDisplayExtension());
 	CoreEngine.SetDownMixSurround(AudioOptions.GetDownMixSurround());
 	if (AudioOptions.GetRestoreMute() && fMuteStatus)
 		MainWindow.SetMute(true);
@@ -7539,7 +7606,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	if (fShowPanelWindow
 			&& (!PanelFrame.GetFloating()
 				|| (!CmdLineParser.m_fStandby && !CmdLineParser.m_fMinimize))) {
-		PanelFrame.SetPanelVisible(true);
+		PanelFrame.SetPanelVisible(true,true);
 		PanelFrame.Update();
 	}
 

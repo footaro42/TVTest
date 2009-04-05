@@ -710,6 +710,8 @@ const bool CMpeg2Sequence::ParseHeader(void)
 	}
 
 	// フォーマット適合性チェック
+	if (m_Header.wHorizontalSize == 0 || m_Header.wVerticalSize == 0)
+		return false;
 	if(!m_Header.byAspectRatioInfo || m_Header.byAspectRatioInfo > 4U)return false;		// アスペクト比が異常
 	else if(!m_Header.byFrameRateCode || m_Header.byFrameRateCode > 8U)return false;	// フレームレートが異常
 	else if(!m_Header.bMarkerBit)return false;											// マーカービットが異常

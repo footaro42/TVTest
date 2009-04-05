@@ -96,7 +96,7 @@ public:
 	bool SetFloating(bool fFloating);
 	bool GetFloating() const { return m_fFloating; }
 	void SetEventHandler(CPanelFrameEventHandler *pHandler);
-	bool SetPanelVisible(bool fVisible);
+	bool SetPanelVisible(bool fVisible,bool fNoActivate=false);
 	int GetDockingWidth() const { return m_DockingWidth; }
 	bool SetDockingWidth(int Width);
 	bool SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText);

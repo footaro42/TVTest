@@ -14,7 +14,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define SCAN_INTERVAL 5	// スキャン時のチャンネル切り替え間隔(秒)
+#define SCAN_INTERVAL	5	// スキャン時のチャンネル切り替え間隔(秒)
+#define RETRY_COUNT		4
+#define RETRY_INTERVAL	1000
 
 #define WM_APP_BEGINSCAN		WM_APP
 #define WM_APP_CHANNELFINDED	(WM_APP+1)
@@ -126,6 +128,7 @@ CChannelScan::CChannelScan(CCoreEngine *pCoreEngine)
 {
 	m_pCoreEngine=pCoreEngine;
 	m_pOriginalTuningSpaceList=NULL;
+	m_fIgnoreSignalLevel=false;
 	m_hScanDlg=NULL;
 	m_fChanging=false;
 }
@@ -633,6 +636,7 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			GetAppClass().BeginChannelScan();
 			pThis->m_hScanThread=::CreateThread(NULL,0,ScanProc,pThis,0,NULL);
 			pThis->m_fScaned=true;
+			::SetTimer(hDlg,1,500,NULL);
 		}
 		return TRUE;
 
@@ -652,12 +656,27 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return TRUE;
 
+	case WM_TIMER:
+		{
+			const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+			int Level=(int)(pCoreEngine->GetSignalLevel()*100.0f);
+			int BitRate=(int)(pCoreEngine->GetBitRateFloat()*100.0f);
+			TCHAR szText[64];
+
+			::wsprintf(szText,TEXT("%d.%02d dB / %d.%02d Mbps"),
+								Level/100,Level%100,BitRate/100,BitRate%100);
+			::SetDlgItemText(hDlg,IDC_CHANNELSCAN_LEVEL,szText);
+		}
+		return TRUE;
+
 	case WM_APP_BEGINSCAN:
 		{
 			CChannelScan *pThis=GetThis(hDlg);
 			unsigned int EstimateRemain=(pThis->m_NumChannels-wParam)*SCAN_INTERVAL;
 			TCHAR szText[64];
 
+			if (pThis->m_fIgnoreSignalLevel)
+				EstimateRemain+=(pThis->m_NumChannels-wParam)*RETRY_COUNT*RETRY_INTERVAL/1000;
 			::wsprintf(szText,
 				TEXT("チャンネル %d/%d をスキャン中... (残り時間 %d:%02d)"),
 				(int)wParam+1,pThis->m_NumChannels,
@@ -726,8 +745,8 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		TCHAR szName[32];
 		if (pThis->m_fIgnoreSignalLevel
 				|| pDtvEngine->m_BonSrcDecoder.GetSignalLevel()>7.0) {
-			for (int i=0;i<5;i++) {
-				if (::WaitForSingleObject(pThis->m_hCancelEvent,1000)==WAIT_OBJECT_0)
+			for (int i=0;i<=RETRY_COUNT;i++) {
+				if (i>0 && ::WaitForSingleObject(pThis->m_hCancelEvent,RETRY_INTERVAL)==WAIT_OBJECT_0)
 					goto End;
 				NumServices=pDtvEngine->m_ProgManager.GetServiceNum();
 				if (NumServices>0) {
@@ -735,13 +754,14 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 						int j;
 
 						for (j=0;j<NumServices;j++) {
-							if (!pDtvEngine->m_ProgManager.GetServiceName(szName,i))
+							if (pDtvEngine->m_ProgManager.GetServiceName(szName,i)==0)
 								break;
 						}
 						if (j==NumServices)
 							fFinded=true;
 					} else {
-						if (pDtvEngine->m_ProgManager.GetTSName(szName,lengthof(szName))>0)
+						if (pDtvEngine->m_ProgManager.GetServiceName(szName,0)>0
+								&& pDtvEngine->m_ProgManager.GetTSName(szName,lengthof(szName))>0)
 							fFinded=true;
 					}
 					if (fFinded)

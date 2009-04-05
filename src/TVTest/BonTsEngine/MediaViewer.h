@@ -75,7 +75,14 @@ public:
 	const bool ForceAspectRatio(int AspectX,int AspectY);
 	const bool GetForceAspectRatio(int *pAspectX,int *pAspectY) const;
 	const bool GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY);
-	enum { PANANDSCAN_HORZ=1, PANANDSCAN_VERT=2 };
+	enum {
+		PANANDSCAN_HORZ_DEFAULT	= 0x00,
+		PANANDSCAN_HORZ_NONE	= 0x01,
+		PANANDSCAN_HORZ_CUT		= 0x02,
+		PANANDSCAN_VERT_DEFAULT	= 0x00,
+		PANANDSCAN_VERT_NONE	= 0x04,
+		PANANDSCAN_VERT_CUT		= 0x08
+	};
 	const bool SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags = 0);
 	BYTE GetPanAndScan() const { return m_PanAndScan; }
 	enum ViewStretchMode {
@@ -85,6 +92,8 @@ public:
 	};
 	const bool SetViewStretchMode(ViewStretchMode Mode);
 	const ViewStretchMode GetViewStretchMode() const { return m_ViewStretchMode; }
+	const bool SetIgnoreDisplayExtension(bool bIgnore);
+	const bool GetIgnoreDisplayExtension() const { return m_bIgnoreDisplayExtension; }
 	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight);
 	const bool GetCroppedVideoSize(WORD *pWidth,WORD *pHeight);
 	const bool GetSourceRect(RECT *pRect);
@@ -163,6 +172,7 @@ protected:
 	int m_ForceAspectX,m_ForceAspectY;
 	BYTE m_PanAndScan;
 	ViewStretchMode m_ViewStretchMode;
+	bool m_bIgnoreDisplayExtension;
 	bool m_bUseAudioRendererClock;
 	CImageMixer *m_pImageMixer;
 #ifdef USE_GABBER_FILTER

@@ -61,8 +61,10 @@ CInformation::CInformation()
 	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
 	m_hFont=CreateFontIndirect(&lf);
 	m_LineMargin=1;
-	m_VideoWidth=0;
-	m_VideoHeight=0;
+	m_OriginalVideoWidth=0;
+	m_OriginalVideoHeight=0;
+	m_DisplayVideoWidth=0;
+	m_DisplayVideoHeight=0;
 	m_AspectX=0;
 	m_AspectY=0;
 	m_pszDecoderName=NULL;
@@ -95,8 +97,12 @@ bool CInformation::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 
 void CInformation::Reset()
 {
-	m_VideoWidth=0;
-	m_VideoHeight=0;
+	/*
+	m_OriginalVideoWidth=0;
+	m_OriginalVideoHeight=0;
+	m_DisplayVideoWidth=0;
+	m_DisplayVideoHeight=0;
+	*/
 	m_AspectX=0;
 	m_AspectY=0;
 	/*
@@ -151,11 +157,14 @@ void CInformation::SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor
 }
 
 
-void CInformation::SetVideoSize(int Width,int Height)
+void CInformation::SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight)
 {
-	if (Width!=m_VideoWidth || Height!=m_VideoHeight) {
-		m_VideoWidth=Width;
-		m_VideoHeight=Height;
+	if (OriginalWidth!=m_OriginalVideoWidth || OriginalHeight!=m_OriginalVideoHeight
+			|| DisplayWidth!=m_DisplayVideoWidth || DisplayHeight!=m_DisplayVideoHeight) {
+		m_OriginalVideoWidth=OriginalWidth;
+		m_OriginalVideoHeight=OriginalHeight;
+		m_DisplayVideoWidth=DisplayWidth;
+		m_DisplayVideoHeight=DisplayHeight;
 		UpdateItem(INFO_ITEM_VIDEO);
 	}
 }
@@ -325,8 +334,9 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
 			pThis->GetItemRect(INFO_ITEM_VIDEO,&rc);
 			if (IsRectIntersect(&ps.rcPaint,&rc)) {
-				wsprintf(szText,TEXT("%d x %d [%d:%d]"),
-					pThis->m_VideoWidth,pThis->m_VideoHeight,
+				wsprintf(szText,TEXT("%d x %d [%d x %d (%d:%d)]"),
+					pThis->m_OriginalVideoWidth,pThis->m_OriginalVideoHeight,
+					pThis->m_DisplayVideoWidth,pThis->m_DisplayVideoHeight,
 					pThis->m_AspectX,pThis->m_AspectY);
 				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
 			}

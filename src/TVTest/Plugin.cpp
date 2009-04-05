@@ -684,13 +684,13 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			pMediaViewer->GetForceAspectRatio(&pInfo->XAspect,&pInfo->YAspect);
 			BYTE PanScan=pMediaViewer->GetPanAndScan();
 			switch (PanScan) {
-			case CMediaViewer::PANANDSCAN_HORZ:
+			case CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_NONE:
 				pInfo->Type=TVTest::PANSCAN_SIDECUT;
 				break;
-			case CMediaViewer::PANANDSCAN_VERT:
+			case CMediaViewer::PANANDSCAN_HORZ_NONE | CMediaViewer::PANANDSCAN_VERT_CUT:
 				pInfo->Type=TVTest::PANSCAN_LETTERBOX;
 				break;
-			case CMediaViewer::PANANDSCAN_HORZ | CMediaViewer::PANANDSCAN_VERT:
+			case CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_CUT:
 				pInfo->Type=TVTest::PANSCAN_SUPERFRAME;
 				break;
 			default:

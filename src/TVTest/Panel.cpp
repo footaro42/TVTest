@@ -441,14 +441,17 @@ void CPanelFrame::SetEventHandler(CPanelFrameEventHandler *pHandler)
 }
 
 
-bool CPanelFrame::SetPanelVisible(bool fVisible)
+bool CPanelFrame::SetPanelVisible(bool fVisible,bool fNoActivate)
 {
 	if (m_hwnd==NULL)
 		return false;
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->OnVisibleChange(fVisible);
 	if (m_fFloating) {
-		SetVisible(fVisible);
+		if (fVisible && fNoActivate)
+			::ShowWindow(m_hwnd,SW_SHOWNA);
+		else
+			SetVisible(fVisible);
 	} else {
 		m_pSplitter->SetPaneVisible(m_PanelID,fVisible);
 	}

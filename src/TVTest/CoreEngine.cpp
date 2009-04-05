@@ -24,8 +24,10 @@ CCoreEngine::CCoreEngine()
 	m_fPacketBuffering=false;
 	m_PacketBufferLength=m_DtvEngine.m_MediaBuffer.GetBufferLength();
 	m_PacketBufferPoolPercentage=m_DtvEngine.m_MediaBuffer.GetPoolPercentage();
-	m_VideoWidth=0;
-	m_VideoHeight=0;
+	m_OriginalVideoWidth=0;
+	m_OriginalVideoHeight=0;
+	m_DisplayVideoWidth=0;
+	m_DisplayVideoHeight=0;
 	m_NumAudioChannels=0;
 	m_AudioComponentType=0;
 	m_fMute=false;
@@ -362,10 +364,17 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 	DWORD Updated=0;
 
 	WORD Width,Height;
-	if (m_DtvEngine.GetVideoSize(&Width,&Height)) {
-		if (Width!=m_VideoWidth || Height!=m_VideoHeight) {
-			m_VideoWidth=Width;
-			m_VideoHeight=Height;
+	if (m_DtvEngine.m_MediaViewer.GetOriginalVideoSize(&Width,&Height)) {
+		if (Width!=m_OriginalVideoWidth || Height!=m_OriginalVideoHeight) {
+			m_OriginalVideoWidth=Width;
+			m_OriginalVideoHeight=Height;
+			Updated|=STATUS_VIDEOSIZE;
+		}
+	}
+	if (m_DtvEngine.m_MediaViewer.GetCroppedVideoSize(&Width,&Height)) {
+		if (Width!=m_DisplayVideoWidth || Height!=m_DisplayVideoHeight) {
+			m_DisplayVideoWidth=Width;
+			m_DisplayVideoHeight=Height;
 			Updated|=STATUS_VIDEOSIZE;
 		}
 	}

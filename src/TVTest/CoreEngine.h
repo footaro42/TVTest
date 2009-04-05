@@ -25,8 +25,10 @@ private:
 	bool m_fPacketBuffering;
 	DWORD m_PacketBufferLength;
 	int m_PacketBufferPoolPercentage;
-	int m_VideoWidth;
-	int m_VideoHeight;
+	int m_OriginalVideoWidth;
+	int m_OriginalVideoHeight;
+	int m_DisplayVideoWidth;
+	int m_DisplayVideoHeight;
 	int m_NumAudioChannels;
 	BYTE m_AudioComponentType;
 	bool m_fMute;
@@ -82,6 +84,10 @@ public:
 	bool SetPacketBufferPoolPercentage(int Percentage);
 	int GetPacketBufferPoolPercentage() const { return m_PacketBufferPoolPercentage; }
 	bool GetVideoViewSize(int *pWidth,int *pHeight);
+	int GetOriginalVideoWidth() const { return m_OriginalVideoWidth; }
+	int GetOriginalVideoHeight() const { return m_OriginalVideoHeight; }
+	int GetDisplayVideoWidth() const { return m_DisplayVideoWidth; }
+	int GetDisplayVideoHeight() const { return m_DisplayVideoHeight; }
 	bool SetVolume(int Volume);
 	int GetVolume() const { return m_Volume; }
 	bool SetMute(bool fMute);

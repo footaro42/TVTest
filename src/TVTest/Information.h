@@ -19,8 +19,10 @@ class CInformation : public CBasicWindow {
 	HFONT m_hFont;
 	int m_FontHeight;
 	int m_LineMargin;
-	int m_VideoWidth;
-	int m_VideoHeight;
+	int m_OriginalVideoWidth;
+	int m_OriginalVideoHeight;
+	int m_DisplayVideoWidth;
+	int m_DisplayVideoHeight;
 	int m_AspectX;
 	int m_AspectY;
 	LPTSTR m_pszDecoderName;
@@ -48,7 +50,7 @@ public:
 	bool IsVisible() const;
 	void SetColor(COLORREF crBackColor,COLORREF crTextColor);
 	void SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor);
-	void SetVideoSize(int Width,int Height);
+	void SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight);
 	void SetAspectRatio(int AspectX,int AspectY);
 	void SetDecoderName(LPCTSTR pszName);
 	void SetSignalLevel(float Level);
