@@ -1236,19 +1236,23 @@
 					>
 				</File>
 				<File
-					RelativePath=".\EpgDataCap\EpgDataCap.h"
+					RelativePath=".\EpgDataCap\EpgBonCommonDef.h"
 					>
 				</File>
 				<File
-					RelativePath=".\EpgDataCap\EpgDataCapDef.h"
+					RelativePath=".\EpgDataCap\EpgDataCap2.h"
 					>
 				</File>
 				<File
-					RelativePath=".\EpgDataCap\EpgDataCapDllUtil.h"
+					RelativePath=".\EpgDataCap\EpgDataCapDllUtil2.h"
 					>
 				</File>
 				<File
 					RelativePath=".\EpgDataCap\EpgDataLoader.h"
+					>
+				</File>
+				<File
+					RelativePath=".\EpgDataCap\StructDef.h"
 					>
 				</File>
 			</Filter>
@@ -1260,7 +1264,7 @@
 					>
 				</File>
 				<File
-					RelativePath=".\EpgDataCap\EpgDataCapDllUtil.cpp"
+					RelativePath=".\EpgDataCap\EpgDataCapDllUtil2.cpp"
 					>
 				</File>
 				<File

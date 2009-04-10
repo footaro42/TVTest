@@ -736,7 +736,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int Service/*=-1*/)
 		ChannelManager.SetCurrentChannel(OldSpace,OldChannel);
 		return false;
 	}
-	MainWindow.OpenTuner();
+	//MainWindow.OpenTuner();
 	if (pPrevChInfo==NULL
 			|| pChInfo->GetSpace()!=pPrevChInfo->GetSpace()
 			|| pChInfo->GetChannelIndex()!=pPrevChInfo->GetChannelIndex()) {
@@ -2213,6 +2213,8 @@ CProgramInfoStatusItem::CProgramInfoStatusItem() : CStatusItem(STATUS_ITEM_PROGR
 
 void CProgramInfoStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
+#if 0
+	// EpgDataCap使用
 	const CEpgDataInfo *pInfo=CoreEngine.GetEpgDataInfo(m_fNext);
 
 	if (pInfo!=NULL) {
@@ -2221,8 +2223,8 @@ void CProgramInfoStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 		pInfo->GetStartTime(&stStart);
 		pInfo->GetEndTime(&stEnd);
-		::wnsprintf(szText,lengthof(szText),L"%s%d:%02d～%d:%02d %s",
-					m_fNext?TEXT("次: "):TEXT(""),
+		::wnsprintfW(szText,lengthof(szText),L"%s%d:%02d～%d:%02d %s",
+					m_fNext?L"次: ":L"",
 					stStart.wHour,
 					stStart.wMinute,
 					stEnd.wHour,
@@ -2230,6 +2232,22 @@ void CProgramInfoStatusItem::Draw(HDC hdc,const RECT *pRect)
 					pInfo->GetEventName());
 		DrawText(hdc,pRect,szText);
 	}
+#else
+	TCHAR szText[256];
+	SYSTEMTIME stStart,stEnd;
+
+	if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,&stEnd,m_fNext)) {
+		int Length;
+
+		Length=::wsprintf(szText,TEXT("%s%d:%02d～%d:%02d "),
+						  m_fNext?TEXT("次: "):TEXT(""),
+						  stStart.wHour,stStart.wMinute,
+						  stEnd.wHour,stEnd.wMinute);
+		if (!CoreEngine.m_DtvEngine.GetEventName(&szText[Length],lengthof(szText)-Length,m_fNext))
+			szText[Length]='\0';
+		DrawText(hdc,pRect,szText);
+	}
+#endif
 }
 
 void CProgramInfoStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
@@ -3140,7 +3158,7 @@ static COptionDialog OptionDialog;
 
 
 
-class CPanelStatus : public CPanelFrameEventHandler {
+class CMyPanelEventHandler : public CPanelFrameEventHandler {
 	POINT m_ptDragStartCursorPos;
 	POINT m_ptStartPos;
 	enum {
@@ -3152,7 +3170,7 @@ class CPanelStatus : public CPanelFrameEventHandler {
 	} m_SnapEdge;
 	int m_AttachOffset;
 public:
-	CPanelStatus();
+	CMyPanelEventHandler();
 	// CPanelFrameEventHandler
 	bool OnClose();
 	bool OnMoving(RECT *pRect);
@@ -3161,23 +3179,23 @@ public:
 	bool OnMouseWheel(WPARAM wParam,LPARAM lParam);
 	void OnVisibleChange(bool fVisible);
 	bool OnFloatingChange(bool fFloating);
-	// CPanelStatus
+	// CMyPanelEventHandler
 	bool OnOwnerMovingOrSizing(const RECT *pOldRect,const RECT *pNewRect);
 	bool IsAttached();
 };
 
-CPanelStatus::CPanelStatus()
+CMyPanelEventHandler::CMyPanelEventHandler()
 {
 	m_SnapEdge=EDGE_NONE;
 }
 
-bool CPanelStatus::OnClose()
+bool CMyPanelEventHandler::OnClose()
 {
 	MainWindow.SendCommand(CM_INFORMATION);
 	return false;
 }
 
-bool CPanelStatus::OnMoving(RECT *pRect)
+bool CMyPanelEventHandler::OnMoving(RECT *pRect)
 {
 	if (!PanelFrame.GetFloating())
 		return false;
@@ -3233,7 +3251,7 @@ bool CPanelStatus::OnMoving(RECT *pRect)
 	return true;
 }
 
-bool CPanelStatus::OnEnterSizeMove()
+bool CMyPanelEventHandler::OnEnterSizeMove()
 {
 	if (!PanelFrame.GetFloating())
 		return false;
@@ -3246,19 +3264,19 @@ bool CPanelStatus::OnEnterSizeMove()
 	return true;
 }
 
-bool CPanelStatus::OnKeyDown(UINT KeyCode,UINT Flags)
+bool CMyPanelEventHandler::OnKeyDown(UINT KeyCode,UINT Flags)
 {
 	MainWindow.SendMessage(WM_KEYDOWN,KeyCode,Flags);
 	return true;
 }
 
-bool CPanelStatus::OnMouseWheel(WPARAM wParam,LPARAM lParam)
+bool CMyPanelEventHandler::OnMouseWheel(WPARAM wParam,LPARAM lParam)
 {
 	SendMessage(MainWindow.GetVideoHostWindow(),WM_MOUSEWHEEL,wParam,lParam);
 	return true;
 }
 
-void CPanelStatus::OnVisibleChange(bool fVisible)
+void CMyPanelEventHandler::OnVisibleChange(bool fVisible)
 {
 	if (!PanelFrame.GetFloating())
 		return;
@@ -3318,7 +3336,7 @@ void CPanelStatus::OnVisibleChange(bool fVisible)
 	}
 }
 
-bool CPanelStatus::OnFloatingChange(bool fFloating)
+bool CMyPanelEventHandler::OnFloatingChange(bool fFloating)
 {
 	int Size;
 	RECT rc;
@@ -3343,7 +3361,7 @@ bool CPanelStatus::OnFloatingChange(bool fFloating)
 	return true;
 }
 
-bool CPanelStatus::OnOwnerMovingOrSizing(const RECT *pOldRect,const RECT *pNewRect)
+bool CMyPanelEventHandler::OnOwnerMovingOrSizing(const RECT *pOldRect,const RECT *pNewRect)
 {
 	if (fShowPanelWindow && PanelOptions.GetAttachToMainWindow()
 			&& PanelFrame.GetFloating()) {
@@ -3385,7 +3403,7 @@ bool CPanelStatus::OnOwnerMovingOrSizing(const RECT *pOldRect,const RECT *pNewRe
 	return false;
 }
 
-bool CPanelStatus::IsAttached()
+bool CMyPanelEventHandler::IsAttached()
 {
 	bool fAttached=false;
 
@@ -3468,7 +3486,7 @@ void CMyChannelPanelEventHandler::OnChannelClick(const CChannelInfo *pChannelInf
 }
 
 
-static CPanelStatus PanelStatus;
+static CMyPanelEventHandler PanelEventHandler;
 static CMyInfoPanelEventHandler InfoPanelEventHandler;
 static CMyChannelPanelEventHandler ChannelPanelEventHandler;
 
@@ -3526,7 +3544,7 @@ bool CMyProgramGuideEventHandler::OnBeginUpdate()
 
 void CMyProgramGuideEventHandler::OnEndUpdate()
 {
-	MainWindow.EndProgramGuideUpdate();
+	MainWindow.OnProgramGuideUpdateEnd();
 }
 
 bool CMyProgramGuideEventHandler::OnRefresh()
@@ -4232,7 +4250,7 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 	}
 
 	SetPosition(&rc);
-	PanelStatus.OnOwnerMovingOrSizing(&rcOld,&rc);
+	PanelEventHandler.OnOwnerMovingOrSizing(&rcOld,&rc);
 }
 
 
@@ -5198,41 +5216,6 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 				StatusView.UpdateItem(STATUS_ITEM_ERROR);
 			}
 
-			if (TimerCount%4==0) {	// 負荷軽減
-				CoreEngine.UpdateEpgDataInfo();
-
-				const CEpgDataInfo *pInfo=CoreEngine.GetEpgDataInfo();
-
-				if (pInfo!=NULL) {
-					WCHAR szText[2048];
-
-					if (fShowPanelWindow) {
-						if (InfoWindow.GetProgramInfoNext())
-							pInfo=CoreEngine.GetEpgDataInfo(true);
-						if (pInfo!=NULL) {
-							SYSTEMTIME stStart,stEnd;
-
-							pInfo->GetStartTime(&stStart);
-							pInfo->GetEndTime(&stEnd);
-							::wnsprintf(szText,lengthof(szText),
-								L"%d/%d/%d(%s) %d:%02d～%d:%02d\r\n%s\r\n\r\n%s\r\n\r\n%s",
-								stStart.wYear,
-								stStart.wMonth,
-								stStart.wDay,
-								L"日\0月\0火\0水\0木\0金\0土"+stStart.wDayOfWeek*2,
-								stStart.wHour,
-								stStart.wMinute,
-								stEnd.wHour,
-								stEnd.wMinute,
-								pInfo->GetEventName(),
-								pInfo->GetEventText(),
-								pInfo->GetEventExtText());
-							InfoWindow.SetProgramInfo(szText);
-						}
-					}
-				}
-			}
-
 			if ((UpdateStatistics&(CCoreEngine::STATISTIC_SIGNALLEVEL
 								 | CCoreEngine::STATISTIC_BITRATE))!=0)
 				StatusView.UpdateItem(STATUS_ITEM_SIGNALLEVEL);
@@ -5243,7 +5226,8 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 			StatusView.UpdateItem(STATUS_ITEM_CLOCK);
 
-			if (InfoWindow.IsVisible()) {
+			// パネルの情報タブ更新
+			if (fShowPanelWindow && InfoWindow.IsVisible()) {
 				BYTE AspectX,AspectY;
 				if (CoreEngine.m_DtvEngine.m_MediaViewer.GetEffectiveAspectRatio(&AspectX,&AspectY))
 					InfoWindow.SetAspectRatio(AspectX,AspectY);
@@ -5271,6 +5255,67 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 					InfoWindow.SetRecordStatus(true,pRecordTask->GetFileName(),
 						pRecordTask->GetWroteSize(),pRecordTask->GetRecordTime());
+				}
+
+				if (TimerCount%4==0) {	// 負荷軽減
+					bool fOK=false;
+
+					if (CoreEngine.m_DtvEngine.m_TsPacketParser.IsEpgDataCapLoaded()) {
+						// EpgDataCap利用可
+						CoreEngine.UpdateEpgDataInfo();
+
+						const CEpgDataInfo *pInfo=CoreEngine.GetEpgDataInfo(InfoWindow.GetProgramInfoNext());
+
+						if (pInfo!=NULL) {
+							WCHAR szText[2048];
+
+							SYSTEMTIME stStart,stEnd;
+							int Length;
+
+							pInfo->GetStartTime(&stStart);
+							pInfo->GetEndTime(&stEnd);
+							Length=::wnsprintfW(szText,lengthof(szText)-1,
+								L"%d/%d/%d(%s) %d:%02d～%d:%02d\r\n%s\r\n\r\n%s\r\n\r\n%s",
+								stStart.wYear,
+								stStart.wMonth,
+								stStart.wDay,
+								L"日\0月\0火\0水\0木\0金\0土"+stStart.wDayOfWeek*2,
+								stStart.wHour,
+								stStart.wMinute,
+								stEnd.wHour,
+								stEnd.wMinute,
+								pInfo->GetEventName(),
+								pInfo->GetEventText(),
+								pInfo->GetEventExtText());
+							szText[Length]='\0';
+							InfoWindow.SetProgramInfo(szText);
+							fOK=true;
+						}
+					}
+					if (!fOK) {
+						TCHAR szText[1024];
+						SYSTEMTIME stStart,stEnd;
+
+						if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,&stEnd,
+											InfoWindow.GetProgramInfoNext())) {
+							int Length;
+
+							Length=::wsprintf(szText,TEXT("%d/%d/%d(%s) %d:%02d～%d:%02d\r\n"),
+								stStart.wYear,
+								stStart.wMonth,
+								stStart.wDay,
+								TEXT("日\0月\0火\0水\0木\0金\0土")+stStart.wDayOfWeek*((3-sizeof(TCHAR))+1),
+								stStart.wHour,
+								stStart.wMinute,
+								stEnd.wHour,
+								stEnd.wMinute);
+							if (!CoreEngine.m_DtvEngine.GetEventName(
+									&szText[Length],lengthof(szText)-Length,
+									InfoWindow.GetProgramInfoNext()))
+								szText[Length]='\0';
+							InfoWindow.SetProgramInfo(szText);
+						}
+					}
 				}
 			}
 			TimerCount++;
@@ -5323,15 +5368,33 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_PROGRAMGUIDEUPDATE:
+		// 番組表の取得
 		if (!m_fStandby)
 			ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_REFRESH,0);
 		{
-			const CChannelInfo *pChInfo=ChannelManager.GetNextChannelInfo(true);
-			if (pChInfo==NULL
-					|| pChInfo->GetChannelIndex()==m_ProgramGuideUpdateStartChannel)
+			const CChannelList *pList=ChannelManager.GetCurrentRealChannelList();
+			int i;
+
+			for (i=ChannelManager.GetCurrentChannel()+1;i<pList->NumChannels();i++) {
+				const CChannelInfo *pChInfo=pList->GetChannelInfo(i);
+
+				if (pChInfo->IsEnabled()) {
+					int j;
+
+					for (j=0;j<i;j++) {
+						const CChannelInfo *pInfo=pList->GetChannelInfo(j);
+						if (pInfo->IsEnabled()
+								&& pInfo->GetChannelIndex()==pChInfo->GetChannelIndex())
+							break;
+					}
+					if (j==i)
+						break;
+				}
+			}
+			if (i==pList->NumChannels())
 				ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
 			else
-				PostCommand(CM_CHANNEL_UP);
+				AppMain.SetChannel(ChannelManager.GetCurrentSpace(),i);
 		}
 		break;
 
@@ -5421,6 +5484,8 @@ void CMainWindow::ShowChannelOSD()
 
 void CMainWindow::OnDriverChange()
 {
+	if (m_fProgramGuideUpdating)
+		EndProgramGuideUpdate(false);
 	if (fShowPanelWindow && InfoPanel.GetCurTab()==PANEL_TAB_CHANNEL) {
 		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList());
 	}
@@ -5806,7 +5871,7 @@ static BOOL CALLBACK SnapWindowProc(HWND hwnd,LPARAM lParam)
 	SnapWindowInfo *pInfo=reinterpret_cast<SnapWindowInfo*>(lParam);
 
 	if (IsWindowVisible(hwnd) && hwnd!=pInfo->hwnd
-			&& (hwnd!=PanelFrame.GetHandle() || !PanelStatus.IsAttached())) {
+			&& (hwnd!=PanelFrame.GetHandle() || !PanelEventHandler.IsAttached())) {
 		RECT rc,rcEdge;
 
 		GetWindowRect(hwnd,&rc);
@@ -6051,7 +6116,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				}
 			}
 		SizingEnd:
-			PanelStatus.OnOwnerMovingOrSizing(&rcOld,prc);
+			PanelEventHandler.OnOwnerMovingOrSizing(&rcOld,prc);
 			if (fChanged)
 				return TRUE;
 		}
@@ -6155,7 +6220,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 											  ViewOptions.GetSnapAtWindowEdge())
 					SnapWindow(hwnd,&rc);
 				pThis->SetPosition(&rc);
-				PanelStatus.OnOwnerMovingOrSizing(&rcOld,&rc);
+				PanelEventHandler.OnOwnerMovingOrSizing(&rcOld,&rc);
 			} else {
 				POINT pt;
 				RECT rc;
@@ -7040,26 +7105,43 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 bool CMainWindow::BeginProgramGuideUpdate()
 {
 	if (!m_fProgramGuideUpdating) {
+		if (RecordManager.IsRecording()) {
+			if (::MessageBox(ProgramGuide.GetHandle(),
+							 TEXT("録画中です。\n番組表の取得を開始してもいいですか?"),TEXT("確認"),
+							 MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2)!=IDOK)
+				return false;
+		}
+		const CChannelList *pList=ChannelManager.GetCurrentRealChannelList();
+		if (pList==NULL)
+			return false;
+		int i;
+		for (i=0;i<pList->NumChannels();i++) {
+			const CChannelInfo *pChInfo=pList->GetChannelInfo(i);
+
+			if (pChInfo->IsEnabled())
+				break;
+		}
+		if (i==pList->NumChannels())
+			return false;
+		Logger.AddLog(TEXT("番組表の取得開始"));
 		if (m_fStandby && m_fSrcFilterReleased) {
 			if (!OpenTuner())
 				return false;
 		}
 		m_fProgramGuideUpdating=true;
+		m_ProgramGuideUpdateStartChannel=ChannelManager.GetCurrentChannel();
 		EnablePreview(false);
-		SendCommand(CM_CHANNEL_UP);
-		const CChannelInfo *pChInfo=ChannelManager.GetCurrentChannelInfo();
-		if (pChInfo==NULL)
-			return false;
-		m_ProgramGuideUpdateStartChannel=pChInfo->GetChannelIndex();
+		AppMain.SetChannel(ChannelManager.GetCurrentSpace(),i);
 		::SetTimer(m_hwnd,TIMER_ID_PROGRAMGUIDEUPDATE,m_fStandby?40000:20000,NULL);
 	}
 	return true;
 }
 
 
-void CMainWindow::EndProgramGuideUpdate(bool fRelease/*=true*/)
+void CMainWindow::OnProgramGuideUpdateEnd(bool fRelease/*=true*/)
 {
 	if (m_fProgramGuideUpdating) {
+		Logger.AddLog(TEXT("番組表の取得終了"));
 		::KillTimer(m_hwnd,TIMER_ID_PROGRAMGUIDEUPDATE);
 		EpgProgramList.UpdateProgramList();
 		EpgOptions.SaveEpgFile(&EpgProgramList);
@@ -7070,8 +7152,20 @@ void CMainWindow::EndProgramGuideUpdate(bool fRelease/*=true*/)
 				CloseTuner();
 			m_fEnablePreview=true;	// 復帰時にプレビューを再開させる
 		} else {
+			AppMain.SetChannel(ChannelManager.GetCurrentSpace(),
+							   m_ProgramGuideUpdateStartChannel);
 			EnablePreview(true);
 		}
+	}
+}
+
+
+void CMainWindow::EndProgramGuideUpdate(bool fRelease/*=true*/)
+{
+	if (ProgramGuide.GetVisible()) {
+		ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
+	} else {
+		OnProgramGuideUpdateEnd(fRelease);
 	}
 }
 
@@ -7602,7 +7696,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	Splitter.SetMinSize(PANE_ID_PANEL,64);
 	Splitter.SetFixedPane(PANE_ID_PANEL);
 	PanelFrame.Create(MainWindow.GetHandle(),&Splitter,PANE_ID_PANEL,&InfoPanel,TEXT("パネル"));
-	PanelFrame.SetEventHandler(&PanelStatus);
+	PanelFrame.SetEventHandler(&PanelEventHandler);
 	if (fShowPanelWindow
 			&& (!PanelFrame.GetFloating()
 				|| (!CmdLineParser.m_fStandby && !CmdLineParser.m_fMinimize))) {

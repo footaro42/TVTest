@@ -2,6 +2,7 @@
 #include <shlwapi.h>
 #include <shlobj.h>
 #include "TVTest.h"
+#include "AppMain.h"
 #include "EpgOptions.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -17,7 +18,7 @@ static char THIS_FILE[]=__FILE__;
 
 CEpgOptions::CEpgOptions(CCoreEngine *pCoreEngine)
 {
-	::lstrcpy(m_szEpgDataCapDllPath,TEXT("EpgDataCap.dll"));
+	::lstrcpy(m_szEpgDataCapDllPath,TEXT("EpgDataCap2.dll"));
 	m_fSaveEpgFile=true;
 	::lstrcpy(m_szEpgFileName,TEXT("EpgData"));
 	m_fUpdateWhenStandby=false;
@@ -76,6 +77,8 @@ bool CEpgOptions::Write(CSettings *pSettings) const
 
 bool CEpgOptions::InitializeEpgDataCap()
 {
+	if (m_szEpgDataCapDllPath[0]=='\0')
+		return true;
 	return m_pCoreEngine->m_DtvEngine.m_TsPacketParser.InitializeEpgDataCap(m_szEpgDataCapDllPath);
 }
 
@@ -171,7 +174,8 @@ bool CEpgOptions::LoadEpgData()
 {
 	bool fOK=true;
 
-	if (m_fUseEpgData && m_szEpgDataFolder[0]!='\0') {
+	if (m_fUseEpgData && m_szEpgDataFolder[0]!='\0'
+			&& m_pCoreEngine->m_DtvEngine.m_TsPacketParser.IsEpgDataCapLoaded()) {
 		CEpgDataLoader Loader(m_pCoreEngine->m_DtvEngine.m_TsPacketParser.GetEpgDataCapDllUtil());
 
 		fOK=Loader.Load(m_szEpgDataFolder);
@@ -184,7 +188,8 @@ bool CEpgOptions::AsyncLoadEpgData()
 {
 	bool fOK=true;
 
-	if (m_fUseEpgData && m_szEpgDataFolder[0]!='\0') {
+	if (m_fUseEpgData && m_szEpgDataFolder[0]!='\0'
+			&& m_pCoreEngine->m_DtvEngine.m_TsPacketParser.IsEpgDataCapLoaded()) {
 		delete m_pEpgDataLoader;
 		m_pEpgDataLoader=
 			new CEpgDataLoader(m_pCoreEngine->m_DtvEngine.m_TsPacketParser.GetEpgDataCapDllUtil());
@@ -242,7 +247,7 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 								 szFileName,lengthof(szFileName));
 				ofn.lStructSize=sizeof(OPENFILENAME);
 				ofn.hwndOwner=hDlg;
-				ofn.lpstrFilter=TEXT("EpgDataCap.dll\0EpgDataCap.dll\0")
+				ofn.lpstrFilter=TEXT("EpgDataCap2.dll\0EpgDataCap2.dll\0")
 								TEXT("DLLファイル(*.dll)\0*.dll\0")
 								TEXT("すべてのファイル\0*.*\0");
 				ofn.lpstrCustomFilter=NULL;
@@ -251,8 +256,7 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 				ofn.nMaxFile=lengthof(szFileName);
 				ofn.lpstrFileTitle=NULL;
 				if (szFileName[0]=='\0' || ::PathIsFileSpec(szFileName)) {
-					::GetModuleFileName(NULL,szInitialDir,lengthof(szInitialDir));
-					*(::PathFindFileName(szInitialDir)-1)='\0';
+					GetAppClass().GetAppDirectory(szInitialDir);
 					ofn.lpstrInitialDir=szInitialDir;
 				} else
 					ofn.lpstrInitialDir=NULL;

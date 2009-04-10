@@ -477,6 +477,18 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		}
 		return 0;
 
+	case WM_SETCURSOR:
+		{
+			CInformation *pThis=GetThis(hwnd);
+
+			if ((HWND)wParam==pThis->m_hwndProgramInfoPrev
+					|| (HWND)wParam==pThis->m_hwndProgramInfoNext) {
+				::SetCursor(::LoadCursor(NULL,IDC_HAND));
+				return TRUE;
+			}
+		}
+		break;
+
 	case WM_DESTROY:
 		{
 			CInformation *pThis=GetThis(hwnd);

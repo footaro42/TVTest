@@ -7,7 +7,7 @@
 
 #include "MediaDecoder.h"
 #include "TsStream.h"
-#include "Epg.h"
+#include "../EpgDataCap/Epg.h"
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -38,8 +38,9 @@ public:
 	// Append by HDUSTestÇÃíÜÇÃêl
 	bool InitializeEpgDataCap(LPCTSTR pszDllFileName);
 	bool UnInitializeEpgDataCap();
+	bool IsEpgDataCapLoaded() const;
 	CEpgDataInfo *GetEpgDataInfo(WORD wSID,bool bNext);
-	CEpgDataCapDllUtil *GetEpgDataCapDllUtil() { return &m_EpgCap; }
+	CEpgDataCapDllUtil2 *GetEpgDataCapDllUtil() { return &m_EpgCap; }
 	bool LockEpgDataCap();
 	bool UnlockEpgDataCap();
 private:
@@ -57,6 +58,6 @@ private:
 	BYTE m_abyContCounter[0x1FFF];
 
 	// Append by HDUSTestÇÃíÜÇÃêl
-	CEpgDataCapDllUtil m_EpgCap;
+	CEpgDataCapDllUtil2 m_EpgCap;
 	volatile bool m_bLockEpgDataCap;
 };

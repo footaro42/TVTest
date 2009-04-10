@@ -4,7 +4,7 @@
 
 #include <vector>
 #include <map>
-#include "Epg.h"
+#include "EpgDataCap/Epg.h"
 #include "BonTsEngine/TsUtilClass.h"
 
 
@@ -125,7 +125,7 @@ public:
 };
 
 class CEpgProgramList {
-	CEpgDataCapDllUtil *m_pEpgDll;
+	CEpgDataCapDllUtil2 *m_pEpgDll;
 	typedef ULONGLONG ServiceMapKey;
 	typedef std::map<ServiceMapKey,CEpgServiceInfo>::iterator ServiceIterator;
 	std::map<ServiceMapKey,CEpgServiceInfo> ServiceMap;
@@ -137,7 +137,7 @@ class CEpgProgramList {
 public:
 	CEpgProgramList();
 	~CEpgProgramList();
-	void SetEpgDataCapDllUtil(CEpgDataCapDllUtil *pEpgDll) { m_pEpgDll=pEpgDll; }
+	void SetEpgDataCapDllUtil(CEpgDataCapDllUtil2 *pEpgDll) { m_pEpgDll=pEpgDll; }
 	bool UpdateProgramList();
 	bool UpdateProgramList(WORD TSID,WORD ServiceID);
 	void Clear();

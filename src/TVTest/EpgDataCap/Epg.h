@@ -2,8 +2,8 @@
 #define EPG_H
 
 
-#include "EpgDataCap.h"
-#include "EpgDataCapDllUtil.h"
+#include "EpgDataCap2.h"
+#include "EpgDataCapDllUtil2.h"
 
 
 class CEpgDataInfo {

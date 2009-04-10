@@ -357,7 +357,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETCHANNEL:
 		{
-			return GetAppClass().SetChannel((int)lParam1,(int)lParam2);
+			CAppMain &AppMain=GetAppClass();
+
+			AppMain.GetMainWindow()->OpenTuner();
+			return AppMain.SetChannel((int)lParam1,(int)lParam2);
 		}
 
 	case TVTest::MESSAGE_GETSERVICE:

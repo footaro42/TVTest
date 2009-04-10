@@ -6,7 +6,7 @@
 
 
 
-CEpgDataLoader::CEpgDataLoader(CEpgDataCapDllUtil *pEpgDataCap)
+CEpgDataLoader::CEpgDataLoader(CEpgDataCapDllUtil2 *pEpgDataCap)
 	: m_pEpgDataCap(pEpgDataCap)
 	, m_hThread(NULL)
 	, m_pszFolder(NULL)

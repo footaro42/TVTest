@@ -2,7 +2,7 @@
 #define EPG_DATA_LOADER_H
 
 
-#include "EpgDataCapDllUtil.h"
+#include "EpgDataCapDllUtil2.h"
 
 
 class CEpgDataLoader {
@@ -13,12 +13,12 @@ public:
 		virtual void OnStart() {}
 		virtual void OnEnd(bool fSuccess) {}
 	};
-	CEpgDataLoader(CEpgDataCapDllUtil *pEpgDataCap);
+	CEpgDataLoader(CEpgDataCapDllUtil2 *pEpgDataCap);
 	~CEpgDataLoader();
 	bool Load(LPCTSTR pszFolder);
 	bool LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler=NULL);
 private:
-	CEpgDataCapDllUtil *m_pEpgDataCap;
+	CEpgDataCapDllUtil2 *m_pEpgDataCap;
 	HANDLE m_hThread;
 	LPTSTR m_pszFolder;
 	CEventHandler *m_pEventHandler;

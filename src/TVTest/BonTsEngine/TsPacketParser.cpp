@@ -206,19 +206,24 @@ bool CTsPacketParser::InitializeEpgDataCap(LPCTSTR pszDllFileName)
 
 bool CTsPacketParser::UnInitializeEpgDataCap()
 {
-	return m_EpgCap.UnInitialize()==NO_ERR;
+	m_EpgCap.UnInitialize();
+	return true;
+}
+
+
+bool CTsPacketParser::IsEpgDataCapLoaded() const
+{
+	return m_EpgCap.IsLoaded();
 }
 
 
 CEpgDataInfo *CTsPacketParser::GetEpgDataInfo(WORD wSID,bool bNext)
 {
-	EPG_DATA_INFO Item;
+	EPG_DATA_INFO *pData;
 	CEpgDataInfo *pInfo=NULL;
 
-	ZeroMemory(&Item,sizeof(EPG_DATA_INFO));
-	if (m_EpgCap.GetPFData(wSID,&Item,bNext)==NO_ERR)
-		pInfo=new CEpgDataInfo(&Item);
-	m_EpgCap.ReleasePFData(&Item);
+	if (m_EpgCap.GetPFData(wSID,&pData,bNext)==NO_ERR)
+		pInfo=new CEpgDataInfo(pData);
 	return pInfo;
 }
 

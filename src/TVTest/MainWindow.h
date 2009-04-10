@@ -21,10 +21,9 @@ class CFullscreen : public CBasicWindow {
 public:
 	CFullscreen();
 	~CFullscreen();
-	bool Create(HWND hwndOwner,CVideoContainerWindow *pVideoContainer,CViewWindow *m_pViewWindow);
+	bool Create(HWND hwndOwner,CVideoContainerWindow *pVideoContainer,CViewWindow *pViewWindow);
 	void OnRButtonDown();
 	void OnMouseMove();
-	HWND GetHandle() const { return m_hwnd; }
 	static bool Initialize();
 };
 
@@ -121,6 +120,7 @@ public:
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
 	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
 	bool BeginProgramGuideUpdate();
+	void OnProgramGuideUpdateEnd(bool fRelease=true);
 	void EndProgramGuideUpdate(bool fRelease=true);
 	void BeginProgramListUpdateTimer();
 	bool SetLogo(LPCTSTR pszFileName);
