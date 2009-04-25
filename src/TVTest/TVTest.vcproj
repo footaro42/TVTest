@@ -68,10 +68,11 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="strmbasd.lib comctl32.lib msimg32.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;"
 				IgnoreAllDefaultLibraries="false"
-				IgnoreDefaultLibraryNames="msvcrt.lib"
+				IgnoreDefaultLibraryNames=""
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"

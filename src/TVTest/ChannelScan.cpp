@@ -236,7 +236,6 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		{
 			CChannelScan *pThis=dynamic_cast<CChannelScan*>(OnInitDialog(hDlg,lParam));
 			int NumSpaces;
-			int i;
 			LPCTSTR pszName;
 
 			pThis->m_TuningSpaceList=*pThis->m_pOriginalTuningSpaceList;

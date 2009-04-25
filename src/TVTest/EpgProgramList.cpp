@@ -593,7 +593,7 @@ struct EventInfoHeader {
 
 static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 {
-	DWORD Length,Read;
+	DWORD Length;
 
 	*ppszString=NULL;
 	if (pFile->Read(&Length,sizeof(DWORD))!=sizeof(DWORD))
@@ -613,7 +613,7 @@ static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 
 static bool WriteString(CNFile *pFile,LPCWSTR pszString)
 {
-	DWORD Length,Write;
+	DWORD Length;
 
 	if (pszString!=NULL)
 		Length=::lstrlenW(pszString);

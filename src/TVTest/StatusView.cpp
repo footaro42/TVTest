@@ -340,8 +340,6 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				::DrawText(ps.hdc,pStatus->m_pszSingleText,-1,&rc,
 						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 			} else {
-				int x;
-
 				for (int i=0;i<pStatus->m_NumItems;i++) {
 					if (!pStatus->m_ItemList[i]->GetVisible())
 						continue;

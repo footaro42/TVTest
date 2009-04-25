@@ -425,9 +425,6 @@ bool CCaptureWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 
 bool CCaptureWindow::SetImage(const BITMAPINFO *pbmi,const void *pBits)
 {
-	SIZE_T InfoSize,BitsSize;
-	BYTE *pData;
-
 	ClearImage();
 	m_pImage=new CCaptureImage(pbmi,pBits);
 	if (m_hwnd!=NULL) {

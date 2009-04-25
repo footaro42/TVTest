@@ -13,6 +13,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SkinController", "SkinContr
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Command", "Command\Command.vcproj", "{12DB0781-4C1D-49EE-BDA8-226D44E9182F}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "SleepTimer", "SleepTimer\SleepTimer.vcproj", "{A2D2B82B-D826-48B8-A634-679B4B8298C5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -43,6 +45,10 @@ Global
 		{12DB0781-4C1D-49EE-BDA8-226D44E9182F}.Debug|Win32.Build.0 = Debug|Win32
 		{12DB0781-4C1D-49EE-BDA8-226D44E9182F}.Release|Win32.ActiveCfg = Release|Win32
 		{12DB0781-4C1D-49EE-BDA8-226D44E9182F}.Release|Win32.Build.0 = Release|Win32
+		{A2D2B82B-D826-48B8-A634-679B4B8298C5}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A2D2B82B-D826-48B8-A634-679B4B8298C5}.Debug|Win32.Build.0 = Debug|Win32
+		{A2D2B82B-D826-48B8-A634-679B4B8298C5}.Release|Win32.ActiveCfg = Release|Win32
+		{A2D2B82B-D826-48B8-A634-679B4B8298C5}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

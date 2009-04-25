@@ -131,7 +131,6 @@ void CProgramGuideItem::DrawString(HDC hdc,LPCTSTR pszText,const RECT *pRect,
 	int Length;
 	int Fit;
 	SIZE sz;
-	int Lines;
 
 	p=pszText;
 	y=pRect->top;
@@ -187,7 +186,6 @@ int CProgramGuideItem::CalcStringLines(HDC hdc,LPCTSTR pszText,int Width)
 
 int CProgramGuideItem::CalcLines(HDC hdc,HFONT hfontTitle,int TitleWidth,HFONT hfontText,int TextWidth)
 {
-	RECT rc;
 	TCHAR szText[2048];
 
 #ifndef _DEBUG
@@ -478,7 +476,7 @@ void CProgramGuideServiceInfo::CalcLayout(HDC hdc,
 	const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime,
 	int LinesPerHour,HFONT hfontTitle,int TitleWidth,HFONT hfontText,int TextWidth)
 {
-	int i,j,k;
+	int i,j;
 	CProgramGuideItem *pItem;
 	SYSTEMTIME stStart,stEnd;
 

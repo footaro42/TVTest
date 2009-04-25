@@ -296,14 +296,13 @@ bool CAccelerator::Write(CSettings *pSettings) const
 bool CAccelerator::Load(LPCTSTR pszFileName)
 {
 	CSettings Settings;
-	int i,j;
 
 	if (Settings.Open(pszFileName,TEXT("Accelerator"),CSettings::OPEN_READ)) {
 		int NumAccel;
 
 		if (Settings.Read(TEXT("AccelCount"),&NumAccel) && NumAccel>=0) {
 			m_KeyList.clear();
-			for (i=0;i<NumAccel;i++) {
+			for (int i=0;i<NumAccel;i++) {
 				TCHAR szName[64],szCommand[CCommandList::MAX_COMMAND_TEXT];
 
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
@@ -484,7 +483,7 @@ void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool f
 void CAccelerator::SetDlgItemStatus(HWND hDlg)
 {
 	HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
-	int Sel,Index;
+	int Sel;
 	WORD Key;
 	BYTE Mod;
 

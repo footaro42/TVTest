@@ -904,7 +904,6 @@ BOOL CALLBACK CRecordManager::StopTimeDlgProc(HWND hDlg,UINT uMsg,
 									IDC_RECORDSTOPTIME_ENABLE)==BST_CHECKED;
 				if (fStopTimeSpec) {
 					FILETIME ft,ftCur;
-					ULARGE_INTEGER Time1,Time2;
 					TimeSpecInfo TimeSpec;
 
 					if (DateTime_GetSystemtime(
@@ -968,7 +967,6 @@ bool CRecordManager::DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName)
 			int i;
 			TCHAR szFileName[MAX_PATH];
 			LPTSTR pszExtension,p;
-			int ExtensionOffset;
 
 			pszExtension=PathFindExtension(m_pszFileName);
 			lstrcpy(szFileName,m_pszFileName);

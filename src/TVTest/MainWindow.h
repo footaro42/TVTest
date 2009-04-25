@@ -45,6 +45,7 @@ class CMainWindow : public CBasicWindow {
 	bool m_fRestoreFullscreen;
 	bool m_fProgramGuideUpdating;
 	int m_ProgramGuideUpdateStartChannel;
+	bool m_fRecordingStopOnEventEnd;
 	bool m_fExitOnRecordingStop;
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
@@ -125,6 +126,8 @@ public:
 	void BeginProgramListUpdateTimer();
 	bool SetLogo(LPCTSTR pszFileName);
 	bool SetViewWindowEdge(bool fEdge);
+	bool GetRecordingStopOnEventEnd() const { return m_fRecordingStopOnEventEnd; }
+	bool SetRecordingStopOnEventEnd(bool fEnable);
 	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
 	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
 	static bool Initialize();

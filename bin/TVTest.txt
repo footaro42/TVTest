@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.31
+    TVTest ver.0.5.32
 
 
 ◆ はじめに
@@ -13,6 +13,14 @@
 
   ご使用前にこのドキュメントに目を通してください。
   特に何か問題が起きた場合は、「ヒント」の部分を参照してください。
+
+
+◆ 以前のバージョンをお使いの方へ
+
+  ・EpgDataCap.dll ではなく、EpgDataCap2.dll を使用するようになりました。
+    設定の EPG にある [EpgDataCap2.dllのパス] が EpgDataCap.dll になっている場
+    合は、EpgDataCap2.dll に書き換えてください。
+  ・TVSubtitle を使用している場合は、Version 0.11 以降を使用してください。
 
 
 ◆ 動作環境
@@ -30,8 +38,8 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.5.31_Src.zip ソースファイル
-  ・TVTest_SDK_090301.zip プラグイン開発用 SDK
+  ・TVTest_0.5.32_Src.zip ソースファイル
+  ・TVTest_SDK_090426.zip プラグイン開発用 SDK
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
   ・Preset_BS.ch2         BS 用チャンネルプリセット
   ・Preset_CS.ch2         CS 用チャンネルプリセット
@@ -352,8 +360,6 @@
     libpng 1.2.31  Copyright (c) 1998-2001 Glenn Randers-Pehrson
   ・このプログラムは zlib を使用しています。
     zlib version 1.2.3  Copyright (C) 1995-2004 Jean-loup Gailly and Mark Adler
-  ・EpgDataCap.dll は、EpgDataCap_Bon(人柱版８.５６) に付属のもので、
-    EpgDataCapの中の人 氏が著作権を有しています。
   ・BonDriver_UDP.dll は Meru-co 氏が書かれたソースを VC2005 でビルドしたもので
     す。Meru-co 氏の BonDriver(Meru customize edition) for UDP ver1.20 と機能的
     に同一のものです。
@@ -373,6 +379,17 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.32
+    ・番組の最後まで録画する機能を追加した(ステータスバーの録画の右クリックメ
+      ニュー内)
+    ・サンプルのプラグインにスリープタイマーを追加した
+    ・待機状態の時はスクリーンセーバーと省電力機能の無効化がされないようにした
+    ・TvRock から起動した際に強制的に /silent が指定されるようにした(暫定措置)
+    ・リモコン番号に大きな値を設定するとチャンネル切り替えがうまくいかない不具
+      合を修正
+    ・ドライバのオープンに失敗した場合、開き直せない不具合を修正
+    ・プラグインの初期化中に正常にログが書き出されない不具合を修正
 
   ver.0.5.31
     ・EpgDataCap2.dll を使用するようにした(EpgDataCap.dll は使えなくなりました)

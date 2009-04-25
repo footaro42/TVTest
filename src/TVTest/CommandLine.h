@@ -38,6 +38,7 @@ public:
 	bool m_fInitialSettings;
 	bool m_fSaveLog;
 	bool m_fRecordOnly;
+	int m_TvRockDID;
 };
 
 

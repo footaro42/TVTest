@@ -132,6 +132,7 @@ CCommandLineParser::CCommandLineParser()
 	m_fInitialSettings=false;
 	m_fSaveLog=false;
 	m_fRecordOnly=false;
+	m_TvRockDID=0;
 }
 
 
@@ -252,6 +253,16 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 			} else if (Args.IsOption(TEXT("tsid"))) {
 				if (Args.Next())
 					Args.GetValue(&m_TransportStreamID);
+			} else if (Args.IsOption(TEXT("did"))) {
+				if (Args.Next()) {
+					int DID;
+
+					Args.GetValue(&DID);
+					if (DID>='A' && DID<='Z')
+						m_TvRockDID=DID-'A';
+					else if (DID>='a' && DID<='z')
+						m_TvRockDID=DID='a';
+				}
 			}
 		} else {
 			// なぜかudp://@:1234のようにポートを指定できると思っている人が多いので、対応しておく

@@ -359,7 +359,6 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 {
 	HBRUSH hbrChannel,hbrEvent;
-	COLORREF cr;
 	HFONT hfontOld;
 	COLORREF crOldTextColor;
 	int OldBkMode;

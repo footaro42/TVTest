@@ -343,7 +343,6 @@ BOOL CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 		case PSN_APPLY:
 			{
 				CStatusOptions *pThis=GetThis(hDlg);
-				StatusItemInfo NewList[NUM_STATUS_ITEMS];
 				int i;
 
 				for (i=0;i<NUM_STATUS_ITEMS;i++)

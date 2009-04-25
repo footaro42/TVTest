@@ -200,7 +200,6 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			COLORREF crBkColor1,crBkColor2,crOldTextColor,crOldBkColor;
 			int OldBkMode;
 			RECT rc,rcDraw;
-			int x;
 
 			::BeginPaint(hwnd,&ps);
 			hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
@@ -489,7 +488,7 @@ int CTitleBar::HitTest(int x,int y) const
 
 void CTitleBar::SetToolTip()
 {
-	int NumTools,i;
+	int i;
 	TOOLINFO ti;
 
 	if (m_hwndToolTip==NULL)

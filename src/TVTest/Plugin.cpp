@@ -79,16 +79,17 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		::FreeLibrary(hLib);
 		return false;
 	}
+	m_pszFileName=DuplicateString(pszFileName);
 	m_PluginParam.Callback=Callback;
 	m_PluginParam.hwndApp=GetAppClass().GetMainWindow()->GetHandle();
 	m_PluginParam.pClientData=NULL;
 	m_PluginParam.pInternalData=this;
 	if (!pInitialize(&m_PluginParam)) {
 		::FreeLibrary(hLib);
+		SAFE_DELETE(m_pszFileName);
 		return false;
 	}
 	m_hLib=hLib;
-	m_pszFileName=DuplicateString(pszFileName);
 	m_Type=PluginInfo.Type;
 	m_Flags=PluginInfo.Flags;
 	m_pszPluginName=DuplicateString(PluginInfo.pszPluginName);

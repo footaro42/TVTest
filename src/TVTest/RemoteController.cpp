@@ -356,7 +356,7 @@ void CHDUSController::SetButtonCommand(HWND hwndList,int Index,int Command)
 void CHDUSController::SetDlgItemStatus()
 {
 	HWND hwndList=::GetDlgItem(m_hDlg,IDC_HDUSCONTROLLER_ASSIGN);
-	int Sel,Index;
+	int Sel;
 
 	Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 	if (Sel>=0) {

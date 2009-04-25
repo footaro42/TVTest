@@ -147,7 +147,6 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 			CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
 			HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
 			RECT rc;
-			TCHAR szText[32];
 			LV_COLUMN lvc;
 
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);

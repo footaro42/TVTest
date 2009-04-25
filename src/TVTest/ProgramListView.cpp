@@ -80,7 +80,6 @@ int CProgramItemInfo::CalcStringLines(HDC hdc,LPCTSTR pszText,int Width)
 
 int CProgramItemInfo::CalcLines(HDC hdc,int TitleWidth,int TextWidth)
 {
-	RECT rc;
 	TCHAR szText[2048];
 
 	::wsprintf(szText,TEXT("%02d:%02d"),m_EventInfo.m_stStartTime.wHour,
@@ -105,7 +104,6 @@ void CProgramItemInfo::DrawString(HDC hdc,LPCTSTR pszText,const RECT *pRect,
 	int Length;
 	int Fit;
 	SIZE sz;
-	int Lines;
 
 	p=pszText;
 	y=pRect->top;
@@ -588,7 +586,6 @@ LRESULT CALLBACK CProgramListView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 void CProgramListView::DrawProgramList(HDC hdc,const RECT *prcPaint)
 {
 	HBRUSH hbr;
-	COLORREF cr;
 	HFONT hfontOld;
 	COLORREF crOldTextColor;
 	int OldBkMode;
