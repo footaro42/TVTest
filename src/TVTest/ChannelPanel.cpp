@@ -309,6 +309,15 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return 0;
 
+	case WM_RBUTTONDOWN:
+		{
+			CChannelPanel *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL)
+				pThis->m_pEventHandler->OnRButtonDown();
+		}
+		return 0;
+
 	case WM_MOUSEMOVE:
 		{
 			CChannelPanel *pThis=GetThis(hwnd);

@@ -19,9 +19,12 @@ class CViewOptions : public COptions {
 	bool m_fNotifyEventName;
 	bool m_fResetPanScanEventChange;
 	bool m_fRestorePlayStatus;
+	bool m_fIgnoreDisplayExtension;
+	bool m_fNoScreenSaver;
+	bool m_fNoMonitorLowPower;
+	bool m_fNoMonitorLowPowerActiveOnly;
 	bool m_fShowLogo;
 	TCHAR m_szLogoFileName[MAX_PATH];
-	bool m_fIgnoreDisplayExtension;
 	static CViewOptions *GetThis(HWND hDlg);
 public:
 	CViewOptions();
@@ -37,9 +40,12 @@ public:
 	bool GetNotifyEventName() const { return m_fNotifyEventName; }
 	bool GetResetPanScanEventChange() const { return m_fResetPanScanEventChange; }
 	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
+	bool GetIgnoreDisplayExtension() const { return m_fIgnoreDisplayExtension; }
+	bool GetNoScreenSaver() const { return m_fNoScreenSaver; }
+	bool GetNoMonitorLowPower() const { return m_fNoMonitorLowPower; }
+	bool GetNoMonitorLowPowerActiveOnly() const { return m_fNoMonitorLowPowerActiveOnly; }
 	bool GetShowLogo() const { return m_fShowLogo; }
 	LPCTSTR GetLogoFileName() const { return m_szLogoFileName; }
-	bool GetIgnoreDisplayExtension() const { return m_fIgnoreDisplayExtension; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	// COptions
 	bool Read(CSettings *pSettings);

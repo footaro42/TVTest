@@ -5,6 +5,8 @@
 #include "DriverManager.h"
 #include "DirectShowFilter/VideoRenderer.h"
 #include "BonTsEngine/CardReader.h"
+#include "Aero.h"
+#include "DrawUtil.h"
 
 
 class CInitialSettings {
@@ -14,6 +16,9 @@ class CInitialSettings {
 	CVideoRenderer::RendererType m_VideoRenderer;
 	CCardReader::ReaderType m_CardReader;
 	TCHAR m_szRecordFolder[MAX_PATH];
+	CAeroGlass m_AeroGlass;
+	CGdiPlus m_GdiPlus;
+	CGdiPlus::CImage m_LogoImage;
 	static CInitialSettings *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:

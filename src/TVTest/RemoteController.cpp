@@ -20,6 +20,7 @@ public:
 	~CRemoteController();
 	bool BeginHook(bool fLocal);
 	bool EndHook();
+	bool SetWindow(HWND hwnd);
 	bool HandleMessage(UINT uMsg,WPARAM wParam,LPARAM lParam,WORD *pKeyCode,WORD *pModifiers);
 };
 
@@ -85,6 +86,17 @@ bool CRemoteController::EndHook()
 		m_fHook=false;
 	}
 	return true;
+}
+
+
+bool CRemoteController::SetWindow(HWND hwnd)
+{
+	if (!m_fHook)
+		return false;
+	SetWindowFunc pSetWindow=(SetWindowFunc)GetProcAddress(m_hLib,"SetWindow");
+	if (pSetWindow==NULL)
+		return false;
+	return pSetWindow(hwnd)!=FALSE;
 }
 
 
@@ -328,6 +340,16 @@ bool CHDUSController::HandleMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		}
 	}
 	return true;
+}
+
+
+bool CHDUSController::OnActivateApp(HWND hwnd,WPARAM wParam,LPARAM lParam)
+{
+	if (m_pRemoteController==NULL)
+		return false;
+	if (!wParam)
+		return true;
+	return m_pRemoteController->SetWindow(hwnd);
 }
 
 

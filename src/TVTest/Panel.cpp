@@ -536,6 +536,16 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		}
 		break;
 
+	case WM_ACTIVATE:
+		{
+			CPanelFrame *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL
+					&& pThis->m_pEventHandler->OnActivate(LOWORD(wParam)!=WA_INACTIVE))
+				return 0;
+		}
+		break;
+
 	case WM_MOVING:
 		{
 			CPanelFrame *pThis=GetThis(hwnd);

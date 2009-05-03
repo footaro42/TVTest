@@ -67,6 +67,7 @@ public:
 		virtual bool OnClose() { return true; }
 		virtual bool OnSave(CCaptureImage *pImage) { return false; }
 		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
+		virtual bool OnActivate(bool fActive) { return false; }
 		friend class CCaptureWindow;
 	};
 	static bool Initialize(HINSTANCE hinst);

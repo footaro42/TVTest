@@ -18,6 +18,7 @@ extern "C" {
 
 typedef BOOL (WINAPI *BeginHookFunc)(HWND hwnd,BOOL fLocal);
 typedef BOOL (WINAPI *EndHookFunc)(void);
+typedef BOOL (WINAPI *SetWindowFunc)(HWND hwnd);
 
 
 #ifdef __cplusplus

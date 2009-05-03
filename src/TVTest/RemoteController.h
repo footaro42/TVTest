@@ -23,6 +23,7 @@ class CHDUSController : public COptions {
 	static CHDUSController *GetThis(HWND hDlg);
 	// COptions
 	bool Load(LPCTSTR pszFileName);
+
 public:
 	CHDUSController();
 	~CHDUSController();
@@ -35,6 +36,7 @@ public:
 	void Finalize();
 	bool TranslateMessage(HWND hwnd,LPMSG pmsg);
 	bool HandleMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	bool OnActivateApp(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

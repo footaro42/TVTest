@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.3
+	TVTest プラグインヘッダ ver.0.0.4
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -86,6 +86,9 @@
 /*
 	更新履歴
 
+	ver.0.0.4 (TVTest ver.0.5.33 or later)
+	・EVENT_EXECUTE を追加した
+
 	ver.0.0.3 (TVTest ver.0.5.27 or later)
 	・以下のメッセージを追加した
 	  ・MESSAGE_ISPLUGINENABLED
@@ -126,8 +129,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_1	0x00000001UL
 #define TVTEST_PLUGIN_VERSION_0_0_2	0x00000002UL
 #define TVTEST_PLUGIN_VERSION_0_0_3	0x00000003UL
+#define TVTEST_PLUGIN_VERSION_0_0_4	0x00000004UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_3
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_4
 #endif
 
 // エクスポート関数定義用
@@ -238,7 +242,7 @@ enum {
 	MESSAGE_REGISTERCOMMAND,
 	MESSAGE_ADDLOG,
 #endif
-	MESSAGE_TRAILER	// Don't use
+	MESSAGE_TRAILER
 };
 
 // イベント用コールバック関数
@@ -263,7 +267,10 @@ enum {
 	EVENT_STANDBY,				// 待機状態が変化した
 	EVENT_COMMAND,				// コマンドが選択された
 #endif
-	EVENT_TRAILER	// Don't use
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
+	EVENT_EXECUTE,				// 複数起動禁止時に複数起動された
+#endif
+	EVENT_TRAILER
 };
 
 inline DWORD MakeVersion(BYTE Major,WORD Minor,WORD Build) {
@@ -429,14 +436,14 @@ enum {
 // 録画開始時間の指定方法
 enum {
 	RECORD_START_NOTSPECIFIED,	// 未指定
-	RECORD_START_TIME,			// 時間指定
+	RECORD_START_TIME,			// 時刻指定
 	RECORD_START_DELAY			// 長さ指定
 };
 
 // 録画停止時間の指定方法
 enum {
 	RECORD_STOP_NOTSPECIFIED,	// 未指定
-	RECORD_STOP_TIME,			// 時間指定
+	RECORD_STOP_TIME,			// 時刻指定
 	RECORD_STOP_DURATION		// 長さ指定
 };
 
@@ -447,18 +454,18 @@ struct RecordInfo {
 	DWORD Flags;			// フラグ(RECORD_FLAG_???)
 	LPWSTR pszFileName;		// ファイル名(NULLでデフォルト)
 	int MaxFileName;		// ファイル名の最大長(MESSAGE_GETRECORDのみで使用)
-	FILETIME ReserveTime;	// 録画予約された時間(MESSAGE_GETRECORDのみで使用)
+	FILETIME ReserveTime;	// 録画予約された時刻(MESSAGE_GETRECORDのみで使用)
 	DWORD StartTimeSpec;	// 録画開始時間の指定方法(RECORD_START_???)
 	union {
-		FILETIME Time;		// 録画開始時間(StartTimeSpec==RECORD_START_TIME)
-							// ローカル時間
+		FILETIME Time;		// 録画開始時刻(StartTimeSpec==RECORD_START_TIME)
+							// ローカル時刻
 		ULONGLONG Delay;	// 録画開始時間(StartTimeSpec==RECORD_START_DELAY)
 							// 録画を開始するまでの時間(ms)
 	} StartTime;
 	DWORD StopTimeSpec;		// 録画停止時間の指定方法(RECORD_STOP_???)
 	union {
-		FILETIME Time;		// 録画停止時間(StopTimeSpec==RECORD_STOP_TIME)
-							// ローカル時間
+		FILETIME Time;		// 録画停止時刻(StopTimeSpec==RECORD_STOP_TIME)
+							// ローカル時刻
 		ULONGLONG Duration;	// 録画停止時間(StopTimeSpec==RECORD_STOP_DURATION)
 							// 開始時間からのミリ秒
 	} StopTime;
@@ -1180,6 +1187,9 @@ protected:
 	virtual bool OnStandby(bool fStandby) { return false; }
 	virtual bool OnCommand(int ID) { return false; }
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+	virtual bool OnExecute(LPCWSTR pszCommandLine) { return false; }
+#endif
 public:
 	virtual ~CTVTestEventHandler() {}
 	LRESULT HandleEvent(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData) {
@@ -1200,6 +1210,9 @@ public:
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
 		case EVENT_STANDBY:				return OnStandby(lParam1!=0);
 		case EVENT_COMMAND:				return OnCommand(lParam1);
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
+		case EVENT_EXECUTE:				return OnExecute((LPCWSTR)lParam1);
 #endif
 		}
 		return 0;

@@ -14,6 +14,7 @@ public:
 		DRIVER_HDUS
 	};
 	enum { MAX_VOLUME=100 };
+
 private:
 	bool m_fFileMode;
 	TCHAR m_szDriverFileName[MAX_PATH];
@@ -21,7 +22,6 @@ private:
 	DriverType m_DriverType;
 	bool m_fDescramble;
 	CCardReader::ReaderType m_CardReaderType;
-	CDtvEngineHandler *m_pDtvEngineHandler;
 	bool m_fPacketBuffering;
 	DWORD m_PacketBufferLength;
 	int m_PacketBufferPoolPercentage;
@@ -46,13 +46,15 @@ private:
 	DWORD m_PacketBufferUsedCount;
 	CEpgDataInfo *m_pEpgDataInfo;
 	CEpgDataInfo *m_pEpgDataInfoNext;
+
 public:
 	CCoreEngine();
 	~CCoreEngine();
 	void Close();
-	bool BuildDtvEngine(CDtvEngineHandler *pDtvEngineHandler);
+	bool BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler);
 	bool SetDriverFileName(LPCTSTR pszFileName);
 	LPCTSTR GetDriverFileName() const { return m_szDriverFileName; }
+	bool IsDriverSpecified() const { return m_szDriverFileName[0]!='\0'; }
 	bool LoadDriver();
 	bool UnloadDriver();
 	bool IsDriverLoaded() const { return m_hDriverLib!=NULL; }
@@ -64,7 +66,9 @@ public:
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
+	bool CloseMediaViewer();
 	bool OpenBcasCard();
+	bool CloseBcasCard();
 	bool IsBcasCardOpen() const;
 	bool IsBuildComplete() const;
 	bool EnablePreview(bool fPreview);
@@ -76,7 +80,7 @@ public:
 	bool IsUDPDriver() const { return m_DriverType==DRIVER_UDP; }
 	bool IsTCPDriver() const { return m_DriverType==DRIVER_TCP; }
 	bool IsNetworkDriver() const { return IsUDPDriver() || IsTCPDriver(); }
-	bool IsNetworkDriverFileName(LPCTSTR pszFileName) const;
+	static bool IsNetworkDriverFileName(LPCTSTR pszFileName);
 	bool SetPacketBuffering(bool fBuffering);
 	bool GetPacketBuffering() const { return m_fPacketBuffering; }
 	bool SetPacketBufferLength(DWORD BufferLength);

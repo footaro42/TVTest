@@ -20,11 +20,13 @@ public:
 	public:
 		virtual ~CEventHandler() {}
 		virtual void OnChannelClick(const CChannelInfo *pChannelInfo) {}
+		virtual void OnRButtonDown() {}
 	};
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetColors(COLORREF ChannelBackColor,COLORREF ChannelTextColor,
 				   COLORREF EventBackColor,COLORREF EventTextColor);
 	static bool Initialize(HINSTANCE hinst);
+
 private:
 	CEpgProgramList *m_pProgramList;
 	HFONT m_hfont;

@@ -23,15 +23,15 @@ public:
 	CNetworkRemocon *m_pRemocon;
 	char *m_pBuffer;
 	int m_Length;
-	CNetworkRemoconReciver *m_pReciver;
+	CNetworkRemoconReceiver *m_pReceiver;
 	CSendStringInfo(CNetworkRemocon *pRemocon,const char *pBuffer,int Length,
-					CNetworkRemoconReciver *pReciver) {
+					CNetworkRemoconReceiver *pReceiver) {
 		m_pRemocon=pRemocon;
 		m_pBuffer=new char[Length+1];
 		CopyMemory(m_pBuffer,pBuffer,Length);
 		m_pBuffer[Length]='\0';
 		m_Length=Length;
-		m_pReciver=pReciver;
+		m_pReceiver=pReceiver;
 	}
 	~CSendStringInfo() {
 		delete [] m_pBuffer;
@@ -136,9 +136,9 @@ DWORD CNetworkRemocon::SendProc(LPVOID pParam)
 		return FALSE;
 	}
 	Result=recv(pInfo->m_pRemocon->m_Socket,Buffer,sizeof(Buffer)-1,0);
-	if (Result!=SOCKET_ERROR && pInfo->m_pReciver!=NULL) {
+	if (Result!=SOCKET_ERROR && pInfo->m_pReceiver!=NULL) {
 		Buffer[Result]='\0';
-		pInfo->m_pReciver->OnRecive(Buffer);
+		pInfo->m_pReceiver->OnReceive(Buffer);
 	}
 	delete pInfo;
 	if (Result==SOCKET_ERROR || Result==0) {
@@ -152,7 +152,7 @@ DWORD CNetworkRemocon::SendProc(LPVOID pParam)
 
 
 bool CNetworkRemocon::Send(const char *pBuffer,int Length,
-											CNetworkRemoconReciver *pReciver)
+											CNetworkRemoconReceiver *pReceiver)
 {
 	DWORD ThreadID;
 	CSendStringInfo *pInfo;
@@ -164,7 +164,7 @@ bool CNetworkRemocon::Send(const char *pBuffer,int Length,
 			return false;
 		CloseHandle(m_hThread);
 	}
-	pInfo=new CSendStringInfo(this,pBuffer,Length,pReciver);
+	pInfo=new CSendStringInfo(this,pBuffer,Length,pReceiver);
 	m_hThread=CreateThread(NULL,0,SendProc,pInfo,0,&ThreadID);
 	if (m_hThread==NULL) {
 		delete pInfo;
@@ -196,13 +196,13 @@ bool CNetworkRemocon::SetChannel(int ChannelNo)
 }
 
 
-class CGetChannelReciver : public CNetworkRemoconReciver {
+class CGetChannelReceiver : public CNetworkRemoconReceiver {
 public:
-	CNetworkRemoconReciver *m_pReciver;
-	void OnRecive(LPCSTR pszText);
+	CNetworkRemoconReceiver *m_pReceiver;
+	void OnReceive(LPCSTR pszText);
 };
 
-void CGetChannelReciver::OnRecive(LPCSTR pszText)
+void CGetChannelReceiver::OnReceive(LPCSTR pszText)
 {
 	LPCSTR p;
 	char szChannel[16];
@@ -223,16 +223,16 @@ void CGetChannelReciver::OnRecive(LPCSTR pszText)
 	if (i==0)
 		return;
 	szChannel[i]='\0';
-	m_pReciver->OnRecive(szChannel);
+	m_pReceiver->OnReceive(szChannel);
 }
 
 
-bool CNetworkRemocon::GetChannel(CNetworkRemoconReciver *pReciver)
+bool CNetworkRemocon::GetChannel(CNetworkRemoconReceiver *pReceiver)
 {
-	static CGetChannelReciver Reciver;
+	static CGetChannelReceiver Receiver;
 
-	Reciver.m_pReciver=pReciver;
-	return Send("GetChList",9,&Reciver);
+	Receiver.m_pReceiver=pReceiver;
+	return Send("GetChList",9,&Receiver);
 }
 
 
@@ -246,9 +246,9 @@ bool CNetworkRemocon::SetService(int Service)
 }
 
 
-bool CNetworkRemocon::GetDriverList(CNetworkRemoconReciver *pReciver)
+bool CNetworkRemocon::GetDriverList(CNetworkRemoconReceiver *pReceiver)
 {
-	return Send("GetBonList",10,pReciver);
+	return Send("GetBonList",10,pReceiver);
 }
 
 
@@ -429,22 +429,21 @@ bool CNetworkRemoconOptions::InitNetworkRemocon(CNetworkRemocon **ppNetworkRemoc
 			&& pCoreEngine->IsNetworkDriver()) {
 		TCHAR szChannelFile[MAX_PATH];
 
+		if (!GetChannelFilePath(szChannelFile))
+			return false;
 		if (*ppNetworkRemocon==NULL)
 			*ppNetworkRemocon=new CNetworkRemocon;
-		GetChannelFilePath(szChannelFile);
 		if ((*ppNetworkRemocon)->LoadChannelText(szChannelFile,
 								pChannelManager->GetFileAllChannelList())) {
 			pChannelManager->SetNetworkRemoconMode(true,
 									&(*ppNetworkRemocon)->GetChannelList());
 			pChannelManager->SetNetworkRemoconCurrentChannel(-1);
-			GetAppClass().UpdateChannelMenu();
 		}
 		(*ppNetworkRemocon)->Init(m_szAddress,m_TempPort>0?m_TempPort:m_Port);
 	} else {
 		if (*ppNetworkRemocon!=NULL) {
 			delete *ppNetworkRemocon;
 			*ppNetworkRemocon=NULL;
-			GetAppClass().UpdateChannelMenu();
 		}
 	}
 	return true;
@@ -486,7 +485,7 @@ bool CNetworkRemoconOptions::FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFil
 }
 
 
-void CNetworkRemoconOptions::GetChannelFilePath(LPTSTR pszPath) const
+bool CNetworkRemoconOptions::GetChannelFilePath(LPTSTR pszPath) const
 {
 	if (m_szChannelFileName[0]=='\0' || ::PathIsFileSpec(m_szChannelFileName)) {
 		::SHGetSpecialFolderPath(NULL,pszPath,CSIDL_PERSONAL,FALSE);
@@ -496,11 +495,22 @@ void CNetworkRemoconOptions::GetChannelFilePath(LPTSTR pszPath) const
 		} else if (m_szDefaultChannelFileName[0]!='\0') {
 			::PathAppend(pszPath,m_szDefaultChannelFileName);
 		} else {
-			::PathAppend(pszPath,TEXT("BonDriver_HDUS(HDUS).ChSet.txt"));
+			TCHAR szMask[MAX_PATH];
+			HANDLE hFind;
+			WIN32_FIND_DATA fd;
+
+			::lstrcpy(szMask,pszPath);
+			::PathAppend(szMask,TEXT("BonDriver_*(*).ChSet.txt"));
+			hFind=::FindFirstFile(szMask,&fd);
+			if (hFind==INVALID_HANDLE_VALUE)
+				return false;
+			::FindClose(hFind);
+			::PathAppend(pszPath,fd.cFileName);
 		}
 	} else {
 		::lstrcpy(pszPath,m_szChannelFileName);
 	}
+	return true;
 }
 
 
@@ -529,7 +539,7 @@ BOOL CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 
 				::SendDlgItemMessage(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,CB_LIMITTEXT,MAX_PATH-1,0);
 				::SHGetSpecialFolderPath(NULL,szFileMask,CSIDL_PERSONAL,FALSE);
-				::PathAppend(szFileMask,TEXT("EpgTimerBon\\*.ChSet.txt"));
+				::PathAppend(szFileMask,TEXT("EpgTimerBon\\*(*).ChSet.txt"));
 				hFind=::FindFirstFile(szFileMask,&wfd);
 				if (hFind!=INVALID_HANDLE_VALUE) {
 					do {
@@ -587,7 +597,7 @@ BOOL CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 				::lstrcpyA(pThis->m_szAddress,szAddress);
 				::lstrcpy(pThis->m_szChannelFileName,szChannelFile);
 				if (fUpdate)
-					pThis->m_UpdateFlags|=UPDATE_NETWORKREMOCON;
+					pThis->SetUpdateFlag(UPDATE_NETWORKREMOCON);
 			}
 			return TRUE;
 		}

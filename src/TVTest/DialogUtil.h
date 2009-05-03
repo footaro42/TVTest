@@ -55,9 +55,14 @@
 #define DlgComboBox_Clear(hwndDlg,ID) \
 	SendDlgItemMessage(hwndDlg,ID,CB_RESETCONTENT,0,0)
 #define DlgComboBox_FindString(hwndDlg,ID,First,pszString) \
-	SendDlgItemMessage(hwndDlg,ID,CB_FINDSTRING,First,(LPARAM)(pszString));
+	SendDlgItemMessage(hwndDlg,ID,CB_FINDSTRING,First,(LPARAM)(pszString))
 #define DlgComboBox_FindStringExact(hwndDlg,ID,First,pszString) \
-	SendDlgItemMessage(hwndDlg,ID,CB_FINDSTRINGEXACT,First,(LPARAM)(pszString));
+	SendDlgItemMessage(hwndDlg,ID,CB_FINDSTRINGEXACT,First,(LPARAM)(pszString))
+
+#define DlgUpDown_SetRange(hwndDlg,ID,Low,High) \
+	SendDlgItemMessage(hwndDlg,ID,UDM_SETRANGE32,Low,High)
+#define DlgUpDown_SetPos(hwndDlg,ID,Pos) \
+	SendDlgItemMessage(hwndDlg,ID,UDM_SETPOS32,0,Pos)
 
 void EnableDlgItem(HWND hDlg,int ID,bool fEnable);
 void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable);
@@ -69,6 +74,7 @@ bool AdjustDialogPos(HWND hwndOwner,HWND hDlg);
 void SyncTrackBarWithEdit(HWND hDlg,int EditID,int TrackbarID);
 void SyncEditWithTrackBar(HWND hDlg,int TrackbarID,int EditID);
 void SetComboBoxList(HWND hDlg,int ID,LPCTSTR pszList);
+void SetComboBoxList(HWND hDlg,int ID,const LPCTSTR *ppszList,int Length);
 bool SetDlgButtonBitmap(HWND hDlg,int ID,HINSTANCE hinst,LPCTSTR pszName);
 bool SetListBoxHExtent(HWND hDlg,int ID);
 LPTSTR GetDlgItemString(HWND hDlg,int ID);

@@ -20,7 +20,6 @@ CCoreEngine::CCoreEngine()
 	m_DriverType=DRIVER_UNKNOWN;
 	m_fDescramble=true;
 	m_CardReaderType=CCardReader::READER_SCARD;
-	m_pDtvEngineHandler=NULL;
 	m_fPacketBuffering=false;
 	m_PacketBufferLength=m_DtvEngine.m_MediaBuffer.GetBufferLength();
 	m_PacketBufferPoolPercentage=m_DtvEngine.m_MediaBuffer.GetPoolPercentage();
@@ -65,14 +64,13 @@ void CCoreEngine::Close()
 }
 
 
-bool CCoreEngine::BuildDtvEngine(CDtvEngineHandler *pDtvEngineHandler)
+bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 {
-	if (!m_DtvEngine.BuildEngine(pDtvEngineHandler,
+	if (!m_DtvEngine.BuildEngine(pEventHandler,
 				m_fDescramble?m_CardReaderType!=CCardReader::READER_NONE:false,
 				true/*m_fPacketBuffering*/)) {
 		return false;
 	}
-	m_pDtvEngineHandler=pDtvEngineHandler;
 	return true;
 }
 
@@ -177,6 +175,12 @@ bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 }
 
 
+bool CCoreEngine::CloseMediaViewer()
+{
+	return m_DtvEngine.CloseMediaViewer();
+}
+
+
 bool CCoreEngine::OpenBcasCard()
 {
 	if (m_fDescramble) {
@@ -186,6 +190,12 @@ bool CCoreEngine::OpenBcasCard()
 		}
 	}
 	return true;
+}
+
+
+bool CCoreEngine::CloseBcasCard()
+{
+	return m_DtvEngine.CloseBcasCard();
 }
 
 
@@ -245,7 +255,7 @@ bool CCoreEngine::SetCardReaderType(CCardReader::ReaderType Type)
 }
 
 
-bool CCoreEngine::IsNetworkDriverFileName(LPCTSTR pszFileName) const
+bool CCoreEngine::IsNetworkDriverFileName(LPCTSTR pszFileName)
 {
 	LPCTSTR pszName=::PathFindFileName(pszFileName);
 

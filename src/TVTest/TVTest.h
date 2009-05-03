@@ -24,13 +24,4 @@
 #endif
 
 
-#define WM_APP_SERVICEUPDATE	WM_APP
-#define WM_APP_CHANNELCHANGE	(WM_APP+1)
-#define WM_APP_IMAGESAVE		(WM_APP+2)
-#define WM_APP_TRAYICON			(WM_APP+3)
-#define WM_APP_EXECUTE			(WM_APP+4)
-#define WM_APP_QUERYPORT		(WM_APP+5)
-#define WM_APP_FILEWRITEERROR	(WM_APP+6)
-
-
 #endif

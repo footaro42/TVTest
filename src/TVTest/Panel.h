@@ -66,6 +66,7 @@ public:
 	virtual bool OnMouseWheel(WPARAM wParam,LPARAM lParam) { return false; }
 	virtual void OnVisibleChange(bool fVisible) {}
 	virtual bool OnFloatingChange(bool fFloating) { return true; }
+	virtual bool OnActivate(bool fActive) { return false; }
 };
 
 class CPanelFrame : public CBasicWindow, public CPanelEventHandler {

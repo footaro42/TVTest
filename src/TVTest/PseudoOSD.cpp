@@ -2,6 +2,12 @@
 #include "TVTest.h"
 #include "PseudoOSD.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define PSEUDO_OSD_WINDOW_CLASS APP_NAME TEXT(" Pseudo OSD")
 
@@ -28,7 +34,7 @@ bool CPseudoOSD::Initialize(HINSTANCE hinst)
 		wc.cbWndExtra=0;
 		wc.hInstance=hinst;
 		wc.hIcon=NULL;
-		wc.hCursor=::LoadCursor(NULL,IDC_ARROW);
+		wc.hCursor=NULL;
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=PSEUDO_OSD_WINDOW_CLASS;

@@ -209,12 +209,12 @@ bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
 
 bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 {
-	bool fOK;
+	bool fOK=false;
 
-	if (::lstrcmpi(::PathFindExtension(pszFileName),TEXT(".ch2"))==0) {
+	if (::PathMatchSpec(pszFileName,TEXT("*.ch2"))) {
 		// 新しい形式のチャンネル設定ファイル
 		fOK=m_TuningSpaceList.LoadFromFile(pszFileName);
-	} else {
+	} else if (::PathMatchSpec(pszFileName,TEXT("*.ch"))) {
 		// 古い形式のチャンネル設定ファイル(cap_hdus等との互換用)
 		fOK=LoadOldChannelFile(pszFileName);
 	}
@@ -495,6 +495,12 @@ const CChannelList *CChannelManager::GetFileAllChannelList() const
 const CChannelList *CChannelManager::GetDriverAllChannelList() const
 {
 	return m_DriverTuningSpaceList.GetAllChannelList();
+}
+
+
+LPCTSTR CChannelManager::GetTuningSpaceName(int Space) const
+{
+	return m_DriverTuningSpaceList.GetTuningSpaceName(Space);
 }
 
 

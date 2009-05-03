@@ -583,6 +583,16 @@ LRESULT CALLBACK CCaptureWindow::WndProc(HWND hwnd,UINT uMsg,
 		}
 		break;
 
+	case WM_ACTIVATE:
+		{
+			CCaptureWindow *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL
+					&& pThis->m_pEventHandler->OnActivate(LOWORD(wParam)!=WA_INACTIVE))
+				return 0;
+		}
+		break;
+
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case CM_SAVEIMAGE:

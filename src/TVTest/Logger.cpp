@@ -205,7 +205,7 @@ void CLogger::GetDefaultLogFileName(LPTSTR pszFileName) const
 
 CLogger *CLogger::GetThis(HWND hDlg)
 {
-	return static_cast<CLogger*>(::GetProp(hDlg,TEXT("This")));
+	return static_cast<CLogger*>(GetOptions(hDlg));
 }
 
 
@@ -214,7 +214,7 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CLogger *pThis=dynamic_cast<CLogger*>(OnInitDialog(hDlg,lParam));
+			CLogger *pThis=static_cast<CLogger*>(OnInitDialog(hDlg,lParam));
 			HWND hwndList=GetDlgItem(hDlg,IDC_LOG_LIST);
 			LV_COLUMN lvc;
 			LV_ITEM lvi;
@@ -224,7 +224,7 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=80;
-			lvc.pszText=TEXT("ŽžŠÔ");
+			lvc.pszText=TEXT("“úŽž");
 			ListView_InsertColumn(hwndList,0,&lvc);
 			lvc.pszText=TEXT("“à—e");
 			ListView_InsertColumn(hwndList,1,&lvc);

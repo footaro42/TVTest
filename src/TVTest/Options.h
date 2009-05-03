@@ -16,16 +16,12 @@ public:
 	COptions();
 	virtual ~COptions();
 	DWORD GetUpdateFlags() const { return m_UpdateFlags; }
+	DWORD SetUpdateFlag(DWORD Flag);
+	virtual bool Apply(DWORD Flags) { return true; }
 	virtual bool Read(CSettings *pSettings) { return true; }
 	virtual bool Write(CSettings *pSettings) const { return true; }
 	virtual bool Load(LPCTSTR pszFileName) { return false; }
 	virtual bool Save(LPCTSTR pszFileName) const { return false; }
-	enum {
-		UPDATE_DRIVER			= 0x00000001UL,
-		UPDATE_CHANNELLIST		= 0x00000002UL,
-		UPDATE_NETWORKREMOCON	= 0x00000004UL,
-		UPDATE_PREVIEW			= 0x00000008UL
-	};
 };
 
 

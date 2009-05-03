@@ -73,6 +73,7 @@
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;"
 				IgnoreAllDefaultLibraries="false"
 				IgnoreDefaultLibraryNames=""
+				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"
@@ -164,6 +165,7 @@
 				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;"
+				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -258,6 +260,7 @@
 				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;"
+				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -300,6 +303,10 @@
 			>
 			<File
 				RelativePath=".\Accelerator.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\Aero.cpp"
 				>
 			</File>
 			<File
@@ -391,11 +398,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\GeneralOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Grabber.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\Help.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\IconMenu.cpp"
 				>
 			</File>
 			<File
@@ -432,6 +447,10 @@
 			</File>
 			<File
 				RelativePath=".\NotificationBar.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\OperationOptions.cpp"
 				>
 			</File>
 			<File
@@ -554,6 +573,10 @@
 				RelativePath=".\ViewOptions.cpp"
 				>
 			</File>
+			<File
+				RelativePath=".\WindowUtil.cpp"
+				>
+			</File>
 		</Filter>
 		<Filter
 			Name="ヘッダー ファイル"
@@ -562,6 +585,10 @@
 			>
 			<File
 				RelativePath=".\Accelerator.h"
+				>
+			</File>
+			<File
+				RelativePath=".\Aero.h"
 				>
 			</File>
 			<File
@@ -657,6 +684,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\GeneralOptions.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Grabber.h"
 				>
 			</File>
@@ -666,6 +697,10 @@
 			</File>
 			<File
 				RelativePath=".\Help\HelpID.h"
+				>
+			</File>
+			<File
+				RelativePath=".\IconMenu.h"
 				>
 			</File>
 			<File
@@ -706,6 +741,10 @@
 			</File>
 			<File
 				RelativePath=".\NotificationBar.h"
+				>
+			</File>
+			<File
+				RelativePath=".\OperationOptions.h"
 				>
 			</File>
 			<File
@@ -814,6 +853,10 @@
 			</File>
 			<File
 				RelativePath=".\ViewOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\WindowUtil.h"
 				>
 			</File>
 		</Filter>

@@ -139,6 +139,23 @@ CChannelScan::~CChannelScan()
 }
 
 
+bool CChannelScan::Apply(DWORD Flags)
+{
+	CAppMain &AppMain=GetAppClass();
+
+	if ((Flags&UPDATE_CHANNELLIST)!=0) {
+		AppMain.UpdateChannelList(&m_TuningSpaceList);
+	}
+
+	if ((Flags&UPDATE_PREVIEW)!=0) {
+		if (m_fRestorePreview)
+			AppMain.GetMainWindow()->EnablePreview(true);
+	}
+
+	return true;
+}
+
+
 bool CChannelScan::Read(CSettings *pSettings)
 {
 	pSettings->Read(TEXT("ChannelScanIgnoreSignalLevel"),&m_fIgnoreSignalLevel);
@@ -255,6 +272,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 							pThis->m_fIgnoreSignalLevel?BST_CHECKED:BST_UNCHECKED);
 			pThis->m_fUpdated=false;
 			pThis->m_fScaned=false;
+			pThis->m_fRestorePreview=false;
 			pThis->m_SortColumn=-1;
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
@@ -375,7 +393,10 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				if (Space>=0) {
 					CChannelScan *pThis=GetThis(hDlg);
 
-					pThis->m_pCoreEngine->m_DtvEngine.EnablePreview(false);
+					if (GetAppClass().GetMainWindow()->IsPreview()) {
+						GetAppClass().GetMainWindow()->EnablePreview(false);
+						pThis->m_fRestorePreview=true;
+					}
 					pThis->m_ScanSpace=Space;
 					pThis->m_ScanChannel=0;
 					pThis->m_fScanService=
@@ -570,10 +591,10 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						FilePath.SetDirectory(szAppDir);
 					FilePath.SetExtension(TEXT(".ch2"));
 					pThis->m_TuningSpaceList.SaveToFile(FilePath.GetPath());
-					pThis->m_UpdateFlags|=UPDATE_CHANNELLIST;
+					pThis->SetUpdateFlag(UPDATE_CHANNELLIST);
 				}
-				if (pThis->m_fScaned)
-					pThis->m_UpdateFlags|=UPDATE_PREVIEW;
+				if (pThis->m_fRestorePreview)
+					pThis->SetUpdateFlag(UPDATE_PREVIEW);
 				pThis->m_fIgnoreSignalLevel=
 					::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
 			}
@@ -583,8 +604,9 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			{
 				CChannelScan *pThis=GetThis(hDlg);
 
-				if (pThis->m_fScaned)
-					pThis->m_UpdateFlags|=UPDATE_PREVIEW;
+				if (pThis->m_fRestorePreview)
+					//pThis->SetUpdateFlag(UPDATE_PREVIEW);
+					GetAppClass().GetMainWindow()->EnablePreview(true);
 			}
 			return TRUE;
 		}

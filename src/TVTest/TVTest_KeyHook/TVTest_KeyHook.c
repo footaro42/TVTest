@@ -139,6 +139,15 @@ __declspec(dllexport) BOOL WINAPI EndHook(void)
 }
 
 
+__declspec(dllexport) BOOL WINAPI SetWindow(HWND hwnd)
+{
+	if (hHook==NULL)
+		return FALSE;
+	hwndTarget=hwnd;
+	return TRUE;
+}
+
+
 #ifdef _DEBUG
 
 const TCHAR stack_level_unmatch[] = TEXT("Stack level doesn't match!\n");

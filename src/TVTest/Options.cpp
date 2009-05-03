@@ -40,3 +40,10 @@ void COptions::OnDestroy()
 		m_hDlg=NULL;
 	}
 }
+
+
+DWORD COptions::SetUpdateFlag(DWORD Flag)
+{
+	m_UpdateFlags|=Flag;
+	return m_UpdateFlags;
+}

@@ -4,6 +4,17 @@
 
 #include "View.h"
 #include "ChannelManager.h"
+#include "StatusView.h"
+
+
+#define WM_APP_SERVICEUPDATE	WM_APP
+#define WM_APP_CHANNELCHANGE	(WM_APP+1)
+#define WM_APP_IMAGESAVE		(WM_APP+2)
+#define WM_APP_TRAYICON			(WM_APP+3)
+#define WM_APP_EXECUTE			(WM_APP+4)
+#define WM_APP_QUERYPORT		(WM_APP+5)
+#define WM_APP_FILEWRITEERROR	(WM_APP+6)
+#define WM_APP_VIDEOSIZECHANGED	(WM_APP+7)
 
 
 class CFullscreen : public CBasicWindow {
@@ -18,6 +29,7 @@ class CFullscreen : public CBasicWindow {
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	static CFullscreen *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	CFullscreen();
 	~CFullscreen();
@@ -28,6 +40,12 @@ public:
 };
 
 class CMainWindow : public CBasicWindow {
+	static const BYTE VolumeNormalizeLevelList[];
+	struct ZoomRateInfo {
+		WORD Num,Denom;
+	};
+	static const ZoomRateInfo ZoomRateList[];
+
 	CVideoContainerWindow m_VideoContainer;
 	CViewWindow m_ViewWindow;
 	bool m_fFullscreen;
@@ -36,12 +54,12 @@ class CMainWindow : public CBasicWindow {
 	bool m_fAlwaysOnTop;
 	bool m_fShowStatusBar;
 	bool m_fShowTitleBar;
-	bool m_fEnablePreview;
 	bool m_fStandby;
 	bool m_fStandbyInit;
 	bool m_fMinimizeInit;
 	bool m_fSrcFilterReleased;
 	CChannelSpec m_RestoreChannelSpec;
+	bool m_fRestorePreview;
 	bool m_fRestoreFullscreen;
 	bool m_fProgramGuideUpdating;
 	int m_ProgramGuideUpdateStartChannel;
@@ -50,6 +68,25 @@ class CMainWindow : public CBasicWindow {
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
 	bool m_fClosing;
+	bool m_fWheelChannelChanging;
+	BOOL m_fScreenSaverActive;
+	BOOL m_fLowPowerActiveOriginal;
+	BOOL m_fPowerOffActiveOriginal;
+	int m_AspectRatioType;
+	int m_VideoSizeChangedTimerCount;
+
+	class CPreviewManager {
+		bool m_fPreview;
+		CVideoContainerWindow *m_pVideoContainer;
+	public:
+		CPreviewManager(CVideoContainerWindow *pVideoContainer);
+		bool EnablePreview(bool fEnable);
+		bool IsPreviewEnabled() const { return m_fPreview; }
+		bool BuildMediaViewer();
+		bool CloseMediaViewer();
+	};
+	CPreviewManager m_PreviewManager;
+
 	bool OnCreate();
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
 	void OnTimer(HWND hwnd,UINT id);
@@ -57,12 +94,16 @@ class CMainWindow : public CBasicWindow {
 	bool OnExecute(LPCTSTR pszCmdLine);
 	void CheckZoomMenu();
 	void ShowChannelOSD();
-	bool SetPreview(bool fPreview);
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);
-	void CloseTuner();
+	bool OpenTuner();
+	void SetTuningSpaceMenu();
+	void SetChannelMenu();
+	void SetNetworkRemoconChannelMenu(HMENU hmenu);
+	bool ProcessTunerSelectMenu(int Command);
 	static CMainWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	enum {
 		TIMER_ID_UPDATE=1,
@@ -72,12 +113,14 @@ public:
 		TIMER_ID_WHEELCHANNELCHANGE_DONE,
 		TIMER_ID_PROGRAMLISTUPDATE,
 		TIMER_ID_PROGRAMGUIDEUPDATE,
-		TIMER_ID_CHANNELPANELUPDATE
+		TIMER_ID_CHANNELPANELUPDATE,
+		TIMER_ID_VIDEOSIZECHANGED
 	};
 	CMainWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool Show(int CmdShow);
 	bool BuildMediaViewer();
+	bool CloseMediaViewer();
 	bool SetFullscreen(bool fFullscreen);
 	bool GetFullscreen() const { return m_fFullscreen; }
 	HWND GetVideoHostWindow() const;
@@ -93,13 +136,14 @@ public:
 	bool GetTitleBarVisible() const { return m_fShowTitleBar; }
 	void SetTitleText();
 	bool EnablePreview(bool fEnable);
-	bool IsPreview() const { return m_fEnablePreview; }
+	bool IsPreview() const;
+	bool SetResident(bool fResident);
+	bool GetResident() const;
 	bool SetStandby(bool fStandby);
 	bool GetStandby() const { return m_fStandby; }
 	bool InitStandby();
 	bool InitMinimize();
 	bool IsMinimizeToTray() const;
-	bool OpenTuner();
 	bool ConfirmExit();
 	int GetVolume() const;
 	bool SetVolume(int Volume,bool fOSD=true);
@@ -113,10 +157,17 @@ public:
 	bool SetZoomRate(int ZoomNum,int ZoomDenom=100);
 	void SetMaximizeStatus(bool fMaximize) { m_fMaximize=fMaximize; }
 	bool GetMaximizeStatus() const { return m_fMaximize; }
-	void OnChannelChange();
-	void OnDriverChange();
+	void OnChannelListUpdated();
+	void OnChannelChanged();
+	void OnDriverChanged();
+	void OnTunerOpened();
+	void OnTunerClosed();
+	void OnServiceChanged();
+	void OnRecordingStart();
+	void OnRecordingStop();
 	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fStatus);
 	void PopupMenu(const POINT *pPos=NULL);
+	HMENU CreateTunerSelectMenu();
 	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
 	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
@@ -130,6 +181,10 @@ public:
 	bool SetRecordingStopOnEventEnd(bool fEnable);
 	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
 	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
+	void SetDisplayStatus();
+	void ResetDisplayStatus();
+	bool IsWheelChannelChanging() const { return m_fWheelChannelChanging; }
+	CStatusView *GetStatusView() const;
 	static bool Initialize();
 };
 

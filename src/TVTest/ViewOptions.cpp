@@ -13,17 +13,21 @@ CViewOptions::CViewOptions()
 	m_fAdjustAspectResizing=false;
 	m_fSnapAtWindowEdge=false;
 	m_SnapAtWindowEdgeMargin=8;
-	m_fPanScanNoResizeWindow=false;
+	m_fPanScanNoResizeWindow=true;
 	m_FullscreenStretchMode=CMediaViewer::STRETCH_KEEPASPECTRATIO;
 	m_MaximizeStretchMode=CMediaViewer::STRETCH_KEEPASPECTRATIO;
 	m_fClientEdge=true;
 	m_fMinimizeToTray=false;
 	m_fDisablePreviewWhenMinimized=false;
 	m_fNotifyEventName=true;
-	m_fResetPanScanEventChange=false;
+	m_fResetPanScanEventChange=true;
+	m_fRestorePlayStatus=false;
+	m_fIgnoreDisplayExtension=false;
+	m_fNoScreenSaver=false;
+	m_fNoMonitorLowPower=false;
+	m_fNoMonitorLowPowerActiveOnly=false;
 	m_fShowLogo=true;
 	::lstrcpy(m_szLogoFileName,TEXT("TVTest_Logo.bmp"));
-	m_fIgnoreDisplayExtension=false;
 }
 
 
@@ -46,9 +50,12 @@ bool CViewOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("NotifyEventName"),&m_fNotifyEventName);
 	pSettings->Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
 	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
+	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
+	pSettings->Read(TEXT("NoScreenSaver"),&m_fNoScreenSaver);
+	pSettings->Read(TEXT("NoMonitorLowPower"),&m_fNoMonitorLowPower);
+	pSettings->Read(TEXT("NoMonitorLowPowerActiveOnly"),&m_fNoMonitorLowPowerActiveOnly);
 	pSettings->Read(TEXT("ShowLogo"),&m_fShowLogo);
 	pSettings->Read(TEXT("LogoFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
-	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
 	return true;
 }
 
@@ -66,9 +73,12 @@ bool CViewOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("NotifyEventName"),m_fNotifyEventName);
 	pSettings->Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
 	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
+	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
+	pSettings->Write(TEXT("NoScreenSaver"),m_fNoScreenSaver);
+	pSettings->Write(TEXT("NoMonitorLowPower"),m_fNoMonitorLowPower);
+	pSettings->Write(TEXT("NoMonitorLowPowerActiveOnly"),m_fNoMonitorLowPowerActiveOnly);
 	pSettings->Write(TEXT("ShowLogo"),m_fShowLogo);
 	pSettings->Write(TEXT("LogoFileName"),m_szLogoFileName);
-	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
 	return true;
 }
 
@@ -104,18 +114,28 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE,
 							  pThis->m_fResetPanScanEventChange);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,pThis->m_fRestorePlayStatus);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE,
+							  pThis->m_fIgnoreDisplayExtension);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOSCREENSAVER,pThis->m_fNoScreenSaver);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER,pThis->m_fNoMonitorLowPower);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,
+							  pThis->m_fNoMonitorLowPowerActiveOnly);
+			EnableDlgItem(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,pThis->m_fNoMonitorLowPower);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SHOWLOGO,pThis->m_fShowLogo);
 			::SetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,pThis->m_szLogoFileName);
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LOGOFILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
 			::EnableDlgItems(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
 							 pThis->m_fShowLogo);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE,
-							  pThis->m_fIgnoreDisplayExtension);
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case IDC_OPTIONS_NOMONITORLOWPOWER:
+			EnableDlgItem(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,
+				DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER));
+			return TRUE;
+
 		case IDC_OPTIONS_SHOWLOGO:
 			::EnableDlgItems(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
 				DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO));
@@ -190,10 +210,20 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				pThis->m_fResetPanScanEventChange=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE);
 				pThis->m_fRestorePlayStatus=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
+				pThis->m_fIgnoreDisplayExtension=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
+				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(pThis->m_fIgnoreDisplayExtension);
+				pThis->m_fNoScreenSaver=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOSCREENSAVER);
+				pThis->m_fNoMonitorLowPower=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER);
+				pThis->m_fNoMonitorLowPowerActiveOnly=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY);
+				AppMain.GetMainWindow()->SetDisplayStatus();
 				{
 					bool fLogo=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO);
 					TCHAR szFileName[MAX_PATH];
-	
+
 					::GetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,szFileName,MAX_PATH);
 					if (fLogo!=pThis->m_fShowLogo || ::lstrcmp(szFileName,pThis->m_szLogoFileName)!=0) {
 						AppMain.GetMainWindow()->SetLogo(fLogo?szFileName:NULL);
@@ -201,9 +231,6 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						::lstrcpy(pThis->m_szLogoFileName,szFileName);
 					}
 				}
-				pThis->m_fIgnoreDisplayExtension=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
-				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(pThis->m_fIgnoreDisplayExtension);
 			}
 			break;
 		}

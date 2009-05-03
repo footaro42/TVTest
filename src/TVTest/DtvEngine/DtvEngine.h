@@ -26,26 +26,29 @@
 // デジタルTVエンジンクラス
 //////////////////////////////////////////////////////////////////////
 
-class CDtvEngineHandler;
-
 class CDtvEngine : protected CMediaDecoder::IEventHandler, public CBonBaseClass
 {
 public:
-	enum EVENTID
-	{
-		EID_SERVICE_LIST_UPDATED,	// サービスリスト更新
-		EID_SERVICE_INFO_UPDATED,	// サービス情報更新
-		EID_PCR_TIMESTAMP_UPDATED,	// PCRタイムスタンプ更新(かなり頻繁)
-		EID_FILE_WRITE_ERROR
+	class CEventHandler {
+		friend CDtvEngine;
+	public:
+		virtual ~CEventHandler() {}
+	protected:
+		CDtvEngine *m_pDtvEngine;
+		virtual void OnServiceListUpdated(CProgManager *pProgManager) {}
+		virtual void OnServiceInfoUpdated(CProgManager *pProgManager) {}
+		//virtual void OnPcrTimeStampUpdated(CProgManager *pProgManager) {}
+		virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
+		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
 	};
 
 	CDtvEngine(void);
 	~CDtvEngine(void);
 
-	const bool BuildEngine(CDtvEngineHandler *pDtvEngineHandler,
+	const bool BuildEngine(CEventHandler *pEventHandler,
 						   bool bDescramble = true, bool bBuffering = false);
 	const bool IsEngineBuild() const { return m_bBuiled; };
-	const bool IsBuildComplete() const { return m_bBuildComplete; }
+	const bool IsBuildComplete() const;
 	const bool CloseEngine(void);
 	const bool ResetEngine(void);
 
@@ -67,6 +70,7 @@ public:
 	const bool SetStereoMode(int iMode);
 	const WORD GetEventID();
 	const int GetEventName(LPTSTR pszName, int MaxLength, bool fNext = false);
+	const int GetEventText(LPTSTR pszText, int MaxLength, bool fNext = false);
 	const bool GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime, bool bNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
@@ -89,7 +93,9 @@ public:
 	bool RebuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
+	bool CloseMediaViewer();
 	bool OpenBcasCard(CCardReader::ReaderType CardReaderType);
+	bool CloseBcasCard();
 	bool SetDescramble(bool bDescramble);
 	bool ResetBuffer();
 	bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight);
@@ -119,12 +125,10 @@ public:
 	CTsSelector m_TsSelector;
 
 protected:
-	const DWORD SendDtvEngineEvent(const DWORD dwEventID, PVOID pParam = NULL);
 	virtual const DWORD OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam);
-	bool CheckBuildComplete() const;
 
 	CCriticalLock m_EngineLock;
-	CDtvEngineHandler *m_pDtvEngineHandler;
+	CEventHandler *m_pEventHandler;
 	WORD m_wCurTransportStream;
 	WORD m_wCurService;
 	WORD m_CurServiceID;
@@ -133,7 +137,6 @@ protected:
 	unsigned __int64 m_u64CurPcrTimeStamp;
 
 	bool m_bBuiled;
-	bool m_bBuildComplete;
 	bool m_bIsFileMode;
 	bool m_bDescramble;
 	bool m_bBuffering;
@@ -143,18 +146,4 @@ protected:
 	DWORD m_WriteStream;
 
 	void ResetStatus();
-};
-
-
-//////////////////////////////////////////////////////////////////////
-// デジタルTVイベントハンドラインタフェース
-//////////////////////////////////////////////////////////////////////
-
-// これは純粋仮想関数とすべき
-class CDtvEngineHandler
-{
-friend CDtvEngine;
-
-protected:
-	virtual const DWORD OnDtvEngineEvent(CDtvEngine *pEngine, const DWORD dwEventID, PVOID pParam);
 };

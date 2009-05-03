@@ -3,6 +3,12 @@
 #include "TVTest.h"
 #include "DialogUtil.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -113,6 +119,13 @@ void SetComboBoxList(HWND hDlg,int ID,LPCTSTR pszList)
 
 	for (p=pszList;*p!='\0';p+=lstrlen(p)+1)
 		SendDlgItemMessage(hDlg,ID,CB_ADDSTRING,0,(LPARAM)p);
+}
+
+
+void SetComboBoxList(HWND hDlg,int ID,const LPCTSTR *ppszList,int Length)
+{
+	for (int i=0;i<Length;i++)
+		SendDlgItemMessage(hDlg,ID,CB_ADDSTRING,0,reinterpret_cast<LPARAM>(ppszList[i]));
 }
 
 

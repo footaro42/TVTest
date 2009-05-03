@@ -881,6 +881,7 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 		pThis->m_VideoInfo = *pVideoInfo;
 		pThis->ResizeVideoWindow();
 	//}
+	pThis->SendDecoderEvent(EID_VIDEO_SIZE_CHANGED);
 }
 
 const bool CMediaViewer::ResizeVideoWindow()

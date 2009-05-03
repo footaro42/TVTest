@@ -6,3 +6,4 @@ SECTIONS
 EXPORTS
 	BeginHook=_BeginHook@8
 	EndHook=_EndHook@0
+	SetWindow=_SetWindow@4

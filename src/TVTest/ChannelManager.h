@@ -54,6 +54,7 @@ public:
 	const CChannelList *GetDriverAllChannelList() const;
 	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
 	const CTuningSpaceList *GetDriverTuningSpaceList() const { return &m_DriverTuningSpaceList; }
+	LPCTSTR GetTuningSpaceName(int Space) const;
 	int FindChannelInfo(const CChannelInfo *pInfo) const;
 	int NumSpaces() const;
 	bool SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList=NULL);

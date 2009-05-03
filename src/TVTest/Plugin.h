@@ -108,6 +108,7 @@ public:
 	bool SendStereoModeChangeEvent(int StereoMode);
 	bool SendColorChangeEvent();
 	bool SendStandbyEvent(bool fStandby);
+	bool SendExecuteEvent(LPCTSTR pszCommandLine);
 };
 
 class CPluginOptions : public COptions {

@@ -29,6 +29,7 @@ class CMediaViewer : public CMediaDecoder
 {
 public:
 	enum EVENTID {
+		EID_VIDEO_SIZE_CHANGED,
 		EID_FILTER_GRAPH_FLUSH
 	};
 	enum {

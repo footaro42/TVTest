@@ -360,7 +360,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		{
 			CAppMain &AppMain=GetAppClass();
 
-			AppMain.GetMainWindow()->OpenTuner();
+			AppMain.OpenTuner();
 			return AppMain.SetChannel((int)lParam1,(int)lParam2);
 		}
 
@@ -539,14 +539,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		}
 
 	case TVTest::MESSAGE_STOPRECORD:
-		{
-			CAppMain &App=GetAppClass();
-
-			if (!App.GetRecordManager()->IsRecording())
-				return FALSE;
-			App.GetMainWindow()->SendCommand(CM_RECORD_STOP);
-		}
-		return TRUE;
+		return GetAppClass().StopRecord();
 
 	case TVTest::MESSAGE_PAUSERECORD:
 		{
@@ -1027,6 +1020,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::EVENT_STEREOMODECHANGE:
 		case TVTest::EVENT_COLORCHANGE:
 		case TVTest::EVENT_STANDBY:
+		case TVTest::EVENT_EXECUTE:
 			return TRUE;
 		}
 		return FALSE;
@@ -1407,6 +1401,12 @@ bool CPluginList::SendColorChangeEvent()
 bool CPluginList::SendStandbyEvent(bool fStandby)
 {
 	return SendEvent(TVTest::EVENT_STANDBY,fStandby);
+}
+
+
+bool CPluginList::SendExecuteEvent(LPCTSTR pszCommandLine)
+{
+	return SendEvent(TVTest::EVENT_EXECUTE,reinterpret_cast<LPARAM>(pszCommandLine));
 }
 
 

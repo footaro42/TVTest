@@ -93,7 +93,7 @@ bool CChannelHistory::SetMenu(HMENU hmenu) const
 
 		if (pChannelInfo==NULL)
 			break;
-		Length=::wsprintf(szText,TEXT("&%c: "),i<10?i+'0':i+'A');
+		Length=::wsprintf(szText,TEXT("&%c: "),i<10?i+'0':(i-10)+'A');
 		CopyToMenuText(pChannelInfo->GetName(),
 					   szText+Length,lengthof(szText)-Length);
 		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_CHANNELHISTORY_FIRST+i,szText);
