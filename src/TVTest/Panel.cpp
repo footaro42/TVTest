@@ -98,7 +98,7 @@ void CPanel::ShowTitle(bool fShow)
 }
 
 
-void CPanel::SetEventHandler(CPanelEventHandler *pHandler)
+void CPanel::SetEventHandler(CEventHandler *pHandler)
 {
 	m_pEventHandler=pHandler;
 }
@@ -125,6 +125,8 @@ void CPanel::OnSize(int Width,int Height)
 			y=0;
 		m_pWindow->SetPosition(0,y,Width,Height-y);
 	}
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->OnSizeChanged(Width,Height);
 }
 
 
@@ -705,6 +707,13 @@ bool CPanelFrame::OnEnterSizeMove()
 bool CPanelFrame::OnKeyDown(UINT KeyCode,UINT Flags)
 {
 	return m_pEventHandler!=NULL && m_pEventHandler->OnKeyDown(KeyCode,Flags);
+}
+
+
+void CPanelFrame::OnSizeChanged(int Width,int Height)
+{
+	if (!m_fFloating)
+		m_DockingWidth=Width;
 }
 
 

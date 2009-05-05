@@ -388,6 +388,10 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			{
 				CGeneralOptions *pThis=GetThis(hDlg);
 
+				pThis->m_DefaultDriverType=(DefaultDriverType)
+					(GetCheckedRadioButton(hDlg,IDC_OPTIONS_DEFAULTDRIVER_NONE,
+										   IDC_OPTIONS_DEFAULTDRIVER_CUSTOM)-
+					IDC_OPTIONS_DEFAULTDRIVER_NONE);
 				::GetDlgItemText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,
 								 pThis->m_szDefaultDriverName,lengthof(pThis->m_szDefaultDriverName));
 

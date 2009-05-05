@@ -6419,19 +6419,18 @@ bool CMainWindow::ProcessTunerSelectMenu(int Command)
 	if (Command<CM_SPACE_CHANNEL_FIRST || Command>CM_SPACE_CHANNEL_LAST)
 		return false;
 
-	const CTuningSpaceList *pTuningSpaceList=ChannelManager.GetDriverTuningSpaceList();
 	const CChannelList *pChannelList;
 	int CommandBase;
 	int i,j;
 
 	CommandBase=CM_SPACE_CHANNEL_FIRST;
-	pChannelList=pTuningSpaceList->GetAllChannelList();
+	pChannelList=ChannelManager.GetAllChannelList();
 	if (pChannelList->NumChannels()>0) {
 		if (Command-CommandBase<pChannelList->NumChannels())
 			return AppMain.SetChannel(-1,Command-CommandBase);
 		CommandBase+=pChannelList->NumChannels();
 	}
-	for (int i=0;i<pTuningSpaceList->NumSpaces();i++) {
+	for (int i=0;i<ChannelManager.NumSpaces();i++) {
 		pChannelList=ChannelManager.GetChannelList(i);
 		if (Command-CommandBase<pChannelList->NumChannels())
 			return AppMain.SetChannel(i,Command-CommandBase);
@@ -6443,7 +6442,7 @@ bool CMainWindow::ProcessTunerSelectMenu(int Command)
 		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0)
 			continue;
 		if (pDriverInfo->IsTuningSpaceListLoaded()) {
-			pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
+			const CTuningSpaceList *pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
 			for (j=0;j<pTuningSpaceList->NumSpaces();j++) {
 				pChannelList=pTuningSpaceList->GetChannelList(j);
 				if (Command-CommandBase<pChannelList->NumChannels()) {

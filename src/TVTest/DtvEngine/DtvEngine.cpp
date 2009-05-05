@@ -479,9 +479,7 @@ const bool CDtvEngine::SetService(const WORD wService)
 	// サービス変更(wService==0xFFFFならPAT先頭サービス)
 
 	if (wService == 0xFFFF || wService < m_ProgManager.GetServiceNum()) {
-		WORD wServiceID = 0xFFFF;
-		WORD wVideoPID = CMediaViewer::PID_INVALID;
-		WORD wAudioPID = CMediaViewer::PID_INVALID;
+		WORD wServiceID;
 
 		if (wService == 0xFFFF) {
 			m_wCurService = 0;
@@ -493,6 +491,9 @@ const bool CDtvEngine::SetService(const WORD wService)
 			return false;
 
 		m_CurServiceID = wServiceID;
+
+		WORD wVideoPID = CMediaViewer::PID_INVALID;
+		WORD wAudioPID = CMediaViewer::PID_INVALID;
 
 		m_ProgManager.GetVideoEsPID(&wVideoPID, m_wCurService);
 		if (!m_ProgManager.GetAudioEsPID(&wAudioPID, m_CurAudioStream, m_wCurService)
@@ -565,7 +566,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 			m_CurAudioStream = 0;
 			if (m_wCurTransportStream != wTransportStream) {
 				// ストリームIDが変わっているなら初期化
-				TRACE(TEXT("■Stream Change!! %04X\n"),wTransportStream);
+				TRACE(TEXT("■Stream Change!! %04X\n"), wTransportStream);
 				// この時点でまだサービスが全部きてないこともあるので、いったん保留
 				WORD Service;
 				if (m_SpecServiceID != SID_INVALID)
@@ -809,5 +810,6 @@ void CDtvEngine::SetTracer(CTracer *pTracer)
 void CDtvEngine::ResetStatus()
 {
 	m_wCurTransportStream = 0;
+	m_wCurService = 0xFFFF;
 	m_CurServiceID = SID_INVALID;
 }
