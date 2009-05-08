@@ -40,7 +40,7 @@ public:
 	CProgManager(IEventHandler *pEventHandler = NULL);
 	virtual ~CProgManager();
 
-// IMediaDecoder
+// CMediaDecoder
 	virtual void Reset(void);
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 

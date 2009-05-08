@@ -14,7 +14,7 @@
 #include "MediaViewer.h"
 #include "MediaTee.h"
 #include "FileWriter.h"
-#include "FileReader.h"
+//#include "FileReader.h"
 #include "MediaBuffer.h"
 #include "MediaGrabber.h"
 #include "TsSelector.h"
@@ -29,13 +29,18 @@
 class CDtvEngine : protected CMediaDecoder::IEventHandler, public CBonBaseClass
 {
 public:
+	enum {
+		SID_INVALID		= 0xFFFF,
+		SERVICE_INVALID	= 0xFFFF
+	};
+
 	class CEventHandler {
 		friend CDtvEngine;
 	public:
 		virtual ~CEventHandler() {}
 	protected:
 		CDtvEngine *m_pDtvEngine;
-		virtual void OnServiceListUpdated(CProgManager *pProgManager) {}
+		virtual void OnServiceListUpdated(CProgManager *pProgManager, bool bStreamChanged) {}
 		virtual void OnServiceInfoUpdated(CProgManager *pProgManager) {}
 		//virtual void OnPcrTimeStampUpdated(CProgManager *pProgManager) {}
 		virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
@@ -53,7 +58,9 @@ public:
 	const bool ResetEngine(void);
 
 	const bool OpenSrcFilter_BonDriver(HMODULE hBonDriverDll);
-	const bool OpenSrcFilter_File(LPCTSTR lpszFileName);
+	//const bool OpenSrcFilter_File(LPCTSTR lpszFileName);
+	//const bool PlayFile(LPCTSTR lpszFileName);
+	//void StopFile(void);
 	const bool ReleaseSrcFilter();
 	const bool IsSrcFilterOpen() const;
 
@@ -75,17 +82,12 @@ public:
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 
-	const bool SetChannel(const BYTE byTuningSpace, const WORD wChannel);
+	const bool SetChannel(const BYTE byTuningSpace, const WORD wChannel, const WORD ServiceID = SID_INVALID);
 	const bool SetService(const WORD wService);
 	const WORD GetService(void) const;
 	const bool GetServiceID(WORD *pServiceID);
-	const bool SetServiceByID(const WORD ServiceID);
-	const unsigned __int64 GetPcrTimeStamp() const;
-
-	/*
-	const bool PlayFile(LPCTSTR lpszFileName);
-	void StopFile(void);
-	*/
+	const bool SetServiceByID(const WORD ServiceID, const bool bReserve = true);
+	const unsigned __int64 GetPcrTimeStamp();
 
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
@@ -119,7 +121,7 @@ public:
 	CMediaViewer m_MediaViewer;				// メディアビューアー
 	CMediaTee m_MediaTee;					// メディアティー
 	CFileWriter m_FileWriter;				// ファイルライター
-	CFileReader m_FileReader;				// ファイルリーダー
+	//CFileReader m_FileReader;				// ファイルリーダー
 	CMediaBuffer m_MediaBuffer;
 	CMediaGrabber m_MediaGrabber;
 	CTsSelector m_TsSelector;

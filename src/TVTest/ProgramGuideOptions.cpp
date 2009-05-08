@@ -107,16 +107,14 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 bool CProgramGuideOptions::GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast)
 {
 	SYSTEMTIME st;
-	FILETIME ft;
 
 	::GetLocalTime(&st);
 	st.wMinute=0;
 	st.wSecond=0;
 	st.wMilliseconds=0;
 	*pstFirst=st;
-	::SystemTimeToFileTime(&st,&ft);
-	ft+=(LONGLONG)m_ViewHours*60*60*FILETIME_SECOND;
-	::FileTimeToSystemTime(&ft,pstLast);
+	OffsetSystemTime(&st,(LONGLONG)m_ViewHours*(60*60*1000));
+	*pstLast=st;
 	return true;
 }
 

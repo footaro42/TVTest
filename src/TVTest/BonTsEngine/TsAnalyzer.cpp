@@ -72,8 +72,10 @@ void CTsAnalyzer::Reset()
 	m_PidMapManager.MapTarget(0x0010, new CNitTable, OnNitUpdated, this);
 	::ZeroMemory(&m_NitInfo, sizeof(m_NitInfo));
 
+#ifdef TS_ANALYZER_EIT_SUPPORT
 	// EITテーブルPIDマップ追加
-	//m_PidMapManager.MapTarget(0x0012, new CHEitTable, NULL, this);
+	m_PidMapManager.MapTarget(0x0012, new CHEitTable, NULL, this);
+#endif
 }
 
 
@@ -119,6 +121,17 @@ int CTsAnalyzer::GetServiceIndexByID(const WORD ServiceID)
 
 	// プログラムIDが見つからない
 	return -1;
+}
+
+
+bool CTsAnalyzer::IsServiceUpdated(const WORD Index)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)Index < m_ServiceList.size()) {
+		return m_ServiceList[Index].bIsUpdated;
+	}
+	return false;
 }
 
 
@@ -194,14 +207,14 @@ BYTE CTsAnalyzer::GetAudioComponentTag(const WORD Index, const WORD AudioIndex)
 }
 
 
-/*
+#ifdef TS_ANALYZER_EIT_SUPPORT
 BYTE CTsAnalyzer::GetAudioComponentType(const WORD Index, const WORD AudioIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
 	if ((size_t)Index < m_ServiceList.size()
 			&& (size_t)AudioIndex < m_ServiceList[Index].AudioEsList.size()) {
-		const CDescBlock *pDescBlock=GetHEitItemDesc(wIndex);
+		const CDescBlock *pDescBlock = GetHEitItemDesc(wIndex);
 
 		if (pDescBlock) {
 			for (WORD i = 0 ; i < pDescBlock->GetDescNum() ; i++) {
@@ -218,7 +231,7 @@ BYTE CTsAnalyzer::GetAudioComponentType(const WORD Index, const WORD AudioIndex)
 	}
 	return 0;
 }
-*/
+#endif
 
 
 WORD CTsAnalyzer::GetSubtitleEsNum(const WORD Index)
@@ -364,6 +377,119 @@ int CTsAnalyzer::GetTsName(LPTSTR pszName,int MaxLength)
 }
 
 
+#ifdef TS_ANALYZER_EIT_SUPPORT
+
+
+WORD CTsAnalyzer::GetEventID(const WORD ServiceIndex, const bool fNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+
+			if (Index>=0)
+				return pEitTable->GetEventID(Index,fNext?1:0);
+		}
+	}
+	return 0;
+}
+
+
+bool CTsAnalyzer::GetEventStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool bNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (pSystemTime == NULL)
+		return false;
+	if ((size_t)ServiceIndex < m_ServiceList.size() && pSystemTime) {
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+
+			if (Index >= 0) {
+				const SYSTEMTIME *pStartTime = pEitTable->GetStartTime(Index, bNext ? 1 : 0);
+				if (pStartTime) {
+					*pSystemTime = *pStartTime;
+					return true;
+				}
+			}
+		}
+	}
+	return false;
+}
+
+
+DWORD CTsAnalyzer::GetEventDuration(const WORD ServiceIndex, const bool bNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+
+			if (Index >= 0)
+				return pEitTable->GetDuration(Index, bNext ? 1 : 0);
+		}
+	}
+	return 0;
+}
+
+
+int CTsAnalyzer::GetEventName(const WORD ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock) {
+		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
+
+		if (pShortEvent)
+			return pShortEvent->GetEventName(pszName, MaxLength);
+	}
+	return 0;
+}
+
+
+int CTsAnalyzer::GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock) {
+		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
+
+		if (pShortEvent)
+			return pShortEvent->GetEventDesc(pszText, MaxLength);
+	}
+	return 0;
+}
+
+
+CDescBlock *CTsAnalyzer::GetHEitItemDesc(const WORD ServiceIndex, const bool bNext) const
+{
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+
+			if (Index >= 0)
+				return pEitTable->GetItemDesc(Index, bNext ? 1 : 0);
+		}
+	}
+	return NULL;
+}
+
+
+#endif	// TS_ANALYZER_EIT_SUPPORT
+
+
 bool CTsAnalyzer::AddEventHandler(EventType Type, CEventHandler *pHandler)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -432,8 +558,8 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pMapManager->UnmapTarget(pThis->m_ServiceList[Index].PmtPID);
 		pMapManager->UnmapTarget(pThis->m_ServiceList[Index].PcrPID);
 	}
-	pThis->NotifyResetEvent(EVENT_PMT_UPDATE);
-	pThis->NotifyResetEvent(EVENT_PCR_UPDATE);
+	pThis->NotifyResetEvent(EVENT_PMT_UPDATED);
+	pThis->NotifyResetEvent(EVENT_PCR_UPDATED);
 
 	// 新PMTをストアする
 	pThis->m_ServiceList.resize(pPatTable->GetProgramNum());
@@ -460,7 +586,7 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	}
 
 	// イベントハンドラ呼び出し
-	pThis->CallEventHandler(EVENT_PAT_UPDATE);
+	pThis->CallEventHandler(EVENT_PAT_UPDATED);
 }
 
 
@@ -557,7 +683,7 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	pMapManager->MapTarget(0x0011, new CSdtTable, OnSdtUpdated, pParam);
 
 	// イベントハンドラ呼び出し
-	pThis->CallEventHandler(EVENT_PMT_UPDATE);
+	pThis->CallEventHandler(EVENT_PMT_UPDATED);
 }
 
 
@@ -613,7 +739,7 @@ void CALLBACK CTsAnalyzer::OnPcrUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	}
 
 	// イベントハンドラ呼び出し
-	pThis->CallEventHandler(EVENT_PCR_UPDATE);
+	pThis->CallEventHandler(EVENT_PCR_UPDATED);
 }
 
 
@@ -653,7 +779,7 @@ void CALLBACK CTsAnalyzer::OnNitUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	}
 
 	// イベントハンドラ呼び出し
-	pThis->CallEventHandler(EVENT_NIT_UPDATE);
+	pThis->CallEventHandler(EVENT_NIT_UPDATED);
 }
 
 

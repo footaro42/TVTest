@@ -36,6 +36,7 @@ public:
 	bool SetCardReaderType(CCardReader::ReaderType CardReader);
 	bool GetResident() const;
 	bool GetKeepSingleTask() const;
+	bool GetDescrambleUseSSE2() const { return m_fDescrambleUseSSE2; }
 	bool GetDescrambleCurServiceOnly() const;
 	bool GetPacketBuffering() const;
 	bool SetPacketBuffering(bool fBuffering);
@@ -51,6 +52,7 @@ private:
 	CCardReader::ReaderType m_CardReaderType;
 	bool m_fResident;
 	bool m_fKeepSingleTask;
+	bool m_fDescrambleUseSSE2;
 	bool m_fDescrambleCurServiceOnly;
 	bool m_fPacketBuffering;
 	DWORD m_PacketBufferLength;

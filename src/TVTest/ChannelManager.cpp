@@ -17,8 +17,7 @@ CChannelManager::CChannelManager()
 {
 	m_CurrentSpace=SPACE_INVALID;
 	m_CurrentChannel=-1;
-	m_CurrentService=-1;
-	m_CurrentServiceID=0;
+	m_CurrentServiceID=-1;
 	m_ChangingChannel=-1;
 	m_fUseDriverChannelList=false;
 	m_fNetworkRemocon=false;
@@ -38,8 +37,7 @@ void CChannelManager::Clear()
 	m_DriverTuningSpaceList.Clear();
 	m_CurrentSpace=SPACE_INVALID;
 	m_CurrentChannel=-1;
-	m_CurrentService=-1;
-	m_CurrentServiceID=0;
+	m_CurrentServiceID=-1;
 	m_ChangingChannel=-1;
 	m_fUseDriverChannelList=false;
 	m_fNetworkRemocon=false;
@@ -313,18 +311,9 @@ bool CChannelManager::SetCurrentChannel(int Space,int Channel)
 }
 
 
-bool CChannelManager::SetCurrentService(int Service)
-{
-	m_CurrentService=Service;
-	m_CurrentServiceID=0;
-	return true;
-}
-
-
-bool CChannelManager::SetCurrentServiceID(WORD ServiceID)
+bool CChannelManager::SetCurrentServiceID(int ServiceID)
 {
 	m_CurrentServiceID=ServiceID;
-	m_CurrentService=-1;
 	return true;
 }
 
@@ -677,7 +666,7 @@ CChannelSpec::CChannelSpec()
 {
 	m_Space=-1;
 	m_Channel=-1;
-	m_Service=-1;
+	m_ServiceID=-1;
 }
 
 
@@ -690,7 +679,7 @@ bool CChannelSpec::Store(const CChannelManager *pChannelManager)
 {
 	m_Space=pChannelManager->GetCurrentSpace();
 	m_Channel=pChannelManager->GetCurrentChannel();
-	m_Service=pChannelManager->GetCurrentService();
+	m_ServiceID=pChannelManager->GetCurrentServiceID();
 	return true;
 }
 
@@ -709,8 +698,8 @@ bool CChannelSpec::SetChannel(int Channel)
 }
 
 
-bool CChannelSpec::SetService(int Service)
+bool CChannelSpec::SetServiceID(int ServiceID)
 {
-	m_Service=Service;
+	m_ServiceID=ServiceID;
 	return true;
 }

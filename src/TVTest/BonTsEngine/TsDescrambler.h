@@ -12,7 +12,6 @@
 #include "TsTable.h"
 #include "TsUtilClass.h"
 #include "BcasCard.h"
-#include "Multi2Decoder.h"
 
 
 class CEcmProcessor;
@@ -21,6 +20,7 @@ class CBcasAccess {
 	CEcmProcessor *m_pEcmProcessor;
 	BYTE m_EcmData[256];
 	DWORD m_EcmSize;
+
 public:
 	CBcasAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
 	CBcasAccess(const CBcasAccess &BcasAccess);
@@ -39,6 +39,7 @@ class CBcasAccessQueue : public CBonBaseClass {
 	volatile bool m_bStartEvent;
 	CCriticalLock m_Lock;
 	static DWORD CALLBACK BcasAccessThread(LPVOID lpParameter);
+
 public:
 	CBcasAccessQueue(CBcasCard *pBcasCard);
 	~CBcasAccessQueue();
@@ -80,6 +81,9 @@ public:
 	const DWORD GetScramblePacketCount(void) const;
 	void ResetScramblePacketCount(void);
 	bool SetTargetServiceID(WORD ServiceID=0);
+	static bool IsSSE2Available();
+	bool EnableSSE2(bool bEnable);
+
 protected:
 	class CEsProcessor;
 
@@ -111,6 +115,8 @@ protected:
 
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_ScramblePacketCount;
+
+	bool m_bEnableSSE2;
 
 	friend class CEcmProcessor;
 	friend class CDescramblePmtTable;

@@ -1,8 +1,12 @@
 #include "stdafx.h"
+#include "BonTsEngine/TsDescrambler.h"
+#include "BonTsEngine/Multi2Decoder.h"
 #include "TVTest.h"
 #include "AppMain.h"
 #include "GeneralOptions.h"
 #include "DialogUtil.h"
+#include "Util.h"
+#include "MessageDialog.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -10,6 +14,15 @@
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
+
+
+
+
+static void FillRandomData(BYTE *pData,size_t Size)
+{
+	for (size_t i=0;i<Size;i++)
+		pData[i]=::rand()&0xFF;
+}
 
 
 
@@ -23,6 +36,8 @@ CGeneralOptions::CGeneralOptions()
 	m_CardReaderType=CCardReader::READER_SCARD;
 	m_fResident=false;
 	m_fKeepSingleTask=false;
+	//m_fDescrambleUseSSE2=CTsDescrambler::IsSSE2Available();
+	m_fDescrambleUseSSE2=false;
 	m_fDescrambleCurServiceOnly=false;
 	m_fPacketBuffering=false;
 	m_PacketBufferLength=40000;
@@ -110,6 +125,7 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 		m_CardReaderType=(CCardReader::ReaderType)Value;
 	pSettings->Read(TEXT("Resident"),&m_fResident);
 	pSettings->Read(TEXT("KeepSingleTask"),&m_fKeepSingleTask);
+	pSettings->Read(TEXT("DescrambleSSE2"),&m_fDescrambleUseSSE2);
 	pSettings->Read(TEXT("DescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
 	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
 	unsigned int BufferLength;
@@ -131,6 +147,7 @@ bool CGeneralOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("CardReader"),(int)m_CardReaderType);
 	pSettings->Write(TEXT("Resident"),m_fResident);
 	pSettings->Write(TEXT("KeepSingleTask"),m_fKeepSingleTask);
+	pSettings->Write(TEXT("DescrambleSSE2"),m_fDescrambleUseSSE2);
 	pSettings->Write(TEXT("DescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
 	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
@@ -322,6 +339,11 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,pThis->m_fResident);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,pThis->m_fKeepSingleTask);
+			if (CTsDescrambler::IsSSE2Available())
+				DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,pThis->m_fDescrambleUseSSE2);
+			else
+				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
+									IDC_OPTIONS_DESCRAMBLEBENCHMARK,false);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,pThis->m_fDescrambleCurServiceOnly);
 
 			// Buffering
@@ -371,6 +393,56 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				ofn.Flags=OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_EXPLORER;
 				if (::GetOpenFileName(&ofn))
 					::SetDlgItemText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,szFileName);
+			}
+			return TRUE;
+
+		case IDC_OPTIONS_DESCRAMBLEBENCHMARK:
+			if (::MessageBox(hDlg,TEXT("ベンチマークテストを開始します。\n終了するまで操作は行わないようにしてください。\n結果はばらつきがありますので、数回実行してください。"),
+							 TEXT("ベンチマークテスト"),
+							 MB_OKCANCEL | MB_ICONINFORMATION)==IDOK) {
+				static const DWORD BENCHMARK_COUNT=400000;
+				HCURSOR hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
+				CMulti2Decoder Multi2Decoder;
+				BYTE SystemKey[32],InitialCbc[8],ScrambleKey[16],Data[184];
+				DWORD BenchmarkCount=0,StartTime,NormalTime,SSE2Time;
+
+				FillRandomData(SystemKey,sizeof(SystemKey));
+				FillRandomData(InitialCbc,sizeof(InitialCbc));
+				FillRandomData(Data,sizeof(Data));
+				Multi2Decoder.Initialize(SystemKey,InitialCbc);
+				NormalTime=SSE2Time=0;
+			Again:
+				StartTime=::timeGetTime();
+				for (int i=0;i<BENCHMARK_COUNT;i++) {
+					if (i%10000==0) {
+						FillRandomData(ScrambleKey,sizeof(ScrambleKey));
+						Multi2Decoder.SetScrambleKey(ScrambleKey);
+					}
+					Multi2Decoder.Decode(Data,sizeof(Data),2);
+				}
+				NormalTime+=DiffTime(StartTime,::timeGetTime());
+				StartTime=::timeGetTime();
+				for (int i=0;i<BENCHMARK_COUNT;i++) {
+					if (i%10000==0) {
+						FillRandomData(ScrambleKey,sizeof(ScrambleKey));
+						Multi2Decoder.SetScrambleKey(ScrambleKey);
+					}
+					Multi2Decoder.DecodeSSE2(Data,sizeof(Data),2);
+				}
+				SSE2Time+=DiffTime(StartTime,::timeGetTime());
+				BenchmarkCount+=BENCHMARK_COUNT;
+				if (NormalTime<1000 && SSE2Time<1000)
+					goto Again;
+
+				::SetCursor(hcurOld);
+				TCHAR szText[256];
+				::wsprintf(szText,TEXT("%lu 回の実行に掛かった時間\nSSE2不使用 : %lu ms\nSSE2使用 : %lu ms\nSSE2で高速化される割合 : %d %%\n\nSSE2を%sにすることをお勧めします。"),
+						   BenchmarkCount,NormalTime,SSE2Time,
+						   (int)(NormalTime*100/SSE2Time)-100,
+						   NormalTime*100/SSE2Time>=110?TEXT("有効"):TEXT("無効"));
+				CMessageDialog MessageDialog;
+				MessageDialog.Show(hDlg,CMessageDialog::TYPE_INFO,szText,
+								   TEXT("ベンチマークテスト結果"),NULL,TEXT("ベンチマークテスト"));
 			}
 			return TRUE;
 
@@ -428,6 +500,9 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 				pThis->m_fKeepSingleTask=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_KEEPSINGLETASK);
+
+				pThis->m_fDescrambleUseSSE2=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2);
 
 				bool fCurOnly=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY);
 				if (fCurOnly!=pThis->m_fDescrambleCurServiceOnly) {

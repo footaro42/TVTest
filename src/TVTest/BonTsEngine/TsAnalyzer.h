@@ -13,21 +13,24 @@ public:
 	CTsAnalyzer(IEventHandler *pEventHandler = NULL);
 	virtual ~CTsAnalyzer();
 
-	// CMediaDecoder
+// CMediaDecoder
 	virtual void Reset();
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
-	// CTsAnalyzer
+// CTsAnalyzer
 	WORD GetServiceNum();
 	bool GetServiceID(const WORD Index, WORD *pServiceID);
 	int GetServiceIndexByID(const WORD ServiceID);
+	bool IsServiceUpdated(const WORD Index);
 	bool GetPmtPID(const WORD Index, WORD *pPmtPID);
 	bool GetVideoEsPID(const WORD Index, WORD *pVideoPID);
 	bool GetVideoStreamType(const WORD Index, BYTE *pStreamType);
 	WORD GetAudioEsNum(const WORD Index);
 	bool GetAudioEsPID(const WORD Index, const WORD AudioIndex, WORD *pAudioPID);
 	BYTE GetAudioComponentTag(const WORD Index, const WORD AudioIndex);
-	//BYTE GetAudioComponentType(const WORD Index, const WORD AudioIndex);
+#ifdef TS_ANALYZER_EIT_SUPPORT
+	BYTE GetAudioComponentType(const WORD Index, const WORD AudioIndex);
+#endif
 	WORD GetSubtitleEsNum(const WORD Index);
 	bool GetSubtitleEsPID(const WORD Index, const WORD SubtitleIndex, WORD *pSubtitlePID);
 	WORD GetDataCarrouselEsNum(const WORD Index);
@@ -44,6 +47,14 @@ public:
 	BYTE GetRemoteControlKeyID() const;
 	int GetTsName(LPTSTR pszName, int MaxLength);
 
+#ifdef TS_ANALYZER_EIT_SUPPORT
+	WORD GetEventID(const WORD ServiceIndex, const bool bNext = false);
+	bool GetEventStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool bNext = false);
+	DWORD GetEventDuration(const WORD ServiceIndex, const bool bNext = false);
+	int GetEventName(const WORD ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext = false);
+	int GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
+#endif
+
 	class CEventHandler {
 	public:
 		CEventHandler();
@@ -52,11 +63,12 @@ public:
 		virtual void OnReset(CTsAnalyzer *pAnalyzer);
 	};
 	enum EventType {
-		EVENT_PAT_UPDATE,
-		EVENT_PMT_UPDATE,
-		EVENT_PCR_UPDATE,
-		EVENT_NIT_UPDATE,
-		EVENT_LAST = EVENT_NIT_UPDATE
+		EVENT_PAT_UPDATED,
+		EVENT_PMT_UPDATED,
+		EVENT_PCR_UPDATED,
+		EVENT_NIT_UPDATED,
+		NUM_EVENTS,
+		EVENT_LAST = NUM_EVENTS - 1
 	};
 	bool AddEventHandler(EventType Type, CEventHandler *pHandler);
 	bool RemoveEventHandler(CEventHandler *pHandler);
@@ -64,6 +76,10 @@ public:
 protected:
 	void CallEventHandler(EventType Type);
 	void NotifyResetEvent(EventType Type);
+
+#ifdef TS_ANALYZER_EIT_SUPPORT
+	const CDescBlock *GetHEitItemDesc(const WORD ServiceIndex, const bool bNext = false) const;
+#endif
 
 	CTsPidMapManager m_PidMapManager;
 
@@ -107,7 +123,7 @@ protected:
 		EventType Type;
 		CEventHandler *pHandler;
 	};
-	std::vector<EventHandlerInfo> m_EventHandlerList[EVENT_LAST + 1];
+	std::vector<EventHandlerInfo> m_EventHandlerList[NUM_EVENTS];
 
 private:
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);

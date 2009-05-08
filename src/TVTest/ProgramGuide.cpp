@@ -253,6 +253,7 @@ public:
 	CProgramGuideServiceInfo(const CChannelInfo *pChannelInfo);
 	CProgramGuideServiceInfo(const CChannelInfo *pChannelInfo,const CEpgServiceInfo &Info);
 	~CProgramGuideServiceInfo();
+	const CServiceInfoData *GetServiceInfoData() const { return &m_ServiceData; }
 	WORD GetOriginalNID() const { return m_ServiceData.m_OriginalNID; }
 	WORD GetTSID() const { return m_ServiceData.m_TSID; }
 	WORD GetServiceID() const { return m_ServiceData.m_ServiceID; }
@@ -908,11 +909,13 @@ bool CProgramGuide::SetEpgProgramList(CEpgProgramList *pList)
 bool CProgramGuide::UpdateProgramGuide()
 {
 	if (m_hwnd!=NULL) {
+		::SetWindowText(m_hwnd,TITLE_TEXT TEXT(" - 番組表を作成しています..."));
 		if (UpdateList()) {
 			CalcLayout();
 			SetScrollBar();
 			Invalidate();
 		}
+		SetTitleBar();
 	}
 	return true;
 }
@@ -955,13 +958,20 @@ bool CProgramGuide::UpdateList()
 
 void CProgramGuide::CalcLayout()
 {
+	SYSTEMTIME stFirst=m_stFirstTime,stLast=m_stLastTime;
 	HDC hdc;
 	HFONT hfontOld;
 
+	if (m_Day!=DAY_TODAY) {
+		LONGLONG Offset=(LONGLONG)m_Day*(24*60*60*1000);
+
+		OffsetSystemTime(&stFirst,Offset);
+		OffsetSystemTime(&stLast,Offset);
+	}
 	hdc=::GetDC(m_hwnd);
 	hfontOld=static_cast<HFONT>(GetCurrentObject(hdc,OBJ_FONT));
 	for (int i=0;i<m_ServiceList.NumServices();i++) {
-		m_ServiceList.GetItem(i)->CalcLayout(hdc,&m_stFirstTime,&m_stLastTime,
+		m_ServiceList.GetItem(i)->CalcLayout(hdc,&stFirst,&stLast,
 			m_LinesPerHour,m_hfontTitle,m_ItemWidth,m_hfont,m_ItemWidth-m_TextLeftMargin);
 	}
 	SelectFont(hdc,hfontOld);
@@ -1158,6 +1168,40 @@ void CProgramGuide::SetScrollBar()
 }
 
 
+void CProgramGuide::SetTitleBar()
+{
+	if (m_hwnd!=NULL) {
+		if (m_pProgramList!=NULL) {
+			if (m_fUpdating) {
+				::SetWindowText(m_hwnd,TITLE_TEXT TEXT(" - 番組表の取得中..."));
+			} else {
+				static const LPCTSTR pszDay[] = {
+					TEXT("今日"), TEXT("明日"), TEXT("明後日"), TEXT("明々後日"),
+					TEXT("4日後"), TEXT("5日後"), TEXT("6日後")
+				};
+				TCHAR szText[256];
+				SYSTEMTIME stFirst=m_stFirstTime,stLast=m_stLastTime;
+
+				if (m_Day!=DAY_TODAY) {
+					LONGLONG Offset=(LONGLONG)m_Day*(24*60*60*1000);
+
+					OffsetSystemTime(&stFirst,Offset);
+					OffsetSystemTime(&stLast,Offset);
+				}
+				::wsprintf(szText,TITLE_TEXT TEXT(" - %s %d/%d(%s) %d時 ～ %d/%d(%s) %d時"),
+						   pszDay[m_Day],stFirst.wMonth,stFirst.wDay,
+						   GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour,
+						   stLast.wMonth,stLast.wDay,
+						   GetDayOfWeekText(stLast.wDayOfWeek),stLast.wHour);
+				::SetWindowText(m_hwnd,szText);
+			}
+		} else {
+			::SetWindowText(m_hwnd,TITLE_TEXT);
+		}
+	}
+}
+
+
 bool CProgramGuide::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
@@ -1176,14 +1220,27 @@ bool CProgramGuide::SetServiceIDList(const CProgramGuideServiceIDList *pList)
 
 bool CProgramGuide::SetChannelList(const CChannelList *pList)
 {
-	if (pList==NULL)
-		return false;
+	int OldTSID,OldNumChannels=m_ChannelList.NumChannels();
+	if (OldNumChannels>0)
+		OldTSID=m_ChannelList.GetChannelInfo(0)->GetTransportStreamID();
+	else
+		OldTSID=0;
 	m_ChannelList.Clear();
-	for (int i=0;i<pList->NumChannels();i++) {
-		const CChannelInfo *pChannelInfo=pList->GetChannelInfo(i);
+	if (pList!=NULL && pList->NumChannels()>0) {
+		for (int i=0;i<pList->NumChannels();i++) {
+			const CChannelInfo *pChannelInfo=pList->GetChannelInfo(i);
 
-		if (pChannelInfo->IsEnabled())
-			m_ChannelList.AddChannel(*pChannelInfo);
+			if (pChannelInfo->IsEnabled())
+				m_ChannelList.AddChannel(*pChannelInfo);
+		}
+		if (OldTSID!=pList->GetChannelInfo(0)->GetTransportStreamID()
+				|| OldNumChannels!=pList->NumChannels()) {
+			m_ScrollPos.x=0;
+			m_ScrollPos.y=0;
+		}
+	} else {
+		m_ScrollPos.x=0;
+		m_ScrollPos.y=0;
 	}
 	return true;
 }
@@ -1216,6 +1273,15 @@ bool CProgramGuide::GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime)
 		*pFirstTime=m_stFirstTime;
 	if (pLastTime!=NULL)
 		*pLastTime=m_stLastTime;
+	return true;
+}
+
+
+bool CProgramGuide::SetViewDay(int Day)
+{
+	if (Day<DAY_TODAY || Day>DAY_LAST)
+		return false;
+	m_Day=Day;
 	return true;
 }
 
@@ -1514,7 +1580,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 					if (pServiceInfo)
 						pThis->m_pEventHandler->OnServiceTitleLButtonDown(
-												pServiceInfo->GetServiceID());
+										pServiceInfo->GetServiceInfoData());
 				}
 			}
 		}
@@ -1533,6 +1599,23 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			//::SetFocus(hwnd);
 			hmenu=::LoadMenu(m_hinst,MAKEINTRESOURCE(IDM_PROGRAMGUIDE));
 			hmenuPopup=::GetSubMenu(hmenu,0);
+			::CheckMenuRadioItem(hmenu,CM_PROGRAMGUIDE_TODAY,
+								 CM_PROGRAMGUIDE_TODAY+DAY_LAST,
+								 CM_PROGRAMGUIDE_TODAY+pThis->m_Day,MF_BYCOMMAND);
+			SYSTEMTIME st=pThis->m_stFirstTime;
+			TCHAR szText[64];
+			MENUITEMINFO mii;
+			mii.cbSize=sizeof(mii);
+			mii.fMask=MIIM_STRING;
+			mii.dwTypeData=szText;
+			for (int i=CM_PROGRAMGUIDE_TODAY;i<=CM_PROGRAMGUIDE_TODAY+DAY_LAST;i++) {
+				mii.cch=lengthof(szText);
+				::GetMenuItemInfo(hmenu,i,FALSE,&mii);
+				::wsprintf(szText+::lstrlen(szText),TEXT(" %d/%d (%s)"),
+						   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek));
+				::SetMenuItemInfo(hmenu,i,FALSE,&mii);
+				OffsetSystemTime(&st,24*60*60*1000);
+			}
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_UPDATE,
 				MF_BYCOMMAND | (pThis->m_fUpdating?MFS_GRAYED:MFS_ENABLED));
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_ENDUPDATE,
@@ -1616,7 +1699,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 					if (pThis->m_pEventHandler!=NULL
 							&& pThis->m_pEventHandler->OnBeginUpdate()) {
 						pThis->m_fUpdating=true;
-						::SetWindowText(hwnd,TITLE_TEXT TEXT(" - 番組表の取得中..."));
+						pThis->SetTitleBar();
 					}
 				}
 			}
@@ -1630,7 +1713,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 					if (pThis->m_pEventHandler)
 						pThis->m_pEventHandler->OnEndUpdate();
 					pThis->m_fUpdating=false;
-					::SetWindowText(hwnd,TITLE_TEXT);
+					pThis->SetTitleBar();
 				}
 			}
 			return 0;
@@ -1642,6 +1725,30 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				if (pThis->m_pEventHandler==NULL
 						|| pThis->m_pEventHandler->OnRefresh())
 					pThis->UpdateProgramGuide();
+			}
+			return 0;
+
+		case CM_PROGRAMGUIDE_TODAY:
+		case CM_PROGRAMGUIDE_TOMORROW:
+		case CM_PROGRAMGUIDE_DAYAFTERTOMORROW:
+		case CM_PROGRAMGUIDE_2DAYSAFTERTOMORROW:
+		case CM_PROGRAMGUIDE_3DAYSAFTERTOMORROW:
+		case CM_PROGRAMGUIDE_4DAYSAFTERTOMORROW:
+		case CM_PROGRAMGUIDE_5DAYSAFTERTOMORROW:
+			{
+				CProgramGuide *pThis=GetThis(hwnd);
+				int Day=LOWORD(wParam)-CM_PROGRAMGUIDE_TODAY;
+
+				if (pThis->m_Day!=Day) {
+					pThis->m_Day=Day;
+					if (pThis->m_pProgramList!=NULL) {
+						pThis->CalcLayout();
+						pThis->m_ScrollPos.y=0;
+						pThis->SetScrollBar();
+						pThis->SetTitleBar();
+						pThis->Invalidate();
+					}
+				}
 			}
 			return 0;
 

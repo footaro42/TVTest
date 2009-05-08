@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "TsDescrambler.h"
+#include "Multi2Decoder.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -34,6 +35,9 @@ protected:
 private:
 	CTsDescrambler *m_pDescrambler;
 	CMulti2Decoder m_Multi2Decoder;
+#ifdef MULTI2_SSE2
+	CMulti2Decoder::DecodeFunc m_pDecodeFunc;
+#endif
 	bool m_bInQueue;
 	CLocalEvent m_SetScrambleKeyEvent;
 	volatile bool m_bSetScrambleKey;
@@ -93,6 +97,7 @@ CTsDescrambler::CTsDescrambler(IEventHandler *pEventHandler)
 	, m_DescrambleServiceID(0)
 	, m_Queue(&m_BcasCard)
 {
+	m_bEnableSSE2 = IsSSE2Available();
 	Reset();
 }
 
@@ -310,6 +315,23 @@ bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 		PrintStatus();
 #endif
 	}
+	return true;
+}
+
+bool CTsDescrambler::IsSSE2Available()
+{
+#ifdef MULTI2_SSE2
+	return CMulti2Decoder::IsSSE2Available();
+#else
+	return false;
+#endif
+}
+
+bool CTsDescrambler::EnableSSE2(bool bEnable)
+{
+	if (bEnable && !IsSSE2Available())
+		return false;
+	m_bEnableSSE2 = bEnable;
 	return true;
 }
 
@@ -554,6 +576,13 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 	, m_bInQueue(false)
 	, m_bLastEcmSucceed(true)
 {
+#ifdef MULTI2_SSE2
+	if (pDescrambler->m_bEnableSSE2)
+		m_pDecodeFunc = &CMulti2Decoder::DecodeSSE2;
+	else
+		m_pDecodeFunc = &CMulti2Decoder::Decode;
+#endif
+
 	// MULTI2デコーダにシステムキーと初期CBCをセット
 	if (m_pDescrambler->m_BcasCard.IsCardOpen())
 		m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
@@ -594,9 +623,14 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 	if (m_bLastEcmSucceed) {
 		CBlockLock Lock(&m_Multi2Lock);
 
-		if (m_Multi2Decoder.Decode(pTsPacket->GetPayloadData(),
-								   (DWORD)pTsPacket->GetPayloadSize(),
-								   pTsPacket->m_Header.byTransportScramblingCtrl)) {
+#ifdef MULTI2_SSE2
+		if ((m_Multi2Decoder.*m_pDecodeFunc)
+#else
+		if (m_Multi2Decoder.Decode
+#endif
+				(pTsPacket->GetPayloadData(),
+				(DWORD)pTsPacket->GetPayloadSize(),
+				pTsPacket->m_Header.byTransportScramblingCtrl)) {
 			// トランスポートスクランブル制御再設定
 			pTsPacket->SetAt(3UL, pTsPacket->GetAt(3UL) & 0x3FU);
 			pTsPacket->m_Header.byTransportScramblingCtrl = 0U;

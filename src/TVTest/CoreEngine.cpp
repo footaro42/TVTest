@@ -140,6 +140,7 @@ bool CCoreEngine::IsDriverOpen() const
 }
 
 
+/*
 bool CCoreEngine::OpenFile(LPCTSTR pszFileName)
 {
 	m_DtvEngine.ReleaseSrcFilter();
@@ -148,6 +149,7 @@ bool CCoreEngine::OpenFile(LPCTSTR pszFileName)
 		return false;
 	return true;
 }
+*/
 
 
 bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,

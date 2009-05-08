@@ -1,33 +1,41 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "Error.h"
+#include "MessageDialog.h"
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
 
 
 
-CErrorDialog::CErrorDialog()
+
+CMessageDialog::CMessageDialog()
 	: m_hLib(NULL)
 	, m_pszText(NULL)
 	, m_pszTitle(NULL)
 	, m_pszSystemMessage(NULL)
+	, m_pszCaption(NULL)
 {
 }
 
 
-CErrorDialog::~CErrorDialog()
+CMessageDialog::~CMessageDialog()
 {
 	if (m_hLib)
 		::FreeLibrary(m_hLib);
-	SAFE_DELETE_ARRAY(m_pszText);
-	SAFE_DELETE_ARRAY(m_pszTitle);
-	SAFE_DELETE_ARRAY(m_pszSystemMessage);
+	delete [] m_pszText;
+	delete [] m_pszTitle;
+	delete [] m_pszSystemMessage;
+	delete [] m_pszCaption;
 }
 
 
-void CErrorDialog::LogFontToCharFormat(const LOGFONT *plf,CHARFORMAT *pcf)
+void CMessageDialog::LogFontToCharFormat(const LOGFONT *plf,CHARFORMAT *pcf)
 {
 	pcf->cbSize=sizeof(CHARFORMAT);
 	pcf->dwMask=CFM_BOLD | CFM_CHARSET | CFM_COLOR | CFM_FACE | CFM_ITALIC | CFM_SIZE | CFM_STRIKEOUT | CFM_UNDERLINE;
@@ -50,7 +58,7 @@ void CErrorDialog::LogFontToCharFormat(const LOGFONT *plf,CHARFORMAT *pcf)
 }
 
 
-void CErrorDialog::AppendText(HWND hwndEdit,LPCTSTR pszText,const CHARFORMAT *pcf)
+void CMessageDialog::AppendText(HWND hwndEdit,LPCTSTR pszText,const CHARFORMAT *pcf)
 {
 	CHARRANGE cr;
 
@@ -70,18 +78,18 @@ void CErrorDialog::AppendText(HWND hwndEdit,LPCTSTR pszText,const CHARFORMAT *pc
 }
 
 
-CErrorDialog *CErrorDialog::GetThis(HWND hDlg)
+CMessageDialog *CMessageDialog::GetThis(HWND hDlg)
 {
-	return static_cast<CErrorDialog*>(::GetProp(hDlg,TEXT("This")));
+	return static_cast<CMessageDialog*>(::GetProp(hDlg,TEXT("This")));
 }
 
 
-BOOL CALLBACK CErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+BOOL CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CErrorDialog *pThis=reinterpret_cast<CErrorDialog*>(lParam);
+			CMessageDialog *pThis=reinterpret_cast<CMessageDialog*>(lParam);
 			HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
 			NONCLIENTMETRICS ncm;
 			CHARFORMAT cf;
@@ -89,11 +97,16 @@ BOOL CALLBACK CErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 			::SetProp(hDlg,TEXT("This"),pThis);
 			pThis->m_hDlg=hDlg;
+
+			if (pThis->m_pszCaption!=NULL)
+				::SetWindowText(hDlg,pThis->m_pszCaption);
+
 			::SendDlgItemMessage(hDlg,IDC_ERROR_ICON,STM_SETICON,
 				reinterpret_cast<WPARAM>(::LoadIcon(NULL,
 					pThis->m_MessageType==TYPE_INFO?IDI_INFORMATION:
 					pThis->m_MessageType==TYPE_WARNING?IDI_WARNING:IDI_ERROR)),0);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_SETBKGNDCOLOR,0,::GetSysColor(COLOR_WINDOW));
+
 			ncm.cbSize=sizeof(ncm);
 			::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
 			pThis->LogFontToCharFormat(&ncm.lfMessageFont,&cf);
@@ -138,6 +151,7 @@ BOOL CALLBACK CErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			::SetWindowPos(hDlg,NULL,0,0,(rcDlg.right-rcDlg.left)+Offset,rcDlg.bottom-rcDlg.top,SWP_NOMOVE | SWP_NOZORDER);
 			::SendMessage(hwndEdit,EM_SETEVENTMASK,0,ENM_REQUESTRESIZE | ENM_MOUSEEVENTS);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_REQUESTRESIZE,0,0);
+
 			AdjustDialogPos(::GetParent(hDlg),hDlg);
 		}
 		return TRUE;
@@ -150,7 +164,7 @@ BOOL CALLBACK CErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 	case WM_PAINT:
 		{
-			CErrorDialog *pThis=GetThis(hDlg);
+			CMessageDialog *pThis=GetThis(hDlg);
 			PAINTSTRUCT ps;
 			RECT rcClient,rcEdit,rc;
 
@@ -255,11 +269,12 @@ BOOL CALLBACK CErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 	case WM_DESTROY:
 		{
-			CErrorDialog *pThis=GetThis(hDlg);
+			CMessageDialog *pThis=GetThis(hDlg);
 
 			SAFE_DELETE_ARRAY(pThis->m_pszText);
 			SAFE_DELETE_ARRAY(pThis->m_pszTitle);
 			SAFE_DELETE_ARRAY(pThis->m_pszSystemMessage);
+			SAFE_DELETE_ARRAY(pThis->m_pszCaption);
 			::RemoveProp(hDlg,TEXT("This"));
 		}
 		return TRUE;
@@ -268,7 +283,7 @@ BOOL CALLBACK CErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 }
 
 
-bool CErrorDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTSTR pszTitle,LPCTSTR pszSystemMessage)
+bool CMessageDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTSTR pszTitle,LPCTSTR pszSystemMessage,LPCTSTR pszCaption)
 {
 	if (pszText==NULL && pszTitle==NULL && pszSystemMessage==NULL)
 		return false;
@@ -290,7 +305,7 @@ bool CErrorDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTSTR 
 					::lstrcat(szMessage,TEXT("\n\n"));
 				::lstrcat(szMessage,pszSystemMessage);
 			}
-			return ::MessageBox(hwndOwner,szMessage,NULL,MB_OK |
+			return ::MessageBox(hwndOwner,szMessage,pszCaption,MB_OK |
 								(Type==TYPE_INFO?MB_ICONINFORMATION:
 								 Type==TYPE_WARNING?MB_ICONEXCLAMATION:
 								 Type==TYPE_ERROR?MB_ICONSTOP:0))==IDOK;
@@ -299,6 +314,7 @@ bool CErrorDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTSTR 
 	ReplaceString(&m_pszText,pszText);
 	ReplaceString(&m_pszTitle,pszTitle);
 	ReplaceString(&m_pszSystemMessage,pszSystemMessage);
+	ReplaceString(&m_pszCaption,pszCaption);
 	m_MessageType=Type;
 	return ::DialogBoxParam(GetAppClass().GetResourceInstance(),
 							MAKEINTRESOURCE(IDD_ERROR),hwndOwner,DlgProc,

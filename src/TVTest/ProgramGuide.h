@@ -92,6 +92,7 @@ class CProgramGuide : public CBasicWindow {
 	CChannelList m_ChannelList;
 	SYSTEMTIME m_stFirstTime;
 	SYSTEMTIME m_stLastTime;
+	int m_Day;
 	int m_Hours;
 	struct {
 		bool fValid;
@@ -111,11 +112,22 @@ class CProgramGuide : public CBasicWindow {
 	void GetProgramGuideRect(RECT *pRect);
 	void Scroll(int XOffset,int YOffset);
 	void SetScrollBar();
+	void SetTitleBar();
 	bool HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex);
 	static HINSTANCE m_hinst;
 	static CProgramGuide *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
+	enum {
+		DAY_TODAY,
+		DAY_TOMORROW,
+		DAY_DAYAFTERTOMORROW,
+		DAY_2DAYSAFTERTOMORROW,
+		DAY_3DAYSAFTERTOMORROW,
+		DAY_4DAYSAFTERTOMORROW,
+		DAY_5DAYSAFTERTOMORROW,
+		DAY_LAST=DAY_5DAYSAFTERTOMORROW
+	};
 	enum {
 		COLOR_BACK,
 		COLOR_TEXT,
@@ -152,6 +164,8 @@ public:
 	const CChannelList *GetChannelList() const { return &m_ChannelList; }
 	bool SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime);
 	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime);
+	bool SetViewDay(int Day);
+	int GetViewDay() const { return m_Day; }
 	int GetLinesPerHour() const { return m_LinesPerHour; }
 	int GetItemWidth() const { return m_ItemWidth; }
 	bool SetUIOptions(int LinesPerHour,int ItemWidth);

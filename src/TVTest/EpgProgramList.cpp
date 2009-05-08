@@ -329,8 +329,14 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 	DWORD dwEpgDataCount=0;
 	if (!m_pEpgDll->GetEpgDataListDB(ServiceData.m_OriginalNID,
 									ServiceData.m_TSID,ServiceData.m_ServiceID,
-									&pEpgData,&dwEpgDataCount))
+									&pEpgData,&dwEpgDataCount)
+			|| dwEpgDataCount==0)
 		return false;
+
+	SYSTEMTIME stOldestTime,stNewestTime;
+	::FillMemory(&stOldestTime,sizeof(SYSTEMTIME),0xFF);
+	::FillMemory(&stNewestTime,sizeof(SYSTEMTIME),0);
+
 	for (DWORD j=0;j<dwEpgDataCount;j++) {
 		CEventInfoData EventData;
 
@@ -365,10 +371,47 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 		}
 		ServiceInfo.m_EventList.EventDataMap.insert(
 				std::pair<WORD,CEventInfoData>(EventData.m_EventID,EventData));
+
+		if (CompareSystemTime(&EventData.m_stStartTime,&stOldestTime)<0)
+			stOldestTime=EventData.m_stStartTime;
+		SYSTEMTIME stEnd;
+		EventData.GetEndTime(&stEnd);
+		if (CompareSystemTime(&stEnd,&stNewestTime)>0)
+			stNewestTime=stEnd;
 	}
 
 	ServiceMapKey Key=GenerateServiceMapKey(ServiceData.m_OriginalNID,
 								ServiceData.m_TSID,ServiceData.m_ServiceID);
+
+	// 既存のイベントで新しいリストに無いものを追加する
+	// 真面目にやると凄く遅くなるので適当に
+	TRACE(TEXT("CEpgProgramList::UpdateService() (%d) %d/%d %d:%02d - %d/%d %d:%02d\n"),
+		  (int)pService->dwServiceID,
+		  stOldestTime.wMonth,stOldestTime.wDay,stOldestTime.wHour,stOldestTime.wMinute,
+		  stNewestTime.wMonth,stNewestTime.wDay,stNewestTime.wHour,stNewestTime.wMinute);
+	ServiceIterator itrService=ServiceMap.find(Key);
+	if (itrService!=ServiceMap.end()) {
+		CEventInfoList::EventIterator itrEvent;
+
+		for (itrEvent=itrService->second.m_EventList.EventDataMap.begin();
+				itrEvent!=itrService->second.m_EventList.EventDataMap.end();
+				itrEvent++) {
+			bool fInsert=false;
+
+			if (CompareSystemTime(&itrEvent->second.m_stStartTime,&stNewestTime)>=0) {
+				fInsert=true;
+			} else {
+				SYSTEMTIME stEnd;
+				itrEvent->second.GetEndTime(&stEnd);
+				if (CompareSystemTime(&stEnd,&stOldestTime)<=0)
+					fInsert=true;
+			}
+			if (fInsert)
+				ServiceInfo.m_EventList.EventDataMap.insert(
+					std::pair<WORD,CEventInfoData>(itrEvent->second.m_EventID,itrEvent->second));
+		}
+	}
+
 	if (!ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo)).second)
 		ServiceMap[Key]=ServiceInfo;
 	return true;

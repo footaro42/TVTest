@@ -283,14 +283,14 @@ int CChannelList::Find(const CChannelInfo *pInfo) const
 }
 
 
-int CChannelList::Find(int Space,int ChannelIndex,int Service) const
+int CChannelList::Find(int Space,int ChannelIndex,int ServiceID) const
 {
 	for (int i=0;i<m_NumChannels;i++) {
 		const CChannelInfo *pChInfo=m_ppList[i];
 
 		if ((Space<0 || pChInfo->GetSpace()==Space)
 				&& (ChannelIndex<0 || pChInfo->GetChannelIndex()==ChannelIndex)
-				&& (Service<0 || pChInfo->GetService()==Service))
+				&& (ServiceID<=0 || pChInfo->GetServiceID()==ServiceID))
 			return i;
 	}
 	return -1;

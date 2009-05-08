@@ -33,7 +33,7 @@ public:
 	bool InitializeChannel();
 	bool UpdateChannelList(const CTuningSpaceList *pList);
 	const CChannelInfo *GetCurrentChannelInfo() const;
-	bool SetChannel(int Space,int Channel,int Service=-1);
+	bool SetChannel(int Space,int Channel,int ServiceID=-1);
 	bool FollowChannelChange(WORD TransportStreamID,WORD ServiceID);
 	bool SetServiceByIndex(int Service);
 	bool SetServiceByID(WORD ServiceID,int *pServiceIndex=NULL);

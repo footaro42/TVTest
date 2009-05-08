@@ -31,8 +31,8 @@ inline void CMulti2Decoder::DATKEY::SetHexData(const BYTE *pHexData)
 	pHexThis[ 3] = pHexData[ 0];	pHexThis[ 2] = pHexData[ 1];	pHexThis[ 1] = pHexData[ 2];	pHexThis[ 0] = pHexData[ 3];
 	pHexThis[ 7] = pHexData[ 4];	pHexThis[ 6] = pHexData[ 5];	pHexThis[ 5] = pHexData[ 6];	pHexThis[ 4] = pHexData[ 7];
 #else
-	dwLeft =_byteswap_ulong(*(DWORD*)pHexData);
-	dwRight=_byteswap_ulong(*(DWORD*)(pHexData+4));
+	dwLeft  = _byteswap_ulong(*(DWORD*)(pHexData + 0));
+	dwRight = _byteswap_ulong(*(DWORD*)(pHexData + 4));
 #endif
 }
 
@@ -45,8 +45,8 @@ inline void CMulti2Decoder::DATKEY::GetHexData(BYTE *pHexData) const
 	pHexData[ 0] = pHexThis[ 3];	pHexData[ 1] = pHexThis[ 2];	pHexData[ 2] = pHexThis[ 1];	pHexData[ 3] = pHexThis[ 0];
 	pHexData[ 4] = pHexThis[ 7];	pHexData[ 5] = pHexThis[ 6];	pHexData[ 6] = pHexThis[ 5];	pHexData[ 7] = pHexThis[ 4];
 #else
-	*(DWORD*)pHexData    =_byteswap_ulong(dwLeft);
-	*(DWORD*)(pHexData+4)=_byteswap_ulong(dwRight);
+	*(DWORD*)(pHexData + 0) = _byteswap_ulong(dwLeft);
+	*(DWORD*)(pHexData + 4) = _byteswap_ulong(dwRight);
 #endif
 }
 
@@ -65,14 +65,14 @@ inline void CMulti2Decoder::SYSKEY::SetHexData(const BYTE *pHexData)
 	pHexThis[27] = pHexData[24];	pHexThis[26] = pHexData[25];	pHexThis[25] = pHexData[26];	pHexThis[24] = pHexData[27];
 	pHexThis[31] = pHexData[28];	pHexThis[30] = pHexData[29];	pHexThis[29] = pHexData[30];	pHexThis[28] = pHexData[31];
 #else
-	dwKey1=_byteswap_ulong(*(DWORD*)pHexData);
-	dwKey2=_byteswap_ulong(*(DWORD*)(pHexData+4));
-	dwKey3=_byteswap_ulong(*(DWORD*)(pHexData+8));
-	dwKey4=_byteswap_ulong(*(DWORD*)(pHexData+12));
-	dwKey5=_byteswap_ulong(*(DWORD*)(pHexData+16));
-	dwKey6=_byteswap_ulong(*(DWORD*)(pHexData+20));
-	dwKey7=_byteswap_ulong(*(DWORD*)(pHexData+24));
-	dwKey8=_byteswap_ulong(*(DWORD*)(pHexData+28));
+	dwKey1 = _byteswap_ulong(*(DWORD*)(pHexData +  0));
+	dwKey2 = _byteswap_ulong(*(DWORD*)(pHexData +  4));
+	dwKey3 = _byteswap_ulong(*(DWORD*)(pHexData +  8));
+	dwKey4 = _byteswap_ulong(*(DWORD*)(pHexData + 12));
+	dwKey5 = _byteswap_ulong(*(DWORD*)(pHexData + 16));
+	dwKey6 = _byteswap_ulong(*(DWORD*)(pHexData + 20));
+	dwKey7 = _byteswap_ulong(*(DWORD*)(pHexData + 24));
+	dwKey8 = _byteswap_ulong(*(DWORD*)(pHexData + 28));
 #endif
 }
 
@@ -91,16 +91,17 @@ inline void CMulti2Decoder::SYSKEY::GetHexData(BYTE *pHexData) const
 	pHexData[24] = pHexThis[27];	pHexData[25] = pHexThis[26];	pHexData[26] = pHexThis[25];	pHexData[27] = pHexThis[24];
 	pHexData[28] = pHexThis[31];	pHexData[29] = pHexThis[30];	pHexData[30] = pHexThis[29];	pHexData[31] = pHexThis[28];
 #else
-	*(DWORD*)pHexData     =_byteswap_ulong(dwKey1);
-	*(DWORD*)(pHexData+4) =_byteswap_ulong(dwKey2);
-	*(DWORD*)(pHexData+8) =_byteswap_ulong(dwKey3);
-	*(DWORD*)(pHexData+12)=_byteswap_ulong(dwKey4);
-	*(DWORD*)(pHexData+16)=_byteswap_ulong(dwKey5);
-	*(DWORD*)(pHexData+20)=_byteswap_ulong(dwKey6);
-	*(DWORD*)(pHexData+24)=_byteswap_ulong(dwKey7);
-	*(DWORD*)(pHexData+28)=_byteswap_ulong(dwKey8);
+	*(DWORD*)(pHexData +  0) = _byteswap_ulong(dwKey1);
+	*(DWORD*)(pHexData +  4) = _byteswap_ulong(dwKey2);
+	*(DWORD*)(pHexData +  8) = _byteswap_ulong(dwKey3);
+	*(DWORD*)(pHexData + 12) = _byteswap_ulong(dwKey4);
+	*(DWORD*)(pHexData + 16) = _byteswap_ulong(dwKey5);
+	*(DWORD*)(pHexData + 20) = _byteswap_ulong(dwKey6);
+	*(DWORD*)(pHexData + 24) = _byteswap_ulong(dwKey7);
+	*(DWORD*)(pHexData + 28) = _byteswap_ulong(dwKey8);
 #endif
 }
+
 
 CMulti2Decoder::CMulti2Decoder(void)
 	: m_bIsSysKeyValid(false)
@@ -173,7 +174,7 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 
 	// CBCモード
 	DATKEY SrcData;
-	while (p<pEnd) {
+	while (p < pEnd) {
 		SrcData.SetHexData(p);
 		//DecryptBlock(SrcData, WorkKey);
 		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
@@ -330,9 +331,284 @@ inline const DWORD CMulti2Decoder::LeftRotate(const DWORD dwValue, const DWORD d
 {
 #ifndef USE_INTRINSIC
 	// 左ローテート
-	return (dwValue << dwRotate) | (dwValue >> (sizeof(dwValue) * 8UL - dwRotate));
+	return (dwValue << dwRotate) | (dwValue >> (32UL - dwRotate));
 #else
 	// 実はわざわざ書き換えなくても、上のコードでもrolが使われる
-	return _lrotl(dwValue,dwRotate);
+	return _lrotl(dwValue, dwRotate);
 #endif
 }
+
+
+
+
+#ifdef MULTI2_SSE2
+/*
+	SSE2対応
+	elick氏のコードを参考にしています。まだ最適化が可能だと思います。
+*/
+
+
+#define MM_SHUFFLE4(a, b, c, d) ((a << 6) | (b << 4) | (c << 2) | d)
+
+#define MM_SHIFT_COUNT(n) (ShiftCount##n)
+#define MM_ROTATE(v, l, r) LeftRotate(v, MM_SHIFT_COUNT(l), MM_SHIFT_COUNT(r))
+
+
+static __m128i ShiftCount1;
+static __m128i ShiftCount2;
+static __m128i ShiftCount4;
+static __m128i ShiftCount8;
+static __m128i ShiftCount16;
+
+static __m128i ShiftCount31;
+static __m128i ShiftCount30;
+static __m128i ShiftCount28;
+static __m128i ShiftCount24;
+
+static __m128i Immediate1;
+
+static __m128i SwapMask;
+
+class CSSE2Initializer
+{
+public:
+	CSSE2Initializer() {
+		if (IsSSE2Available()) {
+			TRACE(TEXT("Multi2Decoder SSE2 available\n"));
+
+			ShiftCount1 = _mm_set_epi32(0, 0, 0, 1);
+			ShiftCount2 = _mm_set_epi32(0, 0, 0, 2);
+			ShiftCount4 = _mm_set_epi32(0, 0, 0, 4);
+			ShiftCount8 = _mm_set_epi32(0, 0, 0, 8);
+			ShiftCount16 = _mm_set_epi32(0, 0, 0, 16);
+
+			ShiftCount31 = _mm_set_epi32(0, 0, 0, 31);
+			ShiftCount30 = _mm_set_epi32(0, 0, 0, 30);
+			ShiftCount28 = _mm_set_epi32(0, 0, 0, 28);
+			ShiftCount24 = _mm_set_epi32(0, 0, 0, 24);
+
+			Immediate1 = _mm_set1_epi32(1);
+
+			SwapMask = _mm_set1_epi32(0xFF00FF00);
+		}
+	}
+	static bool IsSSE2Available() {
+#if 1
+		bool b;
+
+		__asm {
+			mov		eax, 1
+			cpuid
+			bt		edx, 26
+			setc	b
+		}
+
+		return b;
+#else
+		return ::IsProcessorFeaturePresent(PF_XMMI64_INSTRUCTIONS_AVAILABLE) != FALSE;
+#endif
+	}
+};
+
+static CSSE2Initializer SSE2Initializer;
+
+
+inline void CMulti2Decoder::RoundFuncPi1SSE2(__m128i &Left, __m128i &Right)
+{
+	Right = _mm_xor_si128(Right, Left);
+}
+
+inline void CMulti2Decoder::RoundFuncPi2SSE2(__m128i &Left, __m128i &Right, DWORD Key1)
+{
+	__m128i t0,t1,t2;
+
+	t0 = _mm_add_epi32(Right, _mm_set1_epi32(Key1));
+	t1 = _mm_sub_epi32(_mm_add_epi32(MM_ROTATE(t0, 1, 31), t0), _mm_set1_epi32(1));
+	t2 = _mm_xor_si128(MM_ROTATE(t1, 4, 28), t1);
+
+	Left = _mm_xor_si128(Left, t2);
+}
+
+inline void CMulti2Decoder::RoundFuncPi3SSE2(__m128i &Left, __m128i &Right, DWORD Key2, DWORD Key3)
+{
+	__m128i t0,t1,t2,t3,t4,t5;
+
+	t0 = _mm_add_epi32(Left, _mm_set1_epi32(Key2));
+	t1 = _mm_add_epi32(_mm_add_epi32(MM_ROTATE(t0, 2, 30), t0), _mm_set1_epi32(1));
+	t2 = _mm_xor_si128(MM_ROTATE(t1, 8, 24), t1);
+	t3 = _mm_add_epi32(t2, _mm_set1_epi32(Key3));
+	t4 = _mm_sub_epi32(MM_ROTATE(t3, 1, 31), t3);
+	t5 = _mm_xor_si128(MM_ROTATE(t4, 16, 16), _mm_or_si128(t4, Left));
+
+	Right = _mm_xor_si128(Right, t5);
+}
+
+inline void CMulti2Decoder::RoundFuncPi4SSE2(__m128i &Left, __m128i &Right, DWORD Key4)
+{
+	__m128i t0,t1;
+
+	t0 = _mm_add_epi32(Right, _mm_set1_epi32(Key4));
+	t1 = _mm_add_epi32(_mm_add_epi32(MM_ROTATE(t0, 2, 30), t0), _mm_set1_epi32(1));
+
+	Left = _mm_xor_si128(Left, t1);
+}
+
+inline __m128i CMulti2Decoder::LeftRotate(const __m128i &Value, const __m128i &Rotate, const __m128i &InvRotate)
+{
+	return _mm_or_si128(_mm_sll_epi32(Value, Rotate), _mm_srl_epi32(Value, InvRotate));
+}
+
+inline __m128i CMulti2Decoder::ByteSwap128(const __m128i &Value)
+{
+	__m128i src = Value;
+	__m128i tmp = _mm_and_si128(src, SwapMask);
+	tmp = _mm_srl_epi32(tmp, MM_SHIFT_COUNT(8));
+	src = _mm_sll_epi32(src, MM_SHIFT_COUNT(8));
+	src = _mm_and_si128(src, SwapMask);
+	src = _mm_or_si128(src, tmp);
+	return MM_ROTATE(src, 16, 16);
+}
+
+const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYTE byScrCtrl) const
+{
+	if(!byScrCtrl)return true;										// スクランブルなし
+	else if(!m_bIsSysKeyValid || !m_bIsWorkKeyValid)return false;	// スクランブルキー未設定
+	else if((byScrCtrl != 2U) && (byScrCtrl != 3U))return false;	// スクランブル制御不正
+
+	// ワークキー選択
+	const SYSKEY &WorkKey = (byScrCtrl == 3) ? m_WorkKeyOdd : m_WorkKeyEven;
+
+	DWORD RemainSize = dwSize & 0xFFFFFFE0UL;
+	BYTE *pEnd = pData + RemainSize;
+	BYTE *p = pData;
+
+	// CBCモード
+	__m128i Cbc = _mm_set_epi32(0, 0,
+								_byteswap_ulong(m_InitialCbc.dwRight),
+								_byteswap_ulong(m_InitialCbc.dwLeft));
+	while (p < pEnd) {
+		__m128i Src1, Src2, Left, Right;
+
+		// r2 l2 r1 l1
+		Src1 = _mm_loadu_si128((__m128i*)p);
+		// r4 l4 r3 l3
+		Src2 = _mm_loadu_si128((__m128i*)(p + 16));
+
+		Left = ByteSwap128(Src1);
+		Right = ByteSwap128(Src2);
+
+		{
+			// r2 r1 l2 l1
+			__m128i x = _mm_shuffle_epi32(Left, MM_SHUFFLE4(3, 1, 2, 0));
+
+			// r4 r3 l4 l3
+			__m128i y = _mm_shuffle_epi32(Right, MM_SHUFFLE4(3, 1, 2, 0));
+
+			// l4 l2 l3 l1
+			Left = _mm_unpacklo_epi32(x, y);
+
+			// r4 r2 r3 r1
+			Right = _mm_unpackhi_epi32(x, y);
+		}
+
+		for (int i = 0 ; i < SCRAMBLE_ROUND ; i++) {
+			RoundFuncPi4SSE2(Left, Right, WorkKey.dwKey8);
+			RoundFuncPi3SSE2(Left, Right, WorkKey.dwKey6, WorkKey.dwKey7);
+			RoundFuncPi2SSE2(Left, Right, WorkKey.dwKey5);
+			RoundFuncPi1SSE2(Left, Right);
+			RoundFuncPi4SSE2(Left, Right, WorkKey.dwKey4);
+			RoundFuncPi3SSE2(Left, Right, WorkKey.dwKey2, WorkKey.dwKey3);
+			RoundFuncPi2SSE2(Left, Right, WorkKey.dwKey1);
+			RoundFuncPi1SSE2(Left, Right);
+		}
+
+		{
+			// l4 l3 l2 l1
+			__m128i a = _mm_shuffle_epi32(Left, MM_SHUFFLE4(3, 1, 2, 0));
+
+			// r4 r3 r2 r1
+			__m128i b = _mm_shuffle_epi32(Right, MM_SHUFFLE4(3, 1, 2, 0));
+
+			// r2 l2 r1 l1
+			__m128i x = _mm_unpacklo_epi32(a, b);
+
+			// r4 l4 r3 l3
+			__m128i y = _mm_unpackhi_epi32(a, b);
+
+			x = _mm_xor_si128(ByteSwap128(x), _mm_or_si128(_mm_slli_si128(Src1, 8), Cbc));
+			y = _mm_xor_si128(ByteSwap128(y), _mm_loadu_si128((__m128i*)(p + 8)));
+			_mm_storeu_si128((__m128i*)p, x);
+			_mm_storeu_si128((__m128i*)p + 1, y);
+
+			Cbc = _mm_srli_si128(Src2, 8);
+		}
+
+		p += 32;
+	}
+
+	DATKEY CbcData;
+	CbcData.dwLeft = _byteswap_ulong(Cbc.m128i_i32[0]);
+	CbcData.dwRight = _byteswap_ulong(Cbc.m128i_i32[1]);
+
+	RemainSize= dwSize & 0x00000018UL;
+	pEnd = p + RemainSize;
+	while (p < pEnd) {
+		DATKEY SrcData;
+
+		SrcData.SetHexData(p);
+		//DecryptBlock(SrcData, WorkKey);
+		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
+			RoundFuncPi4(SrcData, WorkKey.dwKey8);
+			RoundFuncPi3(SrcData, WorkKey.dwKey6, WorkKey.dwKey7);
+			RoundFuncPi2(SrcData, WorkKey.dwKey5);
+			RoundFuncPi1(SrcData);
+			RoundFuncPi4(SrcData, WorkKey.dwKey4);
+			RoundFuncPi3(SrcData, WorkKey.dwKey2, WorkKey.dwKey3);
+			RoundFuncPi2(SrcData, WorkKey.dwKey1);
+			RoundFuncPi1(SrcData);
+		}
+		SrcData.dwLeft ^= CbcData.dwLeft;
+		SrcData.dwRight ^= CbcData.dwRight;
+		CbcData.SetHexData(p);
+		SrcData.GetHexData(p);
+		p += sizeof(DATKEY);
+	}
+
+	// OFBモード
+	RemainSize = dwSize & 0x00000007UL;
+	if (RemainSize > 0) {
+		BYTE Remain[sizeof(DATKEY)];
+
+		//EncryptBlock(CbcData, WorkKey);
+		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
+			RoundFuncPi1(CbcData);
+			RoundFuncPi2(CbcData, WorkKey.dwKey1);
+			RoundFuncPi3(CbcData, WorkKey.dwKey2, WorkKey.dwKey3);
+			RoundFuncPi4(CbcData, WorkKey.dwKey4);
+			RoundFuncPi1(CbcData);
+			RoundFuncPi2(CbcData, WorkKey.dwKey5);
+			RoundFuncPi3(CbcData, WorkKey.dwKey6, WorkKey.dwKey7);
+			RoundFuncPi4(CbcData, WorkKey.dwKey8);
+		}
+		CbcData.GetHexData(Remain);
+		switch (RemainSize) {
+		case 7: p[6] ^= Remain[6];
+		case 6: p[5] ^= Remain[5];
+		case 5: p[4] ^= Remain[4];
+		case 4: p[3] ^= Remain[3];
+		case 3: p[2] ^= Remain[2];
+		case 2: p[1] ^= Remain[1];
+		case 1: p[0] ^= Remain[0];
+		}
+	}
+
+	return true;
+}
+
+bool CMulti2Decoder::IsSSE2Available()
+{
+	return CSSE2Initializer::IsSSE2Available();
+}
+
+
+#endif	// MULTI2_SSE2

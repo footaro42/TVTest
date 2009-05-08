@@ -179,6 +179,17 @@ int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2)
 }
 
 
+bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset)
+{
+	FILETIME ft;
+
+	::SystemTimeToFileTime(pTime,&ft);
+	ft+=Offset*FILETIME_MILLISECOND;
+	::FileTimeToSystemTime(&ft,pTime);
+	return true;
+}
+
+
 int CalcDayOfWeek(int Year,int Month,int Day)
 {
 	if (Month<=2) {
@@ -186,6 +197,12 @@ int CalcDayOfWeek(int Year,int Month,int Day)
 		Month+=12;
 	}
 	return (Year*365+Year/4-Year/100+Year/400+306*(Month+1)/10+Day-428)%7;
+}
+
+
+LPCTSTR GetDayOfWeekText(int DayOfWeek)
+{
+	return TEXT("“ú\0ŒŽ\0‰Î\0…\0–Ø\0‹à\0“y")+DayOfWeek*((3-sizeof(TCHAR))+1);
 }
 
 

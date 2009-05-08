@@ -39,7 +39,7 @@ public:
 	// CDriverOptions
 	bool Initialize(CDriverManager *pDriverManager);
 	struct InitialChannelInfo {
-		int Space,Channel,Service;
+		int Space,Channel;
 	};
 	bool GetInitialChannel(LPCTSTR pszFileName,InitialChannelInfo *pChannelInfo) const;
 	bool IsNoSignalLevel(LPCTSTR pszFileName) const;

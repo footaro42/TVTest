@@ -274,12 +274,10 @@ bool CDriverOptions::GetInitialChannel(LPCTSTR pszFileName,InitialChannelInfo *p
 		case CDriverSettings::INITIALCHANNEL_NONE:
 			pChannelInfo->Space=-1;
 			pChannelInfo->Channel=-1;
-			pChannelInfo->Service=-1;
 			return true;
 		case CDriverSettings::INITIALCHANNEL_CUSTOM:
 			pChannelInfo->Space=pSettings->GetInitialSpace();
 			pChannelInfo->Channel=pSettings->GetInitialChannel();
-			pChannelInfo->Service=0;
 			return true;
 		}
 	}

@@ -24,12 +24,16 @@ float LevelToDeciBel(int Level);
 COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio);
 
 DWORD DiffTime(DWORD Start,DWORD End);
-#define FILETIME_SECOND			((LONGLONG)10000000)
-#define FILETIME_MILLISECOND	((LONGLONG)10000)
+#define FILETIME_MILLISECOND	10000LL
+#define FILETIME_SECOND			(1000LL*FILETIME_MILLISECOND)
+#define FILETIME_MINUTE			(60LL*FILETIME_SECOND)
+#define FILETIME_HOUR			(60LL*FILETIME_MINUTE)
 FILETIME &operator+=(FILETIME &ft,LONGLONG Offset);
 LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2);
 int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2);
+bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset);
 int CalcDayOfWeek(int Year,int Month,int Day);
+LPCTSTR GetDayOfWeekText(int DayOfWeek);
 
 void ClearMenu(HMENU hmenu);
 int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength);

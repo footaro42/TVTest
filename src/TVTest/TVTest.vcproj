@@ -142,7 +142,7 @@
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
 				BufferSecurityCheck="false"
-				EnableEnhancedInstructionSet="1"
+				EnableEnhancedInstructionSet="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="false"
@@ -237,7 +237,7 @@
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
 				BufferSecurityCheck="false"
-				EnableEnhancedInstructionSet="1"
+				EnableEnhancedInstructionSet="0"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="false"
@@ -370,6 +370,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Dialog.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\DialogUtil.cpp"
 				>
 			</File>
@@ -391,10 +395,6 @@
 			</File>
 			<File
 				RelativePath=".\EpgProgramList.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\Error.cpp"
 				>
 			</File>
 			<File
@@ -435,6 +435,10 @@
 			</File>
 			<File
 				RelativePath=".\Menu.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\MessageDialog.cpp"
 				>
 			</File>
 			<File
@@ -656,6 +660,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Dialog.h"
+				>
+			</File>
+			<File
 				RelativePath=".\DialogUtil.h"
 				>
 			</File>
@@ -677,10 +685,6 @@
 			</File>
 			<File
 				RelativePath=".\EpgProgramList.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Error.h"
 				>
 			</File>
 			<File
@@ -729,6 +733,10 @@
 			</File>
 			<File
 				RelativePath=".\Menu.h"
+				>
+			</File>
+			<File
+				RelativePath=".\MessageDialog.h"
 				>
 			</File>
 			<File

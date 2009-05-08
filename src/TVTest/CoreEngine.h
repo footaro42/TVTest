@@ -61,7 +61,7 @@ public:
 	bool OpenDriver();
 	bool CloseDriver();
 	bool IsDriverOpen() const;
-	bool OpenFile(LPCTSTR pszFileName);
+	//bool OpenFile(LPCTSTR pszFileName);
 	bool IsFileMode() const { return m_fFileMode; }
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,

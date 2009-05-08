@@ -57,8 +57,11 @@ const bool CAacDecoder::OpenDecoder(void)
 	*/
 
 	// デコーダ設定
+	pDecodeConfig->defObjectType = LC;
 	pDecodeConfig->defSampleRate = 48000UL;
 	pDecodeConfig->outputFormat = FAAD_FMT_16BIT;
+	pDecodeConfig->downMatrix = 0;
+	pDecodeConfig->useOldADTSFormat = 0;
 
 	if (!::NeAACDecSetConfiguration(m_hDecoder, pDecodeConfig)) {
 		CloseDecoder();

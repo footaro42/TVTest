@@ -68,7 +68,7 @@ public:
 	bool DeleteChannel(int Index);
 	void Clear();
 	int Find(const CChannelInfo *pInfo) const;
-	int Find(int Space,int ChannelIndex,int Service) const;
+	int Find(int Space,int ChannelIndex,int ServiceID=-1) const;
 	int FindChannel(int Channel) const;
 	int FindChannelNo(int No) const;
 	int FindServiceID(WORD ServiceID) const;
