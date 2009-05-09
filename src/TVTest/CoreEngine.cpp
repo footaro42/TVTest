@@ -30,7 +30,7 @@ CCoreEngine::CCoreEngine()
 	m_NumAudioChannels=0;
 	m_AudioComponentType=0;
 	m_fMute=false;
-	m_Volume=100;
+	m_Volume=50;
 	m_VolumeNormalizeLevel=100;
 	m_StereoMode=0;
 	m_fDownMixSurround=true;

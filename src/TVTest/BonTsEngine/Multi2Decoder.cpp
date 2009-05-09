@@ -4,7 +4,9 @@
 
 #include "stdafx.h"
 #include "Multi2Decoder.h"
-
+#ifdef MULTI2_SSE2_ICC
+#pragma comment(lib, "Multi2Decoder.lib")
+#endif
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -342,6 +344,7 @@ inline const DWORD CMulti2Decoder::LeftRotate(const DWORD dwValue, const DWORD d
 
 
 #ifdef MULTI2_SSE2
+#ifndef MULTI2_SSE2_ICC
 /*
 	SSE2対応
 	elick氏のコードを参考にしています。まだ最適化が可能だと思います。
@@ -609,6 +612,42 @@ bool CMulti2Decoder::IsSSE2Available()
 {
 	return CSSE2Initializer::IsSSE2Available();
 }
+
+
+#else	// MULTI2_SSE2_ICC
+
+
+class CSSE2Initializer
+{
+public:
+	CSSE2Initializer() {
+		Multi2DecoderSSE2::Initialize();
+	}
+};
+
+static CSSE2Initializer SSE2Initializer;
+
+
+const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYTE byScrCtrl) const
+{
+	if(!byScrCtrl)return true;										// スクランブルなし
+	else if(!m_bIsSysKeyValid || !m_bIsWorkKeyValid)return false;	// スクランブルキー未設定
+	else if((byScrCtrl != 2U) && (byScrCtrl != 3U))return false;	// スクランブル制御不正
+
+	// ワークキー選択
+	return Multi2DecoderSSE2::Decode(pData, dwSize,
+		reinterpret_cast<const Multi2DecoderSSE2::SYSKEY*>((byScrCtrl == 3) ? &m_WorkKeyOdd : &m_WorkKeyEven),
+		m_InitialCbc.dwLeft, m_InitialCbc.dwRight);
+}
+
+
+bool CMulti2Decoder::IsSSE2Available()
+{
+	return Multi2DecoderSSE2::IsSSE2Available();
+}
+
+
+#endif	// MULTI2_SSE2_ICC
 
 
 #endif	// MULTI2_SSE2

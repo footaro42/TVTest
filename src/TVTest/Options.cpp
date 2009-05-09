@@ -3,6 +3,8 @@
 
 
 
+DWORD COptions::m_GeneralUpdateFlags=0;
+
 
 COptions::COptions()
 {
@@ -46,4 +48,11 @@ DWORD COptions::SetUpdateFlag(DWORD Flag)
 {
 	m_UpdateFlags|=Flag;
 	return m_UpdateFlags;
+}
+
+
+DWORD COptions::SetGeneralUpdateFlag(DWORD Flag)
+{
+	m_GeneralUpdateFlags|=Flag;
+	return m_GeneralUpdateFlags;
 }

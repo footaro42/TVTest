@@ -14,6 +14,7 @@ CAudioOptions::CAudioOptions()
 	m_szAudioDeviceName[0]='\0';
 	m_fDownMixSurround=true;
 	m_fRestoreMute=false;
+	m_fUseAudioRendererClock=true;
 }
 
 
@@ -22,11 +23,21 @@ CAudioOptions::~CAudioOptions()
 }
 
 
+bool CAudioOptions::Apply(DWORD Flags)
+{
+	if ((Flags&UPDATE_CLOCK)!=0)
+		GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(m_fUseAudioRendererClock);
+
+	return true;
+}
+
+
 bool CAudioOptions::Read(CSettings *pSettings)
 {
 	pSettings->Read(TEXT("AudioDevice"),m_szAudioDeviceName,MAX_AUDIO_DEVICE_NAME);
 	pSettings->Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
 	pSettings->Read(TEXT("RestoreMute"),&m_fRestoreMute);
+	pSettings->Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
 	return true;
 }
 
@@ -36,6 +47,7 @@ bool CAudioOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("AudioDevice"),m_szAudioDeviceName);
 	pSettings->Write(TEXT("DownMixSurround"),m_fDownMixSurround);
 	pSettings->Write(TEXT("RestoreMute"),m_fRestoreMute);
+	pSettings->Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
 	return true;
 }
 
@@ -68,6 +80,8 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 			DlgCheckBox_Check(hDlg,IDC_AUDIOOPTIONS_DOWNMIXSURROUND,pThis->m_fDownMixSurround);
 			DlgCheckBox_Check(hDlg,IDC_AUDIOOPTIONS_RESTOREMUTE,pThis->m_fRestoreMute);
+
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,!pThis->m_fUseAudioRendererClock);
 		}
 		return TRUE;
 
@@ -77,16 +91,26 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			{
 				CAudioOptions *pThis=GetThis(hDlg);
 
+				TCHAR szAudioDevice[MAX_AUDIO_DEVICE_NAME];
 				int Sel=DlgComboBox_GetCurSel(hDlg,IDC_AUDIOOPTIONS_DEVICE);
 				if (Sel<=0)
-					pThis->m_szAudioDeviceName[0]='\0';
+					szAudioDevice[0]='\0';
 				else
-					DlgComboBox_GetLBString(hDlg,IDC_AUDIOOPTIONS_DEVICE,Sel,
-											pThis->m_szAudioDeviceName);
+					DlgComboBox_GetLBString(hDlg,IDC_AUDIOOPTIONS_DEVICE,Sel,szAudioDevice);
+				if (::lstrcmpi(pThis->m_szAudioDeviceName,szAudioDevice)!=0) {
+					::lstrcpy(pThis->m_szAudioDeviceName,szAudioDevice);
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
+				}
 
 				pThis->m_fDownMixSurround=DlgCheckBox_IsChecked(hDlg,IDC_AUDIOOPTIONS_DOWNMIXSURROUND);
 				GetAppClass().GetCoreEngine()->SetDownMixSurround(pThis->m_fDownMixSurround);
 				pThis->m_fRestoreMute=DlgCheckBox_IsChecked(hDlg,IDC_AUDIOOPTIONS_RESTOREMUTE);
+
+				bool f=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK);
+				if (f!=pThis->m_fUseAudioRendererClock) {
+					pThis->m_fUseAudioRendererClock=f;
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
+				}
 			}
 			break;
 		}

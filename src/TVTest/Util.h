@@ -17,6 +17,8 @@ LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
 
+#define NullToEmptyString(pszString) ((pszString)?(pszString):TEXT(""))
+
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2);
 
 float LevelToDeciBel(int Level);

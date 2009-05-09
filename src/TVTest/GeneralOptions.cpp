@@ -57,6 +57,7 @@ bool CGeneralOptions::Apply(DWORD Flags)
 	CMainWindow *pMainWindow=AppMain.GetMainWindow();
 
 	if ((Flags&(UPDATE_DECODER | UPDATE_RENDERER))!=0) {
+		/*
 		if (pCoreEngine->m_DtvEngine.m_MediaViewer.IsOpen()) {
 			CStatusView *pStatusView=pMainWindow->GetStatusView();
 
@@ -65,6 +66,7 @@ bool CGeneralOptions::Apply(DWORD Flags)
 			pCoreEngine->m_DtvEngine.SetTracer(NULL);
 			pStatusView->SetSingleText(NULL);
 		}
+		*/
 	}
 
 	if ((Flags&UPDATE_CARDREADER)!=0) {
@@ -435,11 +437,14 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					goto Again;
 
 				::SetCursor(hcurOld);
+				int Percentage=(int)(NormalTime*100/SSE2Time)-100;
 				TCHAR szText[256];
-				::wsprintf(szText,TEXT("%lu 回の実行に掛かった時間\nSSE2不使用 : %lu ms\nSSE2使用 : %lu ms\nSSE2で高速化される割合 : %d %%\n\nSSE2を%sにすることをお勧めします。"),
-						   BenchmarkCount,NormalTime,SSE2Time,
-						   (int)(NormalTime*100/SSE2Time)-100,
-						   NormalTime*100/SSE2Time>=110?TEXT("有効"):TEXT("無効"));
+				::wsprintf(szText,TEXT("%lu 回の実行に掛かった時間\nSSE2不使用 : %lu ms\nSSE2使用 : %lu ms\nSSE2で高速化される割合 : %d %%\n\n%s"),
+						   BenchmarkCount,NormalTime,SSE2Time,Percentage,
+						   Percentage<=5?
+								TEXT("SSE2を無効にすることをお勧めします。"):
+						   Percentage<10?TEXT("微妙…"):
+								TEXT("SSE2を有効にすることをお勧めします。"));
 				CMessageDialog MessageDialog;
 				MessageDialog.Show(hDlg,CMessageDialog::TYPE_INFO,szText,
 								   TEXT("ベンチマークテスト結果"),NULL,TEXT("ベンチマークテスト"));
@@ -483,6 +488,7 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (Renderer!=pThis->m_VideoRendererType) {
 					pThis->m_VideoRendererType=Renderer;
 					pThis->SetUpdateFlag(UPDATE_RENDERER);
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				CCardReader::ReaderType CardReader=(CCardReader::ReaderType)
@@ -490,6 +496,7 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (CardReader!=pThis->m_CardReaderType) {
 					pThis->m_CardReaderType=CardReader;
 					pThis->SetUpdateFlag(UPDATE_CARDREADER);
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				bool fResident=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESIDENT);

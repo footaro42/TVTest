@@ -66,7 +66,7 @@ bool CChannelHistory::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo
 		if (::lstrcmpi((*itr)->GetDriverFileName(),pszDriverName)==0
 				&& (*itr)->GetSpace()==pChannelInfo->GetSpace()
 				&& (*itr)->GetChannelIndex()==pChannelInfo->GetChannelIndex()
-				&& (*itr)->GetService()==pChannelInfo->GetService()) {
+				&& (*itr)->GetServiceID()==pChannelInfo->GetServiceID()) {
 			if (itr==m_ChannelList.begin())
 				return true;
 			delete *itr;
@@ -135,7 +135,7 @@ bool CChannelHistory::Load(LPCTSTR pszFileName)
 				if (!Settings.Read(szName,&ServiceID))
 					break;
 				CChannelInfo ChannelInfo(Space,0,Channel,0,Service,szChannelName);
-				ChannelInfo.SetServiceID(Service);
+				ChannelInfo.SetServiceID(ServiceID);
 				m_ChannelList.push_front(new CDriverChannelInfo(szDriverName,&ChannelInfo));
 			}
 		}

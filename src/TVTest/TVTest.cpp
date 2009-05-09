@@ -865,8 +865,6 @@ bool CAppMain::LoadSettings()
 			CaptureWindow.ShowStatusBar(f);
 		// Experimental options
 		Setting.Read(TEXT("IncrementUDPPort"),&fIncrementUDPPort);
-		if (Setting.Read(TEXT("UseAudioRendererClock"),&f))
-			CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(f);
 		GeneralOptions.Read(&Setting);
 		ViewOptions.Read(&Setting);
 		OSDOptions.Read(&Setting);
@@ -2168,7 +2166,6 @@ private:
 	HWND m_hDlg;
 	HWND m_hDlgList[NUM_PAGES];
 	HFONT m_hfontTitle;
-	DWORD m_UpdateFlags;
 	void CreatePage(int Page);
 	static COptionDialog *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -2266,6 +2263,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 			::SetProp(hDlg,TEXT("This"),pThis);
 			pThis->m_hDlg=hDlg;
+			COptions::ClearGeneralUpdateFlags();
 			for (i=0;i<NUM_PAGES;i++) {
 				pThis->m_hDlgList[i]=NULL;
 				::SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_ADDSTRING,0,
@@ -2353,11 +2351,9 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 				hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 				nmh.code=LOWORD(wParam)==IDOK?PSN_APPLY:PSN_RESET;
-				//pThis->m_UpdateFlags=0;
 				for (i=0;i<NUM_PAGES;i++) {
 					if (pThis->m_hDlgList[i]!=NULL) {
 						::SendMessage(pThis->m_hDlgList[i],WM_NOTIFY,0,(LPARAM)&nmh);
-						//pThis->m_UpdateFlags|=m_PageList[i].pOptions->GetUpdateFlags();
 					}
 				}
 				::SetCursor(hcurOld);
@@ -2395,6 +2391,14 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 
 		if (Flags!=0)
 			m_PageList[i].pOptions->Apply(Flags);
+	}
+	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_BUILDMEDIAVIEWER)!=0) {
+		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
+			CoreEngine.m_DtvEngine.SetTracer(&StatusView);
+			MainWindow.BuildMediaViewer();
+			CoreEngine.m_DtvEngine.SetTracer(NULL);
+			StatusView.SetSingleText(NULL);
+		}
 	}
 	/*
 	if (m_UpdateFlags&COptions::UPDATE_DRIVER) {
@@ -2786,7 +2790,7 @@ static CMyChannelPanelEventHandler ChannelPanelEventHandler;
 class CMyProgramGuideEventHandler : public CProgramGuideEventHandler {
 public:
 	bool OnClose();
-	void OnServiceTitleLButtonDown(WORD ServiceID);
+	void OnServiceTitleLButtonDown(const CServiceInfoData *pServiceInfo);
 	bool OnBeginUpdate();
 	void OnEndUpdate();
 	bool OnRefresh();
@@ -2800,12 +2804,12 @@ bool CMyProgramGuideEventHandler::OnClose()
 	return true;
 }
 
-void CMyProgramGuideEventHandler::OnServiceTitleLButtonDown(WORD ServiceID)
+void CMyProgramGuideEventHandler::OnServiceTitleLButtonDown(const CServiceInfoData *pServiceInfo)
 {
 	const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 
 	if (pList!=NULL) {
-		int Index=pList->FindServiceID(ServiceID);
+		int Index=pList->FindServiceID(pServiceInfo->m_ServiceID);
 
 		if (Index>=0) {
 			const CChannelInfo *pChInfo=pList->GetChannelInfo(Index);
@@ -4465,7 +4469,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				}
 				const CChannelList *pList=ChannelManager.GetChannelList(pChannelInfo->GetSpace());
 				if (pList!=NULL) {
-					int Index=pList->Find(-1,pChannelInfo->GetChannelIndex());
+					int Index=pList->Find(-1,pChannelInfo->GetChannelIndex(),
+										  pChannelInfo->GetServiceID());
 
 					if (Index>=0)
 						AppMain.SetChannel(pChannelInfo->GetSpace(),Index);
@@ -4688,9 +4693,9 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 								stStart.wMinute,
 								stEnd.wHour,
 								stEnd.wMinute,
-								pInfo->GetEventName(),
-								pInfo->GetEventText(),
-								pInfo->GetEventExtText());
+								NullToEmptyString(pInfo->GetEventName()),
+								NullToEmptyString(pInfo->GetEventText()),
+								NullToEmptyString(pInfo->GetEventExtText()));
 							szText[Length]='\0';
 							InfoWindow.SetProgramInfo(szText);
 							fOK=true;
@@ -7458,6 +7463,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	}
 
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(ViewOptions.GetIgnoreDisplayExtension());
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(AudioOptions.GetUseAudioRendererClock());
 	CoreEngine.SetDownMixSurround(AudioOptions.GetDownMixSurround());
 	if (AudioOptions.GetRestoreMute() && fMuteStatus)
 		MainWindow.SetMute(true);

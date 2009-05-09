@@ -7,9 +7,14 @@
 
 // SSE2‘Î‰ž
 #define MULTI2_SSE2
+#define MULTI2_SSE2_ICC
 
 #ifdef MULTI2_SSE2
+#ifdef MULTI2_SSE2_ICC
+#include "../ICC/Multi2Decoder/Multi2DecoderSSE2.h"
+#else
 #include <emmintrin.h>
+#endif
 #endif
 
 
@@ -60,7 +65,7 @@ private:
 
 	static inline const DWORD LeftRotate(const DWORD dwValue, const DWORD dwRotate);
 
-#ifdef MULTI2_SSE2
+#if defined(MULTI2_SSE2) && !defined(MULTI2_SSE2_ICC)
 	static inline void RoundFuncPi1SSE2(__m128i &Left, __m128i &Right);
 	static inline void RoundFuncPi2SSE2(__m128i &Left, __m128i &Right, DWORD Key1);
 	static inline void RoundFuncPi3SSE2(__m128i &Left, __m128i &Right, DWORD Key2, DWORD Key3);

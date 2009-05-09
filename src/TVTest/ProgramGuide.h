@@ -29,7 +29,7 @@ public:
 	CProgramGuideEventHandler();
 	virtual ~CProgramGuideEventHandler();
 	virtual bool OnClose() { return true; }
-	virtual void OnServiceTitleLButtonDown(WORD ServiceID) {}
+	virtual void OnServiceTitleLButtonDown(const CServiceInfoData *pServiceInfo) {}
 	virtual bool OnBeginUpdate() { return true; }
 	virtual void OnEndUpdate() {}
 	virtual bool OnRefresh() { return true; }
