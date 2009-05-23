@@ -478,8 +478,10 @@ bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 {
 	m_ResumeEvent.Reset();
 	m_PauseEvent.Set();
-	if (m_ResumeEvent.Wait(TimeOut) == WAIT_TIMEOUT)
+	if (m_ResumeEvent.Wait(TimeOut) == WAIT_TIMEOUT) {
+		m_PauseEvent.Reset();
 		return false;
+	}
 	return true;
 }
 

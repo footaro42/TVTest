@@ -45,17 +45,17 @@ protected:
 
 	WORD m_TargetServiceID;
 	WORD m_TargetPmtPID;
-	WORD m_TargetEmmPID;
 	DWORD m_TargetStream;
 
 	struct TAG_PMTPIDINFO {
 		WORD ServiceID;
 		WORD PmtPID;
 		WORD PcrPID;
-		WORD EcmPID;
+		std::vector<WORD> EcmPIDs;
 		std::vector<WORD> EsPIDs;
 	};
 	std::vector<TAG_PMTPIDINFO> m_PmtPIDList;
+	std::vector<WORD> m_EmmPIDList;
 
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_OutputPacketCount;

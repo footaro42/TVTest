@@ -31,7 +31,8 @@ public:
 	enum SortType {
 		SORT_NAME,
 		SORT_CHANNEL,
-		SORT_SERVICE,
+		//SORT_SERVICE,
+		SORT_CHANNELNAME,
 		SORT_SERVICEID,
 		SORT_REMOTECONTROLKEYID
 	};
@@ -74,10 +75,15 @@ int CALLBACK CChannelListSort::CompareFunc(LPARAM lParam1,LPARAM lParam2,LPARAM 
 	case SORT_CHANNEL:
 		Cmp=pChInfo1->GetChannelIndex()-pChInfo2->GetChannelIndex();
 		break;
+	/*
 	case SORT_SERVICE:
 		Cmp=pChInfo1->GetChannelIndex()-pChInfo2->GetChannelIndex();
 		if (Cmp==0)
 			Cmp=pChInfo1->GetService()-pChInfo2->GetService();
+		break;
+	*/
+	case SORT_CHANNELNAME:
+		Cmp=pChInfo1->GetChannelIndex()-pChInfo2->GetChannelIndex();
 		break;
 	case SORT_SERVICEID:
 		Cmp=pChInfo1->GetServiceID()-pChInfo2->GetServiceID();
@@ -195,7 +201,9 @@ void CChannelScan::InsertChannelInfo(int Index,const CChannelInfo *pChInfo)
 	lvi.pszText=szText;
 	ListView_SetItem(hwndList,&lvi);
 	lvi.iSubItem=2;
-	::wsprintf(szText,TEXT("%d"),pChInfo->GetService());
+	//::wsprintf(szText,TEXT("%d"),pChInfo->GetService());
+	LPCTSTR pszChannelName=m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetChannelName(pChInfo->GetSpace(),pChInfo->GetChannelIndex());
+	::lstrcpy(szText,pszChannelName!=NULL?pszChannelName:TEXT("???"));
 	ListView_SetItem(hwndList,&lvi);
 	lvi.iSubItem=3;
 	::wsprintf(szText,TEXT("%d"),pChInfo->GetServiceID());
@@ -291,8 +299,13 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			lvc.cx=40;
 			lvc.pszText=TEXT("番号");
 			ListView_InsertColumn(hwndList,1,&lvc);
+			/*
 			lvc.cx=64;
 			lvc.pszText=TEXT("サービス");
+			ListView_InsertColumn(hwndList,2,&lvc);
+			*/
+			lvc.cx=72;
+			lvc.pszText=TEXT("チャンネル");
 			ListView_InsertColumn(hwndList,2,&lvc);
 			lvc.cx=72;
 			lvc.pszText=TEXT("サービスID");

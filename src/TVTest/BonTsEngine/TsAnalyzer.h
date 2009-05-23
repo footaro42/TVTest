@@ -55,6 +55,8 @@ public:
 	int GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
 #endif
 
+	bool GetTotTime(SYSTEMTIME *pTime);
+
 	class CEventHandler {
 	public:
 		CEventHandler();

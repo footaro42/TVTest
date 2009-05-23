@@ -40,6 +40,7 @@ class CStatusOptions : public COptions {
 	UINT m_DragTimerID;
 	bool m_fDragResize;
 	LOGFONT m_lfItemFont;
+	bool m_fShowTOTTime;
 	void SetDefaultItemList();
 	void InitListBox(HWND hDlg);
 	void CalcTextWidth(HWND hDlg);
@@ -56,6 +57,8 @@ public:
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
 	bool ApplyOptions();
+	bool GetShowTOTTime() { return m_fShowTOTTime; }
+	void SetShowTOTTime(bool fShow) { m_fShowTOTTime=fShow; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

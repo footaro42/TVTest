@@ -542,6 +542,42 @@ void CCatTable::Reset(void)
 	CPsiSingleTable::Reset();
 }
 
+const CCaMethodDesc * CCatTable::GetCaDescBySystemID(const WORD SystemID) const
+{
+	for (WORD i = 0 ; i < m_DescBlock.GetDescNum() ; i++) {
+		const CBaseDesc *pDesc = m_DescBlock.GetDescByIndex(i);
+
+		if (pDesc != NULL && pDesc->GetTag() == CCaMethodDesc::DESC_TAG) {
+			const CCaMethodDesc *pCaDesc = dynamic_cast<const CCaMethodDesc*>(pDesc);
+
+			if (pCaDesc != NULL && pCaDesc->GetCaMethodID() == SystemID)
+				return pCaDesc;
+		}
+	}
+
+	return NULL;
+}
+
+WORD CCatTable::GetEmmPID() const
+{
+	const CCaMethodDesc *pCaDesc = dynamic_cast<const CCaMethodDesc*>(m_DescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG));
+
+	if (pCaDesc != NULL)
+		return pCaDesc->GetCaPID();
+
+	return 0xFFFF;
+}
+
+WORD CCatTable::GetEmmPID(const WORD CASystemID) const
+{
+	const CCaMethodDesc *pCaDesc = GetCaDescBySystemID(CASystemID);
+
+	if (pCaDesc != NULL)
+		return pCaDesc->GetCaPID();
+
+	return 0xFFFF;
+}
+
 const CDescBlock * CCatTable::GetCatDesc(void) const
 {
 	// 記述子領域を返す
@@ -558,7 +594,7 @@ const bool CCatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	// テーブルを解析する
 	m_DescBlock.ParseBlock(pCurSection->GetPayloadData(), pCurSection->GetPayloadSize());
 
-#ifdef DEBUG
+#ifdef _DEBUG
 	for (WORD i = 0 ; i < m_DescBlock.GetDescNum() ; i++) {
 		const CBaseDesc *pBaseDesc = m_DescBlock.GetDescByIndex(i);
 		TRACE(TEXT("[%lu] TAG = 0x%02X LEN = %lu\n"), i, pBaseDesc->GetTag(), pBaseDesc->GetLength());
@@ -629,6 +665,23 @@ const WORD CPmtTable::GetEcmPID(void) const
 	const CCaMethodDesc *pCaMethodDesc = dynamic_cast<const CCaMethodDesc *>(m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG));
 
 	return (pCaMethodDesc)? pCaMethodDesc->GetCaPID() : 0xFFFFU;
+}
+
+const WORD CPmtTable::GetEcmPID(const WORD CASystemID) const
+{
+	// 指定されたCA_system_idに対応するECMのPIDを返す
+	for (WORD i = 0 ; i < m_TableDescBlock.GetDescNum() ; i++) {
+		const CBaseDesc *pDesc = m_TableDescBlock.GetDescByIndex(i);
+
+		if (pDesc != NULL && pDesc->GetTag() == CCaMethodDesc::DESC_TAG) {
+			const CCaMethodDesc *pCaDesc = dynamic_cast<const CCaMethodDesc*>(pDesc);
+
+			if (pCaDesc != NULL && pCaDesc->GetCaMethodID() == CASystemID)
+				return pCaDesc->GetCaPID();
+		}
+	}
+
+	return 0xFFFF;
 }
 
 const WORD CPmtTable::GetEsInfoNum(void) const
@@ -1115,7 +1168,7 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 	Info.Duration = CAribTime::AribBcdToSecond(&pHexData[13]);
 	Info.RunningStatus = pHexData[16] >> 5;
 	Info.FreeCaMode = (pHexData[16] & 0x10) != 0;
-	WORD DescLength = (((WORD)pHexData[16] & 0x0F) << 8) | pHexData[17];
+	WORD DescLength = (((WORD)pHexData[16] & 0x0F) << 8) | (WORD)pHexData[17];
 	if (DescLength > 0 && DescLength <= wDataSize - 18)
 		Info.DescBlock.ParseBlock(&pHexData[18], DescLength);
 	else
@@ -1125,6 +1178,72 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 	TRACE(TEXT("EventID = %02X / %04d/%d/%d %d:%02d %lu sec\n"),
 		  Info.EventID,Info.StartTime.wYear,Info.StartTime.wMonth,Info.StartTime.wDay,Info.StartTime.wHour,Info.StartTime.wMinute,Info.Duration);
 	*/
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// TOTテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CTotTable::CTotTable()
+	: CPsiSingleTable(false)
+	, m_bValidDateTime(false)
+{
+}
+
+CTotTable::~CTotTable()
+{
+}
+
+void CTotTable::Reset(void)
+{
+	CPsiSingleTable::Reset();
+	m_bValidDateTime = false;
+	m_DescBlock.Reset();
+}
+
+const bool CTotTable::GetDateTime(SYSTEMTIME *pTime) const
+{
+	if (pTime == NULL || !m_bValidDateTime)
+		return false;
+	*pTime = m_DateTime;
+	return true;
+}
+
+const CDescBlock * CTotTable::GetTotDesc(void) const
+{
+	return &m_DescBlock;
+}
+
+const bool CTotTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
+{
+	const WORD DataSize = pCurSection->GetPayloadSize();
+	const BYTE *pHexData = pCurSection->GetPayloadData();
+
+	if (DataSize < 7)
+		return false;
+	if (pCurSection->GetTableID() != TABLE_ID)
+		return false;
+
+	m_bValidDateTime = CAribTime::AribToSystemTime(pHexData, &m_DateTime);
+
+	WORD DescLength = (((WORD)pHexData[5] & 0x0F) << 8) | (WORD)pHexData[6];
+	if (DescLength > 0 && DescLength <= DataSize - 7)
+		m_DescBlock.ParseBlock(&pHexData[7], DescLength);
+	else
+		m_DescBlock.Reset();
+
+/*
+#ifdef _DEBUG
+	if (m_bValidDateTime) {
+		TRACE(TEXT("TOT : %04d/%02d/%02d %02d:%02d:%02d\n"),
+			  m_DateTime.wYear, m_DateTime.wMonth, m_DateTime.wDay,
+			  m_DateTime.wHour, m_DateTime.wMinute, m_DateTime.wSecond);
+	}
+#endif
+*/
 
 	return true;
 }

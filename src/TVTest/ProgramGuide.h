@@ -170,6 +170,7 @@ public:
 	int GetItemWidth() const { return m_ItemWidth; }
 	bool SetUIOptions(int LinesPerHour,int ItemWidth);
 	bool SetColor(int Type,COLORREF Color);
+	bool SetFont(const LOGFONT *pFont);
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 };

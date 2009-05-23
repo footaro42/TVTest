@@ -39,6 +39,7 @@ CGeneralOptions::CGeneralOptions()
 	//m_fDescrambleUseSSE2=CTsDescrambler::IsSSE2Available();
 	m_fDescrambleUseSSE2=false;
 	m_fDescrambleCurServiceOnly=false;
+	m_fEnableEmmProcess=false;
 	m_fPacketBuffering=false;
 	m_PacketBufferLength=40000;
 	m_PacketBufferPoolPercentage=50;
@@ -86,6 +87,10 @@ bool CGeneralOptions::Apply(DWORD Flags)
 			pCoreEngine->m_DtvEngine.SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
 	}
 
+	if ((Flags&UPDATE_ENABLEEMMPROCESS)!=0) {
+		pCoreEngine->m_DtvEngine.m_TsDescrambler.EnableEmmProcess(m_fEnableEmmProcess);
+	}
+
 	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
 		if (m_fPacketBuffering) {
 			pCoreEngine->SetPacketBufferLength(m_PacketBufferLength);
@@ -129,6 +134,7 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("KeepSingleTask"),&m_fKeepSingleTask);
 	pSettings->Read(TEXT("DescrambleSSE2"),&m_fDescrambleUseSSE2);
 	pSettings->Read(TEXT("DescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
+	pSettings->Read(TEXT("ProcessEMM"),&m_fEnableEmmProcess);
 	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
 	unsigned int BufferLength;
 	if (pSettings->Read(TEXT("PacketBufferLength"),&BufferLength))
@@ -151,6 +157,7 @@ bool CGeneralOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("KeepSingleTask"),m_fKeepSingleTask);
 	pSettings->Write(TEXT("DescrambleSSE2"),m_fDescrambleUseSSE2);
 	pSettings->Write(TEXT("DescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
+	pSettings->Write(TEXT("ProcessEMM"),m_fEnableEmmProcess);
 	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
 	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
 	pSettings->Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
@@ -241,6 +248,12 @@ bool CGeneralOptions::GetKeepSingleTask() const
 bool CGeneralOptions::GetDescrambleCurServiceOnly() const
 {
 	return m_fDescrambleCurServiceOnly;
+}
+
+
+bool CGeneralOptions::GetEnableEmmProcess() const
+{
+	return m_fEnableEmmProcess;
 }
 
 
@@ -347,6 +360,11 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
 									IDC_OPTIONS_DESCRAMBLEBENCHMARK,false);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,pThis->m_fDescrambleCurServiceOnly);
+			if (pThis->m_CardReaderType==CCardReader::READER_NONE)
+				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
+									IDC_OPTIONS_ENABLEEMMPROCESS,false);
+
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS,pThis->m_fEnableEmmProcess);
 
 			// Buffering
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEBUFFERING,pThis->m_fPacketBuffering);
@@ -395,6 +413,18 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				ofn.Flags=OFN_HIDEREADONLY | OFN_FILEMUSTEXIST | OFN_EXPLORER;
 				if (::GetOpenFileName(&ofn))
 					::SetDlgItemText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,szFileName);
+			}
+			return TRUE;
+
+		case IDC_OPTIONS_CARDREADER:
+			if (HIWORD(wParam)==CBN_SELCHANGE) {
+				bool fBcas=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_CARDREADER)>0;
+
+				if (CTsDescrambler::IsSSE2Available())
+					EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
+										IDC_OPTIONS_DESCRAMBLEBENCHMARK,fBcas);
+				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,
+									IDC_OPTIONS_ENABLEEMMPROCESS,fBcas);
 			}
 			return TRUE;
 
@@ -515,6 +545,12 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (fCurOnly!=pThis->m_fDescrambleCurServiceOnly) {
 					pThis->m_fDescrambleCurServiceOnly=fCurOnly;
 					pThis->SetUpdateFlag(UPDATE_DESCRAMBLECURONLY);
+				}
+
+				bool fEmm=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS);
+				if (fEmm!=pThis->m_fEnableEmmProcess) {
+					pThis->m_fEnableEmmProcess=fEmm;
+					pThis->SetUpdateFlag(UPDATE_ENABLEEMMPROCESS);
 				}
 
 				bool fBuffering=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ENABLEBUFFERING);

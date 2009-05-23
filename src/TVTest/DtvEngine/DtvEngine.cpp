@@ -710,6 +710,14 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 			//m_BonSrcDecoder.PurgeStream();
 			return 0UL;
 		}
+	} else if (pDecoder == &m_TsDescrambler) {
+		switch (dwEventID) {
+		case CTsDescrambler::EID_EMM_PROCESSED:
+			// EMMˆ—‚ªs‚í‚ê‚½
+			if (m_pEventHandler)
+				m_pEventHandler->OnEmmProcessed(static_cast<const BYTE*>(pParam));
+			return 0UL;
+		}
 	}
 
 	return 0UL;

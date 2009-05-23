@@ -15,22 +15,45 @@
 
 
 class CEcmProcessor;
+class CEmmProcessor;
 
 class CBcasAccess {
-	CEcmProcessor *m_pEcmProcessor;
-	BYTE m_EcmData[256];
-	DWORD m_EcmSize;
+protected:
+	BYTE m_Data[256];
+	DWORD m_DataSize;
 
 public:
-	CBcasAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
+	CBcasAccess(const BYTE *pData, DWORD Size);
 	CBcasAccess(const CBcasAccess &BcasAccess);
-	~CBcasAccess();
+	virtual ~CBcasAccess();
 	CBcasAccess &operator=(const CBcasAccess &BcasAccess);
-	bool SetScrambleKey();
+	virtual bool Process() = 0;
+};
+
+class CEcmAccess : public CBcasAccess {
+	CEcmProcessor *m_pEcmProcessor;
+
+public:
+	CEcmAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
+	CEcmAccess(const CEcmAccess &BcasAccess);
+	~CEcmAccess();
+	CEcmAccess &operator=(const CEcmAccess &EcmAccess);
+	bool Process();
+};
+
+class CEmmAccess : public CBcasAccess {
+	CEmmProcessor *m_pEmmProcessor;
+
+public:
+	CEmmAccess(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size);
+	CEmmAccess(const CEmmAccess &EmmAccess);
+	~CEmmAccess();
+	CEmmAccess &operator=(const CEmmAccess &EmmAccess);
+	bool Process();
 };
 
 class CBcasAccessQueue : public CBonBaseClass {
-	std::deque<CBcasAccess> m_Queue;
+	std::deque<CBcasAccess*> m_Queue;
 	CBcasCard *m_pBcasCard;
 	CCardReader::ReaderType m_ReaderType;
 	HANDLE m_hThread;
@@ -45,6 +68,7 @@ public:
 	~CBcasAccessQueue();
 	void Clear();
 	bool Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
+	bool Enqueue(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size);
 	bool BeginBcasThread(CCardReader::ReaderType ReaderType);
 	bool EndBcasThread();
 };
@@ -60,6 +84,10 @@ public:
 class CTsDescrambler : public CMediaDecoder
 {
 public:
+	enum {
+		EID_EMM_PROCESSED	= 0x00000001UL
+	};
+
 	CTsDescrambler(IEventHandler *pEventHandler = NULL);
 	virtual ~CTsDescrambler();
 
@@ -69,6 +97,7 @@ public:
 
 // CTsDescrambler
 	const bool EnableDescramble(bool bDescramble);
+	const bool EnableEmmProcess(bool bEnable);
 	const bool OpenBcasCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD);
 	void CloseBcasCard(void);
 	const bool IsBcasCardOpen() const;
@@ -89,6 +118,7 @@ protected:
 
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
+	static void CALLBACK OnCatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 
 	int GetServiceIndexByID(WORD ServiceID) const;
 
@@ -97,6 +127,7 @@ protected:
 #endif
 
 	bool m_bDescramble;
+	bool m_bProcessEmm;
 	CTsPidMapManager m_PidMapManager;
 	CBcasCard m_BcasCard;
 	CBcasAccessQueue m_Queue;
@@ -118,6 +149,9 @@ protected:
 
 	bool m_bEnableSSE2;
 
+	WORD m_EmmPID;
+
 	friend class CEcmProcessor;
+	friend class CEmmProcessor;
 	friend class CDescramblePmtTable;
 };

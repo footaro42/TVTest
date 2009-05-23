@@ -20,6 +20,7 @@ CStatusOptions::CStatusOptions(CStatusView *pStatusView)
 	m_pStatusView=pStatusView;
 	SetDefaultItemList();
 	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_lfItemFont);
+	m_fShowTOTTime=false;
 }
 
 
@@ -100,6 +101,8 @@ bool CStatusOptions::Load(LPCTSTR pszFileName)
 			m_lfItemFont.lfWeight=Value;
 		if (Setting.Read(TEXT("FontItalic"),&Value))
 			m_lfItemFont.lfItalic=Value;
+
+		Setting.Read(TEXT("TOTTime"),&m_fShowTOTTime);
 	} else
 		return false;
 	return true;
@@ -131,6 +134,8 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 		Setting.Write(TEXT("FontSize"),(int)m_lfItemFont.lfHeight);
 		Setting.Write(TEXT("FontWeight"),(int)m_lfItemFont.lfWeight);
 		Setting.Write(TEXT("FontItalic"),(int)m_lfItemFont.lfItalic);
+
+		Setting.Write(TEXT("TOTTime"),m_fShowTOTTime);
 	} else
 		return false;
 	return true;
@@ -186,11 +191,13 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 	if (hfont!=NULL) {
 		TEXTMETRIC tm;
 		TCHAR szText[LF_FACESIZE+16];
+		int PixelsPerInch;
 
 		hfontOld=(HFONT)SelectObject(hdc,hfont);
 		GetTextMetrics(hdc,&tm);
+		PixelsPerInch=GetDeviceCaps(hdc,LOGPIXELSY);
 		wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,
-			(tm.tmHeight-tm.tmInternalLeading)*72/GetDeviceCaps(hdc,LOGPIXELSY));
+			((tm.tmHeight-tm.tmInternalLeading)*72+PixelsPerInch/2)/PixelsPerInch);
 		SetDlgItemText(hDlg,IDC_STATUSOPTIONS_FONTINFO,szText);
 		SelectObject(hdc,hfontOld);
 		DeleteObject(hfont);

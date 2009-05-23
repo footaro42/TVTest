@@ -45,6 +45,7 @@ public:
 		//virtual void OnPcrTimeStampUpdated(CProgManager *pProgManager) {}
 		virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
 		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
+		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
 	};
 
 	CDtvEngine(void);

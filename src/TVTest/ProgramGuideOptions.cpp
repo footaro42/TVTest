@@ -15,6 +15,7 @@ CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
 	m_ViewHours=26;
 	m_ItemWidth=m_pProgramGuide->GetItemWidth();
 	m_LinesPerHour=m_pProgramGuide->GetLinesPerHour();
+	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
 }
 
 
@@ -42,6 +43,31 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 				&& Value<=CProgramGuide::MAX_LINES_PER_HOUR)
 			m_LinesPerHour=Value;
 		m_pProgramGuide->SetUIOptions(m_LinesPerHour,m_ItemWidth);
+
+		// Font
+		TCHAR szFont[LF_FACESIZE];
+		if (Settings.Read(TEXT("FontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
+			lstrcpy(m_Font.lfFaceName,szFont);
+			m_Font.lfEscapement=0;
+			m_Font.lfOrientation=0;
+			m_Font.lfUnderline=0;
+			m_Font.lfStrikeOut=0;
+			m_Font.lfCharSet=DEFAULT_CHARSET;
+			m_Font.lfOutPrecision=OUT_DEFAULT_PRECIS;
+			m_Font.lfClipPrecision=CLIP_DEFAULT_PRECIS;
+			m_Font.lfQuality=DRAFT_QUALITY;
+			m_Font.lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
+		}
+		if (Settings.Read(TEXT("FontSize"),&Value)) {
+			m_Font.lfHeight=Value;
+			m_Font.lfWidth=0;
+		}
+		if (Settings.Read(TEXT("FontWeight"),&Value))
+			m_Font.lfWeight=Value;
+		if (Settings.Read(TEXT("FontItalic"),&Value))
+			m_Font.lfItalic=Value;
+		m_pProgramGuide->SetFont(&m_Font);
+
 		Settings.Close();
 	}
 
@@ -81,6 +107,12 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
 		Settings.Write(TEXT("ItemWidth"),m_ItemWidth);
 		Settings.Write(TEXT("LinesPerHour"),m_LinesPerHour);
+
+		// Font
+		Settings.Write(TEXT("FontName"),m_Font.lfFaceName);
+		Settings.Write(TEXT("FontSize"),(int)m_Font.lfHeight);
+		Settings.Write(TEXT("FontWeight"),(int)m_Font.lfWeight);
+		Settings.Write(TEXT("FontItalic"),(int)m_Font.lfItalic);
 		Settings.Close();
 	}
 
@@ -125,8 +157,37 @@ CProgramGuideOptions *CProgramGuideOptions::GetThis(HWND hDlg)
 }
 
 
+static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
+{
+	HDC hdc;
+	HFONT hfont,hfontOld;
+
+	hdc=GetDC(hDlg);
+	if (hdc==NULL)
+		return;
+	hfont=CreateFontIndirect(plf);
+	if (hfont!=NULL) {
+		TEXTMETRIC tm;
+		TCHAR szText[LF_FACESIZE+16];
+		int PixelsPerInch;
+
+		hfontOld=(HFONT)SelectObject(hdc,hfont);
+		GetTextMetrics(hdc,&tm);
+		PixelsPerInch=GetDeviceCaps(hdc,LOGPIXELSY);
+		wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,
+			((tm.tmHeight-tm.tmInternalLeading)*72+PixelsPerInch/2)/PixelsPerInch);
+		SetDlgItemText(hDlg,IDC_PROGRAMGUIDEOPTIONS_FONTINFO,szText);
+		SelectObject(hdc,hfontOld);
+		DeleteObject(hfont);
+	}
+	ReleaseDC(hDlg,hdc);
+}
+
+
 BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
+	static LOGFONT lfCurFont;
+
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
@@ -141,6 +202,9 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,pThis->m_LinesPerHour,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR_UD,
 				UDM_SETRANGE32,CProgramGuide::MIN_LINES_PER_HOUR,CProgramGuide::MAX_LINES_PER_HOUR);
+
+			lfCurFont=pThis->m_Font;
+			SetFontInfo(hDlg,&lfCurFont);
 
 			CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
 			HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
@@ -188,6 +252,11 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case IDC_PROGRAMGUIDEOPTIONS_CHOOSEFONT:
+			if (ChooseFontDialog(hDlg,&lfCurFont))
+				SetFontInfo(hDlg,&lfCurFont);
+			return TRUE;
+
 		case IDC_PROGRAMGUIDETOOL_ADD:
 			{
 				CProgramGuideTool *pTool;
@@ -379,6 +448,13 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 				pThis->m_LinesPerHour=LimitRange(Value,
 					(int)CProgramGuide::MIN_LINES_PER_HOUR,(int)CProgramGuide::MAX_LINES_PER_HOUR);
 				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth);
+
+				// Font
+				if (memcmp(&pThis->m_Font,&lfCurFont,28/*offsetof(LOGFONT,lfFaceName)*/)!=0
+						|| lstrcmp(pThis->m_Font.lfFaceName,lfCurFont.lfFaceName)!=0) {
+					pThis->m_Font=lfCurFont;
+					pThis->m_pProgramGuide->SetFont(&lfCurFont);
+				}
 
 				CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
 				HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);

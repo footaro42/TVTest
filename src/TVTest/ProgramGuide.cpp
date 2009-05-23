@@ -843,29 +843,23 @@ bool CProgramGuide::Initialize(HINSTANCE hinst)
 
 
 CProgramGuide::CProgramGuide()
+	: m_hfont(NULL)
+	, m_hfontTitle(NULL)
+	, m_hfontTime(NULL)
 {
 	LOGFONT lf;
-
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
+	SetFont(&lf);
 	m_WindowPosition.Left=0;
 	m_WindowPosition.Top=0;
 	m_WindowPosition.Width=640;
 	m_WindowPosition.Height=480;
 	m_pProgramList=NULL;
 	m_LinesPerHour=12;
-	m_hfont=::CreateFontIndirect(&lf);
-	lf.lfWeight=FW_BOLD;
-	m_hfontTitle=::CreateFontIndirect(&lf);
-	lf.lfWeight=FW_NORMAL;
-	m_FontHeight=abs(lf.lfHeight);
 	m_LineMargin=1;
 	m_ItemWidth=140;
 	m_ItemMargin=4;
 	m_TextLeftMargin=8;
-	m_ServiceNameHeight=m_FontHeight+8;
-	m_TimeBarWidth=m_FontHeight+8;
-	lf.lfEscapement=lf.lfOrientation=2700;
-	m_hfontTime=::CreateFontIndirect(&lf);
 	m_ScrollPos.x=0;
 	m_ScrollPos.y=0;
 	m_ColorList[COLOR_BACK]=::GetSysColor(COLOR_WINDOW);
@@ -1307,6 +1301,46 @@ bool CProgramGuide::SetUIOptions(int LinesPerHour,int ItemWidth)
 }
 
 
+bool CProgramGuide::SetFont(const LOGFONT *pFont)
+{
+	LOGFONT lf;
+
+	if (m_hfont!=NULL)
+		::DeleteObject(m_hfont);
+	if (m_hfontTitle!=NULL)
+		::DeleteObject(m_hfontTitle);
+	if (m_hfontTime!=NULL)
+		::DeleteObject(m_hfontTime);
+	m_hfont=::CreateFontIndirect(pFont);
+	lf=*pFont;
+	lf.lfWeight=FW_BOLD;
+	m_hfontTitle=::CreateFontIndirect(&lf);
+	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+	if (hdc!=NULL) {
+		HFONT hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
+		TEXTMETRIC tm;
+		::GetTextMetrics(hdc,&tm);
+		::DeleteDC(hdc);
+		m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	} else {
+		m_FontHeight=abs(lf.lfHeight);
+	}
+	m_ServiceNameHeight=m_FontHeight+8;
+	m_TimeBarWidth=m_FontHeight+8;
+	lf.lfWeight=FW_NORMAL;
+	lf.lfEscapement=lf.lfOrientation=2700;
+	m_hfontTime=::CreateFontIndirect(&lf);
+	if (m_hwnd!=NULL) {
+		m_ScrollPos.x=0;
+		m_ScrollPos.y=0;
+		CalcLayout();
+		SetScrollBar();
+		Invalidate();
+	}
+	return true;
+}
+
+
 bool CProgramGuide::SetColor(int Type,COLORREF Color)
 {
 	if (Type<0 || Type>COLOR_LAST)
@@ -1569,10 +1603,10 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
 			if (pt.y<pThis->m_ServiceNameHeight
-					&& pt.x>pThis->m_TimeBarWidth
-					&& pt.x<pThis->m_TimeBarWidth+
+					&& pt.x>=pThis->m_TimeBarWidth
+					&& pt.x-pThis->m_TimeBarWidth<
 						pThis->m_ServiceList.NumServices()*(
-									pThis->m_ItemWidth+pThis->m_ItemMargin*2)) {
+							pThis->m_ItemWidth+pThis->m_ItemMargin*2)-pThis->m_ScrollPos.x) {
 				if (pThis->m_pEventHandler) {
 					int Service=(pt.x+pThis->m_ScrollPos.x-pThis->m_TimeBarWidth)/(pThis->m_ItemWidth+pThis->m_ItemMargin*2);
 					CProgramGuideServiceInfo *pServiceInfo=
@@ -1645,13 +1679,16 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		if (LOWORD(lParam)==HTCLIENT) {
 			CProgramGuide *pThis=GetThis(hwnd);
 			POINT pt;
+			RECT rc;
 
 			::GetCursorPos(&pt);
 			::ScreenToClient(hwnd,&pt);
+			::GetClientRect(hwnd,&rc);
 			if (pt.y<pThis->m_ServiceNameHeight
-					&& pt.x>pThis->m_TimeBarWidth
-					&& pt.x<pThis->m_TimeBarWidth+pThis->m_ServiceList.NumServices()*
-								(pThis->m_ItemWidth+pThis->m_ItemMargin*2)) {
+					&& pt.x>=pThis->m_TimeBarWidth
+					&& pt.x<rc.right-pThis->m_TimeBarWidth
+					&& pt.x-pThis->m_TimeBarWidth<pThis->m_ServiceList.NumServices()*
+						(pThis->m_ItemWidth+pThis->m_ItemMargin*2)-pThis->m_ScrollPos.x) {
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
 				return TRUE;
 			}

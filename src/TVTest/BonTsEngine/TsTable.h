@@ -204,6 +204,9 @@ public:
 	virtual void Reset(void);
 
 // CCatTable
+	const CCaMethodDesc * GetCaDescBySystemID(const WORD SystemID) const;
+	WORD GetEmmPID() const;
+	WORD GetEmmPID(const WORD CASystemID) const;
 	const CDescBlock * GetCatDesc() const;
 
 protected:
@@ -234,6 +237,7 @@ public:
 	const WORD GetPcrPID(void) const;
 	const CDescBlock * GetTableDesc(void) const;
 	const WORD GetEcmPID(void) const;
+	const WORD GetEcmPID(const WORD CASystemID) const;
 
 	const WORD GetEsInfoNum(void) const;
 	const BYTE GetStreamTypeID(const WORD wIndex) const;
@@ -382,6 +386,35 @@ protected:
 	};
 
 	vector<HEitInfo> m_EitArray;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+// TOTテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CTotTable : public CPsiSingleTable
+{
+public:
+	enum { TABLE_ID = 0x73 };
+
+	CTotTable();
+	virtual ~CTotTable();
+
+// CPsiSingleTable
+	virtual void Reset(void);
+
+// CTotTable
+	const bool GetDateTime(SYSTEMTIME *pTime) const;
+	const CDescBlock * GetTotDesc(void) const;
+
+protected:
+// CPsiTableBase
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+
+	bool m_bValidDateTime;
+	SYSTEMTIME m_DateTime;	// 現在日付/時刻
+	CDescBlock m_DescBlock;	// 記述子領域
 };
 
 

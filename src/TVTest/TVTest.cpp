@@ -264,6 +264,73 @@ static CMyGetChannelReceiver GetChannelReceiver;
 static CMyGetDriverReceiver GetDriverReceiver;
 
 
+class CTotTimeAdjuster {
+	bool m_fEnable;
+	DWORD m_TimeOut;
+	DWORD m_StartTime;
+	SYSTEMTIME m_PrevTime;
+public:
+	CTotTimeAdjuster()
+		: m_fEnable(false)
+	{
+	}
+	bool BeginAdjust(DWORD TimeOut=10000UL)
+	{
+		m_TimeOut=TimeOut;
+		m_StartTime=::GetTickCount();
+		m_PrevTime.wYear=0;
+		m_fEnable=true;
+		return true;
+	}
+	bool AdjustTime()
+	{
+		if (!m_fEnable)
+			return false;
+		if (DiffTime(m_StartTime,::GetTickCount())>=m_TimeOut) {
+			m_fEnable=false;
+			return false;
+		}
+
+		SYSTEMTIME st;
+		if (!CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTotTime(&st))
+			return false;
+		if (m_PrevTime.wYear==0) {
+			m_PrevTime=st;
+			return false;
+		} else if (memcmp(&m_PrevTime,&st,sizeof(SYSTEMTIME))==0) {
+			return false;
+		}
+
+		bool fOK=false;
+		HANDLE hToken;
+		if (::OpenProcessToken(::GetCurrentProcess(),TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY,&hToken)) {
+			LUID luid;
+			if (::LookupPrivilegeValue(NULL,SE_SYSTEMTIME_NAME,&luid)) {
+				TOKEN_PRIVILEGES tkp;
+				tkp.PrivilegeCount=1;
+				tkp.Privileges[0].Luid=luid;
+				tkp.Privileges[0].Attributes=SE_PRIVILEGE_ENABLED;
+				if (::AdjustTokenPrivileges(hToken,FALSE, &tkp,sizeof(TOKEN_PRIVILEGES),NULL,0)
+						&& ::GetLastError()==ERROR_SUCCESS) {
+					// バッファがあるので少し時刻を戻す
+					OffsetSystemTime(&st,-2000);
+					if (::SetLocalTime(&st)) {
+						Logger.AddLog(TEXT("TOTで時刻合わせを行いました。(%d/%d/%d %d/%02d/%02d)"),
+									  st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
+						fOK=true;
+					}
+				}
+			}
+			::CloseHandle(hToken);
+		}
+		m_fEnable=false;
+		return fOK;
+	}
+};
+
+static CTotTimeAdjuster TotTimeAdjuster;
+
+
 
 
 bool CAppMain::Initialize()
@@ -1734,6 +1801,8 @@ public:
 	LPCTSTR GetName() const { return TEXT("時計"); }
 	void Draw(HDC hdc,const RECT *pRect);
 	void DrawPreview(HDC hdc,const RECT *pRect);
+	void OnLButtonDown(int x,int y);
+	void OnRButtonDown(int x,int y);
 };
 
 CClockStatusItem::CClockStatusItem() : CStatusItem(STATUS_ITEM_CLOCK,48)
@@ -1745,14 +1814,49 @@ void CClockStatusItem::Draw(HDC hdc,const RECT *pRect)
 	SYSTEMTIME st;
 	TCHAR szText[64];
 
-	GetLocalTime(&st);
-	wsprintf(szText,TEXT("%d:%02d:%02d"),st.wHour,st.wMinute,st.wSecond);
+	if (StatusOptions.GetShowTOTTime()) {
+		if (!CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTotTime(&st))
+			return;
+		::wsprintf(szText,TEXT("TOT: %d/%d/%d %d:%02d:%02d"),
+				   st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
+	} else {
+		::GetLocalTime(&st);
+		::wsprintf(szText,TEXT("%d:%02d:%02d"),st.wHour,st.wMinute,st.wSecond);
+	}
 	DrawText(hdc,pRect,szText);
 }
 
 void CClockStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,pRect,TEXT("13:25:30"));
+	if (StatusOptions.GetShowTOTTime()) {
+		SYSTEMTIME st;
+		TCHAR szText[64];
+
+		::GetLocalTime(&st);
+		::wsprintf(szText,TEXT("TOT: %d/%d/%d 13:25:30"),st.wYear,st.wMonth,st.wDay);
+		DrawText(hdc,pRect,szText);
+	} else {
+		DrawText(hdc,pRect,TEXT("13:25:30"));
+	}
+}
+
+void CClockStatusItem::OnLButtonDown(int x,int y)
+{
+	MainWindow.SendCommand(CM_SHOWTOTTIME);
+}
+
+void CClockStatusItem::OnRButtonDown(int x,int y)
+{
+	HMENU hmenu;
+	POINT pt;
+
+	hmenu=LoadMenu(hInst,MAKEINTRESOURCE(IDM_TIME));
+	CheckMenuItem(hmenu,CM_SHOWTOTTIME,
+		MF_BYCOMMAND | (StatusOptions.GetShowTOTTime()?MFS_CHECKED:MFS_UNCHECKED));
+	GetMenuPos(&pt);
+	TrackPopupMenu(GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,
+												MainWindow.GetHandle(),NULL);
+	DestroyMenu(hmenu);
 }
 
 
@@ -3245,6 +3349,7 @@ class CMyDtvEngineHandler : public CDtvEngine::CEventHandler
 	void OnServiceInfoUpdated(CProgManager *pProgManager);
 	void OnFileWriteError(CFileWriter *pFileWriter);
 	void OnVideoSizeChanged(CMediaViewer *pMediaViewer);
+	void OnEmmProcessed(const BYTE *pEmmData);
 // CMyDtvEngineHandler
 	void OnServiceUpdated(CProgManager *pProgManager,bool fListUpdated,bool fStreamChanged);
 };
@@ -3280,6 +3385,11 @@ void CMyDtvEngineHandler::OnVideoSizeChanged(CMediaViewer *pMediaViewer)
 		後でパンスキャンの設定を行う必要がある
 	*/
 	MainWindow.PostMessage(WM_APP_VIDEOSIZECHANGED,0,0);
+}
+
+void CMyDtvEngineHandler::OnEmmProcessed(const BYTE *pEmmData)
+{
+	MainWindow.PostMessage(WM_APP_EMMPROCESSED,pEmmData!=NULL,0);
 }
 
 
@@ -4287,6 +4397,11 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		}
 		return;
 
+	case CM_ACTIVATE:
+		if (!m_fFullscreen)
+			ForegroundWindow(hwnd);
+		return;
+
 	case CM_ENABLEBUFFERING:
 		CoreEngine.SetPacketBuffering(!CoreEngine.GetPacketBuffering());
 		GeneralOptions.SetPacketBuffering(CoreEngine.GetPacketBuffering());
@@ -4300,6 +4415,15 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		CoreEngine.ResetErrorCount();
 		StatusView.UpdateItem(STATUS_ITEM_ERROR);
 		InfoWindow.UpdateErrorCount();
+		return;
+
+	case CM_SHOWTOTTIME:
+		StatusOptions.SetShowTOTTime(!StatusOptions.GetShowTOTTime());
+		StatusView.UpdateItem(STATUS_ITEM_CLOCK);
+		return;
+
+	case CM_ADJUSTTOTTIME:
+		TotTimeAdjuster.BeginAdjust();
 		return;
 
 	case CM_CHANNELPANEL_UPDATE:
@@ -4635,6 +4759,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 				StatusView.UpdateItem(STATUS_ITEM_BUFFERING);
 
 			StatusView.UpdateItem(STATUS_ITEM_CLOCK);
+			TotTimeAdjuster.AdjustTime();
 
 			// パネルの情報タブ更新
 			if (fShowPanelWindow && InfoWindow.IsVisible()) {
@@ -5984,6 +6109,10 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			pThis->m_VideoSizeChangedTimerCount=0;
 			::SetTimer(hwnd,CMainWindow::TIMER_ID_VIDEOSIZECHANGED,1000,NULL);
 		}
+		return 0;
+
+	case WM_APP_EMMPROCESSED:
+		Logger.AddLog(wParam!=0?TEXT("EMM処理を行いました。"):TEXT("EMM処理でエラーが発生しました。"));
 		return 0;
 
 	case WM_DISPLAYCHANGE:
@@ -7392,6 +7521,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.SetCardReaderType(GeneralOptions.GetCardReaderType());
 	CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(GeneralOptions.GetDescrambleCurServiceOnly());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableSSE2(GeneralOptions.GetDescrambleUseSSE2());
+	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableEmmProcess(GeneralOptions.GetEnableEmmProcess());
 	CoreEngine.SetPacketBufferLength(GeneralOptions.GetPacketBufferLength());
 	CoreEngine.SetPacketBufferPoolPercentage(GeneralOptions.GetPacketBufferPoolPercentage());
 	CoreEngine.SetPacketBuffering(GeneralOptions.GetPacketBuffering());

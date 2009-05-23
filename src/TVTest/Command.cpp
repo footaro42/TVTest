@@ -6,6 +6,12 @@
 #include "HelperClass/StdUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 static const struct {
 	LPCTSTR pszText;
@@ -62,6 +68,7 @@ static const struct {
 	{TEXT("StreamInfo"),			CM_STREAMINFO},
 	{TEXT("Close"),					CM_CLOSE},
 	{TEXT("Menu"),					CM_MENU},
+	{TEXT("Activate"),				CM_ACTIVATE},
 	{TEXT("Channel1"),				CM_CHANNELNO_1},
 	{TEXT("Channel2"),				CM_CHANNELNO_2},
 	{TEXT("Channel3"),				CM_CHANNELNO_3},

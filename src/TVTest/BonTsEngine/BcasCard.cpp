@@ -54,11 +54,11 @@ const bool CBcasCard::OpenCard(CCardReader::ReaderType ReaderType, LPCTSTR lpszR
 
 	m_pCardReader = CCardReader::CreateCardReader(ReaderType);
 	if (m_pCardReader == NULL) {
-		SetError(BCEC_CARDOPENERROR, TEXT("Invalid card reader type"));
+		SetError(ERR_CARDOPENERROR, TEXT("Invalid card reader type"));
 		return false;
 	}
 	if (!m_pCardReader->Open(lpszReader)) {
-		SetError(BCEC_CARDOPENERROR, m_pCardReader->GetLastErrorText());
+		SetError(ERR_CARDOPENERROR, m_pCardReader->GetLastErrorText());
 		delete m_pCardReader;
 		m_pCardReader=NULL;
 		return false;
@@ -90,7 +90,7 @@ void CBcasCard::CloseCard(void)
 const bool CBcasCard::ReOpenCard()
 {
 	if (m_pCardReader==NULL) {
-		SetError(BCEC_CARDNOTOPEN,NULL);
+		SetError(ERR_CARDNOTOPEN,NULL);
 		return false;
 	}
 	return OpenCard(m_pCardReader->GetReaderType(),m_pCardReader->GetReaderName());
@@ -116,7 +116,7 @@ const bool CBcasCard::InitialSetting(void)
 	// 「Initial Setting Conditions Command」を処理する
 	/*
 	if (!m_pCardReader) {
-		SetError(BCEC_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, NULL);
 		return false;
 	}
 	*/
@@ -130,17 +130,20 @@ const bool CBcasCard::InitialSetting(void)
 	::ZeroMemory(RecvData, sizeof(RecvData));
 	dwRecvSize=sizeof(RecvData);
 	if (!m_pCardReader->Transmit(InitSettingCmd, sizeof(InitSettingCmd), RecvData, &dwRecvSize)) {
-		SetError(BCEC_TRANSMITERROR, m_pCardReader->GetLastErrorText());
+		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
 		return false;
 	}
 
 	if (dwRecvSize < 57UL) {
-		SetError(BCEC_TRANSMITERROR, TEXT("受信データのサイズが不正です。"));
+		SetError(ERR_TRANSMITERROR, TEXT("受信データのサイズが不正です。"));
 		return false;
 	}
 
 	// レスポンス解析
+	m_BcasCardInfo.CASystemID = ((WORD)RecvData[6] << 8) | (WORD)RecvData[7];
 	::CopyMemory(m_BcasCardInfo.BcasCardID, &RecvData[8], 6UL);		// +8	Card ID
+	m_BcasCardInfo.CardType = RecvData[14];
+	m_BcasCardInfo.MessagePartitionLength = RecvData[15];
 	::CopyMemory(m_BcasCardInfo.SystemKey, &RecvData[16], 32UL);	// +16	Descrambling system key
 	::CopyMemory(m_BcasCardInfo.InitialCbc, &RecvData[48], 8UL);	// +48	Descrambler CBC initial value
 
@@ -161,11 +164,31 @@ const bool CBcasCard::InitialSetting(void)
 }
 
 
+const bool CBcasCard::GetCASystemID(WORD *pID)
+{
+	if (!m_pCardReader) {
+		SetError(ERR_CARDNOTOPEN, NULL);
+		return false;
+	}
+
+	if (pID == NULL) {
+		SetError(ERR_BADARGUMENT, NULL);
+		return false;
+	}
+
+	*pID = m_BcasCardInfo.CASystemID;
+
+	ClearError();
+
+	return true;
+}
+
+
 const BYTE * CBcasCard::GetBcasCardID(void)
 {
 	// Card ID を返す
 	if (!m_pCardReader) {
-		SetError(BCEC_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, NULL);
 		return NULL;
 	}
 
@@ -175,11 +198,28 @@ const BYTE * CBcasCard::GetBcasCardID(void)
 }
 
 
+const BYTE CBcasCard::GetCardType(void)
+{
+	if (!m_pCardReader) {
+		SetError(ERR_CARDNOTOPEN, NULL);
+		return CARDTYPE_INVALID;
+	}
+
+	return m_BcasCardInfo.CardType;
+}
+
+
+const BYTE CBcasCard::GetMessagePartitionLength(void)
+{
+	return m_BcasCardInfo.MessagePartitionLength;
+}
+
+
 const BYTE * CBcasCard::GetInitialCbc(void)
 {
 	// Descrambler CBC Initial Value を返す
 	if (!m_pCardReader) {
-		SetError(BCEC_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, NULL);
 		return NULL;
 	}
 
@@ -193,7 +233,7 @@ const BYTE * CBcasCard::GetSystemKey(void)
 {
 	// Descrambling System Key を返す
 	if (!m_pCardReader) {
-		SetError(BCEC_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, NULL);
 		return NULL;
 	}
 
@@ -207,17 +247,15 @@ const BYTE * CBcasCard::GetSystemKey(void)
 
 const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize)
 {
-	static const BYTE EcmReceiveCmd[] = {0x90U, 0x34U, 0x00U, 0x00U};
-
 	// 「ECM Receive Command」を処理する
 	if (!m_pCardReader) {
-		SetError(BCEC_CARDNOTOPEN, TEXT(""));
+		SetError(ERR_CARDNOTOPEN, TEXT(""));
 		return NULL;
 	}
 
 	// ECMサイズをチェック
 	if (!pEcmData || (dwEcmSize < 30UL) || (dwEcmSize > 256UL)) {
-		SetError(BCEC_BADARGUMENT, TEXT(""));
+		SetError(ERR_BADARGUMENT, TEXT(""));
 		return NULL;
 	}
 
@@ -233,8 +271,9 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	::CopyMemory(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize);
 
 	// バッファ準備
+	static const BYTE EcmReceiveCmd[] = {0x90, 0x34, 0x00, 0x00};
 	DWORD dwRecvSize = 0UL;
-	BYTE SendData[1024];
+	BYTE SendData[272];
 	BYTE RecvData[1024];
 	::ZeroMemory(RecvData, sizeof(RecvData));
 
@@ -248,14 +287,14 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	dwRecvSize=sizeof(RecvData);
 	if (!m_pCardReader->Transmit(SendData, sizeof(EcmReceiveCmd) + dwEcmSize + 2UL, RecvData, &dwRecvSize)){
 		::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
-		SetError(BCEC_TRANSMITERROR, m_pCardReader->GetLastErrorText());
+		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
 		return NULL;
 	}
 
 	// サイズチェック
 	if (dwRecvSize != 25UL) {
 		::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
-		SetError(BCEC_TRANSMITERROR, TEXT("ECMのレスポンスサイズが不正です。"));
+		SetError(ERR_TRANSMITERROR, TEXT("ECMのレスポンスサイズが不正です。"));
 		return NULL;
 	}
 
@@ -268,14 +307,64 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	case 0x0200U :	// Payment-deferred PPV
 	case 0x0400U :	// Prepaid PPV
 	case 0x0800U :	// Tier
+
+	case 0x4480U :	// Payment-deferred PPV
+	case 0x4280U :	// Prepaid PPV
 		ClearError();
 		return m_EcmStatus.KsData;
 	}
 	// 上記以外(視聴不可)
 
-	SetError(BCEC_ECMREFUSED, TEXT("ECMが受け付けられません。"));
+	SetError(ERR_ECMREFUSED, TEXT("ECMが受け付けられません。"));
 
 	return NULL;
+}
+
+
+const bool CBcasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize)
+{
+	if (!m_pCardReader) {
+		SetError(ERR_CARDNOTOPEN, TEXT(""));
+		return false;
+	}
+
+	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > 263UL) {
+		SetError(ERR_BADARGUMENT, TEXT(""));
+		return false;
+	}
+
+	static const BYTE EmmReceiveCmd[] = {0x90, 0x36, 0x00, 0x00};
+	BYTE SendData[272], RecvData[1024];
+
+	::CopyMemory(SendData, EmmReceiveCmd, sizeof(EmmReceiveCmd));
+	SendData[sizeof(EmmReceiveCmd)] = (BYTE)dwEmmSize;
+	::CopyMemory(&SendData[sizeof(EmmReceiveCmd) + 1], pEmmData, dwEmmSize);
+	SendData[sizeof(EmmReceiveCmd) + dwEmmSize + 1] = 0x00;
+
+	::ZeroMemory(RecvData, sizeof(RecvData));
+	DWORD RecvSize = sizeof(RecvData);
+	if (!m_pCardReader->Transmit(SendData, sizeof(EmmReceiveCmd) + dwEmmSize + 2UL, RecvData, &RecvSize)) {
+		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
+		return false;
+	}
+
+	if (RecvSize != 8UL) {
+		SetError(ERR_TRANSMITERROR, TEXT("EMMのレスポンスサイズが不正です。"));
+		return false;
+	}
+
+	switch (((WORD)RecvData[4] << 8) | (WORD)RecvData[5]) {
+	case 0x2100U :	// 正常終了
+		ClearError();
+		return true;
+
+	//case 0xA102U :	// 非運用(運用外プロトコル番号)
+	//case 0xA107U :	// セキュリティエラー(EMM改ざんエラー)
+	}
+
+	SetError(ERR_EMMERROR, TEXT("EMMが受け付けられません。"));
+
+	return false;
 }
 
 

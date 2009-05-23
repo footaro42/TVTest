@@ -15,6 +15,7 @@
 #define WM_APP_QUERYPORT		(WM_APP+5)
 #define WM_APP_FILEWRITEERROR	(WM_APP+6)
 #define WM_APP_VIDEOSIZECHANGED	(WM_APP+7)
+#define WM_APP_EMMPROCESSED		(WM_APP+8)
 
 
 class CFullscreen : public CBasicWindow {

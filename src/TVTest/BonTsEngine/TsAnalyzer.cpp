@@ -74,8 +74,11 @@ void CTsAnalyzer::Reset()
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
 	// EITテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0012, new CHEitTable, NULL, this);
+	m_PidMapManager.MapTarget(0x0012, new CHEitTable);
 #endif
+
+	// TOTテーブルPIDマップ追加
+	m_PidMapManager.MapTarget(0x0014, new CTotTable);
 }
 
 
@@ -488,6 +491,20 @@ CDescBlock *CTsAnalyzer::GetHEitItemDesc(const WORD ServiceIndex, const bool bNe
 
 
 #endif	// TS_ANALYZER_EIT_SUPPORT
+
+
+bool CTsAnalyzer::GetTotTime(SYSTEMTIME *pTime)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (pTime == NULL)
+		return false;
+
+	const CTotTable *pTotTable = dynamic_cast<const CTotTable*>(m_PidMapManager.GetMapTarget(0x0014));
+	if (pTotTable)
+		return pTotTable->GetDateTime(pTime);
+	return false;
+}
 
 
 bool CTsAnalyzer::AddEventHandler(EventType Type, CEventHandler *pHandler)
