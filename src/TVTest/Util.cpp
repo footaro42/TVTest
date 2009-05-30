@@ -364,6 +364,34 @@ bool BrowseFolderDialog(HWND hwndOwner,LPTSTR pszDirectory,LPCTSTR pszTitle)
 }
 
 
+bool CompareLogFont(const LOGFONT *pFont1,const LOGFONT *pFont2)
+{
+	return memcmp(pFont1,pFont2,28/*offsetof(LOGFONT,lfFaceName)*/)==0
+		&& lstrcmp(pFont1->lfFaceName,pFont2->lfFaceName)==0;
+}
+
+
+int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont)
+{
+	if (hdc==NULL || pFont==NULL)
+		return 0;
+
+	HFONT hfont=CreateFontIndirect(pFont),hfontOld;
+	if (hfont==NULL)
+		return 0;
+
+	TEXTMETRIC tm;
+	int PixelsPerInch;
+
+	hfontOld=static_cast<HFONT>(SelectObject(hdc,hfont));
+	GetTextMetrics(hdc,&tm);
+	PixelsPerInch=GetDeviceCaps(hdc,LOGPIXELSY);
+	SelectObject(hdc,hfontOld);
+	DeleteObject(hfont);
+	return ((tm.tmHeight-tm.tmInternalLeading)*72+PixelsPerInch/2)/PixelsPerInch;
+}
+
+
 
 
 CFilePath::CFilePath()

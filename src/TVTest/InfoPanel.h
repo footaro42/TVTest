@@ -5,6 +5,13 @@
 #include "BasicWindow.h"
 
 
+class CInfoPanelPage : public CBasicWindow {
+public:
+	CInfoPanelPage();
+	virtual ~CInfoPanelPage()=0;
+	virtual bool SetFont(const LOGFONT *pFont) { return true; }
+};
+
 class CInfoPanelEventHandler {
 public:
 	virtual void OnSelChange() {}
@@ -15,11 +22,12 @@ public:
 
 class CInfoPanel : public CBasicWindow {
 	enum {MAX_WINDOWS=4};
+	enum {TAB_MARGIN=3};
 	class CWindowInfo {
 	public:
-		CBasicWindow *m_pWindow;
+		CInfoPanelPage *m_pWindow;
 		LPTSTR m_pszTitle;
-		CWindowInfo(CBasicWindow *pWindow,LPCTSTR pszTitle);
+		CWindowInfo(CInfoPanelPage *pWindow,LPCTSTR pszTitle);
 		~CWindowInfo();
 	};
 	CWindowInfo *m_pWindowList[MAX_WINDOWS];
@@ -41,7 +49,8 @@ class CInfoPanel : public CBasicWindow {
 	static HINSTANCE m_hinst;
 	static CInfoPanel *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	void CalcTabWidth();
+	void CalcTabSize();
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CInfoPanel();
@@ -50,13 +59,15 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void SetVisible(bool fVisible);
 	// CInfoPanel
-	bool AddWindow(CBasicWindow *pWindow,LPCTSTR pszTitle);
+	bool AddWindow(CInfoPanelPage *pWindow,LPCTSTR pszTitle);
 	bool SetCurTab(int Index);
 	int GetCurTab() const { return m_CurTab; }
 	void SetEventHandler(CInfoPanelEventHandler *pHandler);
 	void SetBackColors(COLORREF crBack,COLORREF crMargin);
 	void SetTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder);
 	void SetCurTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder);
+	bool SetTabFont(const LOGFONT *pFont);
+	bool SetPageFont(const LOGFONT *pFont);
 };
 
 

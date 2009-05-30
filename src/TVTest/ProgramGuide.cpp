@@ -17,6 +17,8 @@ static char THIS_FILE[]=__FILE__;
 #define PROGRAM_GUIDE_WINDOW_CLASS APP_NAME TEXT(" Program Guide")
 #define TITLE_TEXT TEXT("EPG番組表")
 
+#define MENU_DRIVER 8
+
 
 
 
@@ -862,6 +864,9 @@ CProgramGuide::CProgramGuide()
 	m_TextLeftMargin=8;
 	m_ScrollPos.x=0;
 	m_ScrollPos.y=0;
+	m_CurrentTuningSpace=-1;
+	m_szDriverFileName[0]='\0';
+	m_pDriverManager=NULL;
 	m_ColorList[COLOR_BACK]=::GetSysColor(COLOR_WINDOW);
 	m_ColorList[COLOR_TEXT]=::GetSysColor(COLOR_WINDOWTEXT);
 	m_ColorList[COLOR_CHANNELNAMEBACK]=::GetSysColor(COLOR_3DFACE);
@@ -1212,8 +1217,24 @@ bool CProgramGuide::SetServiceIDList(const CProgramGuideServiceIDList *pList)
 */
 
 
-bool CProgramGuide::SetChannelList(const CChannelList *pList)
+bool CProgramGuide::SetTuningSpaceList(LPCTSTR pszDriverFileName,const CTuningSpaceList *pList,int Space)
 {
+	m_TuningSpaceList=*pList;
+	SetTuningSpace(Space);
+	::lstrcpy(m_szDriverFileName,pszDriverFileName);
+	return true;
+}
+
+
+bool CProgramGuide::SetTuningSpace(int Space)
+{
+	const CChannelList *pList;
+
+	if (Space<0)
+		pList=m_TuningSpaceList.GetAllChannelList();
+	else
+		pList=m_TuningSpaceList.GetChannelList(Space);
+
 	int OldTSID,OldNumChannels=m_ChannelList.NumChannels();
 	if (OldNumChannels>0)
 		OldTSID=m_ChannelList.GetChannelInfo(0)->GetTransportStreamID();
@@ -1236,6 +1257,20 @@ bool CProgramGuide::SetChannelList(const CChannelList *pList)
 		m_ScrollPos.x=0;
 		m_ScrollPos.y=0;
 	}
+	m_CurrentTuningSpace=Space;
+	return true;
+}
+
+
+bool CProgramGuide::UpdateChannelList()
+{
+	return SetTuningSpace(m_CurrentTuningSpace);
+}
+
+
+bool CProgramGuide::SetDriverList(const CDriverManager *pDriverManager)
+{
+	m_pDriverManager=pDriverManager;
 	return true;
 }
 
@@ -1321,7 +1356,8 @@ bool CProgramGuide::SetFont(const LOGFONT *pFont)
 		TEXTMETRIC tm;
 		::GetTextMetrics(hdc,&tm);
 		::DeleteDC(hdc);
-		m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+		//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+		m_FontHeight=tm.tmHeight;
 	} else {
 		m_FontHeight=abs(lf.lfHeight);
 	}
@@ -1576,12 +1612,12 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			pThis->GetProgramGuideRect(&rc);
 			Page=rc.right-rc.left;
 			switch (LOWORD(wParam)) {
-			case SB_LINEUP:		Pos--;				break;
-			case SB_LINEDOWN:	Pos++;				break;
-			case SB_PAGEUP:		Pos-=Page;			break;
-			case SB_PAGEDOWN:	Pos+=Page;			break;
-			case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
-			case SB_TOP:		Pos=0;				break;
+			case SB_LINEUP:		Pos-=pThis->m_FontHeight;	break;
+			case SB_LINEDOWN:	Pos+=pThis->m_FontHeight;	break;
+			case SB_PAGEUP:		Pos-=Page;					break;
+			case SB_PAGEDOWN:	Pos+=Page;					break;
+			case SB_THUMBTRACK:	Pos=HIWORD(wParam);			break;
+			case SB_TOP:		Pos=0;						break;
 			case SB_BOTTOM:		Pos=max(TotalWidth-Page,0);	break;
 			default:	return 0;
 			}
@@ -1614,6 +1650,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 					if (pServiceInfo)
 						pThis->m_pEventHandler->OnServiceTitleLButtonDown(
+										pThis->m_szDriverFileName,
 										pServiceInfo->GetServiceInfoData());
 				}
 			}
@@ -1625,6 +1662,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			CProgramGuide *pThis=GetThis(hwnd);
 			POINT pt;
 			HMENU hmenu,hmenuPopup;
+			TCHAR szText[64];
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
@@ -1637,7 +1675,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 								 CM_PROGRAMGUIDE_TODAY+DAY_LAST,
 								 CM_PROGRAMGUIDE_TODAY+pThis->m_Day,MF_BYCOMMAND);
 			SYSTEMTIME st=pThis->m_stFirstTime;
-			TCHAR szText[64];
 			MENUITEMINFO mii;
 			mii.cbSize=sizeof(mii);
 			mii.fMask=MIIM_STRING;
@@ -1650,6 +1687,56 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				::SetMenuItemInfo(hmenu,i,FALSE,&mii);
 				OffsetSystemTime(&st,24*60*60*1000);
 			}
+
+			HMENU hmenuDriver=::GetSubMenu(hmenuPopup,MENU_DRIVER);
+			ClearMenu(hmenuDriver);
+			if (pThis->m_TuningSpaceList.GetAllChannelList()->NumChannels()>0) {
+				::AppendMenu(hmenuDriver,MFT_STRING | MFS_ENABLED,
+							 CM_PROGRAMGUIDE_TUNINGSPACE_ALL,TEXT("すべて"));
+			}
+			for (int i=0;i<pThis->m_TuningSpaceList.NumSpaces();i++) {
+				LPCTSTR pszName=pThis->m_TuningSpaceList.GetTuningSpaceName(i);
+
+				if (pszName==NULL) {
+					::wsprintf(szText,TEXT("チューニング空間 %d"),i+1);
+					pszName=szText;
+				}
+				::AppendMenu(hmenuDriver,MFT_STRING | MFS_ENABLED,
+							 CM_PROGRAMGUIDE_TUNINGSPACE_FIRST+i,pszName);
+			}
+			if (::GetMenuItemCount(hmenuDriver)>0) {
+				::CheckMenuRadioItem(hmenuDriver,CM_PROGRAMGUIDE_TUNINGSPACE_ALL,
+									 CM_PROGRAMGUIDE_TUNINGSPACE_ALL+pThis->m_TuningSpaceList.NumSpaces(),
+									 CM_PROGRAMGUIDE_TUNINGSPACE_FIRST+pThis->m_CurrentTuningSpace,
+									 MF_BYCOMMAND);
+			}
+			if (pThis->m_pDriverManager!=NULL) {
+				int NumDrivers=pThis->m_pDriverManager->NumDrivers();
+
+				if (NumDrivers>0) {
+					::AppendMenu(hmenuDriver,MFT_SEPARATOR,0,NULL);
+					int CurDriver=-1;
+					for (int i=0;i<NumDrivers;i++) {
+						const CDriverInfo *pDriverInfo=pThis->m_pDriverManager->GetDriverInfo(i);
+
+						if (CCoreEngine::IsNetworkDriverFileName(pDriverInfo->GetFileName()))
+							continue;
+						::AppendMenu(hmenuDriver,MFT_STRING | MFS_ENABLED,
+									 CM_PROGRAMGUIDE_DRIVER_FIRST+i,
+									 pDriverInfo->GetFileName());
+						if (::lstrcmpi(pThis->m_szDriverFileName,pDriverInfo->GetFileName())==0)
+							CurDriver=i;
+					}
+					if (CurDriver>=0)
+						::CheckMenuRadioItem(hmenuDriver,CM_PROGRAMGUIDE_DRIVER_FIRST,
+											 CM_PROGRAMGUIDE_DRIVER_FIRST+NumDrivers-1,
+											 CM_PROGRAMGUIDE_DRIVER_FIRST+CurDriver,
+											 MF_BYCOMMAND);
+				}
+			}
+			::EnableMenuItem(hmenuPopup,MENU_DRIVER,
+							 MF_BYPOSITION | (::GetMenuItemCount(hmenuDriver)>0?MFS_ENABLED:MFS_GRAYED));
+
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_UPDATE,
 				MF_BYCOMMAND | (pThis->m_fUpdating?MFS_GRAYED:MFS_ENABLED));
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_ENDUPDATE,
@@ -1812,7 +1899,34 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			return 0;
 
 		default:
-			if (LOWORD(wParam)>=CM_PROGRAMGUIDETOOL_FIRST
+			if (LOWORD(wParam)>=CM_PROGRAMGUIDE_TUNINGSPACE_ALL
+					&& LOWORD(wParam)<=CM_PROGRAMGUIDE_TUNINGSPACE_LAST) {
+				CProgramGuide *pThis=GetThis(hwnd);
+
+				if (pThis->m_fUpdating)
+					::SendMessage(hwnd,WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
+				pThis->SetTuningSpace((int)LOWORD(wParam)-CM_PROGRAMGUIDE_TUNINGSPACE_FIRST);
+				pThis->UpdateProgramGuide();
+			} else if (LOWORD(wParam)>=CM_PROGRAMGUIDE_DRIVER_FIRST
+					&& LOWORD(wParam)<=CM_PROGRAMGUIDE_DRIVER_LAST) {
+				CProgramGuide *pThis=GetThis(hwnd);
+
+				if (pThis->m_fUpdating)
+					::SendMessage(hwnd,WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
+				if (pThis->m_pDriverManager!=NULL) {
+					const CDriverInfo *pDriverInfo=pThis->m_pDriverManager->GetDriverInfo(LOWORD(wParam)-CM_PROGRAMGUIDE_DRIVER_FIRST);
+
+					if (pDriverInfo!=NULL) {
+						CDriverInfo DriverInfo(pDriverInfo->GetFileName());
+
+						if (DriverInfo.LoadTuningSpaceList(false)) {
+							pThis->SetTuningSpaceList(DriverInfo.GetFileName(),
+												  DriverInfo.GetTuningSpaceList(),-1);
+							pThis->UpdateProgramGuide();
+						}
+					}
+				}
+			} else if (LOWORD(wParam)>=CM_PROGRAMGUIDETOOL_FIRST
 					&& LOWORD(wParam)<=CM_PROGRAMGUIDETOOL_LAST) {
 				CProgramGuide *pThis=GetThis(hwnd);
 
@@ -1826,7 +1940,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 						pTool->Execute(pServiceInfo,pThis->m_CurItem.Program);
 					}
 				}
-				return 0;
 			}
 		}
 		return 0;

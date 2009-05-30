@@ -2,10 +2,14 @@
 #include "TVTest.h"
 #include "InfoPanel.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define INFO_PANEL_WINDOW_CLASS APP_NAME TEXT(" Info Panel")
-
-#define TAB_MARGIN 4
 
 
 
@@ -28,7 +32,7 @@ bool CInfoPanel::Initialize(HINSTANCE hinst)
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=INFO_PANEL_WINDOW_CLASS;
-		if (RegisterClass(&wc)==0)
+		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
@@ -53,7 +57,7 @@ CInfoPanel::CInfoPanel()
 	m_crCurTabBackColor=GetSysColor(COLOR_3DHIGHLIGHT);
 	m_crCurTabTextColor=GetSysColor(COLOR_WINDOWTEXT);
 	m_crCurTabBorderColor=GetSysColor(COLOR_3DDKSHADOW);
-	m_TabHeight=abs(lf.lfHeight)+TAB_MARGIN*2;
+	m_TabHeight=/*abs(lf.lfHeight)+*/TAB_MARGIN*2;
 	m_TabWidth=8+TAB_MARGIN*2;
 	m_ClientMargin=4;
 	m_CurTab=-1;
@@ -83,14 +87,14 @@ void CInfoPanel::SetVisible(bool fVisible)
 }
 
 
-bool CInfoPanel::AddWindow(CBasicWindow *pWindow,LPCTSTR pszTitle)
+bool CInfoPanel::AddWindow(CInfoPanelPage *pWindow,LPCTSTR pszTitle)
 {
 	if (m_NumWindows==MAX_WINDOWS)
 		return false;
 	m_pWindowList[m_NumWindows]=new CWindowInfo(pWindow,pszTitle);
 	m_NumWindows++;
 	if (m_hwnd!=NULL) {
-		CalcTabWidth();
+		CalcTabSize();
 		Invalidate();
 	}
 	return true;
@@ -157,6 +161,33 @@ void CInfoPanel::SetCurTabColors(COLORREF crBack,COLORREF crText,COLORREF crBord
 }
 
 
+bool CInfoPanel::SetTabFont(const LOGFONT *pFont)
+{
+	HFONT hfont=::CreateFontIndirect(pFont);
+
+	if (hfont==NULL)
+		return false;
+	::DeleteObject(m_hfont);
+	m_hfont=hfont;
+	if (m_hwnd!=NULL) {
+		CalcTabSize();
+		RECT rc;
+		GetClientRect(&rc);
+		SendMessage(WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
+		Invalidate();
+	}
+	return true;
+}
+
+
+bool CInfoPanel::SetPageFont(const LOGFONT *pFont)
+{
+	for (int i=0;i<m_NumWindows;i++)
+		m_pWindowList[i]->m_pWindow->SetFont(pFont);
+	return true;
+}
+
+
 CInfoPanel *CInfoPanel::GetThis(HWND hwnd)
 {
 	return reinterpret_cast<CInfoPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
@@ -168,9 +199,9 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CInfoPanel *pThis=dynamic_cast<CInfoPanel*>(OnCreate(hwnd,lParam));
+			CInfoPanel *pThis=static_cast<CInfoPanel*>(OnCreate(hwnd,lParam));
 
-			pThis->CalcTabWidth();
+			pThis->CalcTabSize();
 		}
 		return 0;
 
@@ -354,31 +385,34 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 }
 
 
-void CInfoPanel::CalcTabWidth()
+void CInfoPanel::CalcTabSize()
 {
 	HDC hdc;
 	HFONT hfontOld;
+	TEXTMETRIC tm;
 	int MaxWidth;
 	SIZE sz;
 
-	hdc=GetDC(m_hwnd);
+	hdc=::GetDC(m_hwnd);
 	hfontOld=SelectFont(hdc,m_hfont);
+	::GetTextMetrics(hdc,&tm);
+	m_TabHeight=(tm.tmHeight+tm.tmInternalLeading)+TAB_MARGIN*2;
 	MaxWidth=0;
 	for (int i=0;i<m_NumWindows;i++) {
-		GetTextExtentPoint32(hdc,m_pWindowList[i]->m_pszTitle,
-									lstrlen(m_pWindowList[i]->m_pszTitle),&sz);
+		::GetTextExtentPoint32(hdc,m_pWindowList[i]->m_pszTitle,
+							   ::lstrlen(m_pWindowList[i]->m_pszTitle),&sz);
 		if (sz.cx>MaxWidth)
 			MaxWidth=sz.cx;
 	}
 	SelectFont(hdc,hfontOld);
-	ReleaseDC(m_hwnd,hdc);
+	::ReleaseDC(m_hwnd,hdc);
 	m_TabWidth=MaxWidth+TAB_MARGIN*2;
 }
 
 
 
 
-CInfoPanel::CWindowInfo::CWindowInfo(CBasicWindow *pWindow,LPCTSTR pszTitle)
+CInfoPanel::CWindowInfo::CWindowInfo(CInfoPanelPage *pWindow,LPCTSTR pszTitle)
 {
 	m_pWindow=pWindow;
 	m_pszTitle=DuplicateString(pszTitle);
@@ -388,4 +422,16 @@ CInfoPanel::CWindowInfo::CWindowInfo(CBasicWindow *pWindow,LPCTSTR pszTitle)
 CInfoPanel::CWindowInfo::~CWindowInfo()
 {
 	delete [] m_pszTitle;
+}
+
+
+
+
+CInfoPanelPage::CInfoPanelPage()
+{
+}
+
+
+CInfoPanelPage::~CInfoPanelPage()
+{
 }

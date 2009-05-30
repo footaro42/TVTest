@@ -2,12 +2,12 @@
 #define CONTROL_PANEL_H
 
 
-#include "BasicWindow.h"
+#include "InfoPanel.h"
 
 
 class CControlPanelItem;
 
-class CControlPanel : public CBasicWindow {
+class CControlPanel : public CInfoPanelPage {
 	enum { MAX_ITEMS=16 };
 	CControlPanelItem *m_pItemList[MAX_ITEMS];
 	int m_NumItems;

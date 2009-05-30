@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "Settings.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -62,8 +68,11 @@ CSettings::~CSettings()
 
 bool CSettings::Open(LPCTSTR pszFileName,LPCTSTR pszSection,unsigned int Flags)
 {
+	if (pszFileName==NULL || ::lstrlen(pszFileName)>=MAX_PATH
+			|| pszSection==NULL || pszSection[0]=='\0')
+		return false;
 	lstrcpy(m_szFileName,pszFileName);
-	lstrcpy(m_szSection,pszSection);
+	lstrcpyn(m_szSection,pszSection,MAX_SECTION);
 	m_OpenFlags=Flags;
 	return true;
 }

@@ -287,7 +287,7 @@ bool CProgramListView::Initialize(HINSTANCE hinst)
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=PROGRAM_LIST_WINDOW_CLASS;
-		if (RegisterClass(&wc)==0)
+		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
@@ -303,7 +303,8 @@ CProgramListView::CProgramListView()
 	m_hwnd=NULL;
 	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
 	m_hfont=CreateFontIndirect(&lf);
-	m_FontHeight=abs(lf.lfHeight);
+	//m_FontHeight=abs(lf.lfHeight);
+	m_FontHeight=0;
 	m_LineMargin=1;
 	m_crBackColor=RGB(0,0,0);
 	m_crTextColor=RGB(255,255,255);
@@ -315,7 +316,7 @@ CProgramListView::CProgramListView()
 
 CProgramListView::~CProgramListView()
 {
-	DeleteObject(m_hfont);
+	::DeleteObject(m_hfont);
 }
 
 
@@ -482,6 +483,43 @@ void CProgramListView::SetColors(COLORREF crBackColor,COLORREF crTextColor,
 }
 
 
+bool CProgramListView::SetFont(const LOGFONT *pFont)
+{
+	HFONT hfont=::CreateFontIndirect(pFont);
+
+	if (hfont==NULL)
+		return false;
+	::DeleteObject(m_hfont);
+	m_hfont=hfont;
+	m_ScrollPos=0;
+	if (m_hwnd!=NULL) {
+		CalcFontHeight();
+		CalcDimentions();
+		SetScrollBar();
+		Invalidate();
+	}
+	return true;
+}
+
+
+void CProgramListView::CalcFontHeight()
+{
+	HDC hdc;
+	HFONT hfontOld;
+	TEXTMETRIC tm;
+
+	hdc=::GetDC(m_hwnd);
+	if (hdc==NULL)
+		return;
+	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
+	::GetTextMetrics(hdc,&tm);
+	//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	m_FontHeight=tm.tmHeight;
+	::SelectObject(hdc,hfontOld);
+	::ReleaseDC(m_hwnd,hdc);
+}
+
+
 CProgramListView *CProgramListView::GetThis(HWND hwnd)
 {
 	return reinterpret_cast<CProgramListView*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
@@ -493,8 +531,9 @@ LRESULT CALLBACK CProgramListView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			//CProgramListView *pThis=dynamic_cast<CProgramListView*>(OnCreate(hwnd,lParam));
-			OnCreate(hwnd,lParam);
+			CProgramListView *pThis=static_cast<CProgramListView*>(OnCreate(hwnd,lParam));
+
+			pThis->CalcFontHeight();
 		}
 		return 0;
 

@@ -48,6 +48,9 @@ bool ChooseColorDialog(HWND hwndOwner,COLORREF *pcrResult);
 bool ChooseFontDialog(HWND hwndOwner,LOGFONT *plf);
 bool BrowseFolderDialog(HWND hwndOwner,LPTSTR pszDirectory,LPCTSTR pszTitle);
 
+bool CompareLogFont(const LOGFONT *pFont1,const LOGFONT *pFont2);
+int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont);
+
 class CFilePath {
 	TCHAR m_szPath[MAX_PATH];
 public:

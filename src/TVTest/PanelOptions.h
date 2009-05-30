@@ -12,7 +12,10 @@ class CPanelOptions : public COptions {
 	int m_SnapMargin;
 	bool m_fAttachToMainWindow;
 	int m_Opacity;
+	LOGFONT m_Font;
+	LOGFONT m_CurSettingFont;
 	static CPanelOptions *GetThis(HWND hDlg);
+
 public:
 	CPanelOptions(CPanelFrame *pPanelFrame);
 	~CPanelOptions();
@@ -22,6 +25,7 @@ public:
 	bool SetSnapMargin(int Margin);
 	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
 	void SetAttachToMainWindow(bool fAttach);
+	const LOGFONT *GetFont() const { return &m_Font; }
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

@@ -2,7 +2,7 @@
 #define PROGRAM_LIST_VIEW
 
 
-#include "BasicWindow.h"
+#include "InfoPanel.h"
 #include "EpgProgramList.h"
 
 
@@ -26,7 +26,7 @@ public:
 	void Attach(CProgramItemList *pList);
 };
 
-class CProgramListView : public CBasicWindow {
+class CProgramListView : public CInfoPanelPage {
 	CEpgProgramList *m_pProgramList;
 	HFONT m_hfont;
 	int m_FontHeight;
@@ -45,6 +45,8 @@ class CProgramListView : public CBasicWindow {
 	bool UpdateListInfo(WORD TransportStreamID,WORD ServiceID);
 	void CalcDimentions();
 	void SetScrollBar();
+	void CalcFontHeight();
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CProgramListView();
@@ -56,6 +58,7 @@ public:
 	void ClearProgramList();
 	void SetColors(COLORREF crBackColor,COLORREF crTextColor,
 						COLORREF crTitleBackColor,COLORREF crTitleTextColor);
+	bool SetFont(const LOGFONT *pFont);
 };
 
 

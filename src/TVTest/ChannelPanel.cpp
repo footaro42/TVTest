@@ -52,10 +52,12 @@ CChannelPanel::CChannelPanel()
 	m_hfont=::CreateFontIndirect(&lf);
 	lf.lfWeight=FW_BOLD;
 	m_hfontChannel=::CreateFontIndirect(&lf);
-	m_FontHeight=abs(lf.lfHeight);
+	//m_FontHeight=abs(lf.lfHeight);
+	m_FontHeight=0;
 	m_ChannelNameMargin=2;
 	m_EventNameLines=2;
-	m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
+	//m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
+	m_ItemHeight=0;
 	m_ChannelBackColor=RGB(128,128,128);
 	m_ChannelTextColor=RGB(255,255,255);
 	m_EventBackColor=RGB(0,0,0);
@@ -201,6 +203,24 @@ bool CChannelPanel::SetColors(COLORREF ChannelBackColor,COLORREF ChannelTextColo
 }
 
 
+bool CChannelPanel::SetFont(const LOGFONT *pFont)
+{
+	HFONT hfont=::CreateFontIndirect(pFont);
+
+	if (hfont==NULL)
+		return false;
+	::DeleteObject(m_hfont);
+	m_hfont=hfont;
+	if (m_hwnd!=NULL) {
+		CalcItemHeight();
+		m_ScrollPos=0;
+		SetScrollBar();
+		Invalidate();
+	}
+	return true;
+}
+
+
 CChannelPanel *CChannelPanel::GetThis(HWND hwnd)
 {
 	return static_cast<CChannelPanel*>(GetBasicWindow(hwnd));
@@ -214,6 +234,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CChannelPanel *pThis=static_cast<CChannelPanel*>(OnCreate(hwnd,lParam));
 
+			pThis->CalcItemHeight();
 			pThis->m_ScrollPos=0;
 			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
 				WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,0,0,0,0,
@@ -434,6 +455,26 @@ void CChannelPanel::SetScrollBar()
 	si.nPage=rc.bottom;
 	si.nPos=m_ScrollPos;
 	::SetScrollInfo(m_hwnd,SB_VERT,&si,TRUE);
+}
+
+
+void CChannelPanel::CalcItemHeight()
+{
+	HDC hdc;
+	HFONT hfontOld;
+	TEXTMETRIC tm;
+
+	hdc=::GetDC(m_hwnd);
+	if (hdc==NULL)
+		return;
+	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
+	::GetTextMetrics(hdc,&tm);
+	// tmInternalLeadingÇë´Ç∑Ç∆ÉÅÉCÉäÉIÇ≈ñ≠Ç…çsä‘Ç™ãÛÇ≠
+	//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	m_FontHeight=tm.tmHeight;
+	m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
+	::SelectObject(hdc,hfontOld);
+	::ReleaseDC(m_hwnd,hdc);
 }
 
 

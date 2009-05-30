@@ -93,6 +93,7 @@ class CDescramblePmtTable : public CPmtTable
 	WORD m_ServiceID;
 	std::vector<WORD> m_EsPIDList;
 	void UnmapEcmTarget();
+	void UnmapEsTarget();
 
 public:
 	CDescramblePmtTable(CTsDescrambler *pDescrambler);
@@ -574,6 +575,11 @@ void CDescramblePmtTable::UnmapEcmTarget()
 			m_pMapManager->UnmapTarget(m_EcmPID);
 	}
 
+	UnmapEsTarget();
+}
+
+void CDescramblePmtTable::UnmapEsTarget()
+{
 	// ESのPIDマップ削除
 	for (size_t i = 0 ; i < m_EsPIDList.size() ; i++) {
 		const WORD EsPID = m_EsPIDList[i];
@@ -613,7 +619,11 @@ void CDescramblePmtTable::SetTarget()
 	if (EcmPID < 0x1FFF) {
 		if (m_EcmPID < 0x1FFF) {
 			// ECMとESのPIDをアンマップ
-			UnmapEcmTarget();
+			if (EcmPID != m_EcmPID) {
+				UnmapEcmTarget();
+			} else {
+				UnmapEsTarget();
+			}
 		}
 
 		m_pEcmProcessor = dynamic_cast<CEcmProcessor*>(m_pMapManager->GetMapTarget(EcmPID));

@@ -3,8 +3,9 @@
 
 
 class CSettings {
+	enum { MAX_SECTION=MAX_PATH };
 	TCHAR m_szFileName[MAX_PATH];
-	TCHAR m_szSection[64];
+	TCHAR m_szSection[MAX_SECTION];
 	unsigned int m_OpenFlags;
 public:
 	enum {

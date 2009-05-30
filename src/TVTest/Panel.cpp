@@ -4,6 +4,12 @@
 #include "Panel.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define PANEL_WINDOW_CLASS			APP_NAME TEXT(" Panel")
 #define PANEL_FRAME_WINDOW_CLASS	APP_NAME TEXT(" Panel Frame")

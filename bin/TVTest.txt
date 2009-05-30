@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.38
+    TVTest ver.0.5.39
 
 
 ◆ はじめに
@@ -44,6 +44,7 @@
   ・TVTest_0.5.38_Src.zip ソースファイル
   ・TVTest_SDK_090504.zip プラグイン開発用 SDK
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
+  ・BonDriver_UDP.txt     BonDriver_UDP.dll の説明
   ・Preset_BS.ch2         BS 用チャンネルプリセット
   ・Preset_CS.ch2         CS 用チャンネルプリセット
   ・Plugins\              プラグインフォルダ
@@ -202,13 +203,6 @@
   ・NHK教育/放送大学などで映像が正方形に表示される
     CyberLink 等のデコーダとデフォルトレンダラの組み合わせで起こるようです。
     レンダラをデフォルト以外にしてみてください。
-
-  ・UDP で複数起動できない
-    ポートをデフォルトの1234のままにすると、複数起動時にエラーが出ます。
-    (BonDriver_UDP で最初にポート1234を bind するために、既に使われているとエ
-    ラーになる)
-    コマンドラインで /port 1235 などとして、デフォルトのポートを1234以外に設定
-    します。
 
   ・キャプチャで一瞬止まる
     レンダラに VMR9 Renderless を使用してください。
@@ -381,9 +375,8 @@
     libpng 1.2.31  Copyright (c) 1998-2001 Glenn Randers-Pehrson
   ・このプログラムは zlib を使用しています。
     zlib version 1.2.3  Copyright (C) 1995-2004 Jean-loup Gailly and Mark Adler
-  ・BonDriver_UDP.dll は Meru-co 氏が書かれたソースを VC2005 でビルドしたもので
-    す。Meru-co 氏の BonDriver(Meru customize edition) for UDP ver1.20 と機能的
-    に同一のものです。
+  ・BonDriver_UDP.dll は Meru-co 氏作の BonDriver(Meru customize edition) for
+    UDP ver1.20 を少し改変したものです。
 
 
 ◆ 謝辞
@@ -401,6 +394,20 @@
 
 
 ◆ 更新履歴
+
+  ver.0.5.39
+    ・パネルのフォントを変更できるようにした
+    ・EPG 番組表で、現在使用しているドライバ以外の番組表も表示できるようにした
+    ・EPG 番組表の横スクロール幅を大きくした
+    ・添付の BonDriver_UDP.dll で、初期チャンネルを設定しないようにした。また、
+      無駄なコードを削減した
+    ・ドライバを指定する際のパスの長さが64文字以上だと不正な処理になる不具合を
+      修正
+    ・外部からのチャンネル変更の検知が正常に機能しなくなっていた不具合を修正
+    ・BonDriver_TCP 使用時に、初期チャンネルを Port 2230 に設定しても起動時に反
+      映されない不具合を修正
+    ・ネットワークリモコン使用時に開放済みのメモリにアクセスしていた不具合を修正
+    ・その他微修正
 
   ver.0.5.38
     ・EMM 処理を行えるようにした

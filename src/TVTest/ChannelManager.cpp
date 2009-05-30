@@ -556,7 +556,7 @@ bool CChannelManager::LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 	CSettings Settings;
 	int SpaceCount;
 
-	if (!Settings.Open(pszFileName,pszDriverName,CSettings::OPEN_READ))
+	if (!Settings.Open(pszFileName,::PathFindFileName(pszDriverName),CSettings::OPEN_READ))
 		return false;
 	if (Settings.Read(TEXT("SpaceCount"),&SpaceCount) && SpaceCount>0) {
 		for (int i=0;i<SpaceCount;i++) {
@@ -603,7 +603,7 @@ bool CChannelManager::SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 	CSettings Settings;
 	int SpaceCount;
 
-	if (!Settings.Open(pszFileName,pszDriverName,CSettings::OPEN_WRITE))
+	if (!Settings.Open(pszFileName,::PathFindFileName(pszDriverName),CSettings::OPEN_WRITE))
 		return false;
 	SpaceCount=m_TuningSpaceList.NumSpaces();
 	Settings.Clear();

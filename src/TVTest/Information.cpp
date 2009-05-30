@@ -5,6 +5,12 @@
 #include "Information.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define INFORMATION_WINDOW_CLASS APP_NAME TEXT(" Information")
 #define IDC_PROGRAMINFO		1000
@@ -32,20 +38,24 @@ HINSTANCE CInformation::m_hinst=NULL;
 
 bool CInformation::Initialize(HINSTANCE hinst)
 {
-	WNDCLASS wc;
+	if (m_hinst==NULL) {
+		WNDCLASS wc;
 
-	m_hinst=hinst;
-	wc.style=CS_HREDRAW;
-	wc.lpfnWndProc=WndProc;
-	wc.cbClsExtra=0;
-	wc.cbWndExtra=0;
-	wc.hInstance=hinst;
-	wc.hIcon=NULL;
-	wc.hCursor=LoadCursor(NULL,IDC_ARROW);
-	wc.hbrBackground=NULL;
-	wc.lpszMenuName=NULL;
-	wc.lpszClassName=INFORMATION_WINDOW_CLASS;
-	return RegisterClass(&wc)!=0;
+		wc.style=CS_HREDRAW;
+		wc.lpfnWndProc=WndProc;
+		wc.cbClsExtra=0;
+		wc.cbWndExtra=0;
+		wc.hInstance=hinst;
+		wc.hIcon=NULL;
+		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
+		wc.hbrBackground=NULL;
+		wc.lpszMenuName=NULL;
+		wc.lpszClassName=INFORMATION_WINDOW_CLASS;
+		if (::RegisterClass(&wc)==0)
+			return false;
+		m_hinst=hinst;
+	}
+	return true;
 }
 
 
@@ -81,8 +91,8 @@ CInformation::CInformation()
 CInformation::~CInformation()
 {
 	if (m_hwnd!=NULL)
-		DestroyWindow(m_hwnd);
-	DeleteObject(m_hFont);
+		::DestroyWindow(m_hwnd);
+	::DeleteObject(m_hFont);
 	delete [] m_pszDecoderName;
 	delete [] m_pszProgramInfo;
 }
@@ -136,11 +146,11 @@ void CInformation::SetColor(COLORREF crBackColor,COLORREF crTextColor)
 	m_crBackColor=crBackColor;
 	m_crTextColor=crTextColor;
 	if (m_hwnd!=NULL) {
-		DeleteObject(m_hbrBack);
+		::DeleteObject(m_hbrBack);
 		m_hbrBack=CreateSolidBrush(crBackColor);
-		InvalidateRect(m_hwnd,NULL,TRUE);
-		InvalidateRect(m_hwndProgramInfoPrev,NULL,TRUE);
-		InvalidateRect(m_hwndProgramInfoNext,NULL,TRUE);
+		::InvalidateRect(m_hwnd,NULL,TRUE);
+		::InvalidateRect(m_hwndProgramInfoPrev,NULL,TRUE);
+		::InvalidateRect(m_hwndProgramInfoNext,NULL,TRUE);
 	}
 }
 
@@ -150,10 +160,30 @@ void CInformation::SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor
 	m_crProgramInfoBackColor=crBackColor;
 	m_crProgramInfoTextColor=crTextColor;
 	if (m_hwnd!=NULL) {
-		DeleteObject(m_hbrProgramInfoBack);
+		::DeleteObject(m_hbrProgramInfoBack);
 		m_hbrProgramInfoBack=CreateSolidBrush(crBackColor);
-		InvalidateRect(m_hwndProgramInfo,NULL,TRUE);
+		::InvalidateRect(m_hwndProgramInfo,NULL,TRUE);
 	}
+}
+
+
+bool CInformation::SetFont(const LOGFONT *pFont)
+{
+	HFONT hfont=::CreateFontIndirect(pFont);
+
+	if (hfont==NULL)
+		return false;
+	::DeleteObject(m_hFont);
+	m_hFont=hfont;
+	if (m_hwnd!=NULL) {
+		CalcFontHeight();
+		SetWindowFont(m_hwndProgramInfo,m_hFont,TRUE);
+		RECT rc;
+		GetClientRect(&rc);
+		SendMessage(WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
+		Invalidate();
+	}
+	return true;
 }
 
 
@@ -271,17 +301,6 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			SetWindowLongPtr(hwnd,GWLP_USERDATA,
 											reinterpret_cast<LONG_PTR>(pThis));
 			pThis->m_hwnd=hwnd;
-
-			HDC hdc;
-			HFONT hfontOld;
-			TEXTMETRIC tm;
-
-			hdc=GetDC(hwnd);
-			hfontOld=static_cast<HFONT>(SelectObject(hdc,pThis->m_hFont));
-			GetTextMetrics(hdc,&tm);
-			pThis->m_FontHeight=tm.tmHeight;
-			SelectObject(hdc,hfontOld);
-			ReleaseDC(hwnd,hdc);
 			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
 				pThis->m_pszProgramInfo!=NULL?pThis->m_pszProgramInfo:TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY,
@@ -297,6 +316,7 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFONEXT,m_hinst,NULL);
 			pThis->m_hbrBack=CreateSolidBrush(pThis->m_crBackColor);
 			pThis->m_hbrProgramInfoBack=CreateSolidBrush(pThis->m_crProgramInfoBackColor);
+			pThis->CalcFontHeight();
 		}
 		return 0;
 
@@ -522,4 +542,21 @@ void CInformation::UpdateItem(int Item)
 		GetItemRect(Item,&rc);
 		::InvalidateRect(m_hwnd,&rc,TRUE);
 	}
+}
+
+
+void CInformation::CalcFontHeight()
+{
+	HDC hdc;
+	HFONT hfontOld;
+	TEXTMETRIC tm;
+
+	hdc=::GetDC(m_hwnd);
+	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hFont));
+	::GetTextMetrics(hdc,&tm);
+	// tmInternalLeadingÇë´Ç∑Ç∆ÉÅÉCÉäÉIÇ≈ñ≠Ç…çsä‘Ç™ãÛÇ≠
+	//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	m_FontHeight=tm.tmHeight;
+	::SelectObject(hdc,hfontOld);
+	::ReleaseDC(m_hwnd,hdc);
 }

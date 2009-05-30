@@ -171,7 +171,7 @@ bool CChannelList::AddChannel(const CChannelInfo &Info)
 CChannelInfo *CChannelList::GetChannelInfo(int Index)
 {
 	if (Index<0 || Index>=m_NumChannels) {
-		TRACE(TEXT("CChannelList::GetChannelInfo Out of range %d\n"),Index);
+		//TRACE(TEXT("CChannelList::GetChannelInfo Out of range %d\n"),Index);
 		return NULL;
 	}
 	return m_ppList[Index];
@@ -181,7 +181,7 @@ CChannelInfo *CChannelList::GetChannelInfo(int Index)
 const CChannelInfo *CChannelList::GetChannelInfo(int Index) const
 {
 	if (Index<0 || Index>=m_NumChannels) {
-		TRACE(TEXT("CChannelList::GetChannelInfo Out of range %d\n"),Index);
+		//TRACE(TEXT("CChannelList::GetChannelInfo Out of range %d\n"),Index);
 		return NULL;
 	}
 	return m_ppList[Index];
@@ -757,13 +757,25 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 	static const char szComment[]=
 		"; " APP_NAME_A " チャンネル設定ファイル\r\n"
 		"; 名称,チューニング空間,チャンネル,リモコン番号,サービス,サービスID,ネットワークID,TSID,状態\r\n";
-	::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL);
+	if (!::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL) || Write!=sizeof(szComment)-1) {
+		::CloseHandle(hFile);
+		return false;
+	}
 	for (int i=0;i<NumSpaces();i++) {
 		const CChannelList *pChannelList=m_TuningSpaceList[i]->GetChannelList();
+		char szText[MAX_CHANNEL_NAME*2+64];
 
+		if (pChannelList->NumChannels()==0)
+			continue;
+		if (GetTuningSpaceName(i)!=NULL)
+			Length=::wsprintfA(szText,";#SPACE(%d,%S)\r\n",i,GetTuningSpaceName(i));
+		if (!::WriteFile(hFile,szText,Length,&Write,NULL) || Write!=Length) {
+			::CloseHandle(hFile);
+			return false;
+		}
 		for (int j=0;j<pChannelList->NumChannels();j++) {
 			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(j);
-			char szName[MAX_CHANNEL_NAME*2],szText[MAX_CHANNEL_NAME*2+64];
+			char szName[MAX_CHANNEL_NAME*2];
 
 #ifdef UNICODE
 			::WideCharToMultiByte(CP_ACP,0,pChInfo->GetName(),-1,
@@ -812,6 +824,19 @@ bool inline IsDigit(char c)
 	return c>='0' && c<='9';
 }
 
+static int ParseDigits(char **ppText)
+{
+	char *p=*ppText;
+	int Value=0;
+
+	while (IsDigit(*p)) {
+		Value=Value*10+(*p-'0');
+		p++;
+	}
+	*ppText=p;
+	return Value;
+}
+
 bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 {
 	HANDLE hFile;
@@ -844,8 +869,44 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 
 		while (*p=='\r' || *p=='\n' || *p==' ' || *p=='\t')
 			p++;
-		if (*p==';')	// コメント
+		if (*p==';') {	// コメント
+			p++;
+			if (*p=='#') {
+				p++;
+				if (::strnicmp(p,"space(",6)==0) {
+					// チューニング空間名 #space(インデックス,名前)
+					p+=6;
+					SkipSpaces(&p);
+					if (IsDigit(*p)) {
+						Space=ParseDigits(&p);
+						SkipSpaces(&p);
+						if (Space>=0 && Space<10 && *p==',') {
+							int i;
+
+							p++;
+							SkipSpaces(&p);
+							for (i=0;p[i]!=')' && p[i]!='\0' && p[i]!='\r' && p[i]!='\n';i++);
+							if (i>0) {
+#ifdef UNICODE
+								szName[::MultiByteToWideChar(CP_ACP,0,p,i,szName,lengthof(szName)-1)]='\0';
+#else
+								::lstrcpyn(szName,p,min(i+1,lengthof(szName)));
+#endif
+								if (m_TuningSpaceList.Length()<=Space) {
+									Reserve(Space+1);
+									m_TuningSpaceList[Space]->SetName(szName);
+								}
+								p+=i;
+								if (*p=='\0')
+									break;
+								p++;
+							}
+						}
+					}
+				}
+			}
 			goto Next;
+		}
 		if (*p=='\0')
 			break;
 		// チャンネル名
@@ -867,11 +928,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 		// チューニング空間
 		if (!IsDigit(*p))
 			goto Next;
-		Space=0;
-		do {
-			Space=Space*10+(*p-'0');
-			p++;
-		} while (IsDigit(*p));
+		Space=ParseDigits(&p);
 		SkipSpaces(&p);
 		if (*p!=',')
 			goto Next;
@@ -880,11 +937,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 		// チャンネル
 		if (!IsDigit(*p))
 			goto Next;
-		Channel=0;
-		do {
-			Channel=Channel*10+(*p-'0');
-			p++;
-		} while (IsDigit(*p));
+		Channel=ParseDigits(&p);
 		SkipSpaces(&p);
 		ControlKey=0;
 		Service=0;
@@ -896,57 +949,38 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 			p++;
 			SkipSpaces(&p);
 			// リモコン番号(オプション)
-			while (IsDigit(*p)) {
-				ControlKey=ControlKey*10+(*p-'0');
-				p++;
-			}
+			ControlKey=ParseDigits(&p);
 			SkipSpaces(&p);
 			// サービス(オプション)
 			if (*p==',') {
 				p++;
 				SkipSpaces(&p);
-				while (IsDigit(*p)) {
-					Service=Service*10+(*p-'0');
-					p++;
-				}
+				Service=ParseDigits(&p);
 				SkipSpaces(&p);
 				// サービスID(オプション)
 				if (*p==',') {
 					p++;
 					SkipSpaces(&p);
-					while (IsDigit(*p)) {
-						ServiceID=ServiceID*10+(*p-'0');
-						p++;
-					}
+					ServiceID=ParseDigits(&p);
 					SkipSpaces(&p);
 					// ネットワークID(オプション)
 					if (*p==',') {
 						p++;
 						SkipSpaces(&p);
-						while (IsDigit(*p)) {
-							NetworkID=ServiceID*10+(*p-'0');
-							p++;
-						}
+						NetworkID=ParseDigits(&p);
 						SkipSpaces(&p);
 						// トランスポートストリームID(オプション)
 						if (*p==',') {
 							p++;
 							SkipSpaces(&p);
-							while (IsDigit(*p)) {
-								TransportStreamID=TransportStreamID*10+(*p-'0');
-								p++;
-							}
+							TransportStreamID=ParseDigits(&p);
 							SkipSpaces(&p);
 							// 有効状態(オプション)
 							if (*p==',') {
 								p++;
 								SkipSpaces(&p);
 								if (IsDigit(*p)) {
-									int Value=0;
-									while (IsDigit(*p)) {
-										Value=Value*10+(*p-'0');
-										p++;
-									}
+									int Value=ParseDigits(&p);
 									fEnabled=(Value&1)!=0;
 								}
 							}

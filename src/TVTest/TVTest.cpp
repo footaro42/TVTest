@@ -556,8 +556,7 @@ bool CAppMain::InitializeChannel()
 											CChannelManager::SPACE_ALL:0);
 	*/
 	ChannelManager.SetCurrentChannel(
-		RestoreChannelInfo.Space>=0?RestoreChannelInfo.Space:0,
-		CoreEngine.IsUDPDriver()?0:-1);
+		RestoreChannelInfo.Space>=0?RestoreChannelInfo.Space:0,-1);
 	ChannelManager.SetCurrentServiceID(0);
 	NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
 											 &CoreEngine,&ChannelManager);
@@ -690,6 +689,11 @@ bool CAppMain::FollowChannelChange(WORD TransportStreamID,WORD ServiceID)
 	}
 	if (!fFinded)
 		return false;
+	if (Space==ChannelManager.GetCurrentSpace()
+			&& Channel==ChannelManager.GetCurrentChannel())
+		return true;
+	Logger.AddLog(TEXT("チャンネル変更を検知しました。(TSID %d / SID %d)"),
+				  TransportStreamID,ServiceID);
 	if (!ChannelManager.SetCurrentChannel(Space,Channel))
 		return false;
 	ChannelManager.SetCurrentServiceID(0);
@@ -756,7 +760,7 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 
 	if (CoreEngine.IsDriverOpen()
 			&& ::lstrcmpi(CoreEngine.GetDriverFileName(),pszFileName)==0)
-		return false;
+		return true;
 	SaveCurrentChannel();
 	SaveChannelSettings();
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
@@ -2864,11 +2868,11 @@ void CMyChannelPanelEventHandler::OnChannelClick(const CChannelInfo *pChannelInf
 			int Index=pList->Find(pChannelInfo->GetSpace(),
 								  pChannelInfo->GetChannelIndex(),
 								  pChannelInfo->GetServiceID());
-			if (Index<0 && RestoreChannelInfo.ServiceID>0)
-				Index=pList->Find(RestoreChannelInfo.Space,
-								  RestoreChannelInfo.Channel);
+			if (Index<0 && pChannelInfo->GetServiceID()>0)
+				Index=pList->Find(pChannelInfo->GetSpace(),
+								  pChannelInfo->GetChannelIndex());
 			if (Index>=0)
-				AppMain.SetChannel(ChannelManager.GetCurrentSpace(),Index);
+				MainWindow.PostCommand(CM_CHANNEL_FIRST+Index);
 		}
 	}
 }
@@ -2894,7 +2898,7 @@ static CMyChannelPanelEventHandler ChannelPanelEventHandler;
 class CMyProgramGuideEventHandler : public CProgramGuideEventHandler {
 public:
 	bool OnClose();
-	void OnServiceTitleLButtonDown(const CServiceInfoData *pServiceInfo);
+	void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo);
 	bool OnBeginUpdate();
 	void OnEndUpdate();
 	bool OnRefresh();
@@ -2908,8 +2912,11 @@ bool CMyProgramGuideEventHandler::OnClose()
 	return true;
 }
 
-void CMyProgramGuideEventHandler::OnServiceTitleLButtonDown(const CServiceInfoData *pServiceInfo)
+void CMyProgramGuideEventHandler::OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo)
 {
+	if (!AppMain.SetDriver(pszDriverFileName))
+		return;
+
 	const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 
 	if (pList!=NULL) {
@@ -2956,20 +2963,13 @@ void CMyProgramGuideEventHandler::OnEndUpdate()
 
 bool CMyProgramGuideEventHandler::OnRefresh()
 {
-	const CChannelList *pList;
+	HCURSOR hcurOld;
 
-	if (!CoreEngine.IsNetworkDriver())
-		pList=ChannelManager.GetCurrentChannelList();
-	else
-		pList=ChannelManager.GetFileAllChannelList();
-	if (pList!=NULL) {
-		HCURSOR hcurOld;
-
-		hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
-		EpgProgramList.UpdateProgramList();
-		m_pProgramGuide->SetChannelList(pList);
-		::SetCursor(hcurOld);
-	}
+	hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+	EpgProgramList.UpdateProgramList();
+	m_pProgramGuide->UpdateChannelList();
+	m_pProgramGuide->UpdateProgramGuide();
+	::SetCursor(hcurOld);
 	return true;
 }
 
@@ -4291,27 +4291,14 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			ProgramGuideOptions.GetTimeRange(&stFirst,&stLast);
 			ProgramGuide.SetTimeRange(&stFirst,&stLast);
 			ProgramGuide.SetViewDay(CProgramGuide::DAY_TODAY);
-			const CChannelList *pList;
+			const CTuningSpaceList *pList=ChannelManager.GetTuningSpaceList();
+			int Space;
 			if (!CoreEngine.IsNetworkDriver())
-				pList=ChannelManager.GetCurrentChannelList();
+				Space=ChannelManager.GetCurrentSpace();
 			else
-				pList=ChannelManager.GetFileAllChannelList();
-			if (pList!=NULL) {
-				/*
-				CProgramGuideServiceIDList ServiceIDList;
-
-				for (int i=0;i<pList->NumChannels();i++) {
-					WORD ServiceID=pList->GetChannelInfo(i)->GetServiceID();
-					if (ServiceID!=0) {
-						ServiceIDList.Add(ServiceID);
-						EpgProgramList.UpdateProgramList(ServiceID);
-					}
-				}
-				ProgramGuide.SetServiceIDList(&ServiceIDList);
-				*/
-				EpgProgramList.UpdateProgramList();
-				ProgramGuide.SetChannelList(pList);
-			}
+				Space=-1;
+			EpgProgramList.UpdateProgramList();
+			ProgramGuide.SetTuningSpaceList(CoreEngine.GetDriverFileName(),pList,Space);
 			ProgramGuide.UpdateProgramGuide();
 			::SetCursor(hcurOld);
 		} else {
@@ -5965,16 +5952,16 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 				TransportStreamID=pInfo->m_TransportStreamID;
 				ServiceID=pInfo->m_pServiceList[pInfo->m_CurService].ServiceID;
-				if (pInfo->m_fStreamChanged
-						&& TransportStreamID!=0 && ServiceID!=0
+				if (/*pInfo->m_fStreamChanged
+						&& */TransportStreamID!=0 && ServiceID!=0
 						&& !CoreEngine.IsNetworkDriver()
 						&& (pChInfo==NULL
-						|| (pChInfo->GetTransportStreamID()!=0
-						&& pChInfo->GetTransportStreamID()!=TransportStreamID))) {
+						|| ((pChInfo->GetTransportStreamID()!=0
+						&& pChInfo->GetTransportStreamID()!=TransportStreamID)
+						|| (pChInfo->GetServiceID()!=0
+						&& pChInfo->GetServiceID()!=ServiceID)))) {
 					// 外部からチャンネル変更されたか、
 					// ドライバが開かれたときのデフォルトチャンネル
-					Logger.AddLog(TEXT("チャンネル変更を検知しました。(TSID %d / SID %d)"),
-								  TransportStreamID,ServiceID);
 					AppMain.FollowChannelChange(TransportStreamID,ServiceID);
 				}/* else if (pChInfo!=NULL && ServiceID!=0 && !CoreEngine.IsNetworkDriver()) {
 					// サービスを選択する
@@ -7635,6 +7622,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	InfoPanel.SetEventHandler(&InfoPanelEventHandler);
 	InfoPanel.Create(MainWindow.GetHandle(),WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
+	InfoPanel.SetTabFont(PanelOptions.GetFont());
 
 	InfoWindow.Create(InfoPanel.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
 	InfoPanel.AddWindow(&InfoWindow,TEXT("情報"));
@@ -7681,6 +7669,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	InfoPanel.AddWindow(&ControlPanel,TEXT("操作"));
 
 	InfoPanel.SetCurTab(InfoPanelCurTab);
+	InfoPanel.SetPageFont(PanelOptions.GetFont());
 	Splitter.SetPane(PanelPaneIndex,NULL,PANE_ID_PANEL);
 	Splitter.SetMinSize(PANE_ID_PANEL,64);
 	Splitter.SetFixedPane(PANE_ID_PANEL);
@@ -7701,6 +7690,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	ProgramGuide.SetEpgProgramList(&EpgProgramList);
 	ProgramGuide.SetEventHandler(&ProgramGuideEventHandler);
+	ProgramGuide.SetDriverList(&DriverManager);
 
 	CaptureWindow.SetEventHandler(&CaptureWindowEventHandler);
 
@@ -7719,12 +7709,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		if (CoreEngine.IsNetworkDriver()) {
 			const int FirstPort=CoreEngine.IsUDPDriver()?1234:2230;
 			int Port=FirstPort;
-			if ((int)CmdLineParser.m_UDPPort>FirstPort && (int)CmdLineParser.m_UDPPort<FirstPort+10)
+			if ((int)CmdLineParser.m_UDPPort>=FirstPort && (int)CmdLineParser.m_UDPPort<FirstPort+10)
 				Port=CmdLineParser.m_UDPPort;
 			else if (RestoreChannelInfo.Channel>=0 && RestoreChannelInfo.Channel<10)
 				Port=FirstPort+RestoreChannelInfo.Channel;
-			if (Port!=FirstPort)
-				MainWindow.SendCommand(CM_CHANNEL_FIRST+(Port-FirstPort));
+			//if (Port!=FirstPort)
+				AppMain.SetChannel(0,Port-FirstPort);
 			if (CmdLineParser.m_ControllerChannel>0)
 				SetCommandLineChannel(&CmdLineParser);
 		} else if (AppMain.IsFirstExecute()) {

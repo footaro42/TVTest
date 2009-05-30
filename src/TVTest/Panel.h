@@ -54,6 +54,7 @@ class CDropHelper : public CBasicWindow {
 	static HINSTANCE m_hinst;
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CDropHelper();
@@ -94,11 +95,20 @@ class CPanelFrame : public CBasicWindow, public CPanel::CEventHandler {
 	static HINSTANCE m_hinst;
 	static CPanelFrame *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	// CPanel::CEventHandler
+	bool OnFloating();
+	bool OnClose();
+	bool OnEnterSizeMove();
+	bool OnMoving(RECT *pRect);
+	bool OnKeyDown(UINT KeyCode,UINT Flags);
+	void OnSizeChanged(int Width,int Height);
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CPanelFrame();
 	~CPanelFrame();
 	bool Create(HWND hwndOwner,CSplitter *pSplitter,int PanelID,CBasicWindow *pWindow,LPCTSTR pszTitle);
+	CBasicWindow *GetWindow() { return m_Panel.GetWindow(); }
 	bool SetFloating(bool fFloating);
 	bool GetFloating() const { return m_fFloating; }
 	void SetEventHandler(CPanelFrameEventHandler *pHandler);
@@ -108,13 +118,6 @@ public:
 	bool SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText);
 	bool SetOpacity(int Opacity);
 	int GetOpacity() const { return m_Opacity; }
-	// CPanel::CEventHandler
-	bool OnFloating();
-	bool OnClose();
-	bool OnEnterSizeMove();
-	bool OnMoving(RECT *pRect);
-	bool OnKeyDown(UINT KeyCode,UINT Flags);
-	void OnSizeChanged(int Width,int Height);
 };
 
 

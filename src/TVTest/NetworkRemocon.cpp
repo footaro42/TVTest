@@ -140,13 +140,14 @@ DWORD CNetworkRemocon::SendProc(LPVOID pParam)
 		Buffer[Result]='\0';
 		pInfo->m_pReceiver->OnReceive(Buffer);
 	}
-	delete pInfo;
 	if (Result==SOCKET_ERROR || Result==0) {
 		closesocket(pInfo->m_pRemocon->m_Socket);
 		pInfo->m_pRemocon->m_Socket=INVALID_SOCKET;
 		pInfo->m_pRemocon->m_fConnected=false;
+		delete pInfo;
 		return Result==SOCKET_ERROR;
 	}
+	delete pInfo;
 	return TRUE;
 }
 

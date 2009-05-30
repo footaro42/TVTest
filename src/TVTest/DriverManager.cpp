@@ -47,6 +47,16 @@ bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
 		bool fChannelFileLoaded=m_TuningSpaceList.LoadFromFile(szFileName);
 		if (!fChannelFileLoaded && !fUseDriver)
 			return false;
+		if (fChannelFileLoaded && fUseDriver) {
+			int NumSpaces=m_TuningSpaceList.NumSpaces(),i;
+			for (i=0;i<NumSpaces;i++) {
+				if (m_TuningSpaceList.GetTuningSpaceName(i)==NULL
+						|| m_TuningSpaceList.GetChannelList(i)->NumChannels()==0)
+					break;
+			}
+			if (i==NumSpaces)
+				fUseDriver=false;
+		}
 		if (fUseDriver) {
 			HMODULE hLib=::LoadLibrary(m_pszFileName);
 			bool fDriverChannelLoaded=false;

@@ -2,10 +2,10 @@
 #define INFORMATION_H
 
 
-#include "BasicWindow.h"
+#include "InfoPanel.h"
 
 
-class CInformation : public CBasicWindow {
+class CInformation : public CInfoPanelPage {
 	static HINSTANCE m_hinst;
 	HWND m_hwndProgramInfo;
 	HWND m_hwndProgramInfoPrev;
@@ -41,6 +41,8 @@ class CInformation : public CBasicWindow {
 																LPARAM lParam);
 	void GetItemRect(int Item,RECT *pRect);
 	void UpdateItem(int Item);
+	void CalcFontHeight();
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CInformation();
@@ -50,6 +52,7 @@ public:
 	bool IsVisible() const;
 	void SetColor(COLORREF crBackColor,COLORREF crTextColor);
 	void SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor);
+	bool SetFont(const LOGFONT *pFont);
 	void SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight);
 	void SetAspectRatio(int AspectX,int AspectY);
 	void SetDecoderName(LPCTSTR pszName);

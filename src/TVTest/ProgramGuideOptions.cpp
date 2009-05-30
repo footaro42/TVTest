@@ -160,26 +160,13 @@ CProgramGuideOptions *CProgramGuideOptions::GetThis(HWND hDlg)
 static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 {
 	HDC hdc;
-	HFONT hfont,hfontOld;
+	TCHAR szText[LF_FACESIZE+16];
 
 	hdc=GetDC(hDlg);
 	if (hdc==NULL)
 		return;
-	hfont=CreateFontIndirect(plf);
-	if (hfont!=NULL) {
-		TEXTMETRIC tm;
-		TCHAR szText[LF_FACESIZE+16];
-		int PixelsPerInch;
-
-		hfontOld=(HFONT)SelectObject(hdc,hfont);
-		GetTextMetrics(hdc,&tm);
-		PixelsPerInch=GetDeviceCaps(hdc,LOGPIXELSY);
-		wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,
-			((tm.tmHeight-tm.tmInternalLeading)*72+PixelsPerInch/2)/PixelsPerInch);
-		SetDlgItemText(hDlg,IDC_PROGRAMGUIDEOPTIONS_FONTINFO,szText);
-		SelectObject(hdc,hfontOld);
-		DeleteObject(hfont);
-	}
+	wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
+	SetDlgItemText(hDlg,IDC_PROGRAMGUIDEOPTIONS_FONTINFO,szText);
 	ReleaseDC(hDlg,hdc);
 }
 
@@ -449,9 +436,7 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 					(int)CProgramGuide::MIN_LINES_PER_HOUR,(int)CProgramGuide::MAX_LINES_PER_HOUR);
 				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth);
 
-				// Font
-				if (memcmp(&pThis->m_Font,&lfCurFont,28/*offsetof(LOGFONT,lfFaceName)*/)!=0
-						|| lstrcmp(pThis->m_Font.lfFaceName,lfCurFont.lfFaceName)!=0) {
+				if (!CompareLogFont(&pThis->m_Font,&lfCurFont)) {
 					pThis->m_Font=lfCurFont;
 					pThis->m_pProgramGuide->SetFont(&lfCurFont);
 				}

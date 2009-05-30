@@ -2,13 +2,13 @@
 #define CHANNEL_PANEL_H
 
 
-#include "BasicWindow.h"
+#include "InfoPanel.h"
 #include "EpgProgramList.h"
 #include "ChannelList.h"
 #include "PointerArray.h"
 
 
-class CChannelPanel : public CBasicWindow {
+class CChannelPanel : public CInfoPanelPage {
 public:
 	CChannelPanel();
 	~CChannelPanel();
@@ -25,6 +25,7 @@ public:
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetColors(COLORREF ChannelBackColor,COLORREF ChannelTextColor,
 				   COLORREF EventBackColor,COLORREF EventTextColor);
+	bool SetFont(const LOGFONT *pFont);
 	static bool Initialize(HINSTANCE hinst);
 
 private:
@@ -62,6 +63,7 @@ private:
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void Draw(HDC hdc,const RECT *prcPaint);
 	void SetScrollBar();
+	void CalcItemHeight();
 	void SetToolTips();
 };
 
