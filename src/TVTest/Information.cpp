@@ -274,12 +274,13 @@ void CInformation::SetRecordStatus(bool fRecording,LPCTSTR pszFileName,
 
 void CInformation::SetProgramInfo(LPCTSTR pszInfo)
 {
-	if (m_pszProgramInfo==NULL || lstrcmp(m_pszProgramInfo,pszInfo)!=0) {
-		delete [] m_pszProgramInfo;
-		m_pszProgramInfo=new TCHAR[lstrlen(pszInfo)+1];
-		lstrcpy(m_pszProgramInfo,pszInfo);
-		SetWindowText(m_hwndProgramInfo,m_pszProgramInfo);
-	}
+	if (m_pszProgramInfo==NULL && pszInfo==NULL)
+		return;
+	if (m_pszProgramInfo!=NULL && pszInfo!=NULL
+			&& ::lstrcmp(m_pszProgramInfo,pszInfo)==0)
+		return;
+	ReplaceString(&m_pszProgramInfo,pszInfo);
+	SetWindowText(m_hwndProgramInfo,NullToEmptyString(m_pszProgramInfo));
 }
 
 

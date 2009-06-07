@@ -6,8 +6,15 @@
 #include "Plugin.h"
 #include "Image.h"
 #include "Version.h"
+#include "DialogUtil.h"
 #include "TsEncode.h"
 #include "resource.h"
+
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
 
 
 
@@ -1629,6 +1636,15 @@ BOOL CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 	case WM_NOTIFY:
 		switch (reinterpret_cast<LPNMHDR>(lParam)->code) {
+		case LVN_ITEMCHANGED:
+			{
+				LPNMLISTVIEW pnmlv=reinterpret_cast<LPNMLISTVIEW>(lParam);
+				int Sel=ListView_GetNextItem(pnmlv->hdr.hwndFrom,-1,LVNI_SELECTED);
+
+				EnableDlgItem(hDlg,IDC_PLUGIN_SETTINGS,Sel>=0);
+			}
+			return TRUE;
+
 		case NM_DBLCLK:
 			{
 				LPNMITEMACTIVATE pnmia=reinterpret_cast<LPNMITEMACTIVATE>(lParam);

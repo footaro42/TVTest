@@ -3,6 +3,12 @@
 #include "ChannelHistory.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -83,7 +89,7 @@ bool CChannelHistory::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo
 }
 
 
-bool CChannelHistory::SetMenu(HMENU hmenu) const
+bool CChannelHistory::SetMenu(HMENU hmenu,bool fClear) const
 {
 	ClearMenu(hmenu);
 	for (int i=0;i<m_MaxChannelHistoryMenu;i++) {
@@ -97,6 +103,10 @@ bool CChannelHistory::SetMenu(HMENU hmenu) const
 		CopyToMenuText(pChannelInfo->GetName(),
 					   szText+Length,lengthof(szText)-Length);
 		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_CHANNELHISTORY_FIRST+i,szText);
+	}
+	if (fClear && NumChannels()>0) {
+		::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
+		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_CHANNELHISTORY_CLEAR,TEXT("—š—ð‚ðƒNƒŠƒA"));
 	}
 	return true;
 }

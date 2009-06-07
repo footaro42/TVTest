@@ -336,6 +336,28 @@ int CTsAnalyzer::GetServiceName(const WORD Index, LPTSTR pszName, const int MaxL
 }
 
 
+bool CTsAnalyzer::GetServiceList(CServiceList *pList)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	pList->m_ServiceList = m_ServiceList;
+	return true;
+}
+
+
+bool CTsAnalyzer::GetViewableServiceList(CServiceList *pList)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	pList->m_ServiceList.clear();
+	for (size_t i = 0 ; i < m_ServiceList.size() ; i++) {
+		if (m_ServiceList[i].VideoStreamType == 0x02)	// MPEG-2 ‚Ì‚Ý
+			pList->m_ServiceList.push_back(m_ServiceList[i]);
+	}
+	return true;
+}
+
+
 WORD CTsAnalyzer::GetTransportStreamID() const
 {
 	return m_TransportStreamID;

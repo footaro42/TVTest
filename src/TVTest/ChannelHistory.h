@@ -26,7 +26,7 @@ public:
 	void Clear();
 	const CDriverChannelInfo *GetChannelInfo(int Index) const;
 	bool Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
-	bool SetMenu(HMENU hmenu) const;
+	bool SetMenu(HMENU hmenu,bool fClear=true) const;
 	// COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;

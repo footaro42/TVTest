@@ -35,12 +35,8 @@ MPV Decoder Filter か ATI Mpeg Decoder Filter が動作確認がとれているので確実だと
 場合によっては DxVA を切ったりレジストリを書き換えたりする必要があります。</p>
 
 <h3>NHK教育/放送大学などで映像が正方形に表示される</h3>
-<p class="descript">CyberLink 等のデコーダとデフォルトレンダラの組み合わせで起こるようです。<br>
+<p class="descript">CyberLink のデコーダとデフォルトレンダラの組み合わせで起こるようです。<br>
 レンダラをデフォルト以外にしてみてください。</p>
-
-<h3>UDP で複数起動できない</h3>
-<p class="descript">ポートをデフォルトの1234のままにすると、複数起動時にエラーが出ます(BonDriver_UDP で最初にポート1234を bind するために、既に使われているとエラーになる)。<br>
-コマンドラインで /port 1235 などとして、デフォルトのポートを1234以外に設定します。</p>
 
 <h3>キャプチャで一瞬止まる</h3>
 <p class="descript">レンダラに VMR9 Renderless を使用してください。<br>

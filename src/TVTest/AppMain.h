@@ -40,6 +40,7 @@ public:
 	bool SetDriver(LPCTSTR pszFileName);
 	bool OpenTuner();
 	bool CloseTuner();
+	bool OpenBcasCard(bool fRetry=false);
 	bool ShowHelpContent(int ID);
 	bool StartRecord(LPCTSTR pszFileName=NULL,
 					 const CRecordManager::TimeSpecInfo *pStartTime=NULL,

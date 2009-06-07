@@ -755,22 +755,33 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 
 bool CAppMain::SetDriver(LPCTSTR pszFileName)
 {
-	HCURSOR hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
-	bool fOK;
-
 	if (CoreEngine.IsDriverOpen()
 			&& ::lstrcmpi(CoreEngine.GetDriverFileName(),pszFileName)==0)
 		return true;
+
+	HCURSOR hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+	bool fOK;
+
 	SaveCurrentChannel();
 	SaveChannelSettings();
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.SetDriverFileName(pszFileName);
 	fOK=CoreEngine.LoadDriver();
+	if (CoreEngine.IsBcasCardOpen()
+			&& DriverOptions.IsDescrambleDriver(pszFileName)) {
+		if (CoreEngine.CloseBcasCard()) {
+			Logger.AddLog(TEXT("カードリーダを閉じました。"));
+		}
+	}
 	if (fOK) {
-		Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
+		Logger.AddLog(TEXT("%s を読み込みました。"),pszFileName);
+		if (!CoreEngine.IsBcasCardOpen()
+				&& !DriverOptions.IsDescrambleDriver(pszFileName)) {
+			OpenBcasCard();
+		}
 		fOK=CoreEngine.OpenDriver();
 		if (fOK) {
-			AppMain.InitializeChannel();
+			InitializeChannel();
 			/*
 			int i=ChannelManager.GetCurrentChannelList()->Find(
 				CoreEngine.m_DtvEngine.m_BonSrcDecoder.GetCurSpace(),
@@ -805,16 +816,17 @@ bool CAppMain::OpenTuner()
 {
 	bool fOK=true;
 
+	if (!CoreEngine.IsDriverSpecified())
+		return true;
+
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
-	if (!CoreEngine.IsBcasCardOpen()) {
-		if (!CoreEngine.OpenBcasCard()) {
-			Logger.AddLog(TEXT("カードリーダがオープンできません。"));
-		}
+	if (!CoreEngine.IsBcasCardOpen()
+			&& !DriverOptions.IsDescrambleDriver(CoreEngine.GetDriverFileName())) {
+		OpenBcasCard();
 	}
-	if (!CoreEngine.IsDriverOpen() && CoreEngine.IsDriverSpecified()) {
+	if (!CoreEngine.IsDriverOpen()) {
 		TCHAR szText[1024];
 
-		CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 		if (!CoreEngine.IsDriverLoaded()) {
 			if (CoreEngine.LoadDriver()) {
 				Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
@@ -832,9 +844,9 @@ bool CAppMain::OpenTuner()
 				fOK=false;
 			}
 		}
-		CoreEngine.m_DtvEngine.SetTracer(NULL);
-		StatusView.SetSingleText(NULL);
 	}
+	CoreEngine.m_DtvEngine.SetTracer(NULL);
+	StatusView.SetSingleText(NULL);
 	return fOK;
 }
 
@@ -851,6 +863,50 @@ bool CAppMain::CloseTuner()
 		ChannelManager.SetCurrentChannel(ChannelManager.GetCurrentSpace(),-1);
 		Logger.AddLog(TEXT("ドライバを閉じました。"));
 		MainWindow.OnTunerClosed();
+	}
+	return true;
+}
+
+
+bool CAppMain::OpenBcasCard(bool fRetry)
+{
+	if (!CoreEngine.IsBcasCardOpen()) {
+		if (!CoreEngine.OpenBcasCard()) {
+			if (fRetry) {
+				TCHAR szText[1024];
+
+				wsprintf(szText,TEXT("%s\r\n利用可能なカードリーダを検索しますか?"),
+						CoreEngine.GetLastErrorText());
+				if (MainWindow.ShowMessage(szText,NULL,MB_YESNO | MB_ICONEXCLAMATION)==IDYES) {
+					CCardReader::ReaderType CurReader=CoreEngine.GetCardReaderType();
+
+					if (!CoreEngine.SetCardReaderType(
+							CurReader==CCardReader::READER_SCARD?
+							CCardReader::READER_HDUS:CCardReader::READER_SCARD)
+							&& !CoreEngine.SetCardReaderType(CurReader)) {
+						Logger.AddLog(TEXT("カードリーダがオープンできません。"));
+						MainWindow.ShowErrorMessage(
+							TEXT("利用可能なカードリーダが見付かりませんでした。"));
+					}
+				}
+			} else {
+				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
+			}
+		}
+		if (CoreEngine.IsBcasCardOpen()) {
+			LPCTSTR pszName=CoreEngine.m_DtvEngine.m_TsDescrambler.GetCardReaderName();
+
+			if (pszName!=NULL) {
+				TCHAR szCardID[32];
+
+				CoreEngine.m_DtvEngine.m_TsDescrambler.FormatBcasCardID(szCardID,lengthof(szCardID));
+				Logger.AddLog(TEXT("カードリーダ \"%s\" をオープンしました"),pszName);
+				Logger.AddLog(TEXT("(B-CASカードID %s / メーカ識別 %c / バージョン %d)"),
+					szCardID,
+					CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardManufacturerID(),
+				CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardVersion());
+			}
+		}
 	}
 	return true;
 }
@@ -4449,6 +4505,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		}
 		return;
 
+	case CM_CHANNELHISTORY_CLEAR:
+		ChannelHistory.Clear();
+		return;
+
 	default:
 		if (id>=CM_AUDIOSTREAM_FIRST && id<=CM_AUDIOSTREAM_LAST) {
 			if (CoreEngine.m_DtvEngine.SetAudioStream(id-CM_AUDIOSTREAM_FIRST)) {
@@ -4838,6 +4898,8 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 									&szText[Length],lengthof(szText)-Length,
 									InfoWindow.GetProgramInfoNext());
 							InfoWindow.SetProgramInfo(szText);
+						} else {
+							InfoWindow.SetProgramInfo(NULL);
 						}
 					}
 				}
@@ -5828,6 +5890,40 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_ASPECTRATIO)) {
 				if (AspectRatioIconMenu.OnInitMenuPopup(hwnd,wParam,lParam))
 					return 0;
+			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_SERVICE)) {
+				CTsAnalyzer::CServiceList ServiceList;
+				WORD CurServiceID;
+				int CurService=-1;
+
+				CoreEngine.m_DtvEngine.m_TsAnalyzer.GetViewableServiceList(&ServiceList);
+				if (!CoreEngine.m_DtvEngine.GetServiceID(&CurServiceID))
+					CurServiceID=0;
+				ClearMenu(hmenu);
+				for (int i=0;i<ServiceList.NumServices();i++) {
+					const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
+					TCHAR szText[512],szEventName[256];
+
+					if (pServiceInfo->szServiceName[0]!='\0') {
+						::wsprintf(szText,TEXT("&%d: %s"),i+1,pServiceInfo->szServiceName);
+					} else {
+						::wsprintf(szText,TEXT("&%d: サービス%d"),i+1,i+1);
+					}
+					if (CoreEngine.m_DtvEngine.m_ProgManager.GetEventName(
+							CoreEngine.m_DtvEngine.m_ProgManager.GetServiceIndexByID(pServiceInfo->ServiceID),
+							szEventName,lengthof(szEventName))>0) {
+						::lstrcat(szText,TEXT(" ("));
+						int Length=::lstrlen(szText);
+						CopyToMenuText(szEventName,szText+Length,lengthof(szText)-1-Length);
+						::lstrcat(szText,TEXT(")"));
+					}
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_SERVICE_FIRST+i,szText);
+					if (pServiceInfo->ServiceID==CurServiceID)
+						CurService=i;
+				}
+				if (CurService>=0)
+					MainMenu.CheckRadioItem(CM_SERVICE_FIRST,
+											CM_SERVICE_FIRST+ServiceList.NumServices()-1,
+											CM_SERVICE_FIRST+CurService);
 			}
 		}
 		break;
@@ -5914,6 +6010,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			HMENU hmenu;
 			int i;
 
+#if 0	// メニューを開いた時に設定するように変更
 			hmenu=MainMenu.GetSubMenu(CMainMenu::SUBMENU_SERVICE);
 			ClearMenu(hmenu);
 			for (i=0;i<pInfo->m_NumServices;i++) {
@@ -5930,6 +6027,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				MainMenu.CheckRadioItem(CM_SERVICE_FIRST,
 										CM_SERVICE_FIRST+pInfo->m_NumServices-1,
 										CM_SERVICE_FIRST+pInfo->m_CurService);
+#endif
 
 			hmenu=MainMenu.GetSubMenu(CMainMenu::SUBMENU_STEREOMODE);
 			for (i=::GetMenuItemCount(hmenu)-1;i>=4;i--)
@@ -7483,7 +7581,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.SetDriverFileName(szDriverFileName);
 	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(&Logger);
 	if (!CmdLineParser.m_fNoDriver && !CmdLineParser.m_fStandby) {
-		if (CoreEngine.GetDriverFileName()[0]!='\0') {
+		if (CoreEngine.IsDriverSpecified()) {
 			StatusView.SetSingleText(TEXT("ドライバの読み込み中..."));
 			if (CoreEngine.LoadDriver()) {
 				Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
@@ -7516,42 +7614,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(&Logger);
 	CoreEngine.BuildDtvEngine(&DtvEngineHandler);
 
-	if (!CmdLineParser.m_fStandby && !CoreEngine.OpenBcasCard()) {
-		if (!CmdLineParser.m_fSilent) {
-			TCHAR szText[1024];
-
-			wsprintf(szText,TEXT("%s\r\n利用可能なカードリーダを検索しますか?"),
-					CoreEngine.GetLastErrorText());
-			if (MainWindow.ShowMessage(szText,NULL,MB_YESNO | MB_ICONEXCLAMATION)==IDYES) {
-				CCardReader::ReaderType CurReader=CoreEngine.GetCardReaderType();
-
-				if (!CoreEngine.SetCardReaderType(
-						CurReader==CCardReader::READER_SCARD?
-						CCardReader::READER_HDUS:CCardReader::READER_SCARD)
-						&& !CoreEngine.SetCardReaderType(CurReader)) {
-					Logger.AddLog(TEXT("カードリーダがオープンできません。"));
-					MainWindow.ShowErrorMessage(
-						TEXT("利用可能なカードリーダが見付かりませんでした。"));
-				}
-			}
-		} else {
-			Logger.AddLog(TEXT("カードリーダがオープンできません。"));
-		}
-	}
-
-	if (CoreEngine.IsBcasCardOpen()) {
-		LPCTSTR pszName=CoreEngine.m_DtvEngine.m_TsDescrambler.GetCardReaderName();
-
-		if (pszName!=NULL) {
-			TCHAR szCardID[32];
-
-			CoreEngine.m_DtvEngine.m_TsDescrambler.FormatBcasCardID(szCardID,lengthof(szCardID));
-			Logger.AddLog(TEXT("カードリーダ \"%s\" をオープンしました"),pszName);
-			Logger.AddLog(TEXT("(B-CASカードID %s / メーカ識別 %c / バージョン %d)"),
-				szCardID,
-				CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardManufacturerID(),
-				CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardVersion());
-		}
+	if (CoreEngine.IsDriverLoaded()
+			&& !DriverOptions.IsDescrambleDriver(CoreEngine.GetDriverFileName())) {
+		AppMain.OpenBcasCard(!CmdLineParser.m_fSilent);
 	}
 
 	if (!CmdLineParser.m_fNoPlugin) {

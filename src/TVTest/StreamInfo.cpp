@@ -6,6 +6,12 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -156,65 +162,68 @@ void CStreamInfo::SetService()
 	tvis.item.cChildren=1;
 	hItem=TreeView_InsertItem(hwndTree,&tvis);
 	if (hItem!=NULL) {
-		int NumServices;
+		CTsAnalyzer::CServiceList ServiceList;
 		int i,j;
 
-		NumServices=pAnalyzer->GetServiceNum();
-		for (i=0;i<NumServices;i++) {
+		pAnalyzer->GetServiceList(&ServiceList);
+		for (i=0;i<ServiceList.NumServices();i++) {
+			const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
 			TCHAR szServiceName[64];
 			WORD ServiceID,PID;
 
 			tvis.hParent=hItem;
 			tvis.item.state=0;
 			tvis.item.cChildren=1;
-			if (!pAnalyzer->GetServiceName(i,szServiceName,lengthof(szServiceName)))
+			if (pServiceInfo->szServiceName[0]!='\0')
+				::lstrcpyn(szServiceName,pServiceInfo->szServiceName,lengthof(szServiceName));
+			else
 				::lstrcpy(szServiceName,TEXT("???"));
-			if (!pAnalyzer->GetServiceID(i,&ServiceID))
-				ServiceID=0;
+			ServiceID=pServiceInfo->ServiceID;
 			::wsprintf(szText,TEXT("サービス%d (%s) SID 0x%04x (%d)"),i+1,szServiceName,ServiceID,ServiceID);
+			if (pServiceInfo->ServiceType!=0xFF) {
+				::wsprintf(szText+::lstrlen(szText),TEXT(" Type %#02x"),pServiceInfo->ServiceType);
+			}
 			tvis.item.pszText=szText;
 			tvis.hParent=TreeView_InsertItem(hwndTree,&tvis);
 			tvis.item.cChildren=0;
-			if (pAnalyzer->GetPmtPID(i,&PID)) {
-				::wsprintf(szText,TEXT("PMT PID 0x%04x (%d)"),PID,PID);
+			PID=pServiceInfo->PmtPID;
+			::wsprintf(szText,TEXT("PMT PID %#04x (%d)"),PID,PID);
+			TreeView_InsertItem(hwndTree,&tvis);
+			PID=pServiceInfo->VideoEsPID;
+			if (PID!=CTsAnalyzer::PID_INVALID) {
+				BYTE StreamType=pServiceInfo->VideoStreamType;
+				::wsprintf(szText,TEXT("映像 PID %#04x (%d) Type %s (%#02x)"),
+					PID,PID,
+					StreamType==0x02?TEXT("MPEG-2"):StreamType==0x1B?TEXT("H.264"):TEXT("Unknown"),
+					StreamType);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			if (pAnalyzer->GetVideoEsPID(i,&PID)) {
-				::wsprintf(szText,TEXT("映像 PID 0x%04x (%d)"),PID,PID);
-				BYTE StreamType;
-				if (pAnalyzer->GetVideoStreamType(i,&StreamType))
-					::wsprintf(szText+::lstrlen(szText),TEXT(" Type %s (0x%02x)"),
-						StreamType==0x02?TEXT("MPEG-2"):StreamType==0x1B?TEXT("H.264"):TEXT("Unknown"),
-						StreamType);
+			int NumAudioStreams=pServiceInfo->AudioEsList.size();
+			for (j=0;j<NumAudioStreams;j++) {
+				PID=pServiceInfo->AudioEsList[j].PID;
+				::wsprintf(szText,TEXT("音声%d PID %#04x (%d)"),j+1,PID,PID);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			int NumAudioStream=pAnalyzer->GetAudioEsNum(i);
-			for (j=0;j<NumAudioStream;j++) {
-				if (pAnalyzer->GetAudioEsPID(i,j,&PID)) {
-					::wsprintf(szText,TEXT("音声%d PID 0x%04x (%d)"),j+1,PID,PID);
-					TreeView_InsertItem(hwndTree,&tvis);
-				}
-			}
-			int NumSubtitleStream=pAnalyzer->GetSubtitleEsNum(i);
-			for (j=0;j<NumSubtitleStream;j++) {
-				if (pAnalyzer->GetSubtitleEsPID(i,j,&PID)) {
-					::wsprintf(szText,TEXT("字幕%d PID 0x%04x (%d)"),j+1,PID,PID);
-					TreeView_InsertItem(hwndTree,&tvis);
-				}
-			}
-			int NumDataStream=pAnalyzer->GetDataCarrouselEsNum(i);
-			for (j=0;j<NumDataStream;j++) {
-				if (pAnalyzer->GetDataCarrouselEsPID(i,j,&PID)) {
-					::wsprintf(szText,TEXT("データ%d PID 0x%04x (%d)"),j+1,PID,PID);
-					TreeView_InsertItem(hwndTree,&tvis);
-				}
-			}
-			if (pAnalyzer->GetPcrPID(i,&PID)) {
-				::wsprintf(szText,TEXT("PCR PID 0x%04x (%d)"),PID,PID);
+			int NumSubtitleStreams=pServiceInfo->SubtitleEsList.size();
+			for (j=0;j<NumSubtitleStreams;j++) {
+				PID=pServiceInfo->SubtitleEsList[j].PID;
+				::wsprintf(szText,TEXT("字幕%d PID %#04x (%d)"),j+1,PID,PID);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			if (pAnalyzer->GetEcmPID(i,&PID)) {
-				::wsprintf(szText,TEXT("ECM PID 0x%04x (%d)"),PID,PID);
+			int NumDataStreams=pServiceInfo->DataCarrouselEsList.size();
+			for (j=0;j<NumDataStreams;j++) {
+				PID=pServiceInfo->DataCarrouselEsList[j].PID;
+				::wsprintf(szText,TEXT("データ%d PID %#04x (%d)"),j+1,PID,PID);
+				TreeView_InsertItem(hwndTree,&tvis);
+			}
+			PID=pServiceInfo->PcrPID;
+			if (PID!=CTsAnalyzer::PID_INVALID) {
+				::wsprintf(szText,TEXT("PCR PID %#04x (%d)"),PID,PID);
+				TreeView_InsertItem(hwndTree,&tvis);
+			}
+			PID=pServiceInfo->EcmPID;
+			if (PID!=CTsAnalyzer::PID_INVALID) {
+				::wsprintf(szText,TEXT("ECM PID %#04x (%d)"),PID,PID);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 		}

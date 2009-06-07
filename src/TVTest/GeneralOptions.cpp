@@ -511,6 +511,7 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (::lstrcmpi(szDecoder,pThis->m_szMpeg2DecoderName)!=0) {
 					::lstrcpy(pThis->m_szMpeg2DecoderName,szDecoder);
 					pThis->SetUpdateFlag(UPDATE_DECODER);
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				CVideoRenderer::RendererType Renderer=(CVideoRenderer::RendererType)
@@ -526,7 +527,6 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (CardReader!=pThis->m_CardReaderType) {
 					pThis->m_CardReaderType=CardReader;
 					pThis->SetUpdateFlag(UPDATE_CARDREADER);
-					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				bool fResident=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESIDENT);

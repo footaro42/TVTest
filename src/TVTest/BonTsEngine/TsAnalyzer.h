@@ -10,6 +10,30 @@ class CTsAnalyzer : public CMediaDecoder
 public:
 	enum { PID_INVALID = 0xFFFF };
 
+	struct EsInfo {
+		WORD PID;
+		BYTE ComponentTag;
+		EsInfo(WORD pid, BYTE Tag = 0) : PID(pid), ComponentTag(Tag) {}
+	};
+
+	struct ServiceInfo {
+		bool bIsUpdated;
+		WORD ServiceID;
+		WORD PmtPID;
+		BYTE VideoStreamType;
+		WORD VideoEsPID;
+		std::vector<EsInfo> AudioEsList;
+		std::vector<EsInfo> SubtitleEsList;
+		std::vector<EsInfo> DataCarrouselEsList;
+		WORD PcrPID;
+		ULONGLONG PcrTimeStamp;
+		WORD EcmPID;
+		BYTE RunningStatus;
+		bool bIsCaService;
+		TCHAR szServiceName[256];
+		BYTE ServiceType;
+	};
+
 	CTsAnalyzer(IEventHandler *pEventHandler = NULL);
 	virtual ~CTsAnalyzer();
 
@@ -39,8 +63,26 @@ public:
 	bool GetPcrTimeStamp(const WORD Index, ULONGLONG *pTimeStamp);
 	bool GetEcmPID(const WORD Index, WORD *pEcmPID);
 	int GetServiceName(const WORD Index, LPTSTR pszName, const int MaxLength);
-	WORD GetTransportStreamID() const;
 
+	class CServiceList {
+	protected:
+		std::vector<ServiceInfo> m_ServiceList;
+	public:
+		virtual ~CServiceList() {}
+		void Clear() { m_ServiceList.clear(); }
+		int NumServices() const { return m_ServiceList.size(); }
+		const ServiceInfo *GetServiceInfo(int Index) const {
+			if (Index<0 || Index>(int)m_ServiceList.size())
+				return NULL;
+			return &m_ServiceList[Index];
+		}
+		friend class CTsAnalyzer;
+	};
+
+	bool GetServiceList(CServiceList *pList);
+	bool GetViewableServiceList(CServiceList *pList);
+
+	WORD GetTransportStreamID() const;
 	WORD GetNetworkID() const;
 	BYTE GetBroadcastingID() const;
 	int GetNetworkName(LPTSTR pszName, int MaxLength);
@@ -84,30 +126,6 @@ protected:
 #endif
 
 	CTsPidMapManager m_PidMapManager;
-
-	struct EsInfo {
-		WORD PID;
-		BYTE ComponentTag;
-		EsInfo(WORD pid, BYTE Tag = 0) : PID(pid), ComponentTag(Tag) {}
-	};
-
-	struct ServiceInfo {
-		bool bIsUpdated;
-		WORD ServiceID;
-		WORD PmtPID;
-		BYTE VideoStreamType;
-		WORD VideoEsPID;
-		std::vector<EsInfo> AudioEsList;
-		std::vector<EsInfo> SubtitleEsList;
-		std::vector<EsInfo> DataCarrouselEsList;
-		WORD PcrPID;
-		ULONGLONG PcrTimeStamp;
-		WORD EcmPID;
-		BYTE RunningStatus;
-		bool bIsCaService;
-		TCHAR szServiceName[256];
-		BYTE ServiceType;
-	};
 
 	std::vector<ServiceInfo> m_ServiceList;
 	WORD m_TransportStreamID;
