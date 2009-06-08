@@ -186,6 +186,7 @@ public:
 	void ResetDisplayStatus();
 	bool IsWheelChannelChanging() const { return m_fWheelChannelChanging; }
 	CStatusView *GetStatusView() const;
+	bool UpdateProgramInfo();
 	static bool Initialize();
 };
 

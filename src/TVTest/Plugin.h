@@ -109,6 +109,9 @@ public:
 	bool SendColorChangeEvent();
 	bool SendStandbyEvent(bool fStandby);
 	bool SendExecuteEvent(LPCTSTR pszCommandLine);
+	bool SendResetEvent();
+	bool SendStatusResetEvent();
+	bool SendAudioStreamChangeEvent(int Stream);
 };
 
 class CPluginOptions : public COptions {

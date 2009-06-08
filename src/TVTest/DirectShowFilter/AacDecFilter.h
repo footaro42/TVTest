@@ -34,12 +34,13 @@ public:
 	HRESULT GetMediaType(int iPosition, CMediaType *pMediaType);
 	HRESULT StartStreaming(void);
 	HRESULT StopStreaming(void);
-	//HRESULT Receive(IMediaSample *pSample);
+	HRESULT Receive(IMediaSample *pSample);
 
 // CAacDecFilter
 	const BYTE GetCurrentChannelNum();
 
 	// Append by HDUSTestÇÃíÜÇÃêl
+	bool ResetDecoder();
 	enum { STEREOMODE_STEREO, STEREOMODE_LEFT, STEREOMODE_RIGHT };
 	bool SetStereoMode(int StereoMode);
 	int GetStereoMode() const { return m_StereoMode; }
@@ -47,6 +48,7 @@ public:
 	bool GetDownMixSurround() const { return m_bDownMixSurround; }
 	bool SetNormalize(bool bNormalize,float Level=1.0f);
 	bool GetNormalize(float *pLevel) const;
+
 protected:
 	CCritSec m_cStateLock;
 	HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);

@@ -87,6 +87,9 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		return false;
 	}
 	m_pszFileName=DuplicateString(pszFileName);
+	m_Type=PluginInfo.Type;
+	m_Flags=PluginInfo.Flags;
+	m_fEnabled=(m_Flags&TVTest::PLUGIN_FLAG_ENABLEDEFAULT)!=0;
 	m_PluginParam.Callback=Callback;
 	m_PluginParam.hwndApp=GetAppClass().GetMainWindow()->GetHandle();
 	m_PluginParam.pClientData=NULL;
@@ -97,12 +100,9 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		return false;
 	}
 	m_hLib=hLib;
-	m_Type=PluginInfo.Type;
-	m_Flags=PluginInfo.Flags;
 	m_pszPluginName=DuplicateString(PluginInfo.pszPluginName);
 	m_pszCopyright=DuplicateString(PluginInfo.pszCopyright);
 	m_pszDescription=DuplicateString(PluginInfo.pszDescription);
-	m_fEnabled=(m_Flags&TVTest::PLUGIN_FLAG_ENABLEDEFAULT)!=0;
 	return true;
 }
 
@@ -305,6 +305,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::MESSAGE_ISPLUGINENABLED:
 		case TVTest::MESSAGE_REGISTERCOMMAND:
 		case TVTest::MESSAGE_ADDLOG:
+		case TVTest::MESSAGE_RESETSTATUS:
 			return TRUE;
 		}
 		return FALSE;
@@ -1028,6 +1029,9 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::EVENT_COLORCHANGE:
 		case TVTest::EVENT_STANDBY:
 		case TVTest::EVENT_EXECUTE:
+		case TVTest::EVENT_RESET:
+		case TVTest::EVENT_STATUSRESET:
+		case TVTest::EVENT_AUDIOSTREAMCHANGE:
 			return TRUE;
 		}
 		return FALSE;
@@ -1128,6 +1132,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			GetAppClass().AddLog(pszLog);
 			delete [] pszLog;
 		}
+		return TRUE;
+
+	case TVTest::MESSAGE_RESETSTATUS:
+		GetAppClass().GetMainWindow()->SendCommand(CM_RESETERRORCOUNT);
 		return TRUE;
 	}
 	return 0;
@@ -1414,6 +1422,24 @@ bool CPluginList::SendStandbyEvent(bool fStandby)
 bool CPluginList::SendExecuteEvent(LPCTSTR pszCommandLine)
 {
 	return SendEvent(TVTest::EVENT_EXECUTE,reinterpret_cast<LPARAM>(pszCommandLine));
+}
+
+
+bool CPluginList::SendResetEvent()
+{
+	return SendEvent(TVTest::EVENT_RESET);
+}
+
+
+bool CPluginList::SendStatusResetEvent()
+{
+	return SendEvent(TVTest::EVENT_STATUSRESET);
+}
+
+
+bool CPluginList::SendAudioStreamChangeEvent(int Stream)
+{
+	return SendEvent(TVTest::EVENT_AUDIOSTREAMCHANGE,Stream);
 }
 
 

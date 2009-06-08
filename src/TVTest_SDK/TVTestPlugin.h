@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.4
+	TVTest プラグインヘッダ ver.0.0.5
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -7,7 +7,7 @@
 
 	特にコンパイラに依存する記述はないはずなので、Borland などでも大丈夫です。
 	また、ヘッダを移植すれば C++ 以外の言語でプラグインを作成することも可能な
-	はずです。
+	はずです(凄く面倒なので誰もやらないと思いますが)。
 
 	プラグインの仕様はまだ暫定ですので、今後変更される可能性があります(できるだ
 	け互換性は維持したいと思っていますが)。
@@ -76,6 +76,7 @@
 		}
 	};
 
+	// CreatePluginClass 関数で、プラグインクラスのインスタンスを生成して返す
 	TVTest::CTVTestPlugin *CreatePluginClass()
 	{
 		return new CMyPlugin;
@@ -85,6 +86,13 @@
 
 /*
 	更新履歴
+
+    ver.0.0.5 (TVTest ver.0.5.41 or later)
+    ・以下のイベントを追加した
+      ・EVENT_RESET
+      ・EVENT_STATUSRESET
+      ・EVENT_AUDIOSTREAMCHANGE
+    ・MESSAGE_RESETSTATUS を追加した
 
 	ver.0.0.4 (TVTest ver.0.5.33 or later)
 	・EVENT_EXECUTE を追加した
@@ -130,8 +138,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_2	0x00000002UL
 #define TVTEST_PLUGIN_VERSION_0_0_3	0x00000003UL
 #define TVTEST_PLUGIN_VERSION_0_0_4	0x00000004UL
+#define TVTEST_PLUGIN_VERSION_0_0_5	0x00000005UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_4
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_5
 #endif
 
 // エクスポート関数定義用
@@ -242,6 +251,9 @@ enum {
 	MESSAGE_REGISTERCOMMAND,
 	MESSAGE_ADDLOG,
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+	MESSAGE_RESETSTATUS,
+#endif
 	MESSAGE_TRAILER
 };
 
@@ -269,6 +281,11 @@ enum {
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
 	EVENT_EXECUTE,				// 複数起動禁止時に複数起動された
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+	EVENT_RESET,				// リセットされた
+	EVENT_STATUSRESET,			// ステータスがリセットされた
+	EVENT_AUDIOSTREAMCHANGE,	// 音声ストリームが変更された
 #endif
 	EVENT_TRAILER
 };
@@ -841,7 +858,7 @@ inline bool MsgSetNextChannel(PluginParam *pParam,bool fNext=true)
 	return (*pParam->Callback)(pParam,MESSAGE_SETNEXTCHANNEL,fNext,0)!=0;
 }
 
-#endif
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
 
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
 
@@ -858,9 +875,9 @@ inline bool MsgSetAudioStream(PluginParam *pParam,int Index)
 	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOSTREAM,Index,0)!=0;
 }
 
-#endif
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
 
 // プラグインの有効状態を取得する
 inline bool MsgIsPluginEnabled(PluginParam *pParam)
@@ -904,7 +921,19 @@ inline bool MsgAddLog(PluginParam *pParam,LPCWSTR pszText)
 	return (*pParam->Callback)(pParam,MESSAGE_ADDLOG,(LPARAM)pszText,0)!=0;
 }
 
-#endif
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+
+// ステータス(MESSAGE_GETSTATUS で取得できる内容)をリセットする
+// リセットが行われると EVENT_STATUSRESET が送られる
+inline bool MsgResetStatus(PluginParam *pParam)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_RESETSTATUS,0,0)!=0;
+}
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+
 
 /*
 	TVTest アプリケーションクラス
@@ -1125,6 +1154,11 @@ public:
 		return MsgAddLog(m_pParam,pszText);
 	}
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+	bool ResetStatus() {
+		return MsgResetStatus(m_pParam);
+	}
+#endif
 };
 
 /*
@@ -1160,8 +1194,25 @@ public:
 	イベントコールバック関数として登録した関数内で HandleEvent を呼びます。
 	もちろん使わなくてもいいです。
 
+	以下は実装例です。
+
+	class CMyEventHandler : public TVTest::CTVTestEventHandler
+	{
+	public:
+		virtual bool OnPluginEnable(bool fEnable) {
+			if (fEnable) {
+				if (MessageBox(NULL, TEXT("有効にするよ"), TEXT("イベント"),
+							   MB_OKCANCEL) != IDOK) {
+					return false;
+				}
+			}
+			return true;
+		}
+	};
+
 	CMyEventHandler Handler;
 
+	// この関数がイベントコールバック関数として登録されているものとします
 	LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData)
 	{
 		Handler.HandleEvent(Event,lParam1,lParam2,pClientData);
@@ -1171,24 +1222,53 @@ class CTVTestEventHandler
 {
 protected:
 	void *m_pClientData;
+
+	// イベントハンドラは、特に記述の無いものは何か処理したら true を返します
+
+	// 有効状態が変化した
+	// 変化を拒否する場合 false を返します
 	virtual bool OnPluginEnable(bool fEnable) { return false; }
+	// 設定を行う
+	// プラグインのフラグに PLUGIN_FLAG_HASSETTINGS が設定されている場合に呼ばれます
+	// 設定が OK されたら true を返します
 	virtual bool OnPluginSettings(HWND hwndOwner) { return false; }
+	// チャンネルが変更された
 	virtual bool OnChannelChange() { return false; }
+	// サービスが変更された
 	virtual bool OnServiceChange() { return false; }
+	// ドライバが変更された
 	virtual bool OnDriverChange() { return false; }
+	// サービスの構成が変化した
 	virtual bool OnServiceUpdate() { return false; }
+	// 録画状態が変化した
 	virtual bool OnRecordStatusChange(int Status) { return false; }
+	// 全画面表示状態が変化した
 	virtual bool OnFullscreenChange(bool fFullscreen) { return false; }
+	// プレビュー表示状態が変化した
 	virtual bool OnPreviewChange(bool fPreview) { return false; }
+	// 音量が変化した
 	virtual bool OnVolumeChange(int Volume,bool fMute) { return false; }
+	// ステレオモードが変化した
 	virtual bool OnStereoModeChange(int StereoMode) { return false; }
+	// 色の設定が変化した
 	virtual bool OnColorChange() { return false; }
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+	// 待機状態が変化した
 	virtual bool OnStandby(bool fStandby) { return false; }
+	// コマンドが選択された
 	virtual bool OnCommand(int ID) { return false; }
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
+	// 複数起動禁止時に複数起動された
 	virtual bool OnExecute(LPCWSTR pszCommandLine) { return false; }
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+	// リセットされた
+	virtual bool OnReset() { return false; }
+	// ステータス(MESSAGE_GETSTUATUSで取得できる内容)がリセットされた
+	virtual bool OnStatusReset() { return false; }
+	// 音声ストリームが変更された
+	virtual bool OnAudioStreamChange(int Stream) { return false; }
 #endif
 public:
 	virtual ~CTVTestEventHandler() {}
@@ -1213,6 +1293,11 @@ public:
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
 		case EVENT_EXECUTE:				return OnExecute((LPCWSTR)lParam1);
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+		case EVENT_RESET:				return OnReset();
+		case EVENT_STATUSRESET:			return OnStatusReset();
+		case EVENT_AUDIOSTREAMCHANGE:	return OnAudioStreamChange(lParam1);
 #endif
 		}
 		return 0;

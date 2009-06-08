@@ -10,23 +10,21 @@ static char THIS_FILE[]=__FILE__;
 
 
 // 5.1chダウンミックス設定
-#define DMR_CENTER			0.5		// 50%
-#define DMR_FRONT			1.0		// 100%
-#define DMR_REAR			0.7		// 70%
-#define DMR_LFE				0.7		// 70%
+// 本来は固定値じゃ駄目みたいだけど…
+#define DMR_CENTER		0.5		// 50%
+#define DMR_FRONT		1.0		// 100%
+#define DMR_REAR		0.7		// 70%
+#define DMR_LFE			0.7		// 70%
 
-/*
-	整数演算によるダウンミックス
-	テストでは処理時間が1/8ぐらいになった(ただしSSE等によって変わるはず)
-*/
+// 整数演算によるダウンミックス
 #define DOWNMIX_INT
 
 #ifdef DOWNMIX_INT
 #define IDOWNMIX_DENOM	4096
-#define IDOWNMIX_CENTER	((int)(DMR_CENTER*IDOWNMIX_DENOM+0.5))
-#define IDOWNMIX_FRONT	((int)(DMR_FRONT*IDOWNMIX_DENOM+0.5))
-#define IDOWNMIX_REAR	((int)(DMR_REAR*IDOWNMIX_DENOM+0.5))
-#define IDOWNMIX_LFE	((int)(DMR_LFE*IDOWNMIX_DENOM+0.5))
+#define IDOWNMIX_CENTER	((int)(DMR_CENTER * IDOWNMIX_DENOM + 0.5))
+#define IDOWNMIX_FRONT	((int)(DMR_FRONT * IDOWNMIX_DENOM + 0.5))
+#define IDOWNMIX_REAR	((int)(DMR_REAR * IDOWNMIX_DENOM + 0.5))
+#define IDOWNMIX_LFE	((int)(DMR_LFE * IDOWNMIX_DENOM + 0.5))
 #endif
 
 
@@ -42,7 +40,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_bDownMixSurround(true)
 	, m_bNormalize(false)
 {
-	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"),this);
+	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"), this);
 
 	// メディアタイプ設定
 	m_MediaType.InitMediaType();
@@ -134,9 +132,9 @@ HRESULT CAacDecFilter::CheckInputType(const CMediaType* mtIn)
 
 HRESULT CAacDecFilter::CheckTransform(const CMediaType* mtIn, const CMediaType* mtOut)
 {
-    CheckPointer(mtIn, E_POINTER);
-    CheckPointer(mtOut, E_POINTER);
-    
+	CheckPointer(mtIn, E_POINTER);
+	CheckPointer(mtOut, E_POINTER);
+
 	if (*mtOut->Type() == MEDIATYPE_Audio) {
 		if (*mtOut->Subtype() == MEDIASUBTYPE_PCM) {
 
@@ -227,7 +225,9 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 
 	// 入力データポインタを取得する
 	BYTE *pInData;
-	pIn->GetPointer(&pInData);
+	HRESULT hr = pIn->GetPointer(&pInData);
+	if (FAILED(hr))
+		return hr;
 
 	// 出力メディアサンプル設定
 	m_pOutSample = pOut;
@@ -236,20 +236,18 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	// ADTSパーサに入力
 	m_AdtsParser.StoreEs(pInData, pIn->GetActualDataLength());
 
-	if(!pOut->GetActualDataLength())
-		//return S_FALSE;
-		return S_OK;
+	if (pOut->GetActualDataLength() == 0)
+		return S_FALSE;
 
 	// タイムスタンプ設定
-	REFERENCE_TIME StartTime = 0LL;
-	REFERENCE_TIME EndTime = 0LL;
+	REFERENCE_TIME StartTime, EndTime;
 
 	// タイムスタンプ設定
 	if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
 		pOut->SetTime(&StartTime, &EndTime);
 	}
 
-	// ストリームタイム設定
+	// メディアタイム設定
 	if (pIn->GetMediaTime(&StartTime, &EndTime) == S_OK) {
 		pOut->SetMediaTime(&StartTime, &EndTime);
 	}
@@ -257,36 +255,39 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	return S_OK;
 }
 
-/*
 HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 {
+	const AM_SAMPLE2_PROPERTIES *pProps = m_pInput->SampleProps();
+	if (pProps->dwStreamId != AM_STREAM_MEDIA)
+		return m_pOutput->Deliver(pSample);
+
 	IMediaSample *pOutSample;
 	HRESULT hr;
 
 	hr = InitializeOutputSample(pSample, &pOutSample);
-	if (FAILED(hr)) {
+	if (FAILED(hr))
 		return hr;
-	}
 	hr = Transform(pSample, pOutSample);
-	if (hr == NOERROR) {
+	if (hr == S_OK) {
 		hr = m_pOutput->Deliver(pOutSample);
+	} else {
+		hr = S_OK;
 	}
 	pOutSample->Release();
+	m_bSampleSkipped = FALSE;
+
 	return hr;
 }
-*/
 
 void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData, const DWORD dwSamples, const BYTE byChannel)
 {
-	CAutoLock AutoLock(m_pLock);
-
 	// 出力ポインタ取得
-	DWORD dwOffset = m_pOutSample->GetActualDataLength();
-	DWORD dwOutSize;
-
 	BYTE *pOutBuff = NULL;
 	if (FAILED(m_pOutSample->GetPointer(&pOutBuff)))
 		return;
+
+	DWORD dwOffset = m_pOutSample->GetActualDataLength();
+	DWORD dwOutSize;
 
 	if ((!m_bDownMixSurround && byChannel != m_byCurChannelNum
 								&& (byChannel == 6 || m_byCurChannelNum == 6))
@@ -449,7 +450,7 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 	return dwSamples * (sizeof(short) * 2);
 }
 
-#else
+#else	// DOWNMIX_INT
 
 /*
 	整数演算版
@@ -465,13 +466,13 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 		iOutLch =	((int)pSrc[dwPos * 6UL + 1UL] * IDOWNMIX_FRONT	+
 					 (int)pSrc[dwPos * 6UL + 3UL] * IDOWNMIX_REAR	+
 					 (int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
-					 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE)/
+					 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE) /
 					IDOWNMIX_DENOM;
 
 		iOutRch =	((int)pSrc[dwPos * 6UL + 2UL] * IDOWNMIX_FRONT	+
 					 (int)pSrc[dwPos * 6UL + 4UL] * IDOWNMIX_REAR	+
 					 (int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
-					 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE)/
+					 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE) /
 					IDOWNMIX_DENOM;
 
 		// クリップ
@@ -489,7 +490,7 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 	return dwSamples * (sizeof(short) * 2);
 }
 
-#endif
+#endif	// DOWNMIX_INT
 
 
 const DWORD CAacDecFilter::MapSurroundChannels(short *pDst, const short *pSrc, const DWORD dwSamples)
@@ -505,6 +506,14 @@ const DWORD CAacDecFilter::MapSurroundChannels(short *pDst, const short *pSrc, c
 
 	// バッファサイズを返す
 	return dwSamples * (sizeof(short) * 6);
+}
+
+
+bool CAacDecFilter::ResetDecoder()
+{
+	CAutoLock AutoLock(m_pLock);
+
+	return m_AacDecoder.ResetDecoder();
 }
 
 
@@ -534,8 +543,8 @@ bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 
 bool CAacDecFilter::SetNormalize(bool bNormalize,float Level)
 {
-	m_bNormalize=bNormalize;
-	m_NormalizeLevel=Level;
+	m_bNormalize = bNormalize;
+	m_NormalizeLevel = Level;
 	return true;
 }
 
@@ -543,7 +552,7 @@ bool CAacDecFilter::SetNormalize(bool bNormalize,float Level)
 bool CAacDecFilter::GetNormalize(float *pLevel) const
 {
 	if (pLevel)
-		*pLevel=m_NormalizeLevel;
+		*pLevel = m_NormalizeLevel;
 	return m_bNormalize;
 }
 
@@ -556,14 +565,14 @@ bool CAacDecFilter::GetNormalize(float *pLevel) const
 */
 void CAacDecFilter::Normalize(short *pBuffer,DWORD Samples)
 {
-	int Level=(int)(m_NormalizeLevel*(float)NORMALIZE_DENOM);
-	short *p,*pEnd;
+	int Level = (int)(m_NormalizeLevel * (float)NORMALIZE_DENOM);
+	short *p, *pEnd;
 	int Value;
 
-	p=pBuffer;
-	pEnd=p+Samples;
-	while (p<pEnd) {
-		Value=(*p*Level)/NORMALIZE_DENOM;
-		*p++=Value>32767?32767:Value<-32768?-32768:Value;
+	p= pBuffer;
+	pEnd= p + Samples;
+	while (p < pEnd) {
+		Value = (*p * Level) / NORMALIZE_DENOM;
+		*p++ = Value > 32767 ? 32767 : Value < -32768 ? -32768 : Value;
 	}
 }

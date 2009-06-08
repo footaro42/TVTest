@@ -2907,6 +2907,15 @@ bool CMyInfoPanelEventHandler::OnKeyDown(UINT KeyCode,UINT Flags)
 }
 
 
+class CMyInformationEventHandler : public CInformation::CEventHandler {
+public:
+	bool OnProgramInfoUpdate(bool fNext) {
+		MainWindow.UpdateProgramInfo();
+		return true;
+	}
+};
+
+
 class CMyChannelPanelEventHandler : public CChannelPanel::CEventHandler {
 public:
 	void OnChannelClick(const CChannelInfo *pChannelInfo);
@@ -2946,6 +2955,7 @@ void CMyChannelPanelEventHandler::OnRButtonDown()
 
 static CMyPanelEventHandler PanelEventHandler;
 static CMyInfoPanelEventHandler InfoPanelEventHandler;
+static CMyInformationEventHandler InformationEventHandler;
 static CMyChannelPanelEventHandler ChannelPanelEventHandler;
 
 
@@ -4217,6 +4227,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_RESET:
 		CoreEngine.m_DtvEngine.ResetEngine();
+		PluginList.SendResetEvent();
 		return;
 
 	case CM_RECORD:
@@ -4458,6 +4469,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		CoreEngine.ResetErrorCount();
 		StatusView.UpdateItem(STATUS_ITEM_ERROR);
 		InfoWindow.UpdateErrorCount();
+		PluginList.SendStatusResetEvent();
 		return;
 
 	case CM_SHOWTOTTIME:
@@ -4515,6 +4527,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				MainMenu.CheckRadioItem(CM_AUDIOSTREAM_FIRST,
 										CM_AUDIOSTREAM_FIRST+CoreEngine.m_DtvEngine.GetAudioStreamNum()-1,
 										id);
+				PluginList.SendAudioStreamChangeEvent(id-CM_AUDIOSTREAM_FIRST);
 			}
 			return;
 		}
@@ -4839,69 +4852,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 				}
 
 				if (TimerCount%4==0) {	// ïââ◊åyå∏
-					bool fOK=false;
-
-					if (CoreEngine.m_DtvEngine.m_TsPacketParser.IsEpgDataCapLoaded()) {
-						// EpgDataCapóòópâ¬
-						CoreEngine.UpdateEpgDataInfo();
-
-						const CEpgDataInfo *pInfo=CoreEngine.GetEpgDataInfo(InfoWindow.GetProgramInfoNext());
-
-						if (pInfo!=NULL) {
-							WCHAR szText[2048];
-
-							SYSTEMTIME stStart,stEnd;
-							int Length;
-
-							pInfo->GetStartTime(&stStart);
-							pInfo->GetEndTime(&stEnd);
-							Length=::wnsprintfW(szText,lengthof(szText)-1,
-								L"%d/%d/%d(%s) %d:%02dÅ`%d:%02d\r\n%s\r\n\r\n%s\r\n\r\n%s",
-								stStart.wYear,
-								stStart.wMonth,
-								stStart.wDay,
-								L"ì˙\0åé\0âŒ\0êÖ\0ñÿ\0ã‡\0ìy"+stStart.wDayOfWeek*2,
-								stStart.wHour,
-								stStart.wMinute,
-								stEnd.wHour,
-								stEnd.wMinute,
-								NullToEmptyString(pInfo->GetEventName()),
-								NullToEmptyString(pInfo->GetEventText()),
-								NullToEmptyString(pInfo->GetEventExtText()));
-							szText[Length]='\0';
-							InfoWindow.SetProgramInfo(szText);
-							fOK=true;
-						}
-					}
-					if (!fOK) {
-						TCHAR szText[1024];
-						SYSTEMTIME stStart,stEnd;
-
-						if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,&stEnd,
-											InfoWindow.GetProgramInfoNext())) {
-							int Length;
-
-							Length=::wsprintf(szText,TEXT("%d/%d/%d(%s) %d:%02dÅ`%d:%02d\r\n"),
-								stStart.wYear,
-								stStart.wMonth,
-								stStart.wDay,
-								GetDayOfWeekText(stStart.wDayOfWeek),
-								stStart.wHour,
-								stStart.wMinute,
-								stEnd.wHour,
-								stEnd.wMinute);
-							Length+=CoreEngine.m_DtvEngine.GetEventName(
-									&szText[Length],lengthof(szText)-Length,
-									InfoWindow.GetProgramInfoNext());
-							Length+=::wsprintf(&szText[Length],TEXT("\r\n\r\n"));
-							CoreEngine.m_DtvEngine.GetEventText(
-									&szText[Length],lengthof(szText)-Length,
-									InfoWindow.GetProgramInfoNext());
-							InfoWindow.SetProgramInfo(szText);
-						} else {
-							InfoWindow.SetProgramInfo(NULL);
-						}
-					}
+					UpdateProgramInfo();
 				}
 			}
 			TimerCount++;
@@ -5006,6 +4957,75 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		}
 		break;
 	}
+}
+
+
+bool CMainWindow::UpdateProgramInfo()
+{
+	bool fOK=false;
+
+	if (CoreEngine.m_DtvEngine.m_TsPacketParser.IsEpgDataCapLoaded()) {
+		// EpgDataCapóòópâ¬
+		CoreEngine.UpdateEpgDataInfo();
+
+		const CEpgDataInfo *pInfo=CoreEngine.GetEpgDataInfo(InfoWindow.GetProgramInfoNext());
+
+		if (pInfo!=NULL) {
+			WCHAR szText[2048];
+
+			SYSTEMTIME stStart,stEnd;
+			int Length;
+
+			pInfo->GetStartTime(&stStart);
+			pInfo->GetEndTime(&stEnd);
+			Length=::wnsprintfW(szText,lengthof(szText)-1,
+				L"%d/%d/%d(%s) %d:%02dÅ`%d:%02d\r\n%s\r\n\r\n%s\r\n\r\n%s",
+				stStart.wYear,
+				stStart.wMonth,
+				stStart.wDay,
+				L"ì˙\0åé\0âŒ\0êÖ\0ñÿ\0ã‡\0ìy"+stStart.wDayOfWeek*2,
+				stStart.wHour,
+				stStart.wMinute,
+				stEnd.wHour,
+				stEnd.wMinute,
+				NullToEmptyString(pInfo->GetEventName()),
+				NullToEmptyString(pInfo->GetEventText()),
+				NullToEmptyString(pInfo->GetEventExtText()));
+			szText[Length]='\0';
+			InfoWindow.SetProgramInfo(szText);
+			fOK=true;
+		}
+	}
+	if (!fOK) {
+		TCHAR szText[1024];
+		SYSTEMTIME stStart,stEnd;
+
+		if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,&stEnd,
+											InfoWindow.GetProgramInfoNext())) {
+			int Length;
+
+			Length=::wsprintf(szText,TEXT("%d/%d/%d(%s) %d:%02dÅ`%d:%02d\r\n"),
+				stStart.wYear,
+				stStart.wMonth,
+				stStart.wDay,
+				GetDayOfWeekText(stStart.wDayOfWeek),
+				stStart.wHour,
+				stStart.wMinute,
+				stEnd.wHour,
+				stEnd.wMinute);
+			Length+=CoreEngine.m_DtvEngine.GetEventName(
+					&szText[Length],lengthof(szText)-Length,
+					InfoWindow.GetProgramInfoNext());
+			Length+=::wsprintf(&szText[Length],TEXT("\r\n\r\n"));
+			CoreEngine.m_DtvEngine.GetEventText(
+					&szText[Length],lengthof(szText)-Length,
+					InfoWindow.GetProgramInfoNext());
+			InfoWindow.SetProgramInfo(szText);
+		} else {
+			InfoWindow.SetProgramInfo(NULL);
+		}
+	}
+	return fOK;
 }
 
 
@@ -7689,6 +7709,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	InfoPanel.Create(MainWindow.GetHandle(),WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
 	InfoPanel.SetTabFont(PanelOptions.GetFont());
 
+	InfoWindow.SetEventHandler(&InformationEventHandler);
 	InfoWindow.Create(InfoPanel.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
 	InfoPanel.AddWindow(&InfoWindow,TEXT("èÓïÒ"));
 

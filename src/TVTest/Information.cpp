@@ -85,6 +85,7 @@ CInformation::CInformation()
 	m_fRecording=false;
 	m_pszProgramInfo=NULL;
 	m_fNextProgramInfo=false;
+	m_pEventHandler=NULL;
 }
 
 
@@ -281,6 +282,13 @@ void CInformation::SetProgramInfo(LPCTSTR pszInfo)
 		return;
 	ReplaceString(&m_pszProgramInfo,pszInfo);
 	SetWindowText(m_hwndProgramInfo,NullToEmptyString(m_pszProgramInfo));
+}
+
+
+bool CInformation::SetEventHandler(CEventHandler *pHandler)
+{
+	m_pEventHandler=pHandler;
+	return true;
 }
 
 
@@ -488,10 +496,13 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 					if (pThis->m_pszProgramInfo!=NULL) {
 						delete [] pThis->m_pszProgramInfo;
 						pThis->m_pszProgramInfo=NULL;
-						SetWindowText(pThis->m_hwndProgramInfo,TEXT(""));
 					}
 					EnableWindow(pThis->m_hwndProgramInfoPrev,fNext);
 					EnableWindow(pThis->m_hwndProgramInfoNext,!fNext);
+					if (pThis->m_pEventHandler!=NULL)
+						pThis->m_pEventHandler->OnProgramInfoUpdate(fNext);
+					if (pThis->m_pszProgramInfo==NULL)
+						SetWindowText(pThis->m_hwndProgramInfo,TEXT(""));
 				}
 			}
 			return 0;

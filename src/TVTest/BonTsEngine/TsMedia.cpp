@@ -417,10 +417,16 @@ const bool CAdtsFrame::ParseHeader(void)
 	m_Header.byRawDataBlockNum		= m_pData[6] & 0x03U;
 
 	// フォーマット適合性チェック
-	if(m_Header.byProfile == 3U)return false;							// 未定義のプロファイル
-	else if(m_Header.bySamplingFreqIndex > 0x0BU)return false;			// 未定義のサンプリング周波数
-	else if(m_Header.wFrameLength < 2U || m_Header.wFrameLength > 0x2000 - 7)return false;					// データなしの場合も最低CRCのサイズが必要
-	else if(m_Header.byRawDataBlockNum)return false;					// 本クラスは単一のRaw Data Blockにしか対応しない
+	if(m_Header.byProfile == 3U)
+		return false;		// 未定義のプロファイル
+	else if(m_Header.bySamplingFreqIndex > 0x0BU)
+		return false;		// 未定義のサンプリング周波数
+	else if(m_Header.byChannelConfig >= 3 && m_Header.byChannelConfig != 6)
+		return false;		// チャンネル数異常
+	else if(m_Header.wFrameLength < 2U || m_Header.wFrameLength > 0x2000 - 7)
+		return false;		// データなしの場合も最低CRCのサイズが必要
+	else if(m_Header.byRawDataBlockNum)
+		return false;		// 本クラスは単一のRaw Data Blockにしか対応しない
 
 	return true;
 }

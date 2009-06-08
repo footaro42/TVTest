@@ -43,7 +43,7 @@ IBaseFilter* WINAPI CMpeg2SequenceFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT
 	*/
 
 	IBaseFilter *pFilter;
-	*phr=pNewFilter->QueryInterface(IID_IBaseFilter,(void**)&pFilter);
+	*phr=pNewFilter->QueryInterface(IID_IBaseFilter, (void**)&pFilter);
 	if (FAILED(*phr)) {
 		delete pNewFilter;
 		return NULL;
@@ -55,14 +55,13 @@ IBaseFilter* WINAPI CMpeg2SequenceFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT
 
 HRESULT CMpeg2SequenceFilter::CheckInputType(const CMediaType* mtIn)
 {
-    CheckPointer(mtIn, E_POINTER);
+	CheckPointer(mtIn, E_POINTER);
 
-	if(*mtIn->Type() == MEDIATYPE_Video){
-		if(*mtIn->Subtype() == MEDIASUBTYPE_MPEG2_VIDEO){
-
-				return S_OK;
-			}
+	if (*mtIn->Type() == MEDIATYPE_Video) {
+		if (*mtIn->Subtype() == MEDIASUBTYPE_MPEG2_VIDEO) {
+			return S_OK;
 		}
+	}
 	return VFW_E_TYPE_NOT_ACCEPTED;
 }
 
@@ -168,13 +167,15 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 
 HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
 {
-	BYTE *pData = NULL;
-	pSample->GetPointer(&pData);
+	BYTE *pData;
+	HRESULT hr = pSample->GetPointer(&pData);
+	if (FAILED(hr))
+		return hr;
 	LONG DataSize = pSample->GetActualDataLength();
 
 	// シーケンスを取得
 	m_ParserLock.Lock();
-	m_Mpeg2Parser.StoreEs(pData,DataSize);
+	m_Mpeg2Parser.StoreEs(pData, DataSize);
 	m_ParserLock.Unlock();
 
 	return S_OK;
@@ -183,6 +184,10 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
 
 HRESULT CMpeg2SequenceFilter::Receive(IMediaSample *pSample)
 {
+	const AM_SAMPLE2_PROPERTIES *pProps = m_pInput->SampleProps();
+	if (pProps->dwStreamId != AM_STREAM_MEDIA)
+		return m_pOutput->Deliver(pSample);
+
 	Transform(pSample);
 	return m_pOutput->Deliver(pSample);
 }
@@ -229,14 +234,14 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 		DisplayHeight = OrigHeight;
 	}
 
-	CMpeg2VideoInfo Info(OrigWidth,OrigHeight,DisplayWidth,DisplayHeight,AspectX,AspectY);
+	CMpeg2VideoInfo Info(OrigWidth, OrigHeight, DisplayWidth, DisplayHeight, AspectX, AspectY);
 
-	if (Info!=m_VideoInfo) {
+	if (Info != m_VideoInfo) {
 		// 映像サイズが変わった
-		m_VideoInfo=Info;
+		m_VideoInfo = Info;
 		// 通知
 		if (m_pfnVideoInfoRecvFunc)
-			m_pfnVideoInfoRecvFunc(&m_VideoInfo,m_pCallbackParam);
+			m_pfnVideoInfoRecvFunc(&m_VideoInfo, m_pCallbackParam);
 	}
 }
 
@@ -245,7 +250,7 @@ const bool CMpeg2SequenceFilter::GetVideoSize(WORD *pX, WORD *pY) const
 {
 	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
 
-	if (m_VideoInfo.m_DisplayWidth==0 || m_VideoInfo.m_DisplayHeight==0)
+	if (m_VideoInfo.m_DisplayWidth == 0 || m_VideoInfo.m_DisplayHeight == 0)
 		return false;
 	if (pX) *pX = m_VideoInfo.m_DisplayWidth;
 	if (pY) *pY = m_VideoInfo.m_DisplayHeight;
@@ -253,11 +258,11 @@ const bool CMpeg2SequenceFilter::GetVideoSize(WORD *pX, WORD *pY) const
 }
 
 
-const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX,BYTE *pY) const
+const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX, BYTE *pY) const
 {
 	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
 
-	if (m_VideoInfo.m_AspectRatioX==0 || m_VideoInfo.m_AspectRatioY==0)
+	if (m_VideoInfo.m_AspectRatioX == 0 || m_VideoInfo.m_AspectRatioY == 0)
 		return false;
 	if (pX) *pX = m_VideoInfo.m_AspectRatioX;
 	if (pY) *pY = m_VideoInfo.m_AspectRatioY;
@@ -265,16 +270,16 @@ const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX,BYTE *pY) const
 }
 
 
-const bool CMpeg2SequenceFilter::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const
+const bool CMpeg2SequenceFilter::GetOriginalVideoSize(WORD *pWidth, WORD *pHeight) const
 {
 	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
 
-	if (m_VideoInfo.m_OrigWidth==0 || m_VideoInfo.m_OrigHeight==0)
+	if (m_VideoInfo.m_OrigWidth == 0 || m_VideoInfo.m_OrigHeight == 0)
 		return false;
 	if (pWidth)
-		*pWidth=m_VideoInfo.m_OrigWidth;
+		*pWidth = m_VideoInfo.m_OrigWidth;
 	if (pHeight)
-		*pHeight=m_VideoInfo.m_OrigHeight;
+		*pHeight = m_VideoInfo.m_OrigHeight;
 	return true;
 }
 
@@ -283,6 +288,6 @@ const bool CMpeg2SequenceFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 {
 	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
 
-	*pInfo=m_VideoInfo;
+	*pInfo = m_VideoInfo;
 	return true;
 }

@@ -26,7 +26,6 @@ CAacDecoder::CAacDecoder(IPcmHandler *pPcmHandler)
 	, m_bInitRequest(false)
 	, m_byLastChannelConfig(0U)
 {
-
 }
 
 
@@ -87,25 +86,24 @@ void CAacDecoder::CloseDecoder()
 
 const bool CAacDecoder::ResetDecoder(void)
 {
-	if (m_hDecoder==NULL)
+	if (m_hDecoder == NULL)
 		return false;
+
 	return OpenDecoder();
 }
 
 
 const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 {
-	if (m_hDecoder==NULL)
+	if (m_hDecoder == NULL) {
+		/*
+		if (!OpenDecoder())
+			return false;
+		*/
 		return false;
+	}
 
 	// デコード
-
-	// チャンネル設定解析
-	if (pFrame->GetChannelConfig() != m_byLastChannelConfig) {
-		// チャンネル設定が変化した、デコーダリセット
-		ResetDecoder();
-		m_byLastChannelConfig = pFrame->GetChannelConfig();
-	}
 
 	// 初回フレーム解析
 	if (m_bInitRequest) {
@@ -116,7 +114,13 @@ const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 			return false;
 		}
 		m_bInitRequest = false;
+		m_byLastChannelConfig = pFrame->GetChannelConfig();
+	} else if (pFrame->GetChannelConfig() != m_byLastChannelConfig) {
+		// チャンネル設定が変化した、デコーダリセット
+		ResetDecoder();
+		m_byLastChannelConfig = pFrame->GetChannelConfig();
 	}
+
 	// デコード
 	NeAACDecFrameInfo FrameInfo;
 	//::ZeroMemory(&FrameInfo, sizeof(FrameInfo));
@@ -136,8 +140,14 @@ const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 		::OutputDebugStringA(NeAACDecGetErrorMessage(FrameInfo.error));
 		::OutputDebugString(TEXT("\n"));
 #endif
+#if 0
 		// 何回も初期化するとメモリリークする
-		//m_bInitRequest = true;
+		m_bInitRequest = true;
+#else
+		// リセットしてみる
+		// 本来フレームのデコードでエラーが起きる度に一々リセットする必要はないはずだが…
+		ResetDecoder();
+#endif
 	}
 
 	return true;

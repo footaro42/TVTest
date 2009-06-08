@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.5.40
+    TVTest ver.0.5.41
 
 
 ◆ はじめに
@@ -41,8 +41,8 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.5.40_Src.zip ソースファイル
-  ・TVTest_SDK_090504.zip プラグイン開発用 SDK
+  ・TVTest_0.5.41_Src.zip ソースファイル
+  ・TVTest_SDK_090609.zip プラグイン開発用 SDK
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
   ・BonDriver_UDP.txt     BonDriver_UDP.dll の説明
   ・Preset_BS.ch2         BS 用チャンネルプリセット
@@ -387,13 +387,24 @@
 
 ◆ ソースについて
 
-  VC2005 でビルドしています。
-  ビルドには DirectShow の BaseClasses ライブラリと FAAD2 ライブラリが必要です。
+  VC2005 SP1 でビルドしています。
+
+  ビルドには DirectX SDK と DirectShow の BaseClasses ライブラリ、FAAD2 ライブ
+  ラリが必要です。
   TVTest_Image.dll のビルドには libjpeg/libpng/zlib の各ソースファイルが必要で
   す。
 
+  ICC が無い場合は BonTsEngine\Multi2Decoder.h の #define MULTI2_SSE2_ICC をコ
+  メントアウトしてください。
+
 
 ◆ 更新履歴
+
+  ver.0.5.41
+    ・AAC デコーダ周りをいくつか修正した
+    ・音声デバイスが存在しなくても動作するようにした
+    ・番組情報の表示で、現在と次の番組を切り替えた時に即座に表示されるようにした
+    ・SDK を更新した
 
   ver.0.5.40
     ・サービスのメニューで番組名が表示されるようにした

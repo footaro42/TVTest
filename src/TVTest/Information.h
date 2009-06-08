@@ -6,6 +6,14 @@
 
 
 class CInformation : public CInfoPanelPage {
+public:
+	class CEventHandler {
+	public:
+		virtual ~CEventHandler() {}
+		virtual bool OnProgramInfoUpdate(bool fNext) { return false; }
+	};
+
+private:
 	static HINSTANCE m_hinst;
 	HWND m_hwndProgramInfo;
 	HWND m_hwndProgramInfoPrev;
@@ -36,6 +44,7 @@ class CInformation : public CInfoPanelPage {
 	ULARGE_INTEGER m_DiskFreeSpace;
 	LPTSTR m_pszProgramInfo;
 	bool m_fNextProgramInfo;
+	CEventHandler *m_pEventHandler;
 	static CInformation *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 																LPARAM lParam);
@@ -64,6 +73,7 @@ public:
 							ULONGLONG WroteSize=0,unsigned int RecordTime=0);
 	void SetProgramInfo(LPCTSTR pszInfo);
 	bool GetProgramInfoNext() { return m_fNextProgramInfo; }
+	bool SetEventHandler(CEventHandler *pHandler);
 };
 
 

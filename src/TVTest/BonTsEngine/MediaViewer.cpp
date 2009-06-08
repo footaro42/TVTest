@@ -20,6 +20,9 @@ static char THIS_FILE[]=__FILE__;
 #pragma comment(lib,"quartz.lib")
 
 
+//const CLSID CLSID_NullRenderer = {0xc1f400a4, 0x3f08, 0x11d3, {0x9f, 0x0b, 0x00, 0x60, 0x08, 0x03, 0x9e, 0x37}};
+EXTERN_C const CLSID CLSID_NullRenderer;
+
 #define LOCK_TIMEOUT 2000
 
 
@@ -121,6 +124,9 @@ void CMediaViewer::Reset(void)
 	SetVideoPID(PID_INVALID);
 	SetAudioPID(PID_INVALID);
 
+	if (m_pAacDecClass)
+		m_pAacDecClass->ResetDecoder();
+
 	/*
 	if (fResume)
 		Play();
@@ -163,6 +169,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		SetError(TEXT("既にフィルタグラフが構築されています。"));
 		return false;
 	}
+
+	TRACE(TEXT("CMediaViewer::OpenViewer() フィルタグラフ作成開始\n"));
 
 	HRESULT hr=S_OK;
 
@@ -516,57 +524,29 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 					fOK = false;
 				}
 				pAudioRenderer->Release();
-			}
-			if (!fOK) {
-				hr = m_pFilterGraph->Render(pOutputAudio);
-				if (FAILED(hr))
-					throw CBonException(hr, TEXT("音声レンダラを構築できません。"),
-						TEXT("有効なサウンドデバイスが存在するか確認してください。"));
-			}
-		}
-
-#if 0
-		if (m_bUseAudioRendererClock) {
-			bool fOK=false;
-
-			if (SUCCEEDED(::CoCreateInstance(CLSID_DSoundRender,NULL,
-					CLSCTX_INPROC_SERVER,IID_IBaseFilter,
-					reinterpret_cast<LPVOID*>(&pAudioRenderer)))) {
-				//if (SUCCEEDED(m_pFilterGraph->AddFilter(pAudioRenderer,L"Audio Renderer"))) {
-				hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							pAudioRenderer,L"Audio Renderer",&pOutputAudio);
-				if (SUCCEEDED(hr)) {
-					IMediaFilter *pMediaFilter;
-
-					if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IMediaFilter,
-								reinterpret_cast<LPVOID*>(&pMediaFilter)))) {
-						IReferenceClock *pReferenceClock;
-
-						if (SUCCEEDED(pAudioRenderer->QueryInterface(IID_IReferenceClock,
-								reinterpret_cast<LPVOID*>(&pReferenceClock)))) {
-							pMediaFilter->SetSyncSource(pReferenceClock);
-							pReferenceClock->Release();
-						}
-						pMediaFilter->Release();
-					}
-					fOK=true;
+				if (!fOK) {
+					hr = m_pFilterGraph->Render(pOutputAudio);
+					if (FAILED(hr))
+						throw CBonException(hr, TEXT("音声レンダラを接続できません。"),
+							TEXT("設定で有効なサウンドデバイスが選択されているか確認してください。"));
 				}
-				pAudioRenderer->Release();
+			} else {
+				// 音声デバイスが無い?
+				// Nullレンダラを繋げておく
+				hr = ::CoCreateInstance(CLSID_NullRenderer, NULL,
+										CLSCTX_INPROC_SERVER, IID_IBaseFilter,
+									reinterpret_cast<void**>(&pAudioRenderer));
+				if (SUCCEEDED(hr)) {
+					hr = DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+						pAudioRenderer, L"Null Audio Renderer", &pOutputAudio);
+					pAudioRenderer->Release();
+					if (FAILED(hr)) {
+						throw CBonException(hr, TEXT("Null音声レンダラを接続できません。"));
+					}
+					TRACE(TEXT("Nullレンダラを接続\n"));
+				}
 			}
-			if (!fOK) {
-				hr=m_pFilterGraph->Render(pOutputAudio);
-				if (FAILED(hr))
-					throw CBonException(hr,TEXT("音声レンダラを構築できません。"),
-						TEXT("有効なサウンドデバイスが存在するか確認してください。"));
-				m_pFilterGraph->SetDefaultSyncSource();
-			}
-		} else {
-			hr=m_pFilterGraph->Render(pOutputAudio);
-			if (FAILED(hr))
-				throw CBonException(hr,TEXT("音声レンダラを構築できません。"),
-					TEXT("有効なサウンドデバイスが存在するか確認してください。"));
 		}
-#endif
 
 		// オーナウィンドウ設定
 		m_hOwnerWnd = hOwnerHwnd;
