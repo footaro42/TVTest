@@ -114,12 +114,15 @@ public:
 	CVideoRenderer::RendererType GetVideoRendererType() const;
 	bool SetUseAudioRendererClock(bool bUse);
 	bool GetUseAudioRendererClock() const { return m_bUseAudioRendererClock; }
+	bool SetAdjustAudioStreamTime(bool bAdjust);
+	bool SetAudioStreamCallback(CAacDecFilter::StreamCallback pCallback, void *pParam = NULL);
 	const bool RepaintVideo(HWND hwnd,HDC hdc);
 	const bool DisplayModeChanged();
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
 	bool CheckHangUp(DWORD TimeOut);
+
 protected:
 	const bool ResizeVideoWindow();
 	const bool CalcSourceRect(RECT *pRect);
@@ -175,6 +178,9 @@ protected:
 	ViewStretchMode m_ViewStretchMode;
 	bool m_bIgnoreDisplayExtension;
 	bool m_bUseAudioRendererClock;
+	bool m_bAdjustAudioStreamTime;
+	CAacDecFilter::StreamCallback m_pAudioStreamCallback;
+	void *m_pAudioStreamCallbackParam;
 	CImageMixer *m_pImageMixer;
 #ifdef USE_GABBER_FILTER
 	bool m_bGrabber;

@@ -6,12 +6,12 @@
 #include "TsUtilClass.h"
 
 
-class CBonBaseClass : public CBonErrorHandler
+class __declspec(novtable) CBonBaseClass : public CBonErrorHandler
 {
 	CTracer *m_pTracer;
 public:
 	CBonBaseClass();
-	virtual ~CBonBaseClass();
+	virtual ~CBonBaseClass() = 0;
 	virtual void SetTracer(CTracer *pTracer);
 protected:
 	void Trace(LPCTSTR pszOutput, ...);

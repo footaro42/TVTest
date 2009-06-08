@@ -17,16 +17,17 @@ CBonBaseClass::~CBonBaseClass()
 
 void CBonBaseClass::SetTracer(CTracer *pTracer)
 {
-	m_pTracer=pTracer;
+	m_pTracer = pTracer;
 }
 
 
 void CBonBaseClass::Trace(LPCTSTR pszOutput, ...)
 {
-	va_list Args;
+	if (m_pTracer != NULL && pszOutput != NULL) {
+		va_list Args;
 
-	va_start(Args,pszOutput);
-	if (m_pTracer!=NULL)
-		m_pTracer->TraceV(pszOutput,Args);
-	va_end(Args);
+		va_start(Args, pszOutput);
+		m_pTracer->TraceV(pszOutput, Args);
+		va_end(Args);
+	}
 }

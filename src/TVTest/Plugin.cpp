@@ -25,6 +25,9 @@ bool CPlugin::m_fSetGrabber=false;
 CPointerVector<CPlugin::CMediaGrabberInfo> CPlugin::m_GrabberList;
 CCriticalLock CPlugin::m_GrabberLock;
 
+CPointerVector<CPlugin::CAudioStreamCallbackInfo> CPlugin::m_AudioStreamCallbackList;
+CCriticalLock CPlugin::m_AudioStreamLock;
+
 
 CPlugin::CPlugin()
 	: m_hLib(NULL)
@@ -124,6 +127,15 @@ void CPlugin::Free()
 			}
 		}
 		m_GrabberLock.Unlock();
+
+		m_AudioStreamLock.Lock();
+		for (int i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
+			if (m_AudioStreamCallbackList[i]->m_pPlugin==this) {
+				m_AudioStreamCallbackList.Delete(i);
+				break;
+			}
+		}
+		m_AudioStreamLock.Unlock();
 
 		m_pEventCallback=NULL;
 
@@ -306,6 +318,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::MESSAGE_REGISTERCOMMAND:
 		case TVTest::MESSAGE_ADDLOG:
 		case TVTest::MESSAGE_RESETSTATUS:
+		case TVTest::MESSAGE_SETAUDIOCALLBACK:
 			return TRUE;
 		}
 		return FALSE;
@@ -1137,6 +1150,43 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_RESETSTATUS:
 		GetAppClass().GetMainWindow()->SendCommand(CM_RESETERRORCOUNT);
 		return TRUE;
+
+	case TVTest::MESSAGE_SETAUDIOCALLBACK:
+		{
+			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			TVTest::AudioCallbackFunc pCallback=reinterpret_cast<TVTest::AudioCallbackFunc>(lParam1);
+
+			m_AudioStreamLock.Lock();
+			if (pCallback!=NULL) {
+				if (m_AudioStreamCallbackList.Length()==0) {
+					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetAudioStreamCallback(AudioStreamCallback);
+				} else {
+					for (int i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
+						if (m_AudioStreamCallbackList[i]->m_pPlugin==pThis) {
+							m_AudioStreamCallbackList.Delete(i);
+							break;
+						}
+					}
+				}
+				m_AudioStreamCallbackList.Add(new CAudioStreamCallbackInfo(pThis,pCallback,reinterpret_cast<void*>(lParam2)));
+				m_AudioStreamLock.Unlock();
+			} else {
+				int i;
+
+				for (i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
+					if (m_AudioStreamCallbackList[i]->m_pPlugin==pThis) {
+						m_AudioStreamCallbackList.Delete(i);
+						break;
+					}
+				}
+				m_AudioStreamLock.Unlock();
+				if (i<0)
+					return FALSE;
+				if (m_AudioStreamCallbackList.Length()==0)
+					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetAudioStreamCallback(NULL);
+			}
+		}
+		return TRUE;
 	}
 	return 0;
 }
@@ -1154,6 +1204,18 @@ bool CALLBACK CPlugin::GrabMediaCallback(const CMediaData *pMediaData, const PVO
 			return false;
 	}
 	return true;
+}
+
+
+void CALLBACK CPlugin::AudioStreamCallback(short *pData,DWORD Samples,int Channels,void *pParam)
+{
+	CBlockLock Lock(&m_AudioStreamLock);
+
+	for (int i=0;i<m_AudioStreamCallbackList.Length();i++) {
+		CAudioStreamCallbackInfo *pInfo=m_AudioStreamCallbackList[i];
+
+		(*pInfo->m_pCallback)(pData,Samples,Channels,pInfo->m_pClientData);
+	}
 }
 
 
@@ -1667,7 +1729,19 @@ BOOL CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				LPNMLISTVIEW pnmlv=reinterpret_cast<LPNMLISTVIEW>(lParam);
 				int Sel=ListView_GetNextItem(pnmlv->hdr.hwndFrom,-1,LVNI_SELECTED);
 
-				EnableDlgItem(hDlg,IDC_PLUGIN_SETTINGS,Sel>=0);
+				if (Sel>=0) {
+					LV_ITEM lvi;
+
+					lvi.mask=LVIF_PARAM;
+					lvi.iItem=Sel;
+					lvi.iSubItem=0;
+					if (ListView_GetItem(pnmlv->hdr.hwndFrom,&lvi)) {
+						CPlugin *pPlugin=reinterpret_cast<CPlugin*>(lvi.lParam);
+						EnableDlgItem(hDlg,IDC_PLUGIN_SETTINGS,pPlugin->HasSettings());
+					}
+				} else {
+					EnableDlgItem(hDlg,IDC_PLUGIN_SETTINGS,false);
+				}
 			}
 			return TRUE;
 

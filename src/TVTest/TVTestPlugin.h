@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.5
+	TVTest プラグインヘッダ ver.0.0.6
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -87,12 +87,16 @@
 /*
 	更新履歴
 
-    ver.0.0.5 (TVTest ver.0.5.41 or later)
-    ・以下のイベントを追加した
-      ・EVENT_RESET
-      ・EVENT_STATUSRESET
-      ・EVENT_AUDIOSTREAMCHANGE
-    ・MESSAGE_RESETSTATUS を追加した
+	ver.0.0.6 (TVTest ver.0.5.42 or later)
+	・MESSAGE_SETAUDIOCALLBACK を追加した
+	・EVENT_DSHOWINITIALIZED を追加した
+
+	ver.0.0.5 (TVTest ver.0.5.41 or later)
+	・以下のイベントを追加した
+	  ・EVENT_RESET
+	  ・EVENT_STATUSRESET
+	  ・EVENT_AUDIOSTREAMCHANGE
+	・MESSAGE_RESETSTATUS を追加した
 
 	ver.0.0.4 (TVTest ver.0.5.33 or later)
 	・EVENT_EXECUTE を追加した
@@ -139,8 +143,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_3	0x00000003UL
 #define TVTEST_PLUGIN_VERSION_0_0_4	0x00000004UL
 #define TVTEST_PLUGIN_VERSION_0_0_5	0x00000005UL
+#define TVTEST_PLUGIN_VERSION_0_0_6	0x00000006UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_5
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_6
 #endif
 
 // エクスポート関数定義用
@@ -253,6 +258,9 @@ enum {
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
 	MESSAGE_RESETSTATUS,
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+	MESSAGE_SETAUDIOCALLBACK,
 #endif
 	MESSAGE_TRAILER
 };
@@ -934,6 +942,25 @@ inline bool MsgResetStatus(PluginParam *pParam)
 
 #endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+
+// 音声サンプルのコールバック関数
+// 48kHz / 16ビット固定
+// pData の先には Samples * Channels 分のデータが入っている
+// 今のところ、5.1chをダウンミックスする設定になっている場合
+// ダウンミックスされたデータが渡されるが、そのうち仕様を変えるかも知れない
+// 戻り値は0を返すこと
+typedef LRESULT (CALLBACK *AudioCallbackFunc)(short *pData,DWORD Samples,int Channels,void *pClientData);
+
+// 音声のサンプルを取得するコールバック関数を設定する
+// pClinetData はコールバック関数に渡される
+inline bool MsgSetAudioCallback(PluginParam *pParam,AudioCallbackFunc pCallback,void *pClientData=NULL)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOCALLBACK,(LPARAM)pCallback,(LPARAM)pClientData)!=0;
+}
+
+#endif
+
 
 /*
 	TVTest アプリケーションクラス
@@ -1157,6 +1184,11 @@ public:
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
 	bool ResetStatus() {
 		return MsgResetStatus(m_pParam);
+	}
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+	bool SetAudioCallback(AudioCallbackFunc pCallback,void *pClientData=NULL) {
+		return MsgSetAudioCallback(m_pParam,pCallback,pClientData);
 	}
 #endif
 };

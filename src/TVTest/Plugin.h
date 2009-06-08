@@ -50,6 +50,20 @@ class CPlugin {
 	static CPointerVector<CMediaGrabberInfo> m_GrabberList;
 	static CCriticalLock m_GrabberLock;
 	static bool CALLBACK GrabMediaCallback(const CMediaData *pMediaData,const PVOID pParam);
+	class CAudioStreamCallbackInfo {
+	public:
+		CPlugin *m_pPlugin;
+		TVTest::AudioCallbackFunc m_pCallback;
+		void *m_pClientData;
+		CAudioStreamCallbackInfo(CPlugin *pPlugin,TVTest::AudioCallbackFunc pCallback,void *pClientData) {
+			m_pPlugin=pPlugin;
+			m_pCallback=pCallback;
+			m_pClientData=pClientData;
+		}
+	};
+	static CCriticalLock m_AudioStreamLock;
+	static CPointerVector<CAudioStreamCallbackInfo> m_AudioStreamCallbackList;
+	static void CALLBACK AudioStreamCallback(short *pData,DWORD Samples,int Channels,void *pParam);
 	static LRESULT CALLBACK Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2);
 	static DWORD WINAPI FinalizeThread(LPVOID lpParameter);
 public:

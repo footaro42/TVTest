@@ -15,6 +15,7 @@ CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
 	m_ViewHours=26;
 	m_ItemWidth=m_pProgramGuide->GetItemWidth();
 	m_LinesPerHour=m_pProgramGuide->GetLinesPerHour();
+	m_WheelScrollLines=m_pProgramGuide->GetWheelScrollLines();
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
 }
 
@@ -43,6 +44,10 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 				&& Value<=CProgramGuide::MAX_LINES_PER_HOUR)
 			m_LinesPerHour=Value;
 		m_pProgramGuide->SetUIOptions(m_LinesPerHour,m_ItemWidth);
+
+		if (Settings.Read(TEXT("WheelScrollLines"),&Value))
+			m_WheelScrollLines=Value;
+		m_pProgramGuide->SetWheelScrollLines(m_WheelScrollLines);
 
 		// Font
 		TCHAR szFont[LF_FACESIZE];
@@ -107,6 +112,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
 		Settings.Write(TEXT("ItemWidth"),m_ItemWidth);
 		Settings.Write(TEXT("LinesPerHour"),m_LinesPerHour);
+		Settings.Write(TEXT("WheelScrollLines"),m_WheelScrollLines);
 
 		// Font
 		Settings.Write(TEXT("FontName"),m_Font.lfFaceName);
@@ -189,6 +195,9 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,pThis->m_LinesPerHour,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR_UD,
 				UDM_SETRANGE32,CProgramGuide::MIN_LINES_PER_HOUR,CProgramGuide::MAX_LINES_PER_HOUR);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,pThis->m_WheelScrollLines,TRUE);
+			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES_UD,
+				UDM_SETRANGE,0,MAKELONG(UD_MAXVAL,UD_MINVAL));
 
 			lfCurFont=pThis->m_Font;
 			SetFontInfo(hDlg,&lfCurFont);
@@ -435,6 +444,9 @@ BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 				pThis->m_LinesPerHour=LimitRange(Value,
 					(int)CProgramGuide::MIN_LINES_PER_HOUR,(int)CProgramGuide::MAX_LINES_PER_HOUR);
 				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth);
+
+				pThis->m_WheelScrollLines=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,NULL,TRUE);
+				pThis->m_pProgramGuide->SetWheelScrollLines(pThis->m_WheelScrollLines);
 
 				if (!CompareLogFont(&pThis->m_Font,&lfCurFont)) {
 					pThis->m_Font=lfCurFont;

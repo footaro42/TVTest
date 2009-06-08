@@ -79,6 +79,9 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
 	, m_bIgnoreDisplayExtension(false)
 	, m_bUseAudioRendererClock(true)
+	, m_bAdjustAudioStreamTime(false)
+	, m_pAudioStreamCallback(NULL)
+	, m_pAudioStreamCallbackParam(NULL)
 	, m_pImageMixer(NULL)
 #ifdef USE_GRABBER_FILTER
 	, m_bGrabber(false)
@@ -220,7 +223,6 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		{
 			CMediaType MediaTypeVideo;
 			CMediaType MediaTypeAudio;
-			IReferenceClock *pMp2DemuxRefClock;
 			IMpeg2Demultiplexer *pMpeg2Demuxer;
 
 			hr=::CoCreateInstance(CLSID_MPEG2Demultiplexer,NULL,
@@ -235,7 +237,14 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerをフィルタグラフに追加できません。"));
 			// この時点でpOutput==NULLのはずだが念のため
 			SAFE_RELEASE(pOutput);
+
+#if 0
+			/*
+				このコードは元々のBonTestからあるコードで意図は分からないが
+				やらなくても問題無さそう
+			*/
 			// IReferenceClockインタフェースのクエリー
+			IReferenceClock *pMp2DemuxRefClock;
 			hr=m_pMp2DemuxFilter->QueryInterface(IID_IReferenceClock,
 						reinterpret_cast<LPVOID*>(&pMp2DemuxRefClock));
 			if (hr != S_OK)
@@ -244,7 +253,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			hr=m_pMp2DemuxFilter->SetSyncSource(pMp2DemuxRefClock);
 			pMp2DemuxRefClock->Release();
 			if (hr != S_OK)
-				throw CBonException(hr,TEXT("リファレンスクロックを設定できません。"));
+				throw CBonException(hr,TEXT("リファレンスクロックを設定できません。"))
+#endif
 
 			// IMpeg2Demultiplexerインタフェースのクエリー
 			hr=m_pMp2DemuxFilter->QueryInterface(IID_IMpeg2Demultiplexer,
@@ -330,6 +340,11 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 								m_pAacDecFilter,L"AacDecFilter",&pOutputAudio);
 			if (FAILED(hr))
 				throw CBonException(hr,TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
+
+			m_pAacDecClass->SetAdjustStreamTime(m_bAdjustAudioStreamTime);
+			if (m_pAudioStreamCallback)
+				m_pAacDecClass->SetStreamCallback(m_pAudioStreamCallback,
+												  m_pAudioStreamCallbackParam);
 		}
 #else
 		/* CAacParserFilter */
@@ -515,6 +530,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 									reinterpret_cast<LPVOID*>(&pReferenceClock)))) {
 								pMediaFilter->SetSyncSource(pReferenceClock);
 								pReferenceClock->Release();
+								TRACE(TEXT("グラフのクロックに音声レンダラを選択\n"));
 							}
 							pMediaFilter->Release();
 						}
@@ -545,6 +561,27 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 					}
 					TRACE(TEXT("Nullレンダラを接続\n"));
 				}
+			}
+		}
+
+		/*
+			デフォルトでMPEG-2 Demultiplexerがグラフのクロックに
+			設定されるらしいが、一応設定しておく
+		*/
+		if (!m_bUseAudioRendererClock) {
+			IMediaFilter *pMediaFilter;
+
+			if (SUCCEEDED(m_pFilterGraph->QueryInterface(IID_IMediaFilter,
+								reinterpret_cast<LPVOID*>(&pMediaFilter)))) {
+				IReferenceClock *pReferenceClock;
+
+				if (SUCCEEDED(m_pMp2DemuxFilter->QueryInterface(IID_IReferenceClock,
+							reinterpret_cast<LPVOID*>(&pReferenceClock)))) {
+					pMediaFilter->SetSyncSource(pReferenceClock);
+					pReferenceClock->Release();
+					TRACE(TEXT("グラフのクロックにMPEG-2 Demultiplexerを選択\n"));
+				}
+				pMediaFilter->Release();
 			}
 		}
 
@@ -1420,8 +1457,27 @@ CVideoRenderer::RendererType CMediaViewer::GetVideoRendererType() const
 
 bool CMediaViewer::SetUseAudioRendererClock(bool bUse)
 {
-	m_bUseAudioRendererClock=bUse;
+	m_bUseAudioRendererClock = bUse;
 	return true;
+}
+
+
+bool CMediaViewer::SetAdjustAudioStreamTime(bool bAdjust)
+{
+	m_bAdjustAudioStreamTime = bAdjust;
+	if (m_pAacDecClass == NULL)
+		return true;
+	return m_pAacDecClass->SetAdjustStreamTime(bAdjust);
+}
+
+
+bool CMediaViewer::SetAudioStreamCallback(CAacDecFilter::StreamCallback pCallback, void *pParam)
+{
+	m_pAudioStreamCallback=pCallback;
+	m_pAudioStreamCallbackParam=pParam;
+	if (m_pAacDecClass == NULL)
+		return true;
+	return m_pAacDecClass->SetStreamCallback(pCallback, pParam);
 }
 
 

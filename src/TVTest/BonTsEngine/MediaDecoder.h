@@ -5,8 +5,8 @@
 #pragma once
 
 
-#include "MediaData.h"
 #include "BonBaseClass.h"
+#include "MediaData.h"
 #include "TsUtilClass.h"
 
 
@@ -14,7 +14,7 @@
 // メディアデコーダ基底クラス
 //////////////////////////////////////////////////////////////////////
 
-class CMediaDecoder : public CBonBaseClass
+class __declspec(novtable) CMediaDecoder : public CBonBaseClass
 {
 public:
 	class IEventHandler
@@ -24,7 +24,7 @@ public:
 	};
 
 	CMediaDecoder(IEventHandler *pEventHandler = NULL, const DWORD dwInputNum = 1UL, const DWORD dwOutputNum = 1UL);
-	virtual ~CMediaDecoder();
+	virtual ~CMediaDecoder() = 0;
 
 	virtual void Reset(void);
 	void ResetGraph(void);

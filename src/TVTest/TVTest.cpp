@@ -7649,6 +7649,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		PluginOptions.RestorePluginOptions();
 	}
 
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(ViewOptions.GetIgnoreDisplayExtension());
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(AudioOptions.GetUseAudioRendererClock());
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(AudioOptions.GetAdjustAudioStreamTime());
+	CoreEngine.SetDownMixSurround(AudioOptions.GetDownMixSurround());
 	if (!CmdLineParser.m_fStandby && !CmdLineParser.m_fNoDirectShow) {
 		MainWindow.BuildMediaViewer();
 	}
@@ -7664,9 +7668,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
-	CoreEngine.m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(ViewOptions.GetIgnoreDisplayExtension());
-	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(AudioOptions.GetUseAudioRendererClock());
-	CoreEngine.SetDownMixSurround(AudioOptions.GetDownMixSurround());
 	if (AudioOptions.GetRestoreMute() && fMuteStatus)
 		MainWindow.SetMute(true);
 	if ((!ViewOptions.GetRestorePlayStatus() || fEnablePlay)

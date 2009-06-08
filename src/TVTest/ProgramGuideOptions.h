@@ -12,6 +12,7 @@ class CProgramGuideOptions : public COptions {
 	int m_ViewHours;
 	int m_ItemWidth;
 	int m_LinesPerHour;
+	int m_WheelScrollLines;
 	LOGFONT m_Font;
 	CProgramGuideToolList m_ToolList;
 	void SetDlgItemState();

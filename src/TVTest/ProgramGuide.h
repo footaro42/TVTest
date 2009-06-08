@@ -114,6 +114,7 @@ class CProgramGuide : public CBasicWindow {
 	enum { NUM_COLORS=19 };
 	COLORREF m_ColorList[NUM_COLORS];
 	CProgramGuideToolList m_ToolList;
+	int m_WheelScrollLines;
 	bool UpdateList();
 	bool SetTuningSpace(int Space);
 	void CalcLayout();
@@ -187,6 +188,8 @@ public:
 	bool SetFont(const LOGFONT *pFont);
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
+	int GetWheelScrollLines() const { return m_WheelScrollLines; }
+	void SetWheelScrollLines(int Lines) { m_WheelScrollLines=Lines; }
 };
 
 

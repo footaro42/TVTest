@@ -887,6 +887,7 @@ CProgramGuide::CProgramGuide()
 	m_ColorList[COLOR_CONTENT_THEATER]=RGB(224,255,255);
 	m_fUpdating=false;
 	m_pEventHandler=NULL;
+	m_WheelScrollLines=0;
 }
 
 
@@ -1566,10 +1567,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		return 0;
 
 	case WM_MOUSEWHEEL:
-		if (GET_WHEEL_DELTA_WPARAM(wParam)<0)
-			wParam=SB_LINEDOWN;
-		else
-			wParam=SB_LINEUP;
 	case WM_VSCROLL:
 		{
 			CProgramGuide *pThis=GetThis(hwnd);
@@ -1581,15 +1578,31 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			Pos=pThis->m_ScrollPos.y;
 			pThis->GetProgramGuideRect(&rc);
 			Page=(rc.bottom-rc.top)/(pThis->m_FontHeight+pThis->m_LineMargin);
-			switch (LOWORD(wParam)) {
-			case SB_LINEUP:		Pos--;				break;
-			case SB_LINEDOWN:	Pos++;				break;
-			case SB_PAGEUP:		Pos-=Page;			break;
-			case SB_PAGEDOWN:	Pos+=Page;			break;
-			case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
-			case SB_TOP:		Pos=0;				break;
-			case SB_BOTTOM:		Pos=max(TotalLines-Page,0);	break;
-			default:	return 0;
+			if (uMsg==WM_VSCROLL) {
+				switch (LOWORD(wParam)) {
+				case SB_LINEUP:		Pos--;				break;
+				case SB_LINEDOWN:	Pos++;				break;
+				case SB_PAGEUP:		Pos-=Page;			break;
+				case SB_PAGEDOWN:	Pos+=Page;			break;
+				case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
+				case SB_TOP:		Pos=0;				break;
+				case SB_BOTTOM:		Pos=max(TotalLines-Page,0);	break;
+				default:	return 0;
+				}
+			} else {
+				int Lines;
+
+				if (pThis->m_WheelScrollLines==0) {
+					UINT SysLines;
+
+					if (::SystemParametersInfo(SPI_GETWHEELSCROLLLINES,0,&SysLines,0))
+						Lines=SysLines;
+					else
+						Lines=2;
+				} else {
+					Lines=pThis->m_WheelScrollLines;
+				}
+				Pos-=GET_WHEEL_DELTA_WPARAM(wParam)*Lines/WHEEL_DELTA;
 			}
 			if (Pos<0)
 				Pos=0;
