@@ -46,6 +46,7 @@ private:
 	DWORD m_PacketBufferUsedCount;
 	CEpgDataInfo *m_pEpgDataInfo;
 	CEpgDataInfo *m_pEpgDataInfoNext;
+	UINT m_TimerResolution;
 
 public:
 	CCoreEngine();
@@ -131,6 +132,7 @@ public:
 	bool UpdateEpgDataInfo();
 	const CEpgDataInfo *GetEpgDataInfo(bool fNext=false) const;
 	void *GetCurrentImage();
+	bool SetMinTimerResolution(bool fMin);
 //private:
 	CDtvEngine m_DtvEngine;
 };

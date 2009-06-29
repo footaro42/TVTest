@@ -13,6 +13,7 @@ CBasicDialog::CBasicDialog()
 
 CBasicDialog::~CBasicDialog()
 {
+	Destroy();
 }
 
 
@@ -53,8 +54,7 @@ INT_PTR CALLBACK CBasicDialog::DialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 		::SetProp(hDlg,TEXT("This"),pThis);
 	} else {
 		pThis=GetThis(hDlg);
-		switch (uMsg) {
-		case WM_DESTROY:
+		if (uMsg==WM_NCDESTROY) {
 			pThis->DlgProc(hDlg,uMsg,wParam,lParam);
 			pThis->m_hDlg=NULL;
 			::RemoveProp(hDlg,TEXT("This"));
@@ -77,7 +77,10 @@ bool CBasicDialog::Destroy()
 {
 	if (m_hDlg==NULL)
 		return false;
-	return ::DestroyWindow(m_hDlg)!=FALSE;
+	if (m_fModeless)
+		return ::DestroyWindow(m_hDlg)!=FALSE;
+	::SendMessage(m_hDlg,WM_CLOSE,0,0);
+	return true;
 }
 
 
@@ -86,6 +89,20 @@ bool CBasicDialog::ProcessMessage(LPMSG pMsg)
 	if (m_hDlg==NULL)
 		return false;
 	return ::IsDialogMessage(m_hDlg,pMsg)!=FALSE;
+}
+
+
+bool CBasicDialog::IsVisible() const
+{
+	return m_hDlg!=NULL && ::IsWindowVisible(m_hDlg);
+}
+
+
+bool CBasicDialog::SetVisible(bool fVisible)
+{
+	if (m_hDlg==NULL)
+		return false;
+	return ::ShowWindow(m_hDlg,fVisible?SW_SHOW:SW_HIDE)!=FALSE;
 }
 
 

@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include <shlwapi.h>
 #include "TVTest.h"
+#include "Util.h"
 #include "EpgDataLoader.h"
 
 
@@ -69,16 +70,19 @@ bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 
 bool CEpgDataLoader::Load(LPCTSTR pszFolder)
 {
+	FILETIME ftCurrent;
 	TCHAR szFileMask[MAX_PATH];
 	HANDLE hFind;
 	WIN32_FIND_DATA fd;
 
+	::GetSystemTimeAsFileTime(&ftCurrent);
 	::PathCombine(szFileMask,pszFolder,TEXT("*_epg.dat"));
 	hFind=::FindFirstFile(szFileMask,&fd);
 	if (hFind==INVALID_HANDLE_VALUE)
 		return false;
 	do {
-		if ((fd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)==0) {
+		if ((fd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)==0
+				&& ftCurrent-fd.ftLastWriteTime<FILETIME_HOUR*24*14) {
 			TCHAR szFilePath[MAX_PATH];
 
 			::PathCombine(szFilePath,pszFolder,fd.cFileName);

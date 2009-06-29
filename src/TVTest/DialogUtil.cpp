@@ -50,6 +50,12 @@ int GetDlgItemTextLength(HWND hDlg,int ID)
 }
 
 
+void SetDlgItemFocus(HWND hDlg,int ID)
+{
+	SetFocus(GetDlgItem(hDlg,ID));
+}
+
+
 int GetCheckedRadioButton(HWND hDlg,int FirstID,int LastID)
 {
 	int i;
@@ -216,6 +222,16 @@ BOOL SetDlgItemInt64(HWND hDlg,int ID,ULONGLONG Value,BOOL fSigned)
 	else
 		Int64ToString((LONGLONG)Value,szText,lengthof(szText));
 	return SetDlgItemText(hDlg,ID,szText);
+}
+
+
+bool UpdateDlgItemInt(HWND hDlg,int ID,int Value)
+{
+	if (GetDlgItemInt(hDlg,ID,NULL,TRUE)!=Value) {
+		SetDlgItemInt(hDlg,ID,Value,TRUE);
+		return true;
+	}
+	return false;
 }
 
 

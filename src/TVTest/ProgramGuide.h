@@ -81,6 +81,7 @@ public:
 };
 
 class CProgramGuide : public CBasicWindow {
+	bool m_fMaximized;
 	CEpgProgramList *m_pProgramList;
 	CProgramGuideServiceList m_ServiceList;
 	int m_LinesPerHour;
@@ -95,6 +96,13 @@ class CProgramGuide : public CBasicWindow {
 	int m_TimeBarWidth;
 	HFONT m_hfontTime;
 	POINT m_ScrollPos;
+	bool m_fDragScroll;
+	HCURSOR m_hDragCursor1;
+	HCURSOR m_hDragCursor2;
+	struct {
+		POINT StartCursorPos;
+		POINT StartScrollPos;
+	} m_DragInfo;
 	CChannelList m_ChannelList;
 	CTuningSpaceList m_TuningSpaceList;
 	int m_CurrentTuningSpace;
@@ -190,6 +198,10 @@ public:
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 	int GetWheelScrollLines() const { return m_WheelScrollLines; }
 	void SetWheelScrollLines(int Lines) { m_WheelScrollLines=Lines; }
+	bool GetMaximizeStatus() const { return m_fMaximized; }
+	bool SetMaximize(bool fMaximize);
+	bool GetDragScroll() const { return m_fDragScroll; }
+	bool SetDragScroll(bool fDragScroll);
 };
 
 

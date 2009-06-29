@@ -16,6 +16,7 @@ public:
 private:
 	static HINSTANCE m_hinst;
 	HWND m_hwndProgramInfo;
+	WNDPROC m_pOldProgramInfoProc;
 	HWND m_hwndProgramInfoPrev;
 	HWND m_hwndProgramInfoNext;
 	COLORREF m_crBackColor;
@@ -46,8 +47,8 @@ private:
 	bool m_fNextProgramInfo;
 	CEventHandler *m_pEventHandler;
 	static CInformation *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
-																LPARAM lParam);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static LRESULT CALLBACK ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void GetItemRect(int Item,RECT *pRect);
 	void UpdateItem(int Item);
 	void CalcFontHeight();

@@ -16,6 +16,7 @@ class CAppMain {
 	bool m_fFirstExecute;
 	bool m_fChannelScanning;
 	bool SetService(int Service);
+	bool GenerateRecordFileName(LPTSTR pszFileName,int MaxFileName) const;
 
 public:
 	bool Initialize();

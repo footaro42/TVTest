@@ -73,6 +73,10 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 			m_Font.lfItalic=Value;
 		m_pProgramGuide->SetFont(&m_Font);
 
+		bool fDragScroll;
+		if (Settings.Read(TEXT("DragScroll"),&fDragScroll))
+			m_pProgramGuide->SetDragScroll(fDragScroll);
+
 		Settings.Close();
 	}
 
@@ -119,6 +123,9 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Write(TEXT("FontSize"),(int)m_Font.lfHeight);
 		Settings.Write(TEXT("FontWeight"),(int)m_Font.lfWeight);
 		Settings.Write(TEXT("FontItalic"),(int)m_Font.lfItalic);
+
+		Settings.Write(TEXT("DragScroll"),m_pProgramGuide->GetDragScroll());
+
 		Settings.Close();
 	}
 

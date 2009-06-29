@@ -5,7 +5,7 @@
 #include "Exception.h"
 
 
-class CVideoRenderer : public CBonErrorHandler {
+class __declspec(novtable) CVideoRenderer : public CBonErrorHandler {
 protected:
 	IBaseFilter *m_pRenderer;
 	IGraphBuilder *m_pFilterGraph;
@@ -19,7 +19,8 @@ public:
 		RENDERER_VMR9,
 		RENDERER_VMR7RENDERLESS,
 		RENDERER_VMR9RENDERLESS,
-		RENDERER_EVR
+		RENDERER_EVR,
+		RENDERER_OVERLAYMIXER
 	};
 	CVideoRenderer();
 	virtual ~CVideoRenderer();

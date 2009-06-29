@@ -60,6 +60,10 @@ bool CInformation::Initialize(HINSTANCE hinst)
 
 
 CInformation::CInformation()
+	: m_hwndProgramInfo(NULL)
+	, m_pOldProgramInfoProc(NULL)
+	, m_hwndProgramInfoPrev(NULL)
+	, m_hwndProgramInfoNext(NULL)
 {
 	m_crBackColor=RGB(0,0,0);
 	m_crTextColor=RGB(255,255,255);
@@ -307,14 +311,15 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			CInformation *pThis=static_cast<CInformation*>(
 					reinterpret_cast<LPCREATESTRUCT>(lParam)->lpCreateParams);
 
-			SetWindowLongPtr(hwnd,GWLP_USERDATA,
-											reinterpret_cast<LONG_PTR>(pThis));
+			SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(pThis));
 			pThis->m_hwnd=hwnd;
 			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
 				pThis->m_pszProgramInfo!=NULL?pThis->m_pszProgramInfo:TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFO,m_hinst,NULL);
 			SetWindowFont(pThis->m_hwndProgramInfo,pThis->m_hFont,FALSE);
+			::SetProp(pThis->m_hwndProgramInfo,APP_NAME TEXT("This"),pThis);
+			pThis->m_pOldProgramInfoProc=SubclassWindow(pThis->m_hwndProgramInfo,ProgramInfoHookProc);
 			pThis->m_hwndProgramInfoPrev=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?0:WS_DISABLED)
 												| BS_PUSHBUTTON | BS_OWNERDRAW,
@@ -525,6 +530,7 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CInformation *pThis=GetThis(hwnd);
 
+			SubclassWindow(pThis->m_hwndProgramInfo,pThis->m_pOldProgramInfoProc);
 			DeleteObject(pThis->m_hbrBack);
 			DeleteObject(pThis->m_hbrProgramInfoBack);
 			pThis->OnDestroy();
@@ -532,6 +538,97 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		return 0;
 	}
 	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+}
+
+
+LRESULT CALLBACK CInformation::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	CInformation *pThis=static_cast<CInformation*>(::GetProp(hwnd,APP_NAME TEXT("This")));
+
+	if (pThis==NULL)
+		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+
+	switch (uMsg) {
+	case WM_RBUTTONDOWN:
+		if (pThis->m_pszProgramInfo!=NULL) {
+			HMENU hmenu=::CreatePopupMenu();
+			POINT pt;
+			int Command;
+
+			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("コピー(&C)"));
+			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("すべて選択(&A)"));
+
+			int URLCount=0;
+			LPCWSTR p=pThis->m_pszProgramInfo;
+
+			while (*p!='\0') {
+				if ((*p=='h' && ::StrCmpNW(p,L"http://",7)==0)
+						|| (*p==L'ｈ' && ::StrCmpNW(p,L"ｈｔｔｐ：／／",7)==0)) {
+					WCHAR szURL[256],szText[256];
+					int i=0;
+
+					if (*p=='h') {
+						while (*p>0x20 && *p<=0x7F && i<lengthof(szURL)-1)
+							szURL[i++]=*p++;
+					} else {
+						while (*p>0xFF00 && *p<=0xFF5E && i<lengthof(szURL)-1) {
+							i+=::LCMapString(LOCALE_USER_DEFAULT,LCMAP_HALFWIDTH,
+											 p,1,&szURL[i],lengthof(szURL)-1-i);
+							p++;
+						}
+					}
+					szURL[i]='\0';
+					if (URLCount==0)
+						::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
+					CopyToMenuText(szURL,szText,lengthof(szText));
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,URLCount+3,szText);
+					URLCount++;
+				} else {
+					p++;
+				}
+			}
+			::GetCursorPos(&pt);
+			Command=::TrackPopupMenu(hmenu,TPM_RETURNCMD,pt.x,pt.y,0,hwnd,NULL);
+			if (Command==1) {
+				DWORD Start,End;
+
+				::SendMessage(hwnd,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
+				if (Start==End)
+					::SendMessage(hwnd,EM_SETSEL,0,-1);
+				::SendMessage(hwnd,WM_COPY,0,0);
+				if (Start==End)
+					::SendMessage(hwnd,EM_SETSEL,Start,End);
+			} else if (Command==2) {
+				::SendMessage(hwnd,EM_SETSEL,0,-1);
+			} else if (Command>=3) {
+				TCHAR szText[256],szURL[256];
+				int j;
+
+				::GetMenuString(hmenu,Command,szText,lengthof(szText),MF_BYCOMMAND);
+				j=0;
+				for (int i=0;szText[i]!='\0';i++) {
+					if (szText[i]=='&')
+						i++;
+					szURL[j++]=szText[i];
+				}
+				szURL[j]='\0';
+#ifdef _DEBUG
+				if (::MessageBox(NULL,szURL,TEXT("Detected URL"),MB_OKCANCEL)==IDOK)
+#endif
+				::ShellExecute(NULL,TEXT("open"),szURL,NULL,NULL,SW_SHOWNORMAL);
+			}
+			::DestroyMenu(hmenu);
+		}
+		return 0;
+
+	case WM_RBUTTONUP:
+		return 0;
+
+	case WM_NCDESTROY:
+		::RemoveProp(hwnd,APP_NAME TEXT("This"));
+		break;
+	}
+	return CallWindowProc(pThis->m_pOldProgramInfoProc,hwnd,uMsg,wParam,lParam);
 }
 
 

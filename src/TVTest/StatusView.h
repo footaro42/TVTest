@@ -5,6 +5,7 @@
 #include "BasicWindow.h"
 #include "TsUtilClass.h"
 #include "PointerArray.h"
+#include "VirtualScreen.h"
 
 
 class CStatusView;
@@ -22,6 +23,7 @@ protected:
 	void DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const;
 	void DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX=0,int SrcY=0,
 				  int IconWidth=16,int IconHeight=16,bool fEnabled=true) const;
+
 public:
 	CStatusItem(int ID,int DefaultWidth);
 	virtual ~CStatusItem() {}
@@ -45,17 +47,19 @@ public:
 	friend CStatusView;
 };
 
-class CStatusViewEventHandler {
-protected:
-	CStatusView *m_pStatusView;
-public:
-	CStatusViewEventHandler();
-	virtual ~CStatusViewEventHandler();
-	virtual void OnMouseLeave() {}
-	friend CStatusView;
-};
-
 class CStatusView : public CBasicWindow, public CTracer {
+public:
+	class CEventHandler {
+	protected:
+		CStatusView *m_pStatusView;
+	public:
+		CEventHandler();
+		virtual ~CEventHandler();
+		virtual void OnMouseLeave() {}
+		friend CStatusView;
+	};
+
+private:
 	static HINSTANCE m_hinst;
 	HFONT m_hfontStatus;
 	int m_FontHeight;
@@ -73,10 +77,11 @@ class CStatusView : public CBasicWindow, public CTracer {
 	int m_HotItem;
 	bool m_fTrackMouseEvent;
 	bool m_fOnButtonDown;
-	CStatusViewEventHandler *m_pEventHandler;
+	CEventHandler *m_pEventHandler;
+	CVirtualScreen m_VirtualScreen;
 	static CStatusView *GetStatusView(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,
-												WPARAM wParam,LPARAM lParam);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CStatusView();
@@ -103,7 +108,7 @@ public:
 		COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText);
 	bool SetFont(HFONT hfont);
 	int GetCurItem() const;
-	bool SetEventHandler(CStatusViewEventHandler *pEventHandler);
+	bool SetEventHandler(CEventHandler *pEventHandler);
 	bool SetItemOrder(const int *pOrderList);
 	bool DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,bool fHighlight=false) const;
 	// CTracer

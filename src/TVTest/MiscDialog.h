@@ -2,16 +2,16 @@
 #define MISC_DIALOG_H
 
 
+#include "Dialog.h"
 #include "Aero.h"
 #include "DrawUtil.h"
 
 
-class CAboutDialog {
+class CAboutDialog : public CBasicDialog {
 	CAeroGlass m_AeroGlass;
 	CGdiPlus m_GdiPlus;
 	CGdiPlus::CImage m_LogoImage;
-	static CAboutDialog *GetThis(HWND hDlg);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
 	CAboutDialog();
 	~CAboutDialog();

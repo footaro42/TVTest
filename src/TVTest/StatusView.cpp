@@ -135,13 +135,13 @@ void CStatusItem::DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX,int Sr
 
 
 
-CStatusViewEventHandler::CStatusViewEventHandler()
+CStatusView::CEventHandler::CEventHandler()
 {
 	m_pStatusView=NULL;
 }
 
 
-CStatusViewEventHandler::~CStatusViewEventHandler()
+CStatusView::CEventHandler::~CEventHandler()
 {
 }
 
@@ -166,7 +166,7 @@ bool CStatusView::Initialize(HINSTANCE hinst)
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=STATUS_WINDOW_CLASS;
-		if (RegisterClass(&wc)==0)
+		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
@@ -176,10 +176,18 @@ bool CStatusView::Initialize(HINSTANCE hinst)
 
 CStatusView::CStatusView()
 {
+#if 0
 	LOGFONT lf;
-	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
-	m_hfontStatus=CreateFontIndirect(&lf);
+	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
+	m_hfontStatus=::CreateFontIndirect(&lf);
 	m_FontHeight=abs(lf.lfHeight);
+#else
+	NONCLIENTMETRICS ncm;
+	ncm.cbSize=sizeof(ncm);
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+	m_hfontStatus=::CreateFontIndirect(&ncm.lfStatusFont);
+	m_FontHeight=abs(ncm.lfStatusFont.lfHeight);
+#endif
 	m_crBackColor1=RGB(128,192,160);
 	m_crBackColor2=RGB(128,192,160);
 	m_crTextColor=RGB(64,96,80);
@@ -290,7 +298,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 	case WM_CREATE:
 		{
 			LPCREATESTRUCT pcs=reinterpret_cast<LPCREATESTRUCT>(lParam);
-			CStatusView *pStatus=dynamic_cast<CStatusView*>(OnCreate(hwnd,lParam));
+			CStatusView *pStatus=static_cast<CStatusView*>(OnCreate(hwnd,lParam));
 			/*
 			HDC hdc;
 			HFONT hfontOld;
@@ -321,53 +329,84 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 			PAINTSTRUCT ps;
+			RECT rc;
+			HDC hdc;
 			HFONT hfontOld;
 			COLORREF crBkColor1,crBkColor2,crOldTextColor,crOldBkColor;
 			int OldBkMode;
-			RECT rc;
 
 			::BeginPaint(hwnd,&ps);
-			hfontOld=SelectFont(ps.hdc,pStatus->m_hfontStatus);
-			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-			crOldTextColor=::GetTextColor(ps.hdc);
-			crOldBkColor=::GetBkColor(ps.hdc);
 			pStatus->GetClientRect(&rc);
-			if (pStatus->m_fSingleMode) {
-				DrawUtil::FillGradient(ps.hdc,&rc,pStatus->m_crBackColor1,pStatus->m_crBackColor2,
-													DrawUtil::DIRECTION_VERT);
-				::SetTextColor(ps.hdc,pStatus->m_crTextColor);
-				rc.left+=STATUS_MARGIN;
-				::DrawText(ps.hdc,pStatus->m_pszSingleText,-1,&rc,
-						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
-			} else {
+
+			if (!pStatus->m_fSingleMode) {
+				int MaxWidth=0;
 				for (int i=0;i<pStatus->m_NumItems;i++) {
-					if (!pStatus->m_ItemList[i]->GetVisible())
+					const CStatusItem *pItem=pStatus->m_ItemList[i];
+					if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
+						MaxWidth=pItem->GetWidth();
+				}
+				if (MaxWidth>pStatus->m_VirtualScreen.GetWidth())
+					pStatus->m_VirtualScreen.Create(MaxWidth+STATUS_MARGIN*2,rc.bottom-rc.top);
+				hdc=pStatus->m_VirtualScreen.GetDC();
+				if (hdc==NULL)
+					hdc=ps.hdc;
+			} else {
+				hdc=ps.hdc;
+			}
+
+			hfontOld=SelectFont(hdc,pStatus->m_hfontStatus);
+			OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+			crOldTextColor=::GetTextColor(hdc);
+			crOldBkColor=::GetBkColor(hdc);
+			if (pStatus->m_fSingleMode) {
+				DrawUtil::FillGradient(hdc,&rc,pStatus->m_crBackColor1,pStatus->m_crBackColor2,
+									   DrawUtil::DIRECTION_VERT);
+				::SetTextColor(hdc,pStatus->m_crTextColor);
+				rc.left+=STATUS_MARGIN;
+				::DrawText(hdc,pStatus->m_pszSingleText,-1,&rc,
+						   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+			} else {
+				RECT rcItem,rcDraw;
+
+				::SetRect(&rcItem,0,0,0,rc.bottom);
+				for (int i=0;i<pStatus->m_NumItems;i++) {
+					CStatusItem *pItem=pStatus->m_ItemList[i];
+					if (!pItem->GetVisible())
+						continue;
+					rcItem.left=rcItem.right;
+					rcItem.right=rcItem.left+pItem->GetWidth()+STATUS_MARGIN*2;
+					if (rcItem.right<=ps.rcPaint.left
+							|| rcItem.left>=ps.rcPaint.right)
 						continue;
 					bool fHighlight=i==pStatus->m_HotItem;
-					::SetTextColor(ps.hdc,fHighlight?
+					::SetTextColor(hdc,fHighlight?
 						pStatus->m_crHighlightTextColor:pStatus->m_crTextColor);
 					crBkColor1=fHighlight?pStatus->m_crHighlightBackColor1:pStatus->m_crBackColor1;
 					crBkColor2=fHighlight?pStatus->m_crHighlightBackColor2:pStatus->m_crBackColor2;
-					::SetBkColor(ps.hdc,MixColor(crBkColor1,crBkColor2,128));
-					rc.right=rc.left+pStatus->m_ItemList[i]->GetWidth()+
-															STATUS_MARGIN*2;
-					DrawUtil::FillGradient(ps.hdc,&rc,crBkColor1,crBkColor2,
-													DrawUtil::DIRECTION_VERT);
-					rc.left+=STATUS_MARGIN;
-					rc.right-=STATUS_MARGIN;
-					pStatus->m_ItemList[i]->Draw(ps.hdc,&rc);
-					rc.left=rc.right+STATUS_MARGIN;
+					::SetBkColor(hdc,MixColor(crBkColor1,crBkColor2,128));
+					rcDraw=rcItem;
+					if (hdc!=ps.hdc)
+						::OffsetRect(&rcDraw,-rcDraw.left,-rcDraw.top);
+					DrawUtil::FillGradient(hdc,&rcDraw,crBkColor1,crBkColor2,
+										   DrawUtil::DIRECTION_VERT);
+					rcDraw.left+=STATUS_MARGIN;
+					rcDraw.right-=STATUS_MARGIN;
+					pItem->Draw(hdc,&rcDraw);
+					if (hdc!=ps.hdc)
+						::BitBlt(ps.hdc,rcItem.left,rcItem.top,rcItem.right-rcItem.left,rcItem.bottom-rcItem.top,
+								 hdc,0,0,SRCCOPY);
 				}
-				rc.right=ps.rcPaint.right;
-				if (rc.right>rc.left)
-					DrawUtil::FillGradient(ps.hdc,&rc,
+				rcItem.left=rcItem.right;
+				rcItem.right=ps.rcPaint.right;
+				if (rcItem.right>rcItem.left)
+					DrawUtil::FillGradient(ps.hdc,&rcItem,
 							pStatus->m_crBackColor1,pStatus->m_crBackColor2,
 							DrawUtil::DIRECTION_VERT);
 			}
-			::SetBkColor(ps.hdc,crOldBkColor);
-			::SetTextColor(ps.hdc,crOldTextColor);
-			::SetBkMode(ps.hdc,OldBkMode);
-			::SelectObject(ps.hdc,hfontOld);
+			::SetBkColor(hdc,crOldBkColor);
+			::SetTextColor(hdc,crOldTextColor);
+			::SetBkMode(hdc,OldBkMode);
+			::SelectObject(hdc,hfontOld);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -497,10 +536,19 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		}
 		break;
 
+	case WM_DISPLAYCHANGE:
+		{
+			CStatusView *pStatus=GetStatusView(hwnd);
+
+			pStatus->m_VirtualScreen.Destroy();
+		}
+		return 0;
+
 	case WM_DESTROY:
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 
+			pStatus->m_VirtualScreen.Destroy();
 			pStatus->OnDestroy();
 		}
 		return 0;
@@ -646,7 +694,7 @@ int CStatusView::GetCurItem() const
 }
 
 
-bool CStatusView::SetEventHandler(CStatusViewEventHandler *pEventHandler)
+bool CStatusView::SetEventHandler(CEventHandler *pEventHandler)
 {
 	if (m_pEventHandler)
 		m_pEventHandler->m_pStatusView=NULL;

@@ -64,6 +64,10 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_wVideoEsPID(PID_INVALID)
 	, m_wAudioEsPID(PID_INVALID)
 
+#ifdef USE_VIDEO_RATE_KEEPER
+	, m_pVideoRateKeeper(NULL)
+#endif
+
 	, m_wVideoWindowX(0)
 	, m_wVideoWindowY(0)
 	, m_VideoInfo()
@@ -479,6 +483,17 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		}
 #endif
 
+#ifdef USE_VIDEO_RATE_KEEPER
+		CRateKeeperFilter::CreateInstance(NULL,&hr,&m_pVideoRateKeeper);
+		if (SUCCEEDED(hr)) {
+			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+						m_pVideoRateKeeper,L"Video Rate Keeper",&pOutputVideo);
+			if (FAILED(hr)) {
+				SAFE_RELEASE(m_pVideoRateKeeper);
+			}
+		}
+#endif
+
 		Trace(TEXT("‰f‘œƒŒƒ“ƒ_ƒ‰‚Ì\’z’†..."));
 
 		if (!CVideoRenderer::CreateRenderer(RendererType,&m_pVideoRenderer)) {
@@ -664,6 +679,10 @@ void CMediaViewer::CloseViewer(void)
 		delete [] m_pszMpeg2DecoderName;
 		m_pszMpeg2DecoderName=NULL;
 	}
+
+#ifdef USE_VIDEO_RATE_KEEPER
+	SAFE_RELEASE(m_pVideoRateKeeper);
+#endif
 
 	SAFE_RELEASE(m_pMpeg2DecFilter);
 
@@ -899,6 +918,13 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 		pThis->ResizeVideoWindow();
 	//}
 	pThis->SendDecoderEvent(EID_VIDEO_SIZE_CHANGED);
+
+#ifdef USE_VIDEO_RATE_KEEPER
+	if (pThis->m_pVideoRateKeeper)
+		pThis->m_pVideoRateKeeper->SetRate(pVideoInfo->m_FrameRate.Num,
+										   pVideoInfo->m_FrameRate.Denom,
+										   10000000LL / 5LL);
+#endif
 }
 
 const bool CMediaViewer::ResizeVideoWindow()
@@ -1538,6 +1564,14 @@ const bool CMediaViewer::ClearOSD()
 	if (m_pImageMixer!=NULL)
 		m_pImageMixer->Clear();
 	return true;
+}
+
+
+bool CMediaViewer::SetAudioOnly(bool bOnly)
+{
+	if (m_pMpeg2SeqClass==NULL)
+		return false;
+	return m_pMpeg2SeqClass->SetDeliverSamples(!bOnly);
 }
 
 

@@ -12,6 +12,10 @@
 #include "AacDecFilter.h"
 #include "Mpeg2SequenceFilter.h"
 //#include "PcmSelectFilter.h"
+//#define USE_VIDEO_RATE_KEEPER
+#ifdef USE_VIDEO_RATE_KEEPER
+#include "RateKeeperFilter.h"
+#endif
 #include "DirectShowUtil.h"
 
 // Append by HDUSTestÇÃíÜÇÃêl
@@ -121,6 +125,7 @@ public:
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
+	bool SetAudioOnly(bool bOnly);
 	bool CheckHangUp(DWORD TimeOut);
 
 protected:
@@ -163,6 +168,10 @@ protected:
 	// Elementary StreamÇÃPID
 	WORD m_wVideoEsPID;
 	WORD m_wAudioEsPID;
+
+#ifdef USE_VIDEO_RATE_KEEPER
+	CRateKeeperFilter *m_pVideoRateKeeper;
+#endif
 
 	static void CALLBACK OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	WORD m_wVideoWindowX;

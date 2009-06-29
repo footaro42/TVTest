@@ -9,6 +9,12 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+// 周波数(48kHz)
+#define FREQUENCY 48000
+
+// REFERENCE_TIMEの一秒
+#define REFERENCE_TIME_SECOND 10000000LL
+
 // 5.1chダウンミックス設定
 // 本来は固定値じゃ駄目みたいだけど…
 #define DMR_CENTER		0.5		// 50%
@@ -28,8 +34,6 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-
-
 CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	: CTransformFilter(AACDECFILTER_NAME, pUnk, CLSID_AACDECFILTER)
 	, m_AdtsParser(&m_AacDecoder)
@@ -38,7 +42,11 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_byCurChannelNum(0)
 	, m_StereoMode(STEREOMODE_STEREO)
 	, m_bDownMixSurround(true)
+	, m_pStreamCallback(NULL)
 	, m_bNormalize(false)
+	, m_bAdjustStreamTime(false)
+	, m_StartTime(0)
+	, m_SampleCount(0)
 {
 	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"), this);
 
@@ -57,10 +65,10 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 		*phr = E_OUTOFMEMORY;
 		return;
 	}
-	// WAVEFORMATEX構造体設定(48KHz 16bit ステレオ固定)
+	// WAVEFORMATEX構造体設定(48kHz 16bit ステレオ固定)
 	pWaveInfo->wFormatTag = WAVE_FORMAT_PCM;
 	pWaveInfo->nChannels = 2;
-	pWaveInfo->nSamplesPerSec = 48000;
+	pWaveInfo->nSamplesPerSec = FREQUENCY;
 	pWaveInfo->wBitsPerSample = 16;
 	pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
 	pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
@@ -73,7 +81,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	// WAVEFORMATEXTENSIBLE構造体設定(48KHz 16bit 5.1ch固定)
 	pWaveInfo->Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
 	pWaveInfo->Format.nChannels = 6;
-	pWaveInfo->Format.nSamplesPerSec = 48000;
+	pWaveInfo->Format.nSamplesPerSec = FREQUENCY;
 	pWaveInfo->Format.wBitsPerSample = 16;
 	pWaveInfo->Format.nBlockAlign = pWaveInfo->Format.wBitsPerSample * pWaveInfo->Format.nChannels / 8;
 	pWaveInfo->Format.nAvgBytesPerSec = pWaveInfo->Format.nSamplesPerSec * pWaveInfo->Format.nBlockAlign;
@@ -199,7 +207,11 @@ HRESULT CAacDecFilter::StartStreaming(void)
 	m_AdtsParser.Reset();
 
 	// AACデコーダオープン
-	if(!m_AacDecoder.OpenDecoder())return E_FAIL;
+	if(!m_AacDecoder.OpenDecoder())
+		return E_FAIL;
+
+	m_StartTime = 0;
+	m_SampleCount = 0;
 
 	return S_OK;
 }
@@ -217,6 +229,11 @@ HRESULT CAacDecFilter::StopStreaming(void)
 const BYTE CAacDecFilter::GetCurrentChannelNum()
 {
 	return m_byCurChannelNum;
+}
+
+inline LONGLONG llabs(LONGLONG val)
+{
+	return val<0?-val:val;
 }
 
 HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
@@ -239,6 +256,7 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	if (pOut->GetActualDataLength() == 0)
 		return S_FALSE;
 
+#if 0	// InitializeOutputSample() でやっているので不要
 	// タイムスタンプ設定
 	REFERENCE_TIME StartTime, EndTime;
 
@@ -250,6 +268,43 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	// メディアタイム設定
 	if (pIn->GetMediaTime(&StartTime, &EndTime) == S_OK) {
 		pOut->SetMediaTime(&StartTime, &EndTime);
+	}
+#endif
+
+	if (m_bAdjustStreamTime) {
+		// ストリーム時間を実際のサンプルの長さを元に設定する
+		bool bAdjusted = false;
+		REFERENCE_TIME StartTime, EndTime;
+
+		if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
+			REFERENCE_TIME CurTime;
+
+			if (m_StartTime != 0)
+				CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
+			if (m_StartTime == 0
+					|| llabs(StartTime - CurTime) <= REFERENCE_TIME_SECOND / 5LL) {
+				DWORD Samples = pOut->GetActualDataLength() / 2;
+				if (m_bDownMixSurround || m_byCurChannelNum == 2)
+					Samples /= 2;
+				else
+					Samples /= 6;
+
+				if (m_StartTime == 0)
+					m_StartTime = StartTime;
+				else
+					StartTime = CurTime;
+				m_SampleCount += Samples;
+				EndTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
+				pOut->SetTime(&StartTime, &EndTime);
+
+				bAdjusted = true;
+			}
+		}
+		if (!bAdjusted) {
+			TRACE(TEXT("Reset audio time\n"));
+			m_StartTime = 0;
+			m_SampleCount = 0;
+		}
 	}
 
 	return S_OK;
@@ -268,13 +323,15 @@ HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 	if (FAILED(hr))
 		return hr;
 	hr = Transform(pSample, pOutSample);
-	if (hr == S_OK) {
-		hr = m_pOutput->Deliver(pOutSample);
-	} else {
-		hr = S_OK;
+	if (SUCCEEDED(hr)) {
+		if (hr == S_OK) {
+			hr = m_pOutput->Deliver(pOutSample);
+		} else {
+			hr = S_OK;
+		}
+		m_bSampleSkipped = FALSE;
 	}
 	pOutSample->Release();
-	m_bSampleSkipped = FALSE;
 
 	return hr;
 }
@@ -312,11 +369,16 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 			pwfex->Samples.wValidBitsPerSample = 16;
 			pwfex->SubFormat = MEDIASUBTYPE_PCM;
 		}
-		pWaveInfo->nSamplesPerSec = 48000;
+		pWaveInfo->nSamplesPerSec = FREQUENCY;
 		pWaveInfo->wBitsPerSample = 16;
 		pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
 		pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
 
+		/*
+			この辺はかなり手抜き
+			本来であればIPin::QueryAccept/IPinConnection::DynamicQueryAcceptを
+			呼んでフォーマット変更できるか確認すべき
+		*/
 		if (FAILED(m_pOutSample->SetMediaType(&m_MediaType)))
 			return;
 		m_pOutput->SetMediaType(&m_MediaType);
@@ -330,6 +392,9 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 				::ZeroMemory(pOutBuff, dwOffset);
 			}
 		}
+
+		m_StartTime = 0;
+		m_SampleCount = 0;
 	}
 	m_byCurChannelNum = byChannel;
 
@@ -355,6 +420,9 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 
 	if (m_bNormalize)
 		Normalize((short*)pOutBuff, dwOutSize / sizeof(short));
+
+	if (m_pStreamCallback)
+		m_pStreamCallback((short*)pOutBuff, dwSamples, m_bDownMixSurround ? 2 : byChannel, m_pStreamCallbackParam);
 
 	// メディアサンプル有効サイズ設定
 	m_pOutSample->SetActualDataLength(dwOffset + dwOutSize);
@@ -575,4 +643,28 @@ void CAacDecFilter::Normalize(short *pBuffer,DWORD Samples)
 		Value = (*p * Level) / NORMALIZE_DENOM;
 		*p++ = Value > 32767 ? 32767 : Value < -32768 ? -32768 : Value;
 	}
+}
+
+
+bool CAacDecFilter::SetAdjustStreamTime(bool bAdjust)
+{
+	CAutoLock AutoLock(m_pLock);
+
+	m_bAdjustStreamTime = bAdjust;
+
+	m_StartTime = 0;
+	m_SampleCount = 0;
+
+	return true;
+}
+
+
+bool CAacDecFilter::SetStreamCallback(StreamCallback pCallback, void *pParam)
+{
+	CAutoLock AutoLock(m_pLock);
+
+	m_pStreamCallback = pCallback;
+	m_pStreamCallbackParam = pParam;
+
+	return true;
 }

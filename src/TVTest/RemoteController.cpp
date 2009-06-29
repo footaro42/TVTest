@@ -7,6 +7,12 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -301,7 +307,7 @@ bool CHDUSController::Initialize(HWND hwnd,LPCTSTR pszSettingFileName,const CCom
 {
 	m_pCommandList=pCommandList;
 	Load(pszSettingFileName);
-	if (m_fUseHDUSController) {
+	if (m_fUseHDUSController && m_pRemoteController==NULL) {
 		m_pRemoteController=new CRemoteController(hwnd);
 		m_pRemoteController->BeginHook(m_fActiveOnly);
 		m_hAccel=::LoadAccelerators(GetAppClass().GetResourceInstance(),
@@ -350,6 +356,12 @@ bool CHDUSController::OnActivateApp(HWND hwnd,WPARAM wParam,LPARAM lParam)
 	if (!wParam)
 		return true;
 	return m_pRemoteController->SetWindow(hwnd);
+}
+
+
+bool CHDUSController::IsEnabled() const
+{
+	return m_pRemoteController!=NULL;
 }
 
 

@@ -12,6 +12,7 @@ class CAudioOptions : public COptions {
 	bool m_fRestoreMute;
 	bool m_fUseAudioRendererClock;
 	bool m_fAdjustAudioStreamTime;
+	bool m_fMinTimerResolution;
 	static CAudioOptions *GetThis(HWND hDlg);
 
 public:
@@ -22,6 +23,7 @@ public:
 	bool GetRestoreMute() const { return m_fRestoreMute; }
 	bool GetUseAudioRendererClock() const { return m_fUseAudioRendererClock; }
 	bool GetAdjustAudioStreamTime() const { return m_fAdjustAudioStreamTime; }
+	bool GetMinTimerResolution() const { return m_fMinTimerResolution; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	// COptions
 	bool Read(CSettings *pSettings);

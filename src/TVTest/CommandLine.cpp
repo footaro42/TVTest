@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "TVTest.h"
 #include "CommandLine.h"
 
 
@@ -19,6 +20,7 @@ public:
 	bool GetText(LPWSTR pszText,int MaxLength) const;
 	bool GetValue(int *pValue) const;
 	bool GetValue(DWORD *pValue) const;
+	bool GetDurationValue(DWORD *pValue) const;
 };
 
 
@@ -94,6 +96,38 @@ bool CArgsParser::GetValue(DWORD *pValue) const
 	if (IsEnd())
 		return false;
 	*pValue=_wtoi(m_ppszArgList[m_CurPos]);
+	return true;
+}
+
+
+bool CArgsParser::GetDurationValue(DWORD *pValue) const
+{
+	if (IsEnd())
+		return false;
+
+	// ?h?m?s 形式の時間指定をパースする
+	// 単位の指定が無い場合は秒単位と解釈する
+	LPCWSTR p=m_ppszArgList[m_CurPos];
+	DWORD DurationSec=0,Duration=0;
+
+	while (*p!='\0') {
+		if (*p>='0' && *p<='9') {
+			Duration=Duration*10+(*p-'0');
+		} else {
+			if (*p=='h') {
+				DurationSec+=Duration*(60*60);
+			} else if (*p=='m') {
+				DurationSec+=Duration*60;
+			} else if (*p=='s') {
+				DurationSec+=Duration;
+			}
+			Duration=0;
+		}
+		p++;
+	}
+	DurationSec+=Duration;
+	*pValue=DurationSec;
+
 	return true;
 }
 
@@ -224,10 +258,10 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 				m_fRecordCurServiceOnly=true;
 			} else if (Args.IsOption(TEXT("recdelay"))) {
 				if (Args.Next())
-					Args.GetValue(&m_RecordDelay);
+					Args.GetDurationValue(&m_RecordDelay);
 			} else if (Args.IsOption(TEXT("recduration"))) {
 				if (Args.Next())
-					Args.GetValue(&m_RecordDuration);
+					Args.GetDurationValue(&m_RecordDuration);
 			} else if (Args.IsOption(TEXT("recexit"))) {
 				m_fExitOnRecordEnd=true;
 			} else if (Args.IsOption(TEXT("recfile"))) {

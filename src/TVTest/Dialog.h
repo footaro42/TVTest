@@ -24,6 +24,8 @@ public:
 	bool Destroy();
 	bool IsModeless() const { return m_fModeless; }
 	bool ProcessMessage(LPMSG pMsg);
+	bool IsVisible() const;
+	bool SetVisible(bool fVisible);
 };
 
 class CResizableDialog : public CBasicDialog {

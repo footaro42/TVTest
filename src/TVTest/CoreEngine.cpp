@@ -44,6 +44,7 @@ CCoreEngine::CCoreEngine()
 	m_StreamRemain=0;
 	m_pEpgDataInfo=NULL;
 	m_pEpgDataInfoNext=NULL;
+	m_TimerResolution=0;
 }
 
 
@@ -52,6 +53,8 @@ CCoreEngine::~CCoreEngine()
 	Close();
 	delete m_pEpgDataInfo;
 	delete m_pEpgDataInfoNext;
+	if (m_TimerResolution!=0)
+		::timeEndPeriod(m_TimerResolution);
 }
 
 
@@ -521,4 +524,26 @@ void *CCoreEngine::GetCurrentImage()
 	if (fPause)
 		m_DtvEngine.m_MediaViewer.Play();
 	return pDib;
+}
+
+
+bool CCoreEngine::SetMinTimerResolution(bool fMin)
+{
+	if ((m_TimerResolution!=0)!=fMin) {
+		if (fMin) {
+			TIMECAPS tc;
+
+			if (::timeGetDevCaps(&tc,sizeof(tc))!=TIMERR_NOERROR)
+				tc.wPeriodMin=1;
+			if (::timeBeginPeriod(tc.wPeriodMin)!=TIMERR_NOERROR)
+				return false;
+			m_TimerResolution=tc.wPeriodMin;
+			TRACE(TEXT("CCoreEngine::SetMinTimerResolution() Set %u\n"),m_TimerResolution);
+		} else {
+			::timeEndPeriod(m_TimerResolution);
+			m_TimerResolution=0;
+			TRACE(TEXT("CCoreEngine::SetMinTimerResolution() Reset\n"));
+		}
+	}
+	return true;
 }

@@ -77,6 +77,7 @@ public:
 	bool SetFileName(LPCTSTR pszFileName);
 	void SetDefault();
 	bool IsLoaded(int Type) const;
+	void SetLoaded();
 	static LPCTSTR GetColorName(int Type);
 	static COLORREF GetDefaultColor(int Type);
 private:

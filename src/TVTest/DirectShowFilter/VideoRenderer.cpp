@@ -129,8 +129,6 @@ bool CVideoRenderer_Default::Finalize()
 bool CVideoRenderer_Default::SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSourceRect,
 								const RECT *pDestRect,const RECT *pWindowRect)
 {
-	HRESULT hr;
-
 	if (m_pVideoWindow==NULL || m_pBasicVideo==NULL)
 		return false;
 	m_pBasicVideo->SetSourcePosition(pSourceRect->left,pSourceRect->top,
@@ -230,14 +228,14 @@ bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *
 		SetError(hr,TEXT("Video Rendererのインスタンスを作成できません。"));
 		return false;
 	}
-	hr=pFilterGraph->AddFilter(m_pRenderer,L"Video Renderer");
+	hr=DirectShowUtil::AppendFilterAndConnect(pFilterGraph,m_pRenderer,L"Video Renderer",&pInputPin);
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(hr,TEXT("Video Rendererをフィルタグラフに追加できません。"));
+		SetError(hr,TEXT("Video Rendererをフィルタグラフに接続できません。"));
 		return false;
 	}
 
-	/*
+#if 1
 	IFilterGraph2 *pFilterGraph2;
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
@@ -247,20 +245,21 @@ bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
-								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
+							   AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
 		SetError(TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
-	*/
-
+#else
 	hr=pFilterGraph->Render(pInputPin);
 	if (FAILED(hr)) {
+		SAFE_RELEASE(m_pRenderer);
 		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
+#endif
 
 	if (!InitializeBasicVideo(pFilterGraph,hwndRender,hwndMessageDrain)) {
 		SAFE_RELEASE(m_pRenderer);
@@ -275,6 +274,90 @@ bool CVideoRenderer_VideoRenderer::Finalize()
 {
 	CVideoRenderer_Default::Finalize();
 	CHECK_RELEASE(m_pRenderer);
+	return true;
+}
+
+
+
+
+class CVideoRenderer_OverlayMixer : public CVideoRenderer_Default {
+	ICaptureGraphBuilder2 *m_pCaptureGraphBuilder2;
+public:
+	CVideoRenderer_OverlayMixer();
+	~CVideoRenderer_OverlayMixer();
+	bool Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain);
+	bool Finalize();
+};
+
+
+CVideoRenderer_OverlayMixer::CVideoRenderer_OverlayMixer()
+	: m_pCaptureGraphBuilder2(NULL)
+{
+}
+
+
+CVideoRenderer_OverlayMixer::~CVideoRenderer_OverlayMixer()
+{
+	SAFE_RELEASE(m_pRenderer);
+	SAFE_RELEASE(m_pCaptureGraphBuilder2);
+}
+
+
+bool CVideoRenderer_OverlayMixer::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain)
+{
+	HRESULT hr;
+
+	hr=::CoCreateInstance(CLSID_OverlayMixer,NULL,CLSCTX_INPROC_SERVER,
+						  IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
+	if (FAILED(hr)) {
+		SetError(hr,TEXT("Overlay Mixerのインスタンスを作成できません。"));
+		return false;
+	}
+	hr=pFilterGraph->AddFilter(m_pRenderer,L"Overlay Mixer");
+	if (FAILED(hr)) {
+		SAFE_RELEASE(m_pRenderer);
+		SetError(hr,TEXT("OverlayMixerをフィルタグラフに追加できません。"));
+		return false;
+	}
+
+	hr=::CoCreateInstance(CLSID_CaptureGraphBuilder2,NULL,CLSCTX_INPROC_SERVER,
+						  IID_ICaptureGraphBuilder2,
+						  reinterpret_cast<LPVOID*>(&m_pCaptureGraphBuilder2));
+	if (FAILED(hr)) {
+		SAFE_RELEASE(m_pRenderer);
+		SetError(hr,TEXT("Capture Graph Builder2のインスタンスを作成できません。"));
+		return false;
+	}
+	hr=m_pCaptureGraphBuilder2->SetFiltergraph(pFilterGraph);
+	if (FAILED(hr)) {
+		SAFE_RELEASE(m_pRenderer);
+		SAFE_RELEASE(m_pCaptureGraphBuilder2);
+		SetError(hr,TEXT("Capture Graph Builder2にフィルタグラフを設定できません。"));
+		return false;
+	}
+	hr=m_pCaptureGraphBuilder2->RenderStream(NULL,NULL,pInputPin,m_pRenderer,NULL);
+	if (FAILED(hr)) {
+		SAFE_RELEASE(m_pRenderer);
+		SAFE_RELEASE(m_pCaptureGraphBuilder2);
+		SetError(hr,TEXT("映像レンダラを構築できません。"));
+		return false;
+	}
+
+	if (!InitializeBasicVideo(pFilterGraph,hwndRender,hwndMessageDrain)) {
+		SAFE_RELEASE(m_pRenderer);
+		SAFE_RELEASE(m_pCaptureGraphBuilder2);
+		return false;
+	}
+	ClearError();
+	return true;
+}
+
+
+bool CVideoRenderer_OverlayMixer::Finalize()
+{
+	CVideoRenderer_Default::Finalize();
+	CHECK_RELEASE(m_pRenderer);
+	SAFE_RELEASE(m_pCaptureGraphBuilder2);
 	return true;
 }
 
@@ -376,7 +459,7 @@ bool CVideoRenderer_VMR7::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
-								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
+							   AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
@@ -608,7 +691,7 @@ bool CVideoRenderer_VMR9::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
-								AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
+							   AM_RENDEREX_RENDERTOEXISTINGRENDERERS,NULL);
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
@@ -1311,6 +1394,9 @@ bool CVideoRenderer::CreateRenderer(RendererType Type,CVideoRenderer **ppRendere
 	case RENDERER_EVR:
 		*ppRenderer=new CVideoRenderer_EVR;
 		break;
+	case RENDERER_OVERLAYMIXER:
+		*ppRenderer=new CVideoRenderer_OverlayMixer;
+		break;
 	default:
 		return false;
 	}
@@ -1327,7 +1413,8 @@ LPCTSTR CVideoRenderer::EnumRendererName(int Index)
 		TEXT("VMR9"),
 		TEXT("VMR7 Renderless"),
 		TEXT("VMR9 Renderless"),
-		TEXT("EVR")
+		TEXT("EVR"),
+		TEXT("Overlay Mixer"),
 	};
 
 	if (Index<0 || Index>=sizeof(pszRendererName)/sizeof(LPCTSTR))

@@ -106,6 +106,8 @@ bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 	if (pszText==NULL)
 		return false;
 
+	CBlockLock Lock(&m_Lock);
+
 	if (m_NumLogItems==m_ListLength) {
 		CLogItem **ppNewList;
 		int ListLength;
@@ -151,6 +153,8 @@ bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 
 void CLogger::Clear()
 {
+	CBlockLock Lock(&m_Lock);
+
 	if (m_ppList!=NULL) {
 		int i;
 
@@ -166,12 +170,14 @@ void CLogger::Clear()
 
 bool CLogger::SetOutputToFile(bool fOutput)
 {
+	CBlockLock Lock(&m_Lock);
+
 	m_fOutputToFile=fOutput;
 	return true;
 }
 
 
-bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend) const
+bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend)
 {
 	HANDLE hFile;
 
@@ -182,6 +188,9 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend) const
 		return false;
 	if (fAppend)
 		::SetFilePointer(hFile,0,NULL,FILE_END);
+
+	m_Lock.Lock();
+
 	for (int i=0;i<m_NumLogItems;i++) {
 		char szText[1024];
 		DWORD Length,Write;
@@ -191,6 +200,9 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend) const
 		szText[Length++]='\n';
 		::WriteFile(hFile,szText,Length,&Write,NULL);
 	}
+
+	m_Lock.Unlock();
+
 	::CloseHandle(hFile);
 	return true;
 }
@@ -229,6 +241,7 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			lvc.pszText=TEXT("“à—e");
 			ListView_InsertColumn(hwndList,1,&lvc);
 			lvi.mask=LVIF_TEXT;
+			pThis->m_Lock.Lock();
 			for (i=0;i<pThis->m_NumLogItems;i++) {
 				SYSTEMTIME st;
 				int Length;
@@ -252,6 +265,7 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
 			if (pThis->m_NumLogItems>0)
 				ListView_EnsureVisible(hwndList,pThis->m_NumLogItems-1,FALSE);
+			pThis->m_Lock.Unlock();
 
 			DlgCheckBox_Check(hDlg,IDC_LOG_OUTPUTTOFILE,pThis->m_fOutputToFile);
 		}
@@ -296,6 +310,8 @@ BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				bool fOutput=DlgCheckBox_IsChecked(hDlg,IDC_LOG_OUTPUTTOFILE);
 
 				if (fOutput!=pThis->m_fOutputToFile) {
+					CBlockLock Lock(&pThis->m_Lock);
+
 					if (fOutput && pThis->m_NumLogItems>0) {
 						TCHAR szFileName[MAX_PATH];
 

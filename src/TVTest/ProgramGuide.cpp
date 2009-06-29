@@ -856,6 +856,7 @@ CProgramGuide::CProgramGuide()
 	m_WindowPosition.Top=0;
 	m_WindowPosition.Width=640;
 	m_WindowPosition.Height=480;
+	m_fMaximized=false;
 	m_pProgramList=NULL;
 	m_LinesPerHour=12;
 	m_LineMargin=1;
@@ -864,6 +865,7 @@ CProgramGuide::CProgramGuide()
 	m_TextLeftMargin=8;
 	m_ScrollPos.x=0;
 	m_ScrollPos.y=0;
+	m_fDragScroll=false;
 	m_CurrentTuningSpace=-1;
 	m_szDriverFileName[0]='\0';
 	m_pDriverManager=NULL;
@@ -1204,6 +1206,8 @@ void CProgramGuide::SetTitleBar()
 
 bool CProgramGuide::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
+	if (m_fMaximized)
+		Style|=WS_MAXIMIZE;
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
 							 PROGRAM_GUIDE_WINDOW_CLASS,TITLE_TEXT,m_hinst);
 }
@@ -1398,6 +1402,31 @@ bool CProgramGuide::SetEventHandler(CProgramGuideEventHandler *pEventHandler)
 }
 
 
+bool CProgramGuide::SetMaximize(bool fMaximize)
+{
+	m_fMaximized=fMaximize;
+	if (m_hwnd!=NULL)
+		::ShowWindow(m_hwnd,fMaximize?SW_SHOWMAXIMIZED:SW_RESTORE);
+	return true;
+}
+
+
+bool CProgramGuide::SetDragScroll(bool fDragScroll)
+{
+	if (m_fDragScroll!=fDragScroll) {
+		m_fDragScroll=fDragScroll;
+		if (m_hwnd!=NULL) {
+			POINT pt;
+
+			::GetCursorPos(&pt);
+			SendMessage(WM_SETCURSOR,(WPARAM)m_hwnd,
+						MAKELPARAM(SendMessage(WM_NCHITTEST,0,MAKELPARAM(pt.x,pt.y)),WM_MOUSEMOVE));
+		}
+	}
+	return true;
+}
+
+
 bool CProgramGuide::HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex)
 {
 	POINT pt;
@@ -1453,8 +1482,8 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			//CProgramGuide *pThis=dynamic_cast<CProgramGuide*>(OnCreate(hwnd,lParam));
-			OnCreate(hwnd,lParam);
+			CProgramGuide *pThis=static_cast<CProgramGuide*>(OnCreate(hwnd,lParam));
+
 			::SendMessage(hwnd,WM_SETICON,ICON_BIG,(LPARAM)::LoadIcon(m_hinst,MAKEINTRESOURCE(IDI_PROGRAMGUIDE)));
 			::SendMessage(hwnd,WM_SETICON,ICON_SMALL,
 				(LPARAM)::LoadImage(m_hinst,MAKEINTRESOURCE(IDI_PROGRAMGUIDE),
@@ -1462,6 +1491,9 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 									::GetSystemMetrics(SM_CXSMICON),
 									::GetSystemMetrics(SM_CYSMICON),
 									LR_DEFAULTCOLOR));
+
+			pThis->m_hDragCursor1=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB1));
+			pThis->m_hDragCursor2=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB2));
 		}
 		return 0;
 
@@ -1559,10 +1591,9 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			YPage=(rc.bottom-rc.top)/(pThis->m_FontHeight+pThis->m_LineMargin);
 			if (Pos.y>max(TotalLines-YPage,0))
 				Pos.y=max(TotalLines-YPage,0);
+			pThis->SetScrollBar();
 			if (Pos.x!=pThis->m_ScrollPos.x || Pos.y!=pThis->m_ScrollPos.y)
 				pThis->Scroll(Pos.x-pThis->m_ScrollPos.x,Pos.y-pThis->m_ScrollPos.y);
-			else
-				pThis->SetScrollBar();
 		}
 		return 0;
 
@@ -1666,7 +1697,21 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 										pThis->m_szDriverFileName,
 										pServiceInfo->GetServiceInfoData());
 				}
+			} else if (pThis->m_fDragScroll) {
+				pThis->m_DragInfo.StartCursorPos=pt;
+				pThis->m_DragInfo.StartScrollPos=pThis->m_ScrollPos;
+				::SetCursor(pThis->m_hDragCursor2);
+				::SetCapture(hwnd);
 			}
+		}
+		return 0;
+
+	case WM_LBUTTONUP:
+		if (::GetCapture()==hwnd) {
+			CProgramGuide *pThis=GetThis(hwnd);
+
+			::ReleaseCapture();
+			::SetCursor(pThis->m_hDragCursor1);
 		}
 		return 0;
 
@@ -1754,6 +1799,8 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				MF_BYCOMMAND | (pThis->m_fUpdating?MFS_GRAYED:MFS_ENABLED));
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_ENDUPDATE,
 				MF_BYCOMMAND | (pThis->m_fUpdating?MFS_ENABLED:MFS_GRAYED));
+			::CheckMenuItem(hmenu,CM_PROGRAMGUIDE_DRAGSCROLL,
+				MF_BYCOMMAND | (pThis->m_fDragScroll?MFS_CHECKED:MFS_UNCHECKED));
 			::EnableMenuItem(hmenu,CM_PROGRAMGUIDE_IEPGASSOCIATE,
 				MF_BYCOMMAND | (pThis->m_CurItem.fValid?MFS_ENABLED:MFS_GRAYED));
 			if (pThis->m_ToolList.NumTools()>0) {
@@ -1775,6 +1822,19 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return 0;
 
+	case WM_MOUSEMOVE:
+		if (::GetCapture()==hwnd) {
+			CProgramGuide *pThis=GetThis(hwnd);
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+			int XScroll,YScroll;
+
+			XScroll=(pThis->m_DragInfo.StartScrollPos.x+(pThis->m_DragInfo.StartCursorPos.x-x))-pThis->m_ScrollPos.x;
+			YScroll=(pThis->m_DragInfo.StartScrollPos.y+(pThis->m_DragInfo.StartCursorPos.y-y)/(pThis->m_FontHeight+pThis->m_LineMargin))-pThis->m_ScrollPos.y;
+			if (XScroll!=0 || YScroll!=0)
+				pThis->Scroll(XScroll,YScroll);
+		}
+		return 0;
+
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
 			CProgramGuide *pThis=GetThis(hwnd);
@@ -1790,6 +1850,9 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 					&& pt.x-pThis->m_TimeBarWidth<pThis->m_ServiceList.NumServices()*
 						(pThis->m_ItemWidth+pThis->m_ItemMargin*2)-pThis->m_ScrollPos.x) {
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
+				return TRUE;
+			} else if (pThis->m_fDragScroll) {
+				::SetCursor(pThis->m_hDragCursor1);
 				return TRUE;
 			}
 		}
@@ -1911,6 +1974,14 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			}
 			return 0;
 
+		case CM_PROGRAMGUIDE_DRAGSCROLL:
+			{
+				CProgramGuide *pThis=GetThis(hwnd);
+
+				pThis->SetDragScroll(!pThis->m_fDragScroll);
+			}
+			return 0;
+
 		default:
 			if (LOWORD(wParam)>=CM_PROGRAMGUIDE_TUNINGSPACE_ALL
 					&& LOWORD(wParam)<=CM_PROGRAMGUIDE_TUNINGSPACE_LAST) {
@@ -1975,6 +2046,15 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CProgramGuide *pThis=GetThis(hwnd);
 
+			pThis->m_fMaximized=pThis->GetMaximize();
+			if (pThis->m_hDragCursor1!=NULL) {
+				::DestroyCursor(pThis->m_hDragCursor1);
+				pThis->m_hDragCursor1=NULL;
+			}
+			if (pThis->m_hDragCursor2!=NULL) {
+				::DestroyCursor(pThis->m_hDragCursor2);
+				pThis->m_hDragCursor2=NULL;
+			}
 			pThis->OnDestroy();
 		}
 		return 0;
@@ -2110,7 +2190,7 @@ bool CProgramGuideTool::Execute(const CProgramGuideServiceInfo *pServiceInfo,
 		}
 	}
 	*q='\0';
-#ifdef DEBUG
+#ifdef _DEBUG
 	if (::MessageBox(NULL,szCommand,szFileName,MB_OKCANCEL)!=IDOK)
 		return false;
 #endif

@@ -3,12 +3,12 @@
 
 
 #include "DtvEngine.h"
-#include "Options.h"
 
 
 class CRecordTime {
 	FILETIME m_Time;
 	DWORD m_TickTime;
+
 public:
 	CRecordTime();
 	bool SetCurrentTime();
@@ -25,12 +25,14 @@ public:
 		STATE_RECORDING,
 		STATE_PAUSE
 	};
+
 protected:
 	State m_State;
 	CDtvEngine *m_pDtvEngine;
 	CRecordTime m_StartTime;
 	DWORD m_PauseStartTime;
 	DWORD m_TotalPauseTime;
+
 public:
 	CRecordTask();
 	virtual ~CRecordTask();
@@ -64,11 +66,21 @@ public:
 			ULONGLONG Duration;
 		} Time;
 	};
+	/*
 	enum FileExistsOperation {
 		EXISTS_OVERWRITE,
 		EXISTS_CONFIRM,
 		EXISTS_SEQUENCIALNUMBER
 	};
+	*/
+
+	struct EventInfo {
+		LPCTSTR pszChannelName;
+		int ChannelNo;
+		LPCTSTR pszServiceName;
+		LPCTSTR pszEventName;
+	};
+
 private:
 	bool m_fRecording;
 	bool m_fReserved;
@@ -78,27 +90,33 @@ private:
 	TimeSpecInfo m_StopTimeSpec;
 	CRecordTask m_RecordTask;
 	CDtvEngine *m_pDtvEngine;
-	FileExistsOperation m_ExistsOperation;
+	//FileExistsOperation m_ExistsOperation;
 	bool m_fCurServiceOnly;
 	DWORD m_SaveStream;
 	bool m_fDescrambleCurServiceOnly;
 	SIZE_T m_BufferSize;
 	static CRecordManager *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	static BOOL CALLBACK StopTimeDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	//static BOOL CALLBACK StopTimeDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	int FormatFileName(LPTSTR pszFileName,int MaxFileName,const EventInfo *pEventInfo,LPCTSTR pszFormat) const;
+	static int MapFileNameCopy(LPWSTR pszFileName,int MaxFileName,LPCWSTR pszText);
+
 public:
 	CRecordManager();
 	~CRecordManager();
 	bool SetFileName(LPCTSTR pszFileName);
 	LPCTSTR GetFileName() const { return m_pszFileName; }
+	/*
 	bool SetFileExistsOperation(FileExistsOperation Operation);
 	FileExistsOperation GetFileExistsOperation() const { return m_ExistsOperation; }
+	*/
 	bool GetStartTime(FILETIME *pTime) const;
 	bool GetReserveTime(FILETIME *pTime) const;
 	bool SetStartTimeSpec(const TimeSpecInfo *pInfo);
 	bool GetStartTimeSpec(TimeSpecInfo *pInfo) const;
 	bool SetStopTimeSpec(const TimeSpecInfo *pInfo);
 	bool GetStopTimeSpec(TimeSpecInfo *pInfo) const;
+	bool IsStopTimeSpecified() const;
 	bool StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName);
 	void StopRecord();
 	bool PauseRecord();
@@ -108,12 +126,14 @@ public:
 	bool CancelReserve();
 	DWORD GetRecordTime() const;
 	DWORD GetPauseTime() const;
+	LONGLONG GetRemainTime() const;
 	const CRecordTask *GetRecordTask() const { return &m_RecordTask; }
 	bool QueryStart(int Offset=0) const;
 	bool QueryStop(int Offset=0) const;
 	bool RecordDialog(HWND hwndOwner);
-	bool ChangeStopTimeDialog(HWND hwndOwner);
-	bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
+	//bool ChangeStopTimeDialog(HWND hwndOwner);
+	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,const EventInfo *pEventInfo,LPCTSTR pszFormat=NULL) const;
+	//bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
 	bool SetCurServiceOnly(bool fOnly);
 	bool GetCurServiceOnly() const { return m_fCurServiceOnly; }
 	bool SetSaveStream(DWORD Stream);
@@ -121,35 +141,7 @@ public:
 	bool SetDescrambleCurServiceOnly(bool fOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
 	bool SetBufferSize(SIZE_T BufferSize);
-};
-
-class CRecordOptions : public COptions {
-	TCHAR m_szSaveFolder[MAX_PATH];
-	TCHAR m_szFileName[MAX_PATH];
-	bool m_fAddTime;
-	bool m_fConfirmChannelChange;
-	bool m_fConfirmExit;
-	bool m_fCurServiceOnly;
-	bool m_fSaveSubtitle;
-	bool m_fSaveDataCarrousel;
-	bool m_fDescrambleCurServiceOnly;
-	unsigned int m_BufferSize;
-	static CRecordOptions *GetThis(HWND hDlg);
-public:
-	CRecordOptions();
-	~CRecordOptions();
-	// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
-	// CRecordOptions
-	bool SetSaveFolder(LPCTSTR pszFolder);
-	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,SYSTEMTIME *pTime=NULL,LPCTSTR *ppszErrorMessage=NULL) const;
-	bool GetFilePath(LPTSTR pszFileName,int MaxLength) const;
-	bool ConfirmChannelChange(HWND hwndOwner) const;
-	bool ConfirmServiceChange(HWND hwndOwner,const CRecordManager *pRecordManager) const;
-	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const;
-	bool ApplyOptions(CRecordManager *pManager);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static bool InsertFileNameParameter(HWND hDlg,int ID,const POINT *pMenuPos);
 };
 
 

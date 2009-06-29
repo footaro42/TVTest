@@ -142,6 +142,7 @@ void CPlugin::Free()
 		TVTest::FinalizeFunc pFinalize=
 			static_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
 		if (pFinalize!=NULL) {
+			// 別スレッドからFinalizeを呼ぶと不正な処理が起こるプラグインがある
 			/*
 			HANDLE hThread=::CreateThread(NULL,0,FinalizeThread,pFinalize,0,NULL);
 
@@ -169,6 +170,7 @@ void CPlugin::Free()
 }
 
 
+/*
 DWORD WINAPI CPlugin::FinalizeThread(LPVOID lpParameter)
 {
 	TVTest::FinalizeFunc pFinalize=static_cast<TVTest::FinalizeFunc>(lpParameter);
@@ -176,6 +178,7 @@ DWORD WINAPI CPlugin::FinalizeThread(LPVOID lpParameter)
 	pFinalize();
 	return 0;
 }
+*/
 
 
 bool CPlugin::Enable(bool fEnable)

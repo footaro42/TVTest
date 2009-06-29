@@ -152,6 +152,15 @@ LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2)
 }
 
 
+void GetLocalTimeAsFileTime(FILETIME *pTime)
+{
+	SYSTEMTIME st;
+
+	GetLocalTime(&st);
+	SystemTimeToFileTime(&st,pTime);
+}
+
+
 int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2)
 {
 	/*
@@ -190,6 +199,16 @@ bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset)
 }
 
 
+LONGLONG DiffSystemTime(const SYSTEMTIME *pStartTime,const SYSTEMTIME *pEndTime)
+{
+	FILETIME ftStart,ftEnd;
+
+	::SystemTimeToFileTime(pStartTime,&ftStart);
+	::SystemTimeToFileTime(pEndTime,&ftEnd);
+	return (ftEnd-ftStart)/FILETIME_MILLISECOND;
+}
+
+
 int CalcDayOfWeek(int Year,int Month,int Day)
 {
 	if (Month<=2) {
@@ -202,6 +221,8 @@ int CalcDayOfWeek(int Year,int Month,int Day)
 
 LPCTSTR GetDayOfWeekText(int DayOfWeek)
 {
+	if (DayOfWeek<0 || DayOfWeek>6)
+		return TEXT("ÅH");
 	return TEXT("ì˙\0åé\0âŒ\0êÖ\0ñÿ\0ã‡\0ìy")+DayOfWeek*((3-sizeof(TCHAR))+1);
 }
 

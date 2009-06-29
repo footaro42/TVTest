@@ -8,6 +8,12 @@
 #include "DrawUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -89,10 +95,12 @@ CColorScheme::~CColorScheme()
 
 CColorScheme &CColorScheme::operator=(const CColorScheme &ColorScheme)
 {
-	::CopyMemory(m_ColorList,ColorScheme.m_ColorList,sizeof(m_ColorList));
-	ReplaceString(&m_pszName,ColorScheme.m_pszName);
-	ReplaceString(&m_pszFileName,ColorScheme.m_pszFileName);
-	::CopyMemory(m_LoadedFlags,ColorScheme.m_LoadedFlags,sizeof(m_LoadedFlags));
+	if (&ColorScheme!=this) {
+		::CopyMemory(m_ColorList,ColorScheme.m_ColorList,sizeof(m_ColorList));
+		ReplaceString(&m_pszName,ColorScheme.m_pszName);
+		ReplaceString(&m_pszFileName,ColorScheme.m_pszFileName);
+		::CopyMemory(m_LoadedFlags,ColorScheme.m_LoadedFlags,sizeof(m_LoadedFlags));
+	}
 	return *this;
 }
 
@@ -201,6 +209,12 @@ bool CColorScheme::IsLoaded(int Type) const
 	if (Type<0 || Type>=NUM_COLORS)
 		return false;
 	return (m_LoadedFlags[Type/32]&(1<<(Type%32)))!=0;
+}
+
+
+void CColorScheme::SetLoaded()
+{
+	::FillMemory(m_LoadedFlags,sizeof(m_LoadedFlags),0xFF);
 }
 
 
@@ -408,6 +422,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			ReleaseDC(GetDlgItem(hDlg,IDC_COLORSCHEME_LIST),hdc);
 			SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_SETHORIZONTALEXTENT,
 				SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETITEMHEIGHT,0,0)*2+MaxWidth+2,0);
+			ExtendListBox(GetDlgItem(hDlg,IDC_COLORSCHEME_LIST));
 
 			pThis->m_fPreview=false;
 
@@ -641,7 +656,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				CColorSchemeOptions *pThis=GetThis(hDlg);
 				TCHAR szName[MAX_PATH],szFileName[MAX_PATH];
 				int Index;
-				CColorScheme *pColorScheme;
+				CColorScheme *pColorScheme=NULL;
 				LPCTSTR pszFileName;
 
 				GetDlgItemText(hDlg,IDC_COLORSCHEME_PRESET,szName,lengthof(szName));
@@ -650,12 +665,13 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					break;
 				}
 				pszFileName=szName;
-				Index=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_FINDSTRINGEXACT,-1,(LPARAM)szName);
+				Index=DlgComboBox_FindStringExact(hDlg,IDC_COLORSCHEME_PRESET,-1,szName);
 				if (Index>=0) {
 					pColorScheme=pThis->m_PresetList.GetColorScheme(
-						SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETITEMDATA,Index,0));
-					if (pColorScheme!=NULL)
-						pszFileName=PathFindFileName(pColorScheme->GetFileName());
+						DlgComboBox_GetItemData(hDlg,IDC_COLORSCHEME_PRESET,Index));
+					if (pColorScheme==NULL)
+						break;
+					pszFileName=PathFindFileName(pColorScheme->GetFileName());
 				}
 				GetThemesDirectory(szFileName,lengthof(szFileName),true);
 				if (lstrlen(szFileName)+1+lstrlen(pszFileName)+lstrlen(m_pszExtension)>=MAX_PATH) {
@@ -665,23 +681,25 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				PathAppend(szFileName,pszFileName);
 				if (pszFileName==szName)
 					lstrcat(szFileName,m_pszExtension);
-				pColorScheme=new CColorScheme;
-				pColorScheme->SetName(szName);
+				if (pColorScheme==NULL) {
+					pColorScheme=new CColorScheme;
+					pColorScheme->SetName(szName);
+				}
 				GetListColor(hDlg,pColorScheme);
 				if (!pColorScheme->Save(szFileName)) {
-					delete pColorScheme;
+					if (Index<0)
+						delete pColorScheme;
 					MessageBox(hDlg,TEXT("保存ができません。"),NULL,MB_OK | MB_ICONEXCLAMATION);
 					break;
 				}
 				if (Index<0) {
 					pColorScheme->SetFileName(szFileName);
+					pColorScheme->SetLoaded();
 					pThis->m_PresetList.Add(pColorScheme);
-					Index=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_ADDSTRING,0,(LPARAM)szName);
-					SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_SETITEMDATA,Index,pThis->m_PresetList.NumColorSchemes()-1);
-				} else {
-					pThis->m_PresetList.SetColorScheme(Index,pColorScheme);
-					delete pColorScheme;
+					Index=DlgComboBox_AddString(hDlg,IDC_COLORSCHEME_PRESET,szName);
+					DlgComboBox_SetItemData(hDlg,IDC_COLORSCHEME_PRESET,Index,pThis->m_PresetList.NumColorSchemes()-1);
 				}
+				MessageBox(hDlg,TEXT("配色を保存しました。"),NULL,MB_OK | MB_ICONINFORMATION);
 			}
 			return TRUE;
 
@@ -721,7 +739,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			case LBN_SELCHANGE:
 				{
 					CColorSchemeOptions *pThis=GetThis(hDlg);
-					int SelCount=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETSELCOUNT,0,0);
+					int SelCount=DlgListBox_GetSelCount(hDlg,IDC_COLORSCHEME_LIST);
 					int i;
 					COLORREF SelColor=CLR_INVALID,Color;
 
@@ -731,15 +749,15 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					}
 					if (SelCount==1) {
 						for (i=0;i<CColorScheme::NUM_COLORS;i++) {
-							if ((LONG)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETSEL,i,0)>0) {
-								SelColor=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETITEMDATA,i,0);
+							if (DlgListBox_GetSel(hDlg,IDC_COLORSCHEME_LIST,i)) {
+								SelColor=DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i);
 								break;
 							}
 						}
 					} else {
 						for (i=0;i<CColorScheme::NUM_COLORS;i++) {
-							if ((LONG)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETSEL,i,0)>0) {
-								Color=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETITEMDATA,i,0);
+							if (DlgListBox_GetSel(hDlg,IDC_COLORSCHEME_LIST,i)) {
+								Color=DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i);
 								if (SelColor==CLR_INVALID)
 									SelColor=Color;
 								else if (Color!=SelColor)
@@ -756,6 +774,21 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 									pThis->m_ColorPalette.FindColor(SelColor));
 				}
 				break;
+
+			case LBN_EX_RBUTTONDOWN:
+				{
+					CColorSchemeOptions *pThis=GetThis(hDlg);
+					HMENU hmenu=::CreatePopupMenu();
+					POINT pt;
+
+					::AppendMenu(hmenu,MFT_STRING |
+								 (pThis->m_ColorPalette.GetSel()>=0?MFS_ENABLED:MFS_GRAYED),
+								 IDC_COLORSCHEME_SELECTSAMECOLOR,TEXT("同じ色を選択"));
+					::GetCursorPos(&pt);
+					::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON,pt.x,pt.y,0,hDlg,NULL);
+					::DestroyMenu(hmenu);
+				}
+				break;
 			}
 			return TRUE;
 
@@ -769,8 +802,8 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					int i;
 
 					for (i=0;i<CColorScheme::NUM_COLORS;i++) {
-						if ((LONG)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETSEL,i,0)>0)
-							SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_SETITEMDATA,i,Color);
+						if (DlgListBox_GetSel(hDlg,IDC_COLORSCHEME_LIST,i))
+							DlgListBox_SetItemData(hDlg,IDC_COLORSCHEME_LIST,i,Color);
 					}
 					InvalidateDlgItem(hDlg,IDC_COLORSCHEME_LIST);
 				}
@@ -786,8 +819,8 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 						int i;
 
 						for (i=0;i<CColorScheme::NUM_COLORS;i++) {
-							if ((LONG)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETSEL,i,0)>0)
-								SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_SETITEMDATA,i,Color);
+							if (DlgListBox_GetSel(hDlg,IDC_COLORSCHEME_LIST,i))
+								DlgListBox_SetItemData(hDlg,IDC_COLORSCHEME_LIST,i,Color);
 						}
 						InvalidateDlgItem(hDlg,IDC_COLORSCHEME_LIST);
 					}
@@ -804,6 +837,27 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				GetListColor(hDlg,&ColorScheme);
 				if (pThis->Apply(&ColorScheme))
 					pThis->m_fPreview=true;
+			}
+			return TRUE;
+
+		case IDC_COLORSCHEME_SELECTSAMECOLOR:
+			{
+				CColorSchemeOptions *pThis=GetThis(hDlg);
+				int Sel=pThis->m_ColorPalette.GetSel();
+
+				if (Sel>=0) {
+					COLORREF Color=pThis->m_ColorPalette.GetColor(Sel);
+					int TopIndex=DlgListBox_GetTopIndex(hDlg,IDC_COLORSCHEME_LIST);
+
+					::SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,WM_SETREDRAW,FALSE,0);
+					for (int i=0;i<CColorScheme::NUM_COLORS;i++) {
+						DlgListBox_SetSel(hDlg,IDC_COLORSCHEME_LIST,i,
+							(COLORREF)DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i)==Color);
+					}
+					DlgListBox_SetTopIndex(hDlg,IDC_COLORSCHEME_LIST,TopIndex);
+					::SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,WM_SETREDRAW,TRUE,0);
+					::InvalidateDlgItem(hDlg,IDC_COLORSCHEME_LIST);
+				}
 			}
 			return TRUE;
 		}

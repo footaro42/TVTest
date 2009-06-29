@@ -9,6 +9,7 @@
 class CLogItem {
 	FILETIME m_Time;
 	LPTSTR m_pszText;
+
 public:
 	CLogItem(LPCTSTR pszText);
 	~CLogItem();
@@ -22,7 +23,9 @@ class CLogger : public COptions, public CTracer {
 	CLogItem **m_ppList;
 	int m_ListLength;
 	bool m_fOutputToFile;
+	CCriticalLock m_Lock;
 	static CLogger *GetThis(HWND hDlg);
+
 public:
 	CLogger();
 	~CLogger();
@@ -33,9 +36,10 @@ public:
 	void Clear();
 	bool SetOutputToFile(bool fOutput);
 	bool GetOutputToFile() const { return m_fOutputToFile; }
-	bool SaveToFile(LPCTSTR pszFileName,bool fAppend) const;
+	bool SaveToFile(LPCTSTR pszFileName,bool fAppend);
 	void GetDefaultLogFileName(LPTSTR pszFileName) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 protected:
 	// CTracer
 	void OnTrace(LPCTSTR pszOutput);

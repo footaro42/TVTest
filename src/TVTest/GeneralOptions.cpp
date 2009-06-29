@@ -57,8 +57,8 @@ bool CGeneralOptions::Apply(DWORD Flags)
 	CCoreEngine *pCoreEngine=AppMain.GetCoreEngine();
 	CMainWindow *pMainWindow=AppMain.GetMainWindow();
 
+	/*
 	if ((Flags&(UPDATE_DECODER | UPDATE_RENDERER))!=0) {
-		/*
 		if (pCoreEngine->m_DtvEngine.m_MediaViewer.IsOpen()) {
 			CStatusView *pStatusView=pMainWindow->GetStatusView();
 
@@ -67,8 +67,8 @@ bool CGeneralOptions::Apply(DWORD Flags)
 			pCoreEngine->m_DtvEngine.SetTracer(NULL);
 			pStatusView->SetSingleText(NULL);
 		}
-		*/
 	}
+	*/
 
 	if ((Flags&UPDATE_CARDREADER)!=0) {
 		if (!pCoreEngine->SetCardReaderType(m_CardReaderType)) {

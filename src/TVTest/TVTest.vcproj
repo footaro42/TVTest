@@ -370,6 +370,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DebugHelper.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Dialog.cpp"
 				>
 			</File>
@@ -502,6 +506,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\RecordOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\RemoteController.cpp"
 				>
 			</File>
@@ -575,6 +583,10 @@
 			</File>
 			<File
 				RelativePath=".\ViewOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualScreen.cpp"
 				>
 			</File>
 			<File
@@ -657,6 +669,10 @@
 			</File>
 			<File
 				RelativePath=".\CoreEngine.h"
+				>
+			</File>
+			<File
+				RelativePath=".\DebugHelper.h"
 				>
 			</File>
 			<File
@@ -800,6 +816,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\RecordOptions.h"
+				>
+			</File>
+			<File
 				RelativePath=".\RemoteController.h"
 				>
 			</File>
@@ -861,6 +881,10 @@
 			</File>
 			<File
 				RelativePath=".\ViewOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\VirtualScreen.h"
 				>
 			</File>
 			<File
@@ -1188,6 +1212,14 @@
 					>
 				</File>
 				<File
+					RelativePath=".\DirectShowFilter\PassThruInPlaceFilter.h"
+					>
+				</File>
+				<File
+					RelativePath=".\DirectShowFilter\RateKeeperFilter.h"
+					>
+				</File>
+				<File
 					RelativePath=".\DirectShowFilter\VideoRenderer.h"
 					>
 				</File>
@@ -1229,6 +1261,14 @@
 				</File>
 				<File
 					RelativePath=".\DirectShowFilter\Mpeg2SequenceFilter.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\DirectShowFilter\PassThruInPlaceFilter.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\DirectShowFilter\RateKeeperFilter.cpp"
 					>
 				</File>
 				<File

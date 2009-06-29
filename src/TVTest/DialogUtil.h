@@ -27,8 +27,18 @@
 	SendDlgItemMessage(hwndDlg,ID,LB_GETCURSEL,0,0)
 #define DlgListBox_SetCurSel(hwndDlg,ID,Index) \
 	SendDlgItemMessage(hwndDlg,ID,LB_SETCURSEL,Index,0)
+#define DlgListBox_GetSel(hwndDlg,ID,Index) \
+	(SendDlgItemMessage(hwndDlg,ID,LB_GETSEL,Index,0)>0)
+#define DlgListBox_SetSel(hwndDlg,ID,Index,fSel) \
+	SendDlgItemMessage(hwndDlg,ID,LB_SETSEL,fSel,Index)
+#define DlgListBox_GetSelCount(hwndDlg,ID) \
+	SendDlgItemMessage(hwndDlg,ID,LB_GETSELCOUNT,0,0)
 #define DlgListBox_Clear(hwndDlg,ID) \
 	SendDlgItemMessage(hwndDlg,ID,LB_RESETCONTENT,0,0)
+#define DlgListBox_GetTopIndex(hwndDlg,ID) \
+	SendDlgItemMessage(hwndDlg,ID,LB_GETTOPINDEX,0,0)
+#define DlgListBox_SetTopIndex(hwndDlg,ID,Index) \
+	(SendDlgItemMessage(hwndDlg,ID,LB_SETTOPINDEX,Index,0)!=LB_ERR)
 
 #define DlgComboBox_LimitText(hwndDlg,ID,Limit) \
 	SendDlgItemMessage(hwndDlg,ID,CB_LIMITTEXT,Limit,0)
@@ -69,6 +79,7 @@ void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable);
 void InvalidateDlgItem(HWND hDlg,int ID,bool fErase=true);
 void ShowDlgItem(HWND hDlg,int ID,bool fShow);
 int GetDlgItemTextLength(HWND hDlg,int ID);
+void SetDlgItemFocus(HWND hDlg,int ID);
 int GetCheckedRadioButton(HWND hDlg,int FirstID,int LastID);
 bool AdjustDialogPos(HWND hwndOwner,HWND hDlg);
 void SyncTrackBarWithEdit(HWND hDlg,int EditID,int TrackbarID);
@@ -82,6 +93,7 @@ bool EnableDlgItemSyncCheckBox(HWND hDlg,int ID,int CheckBoxID);
 bool EnableDlgItemsSyncCheckBox(HWND hDlg,int FirstID,int LastID,int CheckBoxID);
 BOOL SetDlgItemInt64(HWND hDlg,int ID,ULONGLONG Value,BOOL fSigned);
 ULONGLONG GetDlgItemInt64(HWND hDlg,int ID,BOOL *pfTranslated,BOOL fSigned);
+bool UpdateDlgItemInt(HWND hDlg,int ID,int Value);
 HMENU CreatePopupMenuFromControls(HWND hDlg,const int *pIDList,int IDListLength);
 bool PopupMenuFromControls(HWND hDlg,const int *pIDList,int IDListLength,
 						   unsigned int Flags=0,const POINT *ppt=NULL);

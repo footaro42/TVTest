@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include <d3d9.h>
 #include <vmr9.h>
-#include <streams.h>
+//#include <streams.h>
 #include <atlbase.h>
 #include <vector>
 #include "VMR9Renderless.h"
@@ -182,8 +182,10 @@ HRESULT CVMR9Allocator::CreateDevice()
 	m_D3DDev=NULL;
 
 	D3DDISPLAYMODE dm;
-
 	hr=m_D3D->GetAdapterDisplayMode(D3DADAPTER_DEFAULT,&dm);
+	if (FAILED(hr))
+		return hr;
+
 	D3DPRESENT_PARAMETERS pp;
 	ZeroMemory(&pp,sizeof(pp));
 	pp.BackBufferWidth=1920;
@@ -250,13 +252,12 @@ STDMETHODIMP CVMR9Allocator::InitializeDevice(DWORD_PTR dwUserID,
 	if (FAILED(hr))
 		return hr;
 
-	/*
+#if 0	// テクスチャ・サーフェスを作成する場合
 	D3DCAPS9 d3dcaps;
-	DWORD Width = 1;
-	DWORD Height = 1;
-
 	m_D3DDev->GetDeviceCaps(&d3dcaps);
 	if (d3dcaps.TextureCaps&D3DPTEXTURECAPS_POW2) {
+		DWORD Width=1,Height=1;
+
 		while (Width<lpAllocInfo->dwWidth)
 			Width<<=1;
 		while (Height<lpAllocInfo->dwHeight)
@@ -264,9 +265,8 @@ STDMETHODIMP CVMR9Allocator::InitializeDevice(DWORD_PTR dwUserID,
 		lpAllocInfo->dwWidth=Width;
 		lpAllocInfo->dwHeight=Height;
 	}
-
 	lpAllocInfo->dwFlags|=VMR9AllocFlag_TextureSurface;
-	*/
+#endif
 
 	DeleteSurfaces();
 	m_surfaces.resize(*lpNumBuffers);
@@ -323,12 +323,12 @@ STDMETHODIMP CVMR9Allocator::GetSurface(DWORD_PTR dwUserID,DWORD SurfaceIndex,
 	if (lplpSurface==NULL)
 		return E_POINTER;
 
-	if (SurfaceIndex>=m_surfaces.size()) 
-		return E_FAIL;
+	if (SurfaceIndex>=m_surfaces.size())
+		return E_INVALIDARG;
 
 	CAutoLock Lock(&m_ObjectLock);
 
-	return m_surfaces[SurfaceIndex].CopyTo(lplpSurface) ;
+	return m_surfaces[SurfaceIndex].CopyTo(lplpSurface);
 }
 
 

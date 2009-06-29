@@ -32,8 +32,10 @@ DWORD DiffTime(DWORD Start,DWORD End);
 #define FILETIME_HOUR			(60LL*FILETIME_MINUTE)
 FILETIME &operator+=(FILETIME &ft,LONGLONG Offset);
 LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2);
+void GetLocalTimeAsFileTime(FILETIME *pTime);
 int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2);
 bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset);
+LONGLONG DiffSystemTime(const SYSTEMTIME *pStartTime,const SYSTEMTIME *pEndTime);
 int CalcDayOfWeek(int Year,int Month,int Day);
 LPCTSTR GetDayOfWeekText(int DayOfWeek);
 

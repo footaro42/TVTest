@@ -13,14 +13,15 @@ static char THIS_FILE[]=__FILE__;
 CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	//: CTransformFilter(MPEG2SEQUENCEFILTER_NAME, pUnk, CLSID_MPEG2SEQFILTER)
 	: CTransInPlaceFilter(MPEG2SEQUENCEFILTER_NAME, pUnk, CLSID_MPEG2SEQFILTER, phr, FALSE)
-	,m_Mpeg2Parser(this)
-	,m_VideoInfo()
+	, m_pfnVideoInfoRecvFunc(NULL)
+	, m_pCallbackParam(NULL)
+	, m_bDeliverSamples(true)
+	, m_Mpeg2Parser(this)
+	, m_VideoInfo()
 {
-	TRACE(TEXT("CMpeg2SequenceFilter::CMpeg2SequenceFilter %p\n"),this);
+	TRACE(TEXT("CMpeg2SequenceFilter::CMpeg2SequenceFilter %p\n"), this);
 
-	m_pfnVideoInfoRecvFunc=NULL;
-	m_pCallbackParam=NULL;
-	*phr=S_OK;
+	*phr = S_OK;
 }
 
 
@@ -112,7 +113,6 @@ HRESULT CMpeg2SequenceFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOC
 
 	return S_OK;
 }
-*/
 
 
 HRESULT CMpeg2SequenceFilter::GetMediaType(int iPosition, CMediaType *pMediaType)
@@ -127,7 +127,6 @@ HRESULT CMpeg2SequenceFilter::GetMediaType(int iPosition, CMediaType *pMediaType
 }
 
 
-/*
 HRESULT CMpeg2SequenceFilter::StartStreaming(void)
 {
 	return S_OK;
@@ -178,7 +177,7 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
 	m_Mpeg2Parser.StoreEs(pData, DataSize);
 	m_ParserLock.Unlock();
 
-	return S_OK;
+	return m_bDeliverSamples ? S_OK : S_FALSE;
 }
 
 
@@ -188,8 +187,24 @@ HRESULT CMpeg2SequenceFilter::Receive(IMediaSample *pSample)
 	if (pProps->dwStreamId != AM_STREAM_MEDIA)
 		return m_pOutput->Deliver(pSample);
 
-	Transform(pSample);
-	return m_pOutput->Deliver(pSample);
+	if (UsingDifferentAllocators()) {
+		pSample = Copy(pSample);
+		if (pSample==NULL)
+			return E_UNEXPECTED;
+	}
+
+	HRESULT hr = Transform(pSample);
+	if (SUCCEEDED(hr)) {
+		if (hr == S_OK)
+			hr = m_pOutput->Deliver(pSample);
+		else
+			hr = S_OK;
+	}
+
+	if (UsingDifferentAllocators())
+		pSample->Release();
+
+	return hr;
 }
 
 
@@ -235,9 +250,21 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 	}
 
 	CMpeg2VideoInfo Info(OrigWidth, OrigHeight, DisplayWidth, DisplayHeight, AspectX, AspectY);
+	static const CMpeg2VideoInfo::FrameRate FrameRateList[] = {
+		{0,		0},
+		{24000,	1001},
+		{24,	1},
+		{25,	1},
+		{30000,	1001},
+		{30,	1},
+		{50,	1},
+		{60000,	1001},
+		{60,	1},
+	};
+	Info.m_FrameRate = FrameRateList[pSequence->GetFrameRateCode()];
 
 	if (Info != m_VideoInfo) {
-		// 映像サイズが変わった
+		// 映像のサイズ及びフレームレートが変わった
 		m_VideoInfo = Info;
 		// 通知
 		if (m_pfnVideoInfoRecvFunc)
@@ -289,5 +316,12 @@ const bool CMpeg2SequenceFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
 
 	*pInfo = m_VideoInfo;
+	return true;
+}
+
+
+const bool CMpeg2SequenceFilter::SetDeliverSamples(bool bDeliver)
+{
+	m_bDeliverSamples = bDeliver;
 	return true;
 }

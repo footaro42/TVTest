@@ -5,6 +5,7 @@
 #include "View.h"
 #include "ChannelManager.h"
 #include "StatusView.h"
+#include "Settings.h"
 
 
 #define WM_APP_SERVICEUPDATE	WM_APP
@@ -75,6 +76,7 @@ class CMainWindow : public CBasicWindow {
 	BOOL m_fPowerOffActiveOriginal;
 	int m_AspectRatioType;
 	int m_VideoSizeChangedTimerCount;
+	bool m_fShowRecordRemainTime;
 
 	class CPreviewManager {
 		bool m_fPreview;
@@ -104,6 +106,7 @@ class CMainWindow : public CBasicWindow {
 	bool ProcessTunerSelectMenu(int Command);
 	static CMainWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static DWORD WINAPI ExitWatchThread(LPVOID lpParameter);
 
 public:
 	enum {
@@ -129,6 +132,8 @@ public:
 	void ShowErrorMessage(LPCTSTR pszText);
 	void ShowErrorMessage(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
 	void AdjustWindowSize(int Width,int Height);
+	bool ReadSettings(CSettings *pSettings);
+	bool WriteSettings(CSettings *pSettings);
 	void SetAlwaysOnTop(bool fTop);
 	bool GetAlwaysOnTop() const { return m_fAlwaysOnTop; }
 	void SetStatusBarVisible(bool fVisible);

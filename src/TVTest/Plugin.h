@@ -65,7 +65,8 @@ class CPlugin {
 	static CPointerVector<CAudioStreamCallbackInfo> m_AudioStreamCallbackList;
 	static void CALLBACK AudioStreamCallback(short *pData,DWORD Samples,int Channels,void *pParam);
 	static LRESULT CALLBACK Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2);
-	static DWORD WINAPI FinalizeThread(LPVOID lpParameter);
+	//static DWORD WINAPI FinalizeThread(LPVOID lpParameter);
+
 public:
 	CPlugin();
 	~CPlugin();
@@ -97,6 +98,7 @@ class CPluginList {
 	void SortPluginsByName();
 	static int CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,void *pParam);
 	bool SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
+
 public:
 	CPluginList();
 	~CPluginList();
@@ -133,6 +135,7 @@ class CPluginOptions : public COptions {
 	std::vector<LPTSTR> m_EnablePluginList;
 	void ClearList();
 	static CPluginOptions *GetThis(HWND hDlg);
+
 public:
 	CPluginOptions(CPluginList *pPluginList);
 	~CPluginOptions();

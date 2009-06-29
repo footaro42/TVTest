@@ -16,6 +16,7 @@ CAudioOptions::CAudioOptions()
 	m_fRestoreMute=false;
 	m_fUseAudioRendererClock=true;
 	m_fAdjustAudioStreamTime=false;
+	m_fMinTimerResolution=true;
 }
 
 
@@ -31,6 +32,7 @@ bool CAudioOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("RestoreMute"),&m_fRestoreMute);
 	pSettings->Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
 	pSettings->Read(TEXT("AdjustAudioStreamTime"),&m_fAdjustAudioStreamTime);
+	pSettings->Read(TEXT("MinTimerResolution"),&m_fMinTimerResolution);
 	return true;
 }
 
@@ -42,6 +44,7 @@ bool CAudioOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("RestoreMute"),m_fRestoreMute);
 	pSettings->Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
 	pSettings->Write(TEXT("AdjustAudioStreamTime"),m_fAdjustAudioStreamTime);
+	pSettings->Write(TEXT("MinTimerResolution"),m_fMinTimerResolution);
 	return true;
 }
 
@@ -75,8 +78,9 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			DlgCheckBox_Check(hDlg,IDC_AUDIOOPTIONS_DOWNMIXSURROUND,pThis->m_fDownMixSurround);
 			DlgCheckBox_Check(hDlg,IDC_AUDIOOPTIONS_RESTOREMUTE,pThis->m_fRestoreMute);
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,!pThis->m_fUseAudioRendererClock);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION,pThis->m_fMinTimerResolution);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME,pThis->m_fAdjustAudioStreamTime);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,!pThis->m_fUseAudioRendererClock);
 		}
 		return TRUE;
 
@@ -101,17 +105,24 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				GetAppClass().GetCoreEngine()->SetDownMixSurround(pThis->m_fDownMixSurround);
 				pThis->m_fRestoreMute=DlgCheckBox_IsChecked(hDlg,IDC_AUDIOOPTIONS_RESTOREMUTE);
 
-				bool f=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK);
-				if (f!=pThis->m_fUseAudioRendererClock) {
-					pThis->m_fUseAudioRendererClock=f;
-					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(f);
-					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
+				bool f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION);
+				if (f!=pThis->m_fMinTimerResolution) {
+					pThis->m_fMinTimerResolution=f;
+					if (GetAppClass().GetMainWindow()->IsPreview())
+						GetAppClass().GetCoreEngine()->SetMinTimerResolution(f);
 				}
 
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME);
 				if (f!=pThis->m_fAdjustAudioStreamTime) {
 					pThis->m_fAdjustAudioStreamTime=f;
 					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(f);
+				}
+
+				f=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK);
+				if (f!=pThis->m_fUseAudioRendererClock) {
+					pThis->m_fUseAudioRendererClock=f;
+					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(f);
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 			}
 			break;

@@ -19,7 +19,6 @@ DEFINE_GUID(CLSID_AACDECFILTER, 0x8d1e3e25, 0xd92b, 0x4849, 0x8d, 0x38, 0xc7, 0x
 class CAacDecFilter :	public CTransformFilter,
 						protected CAacDecoder::IPcmHandler
 {
-
 public:
 	DECLARE_IUNKNOWN
 
@@ -46,8 +45,13 @@ public:
 	int GetStereoMode() const { return m_StereoMode; }
 	bool SetDownMixSurround(bool bDownMix);
 	bool GetDownMixSurround() const { return m_bDownMixSurround; }
-	bool SetNormalize(bool bNormalize,float Level=1.0f);
+	bool SetNormalize(bool bNormalize, float Level=1.0f);
 	bool GetNormalize(float *pLevel) const;
+
+	bool SetAdjustStreamTime(bool bAdjust);
+
+	typedef void (CALLBACK *StreamCallback)(short *pData, DWORD Samples, int Channels, void *pParam);
+	bool SetStreamCallback(StreamCallback pCallback, void *pParam = NULL);
 
 protected:
 	CCritSec m_cStateLock;
@@ -74,5 +78,12 @@ private:
 	bool m_bDownMixSurround;
 	bool m_bNormalize;
 	float m_NormalizeLevel;
-	void Normalize(short *pBuffer,DWORD Samples);
+	void Normalize(short *pBuffer, DWORD Samples);
+
+	StreamCallback m_pStreamCallback;
+	void *m_pStreamCallbackParam;
+
+	bool m_bAdjustStreamTime;
+	REFERENCE_TIME m_StartTime;
+	LONGLONG m_SampleCount;
 };

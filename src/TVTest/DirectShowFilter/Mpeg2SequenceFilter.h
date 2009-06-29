@@ -17,6 +17,10 @@ public:
 	WORD m_DisplayWidth,m_DisplayHeight;
 	WORD m_PosX,m_PosY;
 	BYTE m_AspectRatioX,m_AspectRatioY;
+	struct FrameRate {
+		DWORD Num,Denom;
+	};
+	FrameRate m_FrameRate;
 	CMpeg2VideoInfo()
 	{
 		m_OrigWidth=0;
@@ -27,6 +31,8 @@ public:
 		m_PosY=0;
 		m_AspectRatioX=0;
 		m_AspectRatioY=0;
+		m_FrameRate.Num=0;
+		m_FrameRate.Denom=0;
 	}
 	CMpeg2VideoInfo(WORD OrigWidth,WORD OrigHeight,WORD DisplayWidth,WORD DisplayHeight,BYTE AspectX,BYTE AspectY)
 	{
@@ -46,7 +52,9 @@ public:
 			&& m_DisplayWidth==Info.m_DisplayWidth
 			&& m_DisplayHeight==Info.m_DisplayHeight
 			&& m_AspectRatioX==Info.m_AspectRatioX
-			&& m_AspectRatioY==Info.m_AspectRatioY;
+			&& m_AspectRatioY==Info.m_AspectRatioY
+			&& m_FrameRate.Num==Info.m_FrameRate.Num
+			&& m_FrameRate.Denom==Info.m_FrameRate.Denom;
 	}
 	bool operator!=(const CMpeg2VideoInfo &Info) const
 	{
@@ -57,7 +65,6 @@ public:
 class CMpeg2SequenceFilter : public CTransInPlaceFilter,
 							 protected CMpeg2Parser::ISequenceHandler
 {
-
 public:
 	DECLARE_IUNKNOWN
 
@@ -78,12 +85,10 @@ public:
 // CTransInPlaceFilter
 	HRESULT CheckInputType(const CMediaType* mtIn);
 	HRESULT CompleteConnect(PIN_DIRECTION direction,IPin *pReceivePin);
-	HRESULT GetMediaType(int iPosition, CMediaType *pMediaType);
 
 // CMpeg2SequenceFilter
 	typedef void (CALLBACK MPEG2SEQUENCE_VIDEOINFO_FUNC)(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	void SetRecvCallback(MPEG2SEQUENCE_VIDEOINFO_FUNC pCallback, const PVOID pParam = NULL);
-	HRESULT Receive(IMediaSample *pSample);
 
 	const bool GetVideoSize(WORD *pX, WORD *pY) const;
 	const bool GetAspectRatio(BYTE *pX,BYTE *pY) const;
@@ -91,9 +96,12 @@ public:
 	// Append by HDUSTestÇÃíÜÇÃêl
 	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const;
 	const bool GetVideoInfo(CMpeg2VideoInfo *pInfo) const;
+	const bool SetDeliverSamples(bool bDeliver);
+
 protected:
 	//HRESULT Transform(IMediaSample * pIn, IMediaSample *pOut);
 	HRESULT Transform(IMediaSample *pSample);
+	HRESULT Receive(IMediaSample *pSample);
 
 // CMpeg2Parser::ISequenceHandler
 	virtual void OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence);
@@ -102,9 +110,9 @@ protected:
 	MPEG2SEQUENCE_VIDEOINFO_FUNC *m_pfnVideoInfoRecvFunc;
 	LPVOID m_pCallbackParam;
 
+	bool m_bDeliverSamples;
+
 	CMpeg2Parser m_Mpeg2Parser;
-
 	CMpeg2VideoInfo m_VideoInfo;
-
 	CCritSec m_ParserLock;
 };
