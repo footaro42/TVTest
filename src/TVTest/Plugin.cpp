@@ -322,6 +322,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		case TVTest::MESSAGE_ADDLOG:
 		case TVTest::MESSAGE_RESETSTATUS:
 		case TVTest::MESSAGE_SETAUDIOCALLBACK:
+		case TVTest::MESSAGE_DOCOMMAND:
 			return TRUE;
 		}
 		return FALSE;
@@ -1190,6 +1191,15 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			}
 		}
 		return TRUE;
+
+	case TVTest::MESSAGE_DOCOMMAND:
+		{
+			LPCWSTR pszCommand=reinterpret_cast<LPCWSTR>(lParam1);
+
+			if (pszCommand==NULL || pszCommand[0]=='\0')
+				return FALSE;
+			return GetAppClass().GetMainWindow()->DoCommand(pszCommand);
+		}
 	}
 	return 0;
 }

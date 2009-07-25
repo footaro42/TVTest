@@ -415,6 +415,133 @@ int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont)
 
 
 
+CDynamicString::CDynamicString()
+	: m_pszString(NULL)
+{
+}
+
+
+CDynamicString::CDynamicString(const CDynamicString &String)
+	: m_pszString(NULL)
+{
+	*this=String;
+}
+
+
+CDynamicString::CDynamicString(LPCTSTR pszString)
+	: m_pszString(NULL)
+{
+	Set(pszString);
+}
+
+
+CDynamicString::~CDynamicString()
+{
+	Clear();
+}
+
+
+CDynamicString &CDynamicString::operator=(const CDynamicString &String)
+{
+	if (&String!=this) {
+		ReplaceString(&m_pszString,String.m_pszString);
+	}
+	return *this;
+}
+
+
+CDynamicString &CDynamicString::operator+=(const CDynamicString &String)
+{
+	return *this+=String.m_pszString;
+}
+
+
+CDynamicString &CDynamicString::operator=(LPCTSTR pszString)
+{
+	ReplaceString(&m_pszString,pszString);
+	return *this;
+}
+
+
+CDynamicString &CDynamicString::operator+=(LPCTSTR pszString)
+{
+	int Length=0;
+	if (m_pszString!=NULL)
+		Length+=::lstrlen(m_pszString);
+	if (pszString!=NULL)
+		Length+=::lstrlen(pszString);
+	if (Length>0) {
+		LPTSTR pszOldString=m_pszString;
+
+		m_pszString=new TCHAR[Length+1];
+		m_pszString[0]='\0';
+		if (pszOldString!=NULL) {
+			::lstrcpy(m_pszString,pszOldString);
+			delete [] pszOldString;
+		}
+		if (pszString!=NULL)
+			::lstrcat(m_pszString,pszString);
+	}
+	return *this;
+}
+
+
+bool CDynamicString::operator==(const CDynamicString &String) const
+{
+	return Compare(String.m_pszString)==0;
+}
+
+
+bool CDynamicString::operator!=(const CDynamicString &String) const
+{
+	return Compare(String.m_pszString)!=0;
+}
+
+
+bool CDynamicString::Set(LPCTSTR pszString)
+{
+	return ReplaceString(&m_pszString,pszString);
+}
+
+
+int CDynamicString::Length() const
+{
+	if (m_pszString==NULL)
+		return 0;
+	return ::lstrlen(m_pszString);
+}
+
+
+void CDynamicString::Clear()
+{
+	if (m_pszString!=NULL) {
+		delete [] m_pszString;
+		m_pszString=NULL;
+	}
+}
+
+
+bool CDynamicString::IsEmpty() const
+{
+	return m_pszString==NULL || m_pszString[0]=='\0';
+}
+
+
+int CDynamicString::Compare(LPCTSTR pszString) const
+{
+	if (m_pszString==NULL) {
+		if (pszString==NULL)
+			return 0;
+		return -1;
+	}
+	if (pszString==NULL)
+		return 1;
+	return ::lstrcmp(m_pszString,pszString);
+}
+
+
+
+
 CFilePath::CFilePath()
 {
 	m_szPath[0]='\0';

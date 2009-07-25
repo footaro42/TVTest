@@ -53,6 +53,29 @@ bool BrowseFolderDialog(HWND hwndOwner,LPTSTR pszDirectory,LPCTSTR pszTitle);
 bool CompareLogFont(const LOGFONT *pFont1,const LOGFONT *pFont2);
 int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont);
 
+class CDynamicString {
+protected:
+	LPTSTR m_pszString;
+public:
+	CDynamicString();
+	CDynamicString(const CDynamicString &String);
+	CDynamicString(LPCTSTR pszString);
+	virtual ~CDynamicString();
+	CDynamicString &operator=(const CDynamicString &String);
+	CDynamicString &operator+=(const CDynamicString &String);
+	CDynamicString &operator=(LPCTSTR pszString);
+	CDynamicString &operator+=(LPCTSTR pszString);
+	bool operator==(const CDynamicString &String) const;
+	bool operator!=(const CDynamicString &String) const;
+	LPCTSTR Get() const { return m_pszString; }
+	LPCTSTR GetSafe() const { return NullToEmptyString(m_pszString); }
+	bool Set(LPCTSTR pszString);
+	int Length() const;
+	void Clear();
+	bool IsEmpty() const;
+	int Compare(LPCTSTR pszString) const;
+};
+
 class CFilePath {
 	TCHAR m_szPath[MAX_PATH];
 public:

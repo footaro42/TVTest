@@ -144,6 +144,21 @@ bool CNotificationBar::SetColors(COLORREF crBackColor1,COLORREF crBackColor2,COL
 }
 
 
+bool CNotificationBar::SetFont(const LOGFONT *pFont)
+{
+	if (pFont==NULL)
+		return false;
+	HFONT hfont=::CreateFontIndirect(pFont);
+	if (hfont==NULL)
+		return false;
+	if (m_hfont!=NULL)
+		::DeleteObject(m_hfont);
+	m_hfont=hfont;
+	m_BarHeight=abs(pFont->lfHeight)+BAR_MARGIN*2;
+	return true;
+}
+
+
 CNotificationBar *CNotificationBar::GetThis(HWND hwnd)
 {
 	return static_cast<CNotificationBar*>(GetBasicWindow(hwnd));

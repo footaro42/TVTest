@@ -44,8 +44,11 @@ bool CMainMenu::Popup(UINT Flags,int x,int y,HWND hwnd,bool fToggle)
 {
 	if (m_hmenu==NULL)
 		return false;
-	if (!m_fPopup || !fToggle) {
+	if (!m_fPopup || !fToggle || m_PopupMenu>=0) {
+		if (m_fPopup)
+			EndMenu();
 		m_fPopup=true;
+		m_PopupMenu=-1;
 		::TrackPopupMenu(::GetSubMenu(m_hmenu,0),Flags,x,y,0,hwnd,NULL);
 		m_fPopup=false;
 	} else {
@@ -55,13 +58,22 @@ bool CMainMenu::Popup(UINT Flags,int x,int y,HWND hwnd,bool fToggle)
 }
 
 
-bool CMainMenu::PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd)
+bool CMainMenu::PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle)
 {
 	HMENU hmenu=GetSubMenu(SubMenu);
 
 	if (hmenu==NULL)
 		return false;
-	::TrackPopupMenu(hmenu,Flags,x,y,0,hwnd,NULL);
+	if (!m_fPopup || !fToggle || m_PopupMenu!=SubMenu) {
+		if (m_fPopup)
+			EndMenu();
+		m_fPopup=true;
+		m_PopupMenu=SubMenu;
+		::TrackPopupMenu(hmenu,Flags,x,y,0,hwnd,NULL);
+		m_fPopup=false;
+	} else {
+		::EndMenu();
+	}
 	return true;
 }
 
@@ -291,4 +303,48 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 		return true;
 	}
 	return false;
+}
+
+
+
+
+CPopupMenu::CPopupMenu()
+	: m_hmenu(NULL)
+{
+}
+
+
+CPopupMenu::~CPopupMenu()
+{
+}
+
+
+bool CPopupMenu::Popup(HMENU hmenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle)
+{
+	if (m_hmenu==NULL) {
+		m_hmenu=hmenu;
+		::TrackPopupMenu(m_hmenu,Flags,x,y,0,hwnd,NULL);
+		m_hmenu=NULL;
+	} else {
+		if (fToggle)
+			EndMenu();
+	}
+	return true;
+}
+
+
+bool CPopupMenu::Popup(HINSTANCE hinst,LPCTSTR pszName,UINT Flags,int x,int y,HWND hwnd,bool fToggle)
+{
+	if (m_hmenu==NULL) {
+		m_hmenu=::LoadMenu(hinst,pszName);
+		if (m_hmenu==NULL)
+			return false;
+		::TrackPopupMenu(::GetSubMenu(m_hmenu,0),Flags,x,y,0,hwnd,NULL);
+		::DestroyMenu(m_hmenu);
+		m_hmenu=NULL;
+	} else {
+		if (fToggle)
+			EndMenu();
+	}
+	return true;
 }

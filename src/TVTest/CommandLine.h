@@ -28,13 +28,14 @@ public:
 	bool m_fExitOnRecordEnd;
 	bool m_fFullscreen;
 	bool m_fMinimize;
+	bool m_fMaximize;
 	bool m_fNoDriver;
 	bool m_fStandby;
 	bool m_fNoView;
 	bool m_fNoDirectShow;
 	bool m_fSilent;
 	bool m_fNoPlugin;
-	bool m_fSchedule;
+	bool m_fSingleTask;
 	bool m_fInitialSettings;
 	bool m_fSaveLog;
 	bool m_fRecordOnly;

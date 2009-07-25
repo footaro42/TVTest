@@ -3,9 +3,9 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Accelerator.h"
-#include "Command.h"
 #include "Menu.h"
 #include "DialogUtil.h"
+#include "MessageDialog.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -15,10 +15,12 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define MAKE_ACCEL_PARAM(key,mod,global) (((key)<<16)|((mod)<<8)|((global)?1:0))
-#define GET_ACCEL_KEY(param)	((WORD)((param)>>16))
-#define GET_ACCEL_MOD(param)	((BYTE)(((param)>>8)&0xFF))
-#define GET_ACCEL_GLOBAL(param)	(((param)&0xFF)!=0)
+#define MAKE_ACCEL_PARAM(key,mod,global,appcommand) \
+	(((key)<<16)|((mod)<<8)|((global)?0x80:0x00)|(appcommand))
+#define GET_ACCEL_KEY(param)		((WORD)((param)>>16))
+#define GET_ACCEL_MOD(param)		((BYTE)(((param)>>8)&0xFF))
+#define GET_ACCEL_GLOBAL(param)		(((param)&0x80)!=0)
+#define GET_ACCEL_APPCOMMAND(param)	((BYTE)((param)&0x7F))
 
 
 static const struct {
@@ -82,6 +84,18 @@ static const struct {
 	{'X',			TEXT("X")},
 	{'Y',			TEXT("Y")},
 	{'Z',			TEXT("Z")},
+	{VK_OEM_MINUS,	TEXT("-")},
+	{VK_OEM_7,		TEXT("^")},
+	{VK_OEM_5,		TEXT("\\")},
+	{VK_OEM_3,		TEXT("@")},
+	{VK_OEM_4,		TEXT("[")},
+	{VK_OEM_PLUS,	TEXT(";")},
+	{VK_OEM_1,		TEXT(":")},
+	{VK_OEM_6,		TEXT("]")},
+	{VK_OEM_COMMA,	TEXT(",")},
+	{VK_OEM_PERIOD,	TEXT(".")},
+	{VK_OEM_2,		TEXT("/")},
+	{VK_OEM_102,	TEXT("＼")},
 	{VK_NUMPAD0,	TEXT("Num0")},
 	{VK_NUMPAD1,	TEXT("Num1")},
 	{VK_NUMPAD2,	TEXT("Num2")},
@@ -111,6 +125,64 @@ static const struct {
 	{VK_F12,		TEXT("F12")},
 };
 
+static const struct {
+	int Command;
+	LPCTSTR pszText;
+} AppCommandList[] = {
+	{APPCOMMAND_VOLUME_UP,				TEXT("Volume Up")},
+	{APPCOMMAND_VOLUME_DOWN,			TEXT("Volume Down")},
+	{APPCOMMAND_VOLUME_MUTE,			TEXT("Volume Mute")},
+	{APPCOMMAND_MEDIA_PLAY_PAUSE,		TEXT("Play/Pause")},
+	{APPCOMMAND_MEDIA_PLAY,				TEXT("Play")},
+	{APPCOMMAND_MEDIA_PAUSE,			TEXT("Pause")},
+	{APPCOMMAND_MEDIA_STOP,				TEXT("Stop")},
+	{APPCOMMAND_MEDIA_RECORD,			TEXT("Record")},
+	{APPCOMMAND_MEDIA_CHANNEL_UP,		TEXT("Channel Up")},
+	{APPCOMMAND_MEDIA_CHANNEL_DOWN,		TEXT("Channel Down")},
+	{APPCOMMAND_MEDIA_PREVIOUSTRACK,	TEXT("Previous Track")},
+	{APPCOMMAND_MEDIA_NEXTTRACK,		TEXT("Next Track")},
+	{APPCOMMAND_MEDIA_REWIND,			TEXT("Rewind")},
+	{APPCOMMAND_MEDIA_FAST_FORWARD,		TEXT("Fast Forward")},
+	{APPCOMMAND_NEW,					TEXT("New")},
+	{APPCOMMAND_OPEN,					TEXT("Open")},
+	{APPCOMMAND_SAVE,					TEXT("Save")},
+	{APPCOMMAND_PRINT,					TEXT("Print")},
+	{APPCOMMAND_CLOSE,					TEXT("Close")},
+	{APPCOMMAND_UNDO,					TEXT("Undo")},
+	{APPCOMMAND_REDO,					TEXT("Redo")},
+	{APPCOMMAND_CUT,					TEXT("Cut")},
+	{APPCOMMAND_COPY,					TEXT("Copy")},
+	{APPCOMMAND_PASTE,					TEXT("Paste")},
+	{APPCOMMAND_FIND,					TEXT("Find")},
+	{APPCOMMAND_HELP,					TEXT("Help")},
+	{APPCOMMAND_CORRECTION_LIST,		TEXT("Correction List")},
+	{APPCOMMAND_BROWSER_BACKWARD,		TEXT("Browser Backward")},
+	{APPCOMMAND_BROWSER_FORWARD,		TEXT("Browser Forward")},
+	{APPCOMMAND_BROWSER_HOME,			TEXT("Browser Home")},
+	{APPCOMMAND_BROWSER_STOP,			TEXT("Browser Stop")},
+	{APPCOMMAND_BROWSER_FAVORITES,		TEXT("Browser Favorites")},
+	{APPCOMMAND_BROWSER_REFRESH,		TEXT("Browser Refresh")},
+	{APPCOMMAND_BROWSER_SEARCH,			TEXT("Browser Search")},
+	{APPCOMMAND_BASS_BOOST,				TEXT("Bass Boost")},
+	{APPCOMMAND_BASS_UP,				TEXT("Base Up")},
+	{APPCOMMAND_BASS_DOWN,				TEXT("Base Down")},
+	{APPCOMMAND_TREBLE_DOWN,			TEXT("Treble Down")},
+	{APPCOMMAND_TREBLE_UP,				TEXT("Treble Up")},
+	{APPCOMMAND_MIC_ON_OFF_TOGGLE,		TEXT("Mic On/Off")},
+	{APPCOMMAND_MICROPHONE_VOLUME_UP,	TEXT("Mic Volume Up")},
+	{APPCOMMAND_MICROPHONE_VOLUME_DOWN,	TEXT("Mic Volume Down")},
+	{APPCOMMAND_MICROPHONE_VOLUME_MUTE,	TEXT("Mic Volume Mute")},
+	{APPCOMMAND_LAUNCH_MEDIA_SELECT,	TEXT("Media Select")},
+	{APPCOMMAND_LAUNCH_APP1,			TEXT("Launch App1")},
+	{APPCOMMAND_LAUNCH_APP2,			TEXT("Launch App2")},
+	{APPCOMMAND_LAUNCH_MAIL,			TEXT("Launch Mail")},
+	{APPCOMMAND_FORWARD_MAIL,			TEXT("Forward Mail")},
+	{APPCOMMAND_SEND_MAIL,				TEXT("Send Mail")},
+	{APPCOMMAND_REPLY_TO_MAIL,			TEXT("Reply to Mail")},
+	{APPCOMMAND_DICTATE_OR_COMMAND_CONTROL_TOGGLE,	TEXT("Dictate or Command/Control")},
+};
+
+
 const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
 	{CM_ZOOM_100,		VK_HOME,		0,			false},
 	{CM_ASPECTRATIO,	'A',			0,			false},
@@ -129,12 +201,48 @@ const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
 	{CM_PROGRAMGUIDE,	'E',			0,			false},
 };
 
+const CAccelerator::AppCommandInfo CAccelerator::m_DefaultAppCommandList[] = {
+	{CM_VOLUME_UP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_UP},
+	{CM_VOLUME_DOWN,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_DOWN},
+	{CM_VOLUME_MUTE,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_MUTE},
+	{CM_RECORD_STOP,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_STOP},
+	{CM_RECORD_PAUSE,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_PAUSE},
+	{CM_RECORD_START,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_RECORD},
+	{CM_CHANNEL_UP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_CHANNEL_UP},
+	{CM_CHANNEL_DOWN,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_CHANNEL_DOWN},
+	/*
+	{CM_CHANNEL_UP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_NEXTTRACK},
+	{CM_CHANNEL_DOWN,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_PREVIOUSTRACK},
+	*/
+	{CM_CLOSE,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_CLOSE},
+	{CM_SAVEIMAGE,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_SAVE},
+	{CM_COPY,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_COPY},
+};
+
 
 CAccelerator::CAccelerator()
 {
 	m_hAccel=NULL;
+	m_KeyList.resize(lengthof(m_DefaultAccelList));
 	for (size_t i=0;i<lengthof(m_DefaultAccelList);i++)
-		m_KeyList.push_back(m_DefaultAccelList[i]);
+		m_KeyList[i]=m_DefaultAccelList[i];
+	m_MediaKeyList.resize(lengthof(AppCommandList)+m_RawInput.NumKeyTypes());
+	MediaKeyInfo Info;
+	Info.Type=MEDIAKEY_APPCOMMAND;
+	for (size_t i=0;i<lengthof(AppCommandList);i++) {
+		Info.Command=AppCommandList[i].Command;
+		Info.pszText=AppCommandList[i].pszText;
+		m_MediaKeyList[i]=Info;
+	}
+	Info.Type=MEDIAKEY_RAWINPUT;
+	for (int i=0;i<m_RawInput.NumKeyTypes();i++) {
+		Info.Command=m_RawInput.GetKeyData(i);
+		Info.pszText=m_RawInput.GetKeyText(i);
+		m_MediaKeyList[lengthof(AppCommandList)+i]=Info;
+	}
+	m_AppCommandList.resize(lengthof(m_DefaultAppCommandList));
+	for (size_t i=0;i<lengthof(m_DefaultAppCommandList);i++)
+		m_AppCommandList[i]=m_DefaultAppCommandList[i];
 	m_hwndHotKey=NULL;
 	m_pMainMenu=NULL;
 	m_pCommandList=NULL;
@@ -311,7 +419,7 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 					unsigned int Key,Modifiers;
 
 					::wsprintf(szName,TEXT("Accel%d_Key"),i);
-					if (Settings.Read(szName,&Key)) {
+					if (Settings.Read(szName,&Key) && Key!=0) {
 						KeyInfo Info;
 
 						Info.Command=m_pCommandList->ParseText(szCommand);
@@ -324,6 +432,40 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 						Info.Modifiers=Modifiers&0x7F;
 						Info.fGlobal=(Modifiers&0x80)!=0;
 						m_KeyList.push_back(Info);
+					}
+				}
+			}
+		}
+		Settings.Close();
+	}
+
+	if (Settings.Open(pszFileName,TEXT("AppCommand"),CSettings::OPEN_READ)) {
+		int NumCommands;
+
+		if (Settings.Read(TEXT("Count"),&NumCommands) && NumCommands>=0) {
+			m_AppCommandList.clear();
+			for (int i=0;i<NumCommands;i++) {
+				TCHAR szName[64],szCommand[CCommandList::MAX_COMMAND_TEXT];
+
+				::wsprintf(szName,TEXT("Button%d_Command"),i);
+				if (Settings.Read(szName,szCommand,lengthof(szCommand))
+						&& szCommand[0]!='\0') {
+					int Type;
+					unsigned int AppCommand;
+
+					::wsprintf(szName,TEXT("Button%d_Type"),i);
+					if (!Settings.Read(szName,&Type) || (Type!=0 && Type!=1))
+						continue;
+					::wsprintf(szName,TEXT("Button%d_AppCommand"),i);
+					if (Settings.Read(szName,&AppCommand) && AppCommand!=0) {
+						AppCommandInfo Info;
+
+						Info.Command=m_pCommandList->ParseText(szCommand);
+						if (Info.Command==0)
+							continue;
+						Info.Type=(MediaKeyType)Type;
+						Info.AppCommand=AppCommand;
+						m_AppCommandList.push_back(Info);
 					}
 				}
 			}
@@ -374,6 +516,41 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 			Settings.Write(TEXT("AccelCount"),-1);
 		Settings.Close();
 	}
+
+	if (Settings.Open(pszFileName,TEXT("AppCommand"),CSettings::OPEN_WRITE)) {
+		bool fDefault=false;
+		int i,j;
+
+		if (m_AppCommandList.size()==lengthof(m_DefaultAppCommandList)) {
+			for (i=0;i<lengthof(m_DefaultAppCommandList);i++) {
+				for (j=0;j<lengthof(m_DefaultAppCommandList);j++) {
+					if (m_DefaultAppCommandList[i]==m_AppCommandList[j])
+						break;
+				}
+				if (j==lengthof(m_DefaultAppCommandList))
+					break;
+			}
+			if (i==lengthof(m_DefaultAppCommandList))
+				fDefault=true;
+		}
+		Settings.Clear();
+		if (!fDefault) {
+			Settings.Write(TEXT("NumCommands"),(int)m_AppCommandList.size());
+			for (i=0;i<(int)m_AppCommandList.size();i++) {
+				TCHAR szName[64];
+
+				::wsprintf(szName,TEXT("Button%d_Command"),i);
+				Settings.Write(szName,
+					m_pCommandList->GetCommandText(m_pCommandList->IDToIndex(m_AppCommandList[i].Command)));
+				::wsprintf(szName,TEXT("Button%d_Type"),i);
+				Settings.Write(szName,(int)m_AppCommandList[i].Type);
+				::wsprintf(szName,TEXT("Button%d_AppCommand"),i);
+				Settings.Write(szName,m_AppCommandList[i].AppCommand);
+			}
+		} else
+			Settings.Write(TEXT("NumCommands"),-1);
+		Settings.Close();
+	}
 	return true;
 }
 
@@ -389,6 +566,8 @@ bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
 	m_pMainMenu->SetAccelerator(this);
 	m_hwndHotKey=hwndHotKey;
 	RegisterHotKey();
+	m_RawInput.Initialize(hwndHotKey);
+	m_RawInput.SetEventHandler(this);
 	return true;
 }
 
@@ -412,7 +591,7 @@ bool CAccelerator::TranslateMessage(HWND hwnd,LPMSG pmsg)
 }
 
 
-int CAccelerator::TranslateHotKey(WPARAM wParam,LPARAM lParam)
+int CAccelerator::TranslateHotKey(WPARAM wParam,LPARAM lParam) const
 {
 	for (size_t i=0;i<m_KeyList.size();i++) {
 		if (((m_KeyList[i].Modifiers<<8)|m_KeyList[i].KeyCode)==wParam) {
@@ -420,6 +599,19 @@ int CAccelerator::TranslateHotKey(WPARAM wParam,LPARAM lParam)
 		}
 	}
 	return -1;
+}
+
+
+int CAccelerator::TranslateAppCommand(WPARAM wParam,LPARAM lParam) const
+{
+	const WORD Command=GET_APPCOMMAND_LPARAM(lParam);
+
+	for (size_t i=0;i<m_AppCommandList.size();i++) {
+		if (m_AppCommandList[i].Type==MEDIAKEY_APPCOMMAND
+				&& m_AppCommandList[i].AppCommand==Command)
+			return m_AppCommandList[i].Command;
+	}
+	return 0;
 }
 
 
@@ -437,6 +629,18 @@ void CAccelerator::SetMenuAccel(HMENU hmenu)
 			SetMenuAccelText(hmenu,(int)::GetMenuItemID(hmenu,i));
 		}
 	}
+}
+
+
+static LPARAM ListView_GetItemParam(HWND hwnd,int Item)
+{
+	LV_ITEM lvi;
+
+	lvi.mask=LVIF_PARAM;
+	lvi.iItem=Item;
+	lvi.iSubItem=0;
+	ListView_GetItem(hwnd,&lvi);
+	return lvi.lParam;
 }
 
 
@@ -458,7 +662,25 @@ int CAccelerator::CheckAccelKey(HWND hwndList,BYTE Mod,WORD Key)
 }
 
 
-void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool fGlobal)
+int CAccelerator::CheckAppCommand(HWND hwndList,int AppCommand)
+{
+	LV_ITEM lvi;
+	int i,Count;
+
+	Count=ListView_GetItemCount(hwndList);
+	lvi.mask=LVIF_PARAM;
+	lvi.iSubItem=0;
+	for (i=0;i<Count;i++) {
+		lvi.iItem=i;
+		ListView_GetItem(hwndList,&lvi);
+		if (GET_ACCEL_APPCOMMAND(lvi.lParam)==AppCommand)
+			return i;
+	}
+	return -1;
+}
+
+
+void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool fGlobal,BYTE AppCommand)
 {
 	LV_ITEM lvi;
 	TCHAR szText[64];
@@ -466,12 +688,20 @@ void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool f
 	lvi.mask=LVIF_PARAM;
 	lvi.iItem=Index;
 	lvi.iSubItem=0;
-	lvi.lParam=MAKE_ACCEL_PARAM(Key,Mod,fGlobal);
+	lvi.lParam=MAKE_ACCEL_PARAM(Key,Mod,fGlobal,AppCommand);
 	ListView_SetItem(hwndList,&lvi);
 	lvi.mask=LVIF_TEXT;
 	lvi.iSubItem=1;
 	if (Key!=0) {
 		FormatAccelText(szText,Key,Mod);
+		lvi.pszText=szText;
+	} else {
+		lvi.pszText=TEXT("");
+	}
+	ListView_SetItem(hwndList,&lvi);
+	lvi.iSubItem=2;
+	if (AppCommand!=0) {
+		::lstrcpy(szText,m_MediaKeyList[AppCommand-1].pszText);
 		lvi.pszText=szText;
 	} else {
 		lvi.pszText=TEXT("");
@@ -512,6 +742,7 @@ void CAccelerator::SetDlgItemStatus(HWND hDlg)
 		for (int i=IDC_ACCELERATOR_SHIFT;i<=IDC_ACCELERATOR_ALT;i++)
 			DlgCheckBox_Check(hDlg,i,false);
 		DlgCheckBox_Check(hDlg,IDC_ACCELERATOR_GLOBAL,false);
+		ShowDlgItem(hDlg,IDC_ACCELERATOR_APPCOMMAND,false);
 	}
 	EnableDlgItems(hDlg,IDC_ACCELERATOR_KEY,IDC_ACCELERATOR_GLOBAL,Sel>=0);
 }
@@ -536,12 +767,15 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=120;
-			lvc.pszText=TEXT("コマンド");
+			lvc.pszText=TEXT("機能");
 			ListView_InsertColumn(hwndList,0,&lvc);
 			lvc.pszText=TEXT("キー");
 			ListView_InsertColumn(hwndList,1,&lvc);
+			lvc.pszText=TEXT("マルチメディアキー");
+			ListView_InsertColumn(hwndList,2,&lvc);
 			for (int i=0;i<pThis->m_pCommandList->NumCommands();i++) {
 				const KeyInfo *pKey=NULL;
+				int AppCommand=0;
 				LV_ITEM lvi;
 				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
 
@@ -551,15 +785,26 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						break;
 					}
 				}
+				for (size_t j=0;j<pThis->m_AppCommandList.size();j++) {
+					if (pThis->m_AppCommandList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
+						for (size_t k=0;k<pThis->m_MediaKeyList.size();k++) {
+							if (pThis->m_MediaKeyList[k].Type==pThis->m_AppCommandList[j].Type
+									&& pThis->m_MediaKeyList[k].Command==pThis->m_AppCommandList[j].AppCommand) {
+								AppCommand=k+1;
+								break;
+							}
+						}
+					}
+				}
 				pThis->m_pCommandList->GetCommandName(i,szText,lengthof(szText));
 				lvi.mask=LVIF_TEXT | LVIF_PARAM;
 				lvi.iItem=i;
 				lvi.iSubItem=0;
 				lvi.pszText=szText;
 				if (pKey!=NULL)
-					lvi.lParam=MAKE_ACCEL_PARAM(pKey->KeyCode,pKey->Modifiers,pKey->fGlobal);
+					lvi.lParam=MAKE_ACCEL_PARAM(pKey->KeyCode,pKey->Modifiers,pKey->fGlobal,AppCommand);
 				else
-					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false);
+					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false,AppCommand);
 				lvi.iItem=ListView_InsertItem(hwndList,&lvi);
 				if (pKey!=NULL) {
 					lvi.mask=LVIF_TEXT;
@@ -567,14 +812,21 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					FormatAccelText(szText,pKey->KeyCode,pKey->Modifiers);
 					ListView_SetItem(hwndList,&lvi);
 				}
+				if (AppCommand!=0) {
+					lvi.mask=LVIF_TEXT;
+					lvi.iSubItem=2;
+					::lstrcpy(szText,pThis->m_MediaKeyList[AppCommand-1].pszText);
+					ListView_SetItem(hwndList,&lvi);
+				}
 			}
-			for (int i=0;i<2;i++)
+			for (int i=0;i<3;i++)
 				ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
-			::SendDlgItemMessage(hDlg,IDC_ACCELERATOR_KEY,CB_ADDSTRING,0,
-														(LPARAM)TEXT("なし"));
+			DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_KEY,TEXT("なし"));
 			for (int i=0;i<lengthof(AccelKeyList);i++)
-				::SendDlgItemMessage(hDlg,IDC_ACCELERATOR_KEY,CB_ADDSTRING,0,
-											(LPARAM)AccelKeyList[i].pszText);
+				DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_KEY,AccelKeyList[i].pszText);
+			DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_APPCOMMAND,TEXT("なし"));
+			for (size_t i=0;i<pThis->m_MediaKeyList.size();i++)
+				DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_APPCOMMAND,pThis->m_MediaKeyList[i].pszText);
 			SetDlgItemStatus(hDlg);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_FUNCTION,
@@ -620,22 +872,22 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					if (DlgCheckBox_IsChecked(hDlg,IDC_ACCELERATOR_ALT))
 						Mod|=MOD_ALT;
 					i=CheckAccelKey(hwndList,Mod,AccelKeyList[Key-1].KeyCode);
-					if (i>=0) {
-						if (i!=lvi.iItem) {
-							TCHAR szCommand[CCommandList::MAX_COMMAND_NAME],szText[CCommandList::MAX_COMMAND_NAME+128];
+					if (i>=0 && i!=lvi.iItem) {
+						TCHAR szCommand[CCommandList::MAX_COMMAND_NAME],szText[CCommandList::MAX_COMMAND_NAME+128];
 
-							pThis->m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
-							::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\r\n割り当て直しますか?"),szCommand);
-							if (::MessageBox(hDlg,szText,NULL,
-											MB_YESNO | MB_ICONQUESTION)!=IDYES)
-								return TRUE;
-							SetAccelItem(hwndList,i,0,0,false);
-						}
+						pThis->m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
+						::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\n割り当て直しますか?"),szCommand);
+						if (::MessageBox(hDlg,szText,TEXT("確認"),
+										 MB_YESNO | MB_ICONQUESTION)!=IDYES)
+							return TRUE;
+						pThis->SetAccelItem(hwndList,i,0,0,false,
+									 GET_ACCEL_APPCOMMAND(ListView_GetItemParam(hwndList,i)));
 					}
 					lvi.lParam=MAKE_ACCEL_PARAM(AccelKeyList[Key-1].KeyCode,Mod,
-						DlgCheckBox_IsChecked(hDlg,IDC_ACCELERATOR_GLOBAL));
+						DlgCheckBox_IsChecked(hDlg,IDC_ACCELERATOR_GLOBAL),
+						GET_ACCEL_APPCOMMAND(lvi.lParam));
 				} else {
-					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false);
+					lvi.lParam=MAKE_ACCEL_PARAM(0,0,false,GET_ACCEL_APPCOMMAND(lvi.lParam));
 				}
 				ListView_SetItem(hwndList,&lvi);
 				TCHAR szText[64];
@@ -643,6 +895,53 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				lvi.iSubItem=1;
 				if (Key>0) {
 					FormatAccelText(szText,GET_ACCEL_KEY(lvi.lParam),GET_ACCEL_MOD(lvi.lParam));
+					lvi.pszText=szText;
+				} else {
+					lvi.pszText=TEXT("");
+				}
+				ListView_SetItem(hwndList,&lvi);
+			}
+			return TRUE;
+
+		case IDC_ACCELERATOR_APPCOMMAND:
+			if (HIWORD(wParam)==CBN_SELCHANGE) {
+				CAccelerator *pThis=GetThis(hDlg);
+				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
+				LV_ITEM lvi;
+				int AppCommand;
+
+				lvi.iItem=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
+				if (lvi.iItem<0)
+					return TRUE;
+				lvi.mask=LVIF_PARAM;
+				lvi.iSubItem=0;
+				ListView_GetItem(hwndList,&lvi);
+				AppCommand=DlgComboBox_GetCurSel(hDlg,IDC_ACCELERATOR_APPCOMMAND);
+				if (AppCommand>0) {
+					int i;
+
+					i=CheckAppCommand(hwndList,AppCommand);
+					if (i>=0 && i!=lvi.iItem) {
+						TCHAR szCommand[CCommandList::MAX_COMMAND_NAME],szText[CCommandList::MAX_COMMAND_NAME+128];
+
+						pThis->m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
+						::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\n割り当て直しますか?"),szCommand);
+						if (::MessageBox(hDlg,szText,TEXT("確認"),
+										 MB_YESNO | MB_ICONQUESTION)!=IDYES)
+							return TRUE;
+						LPARAM Param=ListView_GetItemParam(hwndList,i);
+						pThis->SetAccelItem(hwndList,i,GET_ACCEL_MOD(Param),
+									 GET_ACCEL_KEY(Param),GET_ACCEL_GLOBAL(Param),0);
+					}
+				}
+				lvi.lParam=MAKE_ACCEL_PARAM(GET_ACCEL_KEY(lvi.lParam),
+					GET_ACCEL_MOD(lvi.lParam),GET_ACCEL_GLOBAL(lvi.lParam),AppCommand);
+				ListView_SetItem(hwndList,&lvi);
+				TCHAR szText[64];
+				lvi.mask=LVIF_TEXT;
+				lvi.iSubItem=2;
+				if (AppCommand>0) {
+					::lstrcpy(szText,pThis->m_MediaKeyList[AppCommand-1].pszText);
 					lvi.pszText=szText;
 				} else {
 					lvi.pszText=TEXT("");
@@ -664,6 +963,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				for (i=0;i<NumCommands;i++) {
 					WORD Key=0;
 					BYTE Mod=0;
+					int AppCommand=0;
 
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
@@ -674,9 +974,16 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 							break;
 						}
 					}
+					for (j=0;j<lengthof(m_DefaultAppCommandList);j++) {
+						if (m_DefaultAppCommandList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
+							AppCommand=j+1;
+							break;
+						}
+					}
 					if (GET_ACCEL_KEY(lvi.lParam)!=Key
-							|| GET_ACCEL_MOD(lvi.lParam)!=Mod)
-						SetAccelItem(hwndList,i,Mod,Key,false);
+							|| GET_ACCEL_MOD(lvi.lParam)!=Mod
+							|| GET_ACCEL_APPCOMMAND(lvi.lParam)!=AppCommand)
+						pThis->SetAccelItem(hwndList,i,Mod,Key,false,AppCommand);
 				}
 				SetDlgItemStatus(hDlg);
 			}
@@ -684,10 +991,85 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		}
 		return TRUE;
 
+	case WM_APPCOMMAND:
+		{
+			HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
+			int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
+
+			if (Sel>=0) {
+				const WORD Command=GET_APPCOMMAND_LPARAM(lParam);
+				int i;
+
+				for (i=0;i<lengthof(AppCommandList);i++) {
+					if (AppCommandList[i].Command==Command)
+						break;
+				}
+				if (i<lengthof(AppCommandList)) {
+					i++;
+					if (GET_ACCEL_APPCOMMAND(ListView_GetItemParam(hwndList,Sel))!=i) {
+						DlgComboBox_SetCurSel(hDlg,IDC_ACCELERATOR_APPCOMMAND,i);
+						::SendMessage(hDlg,WM_COMMAND,MAKEWPARAM(IDC_ACCELERATOR_APPCOMMAND,CBN_SELCHANGE),0);
+					}
+				}
+			}
+		}
+		break;
+
+	case WM_APP:
+		{
+			HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
+			int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
+
+			if (Sel>=0) {
+				CAccelerator *pThis=GetThis(hDlg);
+				int Index=pThis->m_RawInput.KeyDataToIndex(wParam);
+
+				if (Index>=0) {
+					Index+=1+lengthof(AppCommandList);
+					if (GET_ACCEL_APPCOMMAND(ListView_GetItemParam(hwndList,Sel))!=Index) {
+						DlgComboBox_SetCurSel(hDlg,IDC_ACCELERATOR_APPCOMMAND,Index);
+						::SendMessage(hDlg,WM_COMMAND,MAKEWPARAM(IDC_ACCELERATOR_APPCOMMAND,CBN_SELCHANGE),0);
+					}
+				}
+			}
+		}
+		break;
+
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
 		case LVN_ITEMCHANGED:
 			SetDlgItemStatus(hDlg);
+			break;
+
+		case NM_CLICK:
+			{
+				LPNMITEMACTIVATE pnmia=reinterpret_cast<LPNMITEMACTIVATE>(lParam);
+				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
+				HWND hwndAppCommand=GetDlgItem(hDlg,IDC_ACCELERATOR_APPCOMMAND);
+				LVHITTESTINFO lvhi;
+				DWORD Pos=::GetMessagePos();
+
+				lvhi.pt.x=LOWORD(Pos);
+				lvhi.pt.y=HIWORD(Pos);
+				::ScreenToClient(hwndList,&lvhi.pt);
+				if (ListView_SubItemHitTest(hwndList,&lvhi)>=0
+						&& (lvhi.flags&LVHT_ONITEMLABEL)!=0 && lvhi.iSubItem==2) {
+					RECT rc;
+
+					ListView_GetSubItemRect(hwndList,lvhi.iItem,lvhi.iSubItem,LVIR_BOUNDS,&rc);
+					::MapWindowPoints(hwndList,hDlg,(LPPOINT)&rc,2);
+					::MoveWindow(hwndAppCommand,rc.left,rc.top,rc.right-rc.left,240,TRUE);
+					ComboBox_SetCurSel(hwndAppCommand,GET_ACCEL_APPCOMMAND(ListView_GetItemParam(hwndList,lvhi.iItem)));
+					::ShowWindow(hwndAppCommand,SW_SHOW);
+					::BringWindowToTop(hwndAppCommand);
+				} else {
+					::ShowWindow(hwndAppCommand,SW_HIDE);
+				}
+			}
+			break;
+
+		case LVN_BEGINSCROLL:
+			ShowDlgItem(hDlg,IDC_ACCELERATOR_APPCOMMAND,false);
 			break;
 
 		case LVN_KEYDOWN:
@@ -699,7 +1081,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 					if (Sel>=0)
-						SetAccelItem(hwndList,Sel,0,0,false);
+						GetThis(hDlg)->SetAccelItem(hwndList,Sel,0,0,false,0);
 				}
 			}
 			break;
@@ -713,6 +1095,7 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				pThis->UnregisterHotKey();
 				pThis->m_KeyList.clear();
+				pThis->m_AppCommandList.clear();
 				Count=pThis->m_pCommandList->NumCommands();
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
@@ -727,6 +1110,15 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						Info.Modifiers=GET_ACCEL_MOD(lvi.lParam);
 						Info.fGlobal=GET_ACCEL_GLOBAL(lvi.lParam);
 						pThis->m_KeyList.push_back(Info);
+					}
+					int AppCommand=GET_ACCEL_APPCOMMAND(lvi.lParam);
+					if (AppCommand!=0) {
+						AppCommandInfo Info;
+
+						Info.Command=pThis->m_pCommandList->GetCommandID(i);
+						Info.Type=pThis->m_MediaKeyList[AppCommand-1].Type;
+						Info.AppCommand=pThis->m_MediaKeyList[AppCommand-1].Command;
+						pThis->m_AppCommandList.push_back(Info);
 					}
 				}
 				HACCEL hAccel=pThis->CreateAccel();
@@ -748,4 +1140,49 @@ BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		break;
 	}
 	return FALSE;
+}
+
+
+// CRawInput::CEventHandler
+void CAccelerator::OnInput(int Type)
+{
+	int Data=m_RawInput.GetKeyData(Type);
+
+	if (m_hDlg==NULL || !::IsWindowVisible(m_hDlg)) {
+		for (size_t i=0;i<m_AppCommandList.size();i++) {
+			if (m_AppCommandList[i].Type==MEDIAKEY_RAWINPUT
+					&& m_AppCommandList[i].AppCommand==Data) {
+				::PostMessage(m_hwndHotKey,WM_COMMAND,m_AppCommandList[i].Command,0);
+				return;
+			}
+		}
+	} else if (::IsWindowEnabled(m_hDlg)) {
+		::PostMessage(m_hDlg,WM_APP,Data,0);
+	}
+}
+
+
+void CAccelerator::OnUnknownInput(const BYTE *pData,int Size)
+{
+	/*
+	if (m_hDlg!=NULL && ::IsWindowVisible(m_hDlg) && ::IsWindowEnabled(m_hDlg)) {
+		static const LPCTSTR pszHex=TEXT("0123456789ABCDEF");
+		TCHAR szText[256];
+
+		::lstrcpy(szText,TEXT("データ : "));
+		i=::lstrlen(szText);
+		for (int j=0;j<min(Size,16);j++) {
+			szText[i++]=pszHex[pData[j]>>4];
+			szText[i++]=pszHex[pData[j]&0x0F];
+		}
+		if (Size>16) {
+			::lstrcpy(szText+i,TEXT(" ..."));
+			i+=4;
+		}
+		::lstrcpy(szText+i,TEXT("\n(押したキーとデータを教えてもらえれば対応できるかも知れません。)"));
+		CMessageDialog MessageDialog;
+		MessageDialog.Show(m_hDlg,CMessageDialog::TYPE_INFO,szText,
+						   TEXT("対応していないキーが押されました。"),NULL,TEXT("ごめん"));
+	}
+	*/
 }

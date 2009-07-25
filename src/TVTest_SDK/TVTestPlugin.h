@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.6
+	TVTest プラグインヘッダ ver.0.0.7
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -87,6 +87,9 @@
 /*
 	更新履歴
 
+	ver.0.0.7 (TVTest ver.0.5.45 or later)
+	・MESSAGE_DOCOMMAND を追加した
+
 	ver.0.0.6 (TVTest ver.0.5.42 or later)
 	・MESSAGE_SETAUDIOCALLBACK を追加した
 	・EVENT_DSHOWINITIALIZED を追加した
@@ -144,8 +147,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_4	0x00000004UL
 #define TVTEST_PLUGIN_VERSION_0_0_5	0x00000005UL
 #define TVTEST_PLUGIN_VERSION_0_0_6	0x00000006UL
+#define TVTEST_PLUGIN_VERSION_0_0_7	0x00000007UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_6
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_7
 #endif
 
 // エクスポート関数定義用
@@ -261,6 +265,9 @@ enum {
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
 	MESSAGE_SETAUDIOCALLBACK,
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+	MESSAGE_DOCOMMAND,
 #endif
 	MESSAGE_TRAILER
 };
@@ -961,6 +968,19 @@ inline bool MsgSetAudioCallback(PluginParam *pParam,AudioCallbackFunc pCallback,
 
 #endif
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+
+// コマンドを実行する
+// 文字列を指定してコマンドを実行します。
+// コマンドは TVTest.ini の [Accelerator] セクションの Accel*_Command の文字列と同じです。
+// 一覧は TVTest のソースの Command.cpp にあります。
+inline bool MsgDoCommand(PluginParam *pParam,LPCWSTR pszCommand)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_DOCOMMAND,(LPARAM)pszCommand,0)!=0;
+}
+
+#endif
+
 
 /*
 	TVTest アプリケーションクラス
@@ -1189,6 +1209,11 @@ public:
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
 	bool SetAudioCallback(AudioCallbackFunc pCallback,void *pClientData=NULL) {
 		return MsgSetAudioCallback(m_pParam,pCallback,pClientData);
+	}
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+	bool DoCommand(LPCWSTR pszCommand) {
+		return MsgDoCommand(m_pParam,pszCommand);
 	}
 #endif
 };

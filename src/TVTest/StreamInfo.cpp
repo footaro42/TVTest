@@ -277,6 +277,42 @@ bool CStreamInfo::Create(HWND hwndOwner)
 }
 
 
+bool CStreamInfo::GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const
+{
+	RECT rc;
+	if (m_hDlg==NULL) {
+		m_WindowPosition.Get(&rc);
+	} else {
+		::GetWindowRect(m_hDlg,&rc);
+	}
+	if (pLeft!=NULL)
+		*pLeft=rc.left;
+	if (pTop!=NULL)
+		*pTop=rc.top;
+	if (pWidth!=NULL)
+		*pWidth=rc.right-rc.left;
+	if (pHeight!=NULL)
+		*pHeight=rc.bottom-rc.top;
+	return true;
+}
+
+
+bool CStreamInfo::SetPosition(int Left,int Top,int Width,int Height)
+{
+	if (Width<0 || Height<0)
+		return false;
+	if (m_hDlg==NULL) {
+		m_WindowPosition.x=Left;
+		m_WindowPosition.y=Top;
+		m_WindowPosition.Width=Width;
+		m_WindowPosition.Height=Height;
+	} else {
+		::MoveWindow(m_hDlg,Left,Top,Width,Height,TRUE);
+	}
+	return true;
+}
+
+
 bool CStreamInfo::SetEventHandler(CEventHandler *pHandler)
 {
 	m_pEventHandler=pHandler;

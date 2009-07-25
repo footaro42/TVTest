@@ -10,6 +10,7 @@
 class CMainMenu {
 	HMENU m_hmenu;
 	bool m_fPopup;
+	int m_PopupMenu;
 public:
 	enum {
 		SUBMENU_ZOOM=0,
@@ -20,14 +21,15 @@ public:
 		SUBMENU_CHANNELHISTORY=8,
 		SUBMENU_VOLUME=10,
 		SUBMENU_STEREOMODE=11,
-		SUBMENU_PLUGIN=27
+		SUBMENU_BAR=25,
+		SUBMENU_PLUGIN=26
 	};
 	CMainMenu();
 	~CMainMenu();
 	bool Create(HINSTANCE hinst);
 	void Destroy();
 	bool Popup(UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
-	bool PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd);
+	bool PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
 	void EnableItem(int ID,bool fEnable);
 	void CheckItem(int ID,bool fCheck);
 	void CheckRadioItem(int FirstID,int LastID,int CheckID);
@@ -52,6 +54,15 @@ public:
 	bool Popup(UINT Flags,int x,int y,HWND hwnd);
 	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	bool OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
+};
+
+class CPopupMenu {
+	HMENU m_hmenu;
+public:
+	CPopupMenu();
+	~CPopupMenu();
+	bool Popup(HMENU hmenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
+	bool Popup(HINSTANCE hinst,LPCTSTR pszName,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
 };
 
 

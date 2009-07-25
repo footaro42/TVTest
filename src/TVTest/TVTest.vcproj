@@ -170,6 +170,7 @@
 				SubSystem="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
+				OptimizeForWindows98="1"
 				LinkTimeCodeGeneration="1"
 				TargetMachine="1"
 			/>
@@ -502,6 +503,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\RawInput.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Record.cpp"
 				>
 			</File>
@@ -519,6 +524,14 @@
 			</File>
 			<File
 				RelativePath=".\Settings.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\SideBar.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\SideBarOptions.cpp"
 				>
 			</File>
 			<File
@@ -812,6 +825,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\RawInput.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Record.h"
 				>
 			</File>
@@ -833,6 +850,14 @@
 			</File>
 			<File
 				RelativePath=".\Settings.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SideBar.h"
+				>
+			</File>
+			<File
+				RelativePath=".\SideBarOptions.h"
 				>
 			</File>
 			<File

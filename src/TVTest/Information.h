@@ -3,14 +3,29 @@
 
 
 #include "InfoPanel.h"
+#include "Util.h"
+#include "Settings.h"
 
 
-class CInformation : public CInfoPanelPage {
+class CInformationPanel : public CInfoPanelPage {
 public:
 	class CEventHandler {
 	public:
 		virtual ~CEventHandler() {}
 		virtual bool OnProgramInfoUpdate(bool fNext) { return false; }
+	};
+
+	enum {
+		ITEM_VIDEO,
+		ITEM_DECODER,
+		ITEM_VIDEORENDERER,
+		ITEM_AUDIODEVICE,
+		ITEM_BITRATE,
+		ITEM_ERROR,
+		ITEM_RECORD,
+		ITEM_PROGRAMINFO,
+		NUM_ITEMS,
+		ITEM_SIGNALLEVEL=ITEM_BITRATE,
 	};
 
 private:
@@ -28,13 +43,18 @@ private:
 	HFONT m_hFont;
 	int m_FontHeight;
 	int m_LineMargin;
+	unsigned int m_ItemVisibility;
+	CEventHandler *m_pEventHandler;
+
 	int m_OriginalVideoWidth;
 	int m_OriginalVideoHeight;
 	int m_DisplayVideoWidth;
 	int m_DisplayVideoHeight;
 	int m_AspectX;
 	int m_AspectY;
-	LPTSTR m_pszDecoderName;
+	CDynamicString m_VideoDecoderName;
+	CDynamicString m_VideoRendererName;
+	CDynamicString m_AudioDeviceName;
 	bool m_fSignalLevel;
 	float m_SignalLevel;
 	bool m_fBitRate;
@@ -43,29 +63,35 @@ private:
 	ULONGLONG m_RecordWroteSize;
 	unsigned int m_RecordTime;
 	ULARGE_INTEGER m_DiskFreeSpace;
-	LPTSTR m_pszProgramInfo;
+	CDynamicString m_ProgramInfo;
 	bool m_fNextProgramInfo;
-	CEventHandler *m_pEventHandler;
-	static CInformation *GetThis(HWND hwnd);
+
+	static const LPCTSTR m_pszItemNameList[];
+
+	static CInformationPanel *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static LRESULT CALLBACK ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	void GetItemRect(int Item,RECT *pRect);
+	void GetItemRect(int Item,RECT *pRect) const;
 	void UpdateItem(int Item);
 	void CalcFontHeight();
 
 public:
 	static bool Initialize(HINSTANCE hinst);
-	CInformation();
-	~CInformation();
+	CInformationPanel();
+	~CInformationPanel();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void Reset();
 	bool IsVisible() const;
 	void SetColor(COLORREF crBackColor,COLORREF crTextColor);
 	void SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor);
 	bool SetFont(const LOGFONT *pFont);
+	bool SetItemVisible(int Item,bool fVisible);
+	bool IsItemVisible(int Item) const;
 	void SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight);
 	void SetAspectRatio(int AspectX,int AspectY);
-	void SetDecoderName(LPCTSTR pszName);
+	void SetVideoDecoderName(LPCTSTR pszName);
+	void SetVideoRendererName(LPCTSTR pszName);
+	void SetAudioDeviceName(LPCTSTR pszName);
 	void SetSignalLevel(float Level);
 	void ShowSignalLevel(bool fShow);
 	void SetBitRate(float BitRate);
@@ -75,6 +101,8 @@ public:
 	void SetProgramInfo(LPCTSTR pszInfo);
 	bool GetProgramInfoNext() { return m_fNextProgramInfo; }
 	bool SetEventHandler(CEventHandler *pHandler);
+	bool Load(LPCTSTR pszFileName);
+	bool Save(LPCTSTR pszFileName) const;
 };
 
 

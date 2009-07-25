@@ -386,8 +386,8 @@ const CChannelInfo *CChannelManager::GetNextChannelInfo(bool fNext) const
 				return NULL;
 			Channel=m_CurrentChannel;
 		}
-		if (pList->HasRemoteControlKeyID()) {
-			No=pList->GetChannelNo(Channel);
+		//if (pList->HasRemoteControlKeyID()) {
+		if ((No=pList->GetChannelNo(Channel))>0) {
 			if (fNext)
 				No=pList->GetNextChannelNo(No,true);
 			else
@@ -398,19 +398,19 @@ const CChannelInfo *CChannelManager::GetNextChannelInfo(bool fNext) const
 			for (i=pList->NumChannels();i>0;i--) {
 				if (fNext) {
 					No++;
-					if (No==pList->NumChannels())
+					if (No>=pList->NumChannels())
 						No=0;
 				} else {
 					No--;
 					if (No<0)
 						No=pList->NumChannels()-1;
 				}
-				if (pList->GetChannelInfo(No)->IsEnabled())
+				pInfo=pList->GetChannelInfo(No);
+				if (pInfo->IsEnabled())
 					break;
 			}
 			if (i==0)
 				return NULL;
-			pInfo=pList->GetChannelInfo(No);
 		}
 	}
 	return pInfo;

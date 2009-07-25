@@ -9,6 +9,7 @@
 
 #define TITLE_BAR_CLASS APP_NAME TEXT(" Title Bar")
 
+#define TITLE_BORDER		1
 #define TITLE_MARGIN		4
 #define TITLE_ICON_WIDTH	12
 #define TITLE_ICON_HEIGHT	12
@@ -137,6 +138,24 @@ void CTitleBar::SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
 }
 
 
+/*
+bool CTitleBar::SetFont(const LOGFONT *pFont)
+{
+	if (pFont==NULL)
+		return false;
+	HFONT hfont=::CreateFontIndirect(pFont);
+	if (hfont==NULL)
+		return false;
+	if (m_hfont!=NULL)
+		::DeleteObject(m_hfont);
+	m_hfont=hfont;
+
+
+	return true;
+}
+*/
+
+
 CTitleBar *CTitleBar::GetThis(HWND hwnd)
 {
 	return static_cast<CTitleBar*>(GetBasicWindow(hwnd));
@@ -155,7 +174,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			rc.left=0;
 			rc.top=0;
 			rc.right=0;
-			rc.bottom=max(pThis->m_FontHeight,TITLE_ICON_HEIGHT)+TITLE_MARGIN*2;
+			rc.bottom=max(pThis->m_FontHeight,TITLE_ICON_HEIGHT)+TITLE_MARGIN*2+TITLE_BORDER*2;
 			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
 			::MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
 			if (pThis->m_hbmIcons==NULL)
@@ -167,9 +186,8 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 				NULL,WS_POPUP | TTS_ALWAYSTIP,0,0,0,0,hwnd,NULL,m_hinst,NULL);
 			TOOLINFO ti;
 			ti.cbSize=TTTOOLINFO_V1_SIZE;
-			ti.uFlags=0;
-			ti.hwnd=hwnd;
 			ti.uFlags=TTF_SUBCLASS;
+			ti.hwnd=hwnd;
 			ti.hinst=NULL;
 			ti.lpszText=LPSTR_TEXTCALLBACK;
 			for (int i=ITEM_BUTTON_FIRST;i<=ITEM_LAST;i++) {
@@ -186,8 +204,10 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		{
 			CTitleBar *pThis=GetThis(hwnd);
 
-			if (pThis->m_HotItem>=0)
+			if (pThis->m_HotItem>=0) {
+				pThis->UpdateItem(pThis->m_HotItem);
 				pThis->m_HotItem=-1;
+			}
 			pThis->SetToolTip();
 		}
 		return 0;
@@ -267,6 +287,8 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 								pThis->m_crBackColor1,pThis->m_crBackColor2,
 								DrawUtil::DIRECTION_VERT);
 			}
+			::GetClientRect(hwnd,&rc);
+			::DrawEdge(ps.hdc,&rc,BDR_SUNKENINNER,BF_RECT);
 			::SetBkColor(ps.hdc,crOldBkColor);
 			::SetTextColor(ps.hdc,crOldTextColor);
 			::SetBkMode(ps.hdc,OldBkMode);
@@ -323,10 +345,8 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			CTitleBar *pThis=GetThis(hwnd);
 
 			if (pThis->m_HotItem>=0) {
-				int i=pThis->m_HotItem;
-
+				pThis->UpdateItem(pThis->m_HotItem);
 				pThis->m_HotItem=-1;
-				pThis->UpdateItem(i);
 			}
 			pThis->m_fTrackMouseEvent=false;
 			if (pThis->m_pEventHandler)
@@ -442,6 +462,10 @@ bool CTitleBar::GetItemRect(int Item,RECT *pRect) const
 	if (m_hwnd==NULL || Item<0 || Item>ITEM_LAST)
 		return false;
 	GetClientRect(&rc);
+	rc.left+=TITLE_BORDER;
+	rc.top+=TITLE_BORDER;
+	rc.right-=TITLE_BORDER;
+	rc.bottom-=TITLE_BORDER;
 	ButtonPos=rc.right-NUM_BUTTONS*TITLE_BUTTON_WIDTH;
 	if (ButtonPos<0)
 		ButtonPos=0;

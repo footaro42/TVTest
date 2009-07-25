@@ -763,14 +763,44 @@ bool CDtvEngine::CloseMediaViewer()
 }
 
 
+bool CDtvEngine::ResetMediaViewer()
+{
+	if (!m_MediaViewer.IsOpen())
+		return false;
+
+	m_MediaViewer.Reset();
+
+	if (m_bBuffering)
+		m_MediaBuffer.Reset();
+
+	CBlockLock Lock(&m_EngineLock);
+
+	WORD VideoPID = CMediaViewer::PID_INVALID;
+	WORD AudioPID = CMediaViewer::PID_INVALID;
+	if (m_ProgManager.GetVideoEsPID(&VideoPID, m_wCurService))
+		m_MediaViewer.SetVideoPID(VideoPID);
+	if (m_ProgManager.GetAudioEsPID(&AudioPID, m_CurAudioStream, m_wCurService))
+		m_MediaViewer.SetAudioPID(AudioPID);
+
+	return true;
+}
+
+
 bool CDtvEngine::OpenBcasCard(CCardReader::ReaderType CardReaderType)
 {
 	// B-CASカードを開く
 	if (CardReaderType!=CCardReader::READER_NONE) {
 		Trace(TEXT("B-CASカードを開いています..."));
 		if (!m_TsDescrambler.OpenBcasCard(CardReaderType)) {
-			SetError(0,TEXT("B-CASカードの初期化に失敗しました。"),
-					 TEXT("カードリーダが接続されているか、設定で有効なカードリーダが選択されているか確認してください。"));
+			TCHAR szText[256];
+
+			if (m_TsDescrambler.GetLastErrorText()!=NULL)
+				::wsprintf(szText,TEXT("B-CASカードの初期化に失敗しました。%s"),m_TsDescrambler.GetLastErrorText());
+			else
+				::lstrcpy(szText,TEXT("B-CASカードの初期化に失敗しました。"));
+			SetError(0,szText,
+					 TEXT("カードリーダが接続されているか、設定で有効なカードリーダが選択されているか確認してください。"),
+					 m_TsDescrambler.GetLastErrorSystemMessage());
 			return false;
 		}
 	} else if (m_TsDescrambler.IsBcasCardOpen()) {

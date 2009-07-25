@@ -54,6 +54,7 @@ public:
 	~CChannelList();
 	CChannelList &operator=(const CChannelList &List);
 	int NumChannels() const { return m_NumChannels; }
+	int NumEnableChannels() const;
 	bool AddChannel(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);
 	bool AddChannel(const CChannelInfo &Info);
 	CChannelInfo *GetChannelInfo(int Index);

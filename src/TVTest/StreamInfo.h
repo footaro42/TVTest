@@ -17,6 +17,8 @@ public:
 	CStreamInfo();
 	~CStreamInfo();
 	bool Create(HWND hwndOwner);
+	bool GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const;
+	bool SetPosition(int Left,int Top,int Width,int Height);
 	bool SetEventHandler(CEventHandler *pHandler);
 
 private:
@@ -28,6 +30,12 @@ private:
 			y=pRect->top;
 			Width=pRect->right-x;
 			Height=pRect->bottom-y;
+		}
+		void Get(RECT *pRect) const {
+			pRect->left=x;
+			pRect->top=y;
+			pRect->right=x+Width;
+			pRect->bottom=y+Height;
 		}
 	} m_WindowPosition;
 	CEventHandler *m_pEventHandler;

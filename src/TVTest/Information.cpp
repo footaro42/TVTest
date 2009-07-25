@@ -19,24 +19,27 @@ static char THIS_FILE[]=__FILE__;
 
 #define PROGRAMINFO_BUTTON_SIZE	16
 
-enum {
-	INFO_ITEM_VIDEO,
-	INFO_ITEM_DECODER,
-	INFO_ITEM_BITRATE,
-	INFO_ITEM_ERROR,
-	INFO_ITEM_RECORD,
-	INFO_ITEM_PROGRAMINFO
+#define ITEM_FLAG(item) (1<<(item))
+
+
+
+
+HINSTANCE CInformationPanel::m_hinst=NULL;
+
+
+const LPCTSTR CInformationPanel::m_pszItemNameList[] = {
+	TEXT("VideoInfo"),
+	TEXT("VideoDecoder"),
+	TEXT("VideoRenderer"),
+	TEXT("AudioDevice"),
+	TEXT("SignalLevel"),
+	TEXT("Error"),
+	TEXT("Record"),
+	TEXT("ProgramInfo"),
 };
 
-#define INFO_ITEM_SIGNALLEVEL INFO_ITEM_BITRATE
 
-
-
-
-HINSTANCE CInformation::m_hinst=NULL;
-
-
-bool CInformation::Initialize(HINSTANCE hinst)
+bool CInformationPanel::Initialize(HINSTANCE hinst)
 {
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
@@ -59,58 +62,56 @@ bool CInformation::Initialize(HINSTANCE hinst)
 }
 
 
-CInformation::CInformation()
+CInformationPanel::CInformationPanel()
 	: m_hwndProgramInfo(NULL)
 	, m_pOldProgramInfoProc(NULL)
 	, m_hwndProgramInfoPrev(NULL)
 	, m_hwndProgramInfoNext(NULL)
+	, m_hbrBack(NULL)
+	, m_hbrProgramInfoBack(NULL)
+	, m_pEventHandler(NULL)
 {
 	m_crBackColor=RGB(0,0,0);
 	m_crTextColor=RGB(255,255,255);
 	m_crProgramInfoBackColor=RGB(0,0,0);
 	m_crProgramInfoTextColor=RGB(255,255,255);
-	m_hbrBack=NULL;
-	m_hbrProgramInfoBack=NULL;
 	LOGFONT lf;
 	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
 	m_hFont=CreateFontIndirect(&lf);
 	m_LineMargin=1;
+	m_ItemVisibility=(unsigned int)-1;
+
 	m_OriginalVideoWidth=0;
 	m_OriginalVideoHeight=0;
 	m_DisplayVideoWidth=0;
 	m_DisplayVideoHeight=0;
 	m_AspectX=0;
 	m_AspectY=0;
-	m_pszDecoderName=NULL;
 	m_fSignalLevel=false;
 	m_SignalLevel=0.0f;
 	m_fBitRate=false;
 	m_BitRate=0.0f;
 	m_fRecording=false;
-	m_pszProgramInfo=NULL;
 	m_fNextProgramInfo=false;
-	m_pEventHandler=NULL;
 }
 
 
-CInformation::~CInformation()
+CInformationPanel::~CInformationPanel()
 {
 	if (m_hwnd!=NULL)
 		::DestroyWindow(m_hwnd);
 	::DeleteObject(m_hFont);
-	delete [] m_pszDecoderName;
-	delete [] m_pszProgramInfo;
 }
 
 
-bool CInformation::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
+bool CInformationPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
 							 INFORMATION_WINDOW_CLASS,TEXT("èÓïÒ"),m_hinst);
 }
 
 
-void CInformation::Reset()
+void CInformationPanel::Reset()
 {
 	/*
 	m_OriginalVideoWidth=0;
@@ -120,18 +121,10 @@ void CInformation::Reset()
 	*/
 	m_AspectX=0;
 	m_AspectY=0;
-	/*
-	if (m_pszDecoderName!=NULL) {
-		delete [] m_pszDecoderName;
-		m_pszDecoderName=NULL;
-	}
-	*/
+	//m_VideoDecoderName.Clear();
 	m_BitRate=0.0;
 	m_fRecording=false;
-	if (m_pszProgramInfo!=NULL) {
-		delete [] m_pszProgramInfo;
-		m_pszProgramInfo=NULL;
-	}
+	m_ProgramInfo.Clear();
 	m_fNextProgramInfo=false;
 	if (m_hwnd!=NULL) {
 		InvalidateRect(m_hwnd,NULL,TRUE);
@@ -140,13 +133,13 @@ void CInformation::Reset()
 }
 
 
-bool CInformation::IsVisible() const
+bool CInformationPanel::IsVisible() const
 {
 	return m_hwnd!=NULL;
 }
 
 
-void CInformation::SetColor(COLORREF crBackColor,COLORREF crTextColor)
+void CInformationPanel::SetColor(COLORREF crBackColor,COLORREF crTextColor)
 {
 	m_crBackColor=crBackColor;
 	m_crTextColor=crTextColor;
@@ -160,7 +153,7 @@ void CInformation::SetColor(COLORREF crBackColor,COLORREF crTextColor)
 }
 
 
-void CInformation::SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor)
+void CInformationPanel::SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor)
 {
 	m_crProgramInfoBackColor=crBackColor;
 	m_crProgramInfoTextColor=crTextColor;
@@ -172,7 +165,7 @@ void CInformation::SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor
 }
 
 
-bool CInformation::SetFont(const LOGFONT *pFont)
+bool CInformationPanel::SetFont(const LOGFONT *pFont)
 {
 	HFONT hfont=::CreateFontIndirect(pFont);
 
@@ -192,7 +185,7 @@ bool CInformation::SetFont(const LOGFONT *pFont)
 }
 
 
-void CInformation::SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight)
+void CInformationPanel::SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight)
 {
 	if (OriginalWidth!=m_OriginalVideoWidth || OriginalHeight!=m_OriginalVideoHeight
 			|| DisplayWidth!=m_DisplayVideoWidth || DisplayHeight!=m_DisplayVideoHeight) {
@@ -200,67 +193,84 @@ void CInformation::SetVideoSize(int OriginalWidth,int OriginalHeight,int Display
 		m_OriginalVideoHeight=OriginalHeight;
 		m_DisplayVideoWidth=DisplayWidth;
 		m_DisplayVideoHeight=DisplayHeight;
-		UpdateItem(INFO_ITEM_VIDEO);
+		UpdateItem(ITEM_VIDEO);
 	}
 }
 
 
-void CInformation::SetAspectRatio(int AspectX,int AspectY)
+void CInformationPanel::SetAspectRatio(int AspectX,int AspectY)
 {
 	if (AspectX!=m_AspectX || AspectY!=m_AspectY) {
 		m_AspectX=AspectX;
 		m_AspectY=AspectY;
-		UpdateItem(INFO_ITEM_VIDEO);
+		UpdateItem(ITEM_VIDEO);
 	}
 }
 
 
-void CInformation::SetDecoderName(LPCTSTR pszName)
+void CInformationPanel::SetVideoDecoderName(LPCTSTR pszName)
 {
-	if (m_pszDecoderName==NULL || pszName==NULL
-			|| lstrcmp(pszName,m_pszDecoderName)!=0) {
-		ReplaceString(&m_pszDecoderName,pszName);
-		UpdateItem(INFO_ITEM_DECODER);
+	if (m_VideoDecoderName.Compare(pszName)!=0) {
+		m_VideoDecoderName.Set(pszName);
+		UpdateItem(ITEM_DECODER);
 	}
 }
 
 
-void CInformation::SetSignalLevel(float Level)
+void CInformationPanel::SetVideoRendererName(LPCTSTR pszName)
+{
+	if (m_VideoRendererName.Compare(pszName)!=0) {
+		m_VideoRendererName.Set(pszName);
+		UpdateItem(ITEM_VIDEORENDERER);
+	}
+}
+
+
+void CInformationPanel::SetAudioDeviceName(LPCTSTR pszName)
+{
+	if (m_AudioDeviceName.Compare(pszName)!=0) {
+		m_AudioDeviceName.Set(pszName);
+		UpdateItem(ITEM_AUDIODEVICE);
+	}
+}
+
+
+void CInformationPanel::SetSignalLevel(float Level)
 {
 	if (!m_fSignalLevel || Level!=m_SignalLevel) {
 		m_fSignalLevel=true;
 		m_SignalLevel=Level;
-		UpdateItem(INFO_ITEM_SIGNALLEVEL);
+		UpdateItem(ITEM_SIGNALLEVEL);
 	}
 }
 
 
-void CInformation::ShowSignalLevel(bool fShow)
+void CInformationPanel::ShowSignalLevel(bool fShow)
 {
 	if (fShow!=m_fSignalLevel) {
 		m_fSignalLevel=fShow;
-		UpdateItem(INFO_ITEM_SIGNALLEVEL);
+		UpdateItem(ITEM_SIGNALLEVEL);
 	}
 }
 
 
-void CInformation::SetBitRate(float BitRate)
+void CInformationPanel::SetBitRate(float BitRate)
 {
 	if (!m_fBitRate || BitRate!=m_BitRate) {
 		m_fBitRate=true;
 		m_BitRate=BitRate;
-		UpdateItem(INFO_ITEM_BITRATE);
+		UpdateItem(ITEM_BITRATE);
 	}
 }
 
 
-void CInformation::UpdateErrorCount()
+void CInformationPanel::UpdateErrorCount()
 {
-	UpdateItem(INFO_ITEM_ERROR);
+	UpdateItem(ITEM_ERROR);
 }
 
 
-void CInformation::SetRecordStatus(bool fRecording,LPCTSTR pszFileName,
+void CInformationPanel::SetRecordStatus(bool fRecording,LPCTSTR pszFileName,
 								ULONGLONG WroteSize,unsigned int RecordTime)
 {
 	m_fRecording=fRecording;
@@ -273,59 +283,56 @@ void CInformation::SetRecordStatus(bool fRecording,LPCTSTR pszFileName,
 		if (!GetDiskFreeSpaceEx(szPath,&m_DiskFreeSpace,NULL,NULL))
 			m_DiskFreeSpace.QuadPart=0;
 	}
-	UpdateItem(INFO_ITEM_RECORD);
+	UpdateItem(ITEM_RECORD);
 }
 
 
-void CInformation::SetProgramInfo(LPCTSTR pszInfo)
+void CInformationPanel::SetProgramInfo(LPCTSTR pszInfo)
 {
-	if (m_pszProgramInfo==NULL && pszInfo==NULL)
-		return;
-	if (m_pszProgramInfo!=NULL && pszInfo!=NULL
-			&& ::lstrcmp(m_pszProgramInfo,pszInfo)==0)
-		return;
-	ReplaceString(&m_pszProgramInfo,pszInfo);
-	SetWindowText(m_hwndProgramInfo,NullToEmptyString(m_pszProgramInfo));
+	if (m_ProgramInfo.Compare(pszInfo)!=0) {
+		m_ProgramInfo.Set(pszInfo);
+		::SetWindowText(m_hwndProgramInfo,m_ProgramInfo.GetSafe());
+	}
 }
 
 
-bool CInformation::SetEventHandler(CEventHandler *pHandler)
+bool CInformationPanel::SetEventHandler(CEventHandler *pHandler)
 {
 	m_pEventHandler=pHandler;
 	return true;
 }
 
 
-CInformation *CInformation::GetThis(HWND hwnd)
+CInformationPanel *CInformationPanel::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CInformation*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return reinterpret_cast<CInformationPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
 }
 
 
-LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
+LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 																LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CInformation *pThis=static_cast<CInformation*>(
+			CInformationPanel *pThis=static_cast<CInformationPanel*>(
 					reinterpret_cast<LPCREATESTRUCT>(lParam)->lpCreateParams);
 
 			SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(pThis));
 			pThis->m_hwnd=hwnd;
 			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
-				pThis->m_pszProgramInfo!=NULL?pThis->m_pszProgramInfo:TEXT(""),
-				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY,
+				pThis->m_ProgramInfo.GetSafe(),
+				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFO,m_hinst,NULL);
 			SetWindowFont(pThis->m_hwndProgramInfo,pThis->m_hFont,FALSE);
 			::SetProp(pThis->m_hwndProgramInfo,APP_NAME TEXT("This"),pThis);
 			pThis->m_pOldProgramInfoProc=SubclassWindow(pThis->m_hwndProgramInfo,ProgramInfoHookProc);
 			pThis->m_hwndProgramInfoPrev=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
-				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?0:WS_DISABLED)
+				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?0:WS_DISABLED)
 												| BS_PUSHBUTTON | BS_OWNERDRAW,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFOPREV,m_hinst,NULL);
 			pThis->m_hwndProgramInfoNext=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
-				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?WS_DISABLED:0)
+				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?WS_DISABLED:0)
 												| BS_PUSHBUTTON | BS_OWNERDRAW,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFONEXT,m_hinst,NULL);
 			pThis->m_hbrBack=CreateSolidBrush(pThis->m_crBackColor);
@@ -336,24 +343,27 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_SIZE:
 		{
-			CInformation *pThis=GetThis(hwnd);
-			RECT rc;
+			CInformationPanel *pThis=GetThis(hwnd);
 
-			pThis->GetItemRect(INFO_ITEM_PROGRAMINFO,&rc);
-			MoveWindow(pThis->m_hwndProgramInfo,rc.left,rc.top,
-						rc.right-rc.left,rc.bottom-rc.top,TRUE);
-			MoveWindow(pThis->m_hwndProgramInfoPrev,
-						rc.right-PROGRAMINFO_BUTTON_SIZE*2,rc.bottom,
-						PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
-			MoveWindow(pThis->m_hwndProgramInfoNext,
-						rc.right-PROGRAMINFO_BUTTON_SIZE,rc.bottom,
-						PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
+			if (pThis->IsItemVisible(ITEM_PROGRAMINFO)) {
+				RECT rc;
+
+				pThis->GetItemRect(ITEM_PROGRAMINFO,&rc);
+				MoveWindow(pThis->m_hwndProgramInfo,rc.left,rc.top,
+							rc.right-rc.left,rc.bottom-rc.top,TRUE);
+				MoveWindow(pThis->m_hwndProgramInfoPrev,
+							rc.right-PROGRAMINFO_BUTTON_SIZE*2,rc.bottom,
+							PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
+				MoveWindow(pThis->m_hwndProgramInfoNext,
+							rc.right-PROGRAMINFO_BUTTON_SIZE,rc.bottom,
+							PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
+			}
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CInformation *pThis=GetThis(hwnd);
+			CInformationPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			HFONT hfontOld;
 			COLORREF crOldTextColor;
@@ -366,66 +376,89 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			FillRect(ps.hdc,&ps.rcPaint,pThis->m_hbrBack);
 			crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTextColor);
 			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-			pThis->GetItemRect(INFO_ITEM_VIDEO,&rc);
-			if (IsRectIntersect(&ps.rcPaint,&rc)) {
-				wsprintf(szText,TEXT("%d x %d [%d x %d (%d:%d)]"),
-					pThis->m_OriginalVideoWidth,pThis->m_OriginalVideoHeight,
-					pThis->m_DisplayVideoWidth,pThis->m_DisplayVideoHeight,
-					pThis->m_AspectX,pThis->m_AspectY);
-				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+			if (pThis->IsItemVisible(ITEM_VIDEO)) {
+				pThis->GetItemRect(ITEM_VIDEO,&rc);
+				if (IsRectIntersect(&ps.rcPaint,&rc)) {
+					wsprintf(szText,TEXT("%d x %d [%d x %d (%d:%d)]"),
+						pThis->m_OriginalVideoWidth,pThis->m_OriginalVideoHeight,
+						pThis->m_DisplayVideoWidth,pThis->m_DisplayVideoHeight,
+						pThis->m_AspectX,pThis->m_AspectY);
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+				}
 			}
-			if (pThis->m_pszDecoderName!=NULL) {
-				pThis->GetItemRect(INFO_ITEM_DECODER,&rc);
+			if (pThis->IsItemVisible(ITEM_DECODER)
+					&& !pThis->m_VideoDecoderName.IsEmpty()) {
+				pThis->GetItemRect(ITEM_DECODER,&rc);
 				if (IsRectIntersect(&ps.rcPaint,&rc))
-					DrawText(ps.hdc,pThis->m_pszDecoderName,-1,&rc,
+					DrawText(ps.hdc,pThis->m_VideoDecoderName.Get(),-1,&rc,
 						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
 			}
-			pThis->GetItemRect(INFO_ITEM_BITRATE,&rc);
-			if (IsRectIntersect(&ps.rcPaint,&rc)) {
-				if (pThis->m_fSignalLevel) {
-					int SignalLevel=(int)(pThis->m_SignalLevel*100);
-					wsprintf(szText,TEXT("%d.%02d dB"),
-											SignalLevel/100,SignalLevel%100);
-				} else
-					szText[0]='\0';
-				if (pThis->m_fBitRate) {
-					if (pThis->m_fSignalLevel)
-						lstrcat(szText,TEXT(" / "));
-					int BitRate=(int)(pThis->m_BitRate*100);
-					wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
-													BitRate/100,BitRate%100);
+			if (pThis->IsItemVisible(ITEM_VIDEORENDERER)
+					&& !pThis->m_VideoRendererName.IsEmpty()) {
+				pThis->GetItemRect(ITEM_VIDEORENDERER,&rc);
+				if (IsRectIntersect(&ps.rcPaint,&rc))
+					DrawText(ps.hdc,pThis->m_VideoRendererName.Get(),-1,&rc,
+						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+			}
+			if (pThis->IsItemVisible(ITEM_AUDIODEVICE)
+					&& !pThis->m_AudioDeviceName.IsEmpty()) {
+				pThis->GetItemRect(ITEM_AUDIODEVICE,&rc);
+				if (IsRectIntersect(&ps.rcPaint,&rc))
+					DrawText(ps.hdc,pThis->m_AudioDeviceName.Get(),-1,&rc,
+						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+			}
+			if (pThis->IsItemVisible(ITEM_BITRATE)) {
+				pThis->GetItemRect(ITEM_BITRATE,&rc);
+				if (IsRectIntersect(&ps.rcPaint,&rc)) {
+					if (pThis->m_fSignalLevel) {
+						int SignalLevel=(int)(pThis->m_SignalLevel*100);
+						wsprintf(szText,TEXT("%d.%02d dB"),
+												SignalLevel/100,SignalLevel%100);
+					} else
+						szText[0]='\0';
+					if (pThis->m_fBitRate) {
+						if (pThis->m_fSignalLevel)
+							lstrcat(szText,TEXT(" / "));
+						int BitRate=(int)(pThis->m_BitRate*100);
+						wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
+														BitRate/100,BitRate%100);
+					}
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
 				}
-				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
 			}
-			pThis->GetItemRect(INFO_ITEM_ERROR,&rc);
-			if (IsRectIntersect(&ps.rcPaint,&rc)) {
-				const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
-				int Length;
+			if (pThis->IsItemVisible(ITEM_ERROR)) {
+				pThis->GetItemRect(ITEM_ERROR,&rc);
+				if (IsRectIntersect(&ps.rcPaint,&rc)) {
+					const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+					int Length;
 
-				Length=wsprintf(szText,TEXT("D %u / E %u"),
-								pCoreEngine->GetContinuityErrorPacketCount(),
-								pCoreEngine->GetErrorPacketCount());
-				if (pCoreEngine->GetDescramble()
-						&& pCoreEngine->GetCardReaderType()!=CCardReader::READER_NONE)
-				wsprintf(szText+Length,TEXT(" / S %u"),pCoreEngine->GetScramblePacketCount());
-				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+					Length=wsprintf(szText,TEXT("D %u / E %u"),
+									pCoreEngine->GetContinuityErrorPacketCount(),
+									pCoreEngine->GetErrorPacketCount());
+					if (pCoreEngine->GetDescramble()
+							&& pCoreEngine->GetCardReaderType()!=CCardReader::READER_NONE)
+					wsprintf(szText+Length,TEXT(" / S %u"),pCoreEngine->GetScramblePacketCount());
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+				}
 			}
-			pThis->GetItemRect(INFO_ITEM_RECORD,&rc);
-			if (IsRectIntersect(&ps.rcPaint,&rc)) {
-				if (pThis->m_fRecording) {
-					unsigned int RecordSec=pThis->m_RecordTime/1000;
-					unsigned int Size=(unsigned int)(
-						pThis->m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
-					unsigned int FreeSpace=(unsigned int)(
-						pThis->m_DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
+			if (pThis->IsItemVisible(ITEM_RECORD)) {
+				pThis->GetItemRect(ITEM_RECORD,&rc);
+				if (IsRectIntersect(&ps.rcPaint,&rc)) {
+					if (pThis->m_fRecording) {
+						unsigned int RecordSec=pThis->m_RecordTime/1000;
+						unsigned int Size=(unsigned int)(
+							pThis->m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
+						unsigned int FreeSpace=(unsigned int)(
+							pThis->m_DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
 
-					wsprintf(szText,
-						TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
-						RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
-						Size/100,Size%100,FreeSpace/100,FreeSpace%100);
-				} else
-					lstrcpy(szText,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"));
-				DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+						wsprintf(szText,
+							TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
+							RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
+							Size/100,Size%100,FreeSpace/100,FreeSpace%100);
+					} else
+						lstrcpy(szText,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"));
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+				}
 			}
 			SetBkMode(ps.hdc,OldBkMode);
 			SetTextColor(ps.hdc,crOldTextColor);
@@ -436,7 +469,7 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_CTLCOLORSTATIC:
 		{
-			CInformation *pThis=GetThis(hwnd);
+			CInformationPanel *pThis=GetThis(hwnd);
 			HDC hdc=reinterpret_cast<HDC>(wParam);
 
 			SetTextColor(hdc,pThis->m_crProgramInfoTextColor);
@@ -446,7 +479,7 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_DRAWITEM:
 		{
-			CInformation *pThis=GetThis(hwnd);
+			CInformationPanel *pThis=GetThis(hwnd);
 			LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
 			HBRUSH hbrOld,hbr;
 			HPEN hpen,hpenOld;
@@ -488,25 +521,56 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		}
 		return TRUE;
 
+	case WM_RBUTTONDOWN:
+		{
+			CInformationPanel *pThis=GetThis(hwnd);
+			HMENU hmenu;
+			POINT pt;
+
+			hmenu=::LoadMenu(m_hinst,MAKEINTRESOURCE(IDM_INFORMATIONPANEL));
+			for (int i=0;i<NUM_ITEMS;i++)
+				CheckMenuItem(hmenu,CM_INFORMATIONPANEL_ITEM_FIRST+i,
+							  MF_BYCOMMAND | (pThis->IsItemVisible(i)?MFS_CHECKED:MFS_UNCHECKED));
+			pt.x=GET_X_LPARAM(lParam);
+			pt.y=GET_Y_LPARAM(lParam);
+			::ClientToScreen(hwnd,&pt);
+			::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,hwnd,NULL);
+			::DestroyMenu(hmenu);
+		}
+		return TRUE;
+
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case CM_INFORMATIONPANEL_ITEM_VIDEO:
+		case CM_INFORMATIONPANEL_ITEM_VIDEODECODER:
+		case CM_INFORMATIONPANEL_ITEM_VIDEORENDERER:
+		case CM_INFORMATIONPANEL_ITEM_AUDIODEVICE:
+		case CM_INFORMATIONPANEL_ITEM_SIGNALLEVEL:
+		case CM_INFORMATIONPANEL_ITEM_ERROR:
+		case CM_INFORMATIONPANEL_ITEM_RECORD:
+		case CM_INFORMATIONPANEL_ITEM_PROGRAMINFO:
+			{
+				CInformationPanel *pThis=GetThis(hwnd);
+				int Item=LOWORD(wParam)-CM_INFORMATIONPANEL_ITEM_FIRST;
+
+				pThis->SetItemVisible(Item,!pThis->IsItemVisible(Item));
+			}
+			return 0;
+
 		case IDC_PROGRAMINFOPREV:
 		case IDC_PROGRAMINFONEXT:
 			{
-				CInformation *pThis=GetThis(hwnd);
+				CInformationPanel *pThis=GetThis(hwnd);
 				bool fNext=LOWORD(wParam)==IDC_PROGRAMINFONEXT;
 
 				if (fNext!=pThis->m_fNextProgramInfo) {
 					pThis->m_fNextProgramInfo=fNext;
-					if (pThis->m_pszProgramInfo!=NULL) {
-						delete [] pThis->m_pszProgramInfo;
-						pThis->m_pszProgramInfo=NULL;
-					}
+					pThis->m_ProgramInfo.Clear();
 					EnableWindow(pThis->m_hwndProgramInfoPrev,fNext);
 					EnableWindow(pThis->m_hwndProgramInfoNext,!fNext);
 					if (pThis->m_pEventHandler!=NULL)
 						pThis->m_pEventHandler->OnProgramInfoUpdate(fNext);
-					if (pThis->m_pszProgramInfo==NULL)
+					if (pThis->m_ProgramInfo.IsEmpty())
 						SetWindowText(pThis->m_hwndProgramInfo,TEXT(""));
 				}
 			}
@@ -516,7 +580,7 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_SETCURSOR:
 		{
-			CInformation *pThis=GetThis(hwnd);
+			CInformationPanel *pThis=GetThis(hwnd);
 
 			if ((HWND)wParam==pThis->m_hwndProgramInfoPrev
 					|| (HWND)wParam==pThis->m_hwndProgramInfoNext) {
@@ -528,7 +592,7 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_DESTROY:
 		{
-			CInformation *pThis=GetThis(hwnd);
+			CInformationPanel *pThis=GetThis(hwnd);
 
 			SubclassWindow(pThis->m_hwndProgramInfo,pThis->m_pOldProgramInfoProc);
 			DeleteObject(pThis->m_hbrBack);
@@ -541,16 +605,16 @@ LRESULT CALLBACK CInformation::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 }
 
 
-LRESULT CALLBACK CInformation::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK CInformationPanel::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	CInformation *pThis=static_cast<CInformation*>(::GetProp(hwnd,APP_NAME TEXT("This")));
+	CInformationPanel *pThis=static_cast<CInformationPanel*>(::GetProp(hwnd,APP_NAME TEXT("This")));
 
 	if (pThis==NULL)
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 
 	switch (uMsg) {
 	case WM_RBUTTONDOWN:
-		if (pThis->m_pszProgramInfo!=NULL) {
+		if (!pThis->m_ProgramInfo.IsEmpty()) {
 			HMENU hmenu=::CreatePopupMenu();
 			POINT pt;
 			int Command;
@@ -559,7 +623,7 @@ LRESULT CALLBACK CInformation::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wP
 			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("Ç∑Ç◊ÇƒëIë(&A)"));
 
 			int URLCount=0;
-			LPCWSTR p=pThis->m_pszProgramInfo;
+			LPCWSTR p=pThis->m_ProgramInfo.Get();
 
 			while (*p!='\0') {
 				if ((*p=='h' && ::StrCmpNW(p,L"http://",7)==0)
@@ -632,20 +696,28 @@ LRESULT CALLBACK CInformation::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wP
 }
 
 
-void CInformation::GetItemRect(int Item,RECT *pRect)
+void CInformationPanel::GetItemRect(int Item,RECT *pRect) const
 {
 	GetClientRect(pRect);
-	pRect->top=Item*(m_FontHeight+m_LineMargin);
-	if (Item==INFO_ITEM_PROGRAMINFO)
-		pRect->bottom-=PROGRAMINFO_BUTTON_SIZE;
-	if (Item!=INFO_ITEM_PROGRAMINFO || pRect->top>=pRect->bottom)
-		pRect->bottom=pRect->top+m_FontHeight;
+	pRect->top=0;
+	for (int i=0;i<Item;i++) {
+		if ((m_ItemVisibility&ITEM_FLAG(i))!=0)
+			pRect->top+=m_FontHeight+m_LineMargin;
+	}
+	if ((m_ItemVisibility&ITEM_FLAG(Item))==0) {
+		pRect->bottom=pRect->top;
+	} else {
+		if (Item==ITEM_PROGRAMINFO)
+			pRect->bottom-=PROGRAMINFO_BUTTON_SIZE;
+		if (Item!=ITEM_PROGRAMINFO || pRect->top>=pRect->bottom)
+			pRect->bottom=pRect->top+m_FontHeight;
+	}
 }
 
 
-void CInformation::UpdateItem(int Item)
+void CInformationPanel::UpdateItem(int Item)
 {
-	if (m_hwnd!=NULL) {
+	if (m_hwnd!=NULL && IsItemVisible(Item)) {
 		RECT rc;
 
 		GetItemRect(Item,&rc);
@@ -654,7 +726,41 @@ void CInformation::UpdateItem(int Item)
 }
 
 
-void CInformation::CalcFontHeight()
+bool CInformationPanel::SetItemVisible(int Item,bool fVisible)
+{
+	if (Item<0 || Item>=NUM_ITEMS)
+		return false;
+	if (IsItemVisible(Item)!=fVisible) {
+		m_ItemVisibility^=ITEM_FLAG(Item);
+		if (m_hwnd!=NULL) {
+			if (IsItemVisible(ITEM_PROGRAMINFO)) {
+				RECT rc;
+				::GetClientRect(m_hwnd,&rc);
+				::SendMessage(m_hwnd,WM_SIZE,0,MAKELONG(rc.right,rc.bottom));
+			}
+			if (Item==ITEM_PROGRAMINFO) {
+				const int Show=fVisible?SW_SHOW:SW_HIDE;
+				::ShowWindow(m_hwndProgramInfo,Show);
+				::ShowWindow(m_hwndProgramInfoPrev,Show);
+				::ShowWindow(m_hwndProgramInfoNext,Show);
+			} else {
+				::InvalidateRect(m_hwnd,NULL,TRUE);
+			}
+		}
+	}
+	return true;
+}
+
+
+bool CInformationPanel::IsItemVisible(int Item) const
+{
+	if (Item<0 || Item>=NUM_ITEMS)
+		return false;
+	return (m_ItemVisibility&ITEM_FLAG(Item))!=0;
+}
+
+
+void CInformationPanel::CalcFontHeight()
 {
 	HDC hdc;
 	HFONT hfontOld;
@@ -668,4 +774,32 @@ void CInformation::CalcFontHeight()
 	m_FontHeight=tm.tmHeight;
 	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);
+}
+
+
+bool CInformationPanel::Load(LPCTSTR pszFileName)
+{
+	CSettings Settings;
+
+	if (Settings.Open(pszFileName,TEXT("InformationPanel"),CSettings::OPEN_READ)) {
+		for (int i=0;i<lengthof(m_pszItemNameList);i++) {
+			bool f;
+
+			if (Settings.Read(m_pszItemNameList[i],&f))
+				SetItemVisible(i,f);
+		}
+	}
+	return true;
+}
+
+
+bool CInformationPanel::Save(LPCTSTR pszFileName) const
+{
+	CSettings Settings;
+
+	if (!Settings.Open(pszFileName,TEXT("InformationPanel"),CSettings::OPEN_WRITE))
+		return false;
+	for (int i=0;i<lengthof(m_pszItemNameList);i++)
+		Settings.Write(m_pszItemNameList[i],IsItemVisible(i));
+	return true;
 }

@@ -77,6 +77,8 @@ public:
 	// Append by HDUSTestÇÃíÜÇÃêl
 	const bool Pause();
 	const bool Flush();
+	const bool GetVideoRendererName(LPTSTR pszName,int Length) const;
+	const bool GetAudioRendererName(LPWSTR pszName,int Length) const;
 	const bool ForceAspectRatio(int AspectX,int AspectY);
 	const bool GetForceAspectRatio(int *pAspectX,int *pAspectY) const;
 	const bool GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY);
@@ -182,6 +184,7 @@ protected:
 	// Append by HDUSTestÇÃíÜÇÃêl
 	CCriticalLock m_ResizeLock;
 	CVideoRenderer::RendererType m_VideoRendererType;
+	LPWSTR m_pszAudioRendererName;
 	int m_ForceAspectX,m_ForceAspectY;
 	BYTE m_PanAndScan;
 	ViewStretchMode m_ViewStretchMode;

@@ -19,6 +19,10 @@ class CPanelOptions : public COptions {
 public:
 	CPanelOptions(CPanelFrame *pPanelFrame);
 	~CPanelOptions();
+// COptions
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
+// CPanelOptions
 	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
 	void SetSnapAtMainWindow(bool fSnap);
 	int GetSnapMargin() const { return m_SnapMargin; }
@@ -26,8 +30,6 @@ public:
 	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
 	void SetAttachToMainWindow(bool fAttach);
 	const LOGFONT *GetFont() const { return &m_Font; }
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

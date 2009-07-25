@@ -39,6 +39,7 @@ class CSCardReader : public CCardReader
 	LPTSTR m_pReaderList;
 	int m_NumReaders;
 	LPTSTR m_pszReaderName;
+	static LPCTSTR GetErrorText(LONG Code);
 public:
 	CSCardReader();
 	~CSCardReader();

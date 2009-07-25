@@ -65,7 +65,7 @@ bool DrawUtil::FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect
 {
 	RECT rc;
 
-	if (pPaintRect->left<pEmptyRect->right && pPaintRect->right>pEmptyRect->left) {
+	if (pPaintRect->left<pBorderRect->right && pPaintRect->right>pBorderRect->left) {
 		rc.left=max(pPaintRect->left,pBorderRect->left);
 		rc.right=min(pPaintRect->right,pBorderRect->right);
 		rc.top=max(pPaintRect->top,pBorderRect->top);

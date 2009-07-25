@@ -54,11 +54,12 @@ const bool CBcasCard::OpenCard(CCardReader::ReaderType ReaderType, LPCTSTR lpszR
 
 	m_pCardReader = CCardReader::CreateCardReader(ReaderType);
 	if (m_pCardReader == NULL) {
-		SetError(ERR_CARDOPENERROR, TEXT("Invalid card reader type"));
+		SetError(ERR_CARDOPENERROR, TEXT("カードリーダのタイプが無効です。"));
 		return false;
 	}
 	if (!m_pCardReader->Open(lpszReader)) {
-		SetError(ERR_CARDOPENERROR, m_pCardReader->GetLastErrorText());
+		SetError(m_pCardReader->GetLastErrorException());
+		SetErrorCode(ERR_CARDOPENERROR);
 		delete m_pCardReader;
 		m_pCardReader=NULL;
 		return false;

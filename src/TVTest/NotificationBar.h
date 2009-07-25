@@ -32,6 +32,7 @@ public:
 	bool Hide();
 	bool SetText(LPCTSTR pszText,MessageType Type=MESSAGE_INFO);
 	bool SetColors(COLORREF crBackColor1,COLORREF crBackColor2,COLORREF crTextColor);
+	bool SetFont(const LOGFONT *pFont);
 	void SetAnimate(bool fAnimate) { m_fAnimate=fAnimate; }
 	static bool Initialize(HINSTANCE hinst);
 };

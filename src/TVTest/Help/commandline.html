@@ -30,15 +30,19 @@
 <tr><td>/nodriver</td><td>BonDriver を読み込まない</td></tr>
 <tr><td>/nodshow</td><td>起動時に DirectShow を初期化しない<br>
 視聴せずに録画のみ行う場合に指定すると、メモリ使用量が極端に減ります<br>
-メニューの[画面表示オフ]のチェックを外せば、途中から視聴することも可能です</td></tr>
+メニューの[再生オフ]のチェックを外せば、途中から視聴することも可能です</td></tr>
 <tr><td>/noplugin</td><td>プラグインを読み込まない</td></tr>
 <tr><td>/noview</td><td>起動時画面表示オフ</td></tr>
 <tr><td>/nr</td><td>ネットワークリモコンを使用する</td></tr>
 <tr><td>/port /p</td><td>UDP のポート番号 (e.g. /port 1234)</td></tr>
 <tr><td>/rec</td><td>起動時録画開始</td></tr>
 <tr><td>/reccurservice</td><td>現在のサービスのみ録画する</td></tr>
-<tr><td>/recdelay</td><td>録画開始までの時間(秒単位) (e.g. /recdelay 60)</td></tr>
-<tr><td>/recduration</td><td>録画時間(秒単位) (e.g. /recduration 1800)</td></tr>
+<tr><td>/recdelay</td><td>録画開始までの時間(秒単位) (e.g. /recdelay 60)<br>
+h/m/s で 時間/分/秒 を指定することも可能です。詳細は /recduration の説明を参照してください。</td></tr>
+<tr><td>/recduration</td><td>録画時間(秒単位) (e.g. /recduration 1800)<br>
+数字の後に h/m/s があるとそれぞれ 時間/分/秒 の指定になります。<br>
+その際複数指定することもできますが、途中でスペースなどは入れずに連続して記述してください。<br>
+(e.g. /recduration 30m) (e.g. /recduration 1h20m30s)</td></tr>
 <tr><td>/recexit</td><td>録画終了時にプログラムを終了</td></tr>
 <tr><td>/recfile</td><td>録画ファイル名 (e.g. /recfile "C:\ReocrdFiles\Record.ts")</td></tr>
 <tr><td>/s</td><td>TVTest が既に起動している場合、複数起動しない</td></tr>

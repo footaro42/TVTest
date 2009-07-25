@@ -67,6 +67,7 @@ public:
 	bool SetEventHandler(CTitleBarEventHandler *pHandler);
 	void SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
 		COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText);
+	//bool SetFont(const LOGFONT *pFont);
 };
 
 

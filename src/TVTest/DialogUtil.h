@@ -39,6 +39,10 @@
 	SendDlgItemMessage(hwndDlg,ID,LB_GETTOPINDEX,0,0)
 #define DlgListBox_SetTopIndex(hwndDlg,ID,Index) \
 	(SendDlgItemMessage(hwndDlg,ID,LB_SETTOPINDEX,Index,0)!=LB_ERR)
+#define DlgListBox_GetItemHeight(hwndDlg,ID,Index) \
+	SendDlgItemMessage(hwndDlg,ID,LB_GETITEMHEIGHT,Index,0)
+#define DlgListBox_SetItemHeight(hwndDlg,ID,Index,Height) \
+	(SendDlgItemMessage(hwndDlg,ID,LB_SETITEMHEIGHT,Index,Height)!=LB_ERR)
 
 #define DlgComboBox_LimitText(hwndDlg,ID,Limit) \
 	SendDlgItemMessage(hwndDlg,ID,CB_LIMITTEXT,Limit,0)

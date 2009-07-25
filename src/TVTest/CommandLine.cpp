@@ -156,13 +156,14 @@ CCommandLineParser::CCommandLineParser()
 	m_fRecordStop=false;
 	m_fFullscreen=false;
 	m_fMinimize=false;
+	m_fMaximize=false;
 	m_fNoDriver=false;
 	m_fStandby;
 	m_fNoView=false;
 	m_fNoDirectShow=false;
 	m_fSilent=false;
 	m_fNoPlugin=false;
-	m_fSchedule=false;
+	m_fSingleTask=false;
 	m_fInitialSettings=false;
 	m_fSaveLog=false;
 	m_fRecordOnly=false;
@@ -180,6 +181,7 @@ CCommandLineParser::CCommandLineParser()
 	/ini			INIファイル名
 	/init			初期設定ダイアログを表示する
 	/log			終了時にログを保存する
+	/max			最大化状態で起動
 	/min			最小化状態で起動
 	/nd				スクランブル解除しない
 	/nid			ネットワークID
@@ -233,6 +235,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 				m_fSaveLog=true;
 			} else if (Args.IsOption(TEXT("min"))) {
 				m_fMinimize=true;
+			} else if (Args.IsOption(TEXT("max"))) {
+				m_fMaximize=true;
 			} else if (Args.IsOption(TEXT("nd"))) {
 				m_fNoDescramble=true;
 			} else if (Args.IsOption(TEXT("nid"))) {
@@ -274,9 +278,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 			} else if (Args.IsOption(TEXT("rch"))) {
 				if (Args.Next())
 					Args.GetValue(&m_ControllerChannel);
-			} else if (Args.IsOption(TEXT("schedule"))
-					|| Args.IsOption(TEXT("s"))) {
-				m_fSchedule=true;
+			} else if (Args.IsOption(TEXT("s"))) {
+				m_fSingleTask=true;
 			} else if (Args.IsOption(TEXT("sid"))) {
 				if (Args.Next())
 					Args.GetValue(&m_ServiceID);

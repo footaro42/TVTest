@@ -43,6 +43,7 @@ options\plugin.html
 options\programguide.html
 options\programguidetool.html
 options\statusbar.html
+options\sidebar.html
 options\view.html
 options\record.html
 hint.html
@@ -66,6 +67,7 @@ HELP_ID_OPTIONS_PANEL=options\panel.html
 HELP_ID_OPTIONS_PLUGIN=options\plugin.html
 HELP_ID_OPTIONS_PROGRAMGUIDE=options\programguide.html
 HELP_ID_OPTIONS_RECORD=options\record.html
+HELP_ID_OPTIONS_SIDEBAR=options\sidebar.html
 HELP_ID_OPTIONS_STATUSBAR=options\statusbar.html
 HELP_ID_OPTIONS_VIEW=options\view.html
 HELP_ID_PROGRAMGUIDETOOL=options\programguidetool.html

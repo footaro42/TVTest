@@ -26,8 +26,10 @@ class CFullscreen : public CBasicWindow {
 	bool m_fMenu;
 	bool m_fShowStatusView;
 	bool m_fShowTitleBar;
+	bool m_fShowSideBar;
 	void ShowStatusView(bool fShow);
 	void ShowTitleBar(bool fShow);
+	void ShowSideBar(bool fShow);
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	static CFullscreen *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -56,6 +58,7 @@ class CMainWindow : public CBasicWindow {
 	bool m_fAlwaysOnTop;
 	bool m_fShowStatusBar;
 	bool m_fShowTitleBar;
+	bool m_fShowSideBar;
 	bool m_fStandby;
 	bool m_fStandbyInit;
 	bool m_fMinimizeInit;
@@ -93,7 +96,6 @@ class CMainWindow : public CBasicWindow {
 	bool OnCreate();
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
 	void OnTimer(HWND hwnd,UINT id);
-	BOOL OnAppCommand(HWND hwnd,HWND hwndFrom,int nCommand,UINT uDevice,DWORD dwKeys);
 	bool OnExecute(LPCTSTR pszCmdLine);
 	void CheckZoomMenu();
 	void ShowChannelOSD();
@@ -141,6 +143,8 @@ public:
 	void SetTitleBarVisible(bool fVisible);
 	bool GetTitleBarVisible() const { return m_fShowTitleBar; }
 	void SetTitleText();
+	void SetSideBarVisible(bool fVisible);
+	bool GetSideBarVisible() const { return m_fShowSideBar; }
 	bool EnablePreview(bool fEnable);
 	bool IsPreview() const;
 	bool SetResident(bool fResident);
@@ -176,6 +180,7 @@ public:
 	HMENU CreateTunerSelectMenu();
 	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
+	bool DoCommand(LPCWSTR pszCommand);
 	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
 	bool BeginProgramGuideUpdate();
 	void OnProgramGuideUpdateEnd(bool fRelease=true);

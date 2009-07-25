@@ -77,6 +77,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 #endif
 
 	, m_VideoRendererType(CVideoRenderer::RENDERER_UNDEFINED)
+	, m_pszAudioRendererName(NULL)
 	, m_ForceAspectX(0)
 	, m_ForceAspectY(0)
 	, m_PanAndScan(0)
@@ -517,14 +518,19 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 				CDirectShowDeviceEnumerator DevEnum;
 
 				if (DevEnum.CreateFilter(CLSID_AudioRendererCategory,
-										 pszAudioDevice, &pAudioRenderer))
+										 pszAudioDevice, &pAudioRenderer)) {
+					m_pszAudioRendererName=StdUtil::strdup(pszAudioDevice);
 					fOK = true;
+				}
 			}
 			if (!fOK) {
 				hr = ::CoCreateInstance(CLSID_DSoundRender, NULL,
 									CLSCTX_INPROC_SERVER, IID_IBaseFilter,
 									reinterpret_cast<void**>(&pAudioRenderer));
-				fOK = SUCCEEDED(hr);
+				if (SUCCEEDED(hr)) {
+					m_pszAudioRendererName=StdUtil::strdup(TEXT("DirectSound Renderer"));
+					fOK = true;
+				}
 			}
 			if (fOK) {
 				hr = DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
@@ -574,6 +580,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 					if (FAILED(hr)) {
 						throw CBonException(hr, TEXT("Nullâπê∫ÉåÉìÉ_ÉâÇê⁄ë±Ç≈Ç´Ç‹ÇπÇÒÅB"));
 					}
+					m_pszAudioRendererName=StdUtil::strdup(TEXT("Null Renderer"));
 					TRACE(TEXT("NullÉåÉìÉ_ÉâÇê⁄ë±\n"));
 				}
 			}
@@ -721,6 +728,11 @@ void CMediaViewer::CloseViewer(void)
 	if (m_pVideoRenderer!=NULL) {
 		delete m_pVideoRenderer;
 		m_pVideoRenderer=NULL;
+	}
+
+	if (m_pszAudioRendererName!=NULL) {
+		delete [] m_pszAudioRendererName;
+		m_pszAudioRendererName=NULL;
 	}
 
 	m_bInit=false;
@@ -1184,6 +1196,27 @@ void CMediaViewer::RemoveFromRot(const DWORD dwRegister) const
 #endif	// _DEBUG
 
 
+const bool CMediaViewer::GetVideoRendererName(LPTSTR pszName,int Length) const
+{
+	if (pszName == NULL || Length < 1)
+		return false;
+
+	LPCTSTR pszRenderer=CVideoRenderer::EnumRendererName((int)m_VideoRendererType);
+	if (pszRenderer == NULL)
+		return false;
+
+	::lstrcpyn(pszName, pszRenderer, Length);
+	return true;
+}
+
+
+const bool CMediaViewer::GetAudioRendererName(LPWSTR pszName,int Length) const
+{
+	if (pszName == NULL || Length < 1 || m_pszAudioRendererName==NULL)
+		return false;
+	::lstrcpyn(pszName, m_pszAudioRendererName, Length);
+	return true;
+}
 
 
 const bool CMediaViewer::ForceAspectRatio(int AspectX,int AspectY)

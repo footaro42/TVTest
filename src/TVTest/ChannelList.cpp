@@ -145,6 +145,18 @@ CChannelList &CChannelList::operator=(const CChannelList &List)
 }
 
 
+int CChannelList::NumEnableChannels() const
+{
+	int Count=0;
+
+	for (int i=0;i<m_NumChannels;i++) {
+		if (m_ppList[i]->IsEnabled())
+			Count++;
+	}
+	return Count;
+}
+
+
 bool CChannelList::AddChannel(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName)
 {
 	CChannelInfo Info(Space,Channel,Index,No,Service,pszName);
