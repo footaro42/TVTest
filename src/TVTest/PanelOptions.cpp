@@ -22,6 +22,8 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	m_fAttachToMainWindow=true;
 	m_Opacity=100;
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
+	m_FirstTab=-1;
+	m_LastTab=0;
 }
 
 
@@ -53,6 +55,14 @@ void CPanelOptions::SetAttachToMainWindow(bool fAttach)
 
 bool CPanelOptions::Read(CSettings *pSettings)
 {
+	int Value;
+
+	if (pSettings->Read(TEXT("InfoCurTab"),&Value)
+			&& Value>=PANEL_TAB_FIRST && Value<=PANEL_TAB_LAST)
+		m_LastTab=Value;
+	if (pSettings->Read(TEXT("PanelFirstTab"),&Value)
+			&& Value>=-1 && Value<=PANEL_TAB_LAST)
+		m_FirstTab=Value;
 	pSettings->Read(TEXT("PanelSnapAtMainWindow"),&m_fSnapAtMainWindow);
 	pSettings->Read(TEXT("PanelAttachToMainWindow"),&m_fAttachToMainWindow);
 	if (pSettings->Read(TEXT("PanelOpacity"),&m_Opacity))
@@ -60,7 +70,6 @@ bool CPanelOptions::Read(CSettings *pSettings)
 
 	// Font
 	TCHAR szFont[LF_FACESIZE];
-	int Value;
 	if (pSettings->Read(TEXT("PanelFontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
 		::lstrcpy(m_Font.lfFaceName,szFont);
 		m_Font.lfEscapement=0;
@@ -95,6 +104,7 @@ bool CPanelOptions::Read(CSettings *pSettings)
 
 bool CPanelOptions::Write(CSettings *pSettings) const
 {
+	pSettings->Write(TEXT("PanelFirstTab"),m_FirstTab);
 	pSettings->Write(TEXT("PanelSnapAtMainWindow"),m_fSnapAtMainWindow);
 	pSettings->Write(TEXT("PanelAttachToMainWindow"),m_fAttachToMainWindow);
 	pSettings->Write(TEXT("PanelOpacity"),m_Opacity);
@@ -118,6 +128,12 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 	wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
 	SetDlgItemText(hDlg,IDC_PANELOPTIONS_FONTINFO,szText);
 	ReleaseDC(hDlg,hdc);
+}
+
+
+int CPanelOptions::GetFirstTab() const
+{
+	return m_FirstTab>=0?m_FirstTab:m_LastTab;
 }
 
 
@@ -154,6 +170,17 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 			pThis->m_CurSettingFont=pThis->m_Font;
 			SetFontInfo(hDlg,&pThis->m_Font);
+
+			static const LPCTSTR pszTabList[] = {
+				TEXT("最後に表示したタブ"),
+				TEXT("情報"),
+				TEXT("番組表"),
+				TEXT("チャンネル"),
+				TEXT("操作"),
+			};
+			for (int i=0;i<lengthof(pszTabList);i++)
+				DlgComboBox_AddString(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pszTabList[i]);
+			DlgComboBox_SetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pThis->m_FirstTab+1);
 		}
 		return TRUE;
 
@@ -204,6 +231,7 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 						pPanel->SetPageFont(&pThis->m_Font);
 					}
 				}
+				pThis->m_FirstTab=DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
 			}
 			break;
 		}

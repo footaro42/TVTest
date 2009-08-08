@@ -31,6 +31,7 @@ class CChannelScan : public COptions {
 	int m_SortColumn;
 	bool m_fSortDescending;
 	bool m_fChanging;
+
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
 	CChannelInfo *GetSelectedChannelInfo() const;

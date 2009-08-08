@@ -29,7 +29,7 @@ public:
 	virtual void SetVisible(bool fVisible);
 	bool GetVisible() const;
 	bool GetMaximize() const;
-	HWND GetHandle() { return m_hwnd; }
+	HWND GetHandle() const { return m_hwnd; }
 	bool Invalidate(bool fErase=true);
 	bool Update();
 	bool GetClientRect(RECT *pRect) const;

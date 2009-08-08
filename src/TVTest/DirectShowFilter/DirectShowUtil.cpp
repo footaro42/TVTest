@@ -289,7 +289,7 @@ bool CDirectShowDeviceEnumerator::CreateFilter(REFCLSID clsidDeviceClass,LPCWSTR
 
 	IEnumMoniker *pEnumCategory;
 	hr=pDevEnum->CreateClassEnumerator(clsidDeviceClass,&pEnumCategory,0);
-	bool fFinded=false;
+	bool bFound=false;
 	if (hr==S_OK) {
 		IMoniker *pMoniker;
 		ULONG cFetched;
@@ -307,21 +307,21 @@ bool CDirectShowDeviceEnumerator::CreateFilter(REFCLSID clsidDeviceClass,LPCWSTR
 					if (::lstrcmpiW(varName.bstrVal,pszFriendlyName)==0) {
 						hr=pMoniker->BindToObject(NULL,NULL,IID_IBaseFilter,
 										reinterpret_cast<void**>(ppFilter));
-						fFinded=true;
+						bFound=true;
 					}
 				}
 				::VariantClear(&varName);
 				pPropBag->Release();
 			}
 			pMoniker->Release();
-			if (fFinded)
+			if (bFound)
 				break;
 		}
 		pEnumCategory->Release();
 	}
 	pDevEnum->Release();
 
-	if (!fFinded)
+	if (!bFound)
 		return false;
 	return SUCCEEDED(hr);
 }

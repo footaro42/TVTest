@@ -462,7 +462,7 @@ bool CNetworkRemoconOptions::FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFil
 	hFind=::FindFirstFile(szMask,&wfd);
 	if (hFind==INVALID_HANDLE_VALUE)
 		return false;
-	bool fFinded=false;
+	bool fFound=false;
 	do {
 		LPCTSTR p;
 		TCHAR szName[MAX_PATH];
@@ -477,12 +477,12 @@ bool CNetworkRemoconOptions::FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFil
 		szName[i]='\0';
 		if (::lstrcmpi(szName,pszDriverName)==0) {
 			::lstrcpy(pszFileName,wfd.cFileName);
-			fFinded=true;
+			fFound=true;
 			break;
 		}
 	} while (::FindNextFile(hFind,&wfd));
 	::FindClose(hFind);
-	return fFinded;
+	return fFound;
 }
 
 

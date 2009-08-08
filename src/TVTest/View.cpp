@@ -13,6 +13,8 @@ static char THIS_FILE[]=__FILE__;
 #define VIEW_WINDOW_CLASS				APP_NAME TEXT(" View")
 #define VIDEO_CONTAINER_WINDOW_CLASS	APP_NAME TEXT(" Video Container")
 
+#define EDGE_SIZE	1
+
 
 
 
@@ -178,6 +180,7 @@ CViewWindow::CViewWindow()
 	m_pVideoContainer=NULL;
 	m_hwndMessage=NULL;
 	m_hbmLogo=NULL;
+	m_fEdge=false;
 }
 
 
@@ -229,6 +232,28 @@ bool CViewWindow::SetLogo(HBITMAP hbm)
 }
 
 
+void CViewWindow::SetEdge(bool fEdge)
+{
+	if (m_fEdge!=fEdge) {
+		m_fEdge=fEdge;
+		if (m_hwnd)
+			Invalidate();
+	}
+}
+
+
+int CViewWindow::GetVerticalEdgeWidth() const
+{
+	return EDGE_SIZE;
+}
+
+
+int CViewWindow::GetHorizontalEdgeHeight() const
+{
+	return EDGE_SIZE;
+}
+
+
 CViewWindow *CViewWindow::GetThis(HWND hwnd)
 {
 	return static_cast<CViewWindow*>(GetBasicWindow(hwnd));
@@ -250,8 +275,21 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			CViewWindow *pThis=GetThis(hwnd);
 
 			if (pThis->m_pVideoContainer!=NULL
-					&& pThis->m_pVideoContainer->GetParent()==hwnd)
-				pThis->m_pVideoContainer->SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
+					&& pThis->m_pVideoContainer->GetParent()==hwnd) {
+				int x=0,y=0,Width=LOWORD(lParam),Height=HIWORD(lParam);
+
+				if (pThis->m_fEdge) {
+					x=EDGE_SIZE;
+					y=EDGE_SIZE;
+					Width-=EDGE_SIZE*2;
+					if (Width<0)
+						Width=0;
+					Height-=EDGE_SIZE*2;
+					if (Height<0)
+						Height=0;
+				}
+				pThis->m_pVideoContainer->SetPosition(x,y,Width,Height);
+			}
 		}
 		return 0;
 
@@ -259,16 +297,17 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		{
 			CViewWindow *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
+			RECT rcClient;
 			HBRUSH hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
 
 			::BeginPaint(hwnd,&ps);
+			::GetClientRect(hwnd,&rcClient);
 			if (pThis->m_hbmLogo) {
-				RECT rcImage,rcClient;
+				RECT rcImage;
 				BITMAP bm;
 				HDC hdcMemory;
 				HBITMAP hbmOld;
 
-				::GetClientRect(hwnd,&rcClient);
 				::GetObject(pThis->m_hbmLogo,sizeof(BITMAP),&bm);
 				rcImage.left=(rcClient.right-bm.bmWidth)/2;
 				rcImage.top=(rcClient.bottom-bm.bmHeight)/2;
@@ -284,6 +323,8 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			} else {
 				::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			}
+			if (pThis->m_fEdge)
+				::DrawEdge(ps.hdc,&rcClient,BDR_SUNKENINNER,BF_RECT);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;

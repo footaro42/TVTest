@@ -5,6 +5,12 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -19,7 +25,7 @@ CViewOptions::CViewOptions()
 	m_fClientEdge=true;
 	m_fMinimizeToTray=false;
 	m_fDisablePreviewWhenMinimized=false;
-	m_fNotifyEventName=true;
+	//m_fNotifyEventName=true;
 	m_fResetPanScanEventChange=true;
 	m_fRestorePlayStatus=false;
 	m_fIgnoreDisplayExtension=false;
@@ -47,7 +53,7 @@ bool CViewOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("ClientEdge"),&m_fClientEdge);
 	pSettings->Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
 	pSettings->Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
-	pSettings->Read(TEXT("NotifyEventName"),&m_fNotifyEventName);
+	//pSettings->Read(TEXT("NotifyEventName"),&m_fNotifyEventName);
 	pSettings->Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
 	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
 	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
@@ -70,7 +76,7 @@ bool CViewOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("ClientEdge"),m_fClientEdge);
 	pSettings->Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
 	pSettings->Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
-	pSettings->Write(TEXT("NotifyEventName"),m_fNotifyEventName);
+	//pSettings->Write(TEXT("NotifyEventName"),m_fNotifyEventName);
 	pSettings->Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
 	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
 	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
@@ -110,7 +116,7 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,pThis->m_fMinimizeToTray);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,
 				pThis->m_fDisablePreviewWhenMinimized);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOTIFYEVENTNAME,pThis->m_fNotifyEventName);
+			//DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOTIFYEVENTNAME,pThis->m_fNotifyEventName);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE,
 							  pThis->m_fResetPanScanEventChange);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,pThis->m_fRestorePlayStatus);
@@ -206,7 +212,7 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY);
 				pThis->m_fDisablePreviewWhenMinimized=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
-				pThis->m_fNotifyEventName=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOTIFYEVENTNAME);
+				//pThis->m_fNotifyEventName=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOTIFYEVENTNAME);
 				pThis->m_fResetPanScanEventChange=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE);
 				pThis->m_fRestorePlayStatus=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);

@@ -2,6 +2,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Panel.h"
+#include "DrawUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -57,7 +58,10 @@ CPanel::CPanel()
 	m_pWindow=NULL;
 	m_pszTitle=NULL;
 	m_fShowTitle=false;
-	m_crTitleBackColor=GetSysColor(COLOR_INACTIVECAPTION);
+	m_TitleBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_TitleBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_TitleBackGradient.Color1=GetSysColor(COLOR_INACTIVECAPTION);
+	m_TitleBackGradient.Color2=m_TitleBackGradient.Color1;
 	m_crTitleTextColor=GetSysColor(COLOR_INACTIVECAPTIONTEXT);
 	m_pEventHandler=NULL;
 }
@@ -110,12 +114,42 @@ void CPanel::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-bool CPanel::SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText)
+bool CPanel::SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText)
 {
-	m_crTitleBackColor=crTitleBack;
+	m_TitleBackGradient=*pBackGradient;
 	m_crTitleTextColor=crTitleText;
-	if (m_hwnd!=NULL && m_fShowTitle)
-		::InvalidateRect(m_hwnd,NULL,TRUE);
+	if (m_hwnd!=NULL && m_fShowTitle) {
+		RECT rc;
+
+		GetTitleRect(&rc);
+		::InvalidateRect(m_hwnd,&rc,TRUE);
+	}
+	return true;
+}
+
+
+bool CPanel::GetTitleRect(RECT *pRect) const
+{
+	if (m_hwnd==NULL)
+		return false;
+
+	GetClientRect(pRect);
+	pRect->bottom=m_TitleHeight;
+	return true;
+}
+
+
+bool CPanel::GetContentRect(RECT *pRect) const
+{
+	if (m_hwnd==NULL)
+		return false;
+
+	GetClientRect(pRect);
+	if (m_fShowTitle) {
+		pRect->top=m_TitleHeight;
+		if (pRect->bottom<pRect->top)
+			pRect->bottom=pRect->top;
+	}
 	return true;
 }
 
@@ -129,7 +163,7 @@ void CPanel::OnSize(int Width,int Height)
 			y=m_TitleHeight;
 		else
 			y=0;
-		m_pWindow->SetPosition(0,y,Width,Height-y);
+		m_pWindow->SetPosition(0,y,Width,max(Height-y,0));
 	}
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->OnSizeChanged(Width,Height);
@@ -181,16 +215,13 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			BeginPaint(hwnd,&ps);
 			if (pThis->m_fShowTitle && ps.rcPaint.top<pThis->m_TitleHeight) {
 				RECT rc;
-				HBRUSH hbr;
 				HFONT hfontOld;
 				COLORREF crOldTextColor;
 				int OldBkMode;
 
 				pThis->GetClientRect(&rc);
 				rc.bottom=pThis->m_TitleHeight;
-				hbr=CreateSolidBrush(pThis->m_crTitleBackColor);
-				FillRect(ps.hdc,&rc,hbr);
-				DeleteObject(hbr);
+				Theme::FillGradient(ps.hdc,&rc,&pThis->m_TitleBackGradient);
 				hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
 				crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTitleTextColor);
 				OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
@@ -246,9 +277,9 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			ClientToScreen(hwnd,&pt);
 			if (abs(pt.x-pThis->m_ptDragStartPos.x)>=4
 					|| abs(pt.y-pThis->m_ptDragStartPos.y)>=4) {
+				ReleaseCapture();
 				if (pThis->m_pEventHandler!=NULL
 						&& pThis->m_pEventHandler->OnFloating()) {
-					ReleaseCapture();
 					::SendMessage(pThis->GetParent(),WM_NCLBUTTONDOWN,HTCAPTION,MAKELPARAM(pt.x,pt.y));
 				}
 			}
@@ -414,9 +445,10 @@ bool CPanelFrame::SetFloating(bool fFloating)
 			if (fFloating) {
 				RECT rc;
 
-				m_DockingWidth=m_pSplitter->GetPaneSize(m_PanelID);
+				//m_DockingWidth=m_pSplitter->GetPaneSize(m_PanelID);
 				m_pSplitter->SetPane(m_pSplitter->IDToIndex(m_PanelID),NULL,m_PanelID);
 				m_Panel.SetParent(this);
+				m_Panel.SetVisible(true);
 				GetClientRect(&rc);
 				m_Panel.SetPosition(&rc);
 				m_Panel.ShowTitle(false);
@@ -467,9 +499,9 @@ bool CPanelFrame::SetPanelVisible(bool fVisible,bool fNoActivate)
 }
 
 
-bool CPanelFrame::SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText)
+bool CPanelFrame::SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText)
 {
-	return m_Panel.SetTitleColor(crTitleBack,crTitleText);
+	return m_Panel.SetTitleColor(pBackGradient,crTitleText);
 }
 
 
@@ -676,16 +708,15 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 
 bool CPanelFrame::OnFloating()
 {
-	RECT rcPanel,rc;
-
 	if (m_fFloating)
 		return false;
-	GetWindowRect(m_Panel.GetWindow()->GetHandle(),&rcPanel);
+
+	RECT rc;
+	m_Panel.GetContentRect(&rc);
+	MapWindowRect(m_Panel.GetHandle(),NULL,&rc);
 	if (m_pEventHandler!=NULL && !m_pEventHandler->OnFloatingChange(true))
 		return false;
-	AdjustWindowRectEx(&rcPanel,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
-	GetPosition(&rc);
-	OffsetRect(&rc,rcPanel.left-rc.left,rcPanel.top-rc.top);
+	AdjustWindowRectEx(&rc,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
 	SetPosition(&rc);
 	SetFloating(true);
 	return true;

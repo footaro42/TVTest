@@ -80,7 +80,7 @@ public:
 	CInformationPanel();
 	~CInformationPanel();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void Reset();
+	void ResetStatistics();
 	bool IsVisible() const;
 	void SetColor(COLORREF crBackColor,COLORREF crTextColor);
 	void SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor);
@@ -94,6 +94,7 @@ public:
 	void SetAudioDeviceName(LPCTSTR pszName);
 	void SetSignalLevel(float Level);
 	void ShowSignalLevel(bool fShow);
+	bool IsSignalLevelEnabled() const { return m_fSignalLevel; }
 	void SetBitRate(float BitRate);
 	void UpdateErrorCount();
 	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,

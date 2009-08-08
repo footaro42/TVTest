@@ -3,9 +3,16 @@
 #include "StatusView.h"
 #include "DrawUtil.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define STATUS_WINDOW_CLASS	APP_NAME TEXT(" Status")
 
+#define STATUS_BORDER	1
 #define STATUS_MARGIN	4
 
 
@@ -78,18 +85,37 @@ bool CStatusItem::Update()
 }
 
 
-bool CStatusItem::GetMenuPos(POINT *pPos)
+bool CStatusItem::GetMenuPos(POINT *pPos,UINT *pFlags)
 {
 	if (m_pStatus==NULL)
 		return false;
 
 	RECT rc;
+	POINT pt;
 
 	if (!GetRect(&rc))
 		return false;
-	pPos->x=rc.left;
-	pPos->y=rc.bottom;
-	::ClientToScreen(m_pStatus->GetHandle(),pPos);
+	if (pFlags!=NULL)
+		*pFlags=0;
+	pt.x=rc.left;
+	pt.y=rc.bottom;
+	::ClientToScreen(m_pStatus->GetHandle(),&pt);
+	HMONITOR hMonitor=::MonitorFromPoint(pt,MONITOR_DEFAULTTONULL);
+	if (hMonitor!=NULL) {
+		MONITORINFO mi;
+
+		mi.cbSize=sizeof(mi);
+		if (::GetMonitorInfo(hMonitor,&mi)) {
+			if (pt.y>=mi.rcMonitor.bottom-32) {
+				pt.x=rc.left;
+				pt.y=rc.top;
+				::ClientToScreen(m_pStatus->GetHandle(),&pt);
+				if (pFlags!=NULL)
+					*pFlags=TPM_BOTTOMALIGN;
+			}
+		}
+	}
+	*pPos=pt;
 	return true;
 }
 
@@ -156,7 +182,7 @@ bool CStatusView::Initialize(HINSTANCE hinst)
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
 
-		wc.style=0;
+		wc.style=CS_HREDRAW;
 		wc.lpfnWndProc=WndProc;
 		wc.cbClsExtra=0;
 		wc.cbWndExtra=0;
@@ -188,12 +214,17 @@ CStatusView::CStatusView()
 	m_hfontStatus=::CreateFontIndirect(&ncm.lfStatusFont);
 	m_FontHeight=abs(ncm.lfStatusFont.lfHeight);
 #endif
-	m_crBackColor1=RGB(128,192,160);
-	m_crBackColor2=RGB(128,192,160);
+	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_BackGradient.Direction=Theme::DIRECTION_VERT;
+	m_BackGradient.Color1=RGB(128,192,160);
+	m_BackGradient.Color2=RGB(128,192,160);
 	m_crTextColor=RGB(64,96,80);
-	m_crHighlightBackColor1=RGB(64,96,80);
-	m_crHighlightBackColor2=RGB(64,96,80);
+	m_HighlightBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_HighlightBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_HighlightBackGradient.Color1=RGB(64,96,80);
+	m_HighlightBackGradient.Color2=RGB(64,96,80);
 	m_crHighlightTextColor=RGB(128,192,160);
+	m_BorderType=Theme::BORDER_RAISED;
 	m_NumItems=0;
 	m_fSingleMode=false;
 	m_pszSingleText=NULL;
@@ -317,7 +348,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			rc.left=0;
 			rc.top=0;
 			rc.right=0;
-			rc.bottom=pStatus->m_FontHeight+STATUS_MARGIN*2;
+			rc.bottom=pStatus->m_FontHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
 			AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
 			MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
 			pStatus->m_HotItem=-1;
@@ -332,11 +363,15 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			RECT rc;
 			HDC hdc;
 			HFONT hfontOld;
-			COLORREF crBkColor1,crBkColor2,crOldTextColor,crOldBkColor;
+			COLORREF crOldTextColor,crOldBkColor;
 			int OldBkMode;
 
 			::BeginPaint(hwnd,&ps);
 			pStatus->GetClientRect(&rc);
+			rc.left+=STATUS_BORDER;
+			rc.top+=STATUS_BORDER;
+			rc.right-=STATUS_BORDER;
+			rc.bottom-=STATUS_BORDER;
 
 			if (!pStatus->m_fSingleMode) {
 				int MaxWidth=0;
@@ -359,8 +394,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			crOldTextColor=::GetTextColor(hdc);
 			crOldBkColor=::GetBkColor(hdc);
 			if (pStatus->m_fSingleMode) {
-				DrawUtil::FillGradient(hdc,&rc,pStatus->m_crBackColor1,pStatus->m_crBackColor2,
-									   DrawUtil::DIRECTION_VERT);
+				Theme::FillGradient(hdc,&rc,&pStatus->m_BackGradient);
 				::SetTextColor(hdc,pStatus->m_crTextColor);
 				rc.left+=STATUS_MARGIN;
 				::DrawText(hdc,pStatus->m_pszSingleText,-1,&rc,
@@ -368,7 +402,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			} else {
 				RECT rcItem,rcDraw;
 
-				::SetRect(&rcItem,0,0,0,rc.bottom);
+				::SetRect(&rcItem,STATUS_BORDER,STATUS_BORDER,STATUS_BORDER,rc.bottom);
 				for (int i=0;i<pStatus->m_NumItems;i++) {
 					CStatusItem *pItem=pStatus->m_ItemList[i];
 					if (!pItem->GetVisible())
@@ -379,16 +413,15 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 							|| rcItem.left>=ps.rcPaint.right)
 						continue;
 					bool fHighlight=i==pStatus->m_HotItem;
+					const Theme::GradientInfo *pGradient=
+						fHighlight?&pStatus->m_HighlightBackGradient:&pStatus->m_BackGradient;
 					::SetTextColor(hdc,fHighlight?
 						pStatus->m_crHighlightTextColor:pStatus->m_crTextColor);
-					crBkColor1=fHighlight?pStatus->m_crHighlightBackColor1:pStatus->m_crBackColor1;
-					crBkColor2=fHighlight?pStatus->m_crHighlightBackColor2:pStatus->m_crBackColor2;
-					::SetBkColor(hdc,MixColor(crBkColor1,crBkColor2,128));
+					::SetBkColor(hdc,MixColor(pGradient->Color1,pGradient->Color2,128));
 					rcDraw=rcItem;
 					if (hdc!=ps.hdc)
 						::OffsetRect(&rcDraw,-rcDraw.left,-rcDraw.top);
-					DrawUtil::FillGradient(hdc,&rcDraw,crBkColor1,crBkColor2,
-										   DrawUtil::DIRECTION_VERT);
+					Theme::FillGradient(hdc,&rcDraw,pGradient);
 					rcDraw.left+=STATUS_MARGIN;
 					rcDraw.right-=STATUS_MARGIN;
 					pItem->Draw(hdc,&rcDraw);
@@ -399,10 +432,10 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				rcItem.left=rcItem.right;
 				rcItem.right=ps.rcPaint.right;
 				if (rcItem.right>rcItem.left)
-					DrawUtil::FillGradient(ps.hdc,&rcItem,
-							pStatus->m_crBackColor1,pStatus->m_crBackColor2,
-							DrawUtil::DIRECTION_VERT);
+					Theme::FillGradient(ps.hdc,&rcItem,&pStatus->m_BackGradient);
 			}
+			pStatus->GetClientRect(&rc);
+			Theme::DrawBorder(ps.hdc,&rc,pStatus->m_BorderType);
 			::SetBkColor(hdc,crOldBkColor);
 			::SetTextColor(hdc,crOldTextColor);
 			::SetBkMode(hdc,OldBkMode);
@@ -430,7 +463,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			int Left,Right;
 			int i;
 
-			Left=0;
+			Left=STATUS_BORDER;
 			for (i=0;i<pStatus->m_NumItems;i++) {
 				if (!pStatus->m_ItemList[i]->GetVisible())
 					continue;
@@ -564,7 +597,7 @@ void CStatusView::UpdateItem(int ID)
 
 		GetItemRect(ID,&rc);
 		if (rc.right>rc.left)
-			InvalidateRect(m_hwnd,&rc,TRUE);
+			::InvalidateRect(m_hwnd,&rc,TRUE);
 	}
 }
 
@@ -578,6 +611,9 @@ bool CStatusView::GetItemRect(int ID,RECT *pRect) const
 	if (Index<0)
 		return false;
 	GetClientRect(&rc);
+	rc.left+=STATUS_BORDER;
+	rc.top+=STATUS_BORDER;
+	rc.bottom-=STATUS_BORDER;
 	for (i=0;i<Index;i++) {
 		if (m_ItemList[i]->GetVisible())
 			rc.left+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
@@ -612,7 +648,7 @@ int CStatusView::GetItemHeight() const
 	RECT rc;
 
 	GetClientRect(&rc);
-	return rc.bottom-rc.top;
+	return (rc.bottom-rc.top)-STATUS_BORDER*2;
 }
 
 
@@ -646,17 +682,25 @@ void CStatusView::SetSingleText(LPCTSTR pszText)
 }
 
 
-void CStatusView::SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
-	COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText)
+void CStatusView::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+						   const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
 {
-	m_crBackColor1=crBack1;
-	m_crBackColor2=crBack2;
+	m_BackGradient=*pBackGradient;
 	m_crTextColor=crText;
-	m_crHighlightBackColor1=crHighlightBack1;
-	m_crHighlightBackColor2=crHighlightBack2;
+	m_HighlightBackGradient=*pHighlightBackGradient;
 	m_crHighlightTextColor=crHighlightText;
 	if (m_hwnd!=NULL)
 		Invalidate();
+}
+
+
+void CStatusView::SetBorderType(Theme::BorderType Type)
+{
+	if (m_BorderType!=Type) {
+		m_BorderType=Type;
+		if (m_hwnd!=NULL)
+			Invalidate();
+	}
 }
 
 
@@ -676,7 +720,7 @@ bool CStatusView::SetFont(HFONT hfont)
 		SelectFont(hdc,hfontOld);
 		ReleaseDC(m_hwnd,hdc);
 		GetClientRect(&rc);
-		rc.bottom=tm.tmHeight+STATUS_MARGIN*2;
+		rc.bottom=tm.tmHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
 		AdjustWindowRectEx(&rc,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
 		SetWindowPos(m_hwnd,NULL,0,0,rc.right-rc.left,rc.bottom-rc.top,
 			SWP_NOZORDER | SWP_NOMOVE);
@@ -732,15 +776,15 @@ bool CStatusView::DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,b
 {
 	HFONT hfontOld;
 	int OldBkMode;
-	COLORREF crOldTextColor,crBkColor1,crBkColor2,crOldBkColor;
+	COLORREF crOldTextColor,crOldBkColor;
+	const Theme::GradientInfo *pGradient=
+		fHighlight?&m_HighlightBackGradient:&m_BackGradient;
 
 	hfontOld=SelectFont(hdc,m_hfontStatus);
 	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 	crOldTextColor=::SetTextColor(hdc,fHighlight?m_crHighlightTextColor:m_crTextColor);
-	crBkColor1=fHighlight?m_crHighlightBackColor1:m_crBackColor1;
-	crBkColor2=fHighlight?m_crHighlightBackColor2:m_crBackColor2;
-	crOldBkColor=::SetBkColor(hdc,MixColor(crBkColor1,crBkColor2,128));
-	DrawUtil::FillGradient(hdc,pRect,crBkColor1,crBkColor2,DrawUtil::DIRECTION_VERT);
+	crOldBkColor=::SetBkColor(hdc,MixColor(pGradient->Color1,pGradient->Color2,128));
+	Theme::FillGradient(hdc,pRect,pGradient);
 	pItem->DrawPreview(hdc,pRect);
 	::SetBkColor(hdc,crOldBkColor);
 	::SetTextColor(hdc,crOldTextColor);

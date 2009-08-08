@@ -494,11 +494,16 @@ void CCaptureWindow::ShowStatusBar(bool fShow)
 }
 
 
-void CCaptureWindow::SetStatusColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
-		COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText)
+void CCaptureWindow::SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+	const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
 {
-	m_Status.SetColor(crBack1,crBack2,crText,
-					  crHighlightBack1,crHighlightBack2,crHighlightText);
+	m_Status.SetColor(pBackGradient,crText,pHighlightBackGradient,crHighlightText);
+}
+
+
+void CCaptureWindow::SetStatusBorderType(Theme::BorderType Type)
+{
+	m_Status.SetBorderType(Type);
 }
 
 
@@ -540,7 +545,7 @@ LRESULT CALLBACK CCaptureWindow::WndProc(HWND hwnd,UINT uMsg,
 			pThis->m_Preview.SetEventHandler(&pThis->m_PreviewEventHandler);
 			pThis->m_Status.Create(hwnd,WS_CHILD | WS_CLIPSIBLINGS |
 								   (pThis->m_fShowStatusBar?WS_VISIBLE:0),
-								   WS_EX_STATICEDGE);
+								   /*WS_EX_STATICEDGE*/0);
 			//pThis->m_Status.SetEventHandler(pThis);
 			if (pThis->m_Status.NumItems()==0) {
 				if (pThis->m_hbmStatusIcons==NULL)

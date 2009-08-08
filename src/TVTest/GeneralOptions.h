@@ -34,6 +34,7 @@ public:
 	bool SetVideoRendererType(CVideoRenderer::RendererType Renderer);
 	CCardReader::ReaderType GetCardReaderType() const;
 	bool SetCardReaderType(CCardReader::ReaderType CardReader);
+	void SetTemporaryNoDescramble(bool fNoDescramble);
 	bool GetResident() const;
 	bool GetKeepSingleTask() const;
 	bool GetDescrambleUseSSE2() const { return m_fDescrambleUseSSE2; }
@@ -51,6 +52,7 @@ private:
 	TCHAR m_szMpeg2DecoderName[MAX_MPEG2_DECODER_NAME];
 	CVideoRenderer::RendererType m_VideoRendererType;
 	CCardReader::ReaderType m_CardReaderType;
+	bool m_fTemporaryNoDescramble;
 	bool m_fResident;
 	bool m_fKeepSingleTask;
 	bool m_fDescrambleUseSSE2;

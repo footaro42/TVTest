@@ -16,7 +16,7 @@ class CViewOptions : public COptions {
 	bool m_fClientEdge;
 	bool m_fMinimizeToTray;
 	bool m_fDisablePreviewWhenMinimized;
-	bool m_fNotifyEventName;
+	//bool m_fNotifyEventName;
 	bool m_fResetPanScanEventChange;
 	bool m_fRestorePlayStatus;
 	bool m_fIgnoreDisplayExtension;
@@ -37,7 +37,7 @@ public:
 	bool GetClientEdge() const { return m_fClientEdge; }
 	bool GetMinimizeToTray() const { return m_fMinimizeToTray; }
 	bool GetDisablePreviewWhenMinimized() const { return m_fDisablePreviewWhenMinimized; }
-	bool GetNotifyEventName() const { return m_fNotifyEventName; }
+	//bool GetNotifyEventName() const { return m_fNotifyEventName; }
 	bool GetResetPanScanEventChange() const { return m_fResetPanScanEventChange; }
 	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
 	bool GetIgnoreDisplayExtension() const { return m_fIgnoreDisplayExtension; }

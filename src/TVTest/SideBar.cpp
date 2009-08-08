@@ -4,11 +4,17 @@
 #include "DrawUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define SIDE_BAR_CLASS APP_NAME TEXT(" Side Bar")
 #define ICON_WIDTH			16
 #define ICON_HEIGHT			16
-#define PADDING_WIDTH		2
+#define PADDING_WIDTH		1
 #define BUTTON_MARGIN		3
 #define SEPARATOR_WIDTH		8
 
@@ -46,12 +52,11 @@ CSideBar::CSideBar(const CCommandList *pCommandList)
 	, m_fShowToolTips(true)
 	, m_hbmIcons(NULL)
 	, m_fVertical(true)
-	, m_BackColor1(RGB(128,192,160))
-	, m_BackColor2(RGB(128,192,160))
+	, m_BackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_HORZ,RGB(128,192,160),RGB(128,192,160))
 	, m_ForeColor(RGB(64,96,80))
-	, m_HighlightBackColor1(RGB(64,96,80))
-	, m_HighlightBackColor2(RGB(64,96,80))
+	, m_HighlightBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_HORZ,RGB(64,96,80),RGB(64,96,80))
 	, m_HighlightForeColor(RGB(128,192,160))
+	, m_BorderType(Theme::BORDER_RAISED)
 	, m_HotItem(-1)
 	, m_ClickItem(-1)
 	, m_fTrackMouseEvent(false)
@@ -142,16 +147,25 @@ bool CSideBar::AddItems(const SideBarItem *pItemList,int NumItems)
 }
 
 
-void CSideBar::SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crFore,COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightFore)
+void CSideBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore,
+						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightFore)
 {
-	m_BackColor1=crBack1;
-	m_BackColor2=crBack2;
+	m_BackGradient=*pBackGradient;
 	m_ForeColor=crFore;
-	m_HighlightBackColor1=crHighlightBack1;
-	m_HighlightBackColor2=crHighlightBack2;
+	m_HighlightBackGradient=*pHighlightBackGradient;
 	m_HighlightForeColor=crHighlightFore;
 	if (m_hwnd!=NULL)
 		Invalidate();
+}
+
+
+void CSideBar::SetBorderType(Theme::BorderType Type)
+{
+	if (m_BorderType!=Type) {
+		m_BorderType=Type;
+		if (m_hwnd!=NULL)
+			Invalidate();
+	}
 }
 
 
@@ -161,6 +175,18 @@ void CSideBar::ShowToolTips(bool fShow)
 		m_fShowToolTips=fShow;
 		if (m_hwndToolTip!=NULL)
 			::SendMessage(m_hwndToolTip,TTM_ACTIVATE,fShow,0);
+	}
+}
+
+
+void CSideBar::SetVertical(bool fVertical)
+{
+	if (m_fVertical!=fVertical) {
+		m_fVertical=fVertical;
+		if (m_hwnd!=NULL) {
+			Invalidate();
+			SetToolTip();
+		}
 	}
 }
 
@@ -227,7 +253,8 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 			CSideBar *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			RECT rc;
-			DrawUtil::FillDirection FillDir;
+			Theme::GradientDirection FillDir;
+			Theme::GradientInfo Gradient;
 			HDC hdcMemory;
 			HBITMAP hbmOld;
 
@@ -236,14 +263,15 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 			if (pThis->m_fVertical) {
 				rc.top=ps.rcPaint.top;
 				rc.bottom=ps.rcPaint.bottom;
-				FillDir=DrawUtil::DIRECTION_HORZ;
+				FillDir=Theme::DIRECTION_HORZ;
 			} else {
 				rc.left=ps.rcPaint.left;
 				rc.right=ps.rcPaint.right;
-				FillDir=DrawUtil::DIRECTION_VERT;
+				FillDir=Theme::DIRECTION_VERT;
 			}
-			DrawUtil::FillGradient(ps.hdc,&rc,
-								   pThis->m_BackColor1,pThis->m_BackColor2,FillDir);
+			Gradient=pThis->m_BackGradient;
+			Gradient.Direction=FillDir;
+			Theme::FillGradient(ps.hdc,&rc,&Gradient);
 			hdcMemory=::CreateCompatibleDC(ps.hdc);
 			hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,pThis->m_hbmIcons));
 			for (int i=0;i<(int)pThis->m_ItemList.size();i++) {
@@ -253,34 +281,36 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 						&& rc.top<ps.rcPaint.bottom && rc.bottom>ps.rcPaint.top) {
 					bool fDisabled=(pThis->m_ItemList[i].Flags&ITEM_FLAG_DISABLED)!=0;
 					bool fHotItem=pThis->m_HotItem==i;
-					RGBQUAD ForeColor;
+					RGBQUAD ColorTable[2];
 					if (fHotItem) {
-						DrawUtil::FillGradient(ps.hdc,&rc,
-											   pThis->m_HighlightBackColor1,
-											   pThis->m_HighlightBackColor2,
-											   FillDir);
-						ForeColor.rgbBlue=GetBValue(pThis->m_HighlightForeColor);
-						ForeColor.rgbGreen=GetGValue(pThis->m_HighlightForeColor);
-						ForeColor.rgbRed=GetRValue(pThis->m_HighlightForeColor);
+						Gradient=pThis->m_HighlightBackGradient;
+						Gradient.Direction=FillDir;
+						Theme::FillGradient(ps.hdc,&rc,&Gradient);
+						ColorTable[0].rgbBlue=GetBValue(pThis->m_HighlightForeColor);
+						ColorTable[0].rgbGreen=GetGValue(pThis->m_HighlightForeColor);
+						ColorTable[0].rgbRed=GetRValue(pThis->m_HighlightForeColor);
 					} else {
-						ForeColor.rgbBlue=GetBValue(pThis->m_ForeColor);
-						ForeColor.rgbGreen=GetGValue(pThis->m_ForeColor);
-						ForeColor.rgbRed=GetRValue(pThis->m_ForeColor);
+						ColorTable[0].rgbBlue=GetBValue(pThis->m_ForeColor);
+						ColorTable[0].rgbGreen=GetGValue(pThis->m_ForeColor);
+						ColorTable[0].rgbRed=GetRValue(pThis->m_ForeColor);
 					}
-					::SetDIBColorTable(hdcMemory,0,1,&ForeColor);
+					ColorTable[1].rgbBlue=~ColorTable[0].rgbBlue;
+					ColorTable[1].rgbGreen=~ColorTable[0].rgbGreen;
+					ColorTable[1].rgbRed=~ColorTable[0].rgbRed;
+					::SetDIBColorTable(hdcMemory,0,2,ColorTable);
 					::TransparentBlt(ps.hdc,
 									 rc.left+BUTTON_MARGIN,rc.top+BUTTON_MARGIN,
 									 ICON_WIDTH,ICON_HEIGHT,
 									 hdcMemory,
 									 pThis->m_ItemList[i].Icon*ICON_WIDTH,0,
 									 ICON_WIDTH,ICON_HEIGHT,
-									 pThis->m_IconTransparentColor);
+									 RGB(ColorTable[1].rgbRed,ColorTable[1].rgbGreen,ColorTable[1].rgbBlue));
 				}
 			}
 			::SelectObject(hdcMemory,hbmOld);
 			::DeleteDC(hdcMemory);
 			::GetClientRect(hwnd,&rc);
-			::DrawEdge(ps.hdc,&rc,BDR_RAISEDOUTER,BF_RECT);
+			Theme::DrawBorder(ps.hdc,&rc,pThis->m_BorderType);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -407,15 +437,34 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 
 		case TTN_SHOW:
 			{
-				LPNMHDR pnmh=reinterpret_cast<LPNMHDR>(lParam);
-				RECT rcBar,rcTip;
+				CSideBar *pThis=GetThis(hwnd);
 
-				::GetWindowRect(hwnd,&rcBar);
-				::GetWindowRect(pnmh->hwndFrom,&rcTip);
-				::SetWindowPos(pnmh->hwndFrom,NULL,rcBar.right-PADDING_WIDTH,rcTip.top,0,0,
-							   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+				if (pThis->m_fVertical) {
+					LPNMHDR pnmh=reinterpret_cast<LPNMHDR>(lParam);
+					RECT rcBar,rcTip;
+					int x,y;
+
+					::GetWindowRect(hwnd,&rcBar);
+					::GetWindowRect(pnmh->hwndFrom,&rcTip);
+					x=rcBar.right-PADDING_WIDTH;
+					y=rcTip.top;
+					HMONITOR hMonitor=::MonitorFromRect(&rcTip,MONITOR_DEFAULTTONULL);
+					if (hMonitor!=NULL) {
+						MONITORINFO mi;
+
+						mi.cbSize=sizeof(mi);
+						if (::GetMonitorInfo(hMonitor,&mi)) {
+							if (x>=mi.rcMonitor.right-16)
+								x=(rcBar.left+PADDING_WIDTH)-(rcTip.right-rcTip.left);
+						}
+					}
+					::SetWindowPos(pnmh->hwndFrom,HWND_TOPMOST,
+								   x,y,rcTip.right-rcTip.left,rcTip.bottom-rcTip.top,
+								   SWP_NOACTIVATE);
+					return TRUE;
+				}
 			}
-			return TRUE;
+			break;
 		}
 		break;
 

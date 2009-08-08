@@ -184,7 +184,7 @@ bool CEpgOptions::LoadEpgData()
 }
 
 
-bool CEpgOptions::AsyncLoadEpgData()
+bool CEpgOptions::AsyncLoadEpgData(CEpgLoadEventHandler *pEventHandler)
 {
 	bool fOK=true;
 
@@ -194,9 +194,16 @@ bool CEpgOptions::AsyncLoadEpgData()
 		m_pEpgDataLoader=
 			new CEpgDataLoader(m_pCoreEngine->m_DtvEngine.m_TsPacketParser.GetEpgDataCapDllUtil());
 
+		m_EpgDataLoaderEventHandler.SetEventHandler(pEventHandler);
 		fOK=m_pEpgDataLoader->LoadAsync(m_szEpgDataFolder,&m_EpgDataLoaderEventHandler);
 	}
 	return fOK;
+}
+
+
+bool CEpgOptions::IsEpgDataLoading() const
+{
+	return m_EpgDataLoaderEventHandler.IsLoading();
 }
 
 

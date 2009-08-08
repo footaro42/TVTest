@@ -34,6 +34,7 @@ CGeneralOptions::CGeneralOptions()
 	m_szMpeg2DecoderName[0]='\0';
 	m_VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
 	m_CardReaderType=CCardReader::READER_SCARD;
+	m_fTemporaryNoDescramble=false;
 	m_fResident=false;
 	m_fKeepSingleTask=false;
 	//m_fDescrambleUseSSE2=CTsDescrambler::IsSSE2Available();
@@ -233,6 +234,12 @@ bool CGeneralOptions::SetCardReaderType(CCardReader::ReaderType CardReader)
 }
 
 
+void CGeneralOptions::SetTemporaryNoDescramble(bool fNoDescramble)
+{
+	m_fTemporaryNoDescramble=fNoDescramble;
+}
+
+
 bool CGeneralOptions::GetResident() const
 {
 	return m_fResident;
@@ -350,7 +357,8 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			};
 			for (int i=0;i<lengthof(pszCardReaderList);i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_CARDREADER,pszCardReaderList[i]);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_CARDREADER,pThis->m_CardReaderType);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_CARDREADER,
+				pThis->m_fTemporaryNoDescramble?0:pThis->m_CardReaderType);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,pThis->m_fResident);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,pThis->m_fKeepSingleTask);
@@ -524,8 +532,10 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 				CCardReader::ReaderType CardReader=(CCardReader::ReaderType)
 					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_CARDREADER);
-				if (CardReader!=pThis->m_CardReaderType) {
+				if ((pThis->m_fTemporaryNoDescramble && CardReader!=CCardReader::READER_NONE)
+						|| (!pThis->m_fTemporaryNoDescramble && CardReader!=pThis->m_CardReaderType)) {
 					pThis->m_CardReaderType=CardReader;
+					pThis->m_fTemporaryNoDescramble=false;
 					pThis->SetUpdateFlag(UPDATE_CARDREADER);
 				}
 

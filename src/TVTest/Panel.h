@@ -3,6 +3,7 @@
 
 
 #include "Splitter.h"
+#include "Theme.h"
 
 
 class CPanel : public CBasicWindow {
@@ -26,7 +27,7 @@ private:
 	CBasicWindow *m_pWindow;
 	LPTSTR m_pszTitle;
 	bool m_fShowTitle;
-	COLORREF m_crTitleBackColor;
+	Theme::GradientInfo m_TitleBackGradient;
 	COLORREF m_crTitleTextColor;
 	CEventHandler *m_pEventHandler;
 	POINT m_ptDragStartPos;
@@ -46,7 +47,9 @@ public:
 	void ShowTitle(bool fShow);
 	void SetEventHandler(CEventHandler *pHandler);
 	CBasicWindow *GetWindow() { return m_pWindow; }
-	bool SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText);
+	bool SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText);
+	bool GetTitleRect(RECT *pRect) const;
+	bool GetContentRect(RECT *pRect) const;
 };
 
 class CDropHelper : public CBasicWindow {
@@ -115,7 +118,7 @@ public:
 	bool SetPanelVisible(bool fVisible,bool fNoActivate=false);
 	int GetDockingWidth() const { return m_DockingWidth; }
 	bool SetDockingWidth(int Width);
-	bool SetTitleColor(COLORREF crTitleBack,COLORREF crTitleText);
+	bool SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText);
 	bool SetOpacity(int Opacity);
 	int GetOpacity() const { return m_Opacity; }
 };

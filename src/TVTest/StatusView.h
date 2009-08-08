@@ -6,6 +6,7 @@
 #include "TsUtilClass.h"
 #include "PointerArray.h"
 #include "VirtualScreen.h"
+#include "Theme.h"
 
 
 class CStatusView;
@@ -19,7 +20,7 @@ protected:
 	int m_MinWidth;
 	bool m_fVisible;
 	bool Update();
-	bool GetMenuPos(POINT *pPos);
+	bool GetMenuPos(POINT *pPos,UINT *pFlags);
 	void DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const;
 	void DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX=0,int SrcY=0,
 				  int IconWidth=16,int IconHeight=16,bool fEnabled=true) const;
@@ -63,12 +64,11 @@ private:
 	static HINSTANCE m_hinst;
 	HFONT m_hfontStatus;
 	int m_FontHeight;
-	COLORREF m_crBackColor1;
-	COLORREF m_crBackColor2;
+	Theme::GradientInfo m_BackGradient;
 	COLORREF m_crTextColor;
-	COLORREF m_crHighlightBackColor1;
-	COLORREF m_crHighlightBackColor2;
+	Theme::GradientInfo m_HighlightBackGradient;
 	COLORREF m_crHighlightTextColor;
+	Theme::BorderType m_BorderType;
 	enum { MAX_STATUS_ITEMS=16 };
 	CPointerVector<CStatusItem> m_ItemList;
 	int m_NumItems;
@@ -104,8 +104,9 @@ public:
 	int GetItemHeight() const;
 	int GetFontHeight() const { return m_FontHeight; }
 	void SetSingleText(LPCTSTR pszText);
-	void SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
-		COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText);
+	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
+	void SetBorderType(Theme::BorderType Type);
 	bool SetFont(HFONT hfont);
 	int GetCurItem() const;
 	bool SetEventHandler(CEventHandler *pEventHandler);

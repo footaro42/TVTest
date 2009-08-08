@@ -3,6 +3,12 @@
 #include "NotificationBar.h"
 #include "DrawUtil.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define NOTIFICATION_BAR_WINDOW_CLASS APP_NAME TEXT(" Notification Bar")
 
@@ -40,17 +46,19 @@ bool CNotificationBar::Initialize(HINSTANCE hinst)
 
 
 CNotificationBar::CNotificationBar()
+	: m_hfont(NULL)
 {
-	m_BackColor1=RGB(128,128,128);
-	m_BackColor2=RGB(64,64,64);
+	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_BackGradient.Direction=Theme::DIRECTION_VERT;
+	m_BackGradient.Color1=RGB(128,128,128);
+	m_BackGradient.Color2=RGB(64,64,64);
 	m_TextColor=RGB(224,224,224);
 	m_ErrorTextColor=RGB(224,64,64);
 	NONCLIENTMETRICS ncm;
 	ncm.cbSize=sizeof(ncm);
 	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
 	ncm.lfMessageFont.lfHeight=-14;
-	m_hfont=::CreateFontIndirect(&ncm.lfMessageFont);
-	m_BarHeight=abs(ncm.lfMessageFont.lfHeight)+BAR_MARGIN*2;
+	SetFont(&ncm.lfMessageFont);
 	m_fAnimate=true;
 	m_pszText=NULL;
 }
@@ -133,11 +141,12 @@ bool CNotificationBar::SetText(LPCTSTR pszText,MessageType Type)
 }
 
 
-bool CNotificationBar::SetColors(COLORREF crBackColor1,COLORREF crBackColor2,COLORREF crTextColor)
+bool CNotificationBar::SetColors(const Theme::GradientInfo *pBackGradient,
+								 COLORREF crTextColor,COLORREF crErrorTextColor)
 {
-	m_BackColor1=crBackColor1;
-	m_BackColor2=crBackColor2;
+	m_BackGradient=*pBackGradient;
 	m_TextColor=crTextColor;
+	m_ErrorTextColor=crErrorTextColor;
 	if (m_hwnd!=NULL)
 		Invalidate();
 	return true;
@@ -183,7 +192,7 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 
 			::BeginPaint(hwnd,&ps);
 			::GetClientRect(hwnd,&rc);
-			DrawUtil::FillGradient(ps.hdc,&rc,pThis->m_BackColor1,pThis->m_BackColor2,DrawUtil::DIRECTION_VERT);
+			Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
 			if (pThis->m_pszText!=NULL) {
 				COLORREF OldTextColor;
 				int OldBkMode;

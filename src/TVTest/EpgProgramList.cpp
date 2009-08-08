@@ -316,6 +316,15 @@ CEpgProgramList::~CEpgProgramList()
 }
 
 
+inline bool IsMemoryZero(const BYTE *pData,int Size)
+{
+	for (int i=0;i<Size;i++) {
+		if (pData[i]!=0)
+			return false;
+	}
+	return true;
+}
+
 bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 {
 	CServiceInfoData ServiceData((WORD)pService->dwOriginalNID,
@@ -334,8 +343,20 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 		return false;
 
 	SYSTEMTIME stOldestTime,stNewestTime;
+	FILETIME ftNewestTime;
 	::FillMemory(&stOldestTime,sizeof(SYSTEMTIME),0xFF);
-	::FillMemory(&stNewestTime,sizeof(SYSTEMTIME),0);
+	::FillMemory(&ftNewestTime,sizeof(FILETIME),0);
+
+	FILETIME ft;
+	ULARGE_INTEGER li;
+	LONGLONG BaseTime;
+	GetLocalTimeAsFileTime(&ft);
+	li.LowPart=ft.dwLowDateTime;
+	li.HighPart=ft.dwHighDateTime;
+	BaseTime=(li.QuadPart-FILETIME_HOUR)/FILETIME_MINUTE;
+	const int TimeTableLength=14*24*60;	// 1分単位で2週間分
+	BYTE *pTimeTable=new BYTE[TimeTableLength];
+	::ZeroMemory(pTimeTable,TimeTableLength);
 
 	for (DWORD j=0;j<dwEpgDataCount;j++) {
 		CEventInfoData EventData;
@@ -374,24 +395,43 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 
 		if (CompareSystemTime(&EventData.m_stStartTime,&stOldestTime)<0)
 			stOldestTime=EventData.m_stStartTime;
-		SYSTEMTIME stEnd;
-		EventData.GetEndTime(&stEnd);
-		if (CompareSystemTime(&stEnd,&stNewestTime)>0)
-			stNewestTime=stEnd;
-	}
+		::SystemTimeToFileTime(&EventData.m_stStartTime,&ft);
+		ft+=(LONGLONG)EventData.m_DurationSec*FILETIME_SECOND;
+		//if (::CompareFileTime(&ft,&ftNewestTime)>0)
+		if (ft.dwHighDateTime>ftNewestTime.dwHighDateTime
+				|| (ft.dwHighDateTime==ftNewestTime.dwHighDateTime
+					&& ft.dwLowDateTime>ftNewestTime.dwLowDateTime))
+			ftNewestTime=ft;
 
-	ServiceMapKey Key=GenerateServiceMapKey(ServiceData.m_OriginalNID,
-								ServiceData.m_TSID,ServiceData.m_ServiceID);
+		int Start,End;
+		li.LowPart=ft.dwLowDateTime;
+		li.HighPart=ft.dwHighDateTime;
+		Start=(int)((LONGLONG)(li.QuadPart/FILETIME_MINUTE)-BaseTime);
+		End=(int)((LONGLONG)((li.QuadPart+(ULONGLONG)EventData.m_DurationSec*FILETIME_SECOND+(FILETIME_MINUTE-1))/FILETIME_MINUTE)-BaseTime);
+		if (Start<0)
+			Start=0;
+		if (End>TimeTableLength)
+			End=TimeTableLength;
+		if (Start<TimeTableLength && End>0 && Start<End)
+			::FillMemory(&pTimeTable[Start],End-Start,1);
+	}
+	::FileTimeToSystemTime(&ftNewestTime,&stNewestTime);
+
+	TRACE(TEXT("CEpgProgramList::UpdateService() (%ld) %d/%d %d:%02d - %d/%d %d:%02d %ld Events\n"),
+		  pService->dwServiceID,
+		  stOldestTime.wMonth,stOldestTime.wDay,stOldestTime.wHour,stOldestTime.wMinute,
+		  stNewestTime.wMonth,stNewestTime.wDay,stNewestTime.wHour,stNewestTime.wMinute,
+		  dwEpgDataCount);
 
 	// 既存のイベントで新しいリストに無いものを追加する
-	// 真面目にやると凄く遅くなるので適当に
-	TRACE(TEXT("CEpgProgramList::UpdateService() (%d) %d/%d %d:%02d - %d/%d %d:%02d\n"),
-		  (int)pService->dwServiceID,
-		  stOldestTime.wMonth,stOldestTime.wDay,stOldestTime.wHour,stOldestTime.wMinute,
-		  stNewestTime.wMonth,stNewestTime.wDay,stNewestTime.wHour,stNewestTime.wMinute);
+	ServiceMapKey Key=GenerateServiceMapKey(ServiceData.m_OriginalNID,
+								ServiceData.m_TSID,ServiceData.m_ServiceID);
 	ServiceIterator itrService=ServiceMap.find(Key);
 	if (itrService!=ServiceMap.end()) {
 		CEventInfoList::EventIterator itrEvent;
+#ifdef _DEBUG
+		int NewerCount=0,OlderCount=0,PaddingCount=0;
+#endif
 
 		for (itrEvent=itrService->second.m_EventList.EventDataMap.begin();
 				itrEvent!=itrService->second.m_EventList.EventDataMap.end();
@@ -400,17 +440,46 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 
 			if (CompareSystemTime(&itrEvent->second.m_stStartTime,&stNewestTime)>=0) {
 				fInsert=true;
+#ifdef _DEBUG
+				NewerCount++;
+#endif
 			} else {
 				SYSTEMTIME stEnd;
-				itrEvent->second.GetEndTime(&stEnd);
-				if (CompareSystemTime(&stEnd,&stOldestTime)<=0)
+				::SystemTimeToFileTime(&itrEvent->second.m_stStartTime,&ft);
+				ft+=(LONGLONG)itrEvent->second.m_DurationSec*FILETIME_SECOND;
+				::FileTimeToSystemTime(&ft,&stEnd);
+				if (CompareSystemTime(&stEnd,&stOldestTime)<=0) {
 					fInsert=true;
+#ifdef _DEBUG
+					OlderCount++;
+#endif
+				} else {
+					int Start,End;
+					li.LowPart=ft.dwLowDateTime;
+					li.HighPart=ft.dwHighDateTime;
+					Start=(int)((LONGLONG)(li.QuadPart/FILETIME_MINUTE)-BaseTime);
+					End=(int)((LONGLONG)((li.QuadPart+(ULONGLONG)itrEvent->second.m_DurationSec*FILETIME_SECOND+(FILETIME_MINUTE-1))/FILETIME_MINUTE)-BaseTime);
+					if (Start>=0 && Start<TimeTableLength
+							&& End>0 && End<=TimeTableLength && Start<End
+							&& IsMemoryZero(&pTimeTable[Start],End-Start)) {
+						fInsert=true;
+#ifdef _DEBUG
+						PaddingCount++;
+#endif
+					}
+				}
 			}
 			if (fInsert)
 				ServiceInfo.m_EventList.EventDataMap.insert(
 					std::pair<WORD,CEventInfoData>(itrEvent->second.m_EventID,itrEvent->second));
 		}
+#ifdef _DEBUG
+		TRACE(TEXT("古いイベントの生き残り Newer %d / Older %d / Padding %d (Total %d)\n"),
+			  NewerCount,OlderCount,PaddingCount,
+			  ServiceInfo.m_EventList.EventDataMap.size());
+#endif
 	}
+	delete [] pTimeTable;
 
 	if (!ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo)).second)
 		ServiceMap[Key]=ServiceInfo;

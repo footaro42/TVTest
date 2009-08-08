@@ -15,44 +15,89 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-
+#define HEXRGB(hex) RGB((hex)>>16,((hex)>>8)&0xFF,(hex)&0xFF)
 
 const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
-	{RGB(176,216,196),	TEXT("StatusBack"),					TEXT("ステータスバー背景1")},
-	{RGB(128,192,160),	TEXT("StatusBack2"),				TEXT("ステータスバー背景2")},
-	{RGB(64,96,80),		TEXT("StatusText"),					TEXT("ステータスバー文字")},
-	{RGB(85,128,106),	TEXT("StatusHighlightBack"),		TEXT("ステータスバー選択背景1")},
-	{RGB(64,96,80),		TEXT("StatusHighlightBack2"),		TEXT("ステータスバー選択背景2")},
-	{RGB(128,192,160),	TEXT("StatusHighlightText"),		TEXT("ステータスバー選択文字")},
-	{RGB(128,192,160),	TEXT("PanelBack"),					TEXT("パネル背景")},
-	{RGB(64,96,80),		TEXT("PanelText"),					TEXT("パネル文字")},
-	{RGB(238,238,238),	TEXT("PanelTabBack"),				TEXT("パネルタブ背景")},
-	{RGB(85,85,85),		TEXT("PanelTabText"),				TEXT("パネルタブ文字")},
-	{RGB(85,85,85),		TEXT("PanelTabBorder"),				TEXT("パネルタブ枠")},
-	{RGB(128,192,160),	TEXT("PanelCurTabBack"),			TEXT("パネル選択タブ背景")},
-	{RGB(64,96,80),		TEXT("PanelCurTabText"),			TEXT("パネル選択タブ文字")},
-	{RGB(64,96,80),		TEXT("PanelCurTabBorder"),			TEXT("パネル選択タブ枠")},
-	{RGB(238,238,238),	TEXT("PanelTabMargin"),				TEXT("パネルタブ余白")},
-	{RGB(170,170,170),	TEXT("PanelTitleBack"),				TEXT("パネルタイトル背景")},
-	{RGB(0,0,0),		TEXT("PanelTitleText"),				TEXT("パネルタイトル文字")},
-	{RGB(128,192,160),	TEXT("ProgramInfoBack"),			TEXT("番組情報背景")},
-	{RGB(64,96,80),		TEXT("ProgramInfoText"),			TEXT("番組情報文字")},
-	{RGB(128,192,160),	TEXT("ProgramListBack"),			TEXT("番組表背景")},
-	{RGB(64,96,80),		TEXT("ProgramListText"),			TEXT("番組表文字")},
-	{RGB(64,96,80),		TEXT("ProgramListTitleBack"),		TEXT("番組表番組名背景")},
-	{RGB(128,192,160),	TEXT("ProgramListTitleText"),		TEXT("番組表番組名文字")},
-	{RGB(64,96,80),		TEXT("ChannelPanelChannelNameBack"),	TEXT("チャンネル名背景")},
-	{RGB(128,192,160),	TEXT("ChannelPanelChannelNameText"),	TEXT("チャンネル名文字")},
-	{RGB(64,96,80),		TEXT("ChannelPanelEventNameBack"),	TEXT("チャンネル番組名背景")},
-	{RGB(128,192,160),	TEXT("ChannelPanelEventNameText"),	TEXT("チャンネル番組名文字")},
-	{RGB(64,96,80),		TEXT("ControlPanelHighlightBack"),	TEXT("操作パネル選択背景")},
-	{RGB(128,192,160),	TEXT("ControlPanelHighlightText"),	TEXT("操作パネル選択文字")},
-	{RGB(255,255,255),	TEXT("ProgramGuideBack"),			TEXT("EPG番組表背景")},
-	{RGB(0,0,0),		TEXT("ProgramGuideText"),			TEXT("EPG番組表文字")},
-	{RGB(240,240,240),	TEXT("ProgramGuideChannelBack"),	TEXT("EPG番組表チャンネル名背景")},
-	{RGB(0,0,0),		TEXT("ProgramGuideChannelText"),	TEXT("EPG番組表チャンネル名文字")},
-	{RGB(240,240,240),	TEXT("ProgramGuideTimeBack"),		TEXT("EPG番組表時間背景")},
-	{RGB(0,0,0),		TEXT("ProgramGuideTimeText"),		TEXT("EPG番組表時間文字")},
+	{HEXRGB(0x777777),	TEXT("StatusBack"),					TEXT("ステータスバー背景1")},
+	{HEXRGB(0x222222),	TEXT("StatusBack2"),				TEXT("ステータスバー背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("StatusText"),					TEXT("ステータスバー文字")},
+	{HEXRGB(0x3384FF),	TEXT("StatusHighlightBack"),		TEXT("ステータスバー選択背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("StatusHighlightBack2"),		TEXT("ステータスバー選択背景2")},
+	{HEXRGB(0x333333),	TEXT("StatusHighlightText"),		TEXT("ステータスバー選択文字")},
+	{HEXRGB(0x666666),	TEXT("PanelBack"),					TEXT("パネル背景")},
+	{HEXRGB(0xCCCCCC),	TEXT("PanelText"),					TEXT("パネル文字")},
+	{HEXRGB(0xCCCCCC),	TEXT("PanelTabBack"),				TEXT("パネルタブ背景1")},
+	{HEXRGB(0x888888),	TEXT("PanelTabBack2"),				TEXT("パネルタブ背景2")},
+	{HEXRGB(0x444444),	TEXT("PanelTabText"),				TEXT("パネルタブ文字")},
+	{HEXRGB(0x444444),	TEXT("PanelTabBorder"),				TEXT("パネルタブ枠")},
+	{HEXRGB(0x999999),	TEXT("PanelCurTabBack"),			TEXT("パネル選択タブ背景1")},
+	{HEXRGB(0x666666),	TEXT("PanelCurTabBack2"),			TEXT("パネル選択タブ背景2")},
+	{HEXRGB(0xEEEEEE),	TEXT("PanelCurTabText"),			TEXT("パネル選択タブ文字")},
+	{HEXRGB(0x444444),	TEXT("PanelCurTabBorder"),			TEXT("パネル選択タブ枠")},
+	{HEXRGB(0x888888),	TEXT("PanelTabMargin"),				TEXT("パネルタブ余白")},
+	{HEXRGB(0x777777),	TEXT("PanelTitleBack"),				TEXT("パネルタイトル背景1")},
+	{HEXRGB(0x222222),	TEXT("PanelTitleBack2"),				TEXT("パネルタイトル背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("PanelTitleText"),				TEXT("パネルタイトル文字")},
+	{HEXRGB(0x777777),	TEXT("ProgramInfoBack"),			TEXT("番組情報背景")},
+	{HEXRGB(0xDDDDDD),	TEXT("ProgramInfoText"),			TEXT("番組情報文字")},
+	{HEXRGB(0x777777),	TEXT("ProgramListBack"),			TEXT("番組表背景1")},
+	{HEXRGB(0x888888),	TEXT("ProgramListBack2"),			TEXT("番組表背景2")},
+	{HEXRGB(0xDDDDDD),	TEXT("ProgramListText"),			TEXT("番組表文字")},
+	{HEXRGB(0x777777),	TEXT("ProgramListCurBack"),			TEXT("番組表強調背景1")},
+	{HEXRGB(0x888888),	TEXT("ProgramListCurBack2"),		TEXT("番組表強調背景2")},
+	{HEXRGB(0xDDDDDD),	TEXT("ProgramListCurText"),			TEXT("番組表強調文字")},
+	{HEXRGB(0x777777),	TEXT("ProgramListTitleBack"),		TEXT("番組表番組名背景1")},
+	{HEXRGB(0x555555),	TEXT("ProgramListTitleBack2"),		TEXT("番組表番組名背景2")},
+	{HEXRGB(0xCCCCCC),	TEXT("ProgramListTitleText"),		TEXT("番組表番組名文字")},
+	{HEXRGB(0x3384FF),	TEXT("ProgramListCurTitleBack"),	TEXT("番組表番組名強調背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("ProgramListCurTitleBack2"),	TEXT("番組表番組名強調背景2")},
+	{HEXRGB(0x333333),	TEXT("ProgramListCurTitleText"),	TEXT("番組表番組名強調文字")},
+	{HEXRGB(0x777777),	TEXT("ChannelPanelChannelNameBack"),	TEXT("チャンネル名背景1")},
+	{HEXRGB(0x555555),	TEXT("ChannelPanelChannelNameBack2"),	TEXT("チャンネル名背景2")},
+	{HEXRGB(0xCCCCCC),	TEXT("ChannelPanelChannelNameText"),	TEXT("チャンネル名文字")},
+	{HEXRGB(0x3384FF),	TEXT("ChannelPanelCurChannelNameBack"),	TEXT("チャンネル名選択背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("ChannelPanelCurChannelNameBack2"),	TEXT("チャンネル名選択背景2")},
+	{HEXRGB(0x333333),	TEXT("ChannelPanelCurChannelNameText"),	TEXT("チャンネル名選択文字")},
+	{HEXRGB(0x777777),	TEXT("ChannelPanelEventNameBack"),	TEXT("チャンネル番組名背景1")},
+	{HEXRGB(0x888888),	TEXT("ChannelPanelEventNameBack2"),	TEXT("チャンネル番組名背景2")},
+	{HEXRGB(0xDDDDDD),	TEXT("ChannelPanelEventNameText"),	TEXT("チャンネル番組名文字")},
+	{HEXRGB(0x777777),	TEXT("ChannelPanelCurEventNameBack"),	TEXT("チャンネル番組名選択背景1")},
+	{HEXRGB(0x888888),	TEXT("ChannelPanelCurEventNameBack2"),	TEXT("チャンネル番組名選択背景2")},
+	{HEXRGB(0xDDDDDD),	TEXT("ChannelPanelCurEventNameText"),	TEXT("チャンネル番組名選択文字")},
+	{HEXRGB(0x666666),	TEXT("ControlPanelBack"),			TEXT("操作パネル背景1")},
+	{HEXRGB(0x666666),	TEXT("ControlPanelBack2"),			TEXT("操作パネル背景2")},
+	{HEXRGB(0xCCCCCC),	TEXT("ControlPanelText"),			TEXT("操作パネル文字")},
+	{HEXRGB(0x3384FF),	TEXT("ControlPanelHighlightBack"),	TEXT("操作パネル選択背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("ControlPanelHighlightBack2"),	TEXT("操作パネル選択背景2")},
+	{HEXRGB(0xEEEEEE),	TEXT("ControlPanelHighlightText"),	TEXT("操作パネル選択文字")},
+	{HEXRGB(0x666666),	TEXT("ControlPanelMargin"),			TEXT("操作パネル余白")},
+	{HEXRGB(0x777777),	TEXT("TitleBarBack"),				TEXT("タイトルバー背景1")},
+	{HEXRGB(0x222222),	TEXT("TitleBarBack2"),				TEXT("タイトルバー背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("TitleBarText"),				TEXT("タイトルバー文字")},
+	{HEXRGB(0x3384FF),	TEXT("TitleBarHighlightBack"),		TEXT("タイトルバー選択背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("TitleBarHighlightBack2"),		TEXT("タイトルバー選択背景2")},
+	{HEXRGB(0x444444),	TEXT("TitleBarHighlightIcon"),		TEXT("タイトルバー選択アイコン")},
+	{HEXRGB(0x777777),	TEXT("SideBarBack"),				TEXT("サイドバー背景1")},
+	{HEXRGB(0x222222),	TEXT("SideBarBack2"),				TEXT("サイドバー背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("SideBarIcon"),				TEXT("サイドバーアイコン")},
+	{HEXRGB(0x3384FF),	TEXT("SideBarHighlightBack"),		TEXT("サイドバー選択背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("SideBarHighlightBack2"),		TEXT("サイドバー選択背景2")},
+	{HEXRGB(0x444444),	TEXT("SideBarHighlightIcon"),		TEXT("サイドバー選択アイコン")},
+	{HEXRGB(0x888888),	TEXT("NotificationBarBack"),		TEXT("通知バー背景1")},
+	{HEXRGB(0x444444),	TEXT("NotificationBarBack2"),		TEXT("通知バー背景2")},
+	{HEXRGB(0xDDDDDD),	TEXT("NotificationBarText"),		TEXT("通知バー文字")},
+	{HEXRGB(0xFF4444),	TEXT("NotificationBarErrorText"),	TEXT("通知バーエラー文字")},
+	{HEXRGB(0x666666),	TEXT("ProgramGuideBack"),			TEXT("EPG番組表背景")},
+	{HEXRGB(0x000000),	TEXT("ProgramGuideText"),			TEXT("EPG番組表文字")},
+	{HEXRGB(0x777777),	TEXT("ProgramGuideChannelBack"),	TEXT("EPG番組表チャンネル名背景1")},
+	{HEXRGB(0x222222),	TEXT("ProgramGuideChannelBack2"),	TEXT("EPG番組表チャンネル名背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("ProgramGuideChannelText"),	TEXT("EPG番組表チャンネル名文字")},
+	{HEXRGB(0x3384FF),	TEXT("ProgramGuideCurChannelBack"),	TEXT("EPG番組表チャンネル名選択背景1")},
+	{HEXRGB(0x33D6FF),	TEXT("ProgramGuideCurChannelBack2"),	TEXT("EPG番組表チャンネル名選択背景2")},
+	{HEXRGB(0x333333),	TEXT("ProgramGuideCurChannelText"),	TEXT("EPG番組表チャンネル名選択文字")},
+	{HEXRGB(0x777777),	TEXT("ProgramGuideTimeBack"),		TEXT("EPG番組表時間背景1")},
+	{HEXRGB(0x888888),	TEXT("ProgramGuideTimeBack2"),		TEXT("EPG番組表時間背景2")},
+	{HEXRGB(0xDDDDDD),	TEXT("ProgramGuideTimeText"),		TEXT("EPG番組表時間文字")},
 	{RGB(255,255,224),	TEXT("EPGContentNews"),				TEXT("EPG番組表ニュース番組")},
 	{RGB(224,224,255),	TEXT("EPGContentSports"),			TEXT("EPG番組表スポーツ番組")},
 	{RGB(255,224,240),	TEXT("EPGContentInformation"),		TEXT("EPG番組表情報番組")},
@@ -68,20 +113,52 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 	{RGB(240,240,240),	TEXT("EPGContentOther"),			TEXT("EPG番組表その他の番組")},
 };
 
+const CColorScheme::GradientInfo CColorScheme::m_GradientInfoList[NUM_GRADIENTS] = {
+	{TEXT("StatusBackGradient"),					COLOR_STATUSBACK1,				COLOR_STATUSBACK2},
+	{TEXT("StatusHighlightBackGradient"),			COLOR_STATUSHIGHLIGHTBACK1,		COLOR_STATUSHIGHLIGHTBACK2},
+	{TEXT("PanelTabBackGradient"),					COLOR_PANELTABBACK1,			COLOR_PANELTABBACK2},
+	{TEXT("PanelCurTabBackGradient"),				COLOR_PANELCURTABBACK1,			COLOR_PANELCURTABBACK2},
+	{TEXT("PanelTitleBackGradient"),				COLOR_PANELTITLEBACK1,			COLOR_PANELTITLEBACK2},
+	{TEXT("ProgramListBackGradient"),				COLOR_PROGRAMLISTBACK1,			COLOR_PROGRAMLISTBACK2},
+	{TEXT("ProgramListCurBackGradient"),			COLOR_PROGRAMLISTCURBACK1,		COLOR_PROGRAMLISTCURBACK2},
+	{TEXT("ProgramListTitleBackGradient"),			COLOR_PROGRAMLISTTITLEBACK1,	COLOR_PROGRAMLISTTITLEBACK2},
+	{TEXT("ProgramListCurTitleBackGradient"),		COLOR_PROGRAMLISTCURTITLEBACK1,	COLOR_PROGRAMLISTCURTITLEBACK2},
+	{TEXT("ChannelPanelChannelNameBackGradient"),	COLOR_CHANNELPANELCHANNELNAMEBACK1,	COLOR_CHANNELPANELCHANNELNAMEBACK2},
+	{TEXT("ChannelPanelCurChannelNameBackGradient"),	COLOR_CHANNELPANELCURCHANNELNAMEBACK1,	COLOR_CHANNELPANELCURCHANNELNAMEBACK2},
+	{TEXT("ChannelPanelEventNameBackGradient"),		COLOR_CHANNELPANELEVENTNAMEBACK1,	COLOR_CHANNELPANELEVENTNAMEBACK2},
+	{TEXT("ChannelPanelCurEventNameBackGradient"),		COLOR_CHANNELPANELCUREVENTNAMEBACK1,	COLOR_CHANNELPANELCUREVENTNAMEBACK2},
+	{TEXT("ControlPanelBackGradient"),				COLOR_CONTROLPANELBACK1,		COLOR_CONTROLPANELBACK2},
+	{TEXT("ControlPanelHighlightBackGradient"),		COLOR_CONTROLPANELHIGHLIGHTBACK1,	COLOR_CONTROLPANELHIGHLIGHTBACK2},
+	{TEXT("TitleBarBackGradient"),					COLOR_TITLEBARBACK1,			COLOR_TITLEBARBACK2},
+	{TEXT("TitleBarHighlightBackGradient"),			COLOR_TITLEBARHIGHLIGHTBACK1,	COLOR_TITLEBARHIGHLIGHTBACK2},
+	{TEXT("SideBarBackGradient"),					COLOR_SIDEBARBACK1,				COLOR_SIDEBARBACK2},
+	{TEXT("SideBarHighlightBackGradient"),			COLOR_SIDEBARHIGHLIGHTBACK1,	COLOR_SIDEBARHIGHLIGHTBACK2},
+	{TEXT("NotificationBarBackGradient"),			COLOR_NOTIFICATIONBARBACK1,		COLOR_NOTIFICATIONBARBACK2},
+	{TEXT("ProgramGuideChannelBackGradient"),		COLOR_PROGRAMGUIDECHANNELBACK1,		COLOR_PROGRAMGUIDECHANNELBACK2},
+	{TEXT("ProgramGuideCurChannelBackGradient"),		COLOR_PROGRAMGUIDECURCHANNELBACK1,		COLOR_PROGRAMGUIDECURCHANNELBACK2},
+	{TEXT("ProgramGuideTimeBackGradient"),			COLOR_PROGRAMGUIDETIMEBACK1,	COLOR_PROGRAMGUIDETIMEBACK2},
+};
+
+const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
+	{TEXT("StatusBorder"),		Theme::BORDER_RAISED},
+	{TEXT("TitleBarBorder"),	Theme::BORDER_RAISED},
+	{TEXT("SideBarBorder"),		Theme::BORDER_RAISED},
+};
+
 
 CColorScheme::CColorScheme()
+	: m_pszName(NULL)
+	, m_pszFileName(NULL)
 {
 	SetDefault();
-	m_pszName=NULL;
-	m_pszFileName=NULL;
 	::ZeroMemory(m_LoadedFlags,sizeof(m_LoadedFlags));
 }
 
 
 CColorScheme::CColorScheme(const CColorScheme &ColorScheme)
+	: m_pszName(NULL)
+	, m_pszFileName(NULL)
 {
-	m_pszName=NULL;
-	m_pszFileName=NULL;
 	*this=ColorScheme;
 }
 
@@ -97,6 +174,8 @@ CColorScheme &CColorScheme::operator=(const CColorScheme &ColorScheme)
 {
 	if (&ColorScheme!=this) {
 		::CopyMemory(m_ColorList,ColorScheme.m_ColorList,sizeof(m_ColorList));
+		::CopyMemory(m_GradientList,ColorScheme.m_GradientList,sizeof(m_GradientList));
+		::CopyMemory(m_BorderList,ColorScheme.m_BorderList,sizeof(m_BorderList));
 		ReplaceString(&m_pszName,ColorScheme.m_pszName);
 		ReplaceString(&m_pszFileName,ColorScheme.m_pszFileName);
 		::CopyMemory(m_LoadedFlags,ColorScheme.m_LoadedFlags,sizeof(m_LoadedFlags));
@@ -132,6 +211,64 @@ bool CColorScheme::SetColor(int Type,COLORREF Color)
 }
 
 
+CColorScheme::GradientType CColorScheme::GetGradientType(int Gradient) const
+{
+	if (Gradient<0 || Gradient>=NUM_GRADIENTS)
+		return GRADIENT_TYPE_UNDEFINED;
+	return m_GradientList[Gradient];
+}
+
+
+CColorScheme::GradientType CColorScheme::GetGradientType(LPCTSTR pszText) const
+{
+	for (int i=0;i<NUM_GRADIENTS;i++) {
+		if (::lstrcmpi(m_GradientInfoList[i].pszText,pszText)==0)
+			return m_GradientList[i];
+	}
+	return GRADIENT_TYPE_UNDEFINED;
+}
+
+
+bool CColorScheme::SetGradientType(int Gradient,GradientType Type)
+{
+	if (Gradient<0 || Gradient>=NUM_GRADIENTS
+			|| Type<GRADIENT_TYPE_FIRST || Type>GRADIENT_TYPE_LAST)
+		return false;
+	m_GradientList[Gradient]=Type;
+	return true;
+}
+
+
+bool CColorScheme::GetGradientInfo(int Gradient,Theme::GradientInfo *pInfo) const
+{
+	if (Gradient<0 || Gradient>=NUM_GRADIENTS)
+		return false;
+	pInfo->Type=(Theme::GradientType)m_GradientList[Gradient];
+	pInfo->Direction=Theme::DIRECTION_VERT;
+	pInfo->Color1=m_ColorList[m_GradientInfoList[Gradient].Color1];
+	pInfo->Color2=m_ColorList[m_GradientInfoList[Gradient].Color2];
+	return true;
+}
+
+
+Theme::BorderType CColorScheme::GetBorderType(int Border) const
+{
+	if (Border<0 || Border>=NUM_BORDERS)
+		return Theme::BORDER_FLAT;
+	return m_BorderList[Border];
+}
+
+
+bool CColorScheme::SetBorderType(int Border,Theme::BorderType Type)
+{
+	if (Border<0 || Border>=NUM_BORDERS
+			|| Type<Theme::BORDER_FLAT || Type>Theme::BORDER_RAISED)
+		return false;
+	m_BorderList[Border]=Type;
+	return true;
+}
+
+
 bool CColorScheme::SetName(LPCTSTR pszName)
 {
 	return ReplaceString(&m_pszName,pszName);
@@ -141,18 +278,104 @@ bool CColorScheme::SetName(LPCTSTR pszName)
 bool CColorScheme::Load(LPCTSTR pszFileName)
 {
 	CSettings Settings;
-	TCHAR szName[128];
+	TCHAR szText[128];
 	int i;
 
 	if (!Settings.Open(pszFileName,TEXT("ColorScheme"),CSettings::OPEN_READ))
 		return false;
-	if (Settings.Read(TEXT("Name"),szName,lengthof(szName)))
-		SetName(szName);
+	if (Settings.Read(TEXT("Name"),szText,lengthof(szText)))
+		SetName(szText);
 	::ZeroMemory(m_LoadedFlags,sizeof(m_LoadedFlags));
 	for (i=0;i<NUM_COLORS;i++) {
 		if (Settings.ReadColor(m_ColorInfoList[i].pszText,&m_ColorList[i]))
-			m_LoadedFlags[i/32]|=1<<(i%32);
+			SetLoadedFlag(i);
 	}
+	for (i=0;i<NUM_COLORS;i++) {
+		if (IsLoaded(i)) {
+			for (int j=0;j<NUM_GRADIENTS;j++) {
+				if (m_GradientInfoList[j].Color1==i
+						|| m_GradientInfoList[j].Color2==i) {
+					if (m_GradientInfoList[j].Color1==i
+							&& !IsLoaded(m_GradientInfoList[j].Color2)) {
+						m_ColorList[m_GradientInfoList[j].Color2]=m_ColorList[i];
+						SetLoadedFlag(m_GradientInfoList[j].Color2);
+					}
+					m_GradientList[j]=GRADIENT_TYPE_NORMAL;
+					break;
+				}
+			}
+		} else {
+			static const struct {
+				int To,From;
+			} Map[] = {
+				{COLOR_PROGRAMLISTCURBACK1,				COLOR_PROGRAMLISTBACK1},
+				{COLOR_PROGRAMLISTCURBACK2,				COLOR_PROGRAMLISTBACK2},
+				{COLOR_PROGRAMLISTCURTEXT,				COLOR_PROGRAMLISTTEXT},
+				{COLOR_PROGRAMLISTCURTITLEBACK1,		COLOR_PROGRAMLISTTITLEBACK1},
+				{COLOR_PROGRAMLISTCURTITLEBACK2,		COLOR_PROGRAMLISTTITLEBACK2},
+				{COLOR_PROGRAMLISTCURTITLETEXT,			COLOR_PROGRAMLISTTITLETEXT},
+				{COLOR_CHANNELPANELCURCHANNELNAMEBACK1,	COLOR_CHANNELPANELCHANNELNAMEBACK1},
+				{COLOR_CHANNELPANELCURCHANNELNAMEBACK2,	COLOR_CHANNELPANELCHANNELNAMEBACK2},
+				{COLOR_CHANNELPANELCURCHANNELNAMETEXT,	COLOR_CHANNELPANELCHANNELNAMETEXT},
+				{COLOR_CHANNELPANELCUREVENTNAMEBACK1,	COLOR_CHANNELPANELEVENTNAMEBACK1},
+				{COLOR_CHANNELPANELCUREVENTNAMEBACK2,	COLOR_CHANNELPANELEVENTNAMEBACK2},
+				{COLOR_CHANNELPANELCUREVENTNAMETEXT,	COLOR_CHANNELPANELEVENTNAMETEXT},
+				{COLOR_CONTROLPANELBACK1,				COLOR_PANELBACK},
+				{COLOR_CONTROLPANELBACK2,				COLOR_PANELBACK},
+				{COLOR_CONTROLPANELTEXT,				COLOR_PANELTEXT},
+				{COLOR_CONTROLPANELMARGIN,				COLOR_PANELBACK},
+				{COLOR_TITLEBARBACK1,					COLOR_STATUSBACK1},
+				{COLOR_TITLEBARBACK2,					COLOR_STATUSBACK2},
+				{COLOR_TITLEBARTEXT,					COLOR_STATUSTEXT},
+				{COLOR_TITLEBARHIGHLIGHTBACK1,			COLOR_STATUSHIGHLIGHTBACK1},
+				{COLOR_TITLEBARHIGHLIGHTBACK2,			COLOR_STATUSHIGHLIGHTBACK2},
+				{COLOR_TITLEBARHIGHLIGHTICON,				COLOR_STATUSHIGHLIGHTTEXT},
+				{COLOR_SIDEBARBACK1,					COLOR_STATUSBACK1},
+				{COLOR_SIDEBARBACK2,					COLOR_STATUSBACK2},
+				{COLOR_SIDEBARICON,						COLOR_STATUSTEXT},
+				{COLOR_SIDEBARHIGHLIGHTBACK1,			COLOR_STATUSHIGHLIGHTBACK1},
+				{COLOR_SIDEBARHIGHLIGHTBACK2,			COLOR_STATUSHIGHLIGHTBACK2},
+				{COLOR_SIDEBARHIGHLIGHTICON,			COLOR_STATUSHIGHLIGHTTEXT},
+				{COLOR_PROGRAMGUIDECURCHANNELBACK1,		COLOR_PROGRAMGUIDECHANNELBACK1},
+				{COLOR_PROGRAMGUIDECURCHANNELBACK2,		COLOR_PROGRAMGUIDECHANNELBACK2},
+				{COLOR_PROGRAMGUIDECURCHANNELTEXT,		COLOR_PROGRAMGUIDECHANNELTEXT},
+			};
+
+			for (int j=0;j<lengthof(Map);j++) {
+				if (Map[j].To==i && IsLoaded(Map[j].From)) {
+					m_ColorList[i]=m_ColorList[Map[j].From];
+					SetLoadedFlag(i);
+					break;
+				}
+			}
+		}
+	}
+	for (i=0;i<NUM_GRADIENTS;i++) {
+		if (Settings.Read(m_GradientInfoList[i].pszText,szText,lengthof(szText))) {
+			if (szText[0]=='\0' || ::lstrcmpi(szText,TEXT("normal"))==0)
+				m_GradientList[i]=GRADIENT_TYPE_NORMAL;
+			else if (::lstrcmpi(szText,TEXT("glossy"))==0)
+				m_GradientList[i]=GRADIENT_TYPE_GLOSSY;
+		}
+	}
+	Settings.Close();
+
+	for (i=0;i<NUM_BORDERS;i++)
+		m_BorderList[i]=m_BorderInfoList[i].DefaultType;
+	if (Settings.Open(pszFileName,TEXT("Style"),CSettings::OPEN_READ)) {
+		for (i=0;i<NUM_BORDERS;i++) {
+			if (Settings.Read(m_BorderInfoList[i].pszText,szText,lengthof(szText))) {
+				if (::lstrcmpi(szText,TEXT("flat"))==0)
+					m_BorderList[i]=Theme::BORDER_FLAT;
+				else if (::lstrcmpi(szText,TEXT("sunken"))==0)
+					m_BorderList[i]=Theme::BORDER_SUNKEN;
+				else if (::lstrcmpi(szText,TEXT("raised"))==0)
+					m_BorderList[i]=Theme::BORDER_RAISED;
+			}
+		}
+		Settings.Close();
+	}
+
 	SetFileName(pszFileName);
 	return true;
 }
@@ -166,8 +389,25 @@ bool CColorScheme::Save(LPCTSTR pszFileName) const
 	if (!Settings.Open(pszFileName,TEXT("ColorScheme"),CSettings::OPEN_WRITE))
 		return false;
 	Settings.Write(TEXT("Name"),m_pszName!=NULL?m_pszName:TEXT(""));
-	for (i=0;i<NUM_COLORS;i++) {
+	for (i=0;i<NUM_COLORS;i++)
 		Settings.WriteColor(m_ColorInfoList[i].pszText,m_ColorList[i]);
+	for (i=0;i<NUM_GRADIENTS;i++) {
+		static const LPCTSTR pszTypeName[] = {
+			TEXT("normal"),	TEXT("glossy")
+		};
+
+		Settings.Write(m_GradientInfoList[i].pszText,pszTypeName[m_GradientList[i]]);
+	}
+	Settings.Close();
+
+	if (Settings.Open(pszFileName,TEXT("Style"),CSettings::OPEN_WRITE)) {
+		static const LPCTSTR pszTypeName[] = {
+			TEXT("flat"),	TEXT("sunken"),	TEXT("raised")
+		};
+
+		for (i=0;i<NUM_BORDERS;i++)
+			Settings.Write(m_BorderInfoList[i].pszText,pszTypeName[m_BorderList[i]]);
+		Settings.Close();
 	}
 	return true;
 }
@@ -185,6 +425,10 @@ void CColorScheme::SetDefault()
 
 	for (i=0;i<NUM_COLORS;i++)
 		m_ColorList[i]=m_ColorInfoList[i].DefaultColor;
+	for (i=0;i<NUM_GRADIENTS;i++)
+		m_GradientList[i]=GRADIENT_TYPE_NORMAL;
+	for (i=0;i<NUM_BORDERS;i++)
+		m_BorderList[i]=m_BorderInfoList[i].DefaultType;
 }
 
 
@@ -204,6 +448,20 @@ COLORREF CColorScheme::GetDefaultColor(int Type)
 }
 
 
+CColorScheme::GradientType CColorScheme::GetDefaultGradientType(int Gradient)
+{
+	return GRADIENT_TYPE_NORMAL;
+}
+
+
+Theme::BorderType CColorScheme::GetDefaultBorderType(int Border)
+{
+	if (Border<0 || Border>=NUM_BORDERS)
+		return Theme::BORDER_FLAT;
+	return m_BorderInfoList[Border].DefaultType;
+}
+
+
 bool CColorScheme::IsLoaded(int Type) const
 {
 	if (Type<0 || Type>=NUM_COLORS)
@@ -215,6 +473,23 @@ bool CColorScheme::IsLoaded(int Type) const
 void CColorScheme::SetLoaded()
 {
 	::FillMemory(m_LoadedFlags,sizeof(m_LoadedFlags),0xFF);
+}
+
+
+int CColorScheme::GetColorGradient(int Type)
+{
+	for (int i=0;i<NUM_GRADIENTS;i++) {
+		if (m_GradientInfoList[i].Color1==Type
+				|| m_GradientInfoList[i].Color2==Type)
+			return i;
+	}
+	return -1;
+}
+
+
+void CColorScheme::SetLoadedFlag(int Color)
+{
+	m_LoadedFlags[Color/32]|=1<<(Color%32);
 }
 
 
@@ -260,6 +535,7 @@ bool CColorSchemeList::Load(LPCTSTR pszDirectory)
 			else
 				delete pColorScheme;
 		} while (FindNextFile(hFind,&wfd));
+		FindClose(hFind);
 	}
 	return true;
 }
@@ -359,13 +635,17 @@ COLORREF CColorSchemeOptions::GetColor(LPCTSTR pszText) const
 }
 
 
-void CColorSchemeOptions::GetListColor(HWND hDlg,CColorScheme *pColorScheme)
+void CColorSchemeOptions::GetCurrentSettings(CColorScheme *pColorScheme)
 {
 	int i;
 
 	for (i=0;i<CColorScheme::NUM_COLORS;i++)
 		pColorScheme->SetColor(i,
-				(COLORREF)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETITEMDATA,i,0));
+							   (COLORREF)DlgListBox_GetItemData(m_hDlg,IDC_COLORSCHEME_LIST,i));
+	for (int i=0;i<CColorScheme::NUM_GRADIENTS;i++)
+		pColorScheme->SetGradientType(i,m_GradientList[i]);
+	for (int i=0;i<CColorScheme::NUM_BORDERS;i++)
+		pColorScheme->SetBorderType(i,m_BorderList[i]);
 }
 
 
@@ -390,7 +670,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CColorSchemeOptions *pThis=dynamic_cast<CColorSchemeOptions*>(OnInitDialog(hDlg,lParam));
+			CColorSchemeOptions *pThis=static_cast<CColorSchemeOptions*>(OnInitDialog(hDlg,lParam));
 			TCHAR szDirectory[MAX_PATH];
 			int i;
 			int Index;
@@ -423,6 +703,11 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_SETHORIZONTALEXTENT,
 				SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETITEMHEIGHT,0,0)*2+MaxWidth+2,0);
 			ExtendListBox(GetDlgItem(hDlg,IDC_COLORSCHEME_LIST));
+
+			for (int i=0;i<CColorScheme::NUM_GRADIENTS;i++)
+				pThis->m_GradientList[i]=pThis->m_pColorScheme->GetGradientType(i);
+			for (int i=0;i<CColorScheme::NUM_BORDERS;i++)
+				pThis->m_BorderList[i]=pThis->m_pColorScheme->GetBorderType(i);
 
 			pThis->m_fPreview=false;
 
@@ -520,19 +805,14 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 									reinterpret_cast<HBRUSH>(COLOR_WINDOW+1));
 					} else {
 						CColorScheme *pColorScheme=pThis->m_PresetList.GetColorScheme(pdis->itemData);
-						int BkColor1,BkColor2;
+						Theme::GradientInfo Gradient;
 
-						if ((pdis->itemState&ODS_SELECTED)==0) {
-							BkColor1=CColorScheme::COLOR_STATUSBACK1;
-							BkColor2=CColorScheme::COLOR_STATUSBACK2;
-						} else {
-							BkColor1=CColorScheme::COLOR_STATUSHIGHLIGHTBACK1;
-							BkColor2=CColorScheme::COLOR_STATUSHIGHLIGHTBACK2;
-						}
-						DrawUtil::FillGradient(pdis->hDC,&pdis->rcItem,
-											   pColorScheme->GetColor(BkColor1),
-											   pColorScheme->GetColor(BkColor2),
-											   DrawUtil::DIRECTION_VERT);
+						pColorScheme->GetGradientInfo(
+							(pdis->itemState&ODS_SELECTED)==0?
+								CColorScheme::GRADIENT_STATUSBACK:
+								CColorScheme::GRADIENT_STATUSHIGHLIGHTBACK,
+							&Gradient);
+						Theme::FillGradient(pdis->hDC,&pdis->rcItem,&Gradient);
 						if (pColorScheme->GetName()!=NULL) {
 							int OldBkMode;
 							COLORREF crOldTextColor;
@@ -643,6 +923,12 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 						}
 						SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_SETSEL,FALSE,-1);
 						InvalidateDlgItem(hDlg,IDC_COLORSCHEME_LIST);
+
+						for (i=0;i<CColorScheme::NUM_GRADIENTS;i++)
+							pThis->m_GradientList[i]=pColorScheme->GetGradientType(i);
+						for (i=0;i<CColorScheme::NUM_BORDERS;i++)
+							pThis->m_BorderList[i]=pColorScheme->GetBorderType(i);
+
 						pThis->m_ColorPalette.SetSel(-1);
 						if (pThis->Apply(pColorScheme))
 							pThis->m_fPreview=true;
@@ -685,7 +971,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					pColorScheme=new CColorScheme;
 					pColorScheme->SetName(szName);
 				}
-				GetListColor(hDlg,pColorScheme);
+				pThis->GetCurrentSettings(pColorScheme);
 				if (!pColorScheme->Save(szFileName)) {
 					if (Index<0)
 						delete pColorScheme;
@@ -699,7 +985,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					Index=DlgComboBox_AddString(hDlg,IDC_COLORSCHEME_PRESET,szName);
 					DlgComboBox_SetItemData(hDlg,IDC_COLORSCHEME_PRESET,Index,pThis->m_PresetList.NumColorSchemes()-1);
 				}
-				MessageBox(hDlg,TEXT("配色を保存しました。"),NULL,MB_OK | MB_ICONINFORMATION);
+				MessageBox(hDlg,TEXT("配色を保存しました。"),TEXT("保存"),MB_OK | MB_ICONINFORMATION);
 			}
 			return TRUE;
 
@@ -731,6 +1017,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					break;
 				}
 				SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_DELETESTRING,Index,0);
+				MessageBox(hDlg,TEXT("ファイルを削除しました。"),TEXT("削除"),MB_OK | MB_ICONINFORMATION);
 			}
 			return TRUE;
 
@@ -778,14 +1065,24 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			case LBN_EX_RBUTTONDOWN:
 				{
 					CColorSchemeOptions *pThis=GetThis(hDlg);
-					HMENU hmenu=::CreatePopupMenu();
+					HMENU hmenu=::LoadMenu(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDM_COLORSCHEME));
 					POINT pt;
 
-					::AppendMenu(hmenu,MFT_STRING |
-								 (pThis->m_ColorPalette.GetSel()>=0?MFS_ENABLED:MFS_GRAYED),
-								 IDC_COLORSCHEME_SELECTSAMECOLOR,TEXT("同じ色を選択"));
+					::EnableMenuItem(hmenu,IDC_COLORSCHEME_SELECTSAMECOLOR,
+						MF_BYCOMMAND | (pThis->m_ColorPalette.GetSel()>=0?MFS_ENABLED:MFS_GRAYED));
+					if (DlgListBox_GetSelCount(hDlg,IDC_COLORSCHEME_LIST)==1) {
+						int Sel,Gradient;
+
+						DlgListBox_GetSelItems(hDlg,IDC_COLORSCHEME_LIST,&Sel,1);
+						Gradient=CColorScheme::GetColorGradient(Sel);
+						if (Gradient>=0) {
+							::EnableMenuItem(hmenu,IDC_COLORSCHEME_GLOSSYGRADIENT,MF_BYCOMMAND | MFS_ENABLED);
+							if (pThis->m_GradientList[Gradient]==CColorScheme::GRADIENT_TYPE_GLOSSY)
+								::CheckMenuItem(hmenu,IDC_COLORSCHEME_GLOSSYGRADIENT,MF_BYCOMMAND | MFS_CHECKED);
+						}
+					}
 					::GetCursorPos(&pt);
-					::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON,pt.x,pt.y,0,hDlg,NULL);
+					::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,hDlg,NULL);
 					::DestroyMenu(hmenu);
 				}
 				break;
@@ -829,12 +1126,29 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			}
 			return TRUE;
 
+		case IDC_COLORSCHEME_DEFAULT:
+			{
+				CColorSchemeOptions *pThis=GetThis(hDlg);
+				int i;
+
+				for (i=0;i<CColorScheme::NUM_COLORS;i++)
+					DlgListBox_SetItemData(hDlg,IDC_COLORSCHEME_LIST,i,
+										   CColorScheme::GetDefaultColor(i));
+				for (i=0;i<CColorScheme::NUM_GRADIENTS;i++)
+					pThis->m_GradientList[i]=CColorScheme::GetDefaultGradientType(i);
+				for (i=0;i<CColorScheme::NUM_BORDERS;i++)
+					pThis->m_BorderList[i]=CColorScheme::GetDefaultBorderType(i);
+				InvalidateDlgItem(hDlg,IDC_COLORSCHEME_LIST);
+				::SendMessage(hDlg,WM_COMMAND,IDC_COLORSCHEME_PREVIEW,0);
+			}
+			return TRUE;
+
 		case IDC_COLORSCHEME_PREVIEW:
 			{
 				CColorSchemeOptions *pThis=GetThis(hDlg);
 				CColorScheme ColorScheme;
 
-				GetListColor(hDlg,&ColorScheme);
+				pThis->GetCurrentSettings(&ColorScheme);
 				if (pThis->Apply(&ColorScheme))
 					pThis->m_fPreview=true;
 			}
@@ -860,6 +1174,25 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				}
 			}
 			return TRUE;
+
+		case IDC_COLORSCHEME_GLOSSYGRADIENT:
+			{
+				CColorSchemeOptions *pThis=GetThis(hDlg);
+
+				if (DlgListBox_GetSelCount(hDlg,IDC_COLORSCHEME_LIST)==1) {
+					int Sel,Gradient;
+
+					DlgListBox_GetSelItems(hDlg,IDC_COLORSCHEME_LIST,&Sel,1);
+					Gradient=CColorScheme::GetColorGradient(Sel);
+					if (Gradient>=0) {
+						if (pThis->m_GradientList[Gradient]!=CColorScheme::GRADIENT_TYPE_GLOSSY)
+							pThis->m_GradientList[Gradient]=CColorScheme::GRADIENT_TYPE_GLOSSY;
+						else
+							pThis->m_GradientList[Gradient]=CColorScheme::GRADIENT_TYPE_NORMAL;
+					}
+				}
+			}
+			return TRUE;
 		}
 		return TRUE;
 
@@ -869,7 +1202,7 @@ BOOL CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			{
 				CColorSchemeOptions *pThis=GetThis(hDlg);
 
-				GetListColor(hDlg,pThis->m_pColorScheme);
+				pThis->GetCurrentSettings(pThis->m_pColorScheme);
 				pThis->Apply(pThis->m_pColorScheme);
 			}
 			break;

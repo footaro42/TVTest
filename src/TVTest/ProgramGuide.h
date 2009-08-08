@@ -6,6 +6,7 @@
 #include "EpgProgramList.h"
 #include "ChannelList.h"
 #include "DriverManager.h"
+#include "Theme.h"
 
 
 class CProgramGuideServiceInfo;
@@ -81,6 +82,45 @@ public:
 };
 
 class CProgramGuide : public CBasicWindow {
+public:
+	enum {
+		DAY_TODAY,
+		DAY_TOMORROW,
+		DAY_DAYAFTERTOMORROW,
+		DAY_2DAYSAFTERTOMORROW,
+		DAY_3DAYSAFTERTOMORROW,
+		DAY_4DAYSAFTERTOMORROW,
+		DAY_5DAYSAFTERTOMORROW,
+		DAY_LAST=DAY_5DAYSAFTERTOMORROW
+	};
+	enum {
+		COLOR_BACK,
+		COLOR_TEXT,
+		COLOR_CHANNELNAMETEXT,
+		COLOR_CURCHANNELNAMETEXT,
+		COLOR_TIMETEXT,
+		COLOR_CONTENT_NEWS,
+		COLOR_CONTENT_SPORTS,
+		COLOR_CONTENT_INFORMATION,
+		COLOR_CONTENT_DRAMA,
+		COLOR_CONTENT_MUSIC,
+		COLOR_CONTENT_VARIETY,
+		COLOR_CONTENT_MOVIE,
+		COLOR_CONTENT_ANIME,
+		COLOR_CONTENT_DOCUMENTARY,
+		COLOR_CONTENT_THEATER,
+		COLOR_CONTENT_EDUCATION,
+		COLOR_CONTENT_WELFARE,
+		COLOR_CONTENT_OTHER,
+		COLOR_CONTENT_FIRST=COLOR_CONTENT_NEWS,
+		COLOR_CONTENT_LAST=COLOR_CONTENT_OTHER,
+		COLOR_LAST=COLOR_CONTENT_LAST,
+		NUM_COLORS=COLOR_LAST+1
+	};
+	enum { MIN_LINES_PER_HOUR=8, MAX_LINES_PER_HOUR=50 };
+	enum { MIN_ITEM_WIDTH=100, MAX_ITEM_WIDTH=500 };
+
+private:
 	bool m_fMaximized;
 	CEpgProgramList *m_pProgramList;
 	CProgramGuideServiceList m_ServiceList;
@@ -106,6 +146,8 @@ class CProgramGuide : public CBasicWindow {
 	CChannelList m_ChannelList;
 	CTuningSpaceList m_TuningSpaceList;
 	int m_CurrentTuningSpace;
+	WORD m_CurrentTransportStreamID;
+	WORD m_CurrentServiceID;
 	TCHAR m_szDriverFileName[MAX_PATH];
 	const CDriverManager *m_pDriverManager;
 	SYSTEMTIME m_stFirstTime;
@@ -119,8 +161,10 @@ class CProgramGuide : public CBasicWindow {
 	} m_CurItem;
 	bool m_fUpdating;
 	CProgramGuideEventHandler *m_pEventHandler;
-	enum { NUM_COLORS=19 };
 	COLORREF m_ColorList[NUM_COLORS];
+	Theme::GradientInfo m_ChannelNameBackGradient;
+	Theme::GradientInfo m_CurChannelNameBackGradient;
+	Theme::GradientInfo m_TimeBarBackGradient;
 	CProgramGuideToolList m_ToolList;
 	int m_WheelScrollLines;
 	bool UpdateList();
@@ -139,42 +183,6 @@ class CProgramGuide : public CBasicWindow {
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 public:
-	enum {
-		DAY_TODAY,
-		DAY_TOMORROW,
-		DAY_DAYAFTERTOMORROW,
-		DAY_2DAYSAFTERTOMORROW,
-		DAY_3DAYSAFTERTOMORROW,
-		DAY_4DAYSAFTERTOMORROW,
-		DAY_5DAYSAFTERTOMORROW,
-		DAY_LAST=DAY_5DAYSAFTERTOMORROW
-	};
-	enum {
-		COLOR_BACK,
-		COLOR_TEXT,
-		COLOR_CHANNELNAMEBACK,
-		COLOR_CHANNELNAMETEXT,
-		COLOR_TIMEBACK,
-		COLOR_TIMETEXT,
-		COLOR_CONTENT_NEWS,
-		COLOR_CONTENT_SPORTS,
-		COLOR_CONTENT_INFORMATION,
-		COLOR_CONTENT_DRAMA,
-		COLOR_CONTENT_MUSIC,
-		COLOR_CONTENT_VARIETY,
-		COLOR_CONTENT_MOVIE,
-		COLOR_CONTENT_ANIME,
-		COLOR_CONTENT_DOCUMENTARY,
-		COLOR_CONTENT_THEATER,
-		COLOR_CONTENT_EDUCATION,
-		COLOR_CONTENT_WELFARE,
-		COLOR_CONTENT_OTHER,
-		COLOR_CONTENT_FIRST=COLOR_CONTENT_NEWS,
-		COLOR_CONTENT_LAST=COLOR_CONTENT_OTHER,
-		COLOR_LAST=COLOR_CONTENT_LAST
-	};
-	enum { MIN_LINES_PER_HOUR=8, MAX_LINES_PER_HOUR=50 };
-	enum { MIN_ITEM_WIDTH=100, MAX_ITEM_WIDTH=500 };
 	static bool Initialize(HINSTANCE hinst);
 	CProgramGuide();
 	~CProgramGuide();
@@ -185,6 +193,8 @@ public:
 	const CChannelList *GetChannelList() const { return &m_ChannelList; }
 	bool UpdateChannelList();
 	bool SetDriverList(const CDriverManager *pDriverManager);
+	void SetCurrentService(WORD TSID,WORD ServiceID);
+	void ClearCurrentService() { SetCurrentService(0,0); }
 	bool SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime);
 	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime);
 	bool SetViewDay(int Day);
@@ -193,6 +203,9 @@ public:
 	int GetItemWidth() const { return m_ItemWidth; }
 	bool SetUIOptions(int LinesPerHour,int ItemWidth);
 	bool SetColor(int Type,COLORREF Color);
+	void SetBackColor(const Theme::GradientInfo *pChannelBackGradient,
+					  const Theme::GradientInfo *pCurChannelBackGradient,
+					  const Theme::GradientInfo *pTimeBarBackGradient);
 	bool SetFont(const LOGFONT *pFont);
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }

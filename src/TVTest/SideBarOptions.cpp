@@ -27,26 +27,30 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_FULLSCREEN,				15},
 	{CM_ALWAYSONTOP,			16},
 	{CM_DISABLEVIEWER,			17},
-	{CM_RESET,					18},
-	{CM_RESETVIEWER,			19},
-	{CM_INFORMATION,			20},
-	{CM_PROGRAMGUIDE,			21},
-	{CM_STATUSBAR,				22},
-	{CM_DECODERPROPERTY,		23},
-	{CM_OPTIONS,				24},
-	{CM_STREAMINFO,				25},
-	{CM_CHANNELNO_1,			26},
-	{CM_CHANNELNO_2,			27},
-	{CM_CHANNELNO_3,			28},
-	{CM_CHANNELNO_4,			29},
-	{CM_CHANNELNO_5,			30},
-	{CM_CHANNELNO_6,			31},
-	{CM_CHANNELNO_7,			32},
-	{CM_CHANNELNO_8,			33},
-	{CM_CHANNELNO_9,			34},
-	{CM_CHANNELNO_10,			35},
-	{CM_CHANNELNO_11,			36},
-	{CM_CHANNELNO_12,			37},
+	{CM_CAPTURE,				18},
+	{CM_COPY,					19},
+	{CM_SAVEIMAGE,				20},
+	{CM_CAPTUREPREVIEW,			21},
+	{CM_RESET,					22},
+	{CM_RESETVIEWER,			23},
+	{CM_INFORMATION,			24},
+	{CM_PROGRAMGUIDE,			25},
+	{CM_STATUSBAR,				26},
+	{CM_DECODERPROPERTY,		27},
+	{CM_OPTIONS,				28},
+	{CM_STREAMINFO,				29},
+	{CM_CHANNELNO_1,			30},
+	{CM_CHANNELNO_2,			31},
+	{CM_CHANNELNO_3,			32},
+	{CM_CHANNELNO_4,			33},
+	{CM_CHANNELNO_5,			34},
+	{CM_CHANNELNO_6,			35},
+	{CM_CHANNELNO_7,			36},
+	{CM_CHANNELNO_8,			37},
+	{CM_CHANNELNO_9,			38},
+	{CM_CHANNELNO_10,			39},
+	{CM_CHANNELNO_11,			40},
+	{CM_CHANNELNO_12,			41},
 };
 
 static const int DefaultItemList[] = {
@@ -69,6 +73,7 @@ CSideBarOptions::CSideBarOptions(CSideBar *pSideBar)
 	: m_pSideBar(pSideBar)
 	, m_fShowPopup(true)
 	, m_fShowToolTips(true)
+	, m_Place(PLACE_LEFT)
 	, m_himlIcons(NULL)
 {
 	m_ItemList.resize(lengthof(DefaultItemList));
@@ -87,10 +92,13 @@ bool CSideBarOptions::Load(LPCTSTR pszFileName)
 	CSettings Settings;
 
 	if (Settings.Open(pszFileName,TEXT("SideBar"),CSettings::OPEN_READ)) {
-		int NumItems;
+		int Value,NumItems;
 
 		Settings.Read(TEXT("ShowPopup"),&m_fShowPopup);
 		Settings.Read(TEXT("ShowToolTips"),&m_fShowToolTips);
+		if (Settings.Read(TEXT("Place"),&Value)
+				&& Value>=PLACE_FIRST && Value<=PLACE_LAST)
+			m_Place=(PlaceType)Value;
 		if (Settings.Read(TEXT("ItemCount"),&NumItems) && NumItems>0) {
 			m_ItemList.clear();
 			for (int i=0;i<NumItems;i++) {
@@ -128,8 +136,10 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 	if (!Settings.Open(pszFileName,TEXT("SideBar"),CSettings::OPEN_WRITE))
 		return false;
 
+	Settings.Clear();
 	Settings.Write(TEXT("ShowPopup"),m_fShowPopup);
 	Settings.Write(TEXT("ShowToolTips"),m_fShowToolTips);
+	Settings.Write(TEXT("Place"),(int)m_Place);
 	Settings.Write(TEXT("ItemCount"),(int)m_ItemList.size());
 	const CCommandList *pCommandList=m_pSideBar->GetCommandList();
 	for (int i=0;i<(int)m_ItemList.size();i++) {
@@ -151,6 +161,7 @@ bool CSideBarOptions::ApplySideBarOptions()
 	m_pSideBar->SetIconImage((HBITMAP)::LoadImage(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_SIDEBAR),IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION),RGB(255,255,255));
 	ApplyItemList();
 	m_pSideBar->ShowToolTips(m_fShowToolTips);
+	m_pSideBar->SetVertical(m_Place==PLACE_LEFT || m_Place==PLACE_RIGHT);
 	return true;
 }
 
@@ -177,6 +188,15 @@ void CSideBarOptions::ApplyItemList() const
 		}
 	}
 	m_pSideBar->Invalidate();
+}
+
+
+bool CSideBarOptions::SetPlace(PlaceType Place)
+{
+	if (Place<PLACE_FIRST || Place>PLACE_LAST)
+		return false;
+	m_Place=Place;
+	return true;
 }
 
 

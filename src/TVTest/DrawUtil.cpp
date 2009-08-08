@@ -1,5 +1,14 @@
 #include "stdafx.h"
 #include "DrawUtil.h"
+#include "Util.h"
+
+/*
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+*/
 
 
 
@@ -18,12 +27,13 @@ bool DrawUtil::Fill(HDC hdc,const RECT *pRect,COLORREF Color)
 
 bool DrawUtil::FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction)
 {
+	if (pRect->left>pRect->right || pRect->top>pRect->bottom)
+		return false;
+#if 0
 	HPEN hpenOld,hpenCur,hpen;
 	int i,Max;
 	COLORREF cr,crPrev;
 
-	if (pRect->left>pRect->right || pRect->top>pRect->bottom)
-		return false;
 	hpenOld=static_cast<HPEN>(::GetCurrentObject(hdc,OBJ_PEN));
 	hpenCur=NULL;
 	crPrev=CLR_INVALID;
@@ -57,6 +67,55 @@ bool DrawUtil::FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF C
 		::SelectObject(hdc,hpenOld);
 		::DeleteObject(hpenCur);
 	}
+	return true;
+#else
+	TRIVERTEX vert[2];
+	GRADIENT_RECT rect={0,1};
+
+	vert[0].x=pRect->left;
+	vert[0].y=pRect->top;
+	vert[0].Red=GetRValue(Color1)<<8;
+	vert[0].Green=GetGValue(Color1)<<8;
+	vert[0].Blue=GetBValue(Color1)<<8;
+	vert[0].Alpha=0x0000;
+	vert[1].x=pRect->right;
+	vert[1].y=pRect->bottom;
+	vert[1].Red=GetRValue(Color2)<<8;
+	vert[1].Green=GetGValue(Color2)<<8;
+	vert[1].Blue=GetBValue(Color2)<<8;
+	vert[1].Alpha=0x0000;
+	return ::GradientFill(hdc,vert,2,&rect,1,
+		Direction==DIRECTION_HORZ?GRADIENT_FILL_RECT_H:GRADIENT_FILL_RECT_V)!=FALSE;
+#endif
+}
+
+
+bool DrawUtil::FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction,int GlossRatio1,int GlossRatio2)
+{
+	COLORREF crCenter=MixColor(Color1,Color2,128);
+	RECT rc;
+
+	rc.left=pRect->left;
+	rc.top=pRect->top;
+	if (Direction==DIRECTION_HORZ) {
+		rc.right=(rc.left+pRect->right)/2;
+		rc.bottom=pRect->bottom;
+	} else {
+		rc.right=pRect->right;
+		rc.bottom=(rc.top+pRect->bottom)/2;
+	}
+	DrawUtil::FillGradient(hdc,&rc,
+						   MixColor(RGB(255,255,255),Color1,GlossRatio1),
+						   MixColor(RGB(255,255,255),crCenter,GlossRatio2),
+						   Direction);
+	if (Direction==DIRECTION_HORZ) {
+		rc.left=rc.right;
+		rc.right=pRect->right;
+	} else {
+		rc.top=rc.bottom;
+		rc.bottom=pRect->bottom;
+	}
+	DrawUtil::FillGradient(hdc,&rc,crCenter,Color2,Direction);
 	return true;
 }
 

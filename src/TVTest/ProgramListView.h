@@ -4,6 +4,7 @@
 
 #include "InfoPanel.h"
 #include "EpgProgramList.h"
+#include "Theme.h"
 
 
 class CProgramItemInfo;
@@ -31,12 +32,18 @@ class CProgramListView : public CInfoPanelPage {
 	HFONT m_hfont;
 	int m_FontHeight;
 	int m_LineMargin;
-	COLORREF m_crBackColor;
-	COLORREF m_crTextColor;
-	COLORREF m_crTitleBackColor;
-	COLORREF m_crTitleTextColor;
+	Theme::GradientInfo m_EventBackGradient;
+	COLORREF m_EventTextColor;
+	Theme::GradientInfo m_CurEventBackGradient;
+	COLORREF m_CurEventTextColor;
+	Theme::GradientInfo m_TitleBackGradient;
+	COLORREF m_TitleTextColor;
+	Theme::GradientInfo m_CurTitleBackGradient;
+	COLORREF m_CurTitleTextColor;
+	COLORREF m_MarginColor;
 	int m_TotalLines;
 	CProgramItemList m_ItemList;
+	int m_CurEventID;
 	int m_ScrollPos;
 	static HINSTANCE m_hinst;
 	static CProgramListView *GetThis(HWND hwnd);
@@ -56,8 +63,12 @@ public:
 	bool UpdateProgramList(WORD TransportStreamID,WORD ServiceID);
 	bool OnProgramListChanged();
 	void ClearProgramList();
-	void SetColors(COLORREF crBackColor,COLORREF crTextColor,
-						COLORREF crTitleBackColor,COLORREF crTitleTextColor);
+	void SetCurrentEventID(int EventID);
+	void SetColors(const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
+		const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
+		const Theme::GradientInfo *pTitleBackGradient,COLORREF TitleTextColor,
+		const Theme::GradientInfo *pCurTitleBackGradient,COLORREF CurTitleTextColor,
+		COLORREF MarginColor);
 	bool SetFont(const LOGFONT *pFont);
 };
 

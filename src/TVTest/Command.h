@@ -22,7 +22,9 @@ public:
 	int NumCommands() const;
 	int GetCommandID(int Index) const;
 	LPCTSTR GetCommandText(int Index) const;
+	LPCTSTR GetCommandTextByID(int ID) const;
 	int GetCommandName(int Index,LPTSTR pszName,int MaxLength) const;
+	int GetCommandNameByID(int ID,LPTSTR pszName,int MaxLength) const;
 	int IDToIndex(int ID) const;
 	int ParseText(LPCTSTR pszText) const;
 };

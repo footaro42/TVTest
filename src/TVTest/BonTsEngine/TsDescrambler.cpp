@@ -562,16 +562,16 @@ void CDescramblePmtTable::UnmapEcmTarget()
 {
 	// ECMが他のスクランブル解除対象サービスと異なる場合はアンマップ
 	if (m_EcmPID < 0x1FFF) {
-		bool bFinded = false;
+		bool bFound = false;
 		for (size_t i = 0 ; i < m_pDescrambler->m_ServiceList.size() ; i++) {
 			if (m_pDescrambler->m_ServiceList[i].ServiceID != m_ServiceID
 					&& m_pDescrambler->m_ServiceList[i].bTarget
 					&& m_pDescrambler->m_ServiceList[i].EcmPID == m_EcmPID) {
-				bFinded = true;
+				bFound = true;
 				break;
 			}
 		}
-		if (!bFinded)
+		if (!bFound)
 			m_pMapManager->UnmapTarget(m_EcmPID);
 	}
 
@@ -583,22 +583,22 @@ void CDescramblePmtTable::UnmapEsTarget()
 	// ESのPIDマップ削除
 	for (size_t i = 0 ; i < m_EsPIDList.size() ; i++) {
 		const WORD EsPID = m_EsPIDList[i];
-		bool bFinded = false;
+		bool bFound = false;
 
 		for (size_t j = 0 ; j < m_pDescrambler->m_ServiceList.size() ; j++) {
 			if (m_pDescrambler->m_ServiceList[j].ServiceID != m_ServiceID
 					&& m_pDescrambler->m_ServiceList[j].bTarget) {
 				for (size_t k = 0 ; k < m_pDescrambler->m_ServiceList[j].EsPIDList.size() ; k++) {
 					if (m_pDescrambler->m_ServiceList[j].EsPIDList[k] == EsPID) {
-						bFinded = true;
+						bFound = true;
 						break;
 					}
 				}
-				if (bFinded)
+				if (bFound)
 					break;
 			}
 		}
-		if (!bFinded)
+		if (!bFound)
 			m_pMapManager->UnmapTarget(EsPID);
 	}
 }

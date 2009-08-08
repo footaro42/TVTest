@@ -192,10 +192,10 @@ bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset)
 {
 	FILETIME ft;
 
-	::SystemTimeToFileTime(pTime,&ft);
+	if (!::SystemTimeToFileTime(pTime,&ft))
+		return false;
 	ft+=Offset*FILETIME_MILLISECOND;
-	::FileTimeToSystemTime(&ft,pTime);
-	return true;
+	return ::FileTimeToSystemTime(&ft,pTime)!=FALSE;
 }
 
 

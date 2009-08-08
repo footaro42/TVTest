@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "InfoPanel.h"
+#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -51,10 +52,16 @@ CInfoPanel::CInfoPanel()
 	m_hfont=CreateFontIndirect(&lf);
 	m_crBackColor=GetSysColor(COLOR_3DFACE);
 	m_crMarginColor=m_crBackColor;
-	m_crTabBackColor=GetSysColor(COLOR_3DFACE);
+	m_TabBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_TabBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_TabBackGradient.Color1=GetSysColor(COLOR_3DFACE);
+	m_TabBackGradient.Color2=m_TabBackGradient.Color1;
 	m_crTabTextColor=GetSysColor(COLOR_WINDOWTEXT);
 	m_crTabBorderColor=GetSysColor(COLOR_3DDKSHADOW);
-	m_crCurTabBackColor=GetSysColor(COLOR_3DHIGHLIGHT);
+	m_CurTabBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_CurTabBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_CurTabBackGradient.Color1=GetSysColor(COLOR_3DHIGHLIGHT);
+	m_CurTabBackGradient.Color2=m_CurTabBackGradient.Color1;
 	m_crCurTabTextColor=GetSysColor(COLOR_WINDOWTEXT);
 	m_crCurTabBorderColor=GetSysColor(COLOR_3DDKSHADOW);
 	m_TabHeight=/*abs(lf.lfHeight)+*/TAB_MARGIN*2;
@@ -141,9 +148,9 @@ void CInfoPanel::SetBackColors(COLORREF crBack,COLORREF crMargin)
 }
 
 
-void CInfoPanel::SetTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder)
+void CInfoPanel::SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
 {
-	m_crTabBackColor=crBack;
+	m_TabBackGradient=*pBackGradient;
 	m_crTabTextColor=crText;
 	m_crTabBorderColor=crBorder;
 	if (m_hwnd!=NULL)
@@ -151,9 +158,9 @@ void CInfoPanel::SetTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder)
 }
 
 
-void CInfoPanel::SetCurTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder)
+void CInfoPanel::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
 {
-	m_crCurTabBackColor=crBack;
+	m_CurTabBackGradient=*pBackGradient;
 	m_crCurTabTextColor=crText;
 	m_crCurTabBorderColor=crBorder;
 	if (m_hwnd!=NULL)
@@ -217,31 +224,32 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 				HFONT hfontOld;
 				int i;
 				RECT rc;
-				HBRUSH hbr,hbrOld;
+				HBRUSH hbrOld;
 				HPEN hpen,hpenOld;
 
 				crOldTextColor=GetTextColor(ps.hdc);
 				OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
 				hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
+				hbrOld=SelectBrush(ps.hdc,::GetStockObject(NULL_BRUSH));
 				rc.left=0;
 				rc.top=0;
 				rc.right=pThis->m_TabWidth;
 				rc.bottom=pThis->m_TabHeight;
 				for (i=0;i<pThis->m_NumWindows;i++) {
-					COLORREF crBack,crText,crBorder;
+					const Theme::GradientInfo *pGradient;
+					COLORREF crText,crBorder;
 					RECT rcText;
 
 					if (i==pThis->m_CurTab) {
-						crBack=pThis->m_crCurTabBackColor;
+						pGradient=&pThis->m_CurTabBackGradient;
 						crText=pThis->m_crCurTabTextColor;
 						crBorder=pThis->m_crCurTabBorderColor;
 					} else {
-						crBack=pThis->m_crTabBackColor;
+						pGradient=&pThis->m_TabBackGradient;
 						crText=pThis->m_crTabTextColor;
 						crBorder=pThis->m_crTabBorderColor;
 					}
-					hbr=CreateSolidBrush(crBack);
-					hbrOld=SelectBrush(ps.hdc,hbr);
+					Theme::FillGradient(ps.hdc,&rc,pGradient);
 					hpen=CreatePen(PS_SOLID,1,crBorder);
 					hpenOld=SelectPen(ps.hdc,hpen);
 					Rectangle(ps.hdc,rc.left,rc.top,rc.right,
@@ -255,11 +263,10 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 						DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 					SelectPen(ps.hdc,hpenOld);
 					DeleteObject(hpen);
-					SelectBrush(ps.hdc,hbrOld);
-					DeleteObject(hbr);
 					rc.left=rc.right;
 					rc.right=rc.left+pThis->m_TabWidth;
 				}
+				SelectBrush(ps.hdc,hbrOld);
 				SelectFont(ps.hdc,hfontOld);
 				SetBkMode(ps.hdc,OldBkMode);
 				SetTextColor(ps.hdc,crOldTextColor);
@@ -268,9 +275,7 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 					rc.top=ps.rcPaint.top;
 					rc.right=ps.rcPaint.right;
 					rc.bottom=min(ps.rcPaint.bottom,(long)pThis->m_TabHeight-1);
-					hbr=CreateSolidBrush(pThis->m_crBackColor);
-					FillRect(ps.hdc,&rc,hbr);
-					DeleteObject(hbr);
+					DrawUtil::Fill(ps.hdc,&rc,pThis->m_crBackColor);
 					hpen=CreatePen(PS_SOLID,1,pThis->m_crTabBorderColor);
 					hpenOld=SelectPen(ps.hdc,hpen);
 					MoveToEx(ps.hdc,rc.left,rc.bottom,NULL);

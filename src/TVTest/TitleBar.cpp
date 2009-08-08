@@ -6,6 +6,12 @@
 #include "DrawUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define TITLE_BAR_CLASS APP_NAME TEXT(" Title Bar")
 
@@ -14,6 +20,7 @@
 #define TITLE_ICON_WIDTH	12
 #define TITLE_ICON_HEIGHT	12
 #define TITLE_BUTTON_WIDTH	(TITLE_ICON_WIDTH+TITLE_MARGIN*2)
+#define ICON_TEXT_MARGIN	4
 #define NUM_BUTTONS 4
 
 
@@ -27,7 +34,7 @@ bool CTitleBar::Initialize(HINSTANCE hinst)
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
 
-		wc.style=CS_HREDRAW;
+		wc.style=CS_HREDRAW | CS_DBLCLKS;
 		wc.lpfnWndProc=WndProc;
 		wc.cbClsExtra=0;
 		wc.cbWndExtra=0;
@@ -53,15 +60,21 @@ CTitleBar::CTitleBar()
 	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(NONCLIENTMETRICS),&ncm,0);
 	m_hfont=CreateFontIndirect(&ncm.lfCaptionFont);
 	m_FontHeight=abs(ncm.lfCaptionFont.lfHeight);
-	m_crBackColor1=RGB(128,192,160);
-	m_crBackColor2=RGB(128,192,160);
+	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_BackGradient.Direction=Theme::DIRECTION_VERT;
+	m_BackGradient.Color1=RGB(128,192,160);
+	m_BackGradient.Color2=RGB(128,192,160);
 	m_crTextColor=RGB(64,96,80);
-	m_crHighlightBackColor1=RGB(64,96,80);
-	m_crHighlightBackColor2=RGB(64,96,80);
+	m_HighlightBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_HighlightBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_HighlightBackGradient.Color1=RGB(64,96,80);
+	m_HighlightBackGradient.Color2=RGB(64,96,80);
 	m_crHighlightTextColor=RGB(128,192,160);
+	m_BorderType=Theme::BORDER_RAISED;
 	m_hbmIcons=NULL;
 	m_hwndToolTip=NULL;
 	m_pszLabel=NULL;
+	m_hIcon=NULL;
 	m_HotItem=-1;
 	m_fTrackMouseEvent=false;
 	m_fMaximized=false;
@@ -124,17 +137,25 @@ bool CTitleBar::SetEventHandler(CTitleBarEventHandler *pHandler)
 }
 
 
-void CTitleBar::SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
-	COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText)
+void CTitleBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+						 const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
 {
-	m_crBackColor1=crBack1;
-	m_crBackColor2=crBack2;
+	m_BackGradient=*pBackGradient;
 	m_crTextColor=crText;
-	m_crHighlightBackColor1=crHighlightBack1;
-	m_crHighlightBackColor2=crHighlightBack2;
+	m_HighlightBackGradient=*pHighlightBackGradient;
 	m_crHighlightTextColor=crHighlightText;
 	if (m_hwnd!=NULL)
 		Invalidate();
+}
+
+
+void CTitleBar::SetBorderType(Theme::BorderType Type)
+{
+	if (m_BorderType!=Type) {
+		m_BorderType=Type;
+		if (m_hwnd!=NULL)
+			Invalidate();
+	}
 }
 
 
@@ -154,6 +175,14 @@ bool CTitleBar::SetFont(const LOGFONT *pFont)
 	return true;
 }
 */
+
+
+void CTitleBar::SetIcon(HICON hIcon)
+{
+	m_hIcon=hIcon;
+	if (m_hwnd!=NULL)
+		Invalidate();
+}
 
 
 CTitleBar *CTitleBar::GetThis(HWND hwnd)
@@ -217,7 +246,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			CTitleBar *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			HFONT hfontOld;
-			COLORREF crBkColor1,crBkColor2,crOldTextColor,crOldBkColor;
+			COLORREF crOldTextColor,crOldBkColor;
 			int OldBkMode;
 			RECT rc,rcDraw;
 
@@ -235,17 +264,22 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 					::SetTextColor(ps.hdc,fHighlight?
 						pThis->m_crHighlightTextColor:pThis->m_crTextColor);
-					crBkColor1=fHighlight?
-						pThis->m_crHighlightBackColor1:pThis->m_crBackColor1;
-					crBkColor2=fHighlight?
-						pThis->m_crHighlightBackColor2:pThis->m_crBackColor2;
-					DrawUtil::FillGradient(ps.hdc,&rc,crBkColor1,crBkColor2,
-													DrawUtil::DIRECTION_VERT);
+					Theme::FillGradient(ps.hdc,&rc,
+						fHighlight?&pThis->m_HighlightBackGradient:&pThis->m_BackGradient);
 					rcDraw.left=rc.left+TITLE_MARGIN;
 					rcDraw.top=rc.top+TITLE_MARGIN;
 					rcDraw.right=rc.right-TITLE_MARGIN;
 					rcDraw.bottom=rc.bottom-TITLE_MARGIN;
 					if (i==ITEM_LABEL) {
+						if (pThis->m_hIcon!=NULL) {
+							::DrawIconEx(ps.hdc,
+										 rcDraw.left,
+										 rc.top+((rc.bottom-rc.top)-16)/2,
+										 pThis->m_hIcon,
+										 16,16,
+										 0,NULL,DI_NORMAL);
+							rcDraw.left+=16+ICON_TEXT_MARGIN;
+						}
 						if (pThis->m_pszLabel!=NULL) {
 							::DrawText(ps.hdc,pThis->m_pszLabel,-1,&rcDraw,
 								DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
@@ -283,12 +317,10 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			if (rc.right<ps.rcPaint.right) {
 				rc.left=rc.right;
 				rc.right=ps.rcPaint.right;
-				DrawUtil::FillGradient(ps.hdc,&rc,
-								pThis->m_crBackColor1,pThis->m_crBackColor2,
-								DrawUtil::DIRECTION_VERT);
+				Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
 			}
 			::GetClientRect(hwnd,&rc);
-			::DrawEdge(ps.hdc,&rc,BDR_SUNKENINNER,BF_RECT);
+			Theme::DrawBorder(ps.hdc,&rc,pThis->m_BorderType);
 			::SetBkColor(ps.hdc,crOldBkColor);
 			::SetTextColor(ps.hdc,crOldTextColor);
 			::SetBkMode(ps.hdc,OldBkMode);
@@ -360,9 +392,14 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 			pThis->m_ClickItem=pThis->m_HotItem;
 			if (pThis->m_ClickItem==ITEM_LABEL) {
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnLabelLButtonDown(
-									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
+				if (pThis->m_pEventHandler!=NULL) {
+					int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+
+					if (x<16)
+						pThis->m_pEventHandler->OnIconLButtonDown(x,y);
+					else
+						pThis->m_pEventHandler->OnLabelLButtonDown(x,y);
+				}
 			} else {
 				::SetCapture(hwnd);
 			}
@@ -403,6 +440,18 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 						break;
 					}
 				}
+			}
+		}
+		return 0;
+
+	case WM_LBUTTONDBLCLK:
+		{
+			CTitleBar *pThis=GetThis(hwnd);
+
+			if (pThis->m_HotItem==ITEM_LABEL) {
+				if (pThis->m_pEventHandler!=NULL)
+					pThis->m_pEventHandler->OnLabelLButtonDoubleClick(
+									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 			}
 		}
 		return 0;

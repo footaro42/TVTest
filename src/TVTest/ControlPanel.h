@@ -3,6 +3,7 @@
 
 
 #include "InfoPanel.h"
+#include "Theme.h"
 
 
 class CControlPanelItem;
@@ -13,10 +14,11 @@ class CControlPanel : public CInfoPanelPage {
 	int m_NumItems;
 	HFONT m_hfont;
 	int m_FontHeight;
-	COLORREF m_crBackColor;
+	Theme::GradientInfo m_BackGradient;
 	COLORREF m_crTextColor;
-	COLORREF m_crOverBackColor;
+	Theme::GradientInfo m_OverBackGradient;
 	COLORREF m_crOverTextColor;
+	COLORREF m_crMarginColor;
 	HWND m_hwndMessage;
 	int m_HotItem;
 	bool m_fTrackMouseEvent;
@@ -32,7 +34,9 @@ public:
 	bool AddItem(CControlPanelItem *pItem);
 	bool UpdateItem(int Index);
 	bool GetItemPosition(int Index,RECT *pRect) const;
-	void SetColors(COLORREF crBack,COLORREF crText,COLORREF crOverBack,COLORREF crOverText);
+	void SetColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+				   const Theme::GradientInfo *pOverBackGradient,COLORREF crOverText,
+				   COLORREF crMargin);
 	int GetFontHeight() const { return m_FontHeight; }
 	void SetSendMessageWindow(HWND hwnd);
 	bool CheckRadioItem(int FirstID,int LastID,int CheckID);

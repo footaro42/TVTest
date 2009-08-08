@@ -712,14 +712,14 @@ void CMediaViewer::CloseViewer(void)
 
 	SAFE_RELEASE(m_pMediaControl);
 
-#ifdef DEBUG
+#ifdef _DEBUG
 	if(m_dwRegister!=0){
 		RemoveFromRot(m_dwRegister);
 		m_dwRegister = 0;
 	}
 #endif
 
-#ifdef DEBUG
+#ifdef _DEBUG
 	if (m_pFilterGraph)
 		TRACE(TEXT("FilterGraph RefCount = %d\n"),DirectShowUtil::GetRefCount(m_pFilterGraph));
 #endif

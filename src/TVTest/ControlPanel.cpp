@@ -1,6 +1,8 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "ControlPanel.h"
+#include "Util.h"
+#include "DrawUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -48,10 +50,17 @@ CControlPanel::CControlPanel()
 	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
 	m_hfont=CreateFontIndirect(&lf);
 	m_FontHeight=abs(lf.lfHeight);
-	m_crBackColor=RGB(0,0,0);
+	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_BackGradient.Direction=Theme::DIRECTION_VERT;
+	m_BackGradient.Color1=RGB(0,0,0);
+	m_BackGradient.Color2=RGB(0,0,0);
 	m_crTextColor=RGB(255,255,255);
-	m_crOverBackColor=RGB(255,255,255);
+	m_OverBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_OverBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_OverBackGradient.Color1=RGB(255,255,255);
+	m_OverBackGradient.Color2=RGB(255,255,255);
 	m_crOverTextColor=RGB(0,0,0);
+	m_crMarginColor=RGB(0,0,0);
 	m_hwndMessage=NULL;
 	m_HotItem=-1;
 }
@@ -105,14 +114,18 @@ bool CControlPanel::GetItemPosition(int Index,RECT *pRect) const
 }
 
 
-void CControlPanel::SetColors(COLORREF crBack,COLORREF crText,COLORREF crOverBack,COLORREF crOverText)
+void CControlPanel::SetColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+	const Theme::GradientInfo *pOverBackGradient,COLORREF crOverText,
+	COLORREF crMargin)
+
 {
-	m_crBackColor=crBack;
+	m_BackGradient=*pBackGradient;
 	m_crTextColor=crText;
-	m_crOverBackColor=crOverBack;
+	m_OverBackGradient=*pOverBackGradient;
 	m_crOverTextColor=crOverText;
+	m_crMarginColor=crMargin;
 	if (m_hwnd!=NULL)
-		InvalidateRect(m_hwnd,NULL,TRUE);
+		Invalidate();
 }
 
 
@@ -184,16 +197,13 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CControlPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			HBRUSH hbrBack;
 			HFONT hfontOld;
 			COLORREF crOldTextColor;
 			int OldBkMode;
 			RECT rc;
 
 			BeginPaint(hwnd,&ps);
-			hbrBack=CreateSolidBrush(pThis->m_crBackColor);
-			FillRect(ps.hdc,&ps.rcPaint,hbrBack);
-			DeleteObject(hbrBack);
+			DrawUtil::Fill(ps.hdc,&ps.rcPaint,pThis->m_crMarginColor);
 			hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
 			crOldTextColor=GetTextColor(ps.hdc);
 			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
@@ -205,24 +215,19 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 					if (i==pThis->m_HotItem) {
 						crText=pThis->m_crOverTextColor;
-						crBack=pThis->m_crOverBackColor;
+						crBack=MixColor(pThis->m_OverBackGradient.Color1,pThis->m_OverBackGradient.Color2,128);
+						Theme::FillGradient(ps.hdc,&rc,&pThis->m_OverBackGradient);
 					} else {
 						crText=pThis->m_crTextColor;
-						crBack=pThis->m_crBackColor;
+						crBack=MixColor(pThis->m_BackGradient.Color1,pThis->m_BackGradient.Color2,128);
 						if (!pThis->m_pItemList[i]->GetEnable())
-							crText=RGB((GetRValue(crText)+GetRValue(crBack))/2,
-									   (GetGValue(crText)+GetGValue(crBack))/2,
-									   (GetBValue(crText)+GetBValue(crBack))/2);
+							crText=MixColor(crText,crBack,128);
 						if (pThis->m_pItemList[i]->GetCheck())
-							crBack=RGB((GetRValue(crText)+GetRValue(crBack))/2,
-									   (GetGValue(crText)+GetGValue(crBack))/2,
-									   (GetBValue(crText)+GetBValue(crBack))/2);
+							crBack=MixColor(crText,crBack,128);
+						Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
 					}
 					SetTextColor(ps.hdc,crText);
 					SetBkColor(ps.hdc,crBack);
-					hbrBack=CreateSolidBrush(crBack);
-					FillRect(ps.hdc,&rc,hbrBack);
-					DeleteObject(hbrBack);
 					pThis->m_pItemList[i]->Draw(ps.hdc);
 				}
 			}

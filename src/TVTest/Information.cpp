@@ -111,7 +111,7 @@ bool CInformationPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 }
 
 
-void CInformationPanel::Reset()
+void CInformationPanel::ResetStatistics()
 {
 	/*
 	m_OriginalVideoWidth=0;
@@ -122,8 +122,12 @@ void CInformationPanel::Reset()
 	m_AspectX=0;
 	m_AspectY=0;
 	//m_VideoDecoderName.Clear();
-	m_BitRate=0.0;
-	m_fRecording=false;
+	//m_VideoRendererName.Clear();
+	//m_AudioDeviceName.Clear();
+	m_SignalLevel=0.0f;
+	m_fBitRate=false;
+	m_BitRate=0.0f;
+	//m_fRecording=false;
 	m_ProgramInfo.Clear();
 	m_fNextProgramInfo=false;
 	if (m_hwnd!=NULL) {
@@ -291,7 +295,8 @@ void CInformationPanel::SetProgramInfo(LPCTSTR pszInfo)
 {
 	if (m_ProgramInfo.Compare(pszInfo)!=0) {
 		m_ProgramInfo.Set(pszInfo);
-		::SetWindowText(m_hwndProgramInfo,m_ProgramInfo.GetSafe());
+		if (m_hwndProgramInfo!=NULL)
+			::SetWindowText(m_hwndProgramInfo,m_ProgramInfo.GetSafe());
 	}
 }
 
@@ -597,6 +602,9 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			SubclassWindow(pThis->m_hwndProgramInfo,pThis->m_pOldProgramInfoProc);
 			DeleteObject(pThis->m_hbrBack);
 			DeleteObject(pThis->m_hbrProgramInfoBack);
+			pThis->m_hwndProgramInfo=NULL;
+			pThis->m_hwndProgramInfoPrev=NULL;
+			pThis->m_hwndProgramInfoNext=NULL;
 			pThis->OnDestroy();
 		}
 		return 0;
@@ -645,7 +653,17 @@ LRESULT CALLBACK CInformationPanel::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPAR
 					if (URLCount==0)
 						::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
 					CopyToMenuText(szURL,szText,lengthof(szText));
-					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,URLCount+3,szText);
+					if (URLCount>0) {
+						int j;
+						for (j=0;j<URLCount;j++) {
+							::GetMenuString(hmenu,3+j,szURL,lengthof(szURL),MF_BYCOMMAND);
+							if (::lstrcmp(szURL,szText)==0)
+								break;
+						}
+						if (j<URLCount)
+							continue;
+					}
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,3+URLCount,szText);
 					URLCount++;
 				} else {
 					p++;

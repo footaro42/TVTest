@@ -3,7 +3,14 @@
 #include "OSDOptions.h"
 #include "DialogUtil.h"
 #include "DrawUtil.h"
+#include "Util.h"
 #include "resource.h"
+
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
 
 
 
@@ -15,6 +22,14 @@ COSDOptions::COSDOptions()
 	m_TextColor=RGB(0,255,0);
 	m_Opacity=80;
 	m_FadeTime=3000;
+	m_fEnableNotificationBar=true;
+	m_NotificationBarDuration=3000;
+	m_NotificationBarFlags=NOTIFY_EVENTNAME;
+	NONCLIENTMETRICS ncm;
+	ncm.cbSize=sizeof(ncm);
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+	m_NotificationBarFont=ncm.lfMessageFont;
+	m_NotificationBarFont.lfHeight=-14;
 }
 
 
@@ -30,6 +45,35 @@ bool COSDOptions::Read(CSettings *pSettings)
 	pSettings->ReadColor(TEXT("OSDTextColor"),&m_TextColor);
 	pSettings->Read(TEXT("OSDOpacity"),&m_Opacity);
 	pSettings->Read(TEXT("OSDFadeTime"),&m_FadeTime);
+	pSettings->Read(TEXT("EnableNotificationBar"),&m_fEnableNotificationBar);
+	pSettings->Read(TEXT("NotificationBarDuration"),&m_NotificationBarDuration);
+	bool f;
+	if (pSettings->Read(TEXT("NotifyEventName"),&f))
+		EnableNotify(NOTIFY_EVENTNAME,f);
+	// Font
+	TCHAR szFont[LF_FACESIZE];
+	int Value;
+	if (pSettings->Read(TEXT("NotificationBarFontName"),szFont,LF_FACESIZE)
+			&& szFont[0]!='\0') {
+		lstrcpy(m_NotificationBarFont.lfFaceName,szFont);
+		m_NotificationBarFont.lfEscapement=0;
+		m_NotificationBarFont.lfOrientation=0;
+		m_NotificationBarFont.lfUnderline=0;
+		m_NotificationBarFont.lfStrikeOut=0;
+		m_NotificationBarFont.lfCharSet=DEFAULT_CHARSET;
+		m_NotificationBarFont.lfOutPrecision=OUT_DEFAULT_PRECIS;
+		m_NotificationBarFont.lfClipPrecision=CLIP_DEFAULT_PRECIS;
+		m_NotificationBarFont.lfQuality=DRAFT_QUALITY;
+		m_NotificationBarFont.lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
+	}
+	if (pSettings->Read(TEXT("NotificationBarFontSize"),&Value)) {
+		m_NotificationBarFont.lfHeight=Value;
+		m_NotificationBarFont.lfWidth=0;
+	}
+	if (pSettings->Read(TEXT("NotificationBarFontWeight"),&Value))
+		m_NotificationBarFont.lfWeight=Value;
+	if (pSettings->Read(TEXT("NotificationBarFontItalic"),&Value))
+		m_NotificationBarFont.lfItalic=Value;
 	return true;
 }
 
@@ -41,7 +85,30 @@ bool COSDOptions::Write(CSettings *pSettings) const
 	pSettings->WriteColor(TEXT("OSDTextColor"),m_TextColor);
 	pSettings->Write(TEXT("OSDOpacity"),m_Opacity);
 	pSettings->Write(TEXT("OSDFadeTime"),m_FadeTime);
+	pSettings->Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
+	pSettings->Write(TEXT("NotificationBarDuration"),m_NotificationBarDuration);
+	pSettings->Write(TEXT("NotifyEventName"),(m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
+	// Font
+	pSettings->Write(TEXT("NotificationBarFontName"),m_NotificationBarFont.lfFaceName);
+	pSettings->Write(TEXT("NotificationBarFontSize"),(int)m_NotificationBarFont.lfHeight);
+	pSettings->Write(TEXT("NotificationBarFontWeight"),(int)m_NotificationBarFont.lfWeight);
+	pSettings->Write(TEXT("NotificationBarFontItalic"),(int)m_NotificationBarFont.lfItalic);
 	return true;
+}
+
+
+bool COSDOptions::IsNotifyEnabled(unsigned int Type) const
+{
+	return m_fEnableNotificationBar && (m_NotificationBarFlags&Type)!=0;
+}
+
+
+void COSDOptions::EnableNotify(unsigned int Type,bool fEnabled)
+{
+	if (fEnabled)
+		m_NotificationBarFlags|=Type;
+	else
+		m_NotificationBarFlags&=~Type;
 }
 
 
@@ -50,6 +117,19 @@ COSDOptions *COSDOptions::GetThis(HWND hDlg)
 	return static_cast<COSDOptions*>(GetOptions(hDlg));
 }
 
+
+static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
+{
+	HDC hdc;
+	TCHAR szText[LF_FACESIZE+16];
+
+	hdc=GetDC(hDlg);
+	if (hdc==NULL)
+		return;
+	wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
+	SetDlgItemText(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,szText);
+	ReleaseDC(hDlg,hdc);
+}
 
 BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
@@ -65,6 +145,14 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_OSDFADETIME_UD,UDM_SETRANGE,0,
 													MAKELPARAM(UD_MAXVAL,1));
 			EnableDlgItems(hDlg,IDC_OPTIONS_OSD_FIRST,IDC_OPTIONS_OSD_LAST,pThis->m_fShowOSD);
+
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_ENABLE,pThis->m_fEnableNotificationBar);
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME,pThis->IsNotifyEnabled(NOTIFY_EVENTNAME));
+			::SetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,pThis->m_NotificationBarDuration/1000,FALSE);
+			DlgUpDown_SetRange(hDlg,IDC_NOTIFICATIONBAR_DURATION_UPDOWN,1,60);
+			pThis->m_CurNotificationBarFont=pThis->m_NotificationBarFont;
+			SetFontInfo(hDlg,&pThis->m_CurNotificationBarFont);
+			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,pThis->m_fEnableNotificationBar);
 		}
 		return TRUE;
 
@@ -95,6 +183,20 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					InvalidateDlgItem(hDlg,IDC_OPTIONS_OSDTEXTCOLOR);
 			}
 			return TRUE;
+
+		case IDC_NOTIFICATIONBAR_ENABLE:
+			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,
+						   DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE));
+			return TRUE;
+
+		case IDC_NOTIFICATIONBAR_FONT_CHOOSE:
+			{
+				COSDOptions *pThis=GetThis(hDlg);
+
+				if (ChooseFontDialog(hDlg,&pThis->m_CurNotificationBarFont))
+					SetFontInfo(hDlg,&pThis->m_CurNotificationBarFont);
+			}
+			return TRUE;
 		}
 		return TRUE;
 
@@ -108,6 +210,14 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 				pThis->m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PSEUDOOSD);
 				pThis->m_TextColor=pThis->m_CurTextColor;
 				pThis->m_FadeTime=::GetDlgItemInt(hDlg,IDC_OPTIONS_OSDFADETIME,NULL,FALSE)*1000;
+
+				pThis->m_fEnableNotificationBar=
+					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE);
+				pThis->EnableNotify(NOTIFY_EVENTNAME,
+									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME));
+				pThis->m_NotificationBarDuration=
+					::GetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,NULL,FALSE)*1000;
+				pThis->m_NotificationBarFont=pThis->m_CurNotificationBarFont;
 			}
 			return TRUE;
 		}

@@ -33,6 +33,8 @@
 	SendDlgItemMessage(hwndDlg,ID,LB_SETSEL,fSel,Index)
 #define DlgListBox_GetSelCount(hwndDlg,ID) \
 	SendDlgItemMessage(hwndDlg,ID,LB_GETSELCOUNT,0,0)
+#define DlgListBox_GetSelItems(hwndDlg,ID,pItems,Size) \
+	SendDlgItemMessage(hwndDlg,ID,LB_GETSELITEMS,Size,(LPARAM)(pItems))
 #define DlgListBox_Clear(hwndDlg,ID) \
 	SendDlgItemMessage(hwndDlg,ID,LB_RESETCONTENT,0,0)
 #define DlgListBox_GetTopIndex(hwndDlg,ID) \

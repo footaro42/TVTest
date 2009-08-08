@@ -35,6 +35,7 @@ bool CSplitter::Initialize(HINSTANCE hinst)
 
 
 CSplitter::CSplitter()
+	: m_pEventHandler(NULL)
 {
 	m_Style=0;
 	m_BarWidth=4;
@@ -51,6 +52,8 @@ CSplitter::CSplitter()
 
 CSplitter::~CSplitter()
 {
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pSplitter=NULL;
 }
 
 
@@ -70,9 +73,9 @@ void CSplitter::SetSplitter()
 	if (m_PaneList[0].pWindow==NULL || !m_PaneList[0].fVisible
 			|| m_PaneList[1].pWindow==NULL || !m_PaneList[1].fVisible) {
 		if (m_PaneList[0].pWindow!=NULL && m_PaneList[0].fVisible)
-			m_PaneList[0].pWindow->SetPosition(0,0,rc.right,rc.bottom);
+			ResizePane(0,0,0,rc.right,rc.bottom);
 		else if (m_PaneList[1].pWindow!=NULL && m_PaneList[1].fVisible)
-			m_PaneList[1].pWindow->SetPosition(0,0,rc.right,rc.bottom);
+			ResizePane(1,0,0,rc.right,rc.bottom);
 		return;
 	}
 	BarPos=m_BarPos;
@@ -81,18 +84,30 @@ void CSplitter::SetSplitter()
 			BarPos=rc.bottom-m_BarWidth-m_PaneList[1].MinSize;
 		if (BarPos<m_PaneList[0].MinSize)
 			BarPos=m_PaneList[0].MinSize;
-		m_PaneList[0].pWindow->SetPosition(0,0,rc.right,BarPos);
-		m_PaneList[1].pWindow->SetPosition(0,BarPos+m_BarWidth,
-										rc.right,rc.bottom-BarPos-m_BarWidth);
+		ResizePane(0,0,0,rc.right,BarPos);
+		ResizePane(1,0,BarPos+m_BarWidth,rc.right,rc.bottom-BarPos-m_BarWidth);
 	} else {
 		if (rc.right-BarPos-m_BarWidth<m_PaneList[1].MinSize)
 			BarPos=rc.right-m_BarWidth-m_PaneList[1].MinSize;
 		if (BarPos<m_PaneList[0].MinSize)
 			BarPos=m_PaneList[0].MinSize;
-		m_PaneList[0].pWindow->SetPosition(0,0,BarPos,rc.bottom);
-		m_PaneList[1].pWindow->SetPosition(BarPos+m_BarWidth,0,
-										rc.right-BarPos-m_BarWidth,rc.bottom);
+		ResizePane(0,0,0,BarPos,rc.bottom);
+		ResizePane(1,BarPos+m_BarWidth,0,rc.right-BarPos-m_BarWidth,rc.bottom);
 	}
+}
+
+
+void CSplitter::ResizePane(int Index,int Left,int Top,int Width,int Height)
+{
+	RECT rc;
+
+	rc.left=Left;
+	rc.top=Top;
+	rc.right=Left+Width;
+	rc.bottom=Top+Height;
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->OnResizePane(Index,&rc);
+	m_PaneList[Index].pWindow->SetPosition(&rc);
 }
 
 
@@ -243,6 +258,14 @@ int CSplitter::IDToIndex(int ID) const
 }
 
 
+int CSplitter::GetPaneID(int Index) const
+{
+	if (Index<0 || Index>1)
+		return -1;
+	return m_PaneList[Index].ID;
+}
+
+
 bool CSplitter::SetPaneVisible(int ID,bool fVisible)
 {
 	int Index=IDToIndex(ID);
@@ -338,4 +361,29 @@ bool CSplitter::SwapPane()
 	m_PaneList[1]=Pane;
 	SetSplitter();
 	return true;
+}
+
+
+void CSplitter::SetEventHandler(CEventHandler *pHandler)
+{
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pSplitter=NULL;
+	if (pHandler!=NULL)
+		pHandler->m_pSplitter=this;
+	m_pEventHandler=pHandler;
+}
+
+
+
+
+CSplitter::CEventHandler::CEventHandler()
+	: m_pSplitter(NULL)
+{
+}
+
+
+CSplitter::CEventHandler::~CEventHandler()
+{
+	if (m_pSplitter!=NULL)
+		m_pSplitter->SetEventHandler(NULL);
 }

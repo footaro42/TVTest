@@ -2,6 +2,7 @@
 #include "TVTest.h"
 #include "ChannelPanel.h"
 #include "StdUtil.h"
+#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -12,7 +13,8 @@ static char THIS_FILE[]=__FILE__;
 
 #define CHANNEL_LIST_WINDOW_CLASS APP_NAME TEXT(" Channel List")
 
-#define EVENT_LEFT_MARGIN 8
+#define CHANNEL_LEFT_MARGIN	2
+#define EVENT_LEFT_MARGIN	8
 
 
 
@@ -58,11 +60,26 @@ CChannelPanel::CChannelPanel()
 	m_EventNameLines=2;
 	//m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
 	m_ItemHeight=0;
-	m_ChannelBackColor=RGB(128,128,128);
+	m_ChannelBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_ChannelBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_ChannelBackGradient.Color1=RGB(128,128,128);
+	m_ChannelBackGradient.Color2=RGB(128,128,128);
 	m_ChannelTextColor=RGB(255,255,255);
-	m_EventBackColor=RGB(0,0,0);
+	m_CurChannelBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_CurChannelBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_CurChannelBackGradient.Color1=RGB(128,128,128);
+	m_CurChannelBackGradient.Color2=RGB(128,128,128);
+	m_CurChannelTextColor=RGB(255,255,255);
+	m_EventBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_EventBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_EventBackGradient.Color1=RGB(0,0,0);
+	m_EventBackGradient.Color2=RGB(0,0,0);
 	m_EventTextColor=RGB(255,255,255);
+	m_CurEventBackGradient=m_EventBackGradient;
+	m_CurEventTextColor=m_EventTextColor;
+	m_MarginColor=RGB(0,0,0);
 	m_ScrollPos=0;
+	m_CurChannel=-1;
 	m_pEventHandler=NULL;
 	m_hwndToolTip=NULL;
 }
@@ -93,10 +110,11 @@ bool CChannelPanel::SetEpgProgramList(CEpgProgramList *pList)
 bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 {
 	m_ChannelList.DeleteAll();
+	m_ScrollPos=0;
+	m_CurChannel=-1;
 	if (pChannelList!=NULL) {
 		SYSTEMTIME stCurrent;
 
-		m_ScrollPos=0;
 		::GetLocalTime(&stCurrent);
 		for (int i=0;i<pChannelList->NumChannels();i++) {
 			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(i);
@@ -104,7 +122,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 			if (!pChInfo->IsEnabled())
 				continue;
 
-			CChannelEventInfo *pEventInfo=new CChannelEventInfo(pChInfo);
+			CChannelEventInfo *pEventInfo=new CChannelEventInfo(pChInfo,i);
 
 			if (m_pProgramList!=NULL) {
 				const WORD TransportStreamID=pChInfo->GetTransportStreamID();
@@ -143,10 +161,11 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 }
 
 
-bool CChannelPanel::UpdateChannelList()
+bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
 {
 	if (m_pProgramList!=NULL && m_ChannelList.Length()>0) {
 		SYSTEMTIME stCurrent;
+		bool fChanged=false;
 
 		::GetLocalTime(&stCurrent);
 		for (int i=0;i<m_ChannelList.Length();i++) {
@@ -158,25 +177,105 @@ bool CChannelPanel::UpdateChannelList()
 
 			if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&stCurrent,&EventInfo)) {
 				fOK=true;
-			} else {
+			} else if (fUpdateProgramList) {
 				if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
 						&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&stCurrent,&EventInfo))
 					fOK=true;
 			}
 			if (fOK) {
-				pEventInfo->SetEventInfo(0,&EventInfo);
+				if (pEventInfo->SetEventInfo(0,&EventInfo))
+					fChanged=true;
 				SYSTEMTIME st;
 				EventInfo.GetEndTime(&st);
 				if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
-					pEventInfo->SetEventInfo(1,&EventInfo);
+					if (pEventInfo->SetEventInfo(1,&EventInfo))
+						fChanged=true;
+				} else {
+					if (pEventInfo->SetEventInfo(1,NULL))
+						fChanged=true;
 				}
+			} else {
+				if (pEventInfo->SetEventInfo(0,NULL))
+					fChanged=true;
+				if (pEventInfo->SetEventInfo(1,NULL))
+					fChanged=true;
 			}
 		}
-		if (m_hwnd!=NULL) {
+		if (m_hwnd!=NULL && fChanged) {
 			Invalidate();
 			Update();
 		}
 	}
+	return true;
+}
+
+
+bool CChannelPanel::UpdateChannel(int ChannelIndex,bool fUpdateProgramList)
+{
+	if (m_pProgramList!=NULL) {
+		for (int i=0;i<m_ChannelList.Length();i++) {
+			CChannelEventInfo *pEventInfo=m_ChannelList[i];
+
+			if (pEventInfo->GetOriginalChannelIndex()==ChannelIndex) {
+				SYSTEMTIME st;
+				const WORD TransportStreamID=pEventInfo->GetTransportStreamID();
+				const WORD ServiceID=pEventInfo->GetServiceID();
+				CEventInfoData EventInfo;
+				bool fOK=false,fChanged;
+
+				::GetLocalTime(&st);
+				if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
+					fOK=true;
+				} else if (fUpdateProgramList) {
+					if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
+							&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo))
+						fOK=true;
+				}
+				if (fOK) {
+					fChanged=pEventInfo->SetEventInfo(0,&EventInfo);
+					EventInfo.GetEndTime(&st);
+					if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
+						if (pEventInfo->SetEventInfo(1,&EventInfo))
+							fChanged=true;
+					} else {
+						if (pEventInfo->SetEventInfo(1,NULL))
+							fChanged=true;
+					}
+				} else {
+					fChanged=pEventInfo->SetEventInfo(0,NULL);
+					if (pEventInfo->SetEventInfo(1,NULL))
+						fChanged=true;
+				}
+				if (m_hwnd!=NULL && fChanged) {
+					RECT rc;
+
+					GetClientRect(&rc);
+					rc.top=i*m_ItemHeight-m_ScrollPos;
+					rc.bottom=rc.top+m_ItemHeight;
+					::InvalidateRect(m_hwnd,&rc,NULL);
+					Update();
+				}
+				break;
+			}
+		}
+	}
+	return true;
+}
+
+
+bool CChannelPanel::IsChannelListEmpty() const
+{
+	return m_ChannelList.Length()==0;
+}
+
+
+bool CChannelPanel::SetCurrentChannel(int CurChannel)
+{
+	if (CurChannel<-1)
+		return false;
+	m_CurChannel=CurChannel;
+	if (m_hwnd!=NULL)
+		Invalidate();
 	return true;
 }
 
@@ -187,14 +286,21 @@ void CChannelPanel::SetEventHandler(CEventHandler *pEventHandler)
 }
 
 
-bool CChannelPanel::SetColors(COLORREF ChannelBackColor,COLORREF ChannelTextColor,
-
-							  COLORREF EventBackColor,COLORREF EventTextColor)
+bool CChannelPanel::SetColors(const Theme::GradientInfo *pChannelBackGradient,COLORREF ChannelTextColor,
+	const Theme::GradientInfo *pCurChannelBackGradient,COLORREF CurChannelTextColor,
+	const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
+	const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
+	COLORREF MarginColor)
 {
-	m_ChannelBackColor=ChannelBackColor;
+	m_ChannelBackGradient=*pChannelBackGradient;
 	m_ChannelTextColor=ChannelTextColor;
-	m_EventBackColor=EventBackColor;
+	m_CurChannelBackGradient=*pCurChannelBackGradient;
+	m_CurChannelTextColor=CurChannelTextColor;
+	m_EventBackGradient=*pEventBackGradient;
 	m_EventTextColor=EventTextColor;
+	m_CurEventBackGradient=*pCurEventBackGradient;
+	m_CurEventTextColor=CurEventTextColor;
+	m_MarginColor=MarginColor;
 	if (m_hwnd!=NULL) {
 		Invalidate();
 		Update();
@@ -240,6 +346,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,0,0,0,0,
 				hwnd,NULL,m_hinst,NULL);
 			::SendMessage(pThis->m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,256);
+			::SendMessage(pThis->m_hwndToolTip,TTM_SETDELAYTIME,TTDT_AUTOPOP,30000);
 			pThis->SetToolTips();
 		}
 		return 0;
@@ -388,14 +495,11 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 {
-	HBRUSH hbrChannel,hbrEvent;
 	HFONT hfontOld;
 	COLORREF crOldTextColor;
 	int OldBkMode;
 	RECT rc;
 
-	hbrChannel=::CreateSolidBrush(m_ChannelBackColor);
-	hbrEvent=::CreateSolidBrush(m_EventBackColor);
 	hfontOld=(HFONT)::GetCurrentObject(hdc,OBJ_FONT);
 	crOldTextColor=::GetTextColor(hdc);
 	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
@@ -403,13 +507,16 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 	rc.top=-m_ScrollPos;
 	for (int i=0;i<m_ChannelList.Length();i++) {
 		CChannelEventInfo *pChannelInfo=m_ChannelList[i];
+		const bool fCurrent=pChannelInfo->GetOriginalChannelIndex()==m_CurChannel;
 
 		rc.bottom=rc.top+m_FontHeight+m_ChannelNameMargin*2;
 		if (rc.bottom>prcPaint->top) {
 			SelectFont(hdc,m_hfontChannel);
-			::SetTextColor(hdc,m_ChannelTextColor);
+			::SetTextColor(hdc,fCurrent?m_CurChannelTextColor:m_ChannelTextColor);
 			rc.left=0;
-			::FillRect(hdc,&rc,hbrChannel);
+			Theme::FillGradient(hdc,&rc,
+				fCurrent?&m_CurChannelBackGradient:&m_ChannelBackGradient);
+			rc.left=CHANNEL_LEFT_MARGIN;
 			pChannelInfo->DrawChannelName(hdc,&rc);
 		}
 		for (int j=0;j<2;j++) {
@@ -417,9 +524,9 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 			rc.bottom=rc.top+m_FontHeight*m_EventNameLines;
 			if (rc.bottom>prcPaint->top) {
 				SelectFont(hdc,m_hfont);
-				::SetTextColor(hdc,m_EventTextColor);
+				::SetTextColor(hdc,fCurrent?m_CurEventTextColor:m_EventTextColor);
 				rc.left=0;
-				::FillRect(hdc,&rc,hbrEvent);
+				Theme::FillGradient(hdc,&rc,fCurrent?&m_CurEventBackGradient:&m_EventBackGradient);
 				rc.left=EVENT_LEFT_MARGIN;
 				pChannelInfo->DrawEventName(hdc,&rc,j);
 			}
@@ -430,15 +537,15 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 	}
 	if (rc.top<prcPaint->bottom) {
 		rc.left=prcPaint->left;
+		if (rc.top>prcPaint->top)
+			rc.top=prcPaint->top;
 		rc.right=prcPaint->right;
 		rc.bottom=prcPaint->bottom;
-		::FillRect(hdc,&rc,hbrEvent);
+		DrawUtil::Fill(hdc,&rc,m_MarginColor);
 	}
 	::SetTextColor(hdc,crOldTextColor);
 	::SetBkMode(hdc,OldBkMode);
 	SelectFont(hdc,hfontOld);
-	::DeleteObject(hbrChannel);
-	::DeleteObject(hbrEvent);
 }
 
 
@@ -522,8 +629,9 @@ void CChannelPanel::SetToolTips()
 
 
 
-CChannelPanel::CChannelEventInfo::CChannelEventInfo(const CChannelInfo *pInfo)
+CChannelPanel::CChannelEventInfo::CChannelEventInfo(const CChannelInfo *pInfo,int OriginalIndex)
 	: m_ChannelInfo(*pInfo)
+	, m_OriginalChannelIndex(OriginalIndex)
 {
 }
 
@@ -537,8 +645,19 @@ bool CChannelPanel::CChannelEventInfo::SetEventInfo(int Index,const CEventInfoDa
 {
 	if (Index<0 || Index>1)
 		return false;
-	m_EventInfo[Index]=*pInfo;
-	return true;
+	bool fChanged=false;
+	if (pInfo!=NULL) {
+		if (m_EventInfo[Index]!=*pInfo) {
+			m_EventInfo[Index]=*pInfo;
+			fChanged=true;
+		}
+	} else if (m_EventInfo[Index].GetEventName()!=NULL) {
+		CEventInfoData Info;
+
+		m_EventInfo[Index]=Info;
+		fChanged=true;
+	}
+	return fChanged;
 }
 
 

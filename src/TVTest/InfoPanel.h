@@ -3,6 +3,7 @@
 
 
 #include "BasicWindow.h"
+#include "Theme.h"
 
 
 class CInfoPanelPage : public CBasicWindow {
@@ -34,10 +35,10 @@ class CInfoPanel : public CBasicWindow {
 	int m_NumWindows;
 	COLORREF m_crBackColor;
 	COLORREF m_crMarginColor;
-	COLORREF m_crTabBackColor;
+	Theme::GradientInfo m_TabBackGradient;
 	COLORREF m_crTabTextColor;
 	COLORREF m_crTabBorderColor;
-	COLORREF m_crCurTabBackColor;
+	Theme::GradientInfo m_CurTabBackGradient;
 	COLORREF m_crCurTabTextColor;
 	COLORREF m_crCurTabBorderColor;
 	HFONT m_hfont;
@@ -64,8 +65,8 @@ public:
 	int GetCurTab() const { return m_CurTab; }
 	void SetEventHandler(CInfoPanelEventHandler *pHandler);
 	void SetBackColors(COLORREF crBack,COLORREF crMargin);
-	void SetTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder);
-	void SetCurTabColors(COLORREF crBack,COLORREF crText,COLORREF crBorder);
+	void SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder);
+	void SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder);
 	bool SetTabFont(const LOGFONT *pFont);
 	bool SetPageFont(const LOGFONT *pFont);
 };

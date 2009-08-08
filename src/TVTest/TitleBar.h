@@ -3,6 +3,7 @@
 
 
 #include "BasicWindow.h"
+#include "Theme.h"
 
 
 class CTitleBarEventHandler {
@@ -17,7 +18,9 @@ public:
 	virtual bool OnFullscreen() { return false; }
 	virtual void OnMouseLeave() {}
 	virtual void OnLabelLButtonDown(int x,int y) {}
+	virtual void OnLabelLButtonDoubleClick(int x,int y) {}
 	virtual void OnLabelRButtonDown(int x,int y) {}
+	virtual void OnIconLButtonDown(int x,int y) {}
 	friend class CTitleBar;
 };
 
@@ -33,15 +36,15 @@ class CTitleBar : public CBasicWindow {
 	};
 	HFONT m_hfont;
 	int m_FontHeight;
-	COLORREF m_crBackColor1;
-	COLORREF m_crBackColor2;
+	Theme::GradientInfo m_BackGradient;
 	COLORREF m_crTextColor;
-	COLORREF m_crHighlightBackColor1;
-	COLORREF m_crHighlightBackColor2;
+	Theme::GradientInfo m_HighlightBackGradient;
 	COLORREF m_crHighlightTextColor;
+	Theme::BorderType m_BorderType;
 	HBITMAP m_hbmIcons;
 	HWND m_hwndToolTip;
 	LPTSTR m_pszLabel;
+	HICON m_hIcon;
 	int m_HotItem;
 	int m_ClickItem;
 	bool m_fTrackMouseEvent;
@@ -54,6 +57,7 @@ class CTitleBar : public CBasicWindow {
 	static HINSTANCE m_hinst;
 	static CTitleBar *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CTitleBar();
@@ -63,11 +67,14 @@ public:
 	void SetVisible(bool fVisible);
 	// CTitleBar
 	bool SetLabel(LPCTSTR pszLabel);
+	LPCTSTR GetLabel() const { return m_pszLabel; }
 	bool SetMaximizeMode(bool fMaximize);
 	bool SetEventHandler(CTitleBarEventHandler *pHandler);
-	void SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crText,
-		COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightText);
+	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
+	void SetBorderType(Theme::BorderType Type);
 	//bool SetFont(const LOGFONT *pFont);
+	void SetIcon(HICON hIcon);
 };
 
 

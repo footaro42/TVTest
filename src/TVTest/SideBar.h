@@ -5,6 +5,7 @@
 #include <vector>
 #include "BasicWindow.h"
 #include "Command.h"
+#include "Theme.h"
 
 
 class CSideBar : public CBasicWindow {
@@ -41,12 +42,11 @@ protected:
 	HBITMAP m_hbmIcons;
 	COLORREF m_IconTransparentColor;
 	bool m_fVertical;
-	COLORREF m_BackColor1;
-	COLORREF m_BackColor2;
+	Theme::GradientInfo m_BackGradient;
 	COLORREF m_ForeColor;
-	COLORREF m_HighlightBackColor1;
-	COLORREF m_HighlightBackColor2;
+	Theme::GradientInfo m_HighlightBackGradient;
 	COLORREF m_HighlightForeColor;
+	Theme::BorderType m_BorderType;
 	std::vector<SideBarItem> m_ItemList;
 	int m_HotItem;
 	int m_ClickItem;
@@ -75,8 +75,11 @@ public:
 	void DeleteAllItems();
 	bool AddItem(const SideBarItem *pItem);
 	bool AddItems(const SideBarItem *pItemList,int NumItems);
-	void SetColor(COLORREF crBack1,COLORREF crBack2,COLORREF crFore,COLORREF crHighlightBack1,COLORREF crHighlightBack2,COLORREF crHighlightFore);
+	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore,
+				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightFore);
+	void SetBorderType(Theme::BorderType Type);
 	void ShowToolTips(bool fShow);
+	void SetVertical(bool fVertical);
 	void SetEventHandler(CEventHandler *pHandler);
 	const CCommandList *GetCommandList() const { return m_pCommandList; }
 };

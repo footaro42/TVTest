@@ -867,13 +867,13 @@ CProgramGuide::CProgramGuide()
 	m_ScrollPos.y=0;
 	m_fDragScroll=false;
 	m_CurrentTuningSpace=-1;
+	m_CurrentTransportStreamID=0;
+	m_CurrentServiceID=0;
 	m_szDriverFileName[0]='\0';
 	m_pDriverManager=NULL;
 	m_ColorList[COLOR_BACK]=::GetSysColor(COLOR_WINDOW);
 	m_ColorList[COLOR_TEXT]=::GetSysColor(COLOR_WINDOWTEXT);
-	m_ColorList[COLOR_CHANNELNAMEBACK]=::GetSysColor(COLOR_3DFACE);
 	m_ColorList[COLOR_CHANNELNAMETEXT]=::GetSysColor(COLOR_WINDOWTEXT);
-	m_ColorList[COLOR_TIMEBACK]=::GetSysColor(COLOR_3DFACE);
 	m_ColorList[COLOR_TIMETEXT]=::GetSysColor(COLOR_WINDOWTEXT);
 	for (int i=COLOR_CONTENT_FIRST;i<=COLOR_CONTENT_LAST;i++)
 		m_ColorList[i]=RGB(240,240,240);
@@ -887,6 +887,15 @@ CProgramGuide::CProgramGuide()
 	m_ColorList[COLOR_CONTENT_ANIME]=RGB(255,224,255);
 	m_ColorList[COLOR_CONTENT_DOCUMENTARY]=RGB(255,255,224);
 	m_ColorList[COLOR_CONTENT_THEATER]=RGB(224,255,255);
+	m_ChannelNameBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_ChannelNameBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_ChannelNameBackGradient.Color1=::GetSysColor(COLOR_3DFACE);
+	m_ChannelNameBackGradient.Color2=m_ChannelNameBackGradient.Color1;
+	m_CurChannelNameBackGradient=m_ChannelNameBackGradient;
+	m_TimeBarBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_TimeBarBackGradient.Direction=Theme::DIRECTION_HORZ;
+	m_TimeBarBackGradient.Color1=::GetSysColor(COLOR_3DFACE);
+	m_TimeBarBackGradient.Color1=m_TimeBarBackGradient.Color2;
 	m_fUpdating=false;
 	m_pEventHandler=NULL;
 	m_WheelScrollLines=0;
@@ -1032,16 +1041,15 @@ void CProgramGuide::DrawProgramList(int Service,HDC hdc,const RECT *pRect,const 
 void CProgramGuide::DrawServiceName(int Service,HDC hdc,const RECT *pRect)
 {
 	CProgramGuideServiceInfo *pServiceInfo=m_ServiceList.GetItem(Service);
-	HBRUSH hbr;
+	bool fCur=pServiceInfo->GetTSID()==m_CurrentTransportStreamID
+		&& pServiceInfo->GetServiceID()==m_CurrentServiceID;
 	COLORREF crOldTextColor;
 	HFONT hfontOld;
 	RECT rc;
 
-	hbr=::CreateSolidBrush(m_ColorList[COLOR_CHANNELNAMEBACK]);
-	::FillRect(hdc,pRect,hbr);
-	::DeleteObject(hbr);
+	Theme::FillGradient(hdc,pRect,fCur?&m_CurChannelNameBackGradient:&m_ChannelNameBackGradient);
 	hfontOld=SelectFont(hdc,m_hfontTitle);
-	crOldTextColor=::SetTextColor(hdc,m_ColorList[COLOR_CHANNELNAMETEXT]);
+	crOldTextColor=::SetTextColor(hdc,m_ColorList[fCur?COLOR_CURCHANNELNAMETEXT:COLOR_CHANNELNAMETEXT]);
 	rc=*pRect;
 	::DrawText(hdc,pServiceInfo->GetServiceName(),-1,&rc,
 			   DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
@@ -1052,15 +1060,12 @@ void CProgramGuide::DrawServiceName(int Service,HDC hdc,const RECT *pRect)
 
 void CProgramGuide::DrawTimeBar(HDC hdc,const RECT *pRect)
 {
-	HBRUSH hbr;
 	HFONT hfontOld;
 	COLORREF crOldTextColor;
 	HPEN hpen,hpenOld;
 	RECT rc;
 
-	hbr=::CreateSolidBrush(m_ColorList[COLOR_TIMEBACK]);
-	::FillRect(hdc,pRect,hbr);
-	::DeleteObject(hbr);
+	Theme::FillGradient(hdc,pRect,&m_TimeBarBackGradient);
 	hfontOld=SelectFont(hdc,m_hfontTime);
 	crOldTextColor=::SetTextColor(hdc,m_ColorList[COLOR_TIMETEXT]);
 	hpen=::CreatePen(PS_SOLID,0,m_ColorList[COLOR_TIMETEXT]);
@@ -1280,6 +1285,20 @@ bool CProgramGuide::SetDriverList(const CDriverManager *pDriverManager)
 }
 
 
+void CProgramGuide::SetCurrentService(WORD TSID,WORD ServiceID)
+{
+	m_CurrentTransportStreamID=TSID;
+	m_CurrentServiceID=ServiceID;
+	if (m_hwnd!=NULL) {
+		RECT rc;
+
+		GetClientRect(&rc);
+		rc.bottom=m_ServiceNameHeight;
+		::InvalidateRect(m_hwnd,&rc,TRUE);
+	}
+}
+
+
 bool CProgramGuide::SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime)
 {
 	FILETIME ftFirst,ftLast;
@@ -1388,6 +1407,19 @@ bool CProgramGuide::SetColor(int Type,COLORREF Color)
 		return false;
 	m_ColorList[Type]=Color;
 	return true;
+}
+
+
+void CProgramGuide::SetBackColor(const Theme::GradientInfo *pChannelBackGradient,
+								 const Theme::GradientInfo *pCurChannelBackGradient,
+								 const Theme::GradientInfo *pTimeBarBackGradient)
+{
+	m_ChannelNameBackGradient=*pChannelBackGradient;
+	m_CurChannelNameBackGradient=*pCurChannelBackGradient;
+	m_TimeBarBackGradient=*pTimeBarBackGradient;
+	m_TimeBarBackGradient.Direction=Theme::DIRECTION_HORZ;
+	if (m_hwnd!=NULL)
+		Invalidate();
 }
 
 

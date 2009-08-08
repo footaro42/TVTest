@@ -14,13 +14,13 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define SCAN_INTERVAL	5	// スキャン時のチャンネル切り替え間隔(秒)
+#define SCAN_INTERVAL	5		// スキャン時のチャンネル切り替え間隔(秒)
 #define RETRY_COUNT		4
 #define RETRY_INTERVAL	1000
 
-#define WM_APP_BEGINSCAN		WM_APP
-#define WM_APP_CHANNELFINDED	(WM_APP+1)
-#define WM_APP_ENDSCAN			(WM_APP+2)
+#define WM_APP_BEGINSCAN	WM_APP
+#define WM_APP_CHANNELFOUND	(WM_APP+1)
+#define WM_APP_ENDSCAN		(WM_APP+2)
 
 
 
@@ -625,7 +625,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 		}
 		break;
 
-	case WM_APP_CHANNELFINDED:
+	case WM_APP_CHANNELFOUND:
 		{
 			CChannelScan *pThis=GetThis(hDlg);
 			const CChannelInfo *pChInfo=reinterpret_cast<const CChannelInfo*>(lParam);
@@ -720,13 +720,13 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return TRUE;
 
-	case WM_APP_CHANNELFINDED:
+	case WM_APP_CHANNELFOUND:
 		{
 			CChannelScan *pThis=GetThis(hDlg);
 			//int ScanChannel=LOWORD(wParam),Service=HIWORD(wParam);
 			const CChannelInfo *pChInfo=pThis->m_ScanningChannelList.GetChannelInfo((int)lParam);
 
-			::SendMessage(pThis->m_hDlg,WM_APP_CHANNELFINDED,0,reinterpret_cast<LPARAM>(pChInfo));
+			::SendMessage(pThis->m_hDlg,WM_APP_CHANNELFOUND,0,reinterpret_cast<LPARAM>(pChInfo));
 		}
 		return TRUE;
 
@@ -774,7 +774,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		pDtvEngine->SetChannel(pThis->m_ScanSpace,pThis->m_ScanChannel);
 		if (::WaitForSingleObject(pThis->m_hCancelEvent,SCAN_INTERVAL*1000)==WAIT_OBJECT_0)
 			break;
-		bool fFinded=false;
+		bool fFound=false;
 		int NumServices;
 		TCHAR szName[32];
 		if (pThis->m_fIgnoreSignalLevel
@@ -792,18 +792,18 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 								break;
 						}
 						if (j==NumServices)
-							fFinded=true;
+							fFound=true;
 					} else {
 						if (pDtvEngine->m_ProgManager.GetServiceName(szName,0)>0
 								&& pDtvEngine->m_ProgManager.GetTSName(szName,lengthof(szName))>0)
-							fFinded=true;
+							fFound=true;
 					}
-					if (fFinded)
+					if (fFound)
 						break;
 				}
 			}
 		}
-		if (!fFinded) {
+		if (!fFound) {
 			pThis->m_ScanChannel++;
 			continue;
 		}
@@ -820,10 +820,10 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				WORD ServiceID=0;
 				if (pDtvEngine->m_ProgManager.GetServiceID(&ServiceID,i))
 					ChInfo.SetServiceID(ServiceID);
-				TRACE(TEXT("Channel finded : %s %d %d %d %d\n"),
+				TRACE(TEXT("Channel found : %s %d %d %d %d\n"),
 					szName,pThis->m_ScanChannel,ChInfo.GetChannelNo(),NetworkID,ServiceID);
 				pThis->m_ScanningChannelList.AddChannel(ChInfo);
-				::PostMessage(pThis->m_hScanDlg,WM_APP_CHANNELFINDED,
+				::PostMessage(pThis->m_hScanDlg,WM_APP_CHANNELFOUND,
 						MAKEWPARAM(pThis->m_ScanChannel,i),
 						pThis->m_ScanningChannelList.NumChannels()-1);
 			}
@@ -836,10 +836,10 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			WORD ServiceID=0;
 			if (pDtvEngine->m_ProgManager.GetServiceID(&ServiceID,0))
 				ChInfo.SetServiceID(ServiceID);
-			TRACE(TEXT("Channel finded : %s %d %d %d %d\n"),
+			TRACE(TEXT("Channel found : %s %d %d %d %d\n"),
 				szName,pThis->m_ScanChannel,ChInfo.GetChannelNo(),NetworkID,ServiceID);
 			pThis->m_ScanningChannelList.AddChannel(ChInfo);
-			::PostMessage(pThis->m_hScanDlg,WM_APP_CHANNELFINDED,
+			::PostMessage(pThis->m_hScanDlg,WM_APP_CHANNELFOUND,
 				pThis->m_ScanChannel,
 				pThis->m_ScanningChannelList.NumChannels()-1);
 		}

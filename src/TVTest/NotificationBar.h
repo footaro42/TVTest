@@ -3,6 +3,7 @@
 
 
 #include "BasicWindow.h"
+#include "Theme.h"
 
 
 class CNotificationBar : public CBasicWindow
@@ -12,8 +13,7 @@ class CNotificationBar : public CBasicWindow
 		MESSAGE_ERROR
 	};
 private:
-	COLORREF m_BackColor1;
-	COLORREF m_BackColor2;
+	Theme::GradientInfo m_BackGradient;
 	COLORREF m_TextColor;
 	COLORREF m_ErrorTextColor;
 	HFONT m_hfont;
@@ -31,7 +31,8 @@ public:
 	bool Show(DWORD Timeout=0);
 	bool Hide();
 	bool SetText(LPCTSTR pszText,MessageType Type=MESSAGE_INFO);
-	bool SetColors(COLORREF crBackColor1,COLORREF crBackColor2,COLORREF crTextColor);
+	bool SetColors(const Theme::GradientInfo *pBackGradient,
+				   COLORREF crTextColor,COLORREF crErrorTextColor);
 	bool SetFont(const LOGFONT *pFont);
 	void SetAnimate(bool fAnimate) { m_fAnimate=fAnimate; }
 	static bool Initialize(HINSTANCE hinst);

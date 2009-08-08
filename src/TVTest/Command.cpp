@@ -56,6 +56,7 @@ static const struct {
 	{TEXT("RecordOption"),			CM_RECORDOPTION},
 	//{TEXT("RecordStopTime"),		CM_RECORDSTOPTIME},
 	{TEXT("DisableViewer"),			CM_DISABLEVIEWER},
+	{TEXT("CaptureImage"),			CM_CAPTURE},
 	{TEXT("CopyImage"),				CM_COPY},
 	{TEXT("SaveImage"),				CM_SAVEIMAGE},
 	{TEXT("CapturePreview"),		CM_CAPTUREPREVIEW},
@@ -203,6 +204,16 @@ LPCTSTR CCommandList::GetCommandText(int Index) const
 }
 
 
+LPCTSTR CCommandList::GetCommandTextByID(int ID) const
+{
+	int Index=IDToIndex(ID);
+
+	if (Index<0)
+		return NULL;
+	return GetCommandText(Index);
+}
+
+
 int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 {
 	int Base;
@@ -236,6 +247,16 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 }
 
 
+int CCommandList::GetCommandNameByID(int ID,LPTSTR pszName,int MaxLength) const
+{
+	int Index=IDToIndex(ID);
+
+	if (Index<0)
+		return 0;
+	return GetCommandName(Index,pszName,MaxLength);
+}
+
+
 int CCommandList::IDToIndex(int ID) const
 {
 	int Base;
@@ -261,7 +282,7 @@ int CCommandList::ParseText(LPCTSTR pszText) const
 {
 	int i;
 
-	if (pszText==NULL)
+	if (pszText==NULL || pszText[0]=='\0')
 		return 0;
 	for (i=0;i<lengthof(CommandList);i++) {
 		if (::lstrcmpi(CommandList[i].pszText,pszText)==0)

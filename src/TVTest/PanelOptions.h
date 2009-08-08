@@ -6,6 +6,16 @@
 #include "Panel.h"
 
 
+enum {
+	PANEL_TAB_INFORMATION,
+	PANEL_TAB_PROGRAMLIST,
+	PANEL_TAB_CHANNEL,
+	PANEL_TAB_CONTROL
+};
+
+#define PANEL_TAB_FIRST	PANEL_TAB_INFORMATION
+#define PANEL_TAB_LAST	PANEL_TAB_CONTROL
+
 class CPanelOptions : public COptions {
 	CPanelFrame *m_pPanelFrame;
 	bool m_fSnapAtMainWindow;
@@ -14,6 +24,8 @@ class CPanelOptions : public COptions {
 	int m_Opacity;
 	LOGFONT m_Font;
 	LOGFONT m_CurSettingFont;
+	int m_FirstTab;
+	int m_LastTab;
 	static CPanelOptions *GetThis(HWND hDlg);
 
 public:
@@ -30,6 +42,7 @@ public:
 	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
 	void SetAttachToMainWindow(bool fAttach);
 	const LOGFONT *GetFont() const { return &m_Font; }
+	int GetFirstTab() const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

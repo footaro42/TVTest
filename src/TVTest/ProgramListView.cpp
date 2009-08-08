@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "ProgramListView.h"
+#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -306,10 +307,22 @@ CProgramListView::CProgramListView()
 	//m_FontHeight=abs(lf.lfHeight);
 	m_FontHeight=0;
 	m_LineMargin=1;
-	m_crBackColor=RGB(0,0,0);
-	m_crTextColor=RGB(255,255,255);
-	m_crTitleBackColor=RGB(128,128,128);
-	m_crTitleTextColor=RGB(255,255,255);
+	m_EventBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_EventBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_EventBackGradient.Color1=RGB(0,0,0);
+	m_EventBackGradient.Color2=RGB(0,0,0);
+	m_EventTextColor=RGB(255,255,255);
+	m_CurEventBackGradient=m_EventBackGradient;
+	m_CurEventTextColor=m_EventTextColor;
+	m_TitleBackGradient.Type=Theme::GRADIENT_NORMAL;
+	m_TitleBackGradient.Direction=Theme::DIRECTION_VERT;
+	m_TitleBackGradient.Color1=RGB(128,128,128);
+	m_TitleBackGradient.Color2=RGB(128,128,128);
+	m_TitleTextColor=RGB(255,255,255);
+	m_CurTitleBackGradient=m_TitleBackGradient;
+	m_CurTitleTextColor=m_TitleTextColor;
+	m_MarginColor=RGB(0,0,0);
+	m_CurEventID=-1;
 	m_ScrollPos=0;
 }
 
@@ -368,8 +381,7 @@ bool CProgramListView::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
 	int NumEvents;
 	int i,j;
 	CProgramItemList NewItemList;
-	SYSTEMTIME st;
-	FILETIME ftFirst,ftLast,ftPg;
+	SYSTEMTIME stFirst,stLast;
 	bool fChanged;
 
 	pServiceInfo=m_pProgramList->GetServiceInfo(TransportStreamID,ServiceID);
@@ -384,19 +396,20 @@ bool CProgramListView::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
 		return false;
 	}
 	NewItemList.Reserve(NumEvents);
-	GetLocalTime(&st);
-	st.wMinute=0;
-	st.wSecond=0;
-	st.wMilliseconds=0;
-	SystemTimeToFileTime(&st,&ftFirst);
-	ftLast=ftFirst;
-	ftLast+=(LONGLONG)25*60*60*FILETIME_SECOND;
+	::GetLocalTime(&stFirst);
+	stFirst.wSecond=0;
+	stFirst.wMilliseconds=0;
+	stLast=stFirst;
+	OffsetSystemTime(&stLast,24*60*60*1000);
 	fChanged=false;
 	i=0;
 	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
 			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();itrEvent++) {
-		SystemTimeToFileTime(&itrEvent->second.m_stStartTime,&ftPg);
-		if (CompareFileTime(&ftFirst,&ftPg)<=0 && CompareFileTime(&ftLast,&ftPg)>0) {
+		SYSTEMTIME stEnd;
+
+		itrEvent->second.GetEndTime(&stEnd);
+		if (CompareSystemTime(&stFirst,&stEnd)<0
+				&& CompareSystemTime(&stLast,&itrEvent->second.m_stStartTime)>0) {
 			NewItemList.Add(new CProgramItemInfo(itrEvent->second));
 			i++;
 		}
@@ -424,6 +437,7 @@ void CProgramListView::ClearProgramList()
 {
 	if (m_ItemList.NumItems()>0) {
 		m_ItemList.Clear();
+		m_CurEventID=-1;
 		m_ScrollPos=0;
 		m_TotalLines=0;
 		if (m_hwnd!=NULL) {
@@ -433,6 +447,14 @@ void CProgramListView::ClearProgramList()
 	}
 	//if (m_pProgramList!=NULL)
 	//	m_pProgramList->Clear();
+}
+
+
+void CProgramListView::SetCurrentEventID(int EventID)
+{
+	m_CurEventID=EventID;
+	if (m_hwnd!=NULL)
+		Invalidate();
 }
 
 
@@ -471,13 +493,22 @@ void CProgramListView::SetScrollBar()
 }
 
 
-void CProgramListView::SetColors(COLORREF crBackColor,COLORREF crTextColor,
-						COLORREF crTitleBackColor,COLORREF crTitleTextColor)
+void CProgramListView:: SetColors(
+	const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
+	const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
+	const Theme::GradientInfo *pTitleBackGradient,COLORREF TitleTextColor,
+	const Theme::GradientInfo *pCurTitleBackGradient,COLORREF CurTitleTextColor,
+	COLORREF MarginColor)
 {
-	m_crBackColor=crBackColor;
-	m_crTextColor=crTextColor;
-	m_crTitleBackColor=crTitleBackColor;
-	m_crTitleTextColor=crTitleTextColor;
+	m_EventBackGradient=*pEventBackGradient;
+	m_EventTextColor=EventTextColor;
+	m_CurEventBackGradient=*pCurEventBackGradient;
+	m_CurEventTextColor=CurEventTextColor;
+	m_TitleBackGradient=*pTitleBackGradient;
+	m_TitleTextColor=TitleTextColor;
+	m_CurTitleBackGradient=*pCurTitleBackGradient;
+	m_CurTitleTextColor=CurTitleTextColor;
+	m_MarginColor=MarginColor;
 	if (m_hwnd!=NULL)
 		Invalidate();
 }
@@ -628,13 +659,10 @@ void CProgramListView::DrawProgramList(HDC hdc,const RECT *prcPaint)
 	HFONT hfontOld;
 	COLORREF crOldTextColor;
 	int OldBkMode;
-	RECT rc;
+	RECT rc,rcMargin;
 	int i;
 
-	hbr=CreateSolidBrush(m_crBackColor);
-	FillRect(hdc,prcPaint,hbr);
-	DeleteObject(hbr);
-	hbr=CreateSolidBrush(m_crTitleBackColor);
+	hbr=CreateSolidBrush(m_MarginColor);
 	hfontOld=SelectFont(hdc,m_hfont);
 	crOldTextColor=GetTextColor(hdc);
 	OldBkMode=SetBkMode(hdc,TRANSPARENT);
@@ -642,24 +670,44 @@ void CProgramListView::DrawProgramList(HDC hdc,const RECT *prcPaint)
 	rc.top=-(m_ScrollPos*(m_FontHeight+m_LineMargin));
 	for (i=0;i<m_ItemList.NumItems();i++) {
 		CProgramItemInfo *pItem=m_ItemList.GetItem(i);
+		bool fCur=pItem->GetEventID()==m_CurEventID;
 
 		rc.bottom=rc.top+pItem->GetTitleLines()*(m_FontHeight+m_LineMargin);
 		if (rc.bottom>prcPaint->top) {
-			SetTextColor(hdc,m_crTitleTextColor);
+			SetTextColor(hdc,fCur?m_CurTitleTextColor:m_TitleTextColor);
 			rc.left=0;
-			FillRect(hdc,&rc,hbr);
+			Theme::FillGradient(hdc,&rc,fCur?&m_CurTitleBackGradient:&m_TitleBackGradient);
 			pItem->DrawTitle(hdc,&rc,m_FontHeight+m_LineMargin);
 		}
 		rc.top=rc.bottom;
 		rc.bottom=rc.top+pItem->GetTextLines()*(m_FontHeight+m_LineMargin);
 		if (rc.bottom>prcPaint->top) {
-			SetTextColor(hdc,m_crTextColor);
+			/*
+			rc.left=TEXT_LEFT_MARGIN;
+			if (prcPaint->left<rc.left) {
+				rcMargin.left=prcPaint->left;
+				rcMargin.top=rc.top;
+				rcMargin.right=min(rc.left,prcPaint->right);
+				rcMargin.bottom=rc.bottom;
+				FillRect(hdc,&rcMargin,hbr);
+			}
+			*/
+			SetTextColor(hdc,fCur?m_CurEventTextColor:m_EventTextColor);
+			rc.left=0;
+			Theme::FillGradient(hdc,&rc,fCur?&m_CurEventBackGradient:&m_EventBackGradient);
 			rc.left=TEXT_LEFT_MARGIN;
 			pItem->DrawText(hdc,&rc,m_FontHeight+m_LineMargin);
 		}
 		rc.top=rc.bottom;
 		if (rc.top>=prcPaint->bottom)
 			break;
+	}
+	if (rc.top<prcPaint->bottom) {
+		rcMargin.left=prcPaint->left;
+		rcMargin.top=max(rc.top,prcPaint->top);
+		rcMargin.right=prcPaint->right;
+		rcMargin.bottom=prcPaint->bottom;
+		FillRect(hdc,&rcMargin,hbr);
 	}
 	SetTextColor(hdc,crOldTextColor);
 	SetBkMode(hdc,OldBkMode);
