@@ -398,21 +398,21 @@ const bool CDtvEngine::SetStereoMode(int iMode)
 }
 
 
-const WORD CDtvEngine::GetEventID()
+const WORD CDtvEngine::GetEventID(bool bNext)
 {
-	return m_ProgManager.GetEventID(m_wCurService);
+	return m_ProgManager.GetEventID(m_wCurService, bNext);
 }
 
 
-const int CDtvEngine::GetEventName(LPTSTR pszName, int MaxLength, bool fNext)
+const int CDtvEngine::GetEventName(LPTSTR pszName, int MaxLength, bool bNext)
 {
-	return m_ProgManager.GetEventName(m_wCurService, pszName, MaxLength, fNext);
+	return m_ProgManager.GetEventName(m_wCurService, pszName, MaxLength, bNext);
 }
 
 
-const int CDtvEngine::GetEventText(LPTSTR pszText, int MaxLength, bool fNext)
+const int CDtvEngine::GetEventText(LPTSTR pszText, int MaxLength, bool bNext)
 {
-	return m_ProgManager.GetEventText(m_wCurService, pszText, MaxLength, fNext);
+	return m_ProgManager.GetEventText(m_wCurService, pszText, MaxLength, bNext);
 }
 
 

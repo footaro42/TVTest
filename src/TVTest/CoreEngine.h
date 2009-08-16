@@ -30,6 +30,7 @@ private:
 	int m_DisplayVideoWidth;
 	int m_DisplayVideoHeight;
 	int m_NumAudioChannels;
+	int m_NumAudioStreams;
 	BYTE m_AudioComponentType;
 	bool m_fMute;
 	int m_Volume;
@@ -106,8 +107,9 @@ public:
 	enum {
 		STATUS_VIDEOSIZE			=0x00000001UL,
 		STATUS_AUDIOCHANNELS		=0x00000002UL,
-		STATUS_AUDIOCOMPONENTTYPE	=0x00000004UL,
-		STATUS_EVENTID				=0x00000008UL
+		STATUS_AUDIOSTREAMS			=0x00000004UL,
+		STATUS_AUDIOCOMPONENTTYPE	=0x00000008UL,
+		STATUS_EVENTID				=0x00000010UL
 	};
 	DWORD UpdateAsyncStatus();
 	enum {

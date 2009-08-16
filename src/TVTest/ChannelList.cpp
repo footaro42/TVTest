@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <shlwapi.h>
+#include <limits.h>
 #include "TVTest.h"
 #include "ChannelList.h"
 
@@ -67,6 +68,8 @@ bool CChannelInfo::SetChannel(int Channel)
 
 bool CChannelInfo::SetChannelNo(int ChannelNo)
 {
+	if (ChannelNo<0)
+		return false;
 	m_ChannelNo=ChannelNo;
 	return true;
 }
@@ -74,6 +77,8 @@ bool CChannelInfo::SetChannelNo(int ChannelNo)
 
 bool CChannelInfo::SetName(LPCTSTR pszName)
 {
+	if (pszName==NULL)
+		return false;
 	::lstrcpyn(m_szName,pszName,MAX_CHANNEL_NAME);
 	return true;
 }
@@ -344,25 +349,25 @@ int CChannelList::GetNextChannelNo(int ChannelNo,bool fWrap) const
 	int i;
 	int Channel,Min,No;
 
-	Channel=1000;
-	Min=1000;
+	Channel=INT_MAX;
+	Min=INT_MAX;
 	for (i=0;i<m_NumChannels;i++) {
 		const CChannelInfo *pChInfo=m_ppList[i];
 
 		if (pChInfo->IsEnabled()) {
 			No=pChInfo->GetChannelNo();
-			if (No>ChannelNo && No<Channel)
-				Channel=No;
-			if (No<Min)
-				Min=No;
+			if (No!=0) {
+				if (No>ChannelNo && No<Channel)
+					Channel=No;
+				if (No<Min)
+					Min=No;
+			}
 		}
 	}
-	if (Channel==1000) {
-		if (Min==1000)
+	if (Channel==INT_MAX) {
+		if (Min==INT_MAX || !fWrap)
 			return 0;
-		if (fWrap)
-			return Min;
-		return 0;
+		return Min;
 	}
 	return Channel;
 }
@@ -380,10 +385,12 @@ int CChannelList::GetPrevChannelNo(int ChannelNo,bool fWrap) const
 
 		if (pChInfo->IsEnabled()) {
 			No=pChInfo->GetChannelNo();
-			if (No<ChannelNo && No>Channel)
-				Channel=No;
-			if (No>Max)
-				Max=No;
+			if (No!=0) {
+				if (No<ChannelNo && No>Channel)
+					Channel=No;
+				if (No>Max)
+					Max=No;
+			}
 		}
 	}
 	if (Channel==0) {

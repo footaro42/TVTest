@@ -925,7 +925,6 @@ bool CAppMain::LoadSettings()
 
 		if (Setting.Read(TEXT("Volume"),&Value))
 			CoreEngine.SetVolume(Value<0?0:Value>CCoreEngine::MAX_VOLUME?CCoreEngine::MAX_VOLUME:Value);
-		//Setting.Read(TEXT("VolumeNormalize"),&fVolumeNormalize);
 		if (Setting.Read(TEXT("VolumeNormalizeLevel"),&Value))
 			CoreEngine.SetVolumeNormalizeLevel(Value);
 		Setting.Read(TEXT("ShowInfoWindow"),&fShowPanelWindow);
@@ -1029,7 +1028,6 @@ bool CAppMain::SaveSettings()
 
 		Setting.Write(TEXT("Driver"),CoreEngine.GetDriverFileName());
 		Setting.Write(TEXT("Volume"),CoreEngine.GetVolume());
-		//Setting.Write(TEXT("VolumeNormalize"),CoreEngine.GetVolumeNormalizeLevel()!=100);
 		Setting.Write(TEXT("VolumeNormalizeLevel"),CoreEngine.GetVolumeNormalizeLevel());
 		Setting.Write(TEXT("ShowInfoWindow"),fShowPanelWindow);
 		Setting.Write(TEXT("EnablePlay"),MainWindow.IsPreview());
@@ -1166,9 +1164,12 @@ bool CAppMain::GenerateRecordFileName(LPTSTR pszFileName,int MaxFileName) const
 		int Index=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetServiceIndexByID(ServiceID);
 		if (CoreEngine.m_DtvEngine.m_TsAnalyzer.GetServiceName(Index,szServiceName,lengthof(szServiceName)))
 			EventInfo.pszServiceName=szServiceName;
+		if (!CoreEngine.m_DtvEngine.GetServiceID(&EventInfo.ServiceID))
+			EventInfo.ServiceID=0;
 		bool fNext=false;
 		SYSTEMTIME stCur,stStart;
-		::GetLocalTime(&stCur);
+		if (!CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTotTime(&stCur))
+			::GetLocalTime(&stCur);
 		if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,NULL,true)) {
 			LONGLONG Diff=DiffSystemTime(&stCur,&stStart);
 			if (Diff>=0 && Diff<60*1000)
@@ -1176,6 +1177,8 @@ bool CAppMain::GenerateRecordFileName(LPTSTR pszFileName,int MaxFileName) const
 		}
 		if (CoreEngine.m_DtvEngine.GetEventName(szEventName,lengthof(szEventName),fNext))
 			EventInfo.pszEventName=szEventName;
+		EventInfo.EventID=CoreEngine.m_DtvEngine.GetEventID(fNext);
+		EventInfo.stTotTime=stCur;
 	}
 	return RecordManager.GenerateFileName(pszFileName,MaxFileName,&EventInfo);
 }
@@ -1755,6 +1758,10 @@ void CRecordStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 
 void CRecordStatusItem::OnLButtonDown(int x,int y)
 {
+	if (RecordManager.IsRecording() && !RecordManager.IsPaused()) {
+		if (!RecordOptions.ConfirmStop(MainWindow.GetVideoHostWindow()))
+			return;
+	}
 	MainWindow.SendCommand(RecordManager.IsReserved()?CM_RECORDOPTION:CM_RECORD);
 }
 
@@ -2429,12 +2436,6 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDECURCHANNELBACK,&Gradient2);
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIMEBACK,&Gradient3);
 	ProgramGuide.SetBackColor(&Gradient1,&Gradient2,&Gradient3);
-	/*
-	NotificationBar.SetColors(
-		pColorScheme->GetColor(CColorScheme::COLOR_STATUSBACK1),
-		pColorScheme->GetColor(CColorScheme::COLOR_STATUSBACK2),
-		pColorScheme->GetColor(CColorScheme::COLOR_STATUSTEXT));
-	*/
 	PluginList.SendColorChangeEvent();
 	return true;
 }
@@ -2442,7 +2443,7 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 
 
 
-class COptionDialog {
+class COptionDialog : public COptionFrame {
 public:
 	enum {
 		PAGE_GENERAL,
@@ -2470,6 +2471,7 @@ public:
 	COptionDialog();
 	~COptionDialog();
 	bool ShowDialog(HWND hwndOwner,int StartPage=-1);
+
 private:
 	enum { NUM_PAGES=PAGE_LAST+1 };
 	struct PageInfo {
@@ -2485,9 +2487,13 @@ private:
 	HWND m_hDlg;
 	HWND m_hDlgList[NUM_PAGES];
 	HFONT m_hfontTitle;
+	bool m_fSettingError;
 	void CreatePage(int Page);
+	void SetPage(int Page);
 	static COptionDialog *GetThis(HWND hDlg);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	// COptionFrame
+	void OnSettingError(COptions *pOptions);
 };
 
 
@@ -2568,6 +2574,25 @@ void COptionDialog::CreatePage(int Page)
 }
 
 
+void COptionDialog::SetPage(int Page)
+{
+	if (Page>=0 && Page<NUM_PAGES && m_CurrentPage!=Page) {
+		if (m_hDlgList[Page]==NULL) {
+			HCURSOR hcurOld;
+
+			hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
+			CreatePage(Page);
+			::SetCursor(hcurOld);
+		}
+		::ShowWindow(m_hDlgList[m_CurrentPage],SW_HIDE);
+		::ShowWindow(m_hDlgList[Page],SW_SHOW);
+		m_CurrentPage=Page;
+		DlgListBox_SetCurSel(m_hDlg,IDC_OPTIONS_LIST,Page);
+		InvalidateDlgItem(m_hDlg,IDC_OPTIONS_TITLE);
+	}
+}
+
+
 COptionDialog *COptionDialog::GetThis(HWND hDlg)
 {
 	return static_cast<COptionDialog*>(::GetProp(hDlg,TEXT("This")));
@@ -2640,17 +2665,8 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				COptionDialog *pThis=GetThis(hDlg);
 				int NewPage=SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_GETCURSEL,0,0);
 
-				if (pThis->m_hDlgList[NewPage]==NULL) {
-					HCURSOR hcurOld;
-
-					hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
-					pThis->CreatePage(NewPage);
-					::SetCursor(hcurOld);
-				}
-				::ShowWindow(pThis->m_hDlgList[pThis->m_CurrentPage],SW_HIDE);
-				::ShowWindow(pThis->m_hDlgList[NewPage],SW_SHOW);
-				pThis->m_CurrentPage=NewPage;
-				::InvalidateRect(::GetDlgItem(hDlg,IDC_OPTIONS_TITLE),NULL,TRUE);
+				if (NewPage>=0)
+					pThis->SetPage(NewPage);
 			}
 			return TRUE;
 
@@ -2672,9 +2688,12 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 				hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 				nmh.code=LOWORD(wParam)==IDOK?PSN_APPLY:PSN_RESET;
+				pThis->m_fSettingError=false;
 				for (i=0;i<NUM_PAGES;i++) {
 					if (pThis->m_hDlgList[i]!=NULL) {
 						::SendMessage(pThis->m_hDlgList[i],WM_NOTIFY,0,(LPARAM)&nmh);
+						if (pThis->m_fSettingError)
+							return TRUE;
 					}
 				}
 				::SetCursor(hcurOld);
@@ -2701,6 +2720,7 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 {
 	if (m_hDlg!=NULL)
 		return false;
+	COptions::SetFrame(this);
 	m_StartPage=StartPage;
 	if (::DialogBoxParam(hInst,MAKEINTRESOURCE(IDD_OPTIONS),hwndOwner,
 						 DlgProc,reinterpret_cast<LPARAM>(this))!=IDOK) {
@@ -2756,6 +2776,18 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 	ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
 	AppMain.SaveSettings();
 	return true;
+}
+
+
+void COptionDialog::OnSettingError(COptions *pOptions)
+{
+	for (int i=0;i<NUM_PAGES;i++) {
+		if (m_PageList[i].pOptions==pOptions) {
+			SetPage(i);
+			m_fSettingError=true;
+			break;
+		}
+	}
 }
 
 
@@ -3292,6 +3324,7 @@ public:
 	void OnLabelLButtonDoubleClick(int x,int y);
 	void OnLabelRButtonDown(int x,int y);
 	void OnIconLButtonDown(int x,int y);
+	void OnIconLButtonDoubleClick(int x,int y);
 // CBarLayout
 	void Layout(RECT *pArea,RECT *pBarRect);
 // CTitleBarUtil
@@ -3372,6 +3405,11 @@ void CTitleBarUtil::OnIconLButtonDown(int x,int y)
 
 	m_pTitleBar->GetScreenPosition(&rc);
 	ShowSystemMenu(rc.left,rc.bottom);
+}
+
+void CTitleBarUtil::OnIconLButtonDoubleClick(int x,int y)
+{
+	MainWindow.PostCommand(CM_CLOSE);
 }
 
 void CTitleBarUtil::Layout(RECT *pArea,RECT *pBarRect)
@@ -3706,8 +3744,8 @@ LRESULT CALLBACK CFullscreen::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			//if (!m_fShowCursor)
 				CoreEngine.m_DtvEngine.m_MediaViewer.HideCursor(false);
 			CoreEngine.m_DtvEngine.m_MediaViewer.SetViewStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO);
+			pThis->m_TitleBar.Destroy();
 			pThis->ShowStatusView(false);
-			//pThis->ShowTitleBar(false);
 			pThis->ShowSideBar(false);
 			pThis->OnDestroy();
 		}
@@ -5090,10 +5128,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			if (pInfo!=NULL) {
 				const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 
-				if (pList->HasRemoteControlKeyID())
+				if (pList->HasRemoteControlKeyID() && pInfo->GetChannelNo()!=0)
 					SendCommand(CM_CHANNELNO_FIRST+pInfo->GetChannelNo()-1);
 				else
-					SendCommand(CM_CHANNELNO_FIRST+pInfo->GetChannelIndex());
+					SendCommand(CM_CHANNEL_FIRST+pInfo->GetChannelIndex());
 			} else {
 				SendCommand(CM_CHANNEL_FIRST);
 			}
@@ -5461,6 +5499,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 			}
 
 			if ((UpdateStatus&(CCoreEngine::STATUS_AUDIOCHANNELS
+							 | CCoreEngine::STATUS_AUDIOSTREAMS
 							 | CCoreEngine::STATUS_AUDIOCOMPONENTTYPE))!=0) {
 				SetStereoMode(CoreEngine.m_DtvEngine.GetAudioComponentType()==0x02?1:0);
 				StatusView.UpdateItem(STATUS_ITEM_AUDIOCHANNEL);
@@ -5620,30 +5659,32 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_PROGRAMLISTUPDATE:
-		if (fShowPanelWindow) {
-			if (InfoWindow.GetCurTab()==PANEL_TAB_PROGRAMLIST) {
-				int ServiceID=ChannelManager.GetCurrentServiceID();
+		if (EpgOptions.IsEpgDataLoading())
+			break;
+		if (fShowPanelWindow && InfoWindow.GetCurTab()==PANEL_TAB_PROGRAMLIST) {
+			int ServiceID=ChannelManager.GetCurrentServiceID();
 
-				if (ServiceID<=0) {
-					WORD SID;
-					if (CoreEngine.m_DtvEngine.GetServiceID(&SID))
-						ServiceID=SID;
-				}
-				if (ServiceID>0)
-					ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),(WORD)ServiceID);
-			} else if (InfoWindow.GetCurTab()==PANEL_TAB_CHANNEL
-					|| m_ProgramListUpdateTimerCount>8
-					|| (m_ProgramListUpdateTimerCount>=2
-						&& m_ProgramListUpdateTimerCount%2==0)) {
-				const CChannelInfo *pChannelInfo=ChannelManager.GetCurrentChannelInfo();
+			if (ServiceID<=0) {
+				WORD SID;
+				if (CoreEngine.m_DtvEngine.GetServiceID(&SID))
+					ServiceID=SID;
+			}
+			if (ServiceID>0)
+				ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),(WORD)ServiceID);
+		} else if ((fShowPanelWindow
+					&& InfoWindow.GetCurTab()==PANEL_TAB_CHANNEL)
+				|| m_ProgramListUpdateTimerCount>8
+				|| (m_ProgramListUpdateTimerCount>=2
+					&& m_ProgramListUpdateTimerCount%2==0)) {
+			const CChannelInfo *pChannelInfo=ChannelManager.GetCurrentChannelInfo();
 
-				if (pChannelInfo!=NULL) {
-					EpgProgramList.UpdateProgramList(
-						pChannelInfo->GetTransportStreamID(),
-						pChannelInfo->GetServiceID());
-					if (InfoWindow.GetCurTab()==PANEL_TAB_CHANNEL)
-						ChannelPanel.UpdateChannel(ChannelManager.GetCurrentChannel(),false);
-				}
+			if (pChannelInfo!=NULL) {
+				EpgProgramList.UpdateProgramList(
+					pChannelInfo->GetTransportStreamID(),
+					pChannelInfo->GetServiceID());
+				if (fShowPanelWindow
+						&& InfoWindow.GetCurTab()==PANEL_TAB_CHANNEL)
+					ChannelPanel.UpdateChannel(ChannelManager.GetCurrentChannel(),false);
 			}
 		}
 		m_ProgramListUpdateTimerCount++;

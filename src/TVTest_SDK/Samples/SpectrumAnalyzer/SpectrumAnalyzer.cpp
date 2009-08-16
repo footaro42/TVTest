@@ -167,19 +167,24 @@ LRESULT CALLBACK CSpectrumAnalyzer::EventCallback(UINT Event,LPARAM lParam1,LPAR
 	case TVTest::EVENT_PLUGINENABLE:
 		// プラグインの有効状態が変化した
 		if (lParam1) {
-			// ウィンドウを作成する
-			if (::CreateWindowEx(WS_EX_TOOLWINDOW,SPECTRUM_ANALYZER_WINDOW_CLASS,
-								 TEXT("Spectrum Analyzer"),
-								 WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_VISIBLE,
-								 pThis->m_WindowPosition.Left,
-								 pThis->m_WindowPosition.Top,
-								 pThis->m_WindowPosition.Width,
-								 pThis->m_WindowPosition.Height,
-								pThis->m_pApp->GetAppWindow(),NULL,g_hinstDLL,pThis)==NULL)
-				return FALSE;
+			// プラグインが有効にされたのでウィンドウを作成する
+			if (pThis->m_hwnd==NULL) {
+				if (::CreateWindowEx(WS_EX_TOOLWINDOW,SPECTRUM_ANALYZER_WINDOW_CLASS,
+									 TEXT("Spectrum Analyzer"),
+									 WS_POPUP | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME,
+									 pThis->m_WindowPosition.Left,
+									 pThis->m_WindowPosition.Top,
+									 pThis->m_WindowPosition.Width,
+									 pThis->m_WindowPosition.Height,
+									pThis->m_pApp->GetAppWindow(),NULL,g_hinstDLL,pThis)==NULL)
+					return FALSE;
+			}
+			::ShowWindow(pThis->m_hwnd,SW_SHOWNORMAL);
+			::UpdateWindow(pThis->m_hwnd);
 		} else {
-			// ウィンドウを破棄する
-			::DestroyWindow(pThis->m_hwnd);
+			// プラグインが無効にされたのでウィンドウを破棄する
+			if (pThis->m_hwnd!=NULL)
+				::DestroyWindow(pThis->m_hwnd);
 		}
 		return TRUE;
 
@@ -239,7 +244,6 @@ CSpectrumAnalyzer *CSpectrumAnalyzer::GetThis(HWND hwnd)
 	return reinterpret_cast<CSpectrumAnalyzer*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
 }
 
-#include <stdio.h>
 
 LRESULT CALLBACK CSpectrumAnalyzer::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
@@ -287,30 +291,24 @@ LRESULT CALLBACK CSpectrumAnalyzer::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 			::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			::DeleteObject(hbr);
 
-			hpenOld=static_cast<HPEN>(::GetCurrentObject(ps.hdc,OBJ_PEN));
-
 			RECT rc;
 			::GetClientRect(hwnd,&rc);
 
 			// グリッドを描く
 			hpen=::CreatePen(PS_SOLID,1,pThis->m_crGridColor);
-			::SelectObject(ps.hdc,hpen);
+			hpenOld=static_cast<HPEN>(::SelectObject(ps.hdc,hpen));
 			for (i=1;i<10;i++) {
 				y=rc.bottom*i/10;
 				::MoveToEx(ps.hdc,ps.rcPaint.left,y,NULL);
 				::LineTo(ps.hdc,ps.rcPaint.right,y);
 			}
 
-			// スペクトラムを描く
-			hpen=::CreatePen(PS_SOLID,1,pThis->m_crSpectrumColor);
-			::DeleteObject(::SelectObject(ps.hdc,hpen));
-
-			static const double EPSILON = 0.0000001;
-			static const int LEVELS=100;
+			// db値計算
+			const double EPSILON = 0.0000001;
+			const int LEVELS=100;
 			const int Width=(int)(12000.0/LEVELS/FREQ_UNIT);
 			double dbTable[LEVELS];
 
-			// db値計算
 			pThis->m_FFTLock.Lock();
 			pThis->m_pPower[0]=POW2(pThis->m_pFFTBuffer[0]);
 			for (int i=1;i<FFT_SIZE/2;i++) {
@@ -334,9 +332,13 @@ LRESULT CALLBACK CSpectrumAnalyzer::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 			pThis->m_FFTLock.Unlock();
 
 			// ロックする時間を出来るだけ短くするために描画処理は後回しにする
+
+			// スペクトラムを描く
+			hpen=::CreatePen(PS_SOLID,1,pThis->m_crSpectrumColor);
+			::DeleteObject(::SelectObject(ps.hdc,hpen));
 			for (int i=0;i<LEVELS;i++) {
 				x=rc.right*i/(LEVELS-1);
-				y=rc.bottom-1-(int)(rc.bottom*dbTable[i]/40.0);
+				y=rc.bottom-1-(int)((double)rc.bottom*dbTable[i]/40.0);
 				if (i==0)
 					::MoveToEx(ps.hdc,x,y,NULL);
 				else

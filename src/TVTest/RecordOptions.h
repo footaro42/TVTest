@@ -12,6 +12,7 @@ private:
 	TCHAR m_szFileName[MAX_PATH];
 	bool m_fConfirmChannelChange;
 	bool m_fConfirmExit;
+	bool m_fConfirmStop;
 	bool m_fCurServiceOnly;
 	bool m_fSaveSubtitle;
 	bool m_fSaveDataCarrousel;
@@ -31,6 +32,7 @@ public:
 	bool GenerateFilePath(LPTSTR pszFileName,int MaxLength,LPCTSTR *ppszErrorMessage=NULL) const;
 	bool ConfirmChannelChange(HWND hwndOwner) const;
 	bool ConfirmServiceChange(HWND hwndOwner,const CRecordManager *pRecordManager) const;
+	bool ConfirmStop(HWND hwndOwner) const;
 	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const;
 	bool ApplyOptions(CRecordManager *pManager);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

@@ -605,21 +605,13 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			case TIME_DATETIME:
 				{
 					FILETIME ft;
-					ULARGE_INTEGER Time1,Time2;
 
-					::GetLocalTime(&st);
-					::SystemTimeToFileTime(&st,&ft);
+					GetLocalTimeAsFileTime(&ft);
 					ftTime=pThis->m_StopTimeSpec.Time.DateTime;
-					Time1.LowPart=ft.dwLowDateTime;
-					Time1.HighPart=ft.dwHighDateTime;
-					Time2.LowPart=ftTime.dwLowDateTime;
-					Time2.HighPart=ftTime.dwHighDateTime;
-					if (Time1.QuadPart<Time2.QuadPart) {
-						Duration=
-							(DWORD)((Time2.QuadPart-Time1.QuadPart)/FILETIME_MILLISECOND);
-					} else {
+					if (::CompareFileTime(&ft,&ftTime)<0)
+						Duration=(DWORD)((ftTime-ft)/FILETIME_MILLISECOND);
+					else
 						Duration=0;
-					}
 				}
 				break;
 			case TIME_DURATION:
@@ -736,10 +728,7 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				if (szFormat[0]!='\0') {
 					EventInfo Info;
 
-					Info.pszChannelName=TEXT("アフリカ中央テレビ");
-					Info.ChannelNo=13;
-					Info.pszServiceName=TEXT("アフテレ1");
-					Info.pszEventName=TEXT("今日のニュース");
+					GetEventInfoSample(&Info);
 					if (!pThis->GenerateFileName(szFileName,lengthof(szFileName),
 												 &Info,szFormat))
 						szFileName[0]='\0';
@@ -838,8 +827,8 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 							TEXT("指定された停止時刻を既に過ぎています。"),
 							NULL,MB_OK | MB_ICONEXCLAMATION);
 						SetDlgItemFocus(hDlg,IDC_RECORD_STOPTIME_TIME);
+						return TRUE;
 					}
-					return TRUE;
 				}
 				if (!pThis->m_fRecording) {
 					TCHAR szFileName[MAX_PATH];
@@ -849,20 +838,30 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					if (szFileName[0]=='\0' || *FilePath.GetFileName()=='\0') {
 						MessageBox(hDlg,TEXT("ファイル名を入力してください。"),
 											NULL,MB_OK | MB_ICONEXCLAMATION);
-						SetFocus(GetDlgItem(hDlg,IDC_RECORD_FILENAME));
+						SetDlgItemFocus(hDlg,IDC_RECORD_FILENAME);
 						return TRUE;
 					}
+#if 0
 					if (!FilePath.IsValid()) {
 						MessageBox(hDlg,
 							TEXT("ファイル名に使用できない文字が含まれています。"),
 							NULL,MB_OK | MB_ICONEXCLAMATION);
-						SetFocus(GetDlgItem(hDlg,IDC_RECORD_FILENAME));
+						SetDlgItemFocus(hDlg,IDC_RECORD_FILENAME);
 						return TRUE;
 					}
+#else
+					TCHAR szMessage[256];
+					if (!IsValidFileName(FilePath.GetFileName(),false,
+										 szMessage,lengthof(szMessage))) {
+						MessageBox(hDlg,szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
+						SetDlgItemFocus(hDlg,IDC_RECORD_FILENAME);
+						return TRUE;
+					}
+#endif
 					if (!FilePath.HasDirectory()) {
 						MessageBox(hDlg,TEXT("保存先フォルダを入力してください。"),
 											NULL,MB_OK | MB_ICONEXCLAMATION);
-						SetFocus(GetDlgItem(hDlg,IDC_RECORD_FILENAME));
+						SetDlgItemFocus(hDlg,IDC_RECORD_FILENAME);
 						return TRUE;
 					}
 					FilePath.GetDirectory(szFileName);
@@ -881,7 +880,7 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 									&& Result!=ERROR_ALREADY_EXISTS) {
 								::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
 											 NULL,MB_OK | MB_ICONEXCLAMATION);
-								SetFocus(GetDlgItem(hDlg,IDC_RECORD_FILENAME));
+								SetDlgItemFocus(hDlg,IDC_RECORD_FILENAME);
 								return TRUE;
 							}
 						}
@@ -1151,9 +1150,20 @@ int CRecordManager::FormatFileName(LPTSTR pszFileName,int MaxFileName,const Even
 				} else if (::lstrcmpi(szKeyword,TEXT("event-name"))==0) {
 					if (pEventInfo->pszEventName!=NULL)
 						i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszEventName);
+				} else if (::lstrcmpi(szKeyword,TEXT("event-id"))==0) {
+					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%04X"),pEventInfo->EventID);
 				} else if (::lstrcmpi(szKeyword,TEXT("service-name"))==0) {
 					if (pEventInfo->pszServiceName!=NULL)
 						i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszServiceName);
+				} else if (::lstrcmpi(szKeyword,TEXT("service-id"))==0) {
+					if (pEventInfo->ServiceID!=0)
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%04X"),pEventInfo->ServiceID);
+				} else if (::lstrcmpi(szKeyword,TEXT("tot-date"))==0) {
+					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d%02d%02d"),
+						pEventInfo->stTotTime.wYear,pEventInfo->stTotTime.wMonth,pEventInfo->stTotTime.wDay);
+				} else if (::lstrcmpi(szKeyword,TEXT("tot-time"))==0) {
+					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d%02d%02d"),
+						pEventInfo->stTotTime.wHour,pEventInfo->stTotTime.wMinute,pEventInfo->stTotTime.wSecond);
 				} else {
 					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%%%s%%"),szKeyword);
 				}
@@ -1311,9 +1321,9 @@ bool CRecordManager::InsertFileNameParameter(HWND hDlg,int ID,const POINT *pMenu
 		{TEXT("%month2%"),			TEXT("開始月(2桁)")},
 		{TEXT("%day%"),				TEXT("開始日")},
 		{TEXT("%day2%"),			TEXT("開始日(2桁)")},
-		{TEXT("%time%"),			TEXT("開始時刻(時間+分+秒)")},
-		{TEXT("%hour%"),			TEXT("開始時間")},
-		{TEXT("%hour2%"),			TEXT("開始時間(2桁)")},
+		{TEXT("%time%"),			TEXT("開始時刻(時+分+秒)")},
+		{TEXT("%hour%"),			TEXT("開始時")},
+		{TEXT("%hour2%"),			TEXT("開始時(2桁)")},
 		{TEXT("%minute%"),			TEXT("開始分")},
 		{TEXT("%minute2%"),			TEXT("開始分(2桁)")},
 		{TEXT("%second%"),			TEXT("開始秒")},
@@ -1323,7 +1333,11 @@ bool CRecordManager::InsertFileNameParameter(HWND hDlg,int ID,const POINT *pMenu
 		{TEXT("%channel-no%"),		TEXT("チャンネル番号")},
 		{TEXT("%channel-no2%"),		TEXT("チャンネル番号(2桁)")},
 		{TEXT("%event-name%"),		TEXT("イベント名")},
+		{TEXT("%event-id%"),		TEXT("イベントID")},
 		{TEXT("%service-name%"),	TEXT("サービス名")},
+		{TEXT("%service-id%"),		TEXT("サービスID")},
+		{TEXT("%tot-date%"),		TEXT("TOT年月日")},
+		{TEXT("%tot-time%"),		TEXT("TOT時刻(時+分+秒)")},
 	};
 	HMENU hmenu=::CreatePopupMenu();
 	int Command;
@@ -1350,4 +1364,18 @@ bool CRecordManager::InsertFileNameParameter(HWND hDlg,int ID,const POINT *pMenu
 	::SendDlgItemMessage(hDlg,ID,EM_SETSEL,
 		Start,Start+::lstrlen(ParameterList[Command-1].pszParameter));
 	return true;
+}
+
+
+void CRecordManager::GetEventInfoSample(EventInfo *pEventInfo)
+{
+	pEventInfo->pszChannelName=TEXT("アフリカ中央テレビ");
+	pEventInfo->ChannelNo=13;
+	pEventInfo->pszServiceName=TEXT("アフテレ1");
+	pEventInfo->ServiceID=0x1234;
+	pEventInfo->pszEventName=TEXT("今日のニュース");
+	pEventInfo->EventID=0xABCD;
+	::GetLocalTime(&pEventInfo->stTotTime);
+	pEventInfo->stTotTime.wSecond=pEventInfo->stTotTime.wSecond/5*5;
+	pEventInfo->stTotTime.wMilliseconds=0;
 }

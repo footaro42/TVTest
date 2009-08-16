@@ -15,12 +15,14 @@ static char THIS_FILE[]=__FILE__;
 
 #define TITLE_BAR_CLASS APP_NAME TEXT(" Title Bar")
 
-#define TITLE_BORDER		1
-#define TITLE_MARGIN		4
-#define TITLE_ICON_WIDTH	12
-#define TITLE_ICON_HEIGHT	12
-#define TITLE_BUTTON_WIDTH	(TITLE_ICON_WIDTH+TITLE_MARGIN*2)
-#define ICON_TEXT_MARGIN	4
+#define TITLE_BORDER				1
+#define TITLE_MARGIN				4
+#define TITLE_BUTTON_ICON_WIDTH		12
+#define TITLE_BUTTON_ICON_HEIGHT	12
+#define TITLE_BUTTON_WIDTH			(TITLE_BUTTON_ICON_WIDTH+TITLE_MARGIN*2)
+#define TITLE_ICON_WIDTH			16
+#define TITLE_ICON_HEIGHT			16
+#define ICON_TEXT_MARGIN			4
 #define NUM_BUTTONS 4
 
 
@@ -34,7 +36,7 @@ bool CTitleBar::Initialize(HINSTANCE hinst)
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
 
-		wc.style=CS_HREDRAW | CS_DBLCLKS;
+		wc.style=CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
 		wc.lpfnWndProc=WndProc;
 		wc.cbClsExtra=0;
 		wc.cbWndExtra=0;
@@ -203,7 +205,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			rc.left=0;
 			rc.top=0;
 			rc.right=0;
-			rc.bottom=max(pThis->m_FontHeight,TITLE_ICON_HEIGHT)+TITLE_MARGIN*2+TITLE_BORDER*2;
+			rc.bottom=max(pThis->m_FontHeight,TITLE_BUTTON_ICON_HEIGHT)+TITLE_MARGIN*2+TITLE_BORDER*2;
 			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
 			::MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
 			if (pThis->m_hbmIcons==NULL)
@@ -274,11 +276,11 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 						if (pThis->m_hIcon!=NULL) {
 							::DrawIconEx(ps.hdc,
 										 rcDraw.left,
-										 rc.top+((rc.bottom-rc.top)-16)/2,
+										 rc.top+((rc.bottom-rc.top)-TITLE_ICON_HEIGHT)/2,
 										 pThis->m_hIcon,
-										 16,16,
+										 TITLE_ICON_WIDTH,TITLE_ICON_HEIGHT,
 										 0,NULL,DI_NORMAL);
-							rcDraw.left+=16+ICON_TEXT_MARGIN;
+							rcDraw.left+=TITLE_ICON_WIDTH+ICON_TEXT_MARGIN;
 						}
 						if (pThis->m_pszLabel!=NULL) {
 							::DrawText(ps.hdc,pThis->m_pszLabel,-1,&rcDraw,
@@ -302,13 +304,13 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 						Palette[1].rgbRed=GetRValue(crTrans);
 						::SetDIBColorTable(hdcMem,0,2,Palette);
 						::TransparentBlt(ps.hdc,
-							rc.left+((rc.right-rc.left)-TITLE_ICON_WIDTH)/2,
-							rc.top+((rc.bottom-rc.top)-TITLE_ICON_HEIGHT)/2,
-							TITLE_ICON_WIDTH,TITLE_ICON_HEIGHT,
+							rc.left+((rc.right-rc.left)-TITLE_BUTTON_ICON_WIDTH)/2,
+							rc.top+((rc.bottom-rc.top)-TITLE_BUTTON_ICON_HEIGHT)/2,
+							TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,
 							hdcMem,
 							(i!=ITEM_MAXIMIZE || !pThis->m_fMaximized?
-								(i-1):4)*TITLE_ICON_WIDTH,0,
-							TITLE_ICON_WIDTH,TITLE_ICON_HEIGHT,crTrans);
+								(i-1):4)*TITLE_BUTTON_ICON_WIDTH,0,
+							TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,crTrans);
 						::SelectObject(hdcMem,hbmOld);
 						::DeleteDC(hdcMem);
 					}
@@ -447,11 +449,18 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 	case WM_LBUTTONDBLCLK:
 		{
 			CTitleBar *pThis=GetThis(hwnd);
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
+			if (pThis->m_HotItem<0 && pThis->HitTest(x,y)==ITEM_LABEL)
+				pThis->m_HotItem=ITEM_LABEL;
 			if (pThis->m_HotItem==ITEM_LABEL) {
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnLabelLButtonDoubleClick(
-									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
+				if (pThis->m_pEventHandler!=NULL) {
+					if (x>=TITLE_BORDER+TITLE_MARGIN
+							&& x<TITLE_BORDER+TITLE_MARGIN+TITLE_ICON_WIDTH)
+						pThis->m_pEventHandler->OnIconLButtonDoubleClick(x,y);
+					else
+						pThis->m_pEventHandler->OnLabelLButtonDoubleClick(x,y);
+				}
 			}
 		}
 		return 0;

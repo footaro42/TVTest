@@ -76,9 +76,9 @@ public:
 	const int GetAudioStream() const;
 	const BYTE GetAudioComponentType();
 	const bool SetStereoMode(int iMode);
-	const WORD GetEventID();
-	const int GetEventName(LPTSTR pszName, int MaxLength, bool fNext = false);
-	const int GetEventText(LPTSTR pszText, int MaxLength, bool fNext = false);
+	const WORD GetEventID(bool bNext = false);
+	const int GetEventName(LPTSTR pszName, int MaxLength, bool bNext = false);
+	const int GetEventText(LPTSTR pszText, int MaxLength, bool bNext = false);
 	const bool GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime, bool bNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
@@ -97,6 +97,7 @@ public:
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
 	bool CloseMediaViewer();
+	bool ResetMediaViewer();
 	bool OpenBcasCard(CCardReader::ReaderType CardReaderType);
 	bool CloseBcasCard();
 	bool SetDescramble(bool bDescramble);

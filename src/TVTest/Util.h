@@ -53,6 +53,8 @@ bool BrowseFolderDialog(HWND hwndOwner,LPTSTR pszDirectory,LPCTSTR pszTitle);
 bool CompareLogFont(const LOGFONT *pFont1,const LOGFONT *pFont2);
 int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont);
 
+bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard=false,LPTSTR pszMessage=NULL,int MaxMessage=0);
+
 class CDynamicString {
 protected:
 	LPTSTR m_pszString;

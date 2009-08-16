@@ -3,6 +3,7 @@
 
 
 
+COptionFrame *COptions::m_pFrame=NULL;
 DWORD COptions::m_GeneralUpdateFlags=0;
 
 
@@ -41,6 +42,13 @@ void COptions::OnDestroy()
 		::RemoveProp(m_hDlg,TEXT("This"));
 		m_hDlg=NULL;
 	}
+}
+
+
+void COptions::SettingError()
+{
+	if (m_pFrame!=NULL)
+		m_pFrame->OnSettingError(this);
 }
 
 

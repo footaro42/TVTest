@@ -78,7 +78,10 @@ public:
 		LPCTSTR pszChannelName;
 		int ChannelNo;
 		LPCTSTR pszServiceName;
+		WORD ServiceID;
 		LPCTSTR pszEventName;
+		WORD EventID;
+		SYSTEMTIME stTotTime;
 	};
 
 private:
@@ -142,6 +145,7 @@ public:
 	bool GetDescrambleCurServiceOnly() const { return m_fDescrambleCurServiceOnly; }
 	bool SetBufferSize(SIZE_T BufferSize);
 	static bool InsertFileNameParameter(HWND hDlg,int ID,const POINT *pMenuPos);
+	static void GetEventInfoSample(EventInfo *pEventInfo);
 };
 
 

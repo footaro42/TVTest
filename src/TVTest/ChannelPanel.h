@@ -80,6 +80,7 @@ private:
 	void Draw(HDC hdc,const RECT *prcPaint);
 	void SetScrollBar();
 	void CalcItemHeight();
+	void GetItemRect(int Index,RECT *pRect);
 	void SetToolTips();
 };
 

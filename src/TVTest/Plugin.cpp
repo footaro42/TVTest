@@ -1392,6 +1392,9 @@ bool CPluginList::SetMenu(HMENU hmenu) const
 
 bool CPluginList::OnPluginCommand(LPCTSTR pszCommand)
 {
+	if (pszCommand==NULL)
+		return false;
+
 	TCHAR szFileName[MAX_PATH];
 	int Length;
 

@@ -28,6 +28,7 @@ CCoreEngine::CCoreEngine()
 	m_DisplayVideoWidth=0;
 	m_DisplayVideoHeight=0;
 	m_NumAudioChannels=0;
+	m_NumAudioStreams=0;
 	m_AudioComponentType=0;
 	m_fMute=false;
 	m_Volume=50;
@@ -397,6 +398,11 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 	if (NumAudioChannels!=m_NumAudioChannels) {
 		m_NumAudioChannels=NumAudioChannels;
 		Updated|=STATUS_AUDIOCHANNELS;
+	}
+	int NumAudioStreams=m_DtvEngine.GetAudioStreamNum(m_DtvEngine.GetService());
+	if (NumAudioStreams!=m_NumAudioStreams) {
+		m_NumAudioStreams=NumAudioStreams;
+		Updated|=STATUS_AUDIOSTREAMS;
 	}
 	BYTE AudioComponentType=m_DtvEngine.GetAudioComponentType();
 	if (AudioComponentType!=m_AudioComponentType) {

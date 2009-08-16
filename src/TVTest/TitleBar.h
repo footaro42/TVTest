@@ -21,6 +21,7 @@ public:
 	virtual void OnLabelLButtonDoubleClick(int x,int y) {}
 	virtual void OnLabelRButtonDown(int x,int y) {}
 	virtual void OnIconLButtonDown(int x,int y) {}
+	virtual void OnIconLButtonDoubleClick(int x,int y) {}
 	friend class CTitleBar;
 };
 

@@ -148,7 +148,10 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 			}
 			m_ChannelList.Add(pEventInfo);
 			if (m_hwnd!=NULL) {
-				Invalidate();
+				RECT rc;
+
+				GetItemRect(m_ChannelList.Length()-1,&rc);
+				::InvalidateRect(m_hwnd,&rc,TRUE);
 				Update();
 			}
 		}
@@ -249,10 +252,8 @@ bool CChannelPanel::UpdateChannel(int ChannelIndex,bool fUpdateProgramList)
 				if (m_hwnd!=NULL && fChanged) {
 					RECT rc;
 
-					GetClientRect(&rc);
-					rc.top=i*m_ItemHeight-m_ScrollPos;
-					rc.bottom=rc.top+m_ItemHeight;
-					::InvalidateRect(m_hwnd,&rc,NULL);
+					GetItemRect(i,&rc);
+					::InvalidateRect(m_hwnd,&rc,TRUE);
 					Update();
 				}
 				break;
@@ -537,7 +538,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 	}
 	if (rc.top<prcPaint->bottom) {
 		rc.left=prcPaint->left;
-		if (rc.top>prcPaint->top)
+		if (rc.top<prcPaint->top)
 			rc.top=prcPaint->top;
 		rc.right=prcPaint->right;
 		rc.bottom=prcPaint->bottom;
@@ -582,6 +583,14 @@ void CChannelPanel::CalcItemHeight()
 	m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
 	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);
+}
+
+
+void CChannelPanel::GetItemRect(int Index,RECT *pRect)
+{
+	GetClientRect(pRect);
+	pRect->top=Index*m_ItemHeight-m_ScrollPos;
+	pRect->bottom=pRect->top+m_ItemHeight;
 }
 
 

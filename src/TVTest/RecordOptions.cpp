@@ -22,6 +22,7 @@ CRecordOptions::CRecordOptions()
 	::lstrcpy(m_szFileName,TEXT("Record.ts"));
 	m_fConfirmChannelChange=true;
 	m_fConfirmExit=true;
+	m_fConfirmStop=false;
 	m_fCurServiceOnly=false;
 	m_fSaveSubtitle=true;
 	m_fSaveDataCarrousel=false;
@@ -69,6 +70,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	}
 	pSettings->Read(TEXT("ConfirmRecChChange"),&m_fConfirmChannelChange);
 	pSettings->Read(TEXT("ConfrimRecordingExit"),&m_fConfirmExit);
+	pSettings->Read(TEXT("ConfrimRecordStop"),&m_fConfirmStop);
 	pSettings->Read(TEXT("RecordCurServiceOnly"),&m_fCurServiceOnly);
 	pSettings->Read(TEXT("RecordSubtitle"),&m_fSaveSubtitle);
 	pSettings->Read(TEXT("RecordDataCarrousel"),&m_fSaveDataCarrousel);
@@ -85,6 +87,7 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("AddRecordTime"),false);	// Backward compatibility
 	pSettings->Write(TEXT("ConfirmRecChChange"),m_fConfirmChannelChange);
 	pSettings->Write(TEXT("ConfrimRecordingExit"),m_fConfirmExit);
+	pSettings->Write(TEXT("ConfrimRecordStop"),m_fConfirmStop);
 	pSettings->Write(TEXT("RecordCurServiceOnly"),m_fCurServiceOnly);
 	pSettings->Write(TEXT("RecordSubtitle"),m_fSaveSubtitle);
 	pSettings->Write(TEXT("RecordDataCarrousel"),m_fSaveDataCarrousel);
@@ -171,6 +174,18 @@ bool CRecordOptions::ConfirmServiceChange(HWND hwndOwner,const CRecordManager *p
 }
 
 
+bool CRecordOptions::ConfirmStop(HWND hwndOwner) const
+{
+	if (m_fConfirmStop) {
+		if (::MessageBox(hwndOwner,
+				TEXT("録画を停止しますか?"),TEXT("停止の確認"),
+				MB_OKCANCEL | MB_DEFBUTTON2 | MB_ICONQUESTION)!=IDOK)
+			return false;
+	}
+	return true;
+}
+
+
 bool CRecordOptions::ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const
 {
 	if (m_fConfirmExit && pRecordManager->IsRecording()) {
@@ -239,6 +254,8 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				pThis->m_fConfirmChannelChange?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMEXIT,
 				pThis->m_fConfirmExit?BST_CHECKED:BST_UNCHECKED);
+			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP,
+				pThis->m_fConfirmStop?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY,
 				pThis->m_fCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,
@@ -281,10 +298,7 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				if (szFormat[0]!='\0') {
 					CRecordManager::EventInfo EventInfo;
 
-					EventInfo.pszChannelName=TEXT("アフリカ中央テレビ");
-					EventInfo.ChannelNo=13;
-					EventInfo.pszServiceName=TEXT("アフテレ1");
-					EventInfo.pszEventName=TEXT("今日のニュース");
+					CRecordManager::GetEventInfoSample(&EventInfo);
 					if (!GetAppClass().GetRecordManager()->GenerateFileName(
 							szFileName,lengthof(szFileName),&EventInfo,szFormat))
 						szFileName[0]='\0';
@@ -323,7 +337,7 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 				::GetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,szSaveFolder,MAX_PATH);
 				if (szSaveFolder[0]!='\0' && !::PathIsDirectory(szSaveFolder)) {
-					TCHAR szMessage[MAX_PATH+64];
+					TCHAR szMessage[MAX_PATH+80];
 
 					::wsprintf(szMessage,
 						TEXT("録画ファイルの保存先フォルダ \"%s\" がありません。\n")
@@ -335,19 +349,33 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 						Result=::SHCreateDirectoryEx(hDlg,szSaveFolder,NULL);
 						if (Result!=ERROR_SUCCESS
 								&& Result!=ERROR_ALREADY_EXISTS) {
+							pThis->SettingError();
 							::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
 											NULL,MB_OK | MB_ICONEXCLAMATION);
+							SetDlgItemFocus(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER);
+							return TRUE;
 						}
 					}
 				}
 				::GetDlgItemText(hDlg,IDC_RECORDOPTIONS_FILENAME,szFileName,lengthof(szFileName));
 				if (szFileName[0]!='\0') {
+#if 0
 					CFilePath FilePath(szFileName);
 					if (!FilePath.IsValid()) {
 						::MessageBox(hDlg,
 							TEXT("録画ファイル名に、ファイル名に使用できない文字が含まれています。"),
 							NULL,MB_OK | MB_ICONEXCLAMATION);
 					}
+#else
+					TCHAR szMessage[256];
+					if (!IsValidFileName(szFileName,false,szMessage,lengthof(szMessage))) {
+						pThis->SettingError();
+						SetDlgItemFocus(hDlg,IDC_RECORDOPTIONS_FILENAME);
+						SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_FILENAME,EM_SETSEL,0,-1);
+						::MessageBox(hDlg,szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
+						return TRUE;
+					}
+#endif
 				}
 				::lstrcpy(pThis->m_szSaveFolder,szSaveFolder);
 				::lstrcpy(pThis->m_szFileName,szFileName);
@@ -355,6 +383,8 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					IDC_RECORDOPTIONS_CONFIRMCHANNELCHANGE)==BST_CHECKED;
 				pThis->m_fConfirmExit=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_CONFIRMEXIT)==BST_CHECKED;
+				pThis->m_fConfirmStop=::IsDlgButtonChecked(hDlg,
+					IDC_RECORDOPTIONS_CONFIRMSTOP)==BST_CHECKED;
 				pThis->m_fCurServiceOnly=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_CURSERVICEONLY)==BST_CHECKED;
 				pThis->m_fSaveSubtitle=

@@ -227,6 +227,7 @@ private:
 	CColorSchemeList m_PresetList;
 	CColorScheme::GradientType m_GradientList[CColorScheme::NUM_GRADIENTS];
 	Theme::BorderType m_BorderList[CColorScheme::NUM_BORDERS];
+	CColorScheme *m_pPreviewColorScheme;
 	bool m_fPreview;
 	ApplyFunc m_pApplyFunc;
 	CColorPalette m_ColorPalette;

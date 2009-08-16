@@ -61,6 +61,13 @@ bool COperationOptions::Read(CSettings *pSettings)
 }
 
 
+inline LPCTSTR GetCommandText(const CCommandList *pCommandList,int Command)
+{
+	if (Command==0)
+		return TEXT("");
+	return pCommandList->GetCommandTextByID(Command);
+}
+
 bool COperationOptions::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("WheelMode"),(int)m_WheelMode);
@@ -73,11 +80,11 @@ bool COperationOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("DisplayDragMove"),m_fDisplayDragMove);
 	if (m_pCommandList!=NULL) {
 		pSettings->Write(TEXT("LeftDoubleClickCommand"),
-			m_pCommandList->GetCommandTextByID(m_LeftDoubleClickCommand));
+			GetCommandText(m_pCommandList,m_LeftDoubleClickCommand));
 		pSettings->Write(TEXT("RightClickCommand"),
-			m_pCommandList->GetCommandTextByID(m_RightClickCommand));
+			GetCommandText(m_pCommandList,m_RightClickCommand));
 		pSettings->Write(TEXT("MiddleClickCommand"),
-			m_pCommandList->GetCommandTextByID(m_MiddleClickCommand));
+			GetCommandText(m_pCommandList,m_MiddleClickCommand));
 	}
 	return true;
 }
@@ -90,15 +97,24 @@ bool COperationOptions::Load(LPCTSTR pszFileName)
 	if (Settings.Open(pszFileName,TEXT("Settings"),CSettings::OPEN_READ)) {
 		TCHAR szText[CCommandList::MAX_COMMAND_TEXT];
 
-		if (Settings.Read(TEXT("LeftDoubleClickCommand"),szText,lengthof(szText))
-				&& szText[0]!='\0')
-			m_LeftDoubleClickCommand=m_pCommandList->ParseText(szText);
-		if (Settings.Read(TEXT("RightClickCommand"),szText,lengthof(szText))
-				&& szText[0]!='\0')
-			m_RightClickCommand=m_pCommandList->ParseText(szText);
-		if (Settings.Read(TEXT("MiddleClickCommand"),szText,lengthof(szText))
-				&& szText[0]!='\0')
-			m_MiddleClickCommand=m_pCommandList->ParseText(szText);
+		if (Settings.Read(TEXT("LeftDoubleClickCommand"),szText,lengthof(szText))) {
+			if (szText[0]=='\0')
+				m_LeftDoubleClickCommand=0;
+			else
+				m_LeftDoubleClickCommand=m_pCommandList->ParseText(szText);
+		}
+		if (Settings.Read(TEXT("RightClickCommand"),szText,lengthof(szText))) {
+			if (szText[0]=='\0')
+				m_RightClickCommand=0;
+			else
+				m_RightClickCommand=m_pCommandList->ParseText(szText);
+		}
+		if (Settings.Read(TEXT("MiddleClickCommand"),szText,lengthof(szText))) {
+			if (szText[0]=='\0')
+				m_MiddleClickCommand=0;
+			else
+				m_MiddleClickCommand=m_pCommandList->ParseText(szText);
+		}
 	}
 	return true;
 }

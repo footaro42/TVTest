@@ -355,8 +355,8 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 	li.HighPart=ft.dwHighDateTime;
 	BaseTime=(li.QuadPart-FILETIME_HOUR)/FILETIME_MINUTE;
 	const int TimeTableLength=14*24*60;	// 1ï™íPà Ç≈2èTä‘ï™
-	BYTE *pTimeTable=new BYTE[TimeTableLength];
-	::ZeroMemory(pTimeTable,TimeTableLength);
+	BYTE TimeTable[TimeTableLength];
+	::ZeroMemory(TimeTable,TimeTableLength);
 
 	for (DWORD j=0;j<dwEpgDataCount;j++) {
 		CEventInfoData EventData;
@@ -413,7 +413,7 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 		if (End>TimeTableLength)
 			End=TimeTableLength;
 		if (Start<TimeTableLength && End>0 && Start<End)
-			::FillMemory(&pTimeTable[Start],End-Start,1);
+			::FillMemory(&TimeTable[Start],End-Start,1);
 	}
 	::FileTimeToSystemTime(&ftNewestTime,&stNewestTime);
 
@@ -461,7 +461,7 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 					End=(int)((LONGLONG)((li.QuadPart+(ULONGLONG)itrEvent->second.m_DurationSec*FILETIME_SECOND+(FILETIME_MINUTE-1))/FILETIME_MINUTE)-BaseTime);
 					if (Start>=0 && Start<TimeTableLength
 							&& End>0 && End<=TimeTableLength && Start<End
-							&& IsMemoryZero(&pTimeTable[Start],End-Start)) {
+							&& IsMemoryZero(&TimeTable[Start],End-Start)) {
 						fInsert=true;
 #ifdef _DEBUG
 						PaddingCount++;
@@ -479,7 +479,6 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 			  ServiceInfo.m_EventList.EventDataMap.size());
 #endif
 	}
-	delete [] pTimeTable;
 
 	if (!ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo)).second)
 		ServiceMap[Key]=ServiceInfo;

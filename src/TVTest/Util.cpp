@@ -14,6 +14,9 @@ static char THIS_FILE[]=__FILE__;
 #pragma comment(lib,"shlwapi.lib")
 
 
+#define lengthof(a) (sizeof(a)/sizeof(a[0]))
+
+
 
 
 LONGLONG StringToInt64(LPCTSTR pszString)
@@ -413,6 +416,74 @@ int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont)
 }
 
 
+bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard,LPTSTR pszMessage,int MaxMessage)
+{
+	if (pszFileName==NULL || pszFileName[0]=='\0') {
+		if (pszMessage!=NULL)
+			lstrcpyn(pszMessage,TEXT("ファイル名が指定されていません。"),MaxMessage);
+		return false;
+	}
+	int Length=lstrlen(pszFileName);
+	if (Length>=MAX_PATH) {
+		if (pszMessage!=NULL)
+			lstrcpyn(pszMessage,TEXT("ファイル名が長すぎます。"),MaxMessage);
+		return false;
+	}
+	if (Length==3) {
+		static const LPCTSTR pszNGList[] = {
+			TEXT("CON"), TEXT("PRN"), TEXT("AUX"), TEXT("NUL")
+		};
+		for (int i=0;i<lengthof(pszNGList);i++) {
+			if (lstrcmpi(pszNGList[i],pszFileName)==0) {
+				if (pszMessage!=NULL)
+					lstrcpyn(pszMessage,TEXT("仮想デバイス名はファイル名に使用できません。"),MaxMessage);
+				return false;
+			}
+		}
+	} else if (Length==4) {
+		TCHAR szName[5];
+
+		for (int i=1;i<=9;i++) {
+			wsprintf(szName,TEXT("COM%d"),i);
+			if (lstrcmpi(szName,pszFileName)==0) {
+				if (pszMessage!=NULL)
+					lstrcpyn(pszMessage,TEXT("仮想デバイス名はファイル名に使用できません。"),MaxMessage);
+				return false;
+			}
+		}
+		for (int i=1;i<=9;i++) {
+			wsprintf(szName,TEXT("LPT%d"),i);
+			if (lstrcmpi(szName,pszFileName)==0) {
+				if (pszMessage!=NULL)
+					lstrcpyn(pszMessage,TEXT("仮想デバイス名はファイル名に使用できません。"),MaxMessage);
+				return false;
+			}
+		}
+	}
+	LPCTSTR p=pszFileName;
+	while (*p!='\0') {
+		if (*p<=31 || *p=='<' || *p=='>' || *p==':' || *p=='"'
+				|| *p=='/' || *p=='\\' || *p=='|'
+				|| (!fWildcard && (*p=='*' || *p=='?'))) {
+			if (pszMessage!=NULL)
+				lstrcpyn(pszMessage,TEXT("ファイル名に使用できない文字が含まれています。"),MaxMessage);
+			return false;
+		}
+		if ((*p==' ' || *p=='.') && *(p+1)=='\0') {
+			if (pszMessage!=NULL)
+				lstrcpyn(pszMessage,TEXT("ファイル名の末尾に半角空白及び . は使用できません。"),MaxMessage);
+			return false;
+		}
+#ifndef UNICODE
+		if (IsDBCSLeadByteEx(CP_ACP,*p) && *(p+1)!='\0')
+			p++;
+#endif
+		p++;
+	}
+	return true;
+}
+
+
 
 
 CDynamicString::CDynamicString()
@@ -720,7 +791,9 @@ bool CFilePath::IsValid(bool fWildcard) const
 	while (*p!='\0') {
 #ifndef UNICODE
 		if (::IsDBCSLeadByteEx(CP_ACP,*p)) {
-			p+=2;
+			if (*(p+1)!='\0')
+				p++;
+			p++;
 			continue;
 		}
 #endif
