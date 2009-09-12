@@ -13,6 +13,7 @@ private:
 	bool m_fConfirmChannelChange;
 	bool m_fConfirmExit;
 	bool m_fConfirmStop;
+	bool m_fConfirmStopStatusBarOnly;
 	bool m_fCurServiceOnly;
 	bool m_fSaveSubtitle;
 	bool m_fSaveDataCarrousel;
@@ -33,6 +34,7 @@ public:
 	bool ConfirmChannelChange(HWND hwndOwner) const;
 	bool ConfirmServiceChange(HWND hwndOwner,const CRecordManager *pRecordManager) const;
 	bool ConfirmStop(HWND hwndOwner) const;
+	bool ConfirmStatusBarStop(HWND hwndOwner) const;
 	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const;
 	bool ApplyOptions(CRecordManager *pManager);
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

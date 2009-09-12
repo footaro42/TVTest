@@ -123,7 +123,7 @@ bool CStatusItem::GetMenuPos(POINT *pPos,UINT *pFlags)
 void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const
 {
 	::DrawText(hdc,pszText,-1,const_cast<LPRECT>(pRect),
-			   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+			   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }
 
 

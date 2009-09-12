@@ -412,7 +412,24 @@ int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont)
 	PixelsPerInch=GetDeviceCaps(hdc,LOGPIXELSY);
 	SelectObject(hdc,hfontOld);
 	DeleteObject(hfont);
+	if (PixelsPerInch==0)
+		return 0;
 	return ((tm.tmHeight-tm.tmInternalLeading)*72+PixelsPerInch/2)/PixelsPerInch;
+}
+
+
+int GetErrorText(DWORD ErrorCode,LPTSTR pszText,int MaxLength)
+{
+	if (pszText==NULL || MaxLength<1)
+		return 0;
+
+	int Length=::FormatMessage(
+		FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,NULL,
+		ErrorCode,MAKELANGID(LANG_NEUTRAL,SUBLANG_DEFAULT),
+		pszText,MaxLength,NULL);
+	if (Length==0)
+		pszText[0]='\0';
+	return Length;
 }
 
 

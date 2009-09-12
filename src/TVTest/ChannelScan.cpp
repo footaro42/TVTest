@@ -14,10 +14,6 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define SCAN_INTERVAL	5		// スキャン時のチャンネル切り替え間隔(秒)
-#define RETRY_COUNT		4
-#define RETRY_INTERVAL	1000
-
 #define WM_APP_BEGINSCAN	WM_APP
 #define WM_APP_CHANNELFOUND	(WM_APP+1)
 #define WM_APP_ENDSCAN		(WM_APP+2)
@@ -134,7 +130,10 @@ CChannelScan::CChannelScan(CCoreEngine *pCoreEngine)
 {
 	m_pCoreEngine=pCoreEngine;
 	m_pOriginalTuningSpaceList=NULL;
-	m_fIgnoreSignalLevel=false;
+	m_fIgnoreSignalLevel=false;	// 信号レベルを無視
+	m_ScanWait=5000;			// チャンネル切り替え後の待ち時間(ms)
+	m_RetryCount=4;				// 情報取得の再試行回数
+	m_RetryInterval=1000;		// 再試行の間隔(ms)
 	m_hScanDlg=NULL;
 	m_fChanging=false;
 }
@@ -165,6 +164,8 @@ bool CChannelScan::Apply(DWORD Flags)
 bool CChannelScan::Read(CSettings *pSettings)
 {
 	pSettings->Read(TEXT("ChannelScanIgnoreSignalLevel"),&m_fIgnoreSignalLevel);
+	pSettings->Read(TEXT("ChannelScanWait"),&m_ScanWait);
+	pSettings->Read(TEXT("ChannelScanRetry"),&m_RetryCount);
 	return true;
 }
 
@@ -172,6 +173,8 @@ bool CChannelScan::Read(CSettings *pSettings)
 bool CChannelScan::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("ChannelScanIgnoreSignalLevel"),m_fIgnoreSignalLevel);
+	pSettings->Write(TEXT("ChannelScanWait"),m_ScanWait);
+	pSettings->Write(TEXT("ChannelScanRetry"),m_RetryCount);
 	return true;
 }
 
@@ -276,20 +279,17 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				pThis->m_ScanSpace=-1;
 				EnableDlgItems(hDlg,IDC_CHANNELSCAN_SPACE,IDC_CHANNELSCAN_START,false);
 			}
-			::CheckDlgButton(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL,
-							pThis->m_fIgnoreSignalLevel?BST_CHECKED:BST_UNCHECKED);
+
 			pThis->m_fUpdated=false;
 			pThis->m_fScaned=false;
 			pThis->m_fRestorePreview=false;
 			pThis->m_SortColumn=-1;
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
-
 			ListView_SetExtendedListViewStyle(hwndList,
 				LVS_EX_FULLROWSELECT | LVS_EX_CHECKBOXES);
 
 			LV_COLUMN lvc;
-
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=128;
@@ -321,6 +321,22 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
 				*/
 			}
+
+			::CheckDlgButton(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL,
+							pThis->m_fIgnoreSignalLevel?BST_CHECKED:BST_UNCHECKED);
+
+			TCHAR szText[8];
+			for (int i=1;i<=10;i++) {
+				wsprintf(szText,TEXT("%d 秒"),i);
+				DlgComboBox_AddString(hDlg,IDC_CHANNELSCAN_SCANWAIT,szText);
+			}
+			DlgComboBox_SetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT,pThis->m_ScanWait/1000-1);
+			for (int i=0;i<=10;i++) {
+				wsprintf(szText,TEXT("%d 秒"),i);
+				DlgComboBox_AddString(hDlg,IDC_CHANNELSCAN_RETRYCOUNT,szText);
+			}
+			DlgComboBox_SetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT,pThis->m_RetryCount);
+
 			if (GetAppClass().GetCoreEngine()->IsNetworkDriver())
 				EnableDlgItems(hDlg,IDC_CHANNELSCAN_FIRST,IDC_CHANNELSCAN_LAST,false);
 		}
@@ -416,6 +432,8 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_SCANSERVICE)==BST_CHECKED;
 					pThis->m_fIgnoreSignalLevel=
 						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
+					pThis->m_ScanWait=(DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
+					pThis->m_RetryCount=DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
 					ListView_DeleteAllItems(::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST));
 					if (::DialogBoxParam(GetAppClass().GetResourceInstance(),
 							MAKEINTRESOURCE(IDD_CHANNELSCAN),::GetParent(hDlg),
@@ -610,6 +628,8 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					pThis->SetUpdateFlag(UPDATE_PREVIEW);
 				pThis->m_fIgnoreSignalLevel=
 					::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
+				pThis->m_ScanWait=(DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
+				pThis->m_RetryCount=DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
 			}
 			return TRUE;
 
@@ -706,11 +726,11 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 	case WM_APP_BEGINSCAN:
 		{
 			CChannelScan *pThis=GetThis(hDlg);
-			unsigned int EstimateRemain=(pThis->m_NumChannels-wParam)*SCAN_INTERVAL;
+			unsigned int EstimateRemain=(pThis->m_NumChannels-wParam)*pThis->m_ScanWait/1000;
 			TCHAR szText[64];
 
 			if (pThis->m_fIgnoreSignalLevel)
-				EstimateRemain+=(pThis->m_NumChannels-wParam)*RETRY_COUNT*RETRY_INTERVAL/1000;
+				EstimateRemain+=(pThis->m_NumChannels-wParam)*pThis->m_RetryCount*pThis->m_RetryInterval/1000;
 			::wsprintf(szText,
 				TEXT("チャンネル %d/%d をスキャン中... (残り時間 %d:%02d)"),
 				(int)wParam+1,pThis->m_NumChannels,
@@ -772,15 +792,15 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		}
 		::PostMessage(pThis->m_hScanDlg,WM_APP_BEGINSCAN,pThis->m_ScanChannel,0);
 		pDtvEngine->SetChannel(pThis->m_ScanSpace,pThis->m_ScanChannel);
-		if (::WaitForSingleObject(pThis->m_hCancelEvent,SCAN_INTERVAL*1000)==WAIT_OBJECT_0)
+		if (::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_ScanWait)==WAIT_OBJECT_0)
 			break;
 		bool fFound=false;
 		int NumServices;
 		TCHAR szName[32];
 		if (pThis->m_fIgnoreSignalLevel
 				|| pDtvEngine->m_BonSrcDecoder.GetSignalLevel()>7.0) {
-			for (int i=0;i<=RETRY_COUNT;i++) {
-				if (i>0 && ::WaitForSingleObject(pThis->m_hCancelEvent,RETRY_INTERVAL)==WAIT_OBJECT_0)
+			for (int i=0;i<=pThis->m_RetryCount;i++) {
+				if (i>0 && ::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_RetryInterval)==WAIT_OBJECT_0)
 					goto End;
 				NumServices=pDtvEngine->m_ProgManager.GetServiceNum();
 				if (NumServices>0) {

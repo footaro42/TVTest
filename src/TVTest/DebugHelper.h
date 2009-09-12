@@ -2,7 +2,14 @@
 #define DEBUG_HELPER_H
 
 
+#if !defined(_DEBUG) && !defined(_WIN64)
+#define ENABLE_DEBUG_HELPER
+#endif
+
+
+#ifdef ENABLE_DEBUG_HELPER
 #include <dbghelp.h>
+#endif
 
 
 class CDebugHelper {
@@ -14,11 +21,13 @@ public:
 	};
 
 private:
-#ifndef _DEBUG
+#ifdef ENABLE_DEBUG_HELPER
 	typedef BOOL (WINAPI *SymInitializeFunc)(HANDLE hProcess,PCTSTR UserSearchPath,BOOL fInvadeProcess);
 	typedef BOOL (WINAPI *SymCleanupFunc)(HANDLE hProcess);
 	typedef BOOL (WINAPI *SymFromAddrFunc)(HANDLE hProcess,DWORD64 Address,PDWORD64 Displacement,PSYMBOL_INFO Symbol);
 	typedef DWORD (WINAPI *SymSetOptionsFunc)(DWORD SymOptions);
+	typedef DWORD (WINAPI *SymLoadModuleFunc)(HANDLE hProcess,HANDLE hFile,
+		PSTR ImageName,PSTR ModuleName,DWORD BaseOfDll,DWORD SizeOfDll);
 	typedef BOOL (WINAPI *StackWalk64Func)(DWORD MachineType,HANDLE hProcess,
 		HANDLE hThread,LPSTACKFRAME64 StackFrame,PVOID ContextRecord,
 		PREAD_PROCESS_MEMORY_ROUTINE64 ReadMemoryRoutine,
@@ -31,6 +40,7 @@ private:
 	static SymCleanupFunc m_pSymCleanup;
 	static SymFromAddrFunc m_pSymFromAddr;
 	static SymSetOptionsFunc m_pSymSetOptions;
+	static SymLoadModuleFunc m_pSymLoadModule;
 	static StackWalk64Func m_pStackWalk64;
 #endif
 	static ExceptionFilterMode m_ExceptionFilterMode;

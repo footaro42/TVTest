@@ -413,6 +413,16 @@ bool CAppMain::AddLog(LPCTSTR pszText, ...)
 }
 
 
+void CAppMain::OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle)
+{
+	if (pErrorHandler==NULL)
+		return;
+	Logger.AddLog(pErrorHandler->GetLastErrorText());
+	if (!CmdLineParser.m_fSilent)
+		MainWindow.ShowErrorMessage(pErrorHandler,pszTitle);
+}
+
+
 bool CAppMain::InitializeChannel()
 {
 	bool fNetworkDriver=CoreEngine.IsNetworkDriver();
@@ -763,6 +773,11 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.SetDriverFileName(pszFileName);
 	fOK=CoreEngine.LoadDriver();
+	if (!fOK) {
+		PluginList.SendDriverChangeEvent();
+		::SetCursor(hcurOld);
+		OnError(&CoreEngine);
+	}
 	if (CoreEngine.IsBcasCardOpen()
 			&& DriverOptions.IsDescrambleDriver(pszFileName)) {
 		if (CoreEngine.CloseBcasCard()) {
@@ -790,16 +805,8 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 		} else {
 			PluginList.SendDriverChangeEvent();
 			::SetCursor(hcurOld);
-			Logger.AddLog(CoreEngine.GetLastErrorText());
-			MainWindow.ShowErrorMessage(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
+			OnError(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 		}
-	} else {
-		TCHAR szMessage[MAX_PATH+64];
-
-		PluginList.SendDriverChangeEvent();
-		::SetCursor(hcurOld);
-		::wsprintf(szMessage,TEXT("\"%s\" をロードできません。"),pszFileName);
-		MainWindow.ShowErrorMessage(szMessage);
 	}
 	CoreEngine.m_DtvEngine.SetTracer(NULL);
 	StatusView.SetSingleText(NULL);
@@ -821,22 +828,17 @@ bool CAppMain::OpenTuner()
 		OpenBcasCard();
 	}
 	if (!CoreEngine.IsDriverOpen()) {
-		TCHAR szText[1024];
-
 		if (!CoreEngine.IsDriverLoaded()) {
 			if (CoreEngine.LoadDriver()) {
 				Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
 				if (CoreEngine.OpenDriver()) {
 					MainWindow.OnTunerOpened();
 				} else {
-					Logger.AddLog(CoreEngine.GetLastErrorText());
-					MainWindow.ShowErrorMessage(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
+					OnError(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 					fOK=false;
 				}
 			} else {
-				::wsprintf(szText,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
-				Logger.AddLog(szText);
-				MainWindow.ShowErrorMessage(szText);
+				OnError(&CoreEngine);
 				fOK=false;
 			}
 		}
@@ -889,9 +891,9 @@ bool CAppMain::OpenBcasCard(bool fRetry)
 					}
 				}
 			} else {
+				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 				if (!CmdLineParser.m_fSilent)
 					MainWindow.ShowErrorMessage(&CoreEngine);
-				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 			}
 		}
 		if (CoreEngine.IsBcasCardOpen()) {
@@ -1759,7 +1761,7 @@ void CRecordStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 void CRecordStatusItem::OnLButtonDown(int x,int y)
 {
 	if (RecordManager.IsRecording() && !RecordManager.IsPaused()) {
-		if (!RecordOptions.ConfirmStop(MainWindow.GetVideoHostWindow()))
+		if (!RecordOptions.ConfirmStatusBarStop(MainWindow.GetVideoHostWindow()))
 			return;
 	}
 	MainWindow.SendCommand(RecordManager.IsReserved()?CM_RECORDOPTION:CM_RECORD);
@@ -4905,6 +4907,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				return;
 		}
 		if (RecordManager.IsRecording()) {
+			if (!RecordManager.IsPaused()
+					&& !RecordOptions.ConfirmStop(GetVideoHostWindow()))
+				return;
 			AppMain.StopRecord();
 		} else {
 			if (RecordManager.IsReserved()) {
@@ -5509,7 +5514,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 				TCHAR szText[256],szTitle[256+64];
 
 				if (m_fRecordingStopOnEventEnd)
-					SendCommand(CM_RECORD_STOP);
+					AppMain.StopRecord();
 
 				::lstrcpy(szTitle,TITLE_TEXT);
 				if (pChInfo!=NULL) {
@@ -5564,7 +5569,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 			if (RecordManager.IsRecording()) {
 				if (RecordManager.QueryStop()) {
-					SendCommand(CM_RECORD_STOP);
+					AppMain.StopRecord();
 				} else if (!RecordManager.IsPaused()) {
 					StatusView.UpdateItem(STATUS_ITEM_RECORD);
 				}
@@ -7978,7 +7983,7 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 		CommandLineRecord(CmdLine.m_szRecordFileName,
 						  CmdLine.m_RecordDelay,CmdLine.m_RecordDuration);
 	} else if (CmdLine.m_fRecordStop)
-		SendCommand(CM_RECORD_STOP);
+		AppMain.StopRecord();
 	PluginList.SendExecuteEvent(pszCmdLine);
 	return true;
 }
@@ -8306,9 +8311,7 @@ bool CMainWindow::CPreviewManager::BuildMediaViewer()
 										 GeneralOptions.GetMpeg2DecoderName(),
 										 AudioOptions.GetAudioDeviceName());
 	if (!fOK) {
-		Logger.AddLog(CoreEngine.GetLastErrorText());
-		if (!CmdLineParser.m_fSilent)
-			MainWindow.ShowErrorMessage(&CoreEngine,TEXT("DirectShowの初期化ができません。"));
+		AppMain.OnError(&CoreEngine,TEXT("DirectShowの初期化ができません。"));
 	}
 
 	return fOK;
@@ -8480,7 +8483,6 @@ static BOOL CALLBACK FindWindowCallback(HWND hwnd,LPARAM lParam)
 #include "DebugHelper.h"
 static CDebugHelper DebugHelper;
 #endif
-
 
 int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 												LPTSTR pszCmdLine,int nCmdShow)
@@ -8656,19 +8658,16 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			if (CoreEngine.LoadDriver()) {
 				Logger.AddLog(TEXT("%s を読み込みました。"),CoreEngine.GetDriverFileName());
 			} else {
-				TCHAR szMessage[MAX_PATH+64];
-
-				wsprintf(szMessage,TEXT("\"%s\" を読み込めません。"),CoreEngine.GetDriverFileName());
-				Logger.AddLog(szMessage);
-				if (!CmdLineParser.m_fSilent)
-					MainWindow.ShowErrorMessage(szMessage);
+				AppMain.OnError(&CoreEngine);
 			}
 		} else {
 			Logger.AddLog(TEXT("BonDriverが設定されていません。"));
+			/*
 			if (!CmdLineParser.m_fSilent)
 				MainWindow.ShowMessage(
 						TEXT("設定で使用するドライバを指定してください。"),
 						TEXT("お願い"),MB_OK | MB_ICONINFORMATION);
+			*/
 		}
 	}
 
@@ -8712,11 +8711,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	EpgOptions.AsyncLoadEpgData(&EpgLoadEventHandler);
 
 	if (CoreEngine.IsDriverLoaded() && !CoreEngine.OpenDriver()) {
-		Logger.AddLog(CoreEngine.GetLastErrorText());
-		if (!CmdLineParser.m_fSilent) {
-			MainWindow.ShowErrorMessage(&CoreEngine,
-								TEXT("BonDriverの初期化ができません。"));
-		}
+		AppMain.OnError(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 	}
 
 	if (AudioOptions.GetRestoreMute() && fMuteStatus)

@@ -23,6 +23,7 @@ CRecordOptions::CRecordOptions()
 	m_fConfirmChannelChange=true;
 	m_fConfirmExit=true;
 	m_fConfirmStop=false;
+	m_fConfirmStopStatusBarOnly=false;
 	m_fCurServiceOnly=false;
 	m_fSaveSubtitle=true;
 	m_fSaveDataCarrousel=false;
@@ -71,6 +72,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("ConfirmRecChChange"),&m_fConfirmChannelChange);
 	pSettings->Read(TEXT("ConfrimRecordingExit"),&m_fConfirmExit);
 	pSettings->Read(TEXT("ConfrimRecordStop"),&m_fConfirmStop);
+	pSettings->Read(TEXT("ConfrimRecordStopStatusBarOnly"),&m_fConfirmStopStatusBarOnly);
 	pSettings->Read(TEXT("RecordCurServiceOnly"),&m_fCurServiceOnly);
 	pSettings->Read(TEXT("RecordSubtitle"),&m_fSaveSubtitle);
 	pSettings->Read(TEXT("RecordDataCarrousel"),&m_fSaveDataCarrousel);
@@ -88,6 +90,7 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("ConfirmRecChChange"),m_fConfirmChannelChange);
 	pSettings->Write(TEXT("ConfrimRecordingExit"),m_fConfirmExit);
 	pSettings->Write(TEXT("ConfrimRecordStop"),m_fConfirmStop);
+	pSettings->Write(TEXT("ConfrimRecordStopStatusBarOnly"),m_fConfirmStopStatusBarOnly);
 	pSettings->Write(TEXT("RecordCurServiceOnly"),m_fCurServiceOnly);
 	pSettings->Write(TEXT("RecordSubtitle"),m_fSaveSubtitle);
 	pSettings->Write(TEXT("RecordDataCarrousel"),m_fSaveDataCarrousel);
@@ -176,7 +179,19 @@ bool CRecordOptions::ConfirmServiceChange(HWND hwndOwner,const CRecordManager *p
 
 bool CRecordOptions::ConfirmStop(HWND hwndOwner) const
 {
-	if (m_fConfirmStop) {
+	if (m_fConfirmStop && !m_fConfirmStopStatusBarOnly) {
+		if (::MessageBox(hwndOwner,
+				TEXT("˜^‰æ‚ð’âŽ~‚µ‚Ü‚·‚©?"),TEXT("’âŽ~‚ÌŠm”F"),
+				MB_OKCANCEL | MB_DEFBUTTON2 | MB_ICONQUESTION)!=IDOK)
+			return false;
+	}
+	return true;
+}
+
+
+bool CRecordOptions::ConfirmStatusBarStop(HWND hwndOwner) const
+{
+	if (m_fConfirmStop && m_fConfirmStopStatusBarOnly) {
 		if (::MessageBox(hwndOwner,
 				TEXT("˜^‰æ‚ð’âŽ~‚µ‚Ü‚·‚©?"),TEXT("’âŽ~‚ÌŠm”F"),
 				MB_OKCANCEL | MB_DEFBUTTON2 | MB_ICONQUESTION)!=IDOK)
@@ -256,6 +271,9 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				pThis->m_fConfirmExit?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP,
 				pThis->m_fConfirmStop?BST_CHECKED:BST_UNCHECKED);
+			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,
+				pThis->m_fConfirmStopStatusBarOnly?BST_CHECKED:BST_UNCHECKED);
+			EnableDlgItem(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,pThis->m_fConfirmStop);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY,
 				pThis->m_fCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,
@@ -325,6 +343,10 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY));
 			return TRUE;
 		*/
+
+		case IDC_RECORDOPTIONS_CONFIRMSTOP:
+			EnableDlgItem(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,
+				DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP));
 		}
 		return TRUE;
 
@@ -385,6 +407,8 @@ BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					IDC_RECORDOPTIONS_CONFIRMEXIT)==BST_CHECKED;
 				pThis->m_fConfirmStop=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_CONFIRMSTOP)==BST_CHECKED;
+				pThis->m_fConfirmStopStatusBarOnly=::IsDlgButtonChecked(hDlg,
+					IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP)==BST_CHECKED;
 				pThis->m_fCurServiceOnly=::IsDlgButtonChecked(hDlg,
 					IDC_RECORDOPTIONS_CURSERVICEONLY)==BST_CHECKED;
 				pThis->m_fSaveSubtitle=

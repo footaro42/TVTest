@@ -120,7 +120,7 @@ BOOL CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				pThis->AppendText(hwndEdit,pThis->m_pszText,&cf);
 			}
 			if (pThis->m_pszSystemMessage!=NULL) {
-				pThis->AppendText(hwndEdit,TEXT("\n\nシステムのエラーメッセージ :\n"),&cfBold);
+				pThis->AppendText(hwndEdit,TEXT("\n\nWindowsのエラーメッセージ :\n"),&cfBold);
 				pThis->AppendText(hwndEdit,pThis->m_pszSystemMessage,&cf);
 			}
 			int NumLines=::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
@@ -303,6 +303,7 @@ bool CMessageDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTST
 			if (pszSystemMessage!=NULL) {
 				if (szMessage[0]!='\0')
 					::lstrcat(szMessage,TEXT("\n\n"));
+				::lstrcat(szMessage,TEXT("Windowsのエラーメッセージ:\n"));
 				::lstrcat(szMessage,pszSystemMessage);
 			}
 			return ::MessageBox(hwndOwner,szMessage,pszCaption,MB_OK |

@@ -26,6 +26,7 @@ public:
 	bool GetAppDirectory(LPTSTR pszDirectory) const;
 	LPCTSTR GetIniFileName() const { return m_szIniFileName; }
 	bool AddLog(LPCTSTR pszText, ...);
+	void OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
 	bool LoadSettings();
 	bool SaveSettings();
 	bool SaveCurrentChannel();

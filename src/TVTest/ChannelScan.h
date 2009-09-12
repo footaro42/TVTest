@@ -21,6 +21,9 @@ class CChannelScan : public COptions {
 	CChannelList m_ScanningChannelList;
 	bool m_fScanService;
 	bool m_fIgnoreSignalLevel;
+	unsigned int m_ScanWait;
+	int m_RetryCount;
+	unsigned int m_RetryInterval;
 	bool m_fUpdated;
 	bool m_fScaned;
 	bool m_fRestorePreview;

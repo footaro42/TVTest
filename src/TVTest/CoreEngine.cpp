@@ -81,7 +81,7 @@ bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 
 bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
 {
-	if (::lstrlen(pszFileName)>=MAX_PATH)
+	if (pszFileName==NULL || ::lstrlen(pszFileName)>=MAX_PATH)
 		return false;
 	::lstrcpy(m_szDriverFileName,pszFileName);
 	return true;
@@ -92,7 +92,28 @@ bool CCoreEngine::LoadDriver()
 {
 	UnloadDriver();
 	m_hDriverLib=::LoadLibrary(m_szDriverFileName);
-	return m_hDriverLib!=NULL;
+	if (m_hDriverLib==NULL) {
+		int ErrorCode=::GetLastError();
+		TCHAR szText[MAX_PATH+64];
+
+		::wsprintf(szText,TEXT("\"%s\" が読み込めません。"),m_szDriverFileName);
+		SetError(szText);
+		switch (ErrorCode) {
+		case ERROR_MOD_NOT_FOUND:
+			SetErrorAdvise(TEXT("ファイルが見つかりません。"));
+			break;
+		case ERROR_SXS_CANT_GEN_ACTCTX:
+			SetErrorAdvise(TEXT("このBonDriverに必要なランタイムがインストールされていない可能性があります。"));
+			break;
+		default:
+			::wsprintf(szText,TEXT("エラーコード: %d"),ErrorCode);
+			SetErrorAdvise(szText);
+		}
+		if (GetErrorText(ErrorCode,szText,lengthof(szText)))
+			SetErrorSystemMessage(szText);
+		return false;
+	}
+	return true;
 }
 
 
