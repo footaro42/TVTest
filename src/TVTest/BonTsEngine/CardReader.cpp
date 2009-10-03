@@ -74,7 +74,12 @@ CSCardReader::CSCardReader()
 		DWORD dwBuffSize = 0UL;
 
 		if (::SCardListReaders(m_ScardContext,NULL,NULL,&dwBuffSize)==SCARD_S_SUCCESS) {
-			m_pReaderList=new TCHAR[dwBuffSize];
+			/*
+				ここで取得される文字列は本来、null文字で区切られ2つのnull文字で終端する形式だが、
+				偽winscard.dllで普通のnull終端の文字列を返すバグが蔓延している。
+			*/
+			m_pReaderList=new TCHAR[dwBuffSize+1];
+			::ZeroMemory(m_pReaderList,dwBuffSize+1);
 			if (::SCardListReaders(m_ScardContext,NULL,m_pReaderList,&dwBuffSize)==SCARD_S_SUCCESS) {
 				LPCTSTR p=m_pReaderList;
 

@@ -23,7 +23,7 @@ bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2);
 
 float LevelToDeciBel(int Level);
 
-COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio);
+COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio=128);
 
 DWORD DiffTime(DWORD Start,DWORD End);
 #define FILETIME_MILLISECOND	10000LL

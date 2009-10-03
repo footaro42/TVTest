@@ -65,8 +65,8 @@ const bool CBcasCard::OpenCard(CCardReader::ReaderType ReaderType, LPCTSTR lpszR
 		return false;
 	}
 
-	// カード初期化
-	if (!InitialSetting()) {
+	// カード初期化(失敗したらリトライしてみる)
+	if (!InitialSetting() && !InitialSetting()) {
 		CloseCard();
 		return false;
 	}

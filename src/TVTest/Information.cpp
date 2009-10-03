@@ -511,17 +511,16 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				Points[2].y=pdis->rcItem.top+(pdis->rcItem.bottom-pdis->rcItem.top)/2;
 			}
 			if ((pdis->itemState&ODS_DISABLED)!=0) {
-				hbr=CreateSolidBrush(RGB(
-					(GetRValue(pThis->m_crBackColor)+GetRValue(pThis->m_crTextColor))/2,
-					(GetGValue(pThis->m_crBackColor)+GetGValue(pThis->m_crTextColor))/2,
-					(GetBValue(pThis->m_crBackColor)+GetBValue(pThis->m_crTextColor))/2));
-			} else
+				hbr=CreateSolidBrush(MixColor(pThis->m_crBackColor,pThis->m_crTextColor));
+			} else {
 				hbr=CreateSolidBrush(pThis->m_crTextColor);
+			}
 			SelectBrush(pdis->hDC,hbr);
 			SelectObject(pdis->hDC,GetStockObject(NULL_PEN));
 			Polygon(pdis->hDC,Points,3);
 			SelectPen(pdis->hDC,hpenOld);
 			SelectBrush(pdis->hDC,hbrOld);
+			DeleteObject(hpen);
 			DeleteObject(hbr);
 		}
 		return TRUE;

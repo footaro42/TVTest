@@ -85,6 +85,9 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 		return false;
 	}
 
+	HANDLE hThread = ::GetCurrentThread();
+	int ThreadPriority = ::GetThreadPriority(hThread);
+
 	// チューナを開く
 	if (!m_pBonDriver->OpenTuner()) {
 		SetError(ERR_TUNEROPEN,TEXT("チューナを開けません。"),
@@ -93,7 +96,7 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	}
 
 	// BonDriver_HDUSが、なぜか勝手にスレッドの優先度をHIGHESTにするので元に戻す
-	::SetThreadPriority(::GetCurrentThread(), THREAD_PRIORITY_NORMAL);
+	::SetThreadPriority(hThread, ThreadPriority);
 
 	// IBonDriver2インタフェース取得
 	m_pBonDriver2 = dynamic_cast<IBonDriver2 *>(m_pBonDriver);

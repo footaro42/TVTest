@@ -848,6 +848,9 @@ CProgramGuide::CProgramGuide()
 	: m_hfont(NULL)
 	, m_hfontTitle(NULL)
 	, m_hfontTime(NULL)
+	, m_hSmallIcon(NULL)
+	, m_hDragCursor1(NULL)
+	, m_hDragCursor2(NULL)
 {
 	LOGFONT lf;
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
@@ -904,9 +907,14 @@ CProgramGuide::CProgramGuide()
 
 CProgramGuide::~CProgramGuide()
 {
-	::DeleteObject(m_hfont);
-	::DeleteObject(m_hfontTitle);
-	::DeleteObject(m_hfontTime);
+	if (m_hfont)
+		::DeleteObject(m_hfont);
+	if (m_hfontTitle)
+		::DeleteObject(m_hfontTitle);
+	if (m_hfontTime)
+		::DeleteObject(m_hfontTime);
+	if (m_hSmallIcon)
+		::DestroyIcon(m_hSmallIcon);
 }
 
 
@@ -1379,6 +1387,7 @@ bool CProgramGuide::SetFont(const LOGFONT *pFont)
 		HFONT hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
 		TEXTMETRIC tm;
 		::GetTextMetrics(hdc,&tm);
+		::SelectObject(hdc,hfontOld);
 		::DeleteDC(hdc);
 		//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
 		m_FontHeight=tm.tmHeight;
@@ -1517,15 +1526,16 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			CProgramGuide *pThis=static_cast<CProgramGuide*>(OnCreate(hwnd,lParam));
 
 			::SendMessage(hwnd,WM_SETICON,ICON_BIG,(LPARAM)::LoadIcon(m_hinst,MAKEINTRESOURCE(IDI_PROGRAMGUIDE)));
-			::SendMessage(hwnd,WM_SETICON,ICON_SMALL,
-				(LPARAM)::LoadImage(m_hinst,MAKEINTRESOURCE(IDI_PROGRAMGUIDE),
-									IMAGE_ICON,
-									::GetSystemMetrics(SM_CXSMICON),
-									::GetSystemMetrics(SM_CYSMICON),
-									LR_DEFAULTCOLOR));
+			if (pThis->m_hSmallIcon==NULL)
+				pThis->m_hSmallIcon=(HICON)::LoadImage(m_hinst,MAKEINTRESOURCE(IDI_PROGRAMGUIDE),IMAGE_ICON,
+					::GetSystemMetrics(SM_CXSMICON),::GetSystemMetrics(SM_CYSMICON),
+					LR_DEFAULTCOLOR);
+			::SendMessage(hwnd,WM_SETICON,ICON_SMALL,(LPARAM)pThis->m_hSmallIcon);
 
-			pThis->m_hDragCursor1=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB1));
-			pThis->m_hDragCursor2=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB2));
+			if (pThis->m_hDragCursor1==NULL)
+				pThis->m_hDragCursor1=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB1));
+			if (pThis->m_hDragCursor2==NULL)
+				pThis->m_hDragCursor2=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB2));
 		}
 		return 0;
 
@@ -2079,14 +2089,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			CProgramGuide *pThis=GetThis(hwnd);
 
 			pThis->m_fMaximized=pThis->GetMaximize();
-			if (pThis->m_hDragCursor1!=NULL) {
-				::DestroyCursor(pThis->m_hDragCursor1);
-				pThis->m_hDragCursor1=NULL;
-			}
-			if (pThis->m_hDragCursor2!=NULL) {
-				::DestroyCursor(pThis->m_hDragCursor2);
-				pThis->m_hDragCursor2=NULL;
-			}
 			pThis->OnDestroy();
 		}
 		return 0;

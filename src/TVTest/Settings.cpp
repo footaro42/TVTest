@@ -10,6 +10,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+#ifndef StrToInt
 static int StrToInt(LPCTSTR pszValue)
 {
 	int nValue;
@@ -25,6 +26,7 @@ static int StrToInt(LPCTSTR pszValue)
 	}
 	return pszValue[0]=='-'?-nValue:nValue;
 }
+#endif
 
 
 static unsigned int StrToUInt(LPCTSTR pszValue)

@@ -1,6 +1,4 @@
-#define _WIN32_DCOM	// for CoInitializeEx()
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "DtvEngine.h"
 #include "TVTest.h"
 #include "AppMain.h"
@@ -8452,6 +8450,9 @@ CAppMutex::~CAppMutex()
 }
 
 
+#include <psapi.h>
+#pragma comment(lib,"psapi.lib")
+
 struct FindWindowInfo {
 	LPCTSTR pszFileName;
 	HWND hwndFirst;
@@ -8467,13 +8468,19 @@ static BOOL CALLBACK FindWindowCallback(HWND hwnd,LPARAM lParam)
 			&& ::lstrcmpi(szClassName,MAIN_WINDOW_CLASS)==0) {
 		if (pInfo->hwndFirst==NULL)
 			pInfo->hwndFirst=hwnd;
-		if (::GetModuleFileName(
-				reinterpret_cast<HINSTANCE>(::GetWindowLongPtr(hwnd,GWLP_HINSTANCE)),
-				szFileName,lengthof(szFileName))>0
+
+		DWORD ProcessId;
+		HANDLE hProcess;
+		::GetWindowThreadProcessId(hwnd,&ProcessId);
+		hProcess=::OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ,FALSE,ProcessId);
+		if (hProcess!=NULL
+				&& ::GetModuleFileNameEx(hProcess,NULL,szFileName,lengthof(szFileName))>0
 				&& ::lstrcmpi(szFileName,pInfo->pszFileName)==0) {
 			pInfo->hwndFind=hwnd;
+			::CloseHandle(hProcess);
 			return FALSE;
 		}
+		::CloseHandle(hProcess);
 	}
 	return TRUE;
 }

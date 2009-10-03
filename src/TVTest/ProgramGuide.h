@@ -137,6 +137,7 @@ private:
 	HFONT m_hfontTime;
 	POINT m_ScrollPos;
 	bool m_fDragScroll;
+	HICON m_hSmallIcon;
 	HCURSOR m_hDragCursor1;
 	HCURSOR m_hDragCursor2;
 	struct {

@@ -1253,14 +1253,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\PassThruInPlaceFilter.h"
-					>
-				</File>
-				<File
-					RelativePath=".\DirectShowFilter\RateKeeperFilter.h"
-					>
-				</File>
-				<File
 					RelativePath=".\DirectShowFilter\VideoRenderer.h"
 					>
 				</File>
@@ -1302,14 +1294,6 @@
 				</File>
 				<File
 					RelativePath=".\DirectShowFilter\Mpeg2SequenceFilter.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\DirectShowFilter\PassThruInPlaceFilter.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\DirectShowFilter\RateKeeperFilter.cpp"
 					>
 				</File>
 				<File

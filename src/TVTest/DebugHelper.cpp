@@ -204,7 +204,7 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 		if (ExceptionInfo->ExceptionRecord->ExceptionFlags==EXCEPTION_NONCONTINUABLE) {
 			::MessageBoxA(NULL,pszText,NULL,MB_OK | MB_ICONSTOP);
 		} else {
-			::lstrcpyA(pszText+Length,"\n無視して処理を継続しますか?\n※正常に動作する保障はありません。");
+			::lstrcpyA(pszText+Length,"\n無視して処理を継続しますか?\n※正常に動作する保障はありません。\n[いいえ] を選択するとプログラムが終了します。");
 			if (::MessageBoxA(NULL,pszText,NULL,MB_YESNO | MB_ICONSTOP | MB_DEFBUTTON2)==IDYES)
 				fContinueExecution=TRUE;
 		}
