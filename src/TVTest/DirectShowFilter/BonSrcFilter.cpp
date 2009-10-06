@@ -134,6 +134,36 @@ void CBonSrcFilter::Flush()
 }
 
 
+bool CBonSrcFilter::EnableSync(bool bEnable)
+{
+	if (m_pSrcPin)
+		return m_pSrcPin->EnableSync(bEnable);
+	return false;
+}
+
+
+bool CBonSrcFilter::IsSyncEnabled() const
+{
+	if (m_pSrcPin)
+		return m_pSrcPin->IsSyncEnabled();
+	return false;
+}
+
+
+void CBonSrcFilter::SetVideoPID(WORD PID)
+{
+	if (m_pSrcPin)
+		return m_pSrcPin->SetVideoPID(PID);
+}
+
+
+void CBonSrcFilter::SetAudioPID(WORD PID)
+{
+	if (m_pSrcPin)
+		return m_pSrcPin->SetAudioPID(PID);
+}
+
+
 void CBonSrcFilter::SetOutputWhenPaused(bool bOutput)
 {
 	m_bOutputWhenPaused=bOutput;

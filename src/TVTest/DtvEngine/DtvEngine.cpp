@@ -65,7 +65,7 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 
 	CBonSrcDecoder
 		↓
-	CTsPacketParser
+	CTsPacketParser → EpgDataCap2.dll
 		↓
 	CTsAnalyzer
 		↓
@@ -75,7 +75,7 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 		↓
 	CMediaTee─────┐
 		↓             ↓
-	CMediaBuffer  CMediaGrabber
+	CMediaBuffer  CMediaGrabber → プラグイン
 		↓             ↓
 	CMediaViewer  CTsSelector
 		               ↓
@@ -238,7 +238,7 @@ const bool CDtvEngine::PlayFile(LPCTSTR lpszFileName)
 
 		// ファイルオープン
 		if(!m_FileReader.OpenFile(lpszFileName))throw 0UL;
-		
+
 		// 非同期再生開始
 		if(!m_FileReader.StartReadAnsync())throw 1UL;
 		}
@@ -261,14 +261,14 @@ void CDtvEngine::StopFile(void)
 
 	// 再生中の場合は閉じる
 	m_FileReader.StopReadAnsync();
-	
+
 	// スレッド終了を待つ
 	while(m_FileReader.IsAnsyncReadBusy()){
 		::Sleep(1UL);
 		}
 
 	m_FileReader.CloseFile();
-	
+
 	// グラフを再構築する
 	m_FileReader.SetOutputDecoder(NULL);
 	m_BonSrcDecoder.SetOutputDecoder(&m_TsPacketParser);
@@ -420,12 +420,12 @@ const bool CDtvEngine::GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime
 {
 	SYSTEMTIME stStart;
 
-	if (!m_ProgManager.GetStartTime(m_wCurService, &stStart, bNext))
+	if (!m_ProgManager.GetEventStartTime(m_wCurService, &stStart, bNext))
 		return false;
 	if (pStartTime)
 		*pStartTime = stStart;
 	if (pEndTime) {
-		DWORD Duration = m_ProgManager.GetDuration(m_wCurService, bNext);
+		DWORD Duration = m_ProgManager.GetEventDuration(m_wCurService, bNext);
 		if (Duration == 0)
 			return false;
 
@@ -458,7 +458,7 @@ const bool CDtvEngine::DisplayVideoDecoderProperty(HWND hWndParent)
 
 const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel, const WORD ServiceID)
 {
-	TRACE(TEXT("CDtvEngine::SetChannel(%d, %d, %04x)"),
+	TRACE(TEXT("CDtvEngine::SetChannel(%d, %d, %04x)\n"),
 		  byTuningSpace, wChannel, ServiceID);
 
 	CBlockLock Lock(&m_EngineLock);
@@ -512,6 +512,13 @@ const bool CDtvEngine::SetService(const WORD wService)
 
 		TRACE(TEXT("------- Service Select -------\n"));
 		TRACE(TEXT("%d (ServiceID = %04X)\n"), m_wCurService, wServiceID);
+
+#ifdef TVH264
+		const BYTE VideoComponentTag = m_ProgManager.GetVideoComponentTag(m_wCurService);
+		const bool b1Seg = VideoComponentTag >= 0x81 && VideoComponentTag <= 0x8F;
+		m_MediaViewer.SetAdjustSampleTime(b1Seg);
+		m_MediaViewer.EnableTBSFilter(b1Seg);
+#endif
 
 		m_MediaViewer.SetVideoPID(wVideoPID);
 		m_MediaViewer.SetAudioPID(wAudioPID);
@@ -654,7 +661,15 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 			return 0UL;
 
 		case CProgManager::EID_SERVICE_INFO_UPDATED :
-			// サービス名が更新された
+			// サービスの情報が更新された
+#ifdef TVH264
+			if (m_wCurService != SERVICE_INVALID) {
+				const BYTE VideoComponentTag = m_ProgManager.GetVideoComponentTag(m_wCurService);
+				const bool b1Seg = VideoComponentTag >= 0x81 && VideoComponentTag <= 0x8F;
+				m_MediaViewer.SetAdjustSampleTime(b1Seg);
+				m_MediaViewer.EnableTBSFilter(b1Seg);
+			}
+#endif
 			if (m_pEventHandler)
 				m_pEventHandler->OnServiceInfoUpdated(&m_ProgManager);
 			return 0UL;

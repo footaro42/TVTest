@@ -206,7 +206,7 @@ BYTE CTsAnalyzer::GetAudioComponentTag(const WORD Index, const WORD AudioIndex)
 			&& (size_t)AudioIndex < m_ServiceList[Index].AudioEsList.size()) {
 		return m_ServiceList[Index].AudioEsList[AudioIndex].ComponentTag;
 	}
-	return 0;
+	return 0xFF;
 }
 
 
@@ -351,7 +351,13 @@ bool CTsAnalyzer::GetViewableServiceList(CServiceList *pList)
 
 	pList->m_ServiceList.clear();
 	for (size_t i = 0 ; i < m_ServiceList.size() ; i++) {
-		if (m_ServiceList[i].VideoStreamType == 0x02)	// MPEG-2 ‚Ì‚Ý
+		if (m_ServiceList[i].VideoStreamType ==
+#ifndef TVH264
+				0x02	// MPEG-2
+#else
+				0x1B	// H.264
+#endif
+			)
 			pList->m_ServiceList.push_back(m_ServiceList[i]);
 	}
 	return true;
@@ -674,7 +680,7 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 
 		case 0x0F:	// ISO/IEC 13818-7 Audio (ADTS Transport Syntax)
 			{
-				BYTE ComponentTag = 0;
+				BYTE ComponentTag = 0xFF;
 				const CDescBlock *pDescBlock = pPmtTable->GetItemDesc(EsIndex);
 
 				if (pDescBlock) {

@@ -34,8 +34,13 @@ public:
 
 	void Reset();
 	void Flush();
+	bool EnableSync(bool bEnable);
+	bool IsSyncEnabled() const;
+	void SetVideoPID(WORD PID);
+	void SetAudioPID(WORD PID);
 	void SetOutputWhenPaused(bool bOutput);
 	//bool CheckHangUp(DWORD TimeOut);
+
 protected:
 	CBonSrcPin *m_pSrcPin;
 	CCritSec m_cStateLock;

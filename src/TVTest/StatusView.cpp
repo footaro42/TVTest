@@ -138,10 +138,12 @@ void CStatusItem::DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX,int Sr
 	if (hbm==NULL)
 		return;
 	hdcMem=::CreateCompatibleDC(hdc);
+	if (hdcMem==NULL)
+		return;
 	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,hbm));
 	cr=::GetTextColor(hdc);
 	if (!fEnabled)
-		cr=MixColor(cr,::GetBkColor(hdc),128);
+		cr=MixColor(cr,::GetBkColor(hdc));
 	Palette[0].rgbBlue=GetBValue(cr);
 	Palette[0].rgbGreen=GetGValue(cr);
 	Palette[0].rgbRed=GetRValue(cr);
@@ -209,8 +211,12 @@ CStatusView::CStatusView()
 	m_FontHeight=abs(lf.lfHeight);
 #else
 	NONCLIENTMETRICS ncm;
+#if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	m_hfontStatus=::CreateFontIndirect(&ncm.lfStatusFont);
 	m_FontHeight=abs(ncm.lfStatusFont.lfHeight);
 #endif

@@ -2,9 +2,9 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="8.00"
-	Name="TVTest"
-	ProjectGUID="{88CAD0EE-D7F6-412D-8691-D1FF19534587}"
-	RootNamespace="BonTest"
+	Name="TVH264"
+	ProjectGUID="{A447A794-452A-4CA9-8A87-1BDB84D5CB7B}"
+	RootNamespace="TVH264"
 	Keyword="MFCProj"
 	>
 	<Platforms>
@@ -17,8 +17,8 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)TVH264\$(ConfigurationName)"
+			IntermediateDirectory="TVH264\$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="2"
 			CharacterSet="1"
@@ -45,7 +45,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
-				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG"
+				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG;TVH264"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
@@ -59,7 +59,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="_DEBUG"
+				PreprocessorDefinitions="_DEBUG;TVH264"
 				Culture="1041"
 				AdditionalIncludeDirectories="$(IntDir);Resource"
 			/>
@@ -105,8 +105,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)TVH264\$(ConfigurationName)"
+			IntermediateDirectory="TVH264\$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="0"
 			CharacterSet="1"
@@ -137,7 +137,7 @@
 				EnableIntrinsicFunctions="false"
 				FavorSizeOrSpeed="1"
 				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
-				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
+				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;TVH264"
 				StringPooling="true"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
@@ -153,7 +153,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="NDEBUG"
+				PreprocessorDefinitions="NDEBUG;TVH264"
 				Culture="1041"
 				AdditionalIncludeDirectories="$(IntDir);Resource"
 			/>
@@ -201,8 +201,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release_PGO|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)TVH264\$(ConfigurationName)"
+			IntermediateDirectory="TVH264\$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="0"
 			CharacterSet="1"
@@ -233,7 +233,7 @@
 				EnableIntrinsicFunctions="true"
 				FavorSizeOrSpeed="1"
 				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
-				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
+				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;TVH264"
 				StringPooling="true"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
@@ -249,7 +249,7 @@
 			/>
 			<Tool
 				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="NDEBUG"
+				PreprocessorDefinitions="NDEBUG;TVH264"
 				Culture="1041"
 				AdditionalIncludeDirectories="$(IntDir);Resource"
 			/>
@@ -1003,6 +1003,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\PATGenerator.h"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\ProgManager.h"
 					>
 				</File>
@@ -1145,6 +1149,10 @@
 					</FileConfiguration>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\PATGenerator.cpp"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\ProgManager.cpp"
 					>
 				</File>
@@ -1241,11 +1249,11 @@
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\ImageMixer.h"
+					RelativePath=".\DirectShowFilter\H264ParserFilter.h"
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\Mpeg2SequenceFilter.h"
+					RelativePath=".\DirectShowFilter\ImageMixer.h"
 					>
 				</File>
 				<File
@@ -1289,11 +1297,11 @@
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\ImageMixer.cpp"
+					RelativePath=".\DirectShowFilter\H264ParserFilter.cpp"
 					>
 				</File>
 				<File
-					RelativePath=".\DirectShowFilter\Mpeg2SequenceFilter.cpp"
+					RelativePath=".\DirectShowFilter\ImageMixer.cpp"
 					>
 				</File>
 				<File

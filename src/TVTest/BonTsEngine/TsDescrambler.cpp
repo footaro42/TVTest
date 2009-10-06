@@ -771,13 +771,24 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 	const BYTE *pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
 
 	// ECM処理失敗時は一度だけB-CASカードを再初期化する
-	if (!pKsData && m_bLastEcmSucceed
-			&& (m_pDescrambler->m_BcasCard.GetLastErrorCode() != CBcasCard::ERR_ECMREFUSED)) {
-		if (m_pDescrambler->m_BcasCard.ReOpenCard()) {
-			TRACE(TEXT("CEcmProcessor::SetScrambleKey() Re open card.\n"));
-			m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
-									   m_pDescrambler->m_BcasCard.GetInitialCbc());
-			pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
+	if (!pKsData && m_bLastEcmSucceed) {
+		int ErrorCode = m_pDescrambler->m_BcasCard.GetLastErrorCode();
+		if (ErrorCode != CBcasCard::ERR_ECMREFUSED
+				&& ErrorCode != CBcasCard::ERR_BADARGUMENT) {
+			// 再送信してみる
+			const BYTE *pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
+			if (!pKsData) {
+				ErrorCode = m_pDescrambler->m_BcasCard.GetLastErrorCode();
+				if (ErrorCode != CBcasCard::ERR_ECMREFUSED) {
+					// カードを開き直して再初期化してみる
+					if (m_pDescrambler->m_BcasCard.ReOpenCard()) {
+						TRACE(TEXT("CEcmProcessor::SetScrambleKey() Re open card.\n"));
+						m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
+												   m_pDescrambler->m_BcasCard.GetInitialCbc());
+						pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
+					}
+				}
+			}
 		}
 	}
 

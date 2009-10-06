@@ -45,7 +45,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_pStreamCallback(NULL)
 	, m_bNormalize(false)
 	, m_bAdjustStreamTime(false)
-	, m_StartTime(0)
+	, m_StartTime(-1)
 	, m_SampleCount(0)
 {
 	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"), this);
@@ -98,7 +98,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 
 CAacDecFilter::~CAacDecFilter(void)
 {
-	TRACE(TEXT("CAacDecFilter::~CAacDecFilter\n"));
+	//TRACE(TEXT("CAacDecFilter::~CAacDecFilter\n"));
 }
 
 IBaseFilter* WINAPI CAacDecFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CAacDecFilter **ppClassIf)
@@ -210,7 +210,7 @@ HRESULT CAacDecFilter::StartStreaming(void)
 	if(!m_AacDecoder.OpenDecoder())
 		return E_FAIL;
 
-	m_StartTime = 0;
+	m_StartTime = -1;
 	m_SampleCount = 0;
 
 	return S_OK;
@@ -279,9 +279,9 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 		if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
 			REFERENCE_TIME CurTime;
 
-			if (m_StartTime != 0)
+			if (m_StartTime >= 0)
 				CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
-			if (m_StartTime == 0
+			if (m_StartTime < 0
 					|| llabs(StartTime - CurTime) <= REFERENCE_TIME_SECOND / 5LL) {
 				DWORD Samples = pOut->GetActualDataLength() / 2;
 				if (m_bDownMixSurround || m_byCurChannelNum == 2)
@@ -289,7 +289,7 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 				else
 					Samples /= 6;
 
-				if (m_StartTime == 0)
+				if (m_StartTime < 0)
 					m_StartTime = StartTime;
 				else
 					StartTime = CurTime;
@@ -302,7 +302,7 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 		}
 		if (!bAdjusted) {
 			TRACE(TEXT("Reset audio time\n"));
-			m_StartTime = 0;
+			m_StartTime = -1;
 			m_SampleCount = 0;
 		}
 	}
@@ -393,7 +393,7 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 			}
 		}
 
-		m_StartTime = 0;
+		m_StartTime = -1;
 		m_SampleCount = 0;
 	}
 	m_byCurChannelNum = byChannel;
@@ -652,7 +652,7 @@ bool CAacDecFilter::SetAdjustStreamTime(bool bAdjust)
 
 	m_bAdjustStreamTime = bAdjust;
 
-	m_StartTime = 0;
+	m_StartTime = -1;
 	m_SampleCount = 0;
 
 	return true;

@@ -53,6 +53,10 @@ void CTsPacketParser::Reset(void)
 
 	// 状態をリセットする
 	m_TsPacket.ClearSize();
+
+#ifdef TVH264
+	m_PATGenerator.Reset();
+#endif
 }
 
 const bool CTsPacketParser::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
@@ -167,13 +171,28 @@ bool inline CTsPacketParser::ParsePacket(void)
 		m_ContinuityErrorPacketCount++;
 	case CTsPacket::EC_VALID:
 		{
+#ifdef TVH264
+			/*
+			// PAT の無い状態をシミュレート
+			if (m_TsPacket.GetPID() == 0) {
+				bOK = true;
+				break;
+			}
+			*/
+			if (m_PATGenerator.StorePacket(&m_TsPacket)) {
+				if (m_PATGenerator.GetPAT(&m_PATPacket)) {
+					OutputMedia(&m_PATPacket);
+				}
+			}
+#endif
+
 			// 次のデコーダにデータを渡す
 			WORD PID;
 			if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
 				if (!m_bLockEpgDataCap
 						&& (PID == 0x0000 || PID == 0x0010 || PID == 0x0011 || PID == 0x0012
 						|| PID == 0x0014 || PID==0x0026 || PID==0x0027)) {
-					m_EpgCap.AddTSPacket(m_TsPacket.GetData(),m_TsPacket.GetSize());
+					m_EpgCap.AddTSPacket(m_TsPacket.GetData(), m_TsPacket.GetSize());
 				}
 				// 出力カウントインクリメント
 				m_OutputPacketCount++;
@@ -244,3 +263,11 @@ bool CTsPacketParser::UnlockEpgDataCap()
 	m_bLockEpgDataCap=false;
 	return true;
 }
+
+
+#ifdef TVH264
+bool CTsPacketParser::SetTransportStreamID(WORD TransportStreamID)
+{
+	return m_PATGenerator.SetTransportStreamID(TransportStreamID);
+}
+#endif

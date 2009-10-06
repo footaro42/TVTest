@@ -91,7 +91,6 @@ BOOL CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 		{
 			CMessageDialog *pThis=reinterpret_cast<CMessageDialog*>(lParam);
 			HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
-			NONCLIENTMETRICS ncm;
 			CHARFORMAT cf;
 			CHARFORMAT cfBold;
 
@@ -107,8 +106,13 @@ BOOL CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					pThis->m_MessageType==TYPE_WARNING?IDI_WARNING:IDI_ERROR)),0);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_SETBKGNDCOLOR,0,::GetSysColor(COLOR_WINDOW));
 
+			NONCLIENTMETRICS ncm;
+#if WINVER<0x0600
 			ncm.cbSize=sizeof(ncm);
-			::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+#else
+			ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+			::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 			pThis->LogFontToCharFormat(&ncm.lfMessageFont,&cf);
 			cfBold=cf;
 			cfBold.dwEffects|=CFE_BOLD;

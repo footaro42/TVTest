@@ -8,6 +8,9 @@
 #include "MediaDecoder.h"
 #include "TsStream.h"
 #include "../EpgDataCap/Epg.h"
+#ifdef TVH264
+#include "PATGenerator.h"
+#endif
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -43,6 +46,10 @@ public:
 	CEpgDataCapDllUtil2 *GetEpgDataCapDllUtil() { return &m_EpgCap; }
 	bool LockEpgDataCap();
 	bool UnlockEpgDataCap();
+#ifdef TVH264
+	bool SetTransportStreamID(WORD TransportStreamID);
+#endif
+
 private:
 	void inline SyncPacket(const BYTE *pData, const DWORD dwSize);
 	bool inline ParsePacket(void);
@@ -60,4 +67,9 @@ private:
 	// Append by HDUSTestÇÃíÜÇÃêl
 	CEpgDataCapDllUtil2 m_EpgCap;
 	volatile bool m_bLockEpgDataCap;
+
+#ifdef TVH264
+	CPATGenerator m_PATGenerator;
+	CTsPacket m_PATPacket;
+#endif
 };

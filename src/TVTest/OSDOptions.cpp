@@ -24,10 +24,19 @@ COSDOptions::COSDOptions()
 	m_FadeTime=3000;
 	m_fEnableNotificationBar=true;
 	m_NotificationBarDuration=3000;
-	m_NotificationBarFlags=NOTIFY_EVENTNAME;
+	m_NotificationBarFlags=
+#ifndef TVH264
+		NOTIFY_EVENTNAME;
+#else
+		0;
+#endif
 	NONCLIENTMETRICS ncm;
+#if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	m_NotificationBarFont=ncm.lfMessageFont;
 	m_NotificationBarFont.lfHeight=-14;
 }

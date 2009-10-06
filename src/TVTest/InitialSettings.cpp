@@ -127,7 +127,13 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				WCHAR szFilterName[128];
 				int Sel=0,Count=0;
 
-				if (FilterFinder.FindFilter(&MEDIATYPE_Video,&MEDIASUBTYPE_MPEG2_VIDEO)) {
+				if (FilterFinder.FindFilter(&MEDIATYPE_Video,
+#ifndef TVH264
+											&MEDIASUBTYPE_MPEG2_VIDEO
+#else
+											&MEDIASUBTYPE_H264
+#endif
+											)) {
 					for (int i=0;i<FilterFinder.GetFilterCount();i++) {
 						if (FilterFinder.GetFilterInfo(i,NULL,szFilterName,lengthof(szFilterName))) {
 							int Index=DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,szFilterName);

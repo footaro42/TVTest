@@ -298,7 +298,6 @@ private:
 };
 
 
-/*
 /////////////////////////////////////////////////////////////////////////////
 // ISO/IEC 14496-10Video H.264 アクセスユニット抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
@@ -314,9 +313,16 @@ public:
 	const bool ParseHeader(void);
 	void Reset(void);
 
+	const WORD GetHorizontalSize() const;
+	const WORD GetVerticalSize() const;
+
 protected:
 	struct TAG_H264ACCESSUNIT {
-		// Sequence parameter set
+		// AUD (Access Unit Delimiter)
+		struct {
+			BYTE PrimaryPicType;
+		} AUD;
+		// SPS (Sequence Parameter Set)
 		struct {
 			BYTE ProfileIDC;
 			bool bConstraintSet0Flag;
@@ -325,20 +331,40 @@ protected:
 			bool bConstraintSet3Flag;
 			BYTE LevelIDC;
 			BYTE SeqParameterSetID;
+			BYTE ChromaFormatIDC;
+			bool bSeparateColourPlaneFlag;
+			BYTE BitDepthLumaMinus8;
+			BYTE BitDepthChromaMinus8;
+			bool bQpprimeYZeroTransformBypassFlag;
+			bool bSeqScalingMatrixPresentFlag;
 			BYTE Log2MaxFrameNumMinus4;
 			BYTE PicOrderCntType;
+			BYTE Log2MaxPicOrderCntLsbMinus4;
+			bool bDeltaPicOrderAlwaysZeroFlag;
+			BYTE OffsetForNonRefPic;
+			BYTE OffsetForTopToBottomField;
+			BYTE NumRefFramesInPicOrderCntCycle;
 			BYTE NumRefFrames;
 			bool bGapsInFrameNumValueAllowedFlag;
 			BYTE PicWidthInMbsMinus1;
 			BYTE PicHeightInMapUnitsMinus1;
-			bool bFramesMbsOnlyFlag;
+			bool bFrameMbsOnlyFlag;
+			bool bMbAdaptiveFrameFieldFlag;
 			bool bDirect8x8InferenceFlag;
-			bool bFrameCorppingFlag;
-			WORD FrameCorpLeftOffset;
+			bool bFrameCroppingFlag;
+			WORD FrameCropLeftOffset;
 			WORD FrameCropRightOffset;
 			WORD FrameCropTopOffset;
 			WORD FrameCropBottomOffset;
 			bool bVuiParametersPresentFlag;
+			// VUI (Video Usability Information)
+			struct {
+				bool bAspectRatioInfoPresentFlag;
+				BYTE AspectRatioIDC;
+				WORD SarWidth;
+				WORD SarHeight;
+			} VUI;
+			BYTE ChromaArrayType;
 		} SPS;
 	} m_Header;
 };
@@ -354,10 +380,10 @@ public:
 	class IAccessUnitHandler
 	{
 	public:
-		virtual void OnH264Sequence(const CH264Parser *pH264Parser, const CH264AccessUnit *pAccessUnit) {}//= 0;
+		virtual void OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit) {}//= 0;
 	};
 
-	CH264Parser(ISequenceHandler *pSequenceHandler);
+	CH264Parser(IAccessUnitHandler *pAccessUnitHandler);
 	CH264Parser(const CH264Parser &Operand);
 	CH264Parser & operator = (const CH264Parser &Operand);
 
@@ -367,7 +393,7 @@ public:
 
 protected:
 	virtual void OnPesPacket(const CPesParser *pPesParser, const CPesPacket *pPacket);
-	virtual void OnAceessUnit(const CH264AccessUnit *pAccessUnit) const;
+	virtual void OnAccessUnit(const CH264AccessUnit *pAccessUnit) const;
 
 	IAccessUnitHandler *m_pAccessUnitHandler;
 	CH264AccessUnit m_AccessUnit;
@@ -375,4 +401,3 @@ protected:
 private:
 	DWORD m_dwSyncState;
 };
-*/

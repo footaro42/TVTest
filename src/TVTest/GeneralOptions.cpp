@@ -322,7 +322,13 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			// MPEG-2 decoder
 			CDirectShowFilterFinder FilterFinder;
 			int Count=0;
-			if (FilterFinder.FindFilter(&MEDIATYPE_Video,&MEDIASUBTYPE_MPEG2_VIDEO)) {
+			if (FilterFinder.FindFilter(&MEDIATYPE_Video,
+#ifndef TVH264
+										&MEDIASUBTYPE_MPEG2_VIDEO
+#else
+										&MEDIASUBTYPE_H264
+#endif
+					)) {
 				for (int i=0;i<FilterFinder.GetFilterCount();i++) {
 					WCHAR szFilterName[MAX_MPEG2_DECODER_NAME];
 

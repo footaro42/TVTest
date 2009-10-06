@@ -1,6 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
-#include <shlwapi.h>
 #include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
@@ -26,6 +24,7 @@ const SIZE CCaptureOptions::m_SizeList[SIZE_LAST+1] = {
 	{960,	540},
 	{800,	450},
 	{640,	360},
+	{320,	180},
 	// 4:3
 	{1440,	1080},
 	{1280,	960},
@@ -33,14 +32,16 @@ const SIZE CCaptureOptions::m_SizeList[SIZE_LAST+1] = {
 	{800,	600},
 	{720,	540},
 	{640,	480},
+	{320,	240},
 };
 
 
 const CCaptureOptions::PercentageType CCaptureOptions::m_PercentageList[PERCENTAGE_LAST+1] = {
-	{3,	4},
-	{2,	3},
-	{1,	2},
-	{1,	3}
+	{3,	4},	// 75%
+	{2,	3},	// 66%
+	{1,	2},	// 50%
+	{1,	3},	// 33%
+	{1,	4},	// 25%
 };
 
 
@@ -54,7 +55,12 @@ CCaptureOptions::CCaptureOptions()
 	m_fCaptureSaveToFile=true;
 	m_fSetComment=false;
 	m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
-	m_CaptureSize=SIZE_1920x1080;
+	m_CaptureSize=
+#ifndef TVH264
+		SIZE_1920x1080;
+#else
+		SIZE_320x180;
+#endif
 	m_CapturePercentage=PERCENTAGE_50;
 }
 

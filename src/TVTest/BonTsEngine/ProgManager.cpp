@@ -88,10 +88,16 @@ const bool CProgManager::GetServiceID(WORD *pwServiceID, const WORD wIndex)
 
 	// サービスIDを取得する
 	if (wIndex == 0xFFFF) {
+#if 0
 		if (m_pProgDatabase->m_ServiceList.size() == 0
 				|| !m_pProgDatabase->m_ServiceList[0].bIsUpdated)
 			return false;
 		*pwServiceID = m_pProgDatabase->m_ServiceList[0].wServiceID;
+#else
+		if (m_ServiceList.size() == 0)
+			return false;
+		*pwServiceID = m_ServiceList[0].wServiceID;
+#endif
 	} else if ((size_t)wIndex < m_ServiceList.size()) {
 		*pwServiceID = m_ServiceList[wIndex].wServiceID;
 	} else {
@@ -118,7 +124,7 @@ const bool CProgManager::GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex)
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (pwVideoPID && (size_t)wIndex < m_ServiceList.size()) {
-		*pwVideoPID = m_ServiceList[wIndex].wVideoEsPID;
+		*pwVideoPID = m_ServiceList[wIndex].VideoEs.PID;
 		return true;
 	}
 	return false;
@@ -138,6 +144,17 @@ const bool CProgManager::GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex,
 }
 
 
+const BYTE CProgManager::GetVideoComponentTag(const WORD wIndex)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if ((size_t)wIndex < m_ServiceList.size()) {
+		return m_ServiceList[wIndex].VideoEs.ComponentTag;
+	}
+	return 0xFF;
+}
+
+
 const BYTE CProgManager::GetAudioComponentTag(const WORD wAudioIndex,const WORD wIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -146,7 +163,7 @@ const BYTE CProgManager::GetAudioComponentTag(const WORD wAudioIndex,const WORD 
 			&& (size_t)wAudioIndex < m_ServiceList[wIndex].AudioEsList.size()) {
 		return m_ServiceList[wIndex].AudioEsList[wAudioIndex].ComponentTag;
 	}
-	return 0;
+	return 0xFF;
 }
 
 
@@ -208,6 +225,17 @@ const bool CProgManager::GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, con
 		return true;
 	}
 	return false;
+}
+
+
+const BYTE CProgManager::GetServiceType(const WORD wIndex)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	// サービスタイプを取得する
+	if ((size_t)wIndex < m_ServiceList.size())
+		return m_ServiceList[wIndex].ServiceType;
+	return 0xFF;
 }
 
 
@@ -282,12 +310,23 @@ const WORD CProgManager::GetEventID(const WORD ServiceIndex, const bool fNext)
 			if (Index>=0)
 				return pEitTable->GetEventID(Index,fNext?1:0);
 		}
+
+#ifdef TVH264
+		const CLEitTable *pLEitTable=dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+
+		if (pLEitTable) {
+			int Index=pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index>=0)
+				return pLEitTable->GetEventID(Index,fNext?1:0);
+		}
+#endif
 	}
 	return 0;
 }
 
 
-const bool CProgManager::GetStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool fNext)
+const bool CProgManager::GetEventStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool fNext)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
@@ -300,16 +339,31 @@ const bool CProgManager::GetStartTime(const WORD ServiceIndex, SYSTEMTIME *pSyst
 			if (Index >= 0) {
 				const SYSTEMTIME *pStartTime = pEitTable->GetStartTime(Index, fNext ? 1 : 0);
 				if (pStartTime)
-					*pSystemTime=*pStartTime;
+					*pSystemTime = *pStartTime;
 				return true;
 			}
 		}
+
+#ifdef TVH264
+		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+
+		if (pLEitTable) {
+			int Index = pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index >= 0) {
+				const SYSTEMTIME *pStartTime = pLEitTable->GetStartTime(Index, fNext ? 1 : 0);
+				if (pStartTime)
+					*pSystemTime = *pStartTime;
+				return true;
+			}
+		}
+#endif
 	}
 	return false;
 }
 
 
-const DWORD CProgManager::GetDuration(const WORD ServiceIndex, const bool fNext)
+const DWORD CProgManager::GetEventDuration(const WORD ServiceIndex, const bool fNext)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
@@ -322,6 +376,17 @@ const DWORD CProgManager::GetDuration(const WORD ServiceIndex, const bool fNext)
 			if (Index >= 0)
 				return pEitTable->GetDuration(Index, fNext ? 1 : 0);
 		}
+
+#ifdef TVH264
+		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+
+		if (pLEitTable) {
+			int Index = pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index >= 0)
+				return pLEitTable->GetDuration(Index, fNext ? 1 : 0);
+		}
+#endif
 	}
 	return 0;
 }
@@ -338,6 +403,16 @@ const int CProgManager::GetEventName(const WORD ServiceIndex, LPTSTR pszName, in
 		if (pShortEvent)
 			return pShortEvent->GetEventName(pszName, MaxLength);
 	}
+
+#ifdef TVH264
+	pDescBlock = GetLEitItemDesc(ServiceIndex, fNext);
+	if (pDescBlock) {
+		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
+
+		if (pShortEvent)
+			return pShortEvent->GetEventName(pszName, MaxLength);
+	}
+#endif
 	return 0;
 }
 
@@ -353,6 +428,16 @@ const int CProgManager::GetEventText(const WORD ServiceIndex, LPTSTR pszText, in
 		if (pShortEvent)
 			return pShortEvent->GetEventDesc(pszText, MaxLength);
 	}
+
+#ifdef TVH264
+	pDescBlock = GetLEitItemDesc(ServiceIndex, fNext);
+	if (pDescBlock) {
+		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
+
+		if (pShortEvent)
+			return pShortEvent->GetEventDesc(pszText, MaxLength);
+	}
+#endif
 	return 0;
 }
 
@@ -373,6 +458,24 @@ const CDescBlock *CProgManager::GetHEitItemDesc(const WORD ServiceIndex, const b
 }
 
 
+#ifdef TVH264
+const CDescBlock *CProgManager::GetLEitItemDesc(const WORD ServiceIndex, const bool fNext) const
+{
+	if ((size_t)ServiceIndex < m_ServiceList.size()) {
+		const CLEitTable *pEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].wServiceID);
+
+			if (Index>=0)
+				return pEitTable->GetItemDesc(Index, fNext ? 1 : 0);
+		}
+	}
+	return NULL;
+}
+#endif
+
+
 void CProgManager::OnServiceListUpdated(void)
 {
 	// サービスリストクリア、リサイズ
@@ -380,12 +483,19 @@ void CProgManager::OnServiceListUpdated(void)
 
 	// サービスリスト構築
 	for (size_t Index = 0, ServiceNum = 0 ; Index < m_pProgDatabase->m_ServiceList.size() ; Index++) {
-		if (m_pProgDatabase->m_ServiceList[Index].VideoStreamType == 0x02) {
+		if (m_pProgDatabase->m_ServiceList[Index].VideoStreamType ==
+#ifndef TVH264
+				0x02	// MPEG-2
+#else
+				0x1B	// H.264
+#endif
+				) {
 			m_ServiceList.resize(ServiceNum + 1);
 			m_ServiceList[ServiceNum].wServiceID = m_pProgDatabase->m_ServiceList[Index].wServiceID;
-			m_ServiceList[ServiceNum].wVideoEsPID = m_pProgDatabase->m_ServiceList[Index].wVideoEsPID;
+			m_ServiceList[ServiceNum].VideoEs = m_pProgDatabase->m_ServiceList[Index].VideoEs;
 			m_ServiceList[ServiceNum].AudioEsList = m_pProgDatabase->m_ServiceList[Index].AudioEsList;
 			m_ServiceList[ServiceNum].wSubtitleEsPID = m_pProgDatabase->m_ServiceList[Index].wSubtitleEsPID;
+			m_ServiceList[ServiceNum].ServiceType = m_pProgDatabase->m_ServiceList[Index].byServiceType;
 			m_ServiceList[ServiceNum].szServiceName[0] = TEXT('\0');
 			ServiceNum++;
 		}
@@ -404,6 +514,7 @@ void CProgManager::OnServiceInfoUpdated(void)
 		const WORD wServiceIndex = m_pProgDatabase->GetServiceIndexByID(m_ServiceList[Index].wServiceID);
 
 		if (wServiceIndex != 0xFFFFU) {
+			m_ServiceList[Index].ServiceType = m_pProgDatabase->m_ServiceList[wServiceIndex].byServiceType;
 			if (m_pProgDatabase->m_ServiceList[wServiceIndex].szServiceName[0]) {
 				::lstrcpy(m_ServiceList[Index].szServiceName,
 						  m_pProgDatabase->m_ServiceList[wServiceIndex].szServiceName);
@@ -467,8 +578,13 @@ void CProgManager::CProgDatabase::Reset(void)
 	m_PidMapManager.MapTarget(0x0010U, new CNitTable, CProgDatabase::OnNitUpdated, this);
 	::ZeroMemory(&m_NitInfo, sizeof(m_NitInfo));
 
-	// EITテーブルPIDマップ追加
+	// H-EITテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(0x0012U, new CHEitTable, NULL, this);
+
+#ifdef TVH264
+	// L-EITテーブルPIDマップ追加
+	m_PidMapManager.MapTarget(0x0027U, new CLEitTable, NULL, this);
+#endif
 }
 
 
@@ -529,7 +645,8 @@ void CALLBACK CProgManager::CProgDatabase::OnPatUpdated(const WORD wPID, CTsPidM
 		pThis->m_ServiceList[Index].wServiceID = pPatTable->GetProgramID(Index);
 		pThis->m_ServiceList[Index].wPmtTablePID = pPatTable->GetPmtPID(Index);
 		pThis->m_ServiceList[Index].VideoStreamType = 0xFF;
-		pThis->m_ServiceList[Index].wVideoEsPID = 0xFFFFU;
+		pThis->m_ServiceList[Index].VideoEs.PID = 0xFFFFU;
+		pThis->m_ServiceList[Index].VideoEs.ComponentTag = 0xFF;
 		pThis->m_ServiceList[Index].AudioEsList.clear();
 		pThis->m_ServiceList[Index].wSubtitleEsPID = 0xFFFFU;
 		pThis->m_ServiceList[Index].wPcrPID = 0xFFFFU;
@@ -559,18 +676,29 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 
 	// ESのPIDをストア
 	ServiceInfo.VideoStreamType = 0xFF;
-	ServiceInfo.wVideoEsPID = 0xFFFF;
+	ServiceInfo.VideoEs.PID = 0xFFFF;
+	ServiceInfo.VideoEs.ComponentTag = 0xFF;
 	ServiceInfo.AudioEsList.clear();
 	ServiceInfo.wSubtitleEsPID = 0xFFFF;
 	for (WORD wEsIndex = 0U ; wEsIndex < pPmtTable->GetEsInfoNum() ; wEsIndex++) {
 		const BYTE StreamType = pPmtTable->GetStreamTypeID(wEsIndex);
 		const WORD EsPID = pPmtTable->GetEsPID(wEsIndex);
+		BYTE ComponentTag = 0xFF;
+		const CDescBlock *pDescBlock = pPmtTable->GetItemDesc(wEsIndex);
+
+		if (pDescBlock) {
+			const CStreamIdDesc *pStreamIdDesc = dynamic_cast<const CStreamIdDesc*>(pDescBlock->GetDescByTag(CStreamIdDesc::DESC_TAG));
+
+			if (pStreamIdDesc)
+				ComponentTag = pStreamIdDesc->GetComponentTag();
+		}
 		switch (StreamType) {
 		case 0x02:	// ITU-T Rec. H.262 | ISO/IEC 13818-2 Video or ISO/IEC 11172-2
-			if (ServiceInfo.wVideoEsPID == 0xFFFF
+			if (ServiceInfo.VideoEs.PID == 0xFFFF
 					|| ServiceInfo.VideoStreamType != 0x02) {
 				ServiceInfo.VideoStreamType = StreamType;
-				ServiceInfo.wVideoEsPID = EsPID;
+				ServiceInfo.VideoEs.PID = EsPID;
+				ServiceInfo.VideoEs.ComponentTag = ComponentTag;
 			}
 			break;
 
@@ -580,24 +708,14 @@ void CALLBACK CProgManager::CProgDatabase::OnPmtUpdated(const WORD wPID, CTsPidM
 			break;
 
 		case 0x0F:	// ISO/IEC 13818-7 Audio (ADTS Transport Syntax)
-			{
-				BYTE ComponentTag = 0;
-				const CDescBlock *pDescBlock = pPmtTable->GetItemDesc(wEsIndex);
-
-				if (pDescBlock) {
-					const CStreamIdDesc *pStreamIdDesc = dynamic_cast<const CStreamIdDesc*>(pDescBlock->GetDescByTag(CStreamIdDesc::DESC_TAG));
-
-					if (pStreamIdDesc)
-						ComponentTag = pStreamIdDesc->GetComponentTag();
-				}
-				ServiceInfo.AudioEsList.push_back(EsInfo(EsPID, ComponentTag));
-			}
+			ServiceInfo.AudioEsList.push_back(EsInfo(EsPID, ComponentTag));
 			break;
 
 		case 0x1B:	// ITU-T Rec.H.264 | ISO/IEC 14496-10Video
-			if (ServiceInfo.wVideoEsPID == 0xFFFF) {
+			if (ServiceInfo.VideoEs.PID == 0xFFFF) {
 				ServiceInfo.VideoStreamType = StreamType;
-				ServiceInfo.wVideoEsPID = EsPID;
+				ServiceInfo.VideoEs.PID = EsPID;
+				ServiceInfo.VideoEs.ComponentTag = ComponentTag;
 			}
 			break;
 		}
@@ -745,7 +863,7 @@ void CALLBACK CProgManager::CProgDatabase::OnEitUpdated(const WORD wPID, CTsPidM
 			const CAudioComponentDesc *pAudioDesc=dynamic_cast<const CAudioComponentDesc*>(pDescBlock->GetDescByTag(CAudioComponentDesc::DESC_TAG));
 
 			if (pAudioDesc) {
-				
+
 			}
 		}
 	}

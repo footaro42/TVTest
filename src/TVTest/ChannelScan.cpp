@@ -447,6 +447,11 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						pThis->m_fSortDescending=false;
 						*pThis->m_TuningSpaceList.GetChannelList(Space)=
 												pThis->m_ScanningChannelList;
+						if (pThis->m_TuningSpaceList.GetTuningSpaceName(Space)==NULL) {
+							pThis->m_TuningSpaceList.GetTuningSpaceInfo(Space)->SetName(
+								pThis->m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(Space));
+						}
+
 						pThis->m_fUpdated=true;
 					} else {
 						pThis->SetChannelList(Space);
@@ -620,7 +625,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					GetAppClass().GetAppDirectory(szAppDir);
 					if (!FilePath.HasDirectory())
 						FilePath.SetDirectory(szAppDir);
-					FilePath.SetExtension(TEXT(".ch2"));
+					FilePath.SetExtension(CHANNEL_FILE_EXTENSION);
 					pThis->m_TuningSpaceList.SaveToFile(FilePath.GetPath());
 					pThis->SetUpdateFlag(UPDATE_CHANNELLIST);
 				}
@@ -718,7 +723,7 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			TCHAR szText[64];
 
 			::wsprintf(szText,TEXT("%d.%02d dB / %d.%02d Mbps"),
-								Level/100,Level%100,BitRate/100,BitRate%100);
+							Level/100,abs(Level)%100,BitRate/100,BitRate%100);
 			::SetDlgItemText(hDlg,IDC_CHANNELSCAN_LEVEL,szText);
 		}
 		return TRUE;

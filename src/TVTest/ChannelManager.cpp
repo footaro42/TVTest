@@ -209,7 +209,11 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 {
 	bool fOK=false;
 
-	if (::PathMatchSpec(pszFileName,TEXT("*.ch2"))) {
+	if (::PathMatchSpec(pszFileName,TEXT("*.ch2"))
+#ifdef TVH264
+		|| ::PathMatchSpec(pszFileName,TEXT("*.ch1"))
+#endif
+		) {
 		// 新しい形式のチャンネル設定ファイル
 		fOK=m_TuningSpaceList.LoadFromFile(pszFileName);
 	} else if (::PathMatchSpec(pszFileName,TEXT("*.ch"))) {

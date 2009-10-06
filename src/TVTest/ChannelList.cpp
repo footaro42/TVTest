@@ -786,11 +786,12 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 
 		if (pChannelList->NumChannels()==0)
 			continue;
-		if (GetTuningSpaceName(i)!=NULL)
+		if (GetTuningSpaceName(i)!=NULL) {
 			Length=::wsprintfA(szText,";#SPACE(%d,%S)\r\n",i,GetTuningSpaceName(i));
-		if (!::WriteFile(hFile,szText,Length,&Write,NULL) || Write!=Length) {
-			::CloseHandle(hFile);
-			return false;
+			if (!::WriteFile(hFile,szText,Length,&Write,NULL) || Write!=Length) {
+				::CloseHandle(hFile);
+				return false;
+			}
 		}
 		for (int j=0;j<pChannelList->NumChannels();j++) {
 			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(j);

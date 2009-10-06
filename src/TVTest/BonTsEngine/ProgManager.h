@@ -16,6 +16,7 @@ using std::vector;
 struct EsInfo {
 	WORD PID;
 	BYTE ComponentTag;
+	EsInfo() : PID(0xFFFF), ComponentTag(0xFF) {}
 	EsInfo(WORD pid,BYTE Tag) : PID(pid), ComponentTag(Tag) {}
 };
 
@@ -50,11 +51,13 @@ public:
 	const WORD GetServiceIndexByID(const WORD ServiceID);
 	const bool GetVideoEsPID(WORD *pwVideoPID, const WORD wIndex = 0U);
 	const bool GetAudioEsPID(WORD *pwAudioPID, const WORD wAudioIndex = 0U, const WORD wIndex = 0U);
+	const BYTE GetVideoComponentTag(const WORD wIndex = 0U);
 	const BYTE GetAudioComponentTag(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
 	const BYTE GetAudioComponentType(const WORD wAudioIndex = 0U,const WORD wIndex = 0U);
 	const WORD GetAudioEsNum(const WORD wIndex = 0U);
 	const bool GetSubtitleEsPID(WORD *pwSubtitlePID, const WORD wIndex = 0U);
 	const bool GetPcrTimeStamp(unsigned __int64 *pu64PcrTimeStamp, const WORD wServiceID = 0U);
+	const BYTE GetServiceType(const WORD wIndex = 0U);
 	const DWORD GetServiceName(LPTSTR lpszDst, const WORD wIndex = 0U);
 	const WORD GetTransportStreamID() const;
 
@@ -65,8 +68,8 @@ public:
 	DWORD GetTSName(LPTSTR pszName,int MaxLength);
 
 	const WORD GetEventID(const WORD ServiceIndex, const bool fNext = false);
-	const bool GetStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool fNext = false);
-	const DWORD GetDuration(const WORD ServiceIndex, const bool fNext = false);
+	const bool GetEventStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool fNext = false);
+	const DWORD GetEventDuration(const WORD ServiceIndex, const bool fNext = false);
 	const int GetEventName(const WORD ServiceIndex, LPTSTR pszName, int MaxLength, const bool fNext = false);
 	const int GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool fNext = false);
 
@@ -78,13 +81,17 @@ protected:
 	void OnPcrTimestampUpdated(void);
 
 	const CDescBlock *GetHEitItemDesc(const WORD ServiceIndex, const bool fNext = false) const;
+#ifdef TVH264
+	const CDescBlock *GetLEitItemDesc(const WORD ServiceIndex, const bool fNext = false) const;
+#endif
 
 	struct TAG_SERVICEINFO
 	{
 		WORD wServiceID;
-		WORD wVideoEsPID;
+		EsInfo VideoEs;
 		vector<EsInfo> AudioEsList;
 		WORD wSubtitleEsPID;
+		BYTE ServiceType;
 		TCHAR szServiceName[256];
 
 		// タイムスタンプ
@@ -118,7 +125,7 @@ public:
 	{
 		WORD wServiceID;
 		BYTE VideoStreamType;
-		WORD wVideoEsPID;
+		EsInfo VideoEs;
 		vector<EsInfo> AudioEsList;
 		WORD wSubtitleEsPID;
 		BYTE byServiceType;

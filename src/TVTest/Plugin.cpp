@@ -5,7 +5,6 @@
 #include "AppMain.h"
 #include "Plugin.h"
 #include "Image.h"
-#include "Version.h"
 #include "DialogUtil.h"
 #include "TsEncode.h"
 #include "resource.h"

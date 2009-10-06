@@ -1,8 +1,8 @@
 #pragma once
 
 
+#include "TsSrcStream.h"
 #include "MediaData.h"
-#include "Source.h"
 
 
 class CBonSrcFilter;
@@ -29,7 +29,12 @@ public:
 
 	void Reset();
 	void Flush();
+	bool EnableSync(bool bEnable);
+	bool IsSyncEnabled() const;
+	void SetVideoPID(WORD PID);
+	void SetAudioPID(WORD PID);
 	void SetOutputWhenPaused(bool bOutput) { m_bOutputWhenPaused=bOutput; }
+
 protected:
 	void EndStreamThread();
 	static DWORD WINAPI StreamThread(LPVOID lpParameter);
@@ -38,11 +43,7 @@ protected:
 
 	HANDLE m_hThread;
 	volatile bool m_bKillSignal;
-	BYTE *m_pBuffer;
-	DWORD m_BufferLength;
-	DWORD m_BufferUsed;
-	DWORD m_BufferPos;
-	CCritSec m_StreamLock;
+	CTsSrcStream m_SrcStream;
 
 	bool m_bOutputWhenPaused;
 };

@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Command.h"
@@ -60,6 +59,9 @@ static const struct {
 	{TEXT("CopyImage"),				CM_COPY},
 	{TEXT("SaveImage"),				CM_SAVEIMAGE},
 	{TEXT("CapturePreview"),		CM_CAPTUREPREVIEW},
+#ifdef TVH264
+	//{TEXT("TBSFilter"),				CM_TBSFILTER},
+#endif
 	{TEXT("Reset"),					CM_RESET},
 	{TEXT("ResetViewer"),			CM_RESETVIEWER},
 	{TEXT("Panel"),					CM_INFORMATION},

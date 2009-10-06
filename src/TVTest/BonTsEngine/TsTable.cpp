@@ -1082,28 +1082,32 @@ const WORD CHEitTable::GetOriginalNetworkID(DWORD Index) const
 
 const WORD CHEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex>1)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return 0;
 	return m_EitArray[Index].EventList[EventIndex].EventID;
 }
 
 const SYSTEMTIME *CHEitTable::GetStartTime(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex>1)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return NULL;
 	return &m_EitArray[Index].EventList[EventIndex].StartTime;
 }
 
 const DWORD CHEitTable::GetDuration(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex>1)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return 0;
 	return m_EitArray[Index].EventList[EventIndex].Duration;
 }
 
 const BYTE CHEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex>1)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return 0xFF;
 	return m_EitArray[Index].EventList[EventIndex].RunningStatus;
 }
@@ -1111,7 +1115,8 @@ const BYTE CHEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
 const bool CHEitTable::GetFreeCaMode(DWORD Index,DWORD EventIndex) const
 {
 	// Free CA Modeを返す
-	if (Index >= GetServiceNum() || EventIndex>1)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return false;
 	return m_EitArray[Index].EventList[EventIndex].FreeCaMode;
 }
@@ -1119,16 +1124,17 @@ const bool CHEitTable::GetFreeCaMode(DWORD Index,DWORD EventIndex) const
 const CDescBlock * CHEitTable::GetItemDesc(DWORD Index,DWORD EventIndex) const
 {
 	// アイテムの記述子ブロックを返す
-	if (Index >= GetServiceNum() || EventIndex>1)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return NULL;
 	return &m_EitArray[Index].EventList[EventIndex].DescBlock;
 }
 
 const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
 {
-	if (pCurSection->GetTableID()!=0x4E
-			|| pCurSection->GetSectionNumber()>1
-			|| pCurSection->GetLastSectionNumber()!=0x01)
+	if (pCurSection->GetTableID() != 0x4E
+			|| pCurSection->GetSectionNumber() > 1
+			|| pCurSection->GetLastSectionNumber() != 0x01)
 		return false;
 
 	const WORD wDataSize = pCurSection->GetPayloadSize();
@@ -1142,6 +1148,11 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 	TransportStreamID = ((WORD)pHexData[0] << 8) | pHexData[1];
 	OriginalNetworkID = ((WORD)pHexData[2] << 8) | pHexData[3];
 
+	if (pHexData[4] != 0x01)	// segment_last_section_number
+		return false;
+	if (pHexData[5] != 0x4E)	// last_table_id
+		return false;
+
 	//TRACE(TEXT("------- H-EIT Table -------\nSID = %04X / TSID = %04X / ONID = %04X\n"),ServiceID,TransportStreamID,OriginalNetworkID);
 
 	int Index = GetServiceIndexByID(ServiceID);
@@ -1152,13 +1163,8 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 		EitInfo.TransportStreamID = TransportStreamID;
 		EitInfo.OriginalNetworkID = OriginalNetworkID;
 		m_EitArray.push_back(EitInfo);
-		Index=m_EitArray.size() - 1;
+		Index = m_EitArray.size() - 1;
 	}
-
-	if (pHexData[4] != 0x01)	// segment_last_section_number
-		return false;
-	if (pHexData[5] != 0x4E)	// last_table_id
-		return false;
 
 	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
 
@@ -1173,6 +1179,190 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 		Info.DescBlock.ParseBlock(&pHexData[18], DescLength);
 	else
 		Info.DescBlock.Reset();
+	Info.bEnable = true;
+
+	/*
+	TRACE(TEXT("EventID = %02X / %04d/%d/%d %d:%02d %lu sec\n"),
+		  Info.EventID,Info.StartTime.wYear,Info.StartTime.wMonth,Info.StartTime.wDay,Info.StartTime.wHour,Info.StartTime.wMinute,Info.Duration);
+	*/
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// L-EIT[p/f]テーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CLEitTable::CLEitTable()
+	: CPsiSingleTable()
+{
+
+}
+
+CLEitTable::CLEitTable(const CLEitTable &Operand)
+{
+	*this = Operand;
+}
+
+CLEitTable & CLEitTable::operator = (const CLEitTable &Operand)
+{
+	if (this != &Operand) {
+		CPsiSingleTable::operator = (Operand);
+		m_EitArray = Operand.m_EitArray;
+	}
+
+	return *this;
+}
+
+void CLEitTable::Reset(void)
+{
+	// 状態をクリアする
+	CPsiSingleTable::Reset();
+
+	m_EitArray.clear();
+}
+
+const DWORD CLEitTable::GetServiceNum(void) const
+{
+	// サービス数を返す
+	return m_EitArray.size();
+}
+
+const int CLEitTable::GetServiceIndexByID(WORD ServiceID) const
+{
+	// サービスIDからインデックスを返す
+	for (DWORD Index = 0 ; Index < GetServiceNum() ; Index++) {
+		if (m_EitArray[Index].ServiceID == ServiceID) {
+			return Index;
+		}
+	}
+
+	// サービスIDが見つからない
+	return -1;
+}
+
+const WORD CLEitTable::GetServiceID(DWORD Index) const
+{
+	// サービスIDを返す
+	if (Index >= GetServiceNum())
+		return 0xFFFF;
+	return m_EitArray[Index].ServiceID;
+}
+
+const WORD CLEitTable::GetTransportStreamID(DWORD Index) const
+{
+	if (Index >= GetServiceNum())
+		return 0;
+	return m_EitArray[Index].TransportStreamID;
+}
+
+const WORD CLEitTable::GetOriginalNetworkID(DWORD Index) const
+{
+	if (Index >= GetServiceNum())
+		return 0;
+	return m_EitArray[Index].OriginalNetworkID;
+}
+
+const WORD CLEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex > 3
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+		return 0;
+	return m_EitArray[Index].EventList[EventIndex].EventID;
+}
+
+const SYSTEMTIME *CLEitTable::GetStartTime(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex > 3
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+		return NULL;
+	return &m_EitArray[Index].EventList[EventIndex].StartTime;
+}
+
+const DWORD CLEitTable::GetDuration(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex > 3
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+		return 0;
+	return m_EitArray[Index].EventList[EventIndex].Duration;
+}
+
+const BYTE CLEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
+{
+	if (Index >= GetServiceNum() || EventIndex > 3
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+		return 0xFF;
+	return m_EitArray[Index].EventList[EventIndex].RunningStatus;
+}
+
+const bool CLEitTable::GetFreeCaMode(DWORD Index,DWORD EventIndex) const
+{
+	// Free CA Modeを返す
+	if (Index >= GetServiceNum() || EventIndex > 3
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+		return false;
+	return m_EitArray[Index].EventList[EventIndex].FreeCaMode;
+}
+
+const CDescBlock * CLEitTable::GetItemDesc(DWORD Index,DWORD EventIndex) const
+{
+	// アイテムの記述子ブロックを返す
+	if (Index >= GetServiceNum() || EventIndex > 3
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+		return NULL;
+	return &m_EitArray[Index].EventList[EventIndex].DescBlock;
+}
+
+const bool CLEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
+{
+	if (pCurSection->GetTableID() != 0x4E
+			|| pCurSection->GetSectionNumber() > 3)
+		return false;
+
+	const WORD wDataSize = pCurSection->GetPayloadSize();
+	const BYTE *pHexData = pCurSection->GetPayloadData();
+
+	if (wDataSize < 18)
+		return false;
+
+	WORD ServiceID, TransportStreamID, OriginalNetworkID;
+	ServiceID = pCurSection->GetTableIdExtension();
+	TransportStreamID = ((WORD)pHexData[0] << 8) | pHexData[1];
+	OriginalNetworkID = ((WORD)pHexData[2] << 8) | pHexData[3];
+
+	if (pHexData[4] != pCurSection->GetLastSectionNumber())	// segment_last_section_number
+		return false;
+	if (pHexData[5] != 0x4E)	// last_table_id
+		return false;
+
+	//TRACE(TEXT("------- L-EIT Table -------\nSID = %04X / TSID = %04X / ONID = %04X\n"),ServiceID,TransportStreamID,OriginalNetworkID);
+
+	int Index = GetServiceIndexByID(ServiceID);
+	if (Index < 0) {
+		LEitInfo EitInfo;
+
+		EitInfo.ServiceID = ServiceID;
+		EitInfo.TransportStreamID = TransportStreamID;
+		EitInfo.OriginalNetworkID = OriginalNetworkID;
+		m_EitArray.push_back(EitInfo);
+		Index = m_EitArray.size() - 1;
+	}
+
+	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
+
+	Info.EventID = (pHexData[6] << 8) | pHexData[7];
+	if (!CAribTime::AribToSystemTime(&pHexData[8], &Info.StartTime))
+		::ZeroMemory(&Info.StartTime, sizeof(SYSTEMTIME));
+	Info.Duration = CAribTime::AribBcdToSecond(&pHexData[13]);
+	Info.RunningStatus = pHexData[16] >> 5;
+	Info.FreeCaMode = (pHexData[16] & 0x10) != 0;
+	WORD DescLength = (((WORD)pHexData[16] & 0x0F) << 8) | (WORD)pHexData[17];
+	if (DescLength > 0 && DescLength <= wDataSize - 18)
+		Info.DescBlock.ParseBlock(&pHexData[18], DescLength);
+	else
+		Info.DescBlock.Reset();
+	Info.bEnable = true;
 
 	/*
 	TRACE(TEXT("EventID = %02X / %04d/%d/%d %d:%02d %lu sec\n"),

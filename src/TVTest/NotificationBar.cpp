@@ -55,8 +55,12 @@ CNotificationBar::CNotificationBar()
 	m_TextColor=RGB(224,224,224);
 	m_ErrorTextColor=RGB(224,64,64);
 	NONCLIENTMETRICS ncm;
+#if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	ncm.lfMessageFont.lfHeight=-14;
 	SetFont(&ncm.lfMessageFont);
 	m_fAnimate=true;

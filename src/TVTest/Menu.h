@@ -21,8 +21,15 @@ public:
 		SUBMENU_CHANNELHISTORY=8,
 		SUBMENU_VOLUME=10,
 		SUBMENU_STEREOMODE=11,
+//#ifndef TVH264
 		SUBMENU_BAR=25,
 		SUBMENU_PLUGIN=26
+/*
+#else
+		SUBMENU_BAR=26,
+		SUBMENU_PLUGIN=27
+#endif
+*/
 	};
 	CMainMenu();
 	~CMainMenu();

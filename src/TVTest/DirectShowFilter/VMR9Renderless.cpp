@@ -116,7 +116,7 @@ CVMR9Allocator::CVMR9Allocator(HRESULT *phr,HWND wnd,IDirect3D9 *d3d,IDirect3DDe
 	}
 
 	if (m_D3D==NULL) {
-		ASSERT(d3dd== NULL); 
+		ASSERT(d3dd== NULL);
 		m_D3D.Attach((*pDirect3DCreate9)(D3D_SDK_VERSION));
 		if (m_D3D==NULL) {
 			*phr=E_FAIL;
@@ -199,7 +199,7 @@ HRESULT CVMR9Allocator::CreateDevice()
 	hr=m_D3D->CreateDevice(D3DADAPTER_DEFAULT,
 						   D3DDEVTYPE_HAL,
 						   m_window,
-						   D3DCREATE_SOFTWARE_VERTEXPROCESSING | 
+						   D3DCREATE_SOFTWARE_VERTEXPROCESSING |
 							D3DCREATE_MULTITHREADED,
 						   &pp,
 						   &m_D3DDev.p);
@@ -207,7 +207,7 @@ HRESULT CVMR9Allocator::CreateDevice()
 		hr=m_D3D->CreateDevice(D3DADAPTER_DEFAULT,
 							   D3DDEVTYPE_REF,
 							   m_window,
-							   D3DCREATE_SOFTWARE_VERTEXPROCESSING | 
+							   D3DCREATE_SOFTWARE_VERTEXPROCESSING |
 								D3DCREATE_MULTITHREADED,
 							   &pp,
 							   &m_D3DDev.p);
@@ -215,7 +215,7 @@ HRESULT CVMR9Allocator::CreateDevice()
 			return hr;
 	}
 
-	//m_renderTarget=NULL; 
+	//m_renderTarget=NULL;
 	//return m_D3DDev->GetRenderTarget(0,&m_renderTarget.p);
 	return hr;
 }
@@ -227,7 +227,7 @@ void CVMR9Allocator::DeleteSurfaces()
 
 	//m_privateTexture=NULL;
 
-	for (size_t i=0;i<m_surfaces.size();i++) 
+	for (size_t i=0;i<m_surfaces.size();i++)
 		m_surfaces[i]=NULL;
 
 	SAFE_RELEASE(m_pCaptureSurface);
@@ -287,9 +287,9 @@ STDMETHODIMP CVMR9Allocator::InitializeDevice(DWORD_PTR dwUserID,
 			// create the private texture
 			hr=m_D3DDev->CreateTexture(
 				lpAllocInfo->dwWidth,lpAllocInfo->dwHeight,
-				1, 
-				D3DUSAGE_RENDERTARGET, 
-				dm.Format, 
+				1,
+				D3DUSAGE_RENDERTARGET,
+				dm.Format,
 				D3DPOOL_DEFAULT,
 				&m_privateTexture.p,
 				NULL);
@@ -813,7 +813,6 @@ bool CVideoRenderer_VMR9Renderless::SetVideoPosition(int SourceWidth,int SourceH
 	if (m_pRenderer==NULL || m_pAllocator==NULL)
 		return false;
 
-	HRESULT hr;
 	RECT rcDest;
 
 	rcDest=*pDestRect;

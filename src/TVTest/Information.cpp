@@ -416,15 +416,15 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				pThis->GetItemRect(ITEM_BITRATE,&rc);
 				if (IsRectIntersect(&ps.rcPaint,&rc)) {
 					if (pThis->m_fSignalLevel) {
-						int SignalLevel=(int)(pThis->m_SignalLevel*100);
+						int SignalLevel=(int)(pThis->m_SignalLevel*100.0f);
 						wsprintf(szText,TEXT("%d.%02d dB"),
-												SignalLevel/100,SignalLevel%100);
+										SignalLevel/100,abs(SignalLevel)%100);
 					} else
 						szText[0]='\0';
 					if (pThis->m_fBitRate) {
 						if (pThis->m_fSignalLevel)
 							lstrcat(szText,TEXT(" / "));
-						int BitRate=(int)(pThis->m_BitRate*100);
+						int BitRate=(int)(pThis->m_BitRate*100.0f);
 						wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
 														BitRate/100,BitRate%100);
 					}

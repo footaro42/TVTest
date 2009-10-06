@@ -107,7 +107,7 @@ static CDriverManager DriverManager;
 
 static bool fShowPanelWindow=false;
 static CPanelFrame PanelFrame;
-static int PanelPaneIndex=0;
+static int PanelPaneIndex=1;
 static CInfoPanel InfoWindow;
 
 static CInformationPanel InfoPanel;
@@ -176,7 +176,79 @@ static CImageCodec ImageCodec;
 static CCaptureWindow CaptureWindow;
 static bool fShowCaptureWindow=false;
 
+#if defined(TVH264) && defined(USE_TBS_FILTER)
+//#define TBS_FILTER_INTERFACE
+#endif
 
+#ifdef TBS_FILTER_INTERFACE
+#include <vector>
+class CTBSFilterTSIDList {
+	std::vector<WORD> m_TSIDList;
+public:
+	void Add(WORD TSID) {
+		for (size_t i=0;i<m_TSIDList.size();i++) {
+			if (m_TSIDList[i]==TSID)
+				return;
+		}
+		m_TSIDList.push_back(TSID);
+	}
+	void Remove(WORD TSID) {
+		std::vector<WORD>::iterator itr;
+
+		for (itr=m_TSIDList.begin();itr!=m_TSIDList.end();itr++) {
+			if (*itr==TSID) {
+				m_TSIDList.erase(itr);
+				return;
+			}
+		}
+	}
+	bool HasTSID(WORD TSID) const {
+		for (size_t i=0;i<m_TSIDList.size();i++) {
+			if (m_TSIDList[i]==TSID)
+				return true;
+		}
+		return false;
+	}
+	bool Load(LPCTSTR pszFileName) {
+		CSettings Settings;
+
+		if (!Settings.Open(pszFileName,TEXT("TBSFilter"),CSettings::OPEN_READ))
+			return false;
+		int Count;
+		if (Settings.Read(TEXT("TSIDCount"),&Count) && Count>0) {
+			m_TSIDList.clear();
+			for (int i=0;i<Count;i++) {
+				TCHAR szName[16];
+				int TSID;
+
+				::wsprintf(szName,TEXT("TSID%d"),i);
+				if (!Settings.Read(szName,&TSID))
+					break;
+				m_TSIDList.push_back(TSID);
+			}
+		}
+		Settings.Close();
+		return true;
+	}
+	bool Save(LPCTSTR pszFileName) const {
+		CSettings Settings;
+
+		if (!Settings.Open(pszFileName,TEXT("TBSFilter"),CSettings::OPEN_WRITE))
+			return false;
+		Settings.Clear();
+		Settings.Write(TEXT("TSIDCount"),(unsigned int)m_TSIDList.size());
+		for (size_t i=0;i<m_TSIDList.size();i++) {
+			TCHAR szName[16];
+
+			::wsprintf(szName,TEXT("TSID%d"),i);
+			Settings.Write(szName,(int)m_TSIDList[i]);
+		}
+		Settings.Close();
+		return true;
+	}
+};
+static CTBSFilterTSIDList TBSFilterTSIDList;
+#endif	// TBS_FILTER_INTERFACE
 
 
 class CMyGetChannelReceiver : public CNetworkRemoconReceiver {
@@ -344,7 +416,7 @@ bool CAppMain::Initialize()
 		}
 	}
 	::lstrcpy(m_szDefaultChannelFileName,szModuleFileName);
-	::PathRenameExtension(m_szDefaultChannelFileName,TEXT(".ch2"));
+	::PathRenameExtension(m_szDefaultChannelFileName,CHANNEL_FILE_EXTENSION);
 	::lstrcpy(m_szChannelSettingFileName,szModuleFileName);
 	::PathRenameExtension(m_szChannelSettingFileName,TEXT(".ch.ini"));
 	/*
@@ -437,9 +509,18 @@ bool CAppMain::InitializeChannel()
 			GetAppDirectory(szDir);
 			ChannelFilePath.SetDirectory(szDir);
 		}
+#ifndef TVH264
 		ChannelFilePath.SetExtension(TEXT(".ch2"));
 		if (!ChannelFilePath.IsExists())
 			ChannelFilePath.SetExtension(TEXT(".ch"));
+#else
+		ChannelFilePath.SetExtension(TEXT(".ch1"));
+		if (!ChannelFilePath.IsExists()) {
+			ChannelFilePath.SetExtension(TEXT(".ch2"));
+			if (!ChannelFilePath.IsExists())
+				ChannelFilePath.SetExtension(TEXT(".ch"));
+		}
+#endif
 	} else {
 		bool fOK=false;
 
@@ -461,14 +542,23 @@ bool CAppMain::InitializeChannel()
 							p++;
 						*p='\0';
 						::wsprintf(szNetworkDriverName,TEXT("%s.dll"),szFileName);
-						::lstrcpy(p,TEXT(".ch2"));
+						::lstrcpy(p,CHANNEL_FILE_EXTENSION);
 						ChannelFilePath.SetPath(szFileName);
 						GetAppDirectory(szFileName);
 						ChannelFilePath.SetDirectory(szFileName);
 						fOK=ChannelFilePath.IsExists();
 						if (!fOK) {
+#ifndef TVH264
 							ChannelFilePath.SetExtension(TEXT(".ch"));
 							fOK=ChannelFilePath.IsExists();
+#else
+							ChannelFilePath.SetExtension(TEXT(".ch2"));
+							fOK=ChannelFilePath.IsExists();
+							if (!fOK) {
+								ChannelFilePath.SetExtension(TEXT(".ch"));
+								fOK=ChannelFilePath.IsExists();
+							}
+#endif
 						}
 					}
 				}
@@ -490,12 +580,21 @@ bool CAppMain::InitializeChannel()
 				}
 				*q='\0';
 				::wsprintf(szNetworkDriverName,TEXT("%s.dll"),szFileName);
-				::lstrcpy(q,TEXT(".ch2"));
+				::lstrcpy(q,CHANNEL_FILE_EXTENSION);
 				ChannelFilePath.Append(szFileName);
 				fOK=ChannelFilePath.IsExists();
 				if (!fOK) {
+#ifndef TVH264
 					ChannelFilePath.SetExtension(TEXT(".ch"));
 					fOK=ChannelFilePath.IsExists();
+#else
+					ChannelFilePath.SetExtension(TEXT(".ch2"));
+					fOK=ChannelFilePath.IsExists();
+					if (!fOK) {
+						ChannelFilePath.SetExtension(TEXT(".ch"));
+						fOK=ChannelFilePath.IsExists();
+					}
+#endif
 				}
 			}
 		}
@@ -639,6 +738,12 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 			ChannelManager.SetCurrentChannel(OldSpace,OldChannel);
 			return false;
 		}
+#ifdef TVH264
+		// 予めTSIDを設定して表示を早くする
+		if ((pChInfo->GetTransportStreamID() & 0xFF00) == 0x7F00) {
+			CoreEngine.m_DtvEngine.m_TsPacketParser.SetTransportStreamID(pChInfo->GetTransportStreamID());
+		}
+#endif
 		ChannelManager.SetCurrentServiceID(ServiceID);
 		PluginList.SendChannelChangeEvent();
 	} else {
@@ -1015,6 +1120,9 @@ bool CAppMain::LoadSettings()
 	PluginOptions.Load(m_szIniFileName);
 	ChannelHistory.Load(m_szIniFileName);
 	InfoPanel.Load(m_szIniFileName);
+#ifdef TBS_FILTER_INTERFACE
+	TBSFilterTSIDList.Load(m_szIniFileName);
+#endif
 	return true;
 }
 
@@ -1098,6 +1206,9 @@ bool CAppMain::SaveSettings()
 	PluginOptions.Save(m_szIniFileName);
 	ChannelHistory.Save(m_szIniFileName);
 	InfoPanel.Save(m_szIniFileName);
+#ifdef TBS_FILTER_INTERFACE
+	TBSFilterTSIDList.Save(m_szIniFileName);
+#endif
 	return true;
 }
 
@@ -1945,7 +2056,7 @@ void CSignalLevelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		int Level=(int)(CoreEngine.GetSignalLevel()*100.0f);
 
 		wsprintf(szText,TEXT("%d.%02d dB / %d.%02d Mbps"),
-								Level/100,Level%100,BitRate/100,BitRate%100);
+							Level/100,abs(Level)%100,BitRate/100,BitRate%100);
 	}
 	DrawText(hdc,pRect,szText);
 }
@@ -2741,7 +2852,8 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 			m_PageList[i].pOptions->Apply(Flags);
 	}
 	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_BUILDMEDIAVIEWER)!=0) {
-		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
+		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()
+				|| MainWindow.IsMediaViewerBuildError()) {
 			CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 			MainWindow.BuildMediaViewer();
 			CoreEngine.m_DtvEngine.SetTracer(NULL);
@@ -4031,6 +4143,13 @@ void CMyDtvEngineHandler::OnServiceUpdated(CProgManager *pProgManager,bool fList
 void CMyDtvEngineHandler::OnServiceListUpdated(CProgManager *pProgManager,bool bStreamChanged)
 {
 	OnServiceUpdated(pProgManager,true,bStreamChanged);
+
+#ifdef TBS_FILTER_INTERFACE
+	bool fEnable=TBSFilterTSIDList.HasTSID(pProgManager->GetTransportStreamID());
+
+	CoreEngine.m_DtvEngine.m_MediaViewer.EnableTBSFilter(fEnable);
+	MainMenu.CheckItem(CM_TBSFILTER,fEnable);
+#endif
 }
 
 void CMyDtvEngineHandler::OnServiceInfoUpdated(CProgManager *pProgManager)
@@ -4132,8 +4251,13 @@ CMainWindow::CMainWindow()
 	, m_ChannelPanelTimer(TIMER_ID_CHANNELPANELUPDATE)
 {
 	// 適当にデフォルト位置を設定
+#ifndef TVH264
 	m_WindowPosition.Width=960;
 	m_WindowPosition.Height=540;
+#else
+	m_WindowPosition.Width=400;
+	m_WindowPosition.Height=320;
+#endif
 	m_WindowPosition.Left=(::GetSystemMetrics(SM_CXSCREEN)-m_WindowPosition.Width)/2;
 	m_WindowPosition.Top=(::GetSystemMetrics(SM_CYSCREEN)-m_WindowPosition.Height)/2;
 	m_fFullscreen=false;
@@ -4159,6 +4283,7 @@ CMainWindow::CMainWindow()
 	m_AspectRatioType=0;
 	m_fShowRecordRemainTime=false;
 	m_ProgramListUpdateTimerCount=0;
+	m_fViewerBuildError=false;
 }
 
 
@@ -4193,10 +4318,12 @@ bool CMainWindow::BuildMediaViewer()
 			InfoPanel.SetAudioDeviceName(szText);
 		if (fOldPreview)
 			m_PreviewManager.EnablePreview(true);
+		m_fViewerBuildError=false;
 	} else {
 		InfoPanel.SetVideoDecoderName(NULL);
 		InfoPanel.SetVideoRendererName(NULL);
 		InfoPanel.SetAudioDeviceName(NULL);
+		m_fViewerBuildError=true;
 	}
 	MainMenu.CheckItem(CM_DISABLEVIEWER,!IsPreview());
 
@@ -5329,6 +5456,24 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		ChannelHistory.Clear();
 		return;
 
+#ifdef TBS_FILTER_INTERFACE
+	case CM_TBSFILTER:
+		{
+			bool fEnable=!CoreEngine.m_DtvEngine.m_MediaViewer.IsTBSFilterEnabled();
+
+			if (CoreEngine.m_DtvEngine.m_MediaViewer.EnableTBSFilter(fEnable)) {
+				WORD TSID=CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID();
+
+				if (fEnable)
+					TBSFilterTSIDList.Add(TSID);
+				else
+					TBSFilterTSIDList.Remove(TSID);
+				MainMenu.CheckItem(CM_TBSFILTER,fEnable);
+			}
+		}
+		return;
+#endif
+
 	default:
 		if (id>=CM_AUDIOSTREAM_FIRST && id<=CM_AUDIOSTREAM_LAST) {
 			if (CoreEngine.m_DtvEngine.SetAudioStream(id-CM_AUDIOSTREAM_FIRST)) {
@@ -5887,6 +6032,7 @@ void CMainWindow::ShowChannelOSD()
 
 				GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
 				lf.lfHeight=(rc.right-rc.left)/20;
+				lf.lfWidth=0;
 				lf.lfQuality=NONANTIALIASED_QUALITY;
 				hfont=CreateFontIndirect(&lf);
 				rc.left+=16;
@@ -5904,7 +6050,13 @@ void CMainWindow::ShowChannelOSD()
 			COLORREF cr;
 
 			ChannelOSD.Create(m_VideoContainer.GetHandle());
-			ChannelOSD.SetTextHeight(32);
+			ChannelOSD.SetTextHeight(
+#ifndef TVH264
+				32
+#else
+				20
+#endif
+				);
 			ChannelOSD.SetText(szText);
 			ChannelOSD.CalcTextSize(&sz);
 			ChannelOSD.SetPosition(8,24,sz.cx+8,sz.cy+8);
@@ -8519,6 +8671,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		if (CmdLineParser.m_fMaximize && !CmdLineParser.m_fMinimize)
 			MainWindow.SetMaximizeStatus(true);
 	}
+
+#ifdef TVH264
+	PanelFrame.SetFloating(false);
+#endif
 
 	AppMain.Initialize();
 

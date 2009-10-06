@@ -144,24 +144,33 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 
 void CStatusOptions::SetDefaultItemList()
 {
-	static const BYTE DefaultOrder[NUM_STATUS_ITEMS] = {
-		STATUS_ITEM_TUNER,
-		STATUS_ITEM_CHANNEL,
-		STATUS_ITEM_VIDEOSIZE,
-		STATUS_ITEM_VOLUME,
-		STATUS_ITEM_AUDIOCHANNEL,
-		STATUS_ITEM_RECORD,
-		STATUS_ITEM_CAPTURE,
-		STATUS_ITEM_ERROR,
-		STATUS_ITEM_SIGNALLEVEL,
-		STATUS_ITEM_CLOCK,
-		STATUS_ITEM_PROGRAMINFO,
-		STATUS_ITEM_BUFFERING
+	static const bool fTVTest=
+#ifndef TVH264
+		true;
+#else
+		false;
+#endif
+	static const struct {
+		BYTE ID;
+		bool fVisible;
+	} DefaultItemList[NUM_STATUS_ITEMS] = {
+		{STATUS_ITEM_TUNER,			fTVTest},
+		{STATUS_ITEM_CHANNEL,		true},
+		{STATUS_ITEM_VIDEOSIZE,		true},
+		{STATUS_ITEM_VOLUME,		true},
+		{STATUS_ITEM_AUDIOCHANNEL,	true},
+		{STATUS_ITEM_RECORD,		true},
+		{STATUS_ITEM_CAPTURE,		fTVTest},
+		{STATUS_ITEM_ERROR,			fTVTest},
+		{STATUS_ITEM_SIGNALLEVEL,	true},
+		{STATUS_ITEM_CLOCK,			false},
+		{STATUS_ITEM_PROGRAMINFO,	false},
+		{STATUS_ITEM_BUFFERING,		false},
 	};
 
 	for (int i=0;i<NUM_STATUS_ITEMS;i++) {
-		m_ItemList[i].ID=DefaultOrder[i];
-		m_ItemList[i].fVisible=i<=STATUS_ITEM_SIGNALLEVEL;
+		m_ItemList[i].ID=DefaultItemList[i].ID;
+		m_ItemList[i].fVisible=DefaultItemList[i].fVisible;
 		m_ItemList[i].Width=-1;
 	}
 }

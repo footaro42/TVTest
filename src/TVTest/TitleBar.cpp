@@ -58,8 +58,12 @@ CTitleBar::CTitleBar()
 {
 	NONCLIENTMETRICS ncm;
 
+#if WINVER<0x0600
 	ncm.cbSize=sizeof(NONCLIENTMETRICS);
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(NONCLIENTMETRICS),&ncm,0);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	m_hfont=CreateFontIndirect(&ncm.lfCaptionFont);
 	m_FontHeight=abs(ncm.lfCaptionFont.lfHeight);
 	m_BackGradient.Type=Theme::GRADIENT_NORMAL;

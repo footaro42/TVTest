@@ -10,17 +10,20 @@
 #include "TsUtilClass.h"
 #include "BonSrcFilter.h"
 #include "AacDecFilter.h"
-#include "Mpeg2SequenceFilter.h"
-//#include "PcmSelectFilter.h"
-//#define USE_VIDEO_RATE_KEEPER
-#ifdef USE_VIDEO_RATE_KEEPER
-#include "RateKeeperFilter.h"
-#endif
 #include "DirectShowUtil.h"
-
-// Append by HDUSTestÇÃíÜÇÃêl
 #include "VideoRenderer.h"
 #include "ImageMixer.h"
+#ifndef TVH264
+#include "Mpeg2SequenceFilter.h"
+#else
+#include "H264ParserFilter.h"
+#define USE_TBS_FILTER
+#endif
+/*
+#ifdef USE_TBS_FILTER
+#include "TBSFilter.h"
+#endif
+*/
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -129,6 +132,13 @@ public:
 	const bool ClearOSD();
 	bool SetAudioOnly(bool bOnly);
 	bool CheckHangUp(DWORD TimeOut);
+#ifdef TVH264
+	bool SetAdjustSampleTime(bool bAdjust);
+#endif
+#ifdef USE_TBS_FILTER
+	bool EnableTBSFilter(bool bEnable);
+	bool IsTBSFilterEnabled() const;
+#endif
 
 protected:
 	const bool ResizeVideoWindow();
@@ -144,19 +154,26 @@ protected:
 	// Source
 	IBaseFilter *m_pSrcFilter;
 	CBonSrcFilter *m_pBonSrcFilterClass;
-	// Mpeg2-Sequence
-	IBaseFilter *m_pMpeg2SeqFilter;
-	CMpeg2SequenceFilter *m_pMpeg2SeqClass;
 	// AAC
 	IBaseFilter *m_pAacDecFilter;
 	CAacDecFilter *m_pAacDecClass;
-	/*
-	// Pcm Select
-	IBaseFilter *m_pPcmSelFilter;
-	CPcmSelectFilter *m_pPcmSelClass;
-	*/
 	// Renderer
 	CVideoRenderer *m_pVideoRenderer;
+
+#ifndef TVH264
+	// Mpeg2-Sequence
+	IBaseFilter *m_pMpeg2SeqFilter;
+	CMpeg2SequenceFilter *m_pMpeg2SeqClass;
+#else
+	// H.264 parser
+	IBaseFilter *m_pH264ParserFilter;
+	CH264ParserFilter *m_pH264ParserClass;
+#endif
+/*
+#ifdef USE_TBS_FILTER
+	CTBSFilter *m_pTBSFilter;
+#endif
+*/
 
 	LPWSTR m_pszMpeg2DecoderName;
 
@@ -170,10 +187,6 @@ protected:
 	// Elementary StreamÇÃPID
 	WORD m_wVideoEsPID;
 	WORD m_wAudioEsPID;
-
-#ifdef USE_VIDEO_RATE_KEEPER
-	CRateKeeperFilter *m_pVideoRateKeeper;
-#endif
 
 	static void CALLBACK OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	WORD m_wVideoWindowX;

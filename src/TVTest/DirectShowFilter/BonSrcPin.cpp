@@ -10,7 +10,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 #ifndef TS_PACKETSIZE
-#define TS_PACKETSIZE	(188U)
+#define TS_PACKETSIZE	188
 #endif
 
 #define SAMPLE_PACKETS 256
@@ -22,8 +22,7 @@ CBonSrcPin::CBonSrcPin(HRESULT *phr, CBonSrcFilter *pFilter)
 	: CBaseOutputPin(TEXT("CBonSrcPin"), pFilter, pFilter->m_pLock, phr, L"TS")
 	, m_pFilter(pFilter)
 	, m_hThread(NULL)
-	, m_pBuffer(NULL)
-	, m_BufferLength(0x1000)
+	, m_SrcStream(0x1000)
 	, m_bOutputWhenPaused(false)
 {
 	TRACE(TEXT("CBonSrcPin::CBonSrcPin() %p\n"),this);
@@ -33,7 +32,7 @@ CBonSrcPin::CBonSrcPin(HRESULT *phr, CBonSrcFilter *pFilter)
 
 CBonSrcPin::~CBonSrcPin(void)
 {
-	TRACE(TEXT("CBonSrcPin::~CBonSrcPin()\n"));
+	//TRACE(TEXT("CBonSrcPin::~CBonSrcPin()\n"));
 
 	EndStreamThread();
 }
@@ -51,7 +50,7 @@ HRESULT CBonSrcPin::GetMediaType(int iPosition, CMediaType *pMediaType)
 	pMediaType->SetType(&MEDIATYPE_Stream);
 	pMediaType->SetSubtype(&MEDIASUBTYPE_MPEG2_TRANSPORT);
 	pMediaType->SetTemporalCompression(FALSE);
-	pMediaType->SetSampleSize(188);
+	pMediaType->SetSampleSize(TS_PACKETSIZE);
 
 	return S_OK;
 }
@@ -65,7 +64,7 @@ HRESULT CBonSrcPin::CheckMediaType(const CMediaType *pMediaType)
 	CMediaType m_mt;
 	GetMediaType(0, &m_mt);
 
-	return (*pMediaType == m_mt)? S_OK : E_FAIL;
+	return (*pMediaType == m_mt) ? S_OK : E_FAIL;
 }
 
 HRESULT CBonSrcPin::Active(void)
@@ -80,13 +79,9 @@ HRESULT CBonSrcPin::Active(void)
 		return E_UNEXPECTED;
 
 	m_bKillSignal=false;
-	m_pBuffer=new BYTE[m_BufferLength*TS_PACKETSIZE];
-	m_BufferUsed=0;
-	m_BufferPos=0;
+	m_SrcStream.Reset();
 	m_hThread=::CreateThread(NULL,0,StreamThread,this,0,NULL);
 	if (m_hThread==NULL) {
-		delete [] m_pBuffer;
-		m_pBuffer=NULL;
 		return E_FAIL;
 	}
 	return S_OK;
@@ -102,14 +97,6 @@ void CBonSrcPin::EndStreamThread()
 		::CloseHandle(m_hThread);
 		m_hThread=NULL;
 	}
-	m_StreamLock.Lock();
-	if (m_pBuffer) {
-		m_BufferUsed=0;
-		m_BufferPos=0;
-		delete [] m_pBuffer;
-		m_pBuffer=NULL;
-	}
-	m_StreamLock.Unlock();
 }
 
 HRESULT CBonSrcPin::Inactive(void)
@@ -161,73 +148,21 @@ HRESULT CBonSrcPin::DecideBufferSize(IMemAllocator *pAlloc, ALLOCATOR_PROPERTIES
 
 const bool CBonSrcPin::InputMedia(CMediaData *pMediaData)
 {
-#if 0
-
-	CAutoLock AutoLock(&m_pFilter->m_cStateLock);
-
-	if (m_pFilter->m_State==State_Stopped
-			&& (m_pFilter->m_State==State_Paused && !m_bOutputWhenPaused))
-		return true;
-
-	// 空のメディアサンプルを要求する
-	IMediaSample *pSample = NULL;
-	HRESULT hr = GetDeliveryBuffer(&pSample, NULL, NULL, 0);
-	if(FAILED(hr))return false;
-
-	// 書き込み先ポインタを取得する
-	BYTE *pSampleData = NULL;
-	pSample->GetPointer(&pSampleData);
-
-	// 受け取ったデータをコピーする
-	::CopyMemory(pSampleData, pMediaData->GetData(), pMediaData->GetSize());
-    pSample->SetActualDataLength(pMediaData->GetSize());
-
-	// サンプルを次のフィルタに渡す
-	Deliver(pSample);
-
-	pSample->Release();
-
-#else
-
-	m_StreamLock.Lock();
-
-	if (m_pBuffer==NULL) {
-		m_StreamLock.Unlock();
-		return false;
-	}
-
-	for (int i=0;m_BufferUsed==m_BufferLength;i++) {
-		m_StreamLock.Unlock();
-		if (i==200) {
+	for (int i=0;m_SrcStream.IsBufferFull();i++) {
+		if (i==100) {
 			Flush();
 			return false;
 		}
-		::Sleep(5);
-		m_StreamLock.Lock();
-		if (m_BufferUsed==0) {
-			// リセットされた
-			m_StreamLock.Unlock();
-			return true;
-		}
+		::Sleep(10);
 	}
-
-	::CopyMemory(m_pBuffer+(m_BufferPos+m_BufferUsed)%m_BufferLength*TS_PACKETSIZE,
-				 pMediaData->GetData(),TS_PACKETSIZE/*pMediaData->GetSize()*/);
-	m_BufferUsed++;
-
-	m_StreamLock.Unlock();
-
-#endif
+	m_SrcStream.InputMedia(pMediaData);
 
 	return true;
 }
 
 void CBonSrcPin::Reset()
 {
-	m_StreamLock.Lock();
-	m_BufferUsed=0;
-	m_BufferPos=0;
-	m_StreamLock.Unlock();
+	m_SrcStream.Reset();
 }
 
 void CBonSrcPin::Flush()
@@ -236,6 +171,26 @@ void CBonSrcPin::Flush()
 	DeliverBeginFlush();
 	DeliverEndFlush();
 	Reset();
+}
+
+bool CBonSrcPin::EnableSync(bool bEnable)
+{
+	return m_SrcStream.EnableSync(bEnable);
+}
+
+bool CBonSrcPin::IsSyncEnabled() const
+{
+	return m_SrcStream.IsSyncEnabled();
+}
+
+void CBonSrcPin::SetVideoPID(WORD PID)
+{
+	m_SrcStream.SetVideoPID(PID);
+}
+
+void CBonSrcPin::SetAudioPID(WORD PID)
+{
+	m_SrcStream.SetAudioPID(PID);
 }
 
 DWORD WINAPI CBonSrcPin::StreamThread(LPVOID lpParameter)
@@ -247,15 +202,7 @@ DWORD WINAPI CBonSrcPin::StreamThread(LPVOID lpParameter)
 	::CoInitialize(NULL);
 
 	while (!pThis->m_bKillSignal) {
-		pThis->m_StreamLock.Lock();
-		if (pThis->m_BufferUsed > 0) {
-			DWORD Size = min(SAMPLE_PACKETS, pThis->m_BufferUsed);
-			if (Size > pThis->m_BufferLength - pThis->m_BufferPos)
-				Size = pThis->m_BufferLength - pThis->m_BufferPos;
-			BYTE *pBuffer = pThis->m_pBuffer + pThis->m_BufferPos * TS_PACKETSIZE;
-
-			//CAutoLock Lock(&pThis->m_pFilter->m_cStateLock);
-
+		if (pThis->m_SrcStream.IsDataAvailable()) {
 			// 空のメディアサンプルを要求する
 			IMediaSample *pSample = NULL;
 			HRESULT hr = pThis->GetDeliveryBuffer(&pSample, NULL, NULL, 0);
@@ -263,26 +210,14 @@ DWORD WINAPI CBonSrcPin::StreamThread(LPVOID lpParameter)
 				// 書き込み先ポインタを取得する
 				BYTE *pSampleData = NULL;
 				pSample->GetPointer(&pSampleData);
-
-				// 受け取ったデータをコピーする
-				::CopyMemory(pSampleData, pBuffer, Size * TS_PACKETSIZE);
-				pSample->SetActualDataLength(Size * TS_PACKETSIZE);
-			}
-
-			pThis->m_BufferPos += Size;
-			if (pThis->m_BufferPos == pThis->m_BufferLength)
-				pThis->m_BufferPos = 0;
-			pThis->m_BufferUsed -= Size;
-			pThis->m_StreamLock.Unlock();
-
-			if (SUCCEEDED(hr)) {
-				// サンプルを次のフィルタに渡す
-				pThis->Deliver(pSample);
-
+				DWORD Size = SAMPLE_PACKETS;
+				if (pThis->m_SrcStream.GetData(pSampleData, &Size)) {
+					pSample->SetActualDataLength(Size * TS_PACKETSIZE);
+					pThis->Deliver(pSample);
+				}
 				pSample->Release();
 			}
 		} else {
-			pThis->m_StreamLock.Unlock();
 			::Sleep(5);
 		}
 	}

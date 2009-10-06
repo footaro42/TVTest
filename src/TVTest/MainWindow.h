@@ -92,6 +92,7 @@ class CMainWindow : public CBasicWindow {
 	int m_VideoSizeChangedTimerCount;
 	bool m_fShowRecordRemainTime;
 	unsigned int m_ProgramListUpdateTimerCount;
+	bool m_fViewerBuildError;
 
 	class CPreviewManager {
 		bool m_fPreview;
@@ -164,6 +165,7 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool Show(int CmdShow);
 	bool BuildMediaViewer();
+	bool IsMediaViewerBuildError() const { return m_fViewerBuildError; }
 	bool CloseMediaViewer();
 	bool SetFullscreen(bool fFullscreen);
 	bool GetFullscreen() const { return m_fFullscreen; }

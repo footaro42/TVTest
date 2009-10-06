@@ -33,7 +33,7 @@ CViewOptions::CViewOptions()
 	m_fNoMonitorLowPower=false;
 	m_fNoMonitorLowPowerActiveOnly=false;
 	m_fShowLogo=true;
-	::lstrcpy(m_szLogoFileName,TEXT("TVTest_Logo.bmp"));
+	::lstrcpy(m_szLogoFileName,APP_NAME TEXT("_Logo.bmp"));
 }
 
 
