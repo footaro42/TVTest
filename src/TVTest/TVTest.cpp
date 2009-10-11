@@ -685,7 +685,7 @@ bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 	ChannelManager.SetCurrentServiceID(0);
 	WORD ServiceID;
 	if (CoreEngine.m_DtvEngine.GetServiceID(&ServiceID))
-		FollowChannelChange(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),ServiceID);
+		FollowChannelChange(CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID(),ServiceID);
 	NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
 											 &CoreEngine,&ChannelManager);
 	MainWindow.OnChannelListUpdated();
@@ -814,7 +814,7 @@ bool CAppMain::FollowChannelChange(WORD TransportStreamID,WORD ServiceID)
 
 bool CAppMain::SetService(int Service)
 {
-	int NumServices=CoreEngine.m_DtvEngine.m_ProgManager.GetServiceNum();
+	int NumServices=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetViewableServiceNum();
 
 	if (Service<0 || Service>=NumServices
 			|| !CoreEngine.m_DtvEngine.SetService(Service))
@@ -847,7 +847,7 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 		return SetService(0);
 
 	AddLog(TEXT("サービスを選択しています(SID %d)..."),ServiceID);
-	WORD Index=CoreEngine.m_DtvEngine.m_ProgManager.GetServiceIndexByID(ServiceID);
+	WORD Index=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetViewableServiceIndexByID(ServiceID);
 	if (Index!=0xFFFF) {
 		if (SetService(Index)) {
 			if (pServiceIndex!=NULL)
@@ -1729,7 +1729,7 @@ void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 	if (NumChannels>0) {
 		LPTSTR p=szText;
 
-		if (CoreEngine.m_DtvEngine.GetAudioStreamNum(CoreEngine.m_DtvEngine.GetService())>1)
+		if (CoreEngine.m_DtvEngine.GetAudioStreamNum()>1)
 			p+=wsprintf(szText,TEXT("#%d: "),CoreEngine.m_DtvEngine.GetAudioStream()+1);
 		switch (NumChannels) {
 		case 1:
@@ -4088,29 +4088,38 @@ public:
 	WORD m_NetworkID;
 	WORD m_TransportStreamID;
 	bool m_fStreamChanged;
-	CServiceUpdateInfo(CDtvEngine *pEngine,CProgManager *pProgManager);
+	CServiceUpdateInfo(CDtvEngine *pEngine,CTsAnalyzer *pTsAnalyzer);
 	~CServiceUpdateInfo();
 };
 
-CServiceUpdateInfo::CServiceUpdateInfo(CDtvEngine *pEngine,CProgManager *pProgManager)
+CServiceUpdateInfo::CServiceUpdateInfo(CDtvEngine *pEngine,CTsAnalyzer *pTsAnalyzer)
 {
-	m_NumServices=pProgManager->GetServiceNum();
+	CTsAnalyzer::CServiceList ServiceList;
+
+	pTsAnalyzer->GetViewableServiceList(&ServiceList);
+	m_NumServices=ServiceList.NumServices();
+	m_CurService=-1;
 	if (m_NumServices>0) {
 		m_pServiceList=new ServiceInfo[m_NumServices];
 		for (int i=0;i<m_NumServices;i++) {
-			if (!pProgManager->GetServiceID(&m_pServiceList[i].ServiceID,i))
-				m_pServiceList[i].ServiceID=0;
-			if (!pProgManager->GetServiceName(m_pServiceList[i].szServiceName,i))
-				m_pServiceList[i].szServiceName[0]='\0';
+			const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
+			m_pServiceList[i].ServiceID=pServiceInfo->ServiceID;
+			::lstrcpy(m_pServiceList[i].szServiceName,pServiceInfo->szServiceName);
+		}
+		WORD ServiceID;
+		if (pEngine->GetServiceID(&ServiceID)) {
+			for (int i=0;i<m_NumServices;i++) {
+				if (m_pServiceList[i].ServiceID==ServiceID) {
+					m_CurService=i;
+					break;
+				}
+			}
 		}
 	} else {
 		m_pServiceList=NULL;
 	}
-	m_CurService=pEngine->GetService();
-	if (m_CurService>=m_NumServices)
-		m_CurService=-1;
-	m_NetworkID=pProgManager->GetNetworkID();
-	m_TransportStreamID=pProgManager->GetTransportStreamID();
+	m_NetworkID=pTsAnalyzer->GetNetworkID();
+	m_TransportStreamID=pTsAnalyzer->GetTransportStreamID();
 }
 
 CServiceUpdateInfo::~CServiceUpdateInfo()
@@ -4122,27 +4131,27 @@ CServiceUpdateInfo::~CServiceUpdateInfo()
 class CMyDtvEngineHandler : public CDtvEngine::CEventHandler
 {
 // CEventHandler
-	void OnServiceListUpdated(CProgManager *pProgManager,bool bStreamChanged);
-	void OnServiceInfoUpdated(CProgManager *pProgManager);
+	void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer,bool bStreamChanged);
+	void OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer);
 	void OnFileWriteError(CFileWriter *pFileWriter);
 	void OnVideoSizeChanged(CMediaViewer *pMediaViewer);
 	void OnEmmProcessed(const BYTE *pEmmData);
 // CMyDtvEngineHandler
-	void OnServiceUpdated(CProgManager *pProgManager,bool fListUpdated,bool fStreamChanged);
+	void OnServiceUpdated(CTsAnalyzer *pTsAnalyzer,bool fListUpdated,bool fStreamChanged);
 };
 
-void CMyDtvEngineHandler::OnServiceUpdated(CProgManager *pProgManager,bool fListUpdated,bool fStreamChanged)
+void CMyDtvEngineHandler::OnServiceUpdated(CTsAnalyzer *pTsAnalyzer,bool fListUpdated,bool fStreamChanged)
 {
-	CServiceUpdateInfo *pInfo=new CServiceUpdateInfo(m_pDtvEngine,pProgManager);
+	CServiceUpdateInfo *pInfo=new CServiceUpdateInfo(m_pDtvEngine,pTsAnalyzer);
 
 	pInfo->m_fStreamChanged=fStreamChanged;
 	MainWindow.PostMessage(WM_APP_SERVICEUPDATE,fListUpdated,
 						   reinterpret_cast<LPARAM>(pInfo));
 }
 
-void CMyDtvEngineHandler::OnServiceListUpdated(CProgManager *pProgManager,bool bStreamChanged)
+void CMyDtvEngineHandler::OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer,bool bStreamChanged)
 {
-	OnServiceUpdated(pProgManager,true,bStreamChanged);
+	OnServiceUpdated(pTsAnalyzer,true,bStreamChanged);
 
 #ifdef TBS_FILTER_INTERFACE
 	bool fEnable=TBSFilterTSIDList.HasTSID(pProgManager->GetTransportStreamID());
@@ -4152,9 +4161,9 @@ void CMyDtvEngineHandler::OnServiceListUpdated(CProgManager *pProgManager,bool b
 #endif
 }
 
-void CMyDtvEngineHandler::OnServiceInfoUpdated(CProgManager *pProgManager)
+void CMyDtvEngineHandler::OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer)
 {
-	OnServiceUpdated(pProgManager,false,false);
+	OnServiceUpdated(pTsAnalyzer,false,false);
 }
 
 void CMyDtvEngineHandler::OnFileWriteError(CFileWriter *pFileWriter)
@@ -5462,7 +5471,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			bool fEnable=!CoreEngine.m_DtvEngine.m_MediaViewer.IsTBSFilterEnabled();
 
 			if (CoreEngine.m_DtvEngine.m_MediaViewer.EnableTBSFilter(fEnable)) {
-				WORD TSID=CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID();
+				WORD TSID=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID();
 
 				if (fEnable)
 					TBSFilterTSIDList.Add(TSID);
@@ -5818,7 +5827,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 					ServiceID=SID;
 			}
 			if (ServiceID>0)
-				ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),(WORD)ServiceID);
+				ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID(),(WORD)ServiceID);
 		} else if ((fShowPanelWindow
 					&& InfoWindow.GetCurTab()==PANEL_TAB_CHANNEL)
 				|| m_ProgramListUpdateTimerCount>8
@@ -6100,9 +6109,13 @@ void CMainWindow::OnDriverChanged()
 
 void CMainWindow::OnServiceChanged()
 {
+	int CurService=0;
+	WORD ServiceID;
+	if (CoreEngine.m_DtvEngine.GetServiceID(&ServiceID))
+		CurService=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetViewableServiceIndexByID(ServiceID);
 	MainMenu.CheckRadioItem(CM_SERVICE_FIRST,
-							CM_SERVICE_FIRST+CoreEngine.m_DtvEngine.m_ProgManager.GetServiceNum()-1,
-							CM_SERVICE_FIRST+CoreEngine.m_DtvEngine.GetService());
+							CM_SERVICE_FIRST+CoreEngine.m_DtvEngine.m_TsAnalyzer.GetViewableServiceNum()-1,
+							CM_SERVICE_FIRST+CurService);
 }
 
 
@@ -6349,7 +6362,7 @@ bool CMainWindow::SetStereoMode(int StereoMode)
 
 bool CMainWindow::SwitchAudio()
 {
-	int NumStreams=CoreEngine.m_DtvEngine.GetAudioStreamNum(CoreEngine.m_DtvEngine.GetService());
+	int NumStreams=CoreEngine.m_DtvEngine.GetAudioStreamNum();
 
 	if (NumStreams>1) {
 		SendCommand(CM_AUDIOSTREAM_FIRST+
@@ -6988,8 +7001,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					} else {
 						::wsprintf(szText,TEXT("&%d: サービス%d"),i+1,i+1);
 					}
-					if (CoreEngine.m_DtvEngine.m_ProgManager.GetEventName(
-							CoreEngine.m_DtvEngine.m_ProgManager.GetServiceIndexByID(pServiceInfo->ServiceID),
+					if (CoreEngine.m_DtvEngine.m_TsAnalyzer.GetEventName(
+							CoreEngine.m_DtvEngine.m_TsAnalyzer.GetServiceIndexByID(pServiceInfo->ServiceID),
 							szEventName,lengthof(szEventName))>0) {
 						::lstrcat(szText,TEXT(" ("));
 						int Length=::lstrlen(szText);
@@ -8260,7 +8273,7 @@ void CMainWindow::UpdatePanel()
 					ServiceID=SID;
 			}
 			if (ServiceID>0)
-				ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_ProgManager.GetTransportStreamID(),(WORD)ServiceID);
+				ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID(),(WORD)ServiceID);
 		}
 		break;
 

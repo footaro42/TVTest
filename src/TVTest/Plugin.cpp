@@ -359,16 +359,16 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			const CChannelInfo *pChInfo=GetAppClass().GetCurrentChannelInfo();
 			if (pChInfo==NULL)
 				return FALSE;
-			CProgManager *pProgManager=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_ProgManager;
+			CTsAnalyzer *pTsAnalyzer=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsAnalyzer;
 			pChannelInfo->Space=pChInfo->GetSpace();
 			pChannelInfo->Channel=pChInfo->GetChannelIndex();
 			pChannelInfo->RemoteControlKeyID=pChInfo->GetChannelNo();
-			pChannelInfo->NetworkID=pProgManager->GetNetworkID();
-			if (!pProgManager->GetNetworkName(pChannelInfo->szNetworkName,
+			pChannelInfo->NetworkID=pTsAnalyzer->GetNetworkID();
+			if (!pTsAnalyzer->GetNetworkName(pChannelInfo->szNetworkName,
 										lengthof(pChannelInfo->szNetworkName)))
 				pChannelInfo->szNetworkName[0]='\0';
-			pChannelInfo->TransportStreamID=pProgManager->GetTransportStreamID();
-			if (!pProgManager->GetTSName(pChannelInfo->szTransportStreamName,
+			pChannelInfo->TransportStreamID=pTsAnalyzer->GetTransportStreamID();
+			if (!pTsAnalyzer->GetTsName(pChannelInfo->szTransportStreamName,
 								lengthof(pChannelInfo->szTransportStreamName)))
 				pChannelInfo->szTransportStreamName[0]='\0';
 			::lstrcpy(pChannelInfo->szChannelName,pChInfo->GetName());
@@ -391,14 +391,14 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_GETSERVICE:
 		{
 			CDtvEngine *pDtvEngine=&GetAppClass().GetCoreEngine()->m_DtvEngine;
-			WORD Service=pDtvEngine->GetService();
 			int *pNumServices=reinterpret_cast<int*>(lParam1);
+			WORD ServiceID;
 
 			if (pNumServices)
-				*pNumServices=pDtvEngine->m_ProgManager.GetServiceNum();
-			if (Service==0xFFFF)
+				*pNumServices=pDtvEngine->m_TsAnalyzer.GetViewableServiceNum();
+			if (!pDtvEngine->GetServiceID(&ServiceID))
 				return -1;
-			return Service;
+			return pDtvEngine->m_TsAnalyzer.GetViewableServiceIndexByID(ServiceID);;
 		}
 
 	case TVTest::MESSAGE_SETSERVICE:
@@ -464,28 +464,32 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		{
 			int Index=lParam1;
 			TVTest::ServiceInfo *pServiceInfo=reinterpret_cast<TVTest::ServiceInfo*>(lParam2);
-			CProgManager *pProgManager;
 
 			if (Index<0 || pServiceInfo==NULL
 					|| (pServiceInfo->Size!=sizeof(TVTest::ServiceInfo)
 						&& pServiceInfo->Size!=TVTest::SERVICEINFO_SIZE_V1))
 				return FALSE;
-			pProgManager=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_ProgManager;
-			if (!pProgManager->GetServiceID(&pServiceInfo->ServiceID,Index)
-					|| !pProgManager->GetServiceName(
-											pServiceInfo->szServiceName,Index)
-					|| !pProgManager->GetVideoEsPID(&pServiceInfo->VideoPID,Index))
+			CTsAnalyzer *pTsAnalyzer=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsAnalyzer;
+			WORD ServiceID;
+			CTsAnalyzer::ServiceInfo Info;
+			if (!pTsAnalyzer->GetViewableServiceID(Index,&ServiceID)
+					|| !pTsAnalyzer->GetServiceInfo(pTsAnalyzer->GetServiceIndexByID(ServiceID),&Info))
 				return FALSE;
-			pServiceInfo->NumAudioPIDs=pProgManager->GetAudioEsNum(Index);
-			for (int i=0;i<pServiceInfo->NumAudioPIDs;i++) {
-				pProgManager->GetAudioEsPID(&pServiceInfo->AudioPID[i],i,Index);
-			}
+			pServiceInfo->ServiceID=ServiceID;
+			pServiceInfo->VideoPID=Info.VideoEs.PID;
+			pServiceInfo->NumAudioPIDs=(int)Info.AudioEsList.size();
+			for (size_t i=0;i<Info.AudioEsList.size();i++)
+				pServiceInfo->AudioPID[i]=Info.AudioEsList[i].PID;
+			::lstrcpyn(pServiceInfo->szServiceName,Info.szServiceName,32);
 			if (pServiceInfo->Size==sizeof(TVTest::ServiceInfo)) {
-				for (int i=0;i<pServiceInfo->NumAudioPIDs;i++) {
+				int ServiceIndex=pTsAnalyzer->GetServiceIndexByID(ServiceID);
+				for (size_t i=0;i<Info.AudioEsList.size();i++) {
 					pServiceInfo->AudioComponentType[i]=
-						pProgManager->GetAudioComponentType(i,Index);
+						pTsAnalyzer->GetAudioComponentType(ServiceIndex,i);
 				}
-				if (!pProgManager->GetSubtitleEsPID(&pServiceInfo->SubtitlePID,Index))
+				if (Info.SubtitleEsList.size()>0)
+					pServiceInfo->SubtitlePID=Info.SubtitleEsList[0].PID;
+				else
 					pServiceInfo->SubtitlePID=0;
 				pServiceInfo->Reserved=0;
 			}

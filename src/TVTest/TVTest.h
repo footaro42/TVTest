@@ -9,12 +9,12 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	5
-#define VERSION_BUILD	54
+#define VERSION_BUILD	55
 
-#define VERSION_TEXT_A	"0.5.54"
-#define VERSION_TEXT_W	L"0.5.54"
+#define VERSION_TEXT_A	"0.5.55"
+#define VERSION_TEXT_W	L"0.5.55"
 
-#define ABOUT_TEXT	"TVTest ver.0.5.54\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVTest ver.0.5.55\nby HDUSTestの中の人 && HDUSスレの皆さん"
 
 #else
 
@@ -23,12 +23,12 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	3
-#define VERSION_BUILD	0
+#define VERSION_BUILD	1
 
-#define VERSION_TEXT_A	"0.3.0"
-#define VERSION_TEXT_W	L"0.3.0"
+#define VERSION_TEXT_A	"0.3.1"
+#define VERSION_TEXT_W	L"0.3.1"
 
-#define ABOUT_TEXT	"TVH264 ver.0.3.0\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVH264 ver.0.3.1\nby HDUSTestの中の人 && HDUSスレの皆さん"
 
 #endif	// TVH264
 

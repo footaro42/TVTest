@@ -10,7 +10,6 @@
 #include "TsPacketParser.h"
 #include "TsAnalyzer.h"
 #include "TsDescrambler.h"
-#include "ProgManager.h"
 #include "MediaViewer.h"
 #include "MediaTee.h"
 #include "FileWriter.h"
@@ -40,8 +39,8 @@ public:
 		virtual ~CEventHandler() {}
 	protected:
 		CDtvEngine *m_pDtvEngine;
-		virtual void OnServiceListUpdated(CProgManager *pProgManager, bool bStreamChanged) {}
-		virtual void OnServiceInfoUpdated(CProgManager *pProgManager) {}
+		virtual void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer, bool bStreamChanged) {}
+		virtual void OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer) {}
 		//virtual void OnPcrTimeStampUpdated(CProgManager *pProgManager) {}
 		virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
 		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
@@ -71,7 +70,7 @@ public:
 	const bool GetVideoSize(WORD *pwWidth,WORD *pwHeight);
 	const bool GetVideoAspectRatio(BYTE *pbyAspectRateX,BYTE *pbyAspectRateY);
 	const BYTE GetAudioChannelNum();
-	const int GetAudioStreamNum(const WORD wService = 0);
+	const int GetAudioStreamNum(const int Service = -1);
 	const bool SetAudioStream(int StreamIndex);
 	const int GetAudioStream() const;
 	const BYTE GetAudioComponentType();
@@ -85,7 +84,7 @@ public:
 
 	const bool SetChannel(const BYTE byTuningSpace, const WORD wChannel, const WORD ServiceID = SID_INVALID);
 	const bool SetService(const WORD wService);
-	const WORD GetService(void) const;
+	//const WORD GetService(void);
 	const bool GetServiceID(WORD *pServiceID);
 	const bool SetServiceByID(const WORD ServiceID, const bool bReserve = true);
 	const unsigned __int64 GetPcrTimeStamp();
@@ -119,7 +118,6 @@ public:
 	CTsPacketParser m_TsPacketParser;		// TSパケッタイザー
 	CTsAnalyzer m_TsAnalyzer;
 	CTsDescrambler m_TsDescrambler;			// TSデスクランブラー
-	CProgManager m_ProgManager;				// TSプログラムマネージャー
 	CMediaViewer m_MediaViewer;				// メディアビューアー
 	CMediaTee m_MediaTee;					// メディアティー
 	CFileWriter m_FileWriter;				// ファイルライター
@@ -134,7 +132,7 @@ protected:
 	CCriticalLock m_EngineLock;
 	CEventHandler *m_pEventHandler;
 	WORD m_wCurTransportStream;
-	WORD m_wCurService;
+	WORD m_CurServiceIndex;
 	WORD m_CurServiceID;
 	WORD m_SpecServiceID;
 	int m_CurAudioStream;

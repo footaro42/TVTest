@@ -1007,10 +1007,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\ProgManager.h"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\TsAnalyzer.h"
 					>
 				</File>
@@ -1150,10 +1146,6 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\PATGenerator.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\BonTsEngine\ProgManager.cpp"
 					>
 				</File>
 				<File

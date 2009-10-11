@@ -785,6 +785,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 {
 	CChannelScan *pThis=static_cast<CChannelScan*>(lpParameter);
 	CDtvEngine *pDtvEngine=&pThis->m_pCoreEngine->m_DtvEngine;
+	CTsAnalyzer *pTsAnalyzer=&pDtvEngine->m_TsAnalyzer;
 	bool fComplete=false;
 
 	pThis->m_ScanningChannelList.Clear();
@@ -807,20 +808,24 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			for (int i=0;i<=pThis->m_RetryCount;i++) {
 				if (i>0 && ::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_RetryInterval)==WAIT_OBJECT_0)
 					goto End;
-				NumServices=pDtvEngine->m_ProgManager.GetServiceNum();
+				NumServices=pTsAnalyzer->GetViewableServiceNum();
 				if (NumServices>0) {
+					WORD ServiceID;
+
 					if (pThis->m_fScanService) {
 						int j;
 
 						for (j=0;j<NumServices;j++) {
-							if (pDtvEngine->m_ProgManager.GetServiceName(szName,i)==0)
+							if (!pTsAnalyzer->GetViewableServiceID(j,&ServiceID)
+									|| pTsAnalyzer->GetServiceName(pTsAnalyzer->GetServiceIndexByID(ServiceID),szName,lengthof(szName))==0)
 								break;
 						}
 						if (j==NumServices)
 							fFound=true;
 					} else {
-						if (pDtvEngine->m_ProgManager.GetServiceName(szName,0)>0
-								&& pDtvEngine->m_ProgManager.GetTSName(szName,lengthof(szName))>0)
+						if (pTsAnalyzer->GetFirstViewableServiceID(&ServiceID)
+								&& pTsAnalyzer->GetServiceName(pTsAnalyzer->GetServiceIndexByID(ServiceID),szName,lengthof(szName))>0
+								&& pTsAnalyzer->GetTsName(szName,lengthof(szName))>0)
 							fFound=true;
 					}
 					if (fFound)
@@ -832,19 +837,19 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			pThis->m_ScanChannel++;
 			continue;
 		}
-		WORD NetworkID=pDtvEngine->m_ProgManager.GetNetworkID();
-		WORD TransportStreamID=pDtvEngine->m_ProgManager.GetTransportStreamID();
+		WORD NetworkID=pTsAnalyzer->GetNetworkID();
+		WORD TransportStreamID=pTsAnalyzer->GetTransportStreamID();
 		if (pThis->m_fScanService) {
 			for (int i=0;i<NumServices;i++) {
-				pDtvEngine->m_ProgManager.GetServiceName(szName,i);
+				WORD ServiceID=0;
+				pTsAnalyzer->GetViewableServiceID(i,&ServiceID);
+				int ServiceIndex=pTsAnalyzer->GetServiceIndexByID(ServiceID);
+				pTsAnalyzer->GetServiceName(ServiceIndex,szName,lengthof(szName));
 				CChannelInfo ChInfo(pThis->m_ScanSpace,0,pThis->m_ScanChannel,
-					pDtvEngine->m_ProgManager.GetRemoteControlKeyID(),
-					i,szName);
+					pTsAnalyzer->GetRemoteControlKeyID(),i,szName);
 				ChInfo.SetNetworkID(NetworkID);
 				ChInfo.SetTransportStreamID(TransportStreamID);
-				WORD ServiceID=0;
-				if (pDtvEngine->m_ProgManager.GetServiceID(&ServiceID,i))
-					ChInfo.SetServiceID(ServiceID);
+				ChInfo.SetServiceID(ServiceID);
 				TRACE(TEXT("Channel found : %s %d %d %d %d\n"),
 					szName,pThis->m_ScanChannel,ChInfo.GetChannelNo(),NetworkID,ServiceID);
 				pThis->m_ScanningChannelList.AddChannel(ChInfo);
@@ -854,12 +859,11 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			}
 		} else {
 			CChannelInfo ChInfo(pThis->m_ScanSpace,0,pThis->m_ScanChannel,
-				pDtvEngine->m_ProgManager.GetRemoteControlKeyID(),
-				0,szName);
+				pTsAnalyzer->GetRemoteControlKeyID(),0,szName);
 			ChInfo.SetNetworkID(NetworkID);
 			ChInfo.SetTransportStreamID(TransportStreamID);
 			WORD ServiceID=0;
-			if (pDtvEngine->m_ProgManager.GetServiceID(&ServiceID,0))
+			if (pTsAnalyzer->GetFirstViewableServiceID(&ServiceID))
 				ChInfo.SetServiceID(ServiceID);
 			TRACE(TEXT("Channel found : %s %d %d %d %d\n"),
 				szName,pThis->m_ScanChannel,ChInfo.GetChannelNo(),NetworkID,ServiceID);

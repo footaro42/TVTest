@@ -189,31 +189,34 @@ void CStreamInfo::SetService()
 			PID=pServiceInfo->PmtPID;
 			::wsprintf(szText,TEXT("PMT PID %#04x (%d)"),PID,PID);
 			TreeView_InsertItem(hwndTree,&tvis);
-			PID=pServiceInfo->VideoEsPID;
+			PID=pServiceInfo->VideoEs.PID;
 			if (PID!=CTsAnalyzer::PID_INVALID) {
 				BYTE StreamType=pServiceInfo->VideoStreamType;
-				::wsprintf(szText,TEXT("映像 PID %#04x (%d) Type %s (%#02x)"),
-					PID,PID,
+				::wsprintf(szText,TEXT("映像 PID %#04x (%d) Type %#02x (%s) / Component tag %#02x"),
+					PID,PID,StreamType,
 					StreamType==0x02?TEXT("MPEG-2"):StreamType==0x1B?TEXT("H.264"):TEXT("Unknown"),
-					StreamType);
+					pServiceInfo->VideoEs.ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 			int NumAudioStreams=pServiceInfo->AudioEsList.size();
 			for (j=0;j<NumAudioStreams;j++) {
 				PID=pServiceInfo->AudioEsList[j].PID;
-				::wsprintf(szText,TEXT("音声%d PID %#04x (%d)"),j+1,PID,PID);
+				::wsprintf(szText,TEXT("音声%d PID %#04x (%d) Component tag %#02x"),
+						   j+1,PID,PID,pServiceInfo->AudioEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 			int NumSubtitleStreams=pServiceInfo->SubtitleEsList.size();
 			for (j=0;j<NumSubtitleStreams;j++) {
 				PID=pServiceInfo->SubtitleEsList[j].PID;
-				::wsprintf(szText,TEXT("字幕%d PID %#04x (%d)"),j+1,PID,PID);
+				::wsprintf(szText,TEXT("字幕%d PID %#04x (%d) Component tag %#02x"),
+						   j+1,PID,PID,pServiceInfo->SubtitleEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 			int NumDataStreams=pServiceInfo->DataCarrouselEsList.size();
 			for (j=0;j<NumDataStreams;j++) {
 				PID=pServiceInfo->DataCarrouselEsList[j].PID;
-				::wsprintf(szText,TEXT("データ%d PID %#04x (%d)"),j+1,PID,PID);
+				::wsprintf(szText,TEXT("データ%d PID %#04x (%d) Component tag %#02x"),
+						   j+1,PID,PID,pServiceInfo->DataCarrouselEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 			PID=pServiceInfo->PcrPID;

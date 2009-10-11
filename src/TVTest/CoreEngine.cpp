@@ -420,7 +420,7 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 		m_NumAudioChannels=NumAudioChannels;
 		Updated|=STATUS_AUDIOCHANNELS;
 	}
-	int NumAudioStreams=m_DtvEngine.GetAudioStreamNum(m_DtvEngine.GetService());
+	int NumAudioStreams=m_DtvEngine.GetAudioStreamNum();
 	if (NumAudioStreams!=m_NumAudioStreams) {
 		m_NumAudioStreams=NumAudioStreams;
 		Updated|=STATUS_AUDIOSTREAMS;

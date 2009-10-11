@@ -442,7 +442,7 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 	if (Settings.Open(pszFileName,TEXT("AppCommand"),CSettings::OPEN_READ)) {
 		int NumCommands;
 
-		if (Settings.Read(TEXT("Count"),&NumCommands) && NumCommands>=0) {
+		if (Settings.Read(TEXT("NumCommands"),&NumCommands) && NumCommands>=0) {
 			m_AppCommandList.clear();
 			for (int i=0;i<NumCommands;i++) {
 				TCHAR szName[64],szCommand[CCommandList::MAX_COMMAND_TEXT];

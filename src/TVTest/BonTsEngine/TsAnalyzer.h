@@ -3,17 +3,24 @@
 #include <vector>
 #include "MediaDecoder.h"
 #include "TsStream.h"
+#include "TsDescriptor.h"
+
+#define TS_ANALYZER_EIT_SUPPORT
 
 
 class CTsAnalyzer : public CMediaDecoder
 {
 public:
-	enum { PID_INVALID = 0xFFFF };
+	enum {
+		PID_INVALID = 0xFFFF,
+		COMPONENTTAG_INVALID = 0xFF
+	};
 
 	struct EsInfo {
 		WORD PID;
 		BYTE ComponentTag;
-		EsInfo(WORD pid, BYTE Tag = 0) : PID(pid), ComponentTag(Tag) {}
+		EsInfo() : PID(PID_INVALID), ComponentTag(COMPONENTTAG_INVALID) {}
+		EsInfo(WORD pid, BYTE Tag) : PID(pid), ComponentTag(Tag) {}
 	};
 
 	struct ServiceInfo {
@@ -21,7 +28,7 @@ public:
 		WORD ServiceID;
 		WORD PmtPID;
 		BYTE VideoStreamType;
-		WORD VideoEsPID;
+		EsInfo VideoEs;
 		std::vector<EsInfo> AudioEsList;
 		std::vector<EsInfo> SubtitleEsList;
 		std::vector<EsInfo> DataCarrouselEsList;
@@ -43,26 +50,32 @@ public:
 
 // CTsAnalyzer
 	WORD GetServiceNum();
-	bool GetServiceID(const WORD Index, WORD *pServiceID);
+	bool GetServiceID(const int Index, WORD *pServiceID);
 	int GetServiceIndexByID(const WORD ServiceID);
-	bool IsServiceUpdated(const WORD Index);
-	bool GetPmtPID(const WORD Index, WORD *pPmtPID);
-	bool GetVideoEsPID(const WORD Index, WORD *pVideoPID);
-	bool GetVideoStreamType(const WORD Index, BYTE *pStreamType);
-	WORD GetAudioEsNum(const WORD Index);
-	bool GetAudioEsPID(const WORD Index, const WORD AudioIndex, WORD *pAudioPID);
-	BYTE GetAudioComponentTag(const WORD Index, const WORD AudioIndex);
+	WORD GetViewableServiceNum();
+	bool GetViewableServiceID(const int Index, WORD *pServiceID);
+	bool GetFirstViewableServiceID(WORD *pServiceID);
+	int GetViewableServiceIndexByID(const WORD ServiceID);
+	bool GetServiceInfo(const int Index, ServiceInfo *pInfo);
+	bool IsServiceUpdated(const int Index);
+	bool GetPmtPID(const int Index, WORD *pPmtPID);
+	bool GetVideoEsPID(const int Index, WORD *pVideoPID);
+	bool GetVideoStreamType(const int Index, BYTE *pStreamType);
+	BYTE GetVideoComponentTag(const int Index);
+	WORD GetAudioEsNum(const int Index);
+	bool GetAudioEsPID(const int Index, const int AudioIndex, WORD *pAudioPID);
+	BYTE GetAudioComponentTag(const int Index, const int AudioIndex);
 #ifdef TS_ANALYZER_EIT_SUPPORT
-	BYTE GetAudioComponentType(const WORD Index, const WORD AudioIndex);
+	BYTE GetAudioComponentType(const int Index, const int AudioIndex);
 #endif
-	WORD GetSubtitleEsNum(const WORD Index);
-	bool GetSubtitleEsPID(const WORD Index, const WORD SubtitleIndex, WORD *pSubtitlePID);
-	WORD GetDataCarrouselEsNum(const WORD Index);
-	bool GetDataCarrouselEsPID(const WORD Index, const WORD DataCarrouselIndex, WORD *pDataCarrouselPID);
-	bool GetPcrPID(const WORD Index, WORD *pPcrPID);
-	bool GetPcrTimeStamp(const WORD Index, ULONGLONG *pTimeStamp);
-	bool GetEcmPID(const WORD Index, WORD *pEcmPID);
-	int GetServiceName(const WORD Index, LPTSTR pszName, const int MaxLength);
+	WORD GetSubtitleEsNum(const int Index);
+	bool GetSubtitleEsPID(const int Index, const WORD SubtitleIndex, WORD *pSubtitlePID);
+	WORD GetDataCarrouselEsNum(const int Index);
+	bool GetDataCarrouselEsPID(const int Index, const WORD DataCarrouselIndex, WORD *pDataCarrouselPID);
+	bool GetPcrPID(const int Index, WORD *pPcrPID);
+	bool GetPcrTimeStamp(const int Index, ULONGLONG *pTimeStamp);
+	bool GetEcmPID(const int Index, WORD *pEcmPID);
+	int GetServiceName(const int Index, LPTSTR pszName, const int MaxLength);
 
 	class CServiceList {
 	protected:
@@ -90,39 +103,43 @@ public:
 	int GetTsName(LPTSTR pszName, int MaxLength);
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
-	WORD GetEventID(const WORD ServiceIndex, const bool bNext = false);
-	bool GetEventStartTime(const WORD ServiceIndex, SYSTEMTIME *pSystemTime, const bool bNext = false);
-	DWORD GetEventDuration(const WORD ServiceIndex, const bool bNext = false);
-	int GetEventName(const WORD ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext = false);
-	int GetEventText(const WORD ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
+	WORD GetEventID(const int ServiceIndex, const bool bNext = false);
+	bool GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemTime, const bool bNext = false);
+	DWORD GetEventDuration(const int ServiceIndex, const bool bNext = false);
+	int GetEventName(const int ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext = false);
+	int GetEventText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
 #endif
 
 	bool GetTotTime(SYSTEMTIME *pTime);
 
-	class CEventHandler {
-	public:
-		CEventHandler();
-		virtual ~CEventHandler();
-		virtual void OnEvent(CTsAnalyzer *pAnalyzer) = 0;
-		virtual void OnReset(CTsAnalyzer *pAnalyzer);
-	};
 	enum EventType {
 		EVENT_PAT_UPDATED,
 		EVENT_PMT_UPDATED,
-		EVENT_PCR_UPDATED,
+		EVENT_SDT_UPDATED,
 		EVENT_NIT_UPDATED,
+		EVENT_PCR_UPDATED,
 		NUM_EVENTS,
 		EVENT_LAST = NUM_EVENTS - 1
 	};
-	bool AddEventHandler(EventType Type, CEventHandler *pHandler);
-	bool RemoveEventHandler(CEventHandler *pHandler);
+	class IAnalyzerEventHandler {
+	public:
+		IAnalyzerEventHandler();
+		virtual ~IAnalyzerEventHandler();
+		virtual void OnEvent(CTsAnalyzer *pAnalyzer, EventType Type) = 0;
+		virtual void OnReset(CTsAnalyzer *pAnalyzer);
+	};
+	bool AddEventHandler(IAnalyzerEventHandler *pHandler);
+	bool RemoveEventHandler(IAnalyzerEventHandler *pHandler);
 
 protected:
 	void CallEventHandler(EventType Type);
-	void NotifyResetEvent(EventType Type);
+	void NotifyResetEvent();
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
-	const CDescBlock *GetHEitItemDesc(const WORD ServiceIndex, const bool bNext = false) const;
+	const CDescBlock *GetHEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
+#ifdef TVH264
+	const CDescBlock *GetLEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
+#endif
 #endif
 
 	CTsPidMapManager m_PidMapManager;
@@ -139,16 +156,12 @@ protected:
 	};
 	NitInfo m_NitInfo;
 
-	struct EventHandlerInfo {
-		EventType Type;
-		CEventHandler *pHandler;
-	};
-	std::vector<EventHandlerInfo> m_EventHandlerList[NUM_EVENTS];
+	std::vector<IAnalyzerEventHandler*> m_EventHandlerList;
 
 private:
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
-	static void CALLBACK OnPcrUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnSdtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnNitUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
+	static void CALLBACK OnPcrUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 };

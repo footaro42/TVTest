@@ -1003,10 +1003,6 @@
 					>
 				</File>
 				<File
-					RelativePath=".\BonTsEngine\ProgManager.h"
-					>
-				</File>
-				<File
 					RelativePath=".\BonTsEngine\TsAnalyzer.h"
 					>
 				</File>
@@ -1143,10 +1139,6 @@
 							AssemblerOutput="0"
 						/>
 					</FileConfiguration>
-				</File>
-				<File
-					RelativePath=".\BonTsEngine\ProgManager.cpp"
-					>
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\TsAnalyzer.cpp"
