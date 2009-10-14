@@ -173,7 +173,7 @@ bool CTsAnalyzer::GetViewableServiceID(const int Index, WORD *pServiceID)
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
 		if (m_ServiceList[i].VideoStreamType == VIEWABLE_STREAM_TYPE) {
 			if (j == Index) {
-				*pServiceID = m_ServiceList[j].ServiceID;
+				*pServiceID = m_ServiceList[i].ServiceID;
 				return true;
 			}
 			j++;

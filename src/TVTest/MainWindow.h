@@ -217,7 +217,7 @@ public:
 	void OnServiceChanged();
 	void OnRecordingStart();
 	void OnRecordingStop();
-	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fStatus);
+	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz,bool fStatus);
 	void PopupMenu(const POINT *pPos=NULL);
 	HMENU CreateTunerSelectMenu();
 	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }

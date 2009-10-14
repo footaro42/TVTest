@@ -22,13 +22,17 @@
 #define _WIN32_IE 0x0600	// これを IE の他のバージョン向けに適切な値に変更してください。
 #endif
 
+// Winsock2 とヘッダが干渉しないようにする
 #define _WINSOCKAPI_
+
+#define _WIN32_DCOM	// for CoInitializeEx()
 
 #include <stdio.h>
 #include <windows.h>
 #include <windowsx.h>
 #include <tchar.h>
 #include <commctrl.h>
+#include <shlwapi.h>
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
@@ -72,6 +76,7 @@
 #pragma comment(lib, "Strmiids.lib")
 #pragma comment(lib, "Ole32.lib")
 #pragma comment(lib, "Winmm.lib")
+#pragma comment(lib, "ShLwApi.lib")
 
 #ifdef _DEBUG
 #pragma comment(lib, "StrmBasd.lib")

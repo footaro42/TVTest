@@ -64,6 +64,9 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
 
 #define MAIN_WINDOW_CLASS				APP_NAME TEXT(" Window")
 #define FULLSCREEN_WINDOW_CLASS			APP_NAME TEXT(" Fullscreen")
@@ -3795,10 +3798,11 @@ LRESULT CALLBACK CFullscreen::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		break;
 
 	case WM_MOUSEWHEEL:
+	case WM_MOUSEHWHEEL:
 		{
 			CFullscreen *pThis=GetThis(hwnd);
 
-			MainWindow.OnMouseWheel(wParam,lParam,pThis->m_fShowStatusView);
+			MainWindow.OnMouseWheel(wParam,lParam,uMsg==WM_MOUSEHWHEEL,pThis->m_fShowStatusView);
 		}
 		return 0;
 
@@ -6142,16 +6146,20 @@ void CMainWindow::OnRecordingStop()
 }
 
 
-void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fStatus)
+void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz,bool fStatus)
 {
 	int Mode;
 
-	if ((wParam&MK_SHIFT)!=0)
-		Mode=OperationOptions.GetWheelShiftMode();
-	else if ((wParam&MK_CONTROL)!=0)
-		Mode=OperationOptions.GetWheelCtrlMode();
-	else
-		Mode=OperationOptions.GetWheelMode();
+	if (fHorz) {
+		Mode=OperationOptions.GetWheelTiltMode();
+	} else {
+		if ((wParam&MK_SHIFT)!=0)
+			Mode=OperationOptions.GetWheelShiftMode();
+		else if ((wParam&MK_CONTROL)!=0)
+			Mode=OperationOptions.GetWheelCtrlMode();
+		else
+			Mode=OperationOptions.GetWheelMode();
+	}
 	if (fStatus && StatusView.GetVisible()) {
 		POINT pt;
 		RECT rc;
@@ -6188,7 +6196,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fStatus)
 			bool fUp;
 			const CChannelInfo *pInfo;
 
-			if (OperationOptions.GetWheelChannelReverse())
+			if (fHorz || OperationOptions.GetWheelChannelReverse())
 				fUp=GET_WHEEL_DELTA_WPARAM(wParam)>0;
 			else
 				fUp=GET_WHEEL_DELTA_WPARAM(wParam)<0;
@@ -6874,8 +6882,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_MOUSEWHEEL:
-		GetThis(hwnd)->OnMouseWheel(wParam,lParam,StatusView.GetParent()==hwnd);
+		GetThis(hwnd)->OnMouseWheel(wParam,lParam,false,StatusView.GetParent()==hwnd);
 		return 0;
+
+	case WM_MOUSEHWHEEL:
+		GetThis(hwnd)->OnMouseWheel(wParam,lParam,true,StatusView.GetParent()==hwnd);
+		return 1;	// 1‚ð•Ô‚³‚È‚¢‚ÆŒJ‚è•Ô‚µ‘—‚ç‚ê‚Ä—ˆ‚È‚¢‚ç‚µ‚¢
 
 	case WM_MEASUREITEM:
 		{

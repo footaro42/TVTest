@@ -19,6 +19,7 @@ COperationOptions::COperationOptions()
 	m_WheelMode=WHEEL_VOLUME;
 	m_WheelShiftMode=WHEEL_CHANNEL;
 	m_WheelCtrlMode=WHEEL_AUDIO;
+	m_WheelTiltMode=WHEEL_NONE;
 	m_fWheelChannelReverse=false;
 	m_WheelChannelDelay=1000;
 	m_VolumeStep=5;
@@ -48,6 +49,9 @@ bool COperationOptions::Read(CSettings *pSettings)
 	if (pSettings->Read(TEXT("WheelCtrlMode"),&Value)
 			&& Value>=WHEEL_FIRST && Value<=WHEEL_LAST)
 		m_WheelCtrlMode=(WheelMode)Value;
+	if (pSettings->Read(TEXT("WheelTiltMode"),&Value)
+			&& Value>=WHEEL_FIRST && Value<=WHEEL_LAST)
+		m_WheelTiltMode=(WheelMode)Value;
 	pSettings->Read(TEXT("ReverseWheelChannel"),&m_fWheelChannelReverse);
 	if (pSettings->Read(TEXT("WheelChannelDelay"),&Value)) {
 		if (Value<WHEEL_CHANNEL_DELAY_MIN)
@@ -73,6 +77,7 @@ bool COperationOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("WheelMode"),(int)m_WheelMode);
 	pSettings->Write(TEXT("WheelShiftMode"),(int)m_WheelShiftMode);
 	pSettings->Write(TEXT("WheelCtrlMode"),(int)m_WheelCtrlMode);
+	pSettings->Write(TEXT("WheelTiltMode"),(int)m_WheelTiltMode);
 	pSettings->Write(TEXT("ReverseWheelChannel"),m_fWheelChannelReverse);
 	pSettings->Write(TEXT("WheelChannelDelay"),m_WheelChannelDelay);
 	pSettings->Write(TEXT("VolumeStep"),m_VolumeStep);
@@ -158,6 +163,8 @@ BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELSHIFTMODE,pThis->m_WheelShiftMode);
 			InitWheelModeList(hDlg,IDC_OPTIONS_WHEELCTRLMODE);
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELCTRLMODE,pThis->m_WheelCtrlMode);
+			InitWheelModeList(hDlg,IDC_OPTIONS_WHEELTILTMODE);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELTILTMODE,pThis->m_WheelTiltMode);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_WHEELCHANNELREVERSE,
 												pThis->m_fWheelChannelReverse);
 			::SetDlgItemInt(hDlg,IDC_OPTIONS_WHEELCHANNELDELAY,
@@ -207,6 +214,8 @@ BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELSHIFTMODE);
 				pThis->m_WheelCtrlMode=(WheelMode)
 					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELCTRLMODE);
+				pThis->m_WheelTiltMode=(WheelMode)
+					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELTILTMODE);
 				pThis->m_fWheelChannelReverse=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_WHEELCHANNELREVERSE);
 				pThis->m_WheelChannelDelay=

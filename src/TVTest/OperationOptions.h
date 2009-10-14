@@ -27,6 +27,7 @@ private:
 	WheelMode m_WheelMode;
 	WheelMode m_WheelShiftMode;
 	WheelMode m_WheelCtrlMode;
+	WheelMode m_WheelTiltMode;
 	bool m_fWheelChannelReverse;
 	int m_WheelChannelDelay;
 	int m_VolumeStep;
@@ -51,6 +52,7 @@ public:
 	WheelMode GetWheelMode() const { return m_WheelMode; }
 	WheelMode GetWheelShiftMode() const { return m_WheelShiftMode; }
 	WheelMode GetWheelCtrlMode() const { return m_WheelCtrlMode; }
+	WheelMode GetWheelTiltMode() const { return m_WheelTiltMode; }
 	bool GetWheelChannelReverse() const { return m_fWheelChannelReverse; }
 	int GetWheelChannelDelay() const { return m_WheelChannelDelay; }
 	int GetVolumeStep() const { return m_VolumeStep; }

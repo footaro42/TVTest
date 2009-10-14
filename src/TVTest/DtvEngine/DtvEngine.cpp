@@ -643,7 +643,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 							TRACE(TEXT("Service not found %d\n"), m_SpecServiceID);
 							m_SpecServiceID = SID_INVALID;
 						} else {
-							int ServiceIndex = m_TsAnalyzer.GetServiceIndexByID(m_SpecServiceID);
+							int ServiceIndex = m_TsAnalyzer.GetViewableServiceIndexByID(m_SpecServiceID);
 							if (ServiceIndex >= 0) {
 								Service = (WORD)ServiceIndex;
 							} else {
@@ -656,7 +656,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 						if (m_TsAnalyzer.GetServiceIndexByID(m_CurServiceID) < 0) {
 							m_CurServiceID = SID_INVALID;
 						} else {
-							int ServiceIndex = m_TsAnalyzer.GetServiceIndexByID(m_CurServiceID);
+							int ServiceIndex = m_TsAnalyzer.GetViewableServiceIndexByID(m_CurServiceID);
 							if (ServiceIndex < 0)
 								goto ServiceListUpdatedHandler;
 							Service = (WORD)ServiceIndex;
