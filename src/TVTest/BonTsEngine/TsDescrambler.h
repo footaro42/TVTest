@@ -30,32 +30,11 @@ public:
 	virtual bool Process() = 0;
 };
 
-class CEcmAccess : public CBcasAccess {
-	CEcmProcessor *m_pEcmProcessor;
-
-public:
-	CEcmAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
-	CEcmAccess(const CEcmAccess &BcasAccess);
-	~CEcmAccess();
-	CEcmAccess &operator=(const CEcmAccess &EcmAccess);
-	bool Process();
-};
-
-class CEmmAccess : public CBcasAccess {
-	CEmmProcessor *m_pEmmProcessor;
-
-public:
-	CEmmAccess(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size);
-	CEmmAccess(const CEmmAccess &EmmAccess);
-	~CEmmAccess();
-	CEmmAccess &operator=(const CEmmAccess &EmmAccess);
-	bool Process();
-};
-
 class CBcasAccessQueue : public CBonBaseClass {
 	std::deque<CBcasAccess*> m_Queue;
 	CBcasCard *m_pBcasCard;
 	CCardReader::ReaderType m_ReaderType;
+	LPCTSTR m_pszReaderName;
 	HANDLE m_hThread;
 	CLocalEvent m_Event;
 	volatile bool m_bKillEvent;
@@ -67,9 +46,10 @@ public:
 	CBcasAccessQueue(CBcasCard *pBcasCard);
 	~CBcasAccessQueue();
 	void Clear();
+	bool Enqueue(CBcasAccess *pAccess);
 	bool Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
 	bool Enqueue(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size);
-	bool BeginBcasThread(CCardReader::ReaderType ReaderType);
+	bool BeginBcasThread(CCardReader::ReaderType ReaderType, LPCTSTR pszReaderName);
 	bool EndBcasThread();
 };
 
@@ -85,7 +65,8 @@ class CTsDescrambler : public CMediaDecoder
 {
 public:
 	enum {
-		EID_EMM_PROCESSED	= 0x00000001UL
+		EVENT_EMM_PROCESSED	= 0x00000001UL,
+		EVENT_ECM_ERROR		= 0x00000002UL
 	};
 
 	CTsDescrambler(IEventHandler *pEventHandler = NULL);
@@ -98,11 +79,13 @@ public:
 // CTsDescrambler
 	const bool EnableDescramble(bool bDescramble);
 	const bool EnableEmmProcess(bool bEnable);
-	const bool OpenBcasCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD);
+	const bool OpenBcasCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD, LPCTSTR pszReaderName = NULL);
 	void CloseBcasCard(void);
 	const bool IsBcasCardOpen() const;
-	const bool GetBcasCardID(BYTE *pCardID);
+	CCardReader::ReaderType GetCardReaderType() const;
 	LPCTSTR GetCardReaderName() const;
+	const bool GetBcasCardInfo(CBcasCard::BcasCardInfo *pInfo);
+	const bool GetBcasCardID(BYTE *pCardID);
 	int FormatBcasCardID(LPTSTR pszText,int MaxLength) const;
 	char GetBcasCardManufacturerID() const;
 	BYTE GetBcasCardVersion() const;
@@ -112,6 +95,7 @@ public:
 	bool SetTargetServiceID(WORD ServiceID=0);
 	static bool IsSSE2Available();
 	bool EnableSSE2(bool bEnable);
+	bool SendBcasCommand(const BYTE *pSendData, DWORD SendSize, BYTE *pRecvData, DWORD *pRecvSize);
 
 protected:
 	class CEsProcessor;

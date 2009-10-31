@@ -480,16 +480,8 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			}
 			if (i==pStatus->m_NumItems)
 				i=-1;
-			if (i!=pStatus->m_HotItem) {
-				int OldHotItem;
-
-				OldHotItem=pStatus->m_HotItem;
-				pStatus->m_HotItem=i;
-				if (OldHotItem>=0)
-					pStatus->UpdateItem(pStatus->IndexToID(OldHotItem));
-				if (pStatus->m_HotItem>=0)
-					pStatus->UpdateItem(pStatus->IndexToID(pStatus->m_HotItem));
-			}
+			if (i!=pStatus->m_HotItem)
+				pStatus->SetHotItem(i);
 			if (!pStatus->m_fTrackMouseEvent) {
 				TRACKMOUSEEVENT tme;
 
@@ -508,12 +500,8 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			pStatus->m_fTrackMouseEvent=false;
 			if (!pStatus->m_fOnButtonDown) {
-				if (pStatus->m_HotItem>=0) {
-					int i=pStatus->m_HotItem;
-
-					pStatus->m_HotItem=-1;
-					pStatus->UpdateItem(pStatus->IndexToID(i));
-				}
+				if (pStatus->m_HotItem>=0)
+					pStatus->SetHotItem(-1);
 				if (pStatus->m_pEventHandler)
 					pStatus->m_pEventHandler->OnMouseLeave();
 			}
@@ -546,10 +534,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 						::ScreenToClient(hwnd,&pt);
 						::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
 					} else {
-						int i=pStatus->m_HotItem;
-
-						pStatus->m_HotItem=-1;
-						pStatus->UpdateItem(pStatus->IndexToID(i));
+						pStatus->SetHotItem(-1);
 						if (pStatus->m_pEventHandler)
 							pStatus->m_pEventHandler->OnMouseLeave();
 					}
@@ -561,6 +546,28 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 	case WM_LBUTTONUP:
 		if (GetCapture()==hwnd) {
 			ReleaseCapture();
+		}
+		return 0;
+
+	case WM_MOUSEHOVER:
+		{
+			CStatusView *pStatus=GetStatusView(hwnd);
+
+			if (pStatus->m_HotItem>=0) {
+				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+				RECT rc;
+
+				pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
+				x-=rc.left;
+				if (pStatus->m_ItemList[pStatus->m_HotItem]->OnMouseHover(x,y)) {
+					TRACKMOUSEEVENT tme;
+					tme.cbSize=sizeof(TRACKMOUSEEVENT);
+					tme.dwFlags=TME_HOVER;
+					tme.hwndTrack=hwnd;
+					tme.dwHoverTime=HOVER_DEFAULT;
+					::TrackMouseEvent(&tme);
+				}
+			}
 		}
 		return 0;
 
@@ -662,6 +669,8 @@ void CStatusView::SetVisible(bool fVisible)
 {
 	int i;
 
+	if (m_HotItem>=0)
+		SetHotItem(-1);
 	CBasicWindow::SetVisible(fVisible);
 	for (i=0;i<m_NumItems;i++)
 		m_ItemList[i]->OnVisibleChange(fVisible && m_ItemList[i]->GetVisible());
@@ -674,7 +683,7 @@ void CStatusView::SetSingleText(LPCTSTR pszText)
 	if (pszText!=NULL) {
 		m_pszSingleText=DuplicateString(pszText);
 		m_fSingleMode=true;
-		m_HotItem=-1;
+		SetHotItem(-1);
 	} else {
 		if (!m_fSingleMode)
 			return;
@@ -803,4 +812,33 @@ bool CStatusView::DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,b
 void CStatusView::OnTrace(LPCTSTR pszOutput)
 {
 	SetSingleText(pszOutput);
+}
+
+
+void CStatusView::SetHotItem(int Item)
+{
+	if (Item<0 || Item>=m_NumItems)
+		Item=-1;
+	if (m_HotItem!=Item) {
+		int OldHotItem=m_HotItem;
+
+		m_HotItem=Item;
+		if (OldHotItem>=0) {
+			m_ItemList[OldHotItem]->OnFocus(false);
+			UpdateItem(IndexToID(OldHotItem));
+		}
+		if (m_HotItem>=0) {
+			m_ItemList[m_HotItem]->OnFocus(true);
+			UpdateItem(IndexToID(m_HotItem));
+		}
+
+		TRACKMOUSEEVENT tme;
+		tme.cbSize=sizeof(TRACKMOUSEEVENT);
+		tme.dwFlags=TME_HOVER;
+		if (m_HotItem<0)
+			tme.dwFlags|=TME_CANCEL;
+		tme.hwndTrack=m_hwnd;
+		tme.dwHoverTime=HOVER_DEFAULT;
+		::TrackMouseEvent(&tme);
+	}
 }

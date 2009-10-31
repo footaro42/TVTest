@@ -10,6 +10,7 @@ protected:
 	IBaseFilter *m_pRenderer;
 	IGraphBuilder *m_pFilterGraph;
 	HWND m_hwndRender;
+	bool m_bCrop1088To1080;
 public:
 	enum RendererType {
 		RENDERER_UNDEFINED=-1,
@@ -36,6 +37,7 @@ public:
 	virtual bool SetVisible(bool fVisible) { return true; }
 	virtual bool ShowProperty(HWND hwndOwner);
 	IBaseFilter *GetRendererFilter() const { return m_pRenderer; }
+	virtual bool SetCrop1088To1080(bool bCrop) { return false; }
 	static bool CreateRenderer(RendererType Type,CVideoRenderer **ppRenderer);
 	static LPCTSTR EnumRendererName(int Index);
 	static RendererType ParseName(LPCTSTR pszName);

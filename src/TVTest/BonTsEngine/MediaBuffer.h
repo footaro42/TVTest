@@ -7,7 +7,8 @@
 #include "TsUtilClass.h"
 
 
-class CMediaBuffer : public CMediaDecoder {
+class CMediaBuffer : public CMediaDecoder
+{
 	DWORD m_BufferLength;
 	bool m_bEnableBuffering;
 	bool m_bFileMode;
@@ -21,8 +22,8 @@ class CMediaBuffer : public CMediaDecoder {
 	bool m_bBuffering;
 	CCriticalLock m_Lock;
 	HANDLE m_hOutputThread;
-	HANDLE m_hBreakEvent;
-	HANDLE m_hCompleteEvent;
+	CLocalEvent m_BreakEvent;
+	CLocalEvent m_CompleteEvent;
 	volatile enum {
 		SIGNAL_KILL,
 		SIGNAL_RESET
@@ -32,13 +33,14 @@ class CMediaBuffer : public CMediaDecoder {
 	DWORD m_OutputCount;
 #endif
 	static DWORD WINAPI OutputThread(LPVOID lpParameter);
+
 public:
 	CMediaBuffer(IEventHandler *pEventHandler = NULL);
 	virtual ~CMediaBuffer();
-	// CMediaDecoder
+// CMediaDecoder
 	virtual void Reset(void);
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
-	// CMediaBuffer
+// CMediaBuffer
 	bool Play();
 	bool Stop();
 	bool EnableBuffering(bool bBuffering);

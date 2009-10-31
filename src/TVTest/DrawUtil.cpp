@@ -152,6 +152,80 @@ bool DrawUtil::FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect
 }
 
 
+int DrawUtil::CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
+{
+	if (hdc==NULL || pszText==NULL)
+		return 0;
+
+	LPCTSTR p;
+	int Length;
+	int Fit;
+	SIZE sz;
+	int Lines=0;
+
+	p=pszText;
+	while (*p!='\0') {
+		if (*p=='\r' || *p=='\n') {
+			p++;
+			if (*p=='\n')
+				p++;
+			if (*p=='\0')
+				break;
+			Lines++;
+			continue;
+		}
+		for (Length=0;p[Length]!='\0' && p[Length]!='\r' && p[Length]!='\n';Length++);
+		::GetTextExtentExPoint(hdc,p,Length,Width,&Fit,NULL,&sz);
+		if (Fit<1)
+			Fit=1;
+		p+=Fit;
+		Lines++;
+		if (*p=='\r')
+			p++;
+		if (*p=='\n')
+			p++;
+	}
+	return Lines;
+}
+
+
+bool DrawUtil::DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight)
+{
+	if (hdc==NULL || pszText==NULL || pRect==NULL)
+		return false;
+
+	LPCTSTR p;
+	int y;
+	int Length;
+	int Fit;
+	SIZE sz;
+
+	p=pszText;
+	y=pRect->top;
+	while (*p!='\0' && y<pRect->bottom) {
+		if (*p=='\r' || *p=='\n') {
+			p++;
+			if (*p=='\n')
+				p++;
+			y+=LineHeight;
+			continue;
+		}
+		for (Length=0;p[Length]!='\0' && p[Length]!='\r' && p[Length]!='\n';Length++);
+		::GetTextExtentExPoint(hdc,p,Length,pRect->right-pRect->left,&Fit,NULL,&sz);
+		if (Fit<1)
+			Fit=1;
+		::TextOut(hdc,pRect->left,y,p,Fit);
+		p+=Fit;
+		y+=LineHeight;
+		if (*p=='\r')
+			p++;
+		if (*p=='\n')
+			p++;
+	}
+	return true;
+}
+
+
 
 
 #include <gdiplus.h>
@@ -178,6 +252,7 @@ CGdiPlus::~CGdiPlus()
 bool CGdiPlus::Initialize()
 {
 	if (!m_fInitialized) {
+		// GDI+ ÇÃ DLL Ç™ÉçÅ[ÉhÇ≈Ç´ÇÈÇ©í≤Ç◊ÇÈ
 		HMODULE hLib=::LoadLibrary(TEXT("gdiplus.dll"));
 		if (hLib==NULL)
 			return false;

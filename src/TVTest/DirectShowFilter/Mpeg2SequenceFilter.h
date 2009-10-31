@@ -2,6 +2,7 @@
 
 #include "TransFrm.h"
 #include "TsMedia.h"
+#include "VideoInfo.h"
 
 
 // テンプレート名
@@ -9,58 +10,6 @@
 
 // このフィルタのGUID {3F8400DA-65F1-4694-BB05-303CDE739680}
 DEFINE_GUID(CLSID_MPEG2SEQFILTER, 0x3f8400da, 0x65f1, 0x4694, 0xbb, 0x5, 0x30, 0x3c, 0xde, 0x73, 0x96, 0x80);
-
-class CMpeg2VideoInfo
-{
-public:
-	WORD m_OrigWidth,m_OrigHeight;
-	WORD m_DisplayWidth,m_DisplayHeight;
-	WORD m_PosX,m_PosY;
-	BYTE m_AspectRatioX,m_AspectRatioY;
-	struct FrameRate {
-		DWORD Num,Denom;
-	};
-	FrameRate m_FrameRate;
-	CMpeg2VideoInfo()
-	{
-		m_OrigWidth=0;
-		m_OrigHeight=0;
-		m_DisplayWidth=0;
-		m_DisplayHeight=0;
-		m_PosX=0;
-		m_PosY=0;
-		m_AspectRatioX=0;
-		m_AspectRatioY=0;
-		m_FrameRate.Num=0;
-		m_FrameRate.Denom=0;
-	}
-	CMpeg2VideoInfo(WORD OrigWidth,WORD OrigHeight,WORD DisplayWidth,WORD DisplayHeight,BYTE AspectX,BYTE AspectY)
-	{
-		m_OrigWidth=OrigWidth;
-		m_OrigHeight=OrigHeight;
-		m_DisplayWidth=DisplayWidth;
-		m_DisplayHeight=DisplayHeight;
-		m_PosX=(OrigWidth-DisplayWidth)/2;
-		m_PosY=(OrigHeight-DisplayHeight)/2;
-		m_AspectRatioX=AspectX;
-		m_AspectRatioY=AspectY;
-	}
-	bool operator==(const CMpeg2VideoInfo &Info) const
-	{
-		return m_OrigWidth==Info.m_OrigWidth
-			&& m_OrigHeight==Info.m_OrigHeight
-			&& m_DisplayWidth==Info.m_DisplayWidth
-			&& m_DisplayHeight==Info.m_DisplayHeight
-			&& m_AspectRatioX==Info.m_AspectRatioX
-			&& m_AspectRatioY==Info.m_AspectRatioY
-			&& m_FrameRate.Num==Info.m_FrameRate.Num
-			&& m_FrameRate.Denom==Info.m_FrameRate.Denom;
-	}
-	bool operator!=(const CMpeg2VideoInfo &Info) const
-	{
-		return !(*this==Info);
-	}
-};
 
 class CMpeg2SequenceFilter : public CTransInPlaceFilter,
 							 protected CMpeg2Parser::ISequenceHandler
@@ -79,12 +28,13 @@ public:
 	HRESULT CompleteConnect(PIN_DIRECTION direction,IPin *pReceivePin);
 	HRESULT DecideBufferSize(IMemAllocator * pAllocator, ALLOCATOR_PROPERTIES *pprop);
 	HRESULT GetMediaType(int iPosition, CMediaType *pMediaType);
-	HRESULT StartStreaming(void);
-	HRESULT StopStreaming(void);
 	*/
 // CTransInPlaceFilter
 	HRESULT CheckInputType(const CMediaType* mtIn);
 	HRESULT CompleteConnect(PIN_DIRECTION direction,IPin *pReceivePin);
+	HRESULT StartStreaming(void);
+	HRESULT StopStreaming(void);
+	HRESULT BeginFlush();
 
 // CMpeg2SequenceFilter
 	typedef void (CALLBACK MPEG2SEQUENCE_VIDEOINFO_FUNC)(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
@@ -96,6 +46,7 @@ public:
 	// Append by HDUSTestの中の人
 	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const;
 	const bool GetVideoInfo(CMpeg2VideoInfo *pInfo) const;
+	void ResetVideoInfo();
 	const bool SetDeliverSamples(bool bDeliver);
 
 protected:

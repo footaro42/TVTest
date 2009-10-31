@@ -311,6 +311,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\AppUtil.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\AudioOptions.cpp"
 				>
 			</File>
@@ -419,11 +423,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\InfoPanel.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\Information.cpp"
+				RelativePath=".\InformationPanel.cpp"
 				>
 			</File>
 			<File
@@ -468,6 +468,10 @@
 			</File>
 			<File
 				RelativePath=".\Panel.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\PanelForm.cpp"
 				>
 			</File>
 			<File
@@ -629,6 +633,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\AppUtil.h"
+				>
+			</File>
+			<File
 				RelativePath=".\AudioOptions.h"
 				>
 			</File>
@@ -741,11 +749,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\InfoPanel.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Information.h"
+				RelativePath=".\InformationPanel.h"
 				>
 			</File>
 			<File
@@ -794,6 +798,10 @@
 			</File>
 			<File
 				RelativePath=".\Panel.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PanelForm.h"
 				>
 			</File>
 			<File

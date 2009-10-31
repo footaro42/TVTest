@@ -17,6 +17,10 @@
 #include "MediaBuffer.h"
 #include "MediaGrabber.h"
 #include "TsSelector.h"
+#ifndef TVH264
+#define DTVENGINE_CAPTION_SUPPORT
+#include "CaptionDecoder.h"
+#endif
 
 // Å¶Ç±ÇÃï”ÇÕëSÇ≠ÇÃébíËÇ≈Ç∑
 
@@ -33,10 +37,10 @@ public:
 		SERVICE_INVALID	= 0xFFFF
 	};
 
-	class CEventHandler {
+	class __declspec(novtable) CEventHandler {
 		friend CDtvEngine;
 	public:
-		virtual ~CEventHandler() {}
+		virtual ~CEventHandler() = 0 {}
 	protected:
 		CDtvEngine *m_pDtvEngine;
 		virtual void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer, bool bStreamChanged) {}
@@ -45,6 +49,7 @@ public:
 		virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
 		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
 		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
+		virtual void OnEcmError(LPCTSTR pszText) {}
 	};
 
 	CDtvEngine(void);
@@ -78,7 +83,11 @@ public:
 	const WORD GetEventID(bool bNext = false);
 	const int GetEventName(LPTSTR pszName, int MaxLength, bool bNext = false);
 	const int GetEventText(LPTSTR pszText, int MaxLength, bool bNext = false);
+	const int GetEventExtendedText(LPTSTR pszText, int MaxLength, bool bNext = false);
 	const bool GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime, bool bNext = false);
+	const DWORD GetEventDuration(bool bNext = false);
+	const bool GetEventSeriesInfo(CTsAnalyzer::EventSeriesInfo *pInfo, bool bNext = false);
+	const bool GetEventInfo(CTsAnalyzer::EventInfo *pInfo, bool bNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 
@@ -97,7 +106,7 @@ public:
 		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);
 	bool CloseMediaViewer();
 	bool ResetMediaViewer();
-	bool OpenBcasCard(CCardReader::ReaderType CardReaderType);
+	bool OpenBcasCard(CCardReader::ReaderType CardReaderType, LPCTSTR pszReaderName = NULL);
 	bool CloseBcasCard();
 	bool SetDescramble(bool bDescramble);
 	bool ResetBuffer();
@@ -108,7 +117,7 @@ public:
 	bool SetWriteService(WORD ServiceID, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool SetWriteCurServiceOnly(bool bOnly, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
-	CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
+	//CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
 // CBonBaseClass
 	void SetTracer(CTracer *pTracer);
 
@@ -125,6 +134,9 @@ public:
 	CMediaBuffer m_MediaBuffer;
 	CMediaGrabber m_MediaGrabber;
 	CTsSelector m_TsSelector;
+#ifdef DTVENGINE_CAPTION_SUPPORT
+	CCaptionDecoder m_CaptionDecoder;
+#endif
 
 protected:
 	virtual const DWORD OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam);

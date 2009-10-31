@@ -66,6 +66,7 @@ public:
 	bool GetAudioEsPID(const int Index, const int AudioIndex, WORD *pAudioPID);
 	BYTE GetAudioComponentTag(const int Index, const int AudioIndex);
 #ifdef TS_ANALYZER_EIT_SUPPORT
+	BYTE GetVideoComponentType(const int Index);
 	BYTE GetAudioComponentType(const int Index, const int AudioIndex);
 #endif
 	WORD GetSubtitleEsNum(const int Index);
@@ -108,7 +109,65 @@ public:
 	DWORD GetEventDuration(const int ServiceIndex, const bool bNext = false);
 	int GetEventName(const int ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext = false);
 	int GetEventText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
-#endif
+	int GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bUseEventGroup = true, const bool bNext = false);
+	struct EventSeriesInfo {
+		WORD SeriesID;
+		BYTE RepeatLabel;
+		BYTE ProgramPattern;
+		bool bIsExpireDateValid;
+		SYSTEMTIME ExpireDate;
+		WORD EpisodeNumber;
+		WORD LastEpisodeNumber;
+		TCHAR szSeriesName[CSeriesDesc::MAX_SERIES_NAME];
+	};
+	bool GetEventSeriesInfo(const int ServiceIndex, EventSeriesInfo *pInfo, const bool bNext = false);
+	struct EventVideoInfo {
+		enum { MAX_TEXT = 64 };
+		BYTE StreamContent;
+		BYTE ComponentType;
+		BYTE ComponentTag;
+		DWORD LanguageCode;
+		TCHAR szText[MAX_TEXT];
+	};
+	struct EventAudioInfo {
+		enum { MAX_TEXT = 64 };
+		BYTE StreamContent;
+		BYTE ComponentType;
+		BYTE ComponentTag;
+		BYTE SimulcastGroupTag;
+		bool bESMultiLingualFlag;
+		bool bMainComponentFlag;
+		BYTE QualityIndicator;
+		BYTE SamplingRate;
+		DWORD LanguageCode;
+		DWORD LanguageCode2;
+		TCHAR szText[MAX_TEXT];
+	};
+	typedef std::vector<EventAudioInfo> EventAudioList;
+	struct EventContentNibble {
+		int NibbleCount;
+		CContentDesc::Nibble NibbleList[7];
+	};
+	struct EventInfo {
+		WORD EventID;
+		bool bValidStartTime;
+		SYSTEMTIME StartTime;
+		DWORD Duration;
+		LPTSTR pszEventName;
+		int MaxEventName;
+		LPTSTR pszEventText;
+		int MaxEventText;
+		LPTSTR pszEventExtendedText;
+		int MaxEventExtendedText;
+		EventVideoInfo Video;
+		EventAudioList Audio;
+		EventContentNibble ContentNibble;
+	};
+	bool GetEventVideoInfo(const int ServiceIndex, EventVideoInfo *pInfo, const bool bNext = false);
+	bool GetEventAudioList(const int ServiceIndex, EventAudioList *pList, const bool bNext = false);
+	bool GetEventContentNibble(const int ServiceIndex, EventContentNibble *pInfo, const bool bNext = false);
+	bool GetEventInfo(const int ServiceIndex, EventInfo *pInfo, const bool bUseEventGroup = true, const bool bNext = false);
+#endif	// TS_ANALYZER_EIT_SUPPORT
 
 	bool GetTotTime(SYSTEMTIME *pTime);
 

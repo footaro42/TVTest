@@ -311,11 +311,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\AppUtil.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\AudioOptions.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\BasicWindow.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\CaptionPanel.cpp"
 				>
 			</File>
 			<File
@@ -403,6 +411,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\EventInfoPopup.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\GeneralOptions.cpp"
 				>
 			</File>
@@ -419,11 +431,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\InfoPanel.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\Information.cpp"
+				RelativePath=".\InformationPanel.cpp"
 				>
 			</File>
 			<File
@@ -471,6 +479,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PanelForm.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\PanelOptions.cpp"
 				>
 			</File>
@@ -491,7 +503,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ProgramListView.cpp"
+				RelativePath=".\ProgramListPanel.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ProgramSearch.cpp"
 				>
 			</File>
 			<File
@@ -516,6 +532,10 @@
 			</File>
 			<File
 				RelativePath=".\ResidentManager.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\RichEditUtil.cpp"
 				>
 			</File>
 			<File
@@ -629,11 +649,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\AppUtil.h"
+				>
+			</File>
+			<File
 				RelativePath=".\AudioOptions.h"
 				>
 			</File>
 			<File
 				RelativePath=".\BasicWindow.h"
+				>
+			</File>
+			<File
+				RelativePath=".\CaptionPanel.h"
 				>
 			</File>
 			<File
@@ -721,6 +749,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\EventInfoPopup.h"
+				>
+			</File>
+			<File
 				RelativePath=".\GeneralOptions.h"
 				>
 			</File>
@@ -741,11 +773,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\InfoPanel.h"
-				>
-			</File>
-			<File
-				RelativePath=".\Information.h"
+				RelativePath=".\InformationPanel.h"
 				>
 			</File>
 			<File
@@ -797,6 +825,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PanelForm.h"
+				>
+			</File>
+			<File
 				RelativePath=".\PanelOptions.h"
 				>
 			</File>
@@ -817,7 +849,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ProgramListView.h"
+				RelativePath=".\ProgramListPanel.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ProgramSearch.h"
 				>
 			</File>
 			<File
@@ -846,6 +882,10 @@
 			</File>
 			<File
 				RelativePath=".\Resource.h"
+				>
+			</File>
+			<File
+				RelativePath=".\RichEditUtil.h"
 				>
 			</File>
 			<File
@@ -955,6 +995,14 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\CaptionDecoder.h"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\CaptionParser.h"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\CardReader.h"
 					>
 				</File>
@@ -1061,6 +1109,14 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\BonSrcDecoder.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\CaptionDecoder.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\CaptionParser.cpp"
 					>
 				</File>
 				<File
@@ -1242,6 +1298,10 @@
 				</File>
 				<File
 					RelativePath=".\DirectShowFilter\TsSrcStream.h"
+					>
+				</File>
+				<File
+					RelativePath=".\DirectShowFilter\VideoInfo.h"
 					>
 				</File>
 				<File

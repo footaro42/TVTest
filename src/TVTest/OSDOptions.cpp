@@ -26,7 +26,7 @@ COSDOptions::COSDOptions()
 	m_NotificationBarDuration=3000;
 	m_NotificationBarFlags=
 #ifndef TVH264
-		NOTIFY_EVENTNAME;
+		NOTIFY_EVENTNAME | NOTIFY_ECMERROR;
 #else
 		0;
 #endif
@@ -59,6 +59,8 @@ bool COSDOptions::Read(CSettings *pSettings)
 	bool f;
 	if (pSettings->Read(TEXT("NotifyEventName"),&f))
 		EnableNotify(NOTIFY_EVENTNAME,f);
+	if (pSettings->Read(TEXT("NotifyEcmError"),&f))
+		EnableNotify(NOTIFY_ECMERROR,f);
 	// Font
 	TCHAR szFont[LF_FACESIZE];
 	int Value;
@@ -97,6 +99,7 @@ bool COSDOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
 	pSettings->Write(TEXT("NotificationBarDuration"),m_NotificationBarDuration);
 	pSettings->Write(TEXT("NotifyEventName"),(m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
+	pSettings->Write(TEXT("NotifyEcmError"),(m_NotificationBarFlags&NOTIFY_ECMERROR)!=0);
 	// Font
 	pSettings->Write(TEXT("NotificationBarFontName"),m_NotificationBarFont.lfFaceName);
 	pSettings->Write(TEXT("NotificationBarFontSize"),(int)m_NotificationBarFont.lfHeight);
@@ -156,7 +159,8 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 			EnableDlgItems(hDlg,IDC_OPTIONS_OSD_FIRST,IDC_OPTIONS_OSD_LAST,pThis->m_fShowOSD);
 
 			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_ENABLE,pThis->m_fEnableNotificationBar);
-			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME,pThis->IsNotifyEnabled(NOTIFY_EVENTNAME));
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME,(pThis->m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR,(pThis->m_NotificationBarFlags&NOTIFY_ECMERROR)!=0);
 			::SetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,pThis->m_NotificationBarDuration/1000,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_NOTIFICATIONBAR_DURATION_UPDOWN,1,60);
 			pThis->m_CurNotificationBarFont=pThis->m_NotificationBarFont;
@@ -224,6 +228,8 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE);
 				pThis->EnableNotify(NOTIFY_EVENTNAME,
 									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME));
+				pThis->EnableNotify(NOTIFY_ECMERROR,
+									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR));
 				pThis->m_NotificationBarDuration=
 					::GetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,NULL,FALSE)*1000;
 				pThis->m_NotificationBarFont=pThis->m_CurNotificationBarFont;

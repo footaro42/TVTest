@@ -3,8 +3,8 @@
 
 
 #include "Options.h"
+#include "CoreEngine.h"
 #include "DirectShowFilter/VideoRenderer.h"
-#include "BonTsEngine/CardReader.h"
 
 
 class CGeneralOptions : public COptions {
@@ -28,12 +28,13 @@ public:
 	DefaultDriverType GetDefaultDriverType() const;
 	LPCTSTR GetDefaultDriverName() const;
 	bool SetDefaultDriverName(LPCTSTR pszDriverName);
+	bool GetFirstDriverName(LPTSTR pszDriverName) const;
 	LPCTSTR GetMpeg2DecoderName() const;
 	bool SetMpeg2DecoderName(LPCTSTR pszDecoderName);
 	CVideoRenderer::RendererType GetVideoRendererType() const;
 	bool SetVideoRendererType(CVideoRenderer::RendererType Renderer);
-	CCardReader::ReaderType GetCardReaderType() const;
-	bool SetCardReaderType(CCardReader::ReaderType CardReader);
+	CCoreEngine::CardReaderType GetCardReaderType() const;
+	bool SetCardReaderType(CCoreEngine::CardReaderType CardReader);
 	void SetTemporaryNoDescramble(bool fNoDescramble);
 	bool GetResident() const;
 	bool GetKeepSingleTask() const;
@@ -49,9 +50,10 @@ public:
 private:
 	DefaultDriverType m_DefaultDriverType;
 	TCHAR m_szDefaultDriverName[MAX_PATH];
+	TCHAR m_szLastDriverName[MAX_PATH];
 	TCHAR m_szMpeg2DecoderName[MAX_MPEG2_DECODER_NAME];
 	CVideoRenderer::RendererType m_VideoRendererType;
-	CCardReader::ReaderType m_CardReaderType;
+	CCoreEngine::CardReaderType m_CardReaderType;
 	bool m_fTemporaryNoDescramble;
 	bool m_fResident;
 	bool m_fKeepSingleTask;

@@ -88,6 +88,7 @@ CEventInfoData::CEventInfoData()
 	m_pszEventExtText=NULL;
 	m_pszComponentTypeText=NULL;
 	m_pszAudioComponentTypeText=NULL;
+	m_fValidStartTime=false;
 }
 
 
@@ -100,13 +101,14 @@ CEventInfoData::CEventInfoData(const CEventInfoData &Info)
 	m_pszEventName=DuplicateString(Info.m_pszEventName);
 	m_pszEventText=DuplicateString(Info.m_pszEventText);
 	m_pszEventExtText=DuplicateString(Info.m_pszEventExtText);
+	m_fValidStartTime=true;
 	m_stStartTime=Info.m_stStartTime;
 	m_DurationSec=Info.m_DurationSec;
 	m_ComponentType=Info.m_ComponentType;
 	m_pszComponentTypeText=DuplicateString(Info.m_pszComponentTypeText);
 	m_AudioComponentType=Info.m_AudioComponentType;
-	m_ESMultiLangFlag=Info.m_ESMultiLangFlag;
-	m_MainComponentFlag=Info.m_MainComponentFlag;
+	m_fESMultiLangFlag=Info.m_fESMultiLangFlag;
+	//m_fMainComponentFlag=Info.m_fMainComponentFlag;
 	m_SamplingRate=Info.m_SamplingRate;
 	m_pszAudioComponentTypeText=DuplicateString(Info.m_pszAudioComponentTypeText);
 	m_NibbleList=Info.m_NibbleList;
@@ -125,25 +127,27 @@ CEventInfoData::~CEventInfoData()
 
 CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 {
-	if (&Info==this)
-		return *this;
-	m_OriginalNID=Info.m_OriginalNID;
-	m_TSID=Info.m_TSID;
-	m_ServiceID=Info.m_ServiceID;
-	m_EventID=Info.m_EventID;
-	SetEventName(Info.m_pszEventName);
-	SetEventText(Info.m_pszEventText);
-	SetEventExtText(Info.m_pszEventExtText);
-	m_stStartTime=Info.m_stStartTime;
-	m_DurationSec=Info.m_DurationSec;
-	m_ComponentType=Info.m_ComponentType;
-	SetComponentTypeText(Info.m_pszComponentTypeText);
-	m_AudioComponentType=Info.m_AudioComponentType;
-	m_ESMultiLangFlag=Info.m_ESMultiLangFlag;
-	m_MainComponentFlag=Info.m_MainComponentFlag;
-	m_SamplingRate=Info.m_SamplingRate;
-	SetAudioComponentTypeText(Info.m_pszAudioComponentTypeText);
-	m_NibbleList=Info.m_NibbleList;
+	if (&Info!=this) {
+		m_OriginalNID=Info.m_OriginalNID;
+		m_TSID=Info.m_TSID;
+		m_ServiceID=Info.m_ServiceID;
+		m_EventID=Info.m_EventID;
+		SetEventName(Info.m_pszEventName);
+		SetEventText(Info.m_pszEventText);
+		SetEventExtText(Info.m_pszEventExtText);
+		m_fValidStartTime=Info.m_fValidStartTime;
+		if (m_fValidStartTime)
+			m_stStartTime=Info.m_stStartTime;
+		m_DurationSec=Info.m_DurationSec;
+		m_ComponentType=Info.m_ComponentType;
+		SetComponentTypeText(Info.m_pszComponentTypeText);
+		m_AudioComponentType=Info.m_AudioComponentType;
+		m_fESMultiLangFlag=Info.m_fESMultiLangFlag;
+		//m_fMainComponentFlag=Info.m_fMainComponentFlag;
+		m_SamplingRate=Info.m_SamplingRate;
+		SetAudioComponentTypeText(Info.m_pszAudioComponentTypeText);
+		m_NibbleList=Info.m_NibbleList;
+	}
 	return *this;
 }
 
@@ -163,15 +167,17 @@ bool CEventInfoData::operator==(const CEventInfoData &Info) const
 		&& ((m_pszEventExtText==NULL && Info.m_pszEventExtText==NULL)
 			|| (m_pszEventExtText!=NULL && Info.m_pszEventExtText!=NULL
 				&& ::lstrcmp(m_pszEventExtText,Info.m_pszEventExtText)==0))
-		&& ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0
+		&& m_fValidStartTime==Info.m_fValidStartTime
+		&& (!m_fValidStartTime
+			|| ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0)
 		&& m_DurationSec==Info.m_DurationSec
 		&& m_ComponentType==Info.m_ComponentType
 		&& ((m_pszComponentTypeText==NULL && Info.m_pszComponentTypeText==NULL)
 			|| (m_pszComponentTypeText!=NULL && Info.m_pszComponentTypeText!=NULL
 				&& ::lstrcmp(m_pszComponentTypeText,Info.m_pszComponentTypeText)==0))
 		&& m_AudioComponentType==Info.m_AudioComponentType
-		&& m_ESMultiLangFlag==Info.m_ESMultiLangFlag
-		&& m_MainComponentFlag==Info.m_MainComponentFlag
+		&& m_fESMultiLangFlag==Info.m_fESMultiLangFlag
+		//&& m_fMainComponentFlag==Info.m_fMainComponentFlag
 		&& m_SamplingRate==Info.m_SamplingRate
 		&& ((m_pszAudioComponentTypeText==NULL && Info.m_pszAudioComponentTypeText==NULL)
 			|| (m_pszAudioComponentTypeText!=NULL && Info.m_pszAudioComponentTypeText!=NULL
@@ -212,6 +218,10 @@ bool CEventInfoData::SetAudioComponentTypeText(LPCWSTR pszText)
 
 bool CEventInfoData::GetStartTime(SYSTEMTIME *pTime) const
 {
+	if (!m_fValidStartTime) {
+		::ZeroMemory(pTime,sizeof(SYSTEMTIME));
+		return false;
+	}
 	*pTime=m_stStartTime;
 	return true;
 }
@@ -221,8 +231,10 @@ bool CEventInfoData::GetEndTime(SYSTEMTIME *pTime) const
 {
 	FILETIME ft;
 
-	if (!::SystemTimeToFileTime(&m_stStartTime,&ft))
+	if (!m_fValidStartTime || !::SystemTimeToFileTime(&m_stStartTime,&ft)) {
+		::ZeroMemory(pTime,sizeof(SYSTEMTIME));
 		return false;
+	}
 	ft+=(LONGLONG)m_DurationSec*FILETIME_SECOND;
 	return ::FileTimeToSystemTime(&ft,pTime)!=FALSE;
 }
@@ -377,8 +389,8 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 		EventData.m_ComponentType=pEpgData[j].ucComponentType;
 		EventData.SetComponentTypeText(pEpgData[j].lpwszComponentTypeText);
 		EventData.m_AudioComponentType=pEpgData[j].ucAudioComponentType;
-		EventData.m_ESMultiLangFlag=pEpgData[j].ucESMultiLangFlag;
-		EventData.m_MainComponentFlag=pEpgData[j].ucMainComponentFlag;
+		EventData.m_fESMultiLangFlag=pEpgData[j].ucESMultiLangFlag!=0;
+		//EventData.m_fMainComponentFlag=pEpgData[j].ucMainComponentFlag!=0;
 		EventData.m_SamplingRate=pEpgData[j].ucSamplingRate;
 		EventData.SetAudioComponentTypeText(pEpgData[j].lpwszAudioComponentTypeText);
 		for (DWORD k=0;k<pEpgData[j].dwContentNibbleListCount;k++) {
@@ -688,8 +700,9 @@ struct EventInfoHeader {
 		DurationSec=Data.m_DurationSec;
 		ComponentType=Data.m_ComponentType;
 		AudioComponentType=Data.m_AudioComponentType;
-		ESMultiLangFlag=Data.m_ESMultiLangFlag;
-		MainComponentFlag=Data.m_MainComponentFlag;
+		ESMultiLangFlag=Data.m_fESMultiLangFlag;
+		//MainComponentFlag=Data.m_fMainComponentFlag;
+		MainComponentFlag=1;
 		SamplingRate=Data.m_SamplingRate;
 		Reserved[0]=0;
 		Reserved[1]=0;
@@ -785,8 +798,8 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			EventData.m_DurationSec=EventHeader.DurationSec;
 			EventData.m_ComponentType=EventHeader.ComponentType;
 			EventData.m_AudioComponentType=EventHeader.AudioComponentType;
-			EventData.m_ESMultiLangFlag=EventHeader.ESMultiLangFlag;
-			EventData.m_MainComponentFlag=EventHeader.MainComponentFlag;
+			EventData.m_fESMultiLangFlag=EventHeader.ESMultiLangFlag!=0;
+			//EventData.m_fMainComponentFlag=EventHeader.MainComponentFlag!=0;
 			EventData.m_SamplingRate=EventHeader.SamplingRate;
 			if (EventHeader.ContentNibbleListCount>0) {
 				for (DWORD k=0;k<EventHeader.ContentNibbleListCount;k++) {

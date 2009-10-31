@@ -93,7 +93,7 @@ public:
 	CPsiNullTable(const CPsiNullTable &Operand);
 	virtual ~CPsiNullTable();
 
-	CPsiNullTable & operator = (const CPsiNullTable &Operand);	
+	CPsiNullTable & operator = (const CPsiNullTable &Operand);
 
 // CTsPidMapTarget
 	virtual const bool StorePacket(const CTsPacket *pPacket) = 0;
@@ -153,7 +153,11 @@ private:
 class CPatTable : public CPsiSingleTable
 {
 public:
-	CPatTable();
+	CPatTable(
+#ifdef _DEBUG
+		bool bTrace = false
+#endif
+	);
 	CPatTable(const CPatTable &Operand);
 
 	CPatTable & operator = (const CPatTable &Operand);
@@ -184,6 +188,10 @@ protected:
 
 	vector<WORD> m_NitPIDArray;
 	vector<TAG_PATITEM> m_PmtPIDArray;
+
+#ifdef _DEBUG
+	bool m_bDebugTrace;
+#endif
 };
 
 
@@ -223,7 +231,11 @@ protected:
 class CPmtTable : public CPsiSingleTable
 {
 public:
-	CPmtTable();
+	CPmtTable(
+#ifdef _DEBUG
+		bool bTrace = false
+#endif
+	);
 	CPmtTable(const CPmtTable &Operand);
 
 	CPmtTable & operator = (const CPmtTable &Operand);
@@ -258,6 +270,10 @@ protected:
 
 	WORD m_wPcrPID;						// PCR_PID
 	CDescBlock m_TableDescBlock;		// Conditional Access Method Descriptor ‘¼
+
+#ifdef _DEBUG
+	bool m_bDebugTrace;
+#endif
 };
 
 
@@ -372,6 +388,7 @@ protected:
 	struct EventInfo {
 		bool bEnable;
 		WORD EventID;
+		bool bValidStartTime;
 		SYSTEMTIME StartTime;
 		DWORD Duration;
 		BYTE RunningStatus;
@@ -425,6 +442,7 @@ protected:
 	struct EventInfo {
 		bool bEnable;
 		WORD EventID;
+		bool bValidStartTime;
 		SYSTEMTIME StartTime;
 		DWORD Duration;
 		BYTE RunningStatus;
@@ -437,7 +455,7 @@ protected:
 		WORD ServiceID;
 		WORD TransportStreamID;
 		WORD OriginalNetworkID;
-		EventInfo EventList[4];
+		EventInfo EventList[2];
 	};
 
 	vector<LEitInfo> m_EitArray;
@@ -461,6 +479,7 @@ public:
 
 // CTotTable
 	const bool GetDateTime(SYSTEMTIME *pTime) const;
+	const int GetLocalTimeOffset() const;
 	const CDescBlock * GetTotDesc(void) const;
 
 protected:

@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
@@ -31,7 +30,7 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 			m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
 	}
 #endif
-	m_CardReader=CCardReader::READER_SCARD;
+	m_CardReader=CCoreEngine::CARDREADER_SCARD;
 	if (!::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_MYVIDEO,FALSE)
 			&& !::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_PERSONAL,FALSE))
 		m_szRecordFolder[0]='\0';
@@ -170,18 +169,18 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 
 				SetComboBoxList(hDlg,IDC_INITIALSETTINGS_CARDREADER,
 								&pszCardReaderList[0],lengthof(pszCardReaderList));
-				pThis->m_CardReader=CCardReader::READER_NONE;
+				pThis->m_CardReader=CCoreEngine::CARDREADER_NONE;
 				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
 				if (pCardReader!=NULL) {
 					if (pCardReader->NumReaders()>0)
-						pThis->m_CardReader=CCardReader::READER_SCARD;
+						pThis->m_CardReader=CCoreEngine::CARDREADER_SCARD;
 					delete pCardReader;
 				}
-				if (pThis->m_CardReader==CCardReader::READER_NONE) {
+				if (pThis->m_CardReader==CCoreEngine::CARDREADER_NONE) {
 					pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
 					if (pCardReader!=NULL) {
 						if (pCardReader->Open()) {
-							pThis->m_CardReader=CCardReader::READER_HDUS;
+							pThis->m_CardReader=CCoreEngine::CARDREADER_HDUS;
 							pCardReader->Close();
 						}
 						delete pCardReader;
@@ -229,7 +228,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 
 		case IDC_INITIALSETTINGS_SEARCHCARDREADER:
 			{
-				CCardReader::ReaderType ReaderType=CCardReader::READER_NONE;
+				CCoreEngine::CardReaderType ReaderType=CCoreEngine::CARDREADER_NONE;
 				CCardReader *pCardReader;
 				TCHAR szText[1024];
 
@@ -245,7 +244,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 										   TEXT("\"%s\"\n"),pszReaderName);
 							}
 						}
-						ReaderType=CCardReader::READER_SCARD;
+						ReaderType=CCoreEngine::CARDREADER_SCARD;
 					}
 					delete pCardReader;
 				}
@@ -254,13 +253,13 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					if (pCardReader->Open()) {
 						::lstrcat(szText,TEXT("\"HDUS内蔵カードリーダ\"\n"));
 						pCardReader->Close();
-						if (ReaderType==CCardReader::READER_NONE)
-							ReaderType=CCardReader::READER_HDUS;
+						if (ReaderType==CCoreEngine::CARDREADER_NONE)
+							ReaderType=CCoreEngine::CARDREADER_HDUS;
 					}
 					delete pCardReader;
 				}
 				::SetCursor(::LoadCursor(NULL,IDC_ARROW));
-				if (ReaderType==CCardReader::READER_NONE) {
+				if (ReaderType==CCoreEngine::CARDREADER_NONE) {
 					::MessageBox(hDlg,TEXT("カードリーダは見付かりませんでした。"),TEXT("検索結果"),MB_OK | MB_ICONINFORMATION);
 				} else {
 					DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER,(WPARAM)ReaderType);
@@ -298,7 +297,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					pThis->m_szMpeg2DecoderName[0]='\0';
 				pThis->m_VideoRenderer=(CVideoRenderer::RendererType)
 					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_VIDEORENDERER);
-				pThis->m_CardReader=(CCardReader::ReaderType)
+				pThis->m_CardReader=(CCoreEngine::CardReaderType)
 					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER);
 
 				TCHAR szRecordFolder[MAX_PATH];

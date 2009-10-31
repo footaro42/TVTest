@@ -700,7 +700,7 @@ const bool CMpeg2Sequence::ParseHeader(void)
 	m_Header.byFrameRateCode			= m_pData[7] & 0x0FU;														// +7 bit3-0
 	m_Header.dwBitRate					= ((DWORD)m_pData[8] << 10) | ((DWORD)m_pData[9] << 2) | ((DWORD)(m_pData[10] & 0xC0U) >> 6);	// +8, +9, +10 bit7-6
 	m_Header.bMarkerBit					= (m_pData[10] & 0x20U)? true : false;										// +10 bit5
-	m_Header.wVbvBufferSize				= ((WORD)(m_pData[10] & 0x1FU) << 5) | ((WORD)(m_pData[11] & 0xF8U) >> 3);	// +10 bit4-0, +11 bit7-3
+	m_Header.dwVbvBufferSize				= ((WORD)(m_pData[10] & 0x1FU) << 5) | ((WORD)(m_pData[11] & 0xF8U) >> 3);	// +10 bit4-0, +11 bit7-3
 	m_Header.bConstrainedParamFlag		= (m_pData[11] & 0x04U)? true : false;										// +11 bit2
 	m_Header.bLoadIntraQuantiserMatrix	= (m_pData[11] & 0x02U)? true : false;										// +11 bit1
 	m_Header.bLoadNonIntraQuantiserMatrix=(m_pData[11] & 0x01U)? true : false;										// +11 bit0
@@ -724,56 +724,54 @@ const bool CMpeg2Sequence::ParseHeader(void)
 	else if(m_Header.bConstrainedParamFlag)return false;								// Constrained Parameters Flag が異常
 
 	// 拡張ヘッダ検索する
-	for (DWORD i = dwHeaderSize; i < min(m_dwDataSize - 5, 1024UL); i++) {
-		if (m_pData[i] == 0x00 && m_pData[i + 1] == 0x00 && m_pData[i + 2] == 0x01 && m_pData[i + 3] == 0xB5) {
+	DWORD SyncState = 0xFFFFFFFF;
+	for (DWORD i = dwHeaderSize; i < min(m_dwDataSize - 1, 1024UL);) {
+		SyncState = (SyncState << 8) | m_pData[i++];
+		if (SyncState == 0x000001B5UL) {
 			// 拡張ヘッダ発見
-			DWORD ExtPos = i + 4;
-
-			switch (m_pData[ExtPos] >> 4) {
+			switch (m_pData[i] >> 4) {
 			case 1:
 				// シーケンス拡張(48bits)
-				if (ExtPos + 6 > m_dwDataSize)
+				if (i + 6 > m_dwDataSize)
 					break;
-				m_Header.Extention.Sequence.byProfileAndLevel = (m_pData[ExtPos+0] & 0x0FU) << 4 | (m_pData[ExtPos+1] >> 4);
-				m_Header.Extention.Sequence.bProgressive = (m_pData[ExtPos+1] & 0x08) != 0;
-				m_Header.Extention.Sequence.byChromaFormat = (m_pData[ExtPos+1] & 0x06U) >> 1;
-				/*
-				m_Header.wHorizontalSize |= (((m_pData[ExtPos+1] & 0x01U) << 1) | ((m_pData[ExtPos+2] & 0x80U) >> 7)) << 12;	// horizontal size extension
-				m_Header.wVerticalSize   |= ((m_pData[ExtPos+2] & 0x60U) >> 5) << 12;	// vertical size extension
-				m_Header.dwBitRate |= (((DWORD)m_pData[ExtPos+2] & 0x1FU) << 7) | (m_pData[ExtPos+3] >> 1) << 18;	// bit rate extension
-				*/
-				if ((m_pData[ExtPos+3] & 0x01U) == 0)	// marker bit
+				m_Header.Extention.Sequence.byProfileAndLevel = (m_pData[i + 0] & 0x0FU) << 4 | (m_pData[i + 1] >> 4);
+				m_Header.Extention.Sequence.bProgressive = (m_pData[i + 1] & 0x08) != 0;
+				m_Header.Extention.Sequence.byChromaFormat = (m_pData[i + 1] & 0x06U) >> 1;
+				m_Header.wHorizontalSize |= (((m_pData[i + 1] & 0x01U) << 1) | ((m_pData[i + 2] & 0x80U) >> 7)) << 12;	// horizontal size extension
+				m_Header.wVerticalSize   |= ((m_pData[i + 2] & 0x60U) >> 5) << 12;	// vertical size extension
+				m_Header.dwBitRate |= (((DWORD)m_pData[i + 2] & 0x1FU) << 7) | (m_pData[i + 3] >> 1) << 18;	// bit rate extension
+				if ((m_pData[i + 3] & 0x01U) == 0)	// marker bit
 					break;
-				//m_Header.wVbvBufferSize |= m_pData[ExtPos+4] << 10;	// vbv buffer size extension
-				m_Header.Extention.Sequence.bLowDelay = (m_pData[ExtPos+5] & 0x80) != 0;
-				m_Header.Extention.Sequence.byFrameRateExtN = (m_pData[ExtPos+5] & 0x60U) >> 5;
-				m_Header.Extention.Sequence.byFrameRateExtD = (m_pData[ExtPos+5] & 0x18U) >> 3;
+				m_Header.dwVbvBufferSize |= m_pData[i + 4] << 10;	// vbv buffer size extension
+				m_Header.Extention.Sequence.bLowDelay = (m_pData[i + 5] & 0x80) != 0;
+				m_Header.Extention.Sequence.byFrameRateExtN = (m_pData[i + 5] & 0x60U) >> 5;
+				m_Header.Extention.Sequence.byFrameRateExtD = (m_pData[i + 5] & 0x18U) >> 3;
 				m_Header.Extention.Sequence.bHave = true;
-				i = ExtPos + 5;
+				i += 6;
 				break;
 
 			case 2:
 				// ディスプレイ拡張(40bits(+24bits))
-				if (ExtPos + 5 > m_dwDataSize)
+				if (i + 5 > m_dwDataSize)
 					break;
-				m_Header.Extention.Display.byVideoFormat = (m_pData[ExtPos+0] & 0x0EU) >> 1;
-				m_Header.Extention.Display.bColorDescrption = m_pData[ExtPos+0] & 0x01U;
+				m_Header.Extention.Display.byVideoFormat = (m_pData[i + 0] & 0x0EU) >> 1;
+				m_Header.Extention.Display.bColorDescrption = (m_pData[i + 0] & 0x01U) != 0;
 				if (m_Header.Extention.Display.bColorDescrption) {
-					if (ExtPos + 5 + 3 > m_dwDataSize)
+					if (i + 5 + 3 > m_dwDataSize)
 						break;
-					m_Header.Extention.Display.Color.byColorPrimaries = m_pData[ExtPos+1];
-					m_Header.Extention.Display.Color.byTransferCharacteristics = m_pData[ExtPos+2];
-					m_Header.Extention.Display.Color.byMatrixCoefficients = m_pData[ExtPos+3];
-					ExtPos += 3;
+					m_Header.Extention.Display.Color.byColorPrimaries = m_pData[i + 1];
+					m_Header.Extention.Display.Color.byTransferCharacteristics = m_pData[i + 2];
+					m_Header.Extention.Display.Color.byMatrixCoefficients = m_pData[i + 3];
+					i += 3;
 				}
-				if ((m_pData[ExtPos+2] & 0x02) == 0)	// marker bit
+				if ((m_pData[i + 2] & 0x02) == 0)	// marker bit
 					break;
-				if ((m_pData[ExtPos+4] & 0x07) != 0)	// marker bit
+				if ((m_pData[i + 4] & 0x07) != 0)	// marker bit
 					break;
-				m_Header.Extention.Display.wDisplayHorizontalSize = ((WORD)m_pData[ExtPos+1] << 6) | ((WORD)(m_pData[ExtPos+2] & 0xFCU) >> 2);
-				m_Header.Extention.Display.wDisplayVerticalSize   = ((WORD)(m_pData[ExtPos+2] & 0x01U) << 13) | ((WORD)m_pData[ExtPos+3] << 5) | ((WORD)(m_pData[ExtPos+4] & 0xF1U) >> 3);
+				m_Header.Extention.Display.wDisplayHorizontalSize = ((WORD)m_pData[i + 1] << 6) | ((WORD)(m_pData[i + 2] & 0xFCU) >> 2);
+				m_Header.Extention.Display.wDisplayVerticalSize   = ((WORD)(m_pData[i + 2] & 0x01U) << 13) | ((WORD)m_pData[i + 3] << 5) | ((WORD)(m_pData[i + 4] & 0xF8U) >> 3);
 				m_Header.Extention.Display.bHave = true;
-				i = ExtPos + 4;
+				i += 5;
 				break;
 			}
 		}
@@ -807,10 +805,84 @@ const BYTE CMpeg2Sequence::GetAspectRatioInfo(void) const
 	return m_Header.byAspectRatioInfo;
 }
 
+const bool CMpeg2Sequence::GetAspectRatio(BYTE *pAspectX, BYTE *pAspectY) const
+{
+	BYTE AspectX, AspectY;
+
+	switch (m_Header.byAspectRatioInfo) {
+	case 1:
+		AspectX = 1;
+		AspectY = 1;
+		break;
+	case 2:
+		AspectX = 4;
+		AspectY = 3;
+		break;
+	case 3:
+		AspectX = 16;
+		AspectY = 9;
+		break;
+	case 4:
+		AspectX = 221;
+		AspectY = 100;
+		break;
+	default:
+		return false;
+	}
+	if (pAspectX)
+		*pAspectX = AspectX;
+	if (pAspectY)
+		*pAspectY = AspectY;
+	return true;
+}
+
 const BYTE CMpeg2Sequence::GetFrameRateCode(void) const
 {
 	// Frame Rate Code を返す
 	return m_Header.byFrameRateCode;
+}
+
+const bool CMpeg2Sequence::GetFrameRate(DWORD *pNum, DWORD *pDenom) const
+{
+	if (pNum == NULL || pDenom == NULL)
+		return false;
+	switch (m_Header.byFrameRateCode) {
+	case 1:	// 23.976
+		*pNum = 24000;
+		*pDenom = 1001;
+		break;
+	case 2:
+		*pNum = 24;
+		*pDenom = 1;
+		break;
+	case 3:
+		*pNum = 25;
+		*pDenom = 1;
+		break;
+	case 4:	// 29.97
+		*pNum = 30000;
+		*pDenom = 1001;
+		break;
+	case 5:
+		*pNum = 30;
+		*pDenom = 1;
+		break;
+	case 6:
+		*pNum = 50;
+		*pDenom = 1;
+		break;
+	case 7:	// 59.94
+		*pNum = 60000;
+		*pDenom = 1001;
+		break;
+	case 8:
+		*pNum = 60;
+		*pDenom = 1;
+		break;
+	default:
+		return false;
+	}
+	return true;
 }
 
 const DWORD CMpeg2Sequence::GetBitRate(void) const
@@ -825,10 +897,10 @@ const bool CMpeg2Sequence::IsMarkerBit(void) const
 	return m_Header.bMarkerBit;
 }
 
-const WORD CMpeg2Sequence::GetVbvBufferSize(void) const
+const DWORD CMpeg2Sequence::GetVbvBufferSize(void) const
 {
 	// VBV Buffer Size Value を返す
-	return m_Header.wVbvBufferSize;
+	return m_Header.dwVbvBufferSize;
 }
 
 const bool CMpeg2Sequence::IsConstrainedParamFlag(void) const

@@ -104,8 +104,14 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 		return 0;
 
 	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
+	case WM_LBUTTONUP:
 	case WM_LBUTTONDBLCLK:
+	case WM_RBUTTONDOWN:
+	case WM_RBUTTONUP:
+	case WM_RBUTTONDBLCLK:
+	case WM_MBUTTONDOWN:
+	case WM_MBUTTONUP:
+	case WM_MBUTTONDBLCLK:
 	case WM_MOUSEMOVE:
 		{
 			POINT pt;
@@ -330,8 +336,14 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		return 0;
 
 	case WM_LBUTTONDOWN:
-	case WM_RBUTTONDOWN:
+	case WM_LBUTTONUP:
 	case WM_LBUTTONDBLCLK:
+	case WM_RBUTTONDOWN:
+	case WM_RBUTTONUP:
+	case WM_RBUTTONDBLCLK:
+	case WM_MBUTTONDOWN:
+	case WM_MBUTTONUP:
+	case WM_MBUTTONDBLCLK:
 	case WM_MOUSEMOVE:
 		{
 			CViewWindow *pThis=GetThis(hwnd);

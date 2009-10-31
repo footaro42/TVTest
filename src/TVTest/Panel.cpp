@@ -51,13 +51,18 @@ CPanel::CPanel()
 
 	m_TitleMargin=4;
 	m_ButtonSize=14;
-	ncm.cbSize=sizeof(NONCLIENTMETRICS);
-	SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(NONCLIENTMETRICS),&ncm,0);
+#if WINVER<0x0600
+	ncm.cbSize=sizeof(ncm);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	m_hfont=CreateFontIndirect(&ncm.lfCaptionFont);
 	m_TitleHeight=max(abs(ncm.lfCaptionFont.lfHeight),m_ButtonSize)+m_TitleMargin*2;
 	m_pWindow=NULL;
 	m_pszTitle=NULL;
 	m_fShowTitle=false;
+	m_fEnableFloating=true;
 	m_TitleBackGradient.Type=Theme::GRADIENT_NORMAL;
 	m_TitleBackGradient.Direction=Theme::DIRECTION_VERT;
 	m_TitleBackGradient.Color1=GetSysColor(COLOR_INACTIVECAPTION);
@@ -85,13 +90,17 @@ bool CPanel::SetWindow(CBasicWindow *pWindow,LPCTSTR pszTitle)
 	RECT rc;
 
 	m_pWindow=pWindow;
-	if (pWindow->GetParent()!=m_hwnd)
-		pWindow->SetParent(m_hwnd);
-	pWindow->SetVisible(true);
-	m_pszTitle=DuplicateString(pszTitle);
-	GetPosition(&rc);
-	rc.right=rc.left+pWindow->GetWidth();
-	SetPosition(&rc);
+	if (m_pWindow!=NULL) {
+		if (pWindow->GetParent()!=m_hwnd)
+			pWindow->SetParent(m_hwnd);
+		pWindow->SetVisible(true);
+		ReplaceString(&m_pszTitle,pszTitle);
+		GetPosition(&rc);
+		rc.right=rc.left+pWindow->GetWidth();
+		SetPosition(&rc);
+	} else {
+		ReplaceString(&m_pszTitle,NULL);
+	}
 	return true;
 }
 
@@ -105,6 +114,12 @@ void CPanel::ShowTitle(bool fShow)
 		GetClientRect(&rc);
 		OnSize(rc.right,rc.bottom);
 	}
+}
+
+
+void CPanel::EnableFloating(bool fEnable)
+{
+	m_fEnableFloating=fEnable;
 }
 
 
@@ -222,16 +237,18 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				pThis->GetClientRect(&rc);
 				rc.bottom=pThis->m_TitleHeight;
 				Theme::FillGradient(ps.hdc,&rc,&pThis->m_TitleBackGradient);
-				hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
-				crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTitleTextColor);
-				OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-				rc.left+=pThis->m_TitleMargin;
-				rc.right-=pThis->m_TitleMargin+pThis->m_ButtonSize;
-				DrawText(ps.hdc,pThis->m_pszTitle,-1,&rc,
+				if (pThis->m_pszTitle!=NULL) {
+					hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
+					crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTitleTextColor);
+					OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
+					rc.left+=pThis->m_TitleMargin;
+					rc.right-=pThis->m_TitleMargin+pThis->m_ButtonSize;
+					DrawText(ps.hdc,pThis->m_pszTitle,-1,&rc,
 						DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-				SetTextColor(ps.hdc,crOldTextColor);
-				SetBkMode(ps.hdc,OldBkMode);
-				SelectFont(ps.hdc,hfontOld);
+					SetTextColor(ps.hdc,crOldTextColor);
+					SetBkMode(ps.hdc,OldBkMode);
+					SelectFont(ps.hdc,hfontOld);
+				}
 				pThis->GetCloseButtonRect(&rc);
 				DrawFrameControl(ps.hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
 			}
@@ -255,9 +272,11 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 						pThis->m_pEventHandler->OnClose();
 					return 0;
 				}
-				ClientToScreen(hwnd,&pt);
-				pThis->m_ptDragStartPos=pt;
-				SetCapture(hwnd);
+				if (pThis->m_fEnableFloating) {
+					ClientToScreen(hwnd,&pt);
+					pThis->m_ptDragStartPos=pt;
+					SetCapture(hwnd);
+				}
 			}
 		}
 		return 0;
@@ -305,6 +324,8 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				hmenu=CreatePopupMenu();
 				for (i=0;i<lengthof(pszMenu);i++)
 					AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,i+1,pszMenu[i]);
+				if (!pThis->m_fEnableFloating)
+					EnableMenuItem(hmenu,2,MF_BYCOMMAND | MFS_GRAYED);
 				switch (TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,
 													pt.x,pt.y,0,hwnd,NULL)) {
 				case 1:

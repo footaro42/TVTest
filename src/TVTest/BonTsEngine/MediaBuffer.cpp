@@ -12,20 +12,20 @@ static char THIS_FILE[]=__FILE__;
 
 CMediaBuffer::CMediaBuffer(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler,1,1)
-{
-	m_BufferLength=40000;
-	m_bEnableBuffering=true;
-	m_bFileMode=false;
-	m_PoolPercentage=50;
-	m_pBuffer=NULL;
-	m_OutputData.SetSize(TS_PACKETSIZE);
-	m_hOutputThread=NULL;
-	m_hBreakEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-	m_hCompleteEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
+	, m_BufferLength(40000)
+	, m_bEnableBuffering(true)
+	, m_bFileMode(false)
+	, m_PoolPercentage(50)
+	, m_pBuffer(NULL)
+	, m_hOutputThread(NULL)
 #ifdef _DEBUG
-	m_InputCount=0;
-	m_OutputCount=0;
+	, m_InputCount(0)
+	, m_OutputCount(0)
 #endif
+{
+	m_OutputData.SetSize(TS_PACKETSIZE);
+	m_BreakEvent.Create();
+	m_CompleteEvent.Create();
 }
 
 
@@ -33,10 +33,6 @@ CMediaBuffer::~CMediaBuffer()
 {
 	Stop();
 	delete [] m_pBuffer;
-	if (m_hBreakEvent)
-		::CloseHandle(m_hBreakEvent);
-	if (m_hCompleteEvent)
-		::CloseHandle(m_hCompleteEvent);
 #ifdef _DEBUG
 	TRACE(TEXT("CMediaBuffer::~CMediaBuffer input %lu / output %lu\n"),m_InputCount,m_OutputCount);
 #endif
@@ -127,6 +123,7 @@ const bool CMediaBuffer::InputMedia(CMediaData *pMediaData,const DWORD dwInputIn
 
 bool CMediaBuffer::Play()
 {
+	TRACE(TEXT("CMediaBuffer::Play()\n"));
 	if (m_hOutputThread)
 		return false;
 	if (!m_bEnableBuffering)
@@ -138,11 +135,11 @@ bool CMediaBuffer::Play()
 	m_LastBuffer=0;
 	m_UsedCount=0;
 	m_bBuffering=true;
+	m_BreakEvent.Reset();
 	m_hOutputThread=::CreateThread(NULL,0,OutputThread,this,0,NULL);
 	m_Lock.Unlock();
 	if (m_hOutputThread==NULL)
 		return false;
-	TRACE(TEXT("CMediaBuffer::Play()\n"));
 	return true;
 }
 
@@ -152,7 +149,7 @@ bool CMediaBuffer::Stop()
 	TRACE(TEXT("CMediaBuffer::Stop()\n"));
 	if (m_hOutputThread) {
 		m_SignalType=SIGNAL_KILL;
-		::SetEvent(m_hBreakEvent);
+		m_BreakEvent.Set();
 		if (::WaitForSingleObject(m_hOutputThread,2000)!=WAIT_OBJECT_0) {
 			TRACE(TEXT("Terminate CMediaBuffer::OutputThread\n"));
 			::TerminateThread(m_hOutputThread,1);
@@ -182,10 +179,10 @@ bool CMediaBuffer::EnableBuffering(bool bBuffering)
 void CMediaBuffer::ResetBuffer()
 {
 	if (m_hOutputThread) {
-		::ResetEvent(m_hCompleteEvent);
+		m_CompleteEvent.Reset();
 		m_SignalType=SIGNAL_RESET;
-		::SetEvent(m_hBreakEvent);
-		::WaitForSingleObject(m_hCompleteEvent,2000/*INFINITE*/);
+		m_BreakEvent.Set();
+		m_CompleteEvent.Wait(2000/*INFINITE*/);
 	}
 }
 
@@ -262,13 +259,15 @@ DWORD WINAPI CMediaBuffer::OutputThread(LPVOID lpParameter)
 {
 	CMediaBuffer *pThis=static_cast<CMediaBuffer*>(lpParameter);
 
+	TRACE(TEXT("CMediaBuffer::OutputThread() Begin\n"));
+
 	::CoInitialize(NULL);
 
 	while (true) {
-		while (::WaitForSingleObject(pThis->m_hBreakEvent,1)==WAIT_TIMEOUT) {
+		while (pThis->m_BreakEvent.Wait(10)==WAIT_TIMEOUT) {
 			pThis->m_Lock.Lock();
 			while (!pThis->m_bBuffering && pThis->m_UsedCount>0) {
-				if (::WaitForSingleObject(pThis->m_hBreakEvent,0)!=WAIT_TIMEOUT) {
+				if (pThis->m_BreakEvent.IsSignaled()) {
 					pThis->m_Lock.Unlock();
 					goto Break;
 				}
@@ -296,10 +295,12 @@ DWORD WINAPI CMediaBuffer::OutputThread(LPVOID lpParameter)
 		pThis->m_UsedCount=0;
 		pThis->m_bBuffering=true;
 		pThis->m_Lock.Unlock();
-		::SetEvent(pThis->m_hCompleteEvent);
+		pThis->m_CompleteEvent.Set();
 	}
 
 	::CoUninitialize();
+
+	TRACE(TEXT("CMediaBuffer::OutputThread() End\n"));
 
 	return 0;
 }

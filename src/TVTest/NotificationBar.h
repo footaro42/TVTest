@@ -8,10 +8,12 @@
 
 class CNotificationBar : public CBasicWindow
 {
+public:
 	enum MessageType {
 		MESSAGE_INFO,
 		MESSAGE_ERROR
 	};
+
 private:
 	Theme::GradientInfo m_BackGradient;
 	COLORREF m_TextColor;
@@ -21,9 +23,11 @@ private:
 	bool m_fAnimate;
 	LPTSTR m_pszText;
 	MessageType m_MessageType;
+
 	static HINSTANCE m_hinst;
 	static CNotificationBar *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	CNotificationBar();
 	~CNotificationBar();

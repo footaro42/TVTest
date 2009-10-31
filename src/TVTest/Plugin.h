@@ -7,10 +7,11 @@
 #include "PointerArray.h"
 #include "Options.h"
 #include "MediaData.h"
-#include "TsUtilClass.h"
+#include "BonTsEngine/Exception.h"
+#include "BonTsEngine/TsUtilClass.h"
 
 
-class CPlugin {
+class CPlugin : public CBonErrorHandler {
 	//static DWORD m_FinalizeTimeout;
 	HMODULE m_hLib;
 	LPTSTR m_pszFileName;

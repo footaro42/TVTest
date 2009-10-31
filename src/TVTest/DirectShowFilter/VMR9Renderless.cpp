@@ -26,6 +26,7 @@ class CVMR9Allocator : public IVMRSurfaceAllocator9,IVMRImagePresenter9
 	SIZE m_NativeVideoSize;
 	RECT m_SourceRect;
 	RECT m_DestRect;
+	bool m_bCrop1088To1080;
 
 	typedef IDirect3D9 *(WINAPI *Direct3DCreateFunc)(UINT SDKVersion);
 	HMODULE m_hD3D9Lib;
@@ -39,6 +40,7 @@ class CVMR9Allocator : public IVMRSurfaceAllocator9,IVMRImagePresenter9
 	HANDLE m_hCaptureEvent;
 	HANDLE m_hCaptureCompleteEvent;
 	IDirect3DSurface9 *m_pCaptureSurface;
+
 public:
 	CVMR9Allocator(HRESULT *phr,HWND wnd,IDirect3D9 *d3d=NULL,IDirect3DDevice9 *d3dd=NULL);
 	virtual ~CVMR9Allocator();
@@ -62,13 +64,15 @@ public:
 	STDMETHOD(PresentImage)(DWORD_PTR dwUserID,VMR9PresentationInfo *lpPresInfo);
 
 	// CVMR9Allocator
-	bool GetNativeVideoSize(LONG *pWidth,LONG *pHeight);
+	//bool GetNativeVideoSize(LONG *pWidth,LONG *pHeight);
 	bool SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect);
 	bool GetVideoPosition(RECT *pSrc,RECT *pDst);
 	bool RepaintVideo();
 	bool SetCapture(bool fCapture);
 	bool WaitCapture(DWORD TimeOut);
 	bool GetCaptureSurface(IDirect3DSurface9 **ppSurface);
+	void SetCrop1088To1080(bool bCrop) { m_bCrop1088To1080=bCrop; }
+
 protected:
 	HRESULT CreateDevice();
 	void DeleteSurfaces();
@@ -76,6 +80,7 @@ protected:
 	bool NeedToHandleDisplayChange();
 
 	HRESULT PresentHelper(VMR9PresentationInfo *lpPresInfo);
+	void CalcTransferRect(int SurfaceWidth,int SurfaceHeight,RECT *pSourceRect,RECT *pDestRect) const;
 };
 
 
@@ -85,6 +90,7 @@ CVMR9Allocator::CVMR9Allocator(HRESULT *phr,HWND wnd,IDirect3D9 *d3d,IDirect3DDe
 	, m_D3DDev(d3dd)
 	, m_window(wnd)
 	, m_pCaptureSurface(NULL)
+	, m_bCrop1088To1080(true)
 {
 	CAutoLock Lock(&m_ObjectLock);
 
@@ -96,11 +102,11 @@ CVMR9Allocator::CVMR9Allocator(HRESULT *phr,HWND wnd,IDirect3D9 *d3d,IDirect3DDe
 	m_SourceSize.cy=0;
 	m_NativeVideoSize.cx=0;
 	m_NativeVideoSize.cy=0;
-	::ZeroMemory(&m_SourceRect,sizeof(RECT));
-	::ZeroMemory(&m_DestRect,sizeof(RECT));
+	::SetRectEmpty(&m_SourceRect);
+	::SetRectEmpty(&m_DestRect);
 
-	m_hCaptureEvent=CreateEvent(NULL,FALSE,FALSE,NULL);
-	m_hCaptureCompleteEvent=CreateEvent(NULL,FALSE,FALSE,NULL);
+	m_hCaptureEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
+	m_hCaptureCompleteEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
 
 	*phr=S_OK;
 
@@ -187,7 +193,7 @@ HRESULT CVMR9Allocator::CreateDevice()
 		return hr;
 
 	D3DPRESENT_PARAMETERS pp;
-	ZeroMemory(&pp,sizeof(pp));
+	::ZeroMemory(&pp,sizeof(pp));
 	pp.BackBufferWidth=1920;
 	pp.BackBufferHeight=1080;
 	pp.BackBufferFormat=dm.Format;
@@ -448,53 +454,14 @@ HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 	hr=m_D3DDev->BeginScene();
 	if (FAILED(hr))
 		return hr;
-#if 0
-	RECT rcDest;
-	DstSurface->GetDesc(&desc);
-	SetRect(&rcDest,0,0,desc.Width,desc.Height);
-	if (!IsRectEmpty(&m_DestRect)) {
-		m_D3DDev->ColorFill(DstSurface,NULL,D3DCOLOR_XRGB(0,0,0));
-		if (m_WindowSize.cx>0 && m_WindowSize.cy>0) {
-			SetRect(&rcDest,
-					m_DestRect.left*desc.Width/m_WindowSize.cx,
-					m_DestRect.top*desc.Height/m_WindowSize.cy,
-					m_DestRect.right*desc.Width/m_WindowSize.cx,
-					m_DestRect.bottom*desc.Height/m_WindowSize.cy);
-		}
-	}
-	m_D3DDev->StretchRect(lpPresInfo->lpSurf,
-						  IsRectEmpty(&m_SourceRect)?NULL:&m_SourceRect,
-						  DstSurface,&rcDest,
-						  D3DTEXF_NONE);
-	hr=m_D3DDev->EndScene();
-	if (FAILED(hr))
-		return hr;
-
-	return m_D3DDev->Present(NULL,NULL,NULL,NULL);
-#endif
 #if 1
-	RECT rcSource,rcDest;
 	DstSurface->GetDesc(&desc);
-	if (!IsRectEmpty(&m_SourceRect)) {
-		rcSource=m_SourceRect;
-		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
-			MapRect(&rcSource,m_NativeVideoSize.cx,m_SourceSize.cx,
-							  m_NativeVideoSize.cy,m_SourceSize.cy);
-		MapRect(&rcSource,desc.Width,m_NativeVideoSize.cx,
-						  desc.Height,m_NativeVideoSize.cy);
-	} else {
-		SetRect(&rcSource,0,0,desc.Width,desc.Height);
-	}
-	if (!IsRectEmpty(&m_DestRect)) {
-		rcDest=m_DestRect;
-	} else {
-		SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
-	}
+	RECT rcSource,rcDest;
+	CalcTransferRect(desc.Width,desc.Height,&rcSource,&rcDest);
 	m_D3DDev->StretchRect(lpPresInfo->lpSurf,NULL,DstSurface,NULL,D3DTEXF_NONE);
 	hr=m_D3DDev->EndScene();
 	if (FAILED(hr))
 		return hr;
-
 	return m_D3DDev->Present(&rcSource,&rcDest,NULL,NULL);
 #else
 	RECT rcSource,rcDest;
@@ -531,6 +498,30 @@ HRESULT CVMR9Allocator::PresentHelper(VMR9PresentationInfo *lpPresInfo)
 }
 
 
+void CVMR9Allocator::CalcTransferRect(int SurfaceWidth,int SurfaceHeight,RECT *pSourceRect,RECT *pDestRect) const
+{
+	if (!::IsRectEmpty(&m_SourceRect)) {
+		*pSourceRect=m_SourceRect;
+		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
+			MapRect(pSourceRect,m_NativeVideoSize.cx,m_SourceSize.cx,
+								m_NativeVideoSize.cy,m_SourceSize.cy);
+		MapRect(pSourceRect,SurfaceWidth,m_NativeVideoSize.cx,
+							SurfaceHeight,m_NativeVideoSize.cy);
+	} else {
+		::SetRect(pSourceRect,0,0,SurfaceWidth,SurfaceHeight);
+	}
+	if (m_bCrop1088To1080 && m_NativeVideoSize.cy==1088) {
+		pSourceRect->top=pSourceRect->top*1080/1088;
+		pSourceRect->bottom=pSourceRect->bottom*1080/1088;
+	}
+	if (!::IsRectEmpty(&m_DestRect)) {
+		*pDestRect=m_DestRect;
+	} else {
+		::SetRect(pDestRect,0,0,m_WindowSize.cx,m_WindowSize.cy);
+	}
+}
+
+
 bool CVMR9Allocator::NeedToHandleDisplayChange()
 {
 	if (!m_pSurfaceAllocatorNotify)
@@ -563,21 +554,7 @@ bool CVMR9Allocator::RepaintVideo()
 		return false;
 	DstSurface->GetDesc(&desc);
 #if 1
-	if (!IsRectEmpty(&m_SourceRect)) {
-		rcSource=m_SourceRect;
-		if (m_SourceSize.cx>0 && m_SourceSize.cy>0)
-			MapRect(&rcSource,m_NativeVideoSize.cx,m_SourceSize.cx,
-							  m_NativeVideoSize.cy,m_SourceSize.cy);
-		MapRect(&rcSource,desc.Width,m_NativeVideoSize.cx,
-						  desc.Height,m_NativeVideoSize.cy);
-	} else {
-		SetRect(&rcSource,0,0,desc.Width,desc.Height);
-	}
-	if (!IsRectEmpty(&m_DestRect)) {
-		rcDest=m_DestRect;
-	} else {
-		SetRect(&rcDest,0,0,m_WindowSize.cx,m_WindowSize.cy);
-	}
+	CalcTransferRect(desc.Width,desc.Height,&rcSource,&rcDest);
 	hr=m_D3DDev->Present(&rcSource,&rcDest,NULL,NULL);
 #else
 	if (!IsRectEmpty(&m_SourceRect)) {
@@ -637,6 +614,7 @@ bool CVMR9Allocator::GetCaptureSurface(IDirect3DSurface9 **ppSurface)
 }
 
 
+/*
 bool CVMR9Allocator::GetNativeVideoSize(LONG *pWidth,LONG *pHeight)
 {
 	CAutoLock Lock(&m_ObjectLock);
@@ -649,6 +627,7 @@ bool CVMR9Allocator::GetNativeVideoSize(LONG *pWidth,LONG *pHeight)
 		*pHeight=m_NativeVideoSize.cy;
 	return true;
 }
+*/
 
 
 bool CVMR9Allocator::SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSrc,const RECT *pDst,const RECT *pWindowRect)
@@ -660,12 +639,12 @@ bool CVMR9Allocator::SetVideoPosition(int SourceWidth,int SourceHeight,const REC
 	if (pSrc) {
 		m_SourceRect=*pSrc;
 	} else {
-		::ZeroMemory(&m_SourceRect,sizeof(RECT));
+		::SetRectEmpty(&m_SourceRect);
 	}
 	if (pDst) {
 		m_DestRect=*pDst;
 	} else {
-		::ZeroMemory(&m_DestRect,sizeof(RECT));
+		::SetRectEmpty(&m_DestRect);
 	}
 	if (pWindowRect->right-pWindowRect->left!=m_WindowSize.cx
 			|| pWindowRect->bottom-pWindowRect->top!=m_WindowSize.cy) {
@@ -773,6 +752,7 @@ bool CVideoRenderer_VMR9Renderless::Initialize(IGraphBuilder *pFilterGraph,IPin 
 	hr=m_pRenderer->QueryInterface(IID_IVMRSurfaceAllocatorNotify9,
 								   reinterpret_cast<void**>(&pSurfaceAllocatorNotify));
 	m_pAllocator=new CVMR9Allocator(&hr,hwndRender);
+	m_pAllocator->SetCrop1088To1080(m_bCrop1088To1080);
 	hr=pSurfaceAllocatorNotify->AdviseSurfaceAllocator(12345,m_pAllocator);
 	m_pAllocator->AdviseNotify(pSurfaceAllocatorNotify);
 	pSurfaceAllocatorNotify->Release();
@@ -842,15 +822,19 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 
 				if (m_pAllocator->GetCaptureSurface(&pSurface)) {
 					D3DSURFACE_DESC desc;
+					int Height;
 					BITMAPINFO bmi;
 					HBITMAP hbm;
 					void *pBits;
 
 					pSurface->GetDesc(&desc);
+					Height=desc.Height;
+					if (m_bCrop1088To1080 && Height==1088)
+						Height=1080;
 					::ZeroMemory(&bmi.bmiHeader,sizeof(BITMAPINFOHEADER));
 					bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
 					bmi.bmiHeader.biWidth=desc.Width;
-					bmi.bmiHeader.biHeight=desc.Height;
+					bmi.bmiHeader.biHeight=Height;
 					bmi.bmiHeader.biPlanes=1;
 					bmi.bmiHeader.biBitCount=24;
 					hbm=::CreateDIBSection(NULL,&bmi,DIB_RGB_COLORS,&pBits,NULL,0);
@@ -865,7 +849,7 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 
 							hdcMem=::CreateCompatibleDC(NULL);
 							hbmOld=(HBITMAP)::SelectObject(hdcMem,hbm);
-							::BitBlt(hdcMem,0,0,desc.Width,desc.Height,
+							::BitBlt(hdcMem,0,0,desc.Width,Height,
 									 hdcSurface,0,0,SRCCOPY);
 							::SelectObject(hdcMem,hbmOld);
 							::DeleteDC(hdcMem);
@@ -877,11 +861,10 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 						if (SUCCEEDED(hr)) {
 							BYTE *p=(BYTE*)rect.pBits,*q;
 							SIZE_T DIBRowBytes=(desc.Width*3+3)/4*4;
-							DWORD x,y;
 
-							for (y=0;y<desc.Height;y++) {
-								q=(BYTE*)pBits+(desc.Height-1-y)*DIBRowBytes;
-								for (x=0;x<desc.Width;x++) {
+							for (int y=0;y<Height;y++) {
+								q=(BYTE*)pBits+(Height-1-y)*DIBRowBytes;
+								for (DWORD x=0;x<desc.Width;x++) {
 									q[0]=p[3];
 									q[1]=p[2];
 									q[2]=p[1];
@@ -894,7 +877,7 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 #endif
 							SIZE_T BitsSize;
 							BYTE *pDib;
-							BitsSize=(desc.Width*3+3)/4*4*desc.Height;
+							BitsSize=(desc.Width*3+3)/4*4*Height;
 							pDib=(BYTE*)::CoTaskMemAlloc(sizeof(BITMAPINFOHEADER)+BitsSize);
 							if (pDib) {
 								::CopyMemory(pDib,&bmi.bmiHeader,sizeof(BITMAPINFOHEADER));

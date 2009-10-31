@@ -29,21 +29,29 @@ class CDriverOptions : public COptions {
 	CDriverSettingList m_SettingList;
 	CDriverSettingList m_CurSettingList;
 	void InitDlgItem(int Driver);
+	void SetChannelList(int Driver);
+	void AddChannelList(const CChannelList *pChannelList);
+	CDriverSettings *GetCurSelDriverSettings() const;
 	static CDriverOptions *GetThis(HWND hDlg);
 public:
 	CDriverOptions();
 	~CDriverOptions();
-	// COptions
+// COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
-	// CDriverOptions
+// CDriverOptions
 	bool Initialize(CDriverManager *pDriverManager);
-	struct InitialChannelInfo {
-		int Space,Channel;
+	struct ChannelInfo {
+		int Space;
+		int Channel;
+		int ServiceID;
+		bool fAllChannels;
 	};
-	bool GetInitialChannel(LPCTSTR pszFileName,InitialChannelInfo *pChannelInfo) const;
+	bool GetInitialChannel(LPCTSTR pszFileName,ChannelInfo *pChannelInfo) const;
+	bool SetLastChannel(LPCTSTR pszFileName,const ChannelInfo *pChannelInfo);
 	bool IsDescrambleDriver(LPCTSTR pszFileName) const;
 	bool IsNoSignalLevel(LPCTSTR pszFileName) const;
+	bool IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

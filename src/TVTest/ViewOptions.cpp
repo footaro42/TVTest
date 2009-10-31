@@ -15,24 +15,24 @@ static char THIS_FILE[]=__FILE__;
 
 
 CViewOptions::CViewOptions()
+	: m_fAdjustAspectResizing(false)
+	, m_fSnapAtWindowEdge(false)
+	, m_SnapAtWindowEdgeMargin(8)
+	, m_fPanScanNoResizeWindow(true)
+	, m_FullscreenStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO)
+	, m_MaximizeStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO)
+	, m_fClientEdge(true)
+	, m_fMinimizeToTray(false)
+	, m_fDisablePreviewWhenMinimized(false)
+	, m_fRestorePlayStatus(false)
+	, m_fResetPanScanEventChange(true)
+	, m_fNoMaskSideCut(true)
+	, m_fIgnoreDisplayExtension(false)
+	, m_fNoScreenSaver(false)
+	, m_fNoMonitorLowPower(false)
+	, m_fNoMonitorLowPowerActiveOnly(false)
+	, m_fShowLogo(true)
 {
-	m_fAdjustAspectResizing=false;
-	m_fSnapAtWindowEdge=false;
-	m_SnapAtWindowEdgeMargin=8;
-	m_fPanScanNoResizeWindow=true;
-	m_FullscreenStretchMode=CMediaViewer::STRETCH_KEEPASPECTRATIO;
-	m_MaximizeStretchMode=CMediaViewer::STRETCH_KEEPASPECTRATIO;
-	m_fClientEdge=true;
-	m_fMinimizeToTray=false;
-	m_fDisablePreviewWhenMinimized=false;
-	//m_fNotifyEventName=true;
-	m_fResetPanScanEventChange=true;
-	m_fRestorePlayStatus=false;
-	m_fIgnoreDisplayExtension=false;
-	m_fNoScreenSaver=false;
-	m_fNoMonitorLowPower=false;
-	m_fNoMonitorLowPowerActiveOnly=false;
-	m_fShowLogo=true;
 	::lstrcpy(m_szLogoFileName,APP_NAME TEXT("_Logo.bmp"));
 }
 
@@ -53,9 +53,9 @@ bool CViewOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("ClientEdge"),&m_fClientEdge);
 	pSettings->Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
 	pSettings->Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
-	//pSettings->Read(TEXT("NotifyEventName"),&m_fNotifyEventName);
-	pSettings->Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
 	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
+	pSettings->Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
+	pSettings->Read(TEXT("NoMaskSideCut"),&m_fNoMaskSideCut);
 	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
 	pSettings->Read(TEXT("NoScreenSaver"),&m_fNoScreenSaver);
 	pSettings->Read(TEXT("NoMonitorLowPower"),&m_fNoMonitorLowPower);
@@ -68,7 +68,7 @@ bool CViewOptions::Read(CSettings *pSettings)
 
 bool CViewOptions::Write(CSettings *pSettings) const
 {
-	pSettings->Write(TEXT("ResetPanScanEventChange"),m_fResetPanScanEventChange);
+	pSettings->Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
 	pSettings->Write(TEXT("SnapToWindowEdge"),m_fSnapAtWindowEdge);
 	pSettings->Write(TEXT("PanScanNoResizeWindow"),m_fPanScanNoResizeWindow);
 	pSettings->Write(TEXT("FullscreenStretchMode"),(int)m_FullscreenStretchMode);
@@ -76,9 +76,9 @@ bool CViewOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("ClientEdge"),m_fClientEdge);
 	pSettings->Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
 	pSettings->Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
-	//pSettings->Write(TEXT("NotifyEventName"),m_fNotifyEventName);
-	pSettings->Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
 	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
+	pSettings->Write(TEXT("ResetPanScanEventChange"),m_fResetPanScanEventChange);
+	pSettings->Write(TEXT("NoMaskSideCut"),m_fNoMaskSideCut);
 	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
 	pSettings->Write(TEXT("NoScreenSaver"),m_fNoScreenSaver);
 	pSettings->Write(TEXT("NoMonitorLowPower"),m_fNoMonitorLowPower);
@@ -115,11 +115,13 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CLIENTEDGE,pThis->m_fClientEdge);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,pThis->m_fMinimizeToTray);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,
-				pThis->m_fDisablePreviewWhenMinimized);
-			//DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOTIFYEVENTNAME,pThis->m_fNotifyEventName);
+							  pThis->m_fDisablePreviewWhenMinimized);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,
+							  pThis->m_fRestorePlayStatus);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE,
 							  pThis->m_fResetPanScanEventChange);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,pThis->m_fRestorePlayStatus);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMASKSIDECUT,
+							  pThis->m_fNoMaskSideCut);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE,
 							  pThis->m_fIgnoreDisplayExtension);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOSCREENSAVER,pThis->m_fNoScreenSaver);
@@ -212,10 +214,11 @@ BOOL CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY);
 				pThis->m_fDisablePreviewWhenMinimized=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
-				//pThis->m_fNotifyEventName=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOTIFYEVENTNAME);
+				pThis->m_fRestorePlayStatus=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
 				pThis->m_fResetPanScanEventChange=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE);
-				pThis->m_fRestorePlayStatus=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
+				pThis->m_fNoMaskSideCut=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMASKSIDECUT);
+				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetNoMaskSideCut(pThis->m_fNoMaskSideCut);
 				pThis->m_fIgnoreDisplayExtension=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
 				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(pThis->m_fIgnoreDisplayExtension);

@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "StreamInfo.h"
@@ -18,10 +17,6 @@ static char THIS_FILE[]=__FILE__;
 CStreamInfo::CStreamInfo()
 	: m_pEventHandler(NULL)
 {
-	m_WindowPosition.x=0;
-	m_WindowPosition.y=0;
-	m_WindowPosition.Width=0;
-	m_WindowPosition.Height=0;
 }
 
 
@@ -45,12 +40,7 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		AddControl(IDC_STREAMINFO_COPY,ALIGN_BOTTOM);
 		//AddControl(IDOK,ALIGN_BOTTOM_RIGHT);
 
-		if (m_WindowPosition.Width==0)
-			m_WindowPosition.Width=m_MinSize.cx;
-		if (m_WindowPosition.Height==0)
-			m_WindowPosition.Height=m_MinSize.cy;
-		::MoveWindow(hDlg,m_WindowPosition.x,m_WindowPosition.y,
-					 m_WindowPosition.Width,m_WindowPosition.Height,FALSE);
+		ApplyPosition();
 		return TRUE;
 
 	case WM_COMMAND:
@@ -103,15 +93,6 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			if (m_pEventHandler==NULL || m_pEventHandler->OnClose())
 				::DestroyWindow(hDlg);
 			return TRUE;
-		}
-		return TRUE;
-
-	case WM_DESTROY:
-		{
-			RECT rc;
-
-			::GetWindowRect(hDlg,&rc);
-			m_WindowPosition.Set(&rc);
 		}
 		return TRUE;
 	}
@@ -277,42 +258,6 @@ int CStreamInfo::CopyTreeViewText(HWND hwndTree,HTREEITEM hItem,LPTSTR pszText,i
 bool CStreamInfo::Create(HWND hwndOwner)
 {
 	return CreateDialogWindow(hwndOwner,GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_STREAMINFO));
-}
-
-
-bool CStreamInfo::GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const
-{
-	RECT rc;
-	if (m_hDlg==NULL) {
-		m_WindowPosition.Get(&rc);
-	} else {
-		::GetWindowRect(m_hDlg,&rc);
-	}
-	if (pLeft!=NULL)
-		*pLeft=rc.left;
-	if (pTop!=NULL)
-		*pTop=rc.top;
-	if (pWidth!=NULL)
-		*pWidth=rc.right-rc.left;
-	if (pHeight!=NULL)
-		*pHeight=rc.bottom-rc.top;
-	return true;
-}
-
-
-bool CStreamInfo::SetPosition(int Left,int Top,int Width,int Height)
-{
-	if (Width<0 || Height<0)
-		return false;
-	if (m_hDlg==NULL) {
-		m_WindowPosition.x=Left;
-		m_WindowPosition.y=Top;
-		m_WindowPosition.Width=Width;
-		m_WindowPosition.Height=Height;
-	} else {
-		::MoveWindow(m_hDlg,Left,Top,Width,Height,TRUE);
-	}
-	return true;
 }
 
 

@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "Menu.h"
 #include "resource.h"
@@ -119,40 +118,45 @@ bool CMainMenu::SetAccelerator(CAccelerator *pAccelerator)
 
 
 CChannelMenu::CChannelMenu(CEpgProgramList *pProgramList)
+	: m_hmenu(NULL)
+	, m_pProgramList(pProgramList)
+	, m_pChannelList(NULL)
+	, m_hfont(NULL)
+	, m_hfontCurrent(NULL)
+	, m_TextHeight(0)
+	, m_ChannelNameWidth(0)
+	, m_EventNameWidth(0)
 {
-	m_hmenu=NULL;
-	m_pProgramList=pProgramList;
-	m_pChannelList=NULL;
-	NONCLIENTMETRICS ncm;
-	ncm.cbSize=sizeof(NONCLIENTMETRICS);
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(NONCLIENTMETRICS),&ncm,0);
-	m_hfont=::CreateFontIndirect(&ncm.lfMenuFont);
-	m_TextHeight=abs(ncm.lfMenuFont.lfHeight);
 }
 
 
 CChannelMenu::~CChannelMenu()
 {
 	Destroy();
-	::DeleteObject(m_hfont);
+	if (m_hfont!=NULL)
+		::DeleteObject(m_hfont);
+	if (m_hfontCurrent!=NULL)
+		::DeleteObject(m_hfontCurrent);
 }
 
 
-bool CChannelMenu::Create(const CChannelList *pChannelList)
+bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,bool fUpdateProgramList)
 {
 	FILETIME ft;
 	SYSTEMTIME st;
 	int i;
 	MENUITEMINFO mii;
 	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+
+	CreateFont(hdc);
 	HFONT hfontOld=SelectFont(hdc,m_hfont);
-	SIZE sz;
 
 	Destroy();
 	m_pChannelList=pChannelList;
+	m_CurChannel=CurChannel;
 	::GetLocalTime(&st);
 	::SystemTimeToFileTime(&st,&ft);
-	ft+=(LONGLONG)120*FILETIME_SECOND;
+	ft+=120LL*FILETIME_SECOND;
 	::FileTimeToSystemTime(&ft,&st);
 	m_ChannelNameWidth=0;
 	m_EventNameWidth=0;
@@ -160,7 +164,6 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 	mii.cbSize=sizeof(MENUITEMINFO);
 	mii.fMask=MIIM_FTYPE | MIIM_STATE | MIIM_ID | MIIM_DATA;
 	mii.fType=MFT_OWNERDRAW;
-	mii.fState=MFS_ENABLED;
 	for (i=0;i<pChannelList->NumChannels();i++) {
 		const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(i);
 		if (!pChInfo->IsEnabled())
@@ -168,12 +171,18 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 
 		TCHAR szText[256];
 		int Length;
+		SIZE sz;
 
+		if (i==CurChannel)
+			::SelectObject(hdc,m_hfontCurrent);
 		Length=::wsprintf(szText,TEXT("%d: %s"),pChInfo->GetChannelNo(),pChInfo->GetName());
 		::GetTextExtentPoint32(hdc,szText,Length,&sz);
 		if (sz.cx>m_ChannelNameWidth)
 			m_ChannelNameWidth=sz.cx;
 		mii.wID=CM_CHANNEL_FIRST+i;
+		mii.fState=MFS_ENABLED;
+		if (i==CurChannel)
+			mii.fState|=MFS_CHECKED;
 		mii.dwItemData=reinterpret_cast<ULONG_PTR>((LPVOID)NULL);
 		if (pChInfo->GetServiceID()!=0) {
 			WORD TransportStreamID=pChInfo->GetTransportStreamID();
@@ -183,7 +192,7 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 
 			if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
 				fOK=true;
-			} else {
+			} else if (fUpdateProgramList) {
 				if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
 						&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo))
 					fOK=true;
@@ -207,6 +216,8 @@ bool CChannelMenu::Create(const CChannelList *pChannelList)
 			}
 		}
 		::InsertMenuItem(m_hmenu,i,TRUE,&mii);
+		if (i==CurChannel)
+			::SelectObject(hdc,m_hfont);
 	}
 	::SelectObject(hdc,hfontOld);
 	::DeleteDC(hdc);
@@ -265,7 +276,7 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 			&& pdis->itemID>=CM_CHANNEL_FIRST && pdis->itemID<=CM_CHANNEL_LAST) {
 		const CChannelInfo *pChInfo=m_pChannelList->GetChannelInfo(pdis->itemID-CM_CHANNEL_FIRST);
 		CEventInfoData *pEventInfo=reinterpret_cast<CEventInfoData*>(pdis->itemData);
-		HFONT hfontOld=SelectFont(pdis->hDC,m_hfont);
+		HFONT hfontOld=SelectFont(pdis->hDC,(pdis->itemState&ODS_CHECKED)==0?m_hfont:m_hfontCurrent);
 		int OldBkMode;
 		COLORREF crOldTextColor;
 		RECT rc;
@@ -306,6 +317,37 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 }
 
 
+void CChannelMenu::CreateFont(HDC hdc)
+{
+	if (m_hfont!=NULL)
+		return;
+
+	NONCLIENTMETRICS ncm;
+
+#if WINVER<0x0600
+	ncm.cbSize=sizeof(ncm);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
+	m_hfont=::CreateFontIndirect(&ncm.lfMenuFont);
+	ncm.lfMenuFont.lfWeight=FW_BOLD;
+	m_hfontCurrent=::CreateFontIndirect(&ncm.lfMenuFont);
+
+	if (hdc!=NULL) {
+		HFONT hfontOld;
+		TEXTMETRIC tm;
+
+		hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
+		::GetTextMetrics(hdc,&tm);
+		m_TextHeight=tm.tmHeight;//+tm.tmInternalLeading;
+		::SelectObject(hdc,hfontOld);
+	} else {
+		m_TextHeight=abs(ncm.lfMenuFont.lfHeight);
+	}
+}
+
+
 
 
 CPopupMenu::CPopupMenu()
@@ -314,16 +356,81 @@ CPopupMenu::CPopupMenu()
 }
 
 
-CPopupMenu::~CPopupMenu()
+CPopupMenu::CPopupMenu(HINSTANCE hinst,LPCTSTR pszName)
 {
+	m_hmenu=::LoadMenu(hinst,pszName);
 }
 
 
-bool CPopupMenu::Popup(HMENU hmenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle)
+CPopupMenu::CPopupMenu(HINSTANCE hinst,int ID)
+{
+	m_hmenu=::LoadMenu(hinst,MAKEINTRESOURCE(ID));
+}
+
+
+CPopupMenu::~CPopupMenu()
+{
+	if (m_hmenu!=NULL)
+		::DestroyMenu(m_hmenu);
+}
+
+
+HMENU CPopupMenu::GetPopupHandle()
+{
+	if (m_hmenu==NULL)
+		return NULL;
+	return ::GetSubMenu(m_hmenu,0);
+}
+
+
+bool CPopupMenu::EnableItem(int ID,bool fEnable)
+{
+	if (m_hmenu==NULL)
+		return false;
+	return ::EnableMenuItem(m_hmenu,ID,MF_BYCOMMAND | (fEnable?MFS_ENABLED:MFS_GRAYED))>=0;
+}
+
+
+bool CPopupMenu::CheckItem(int ID,bool fCheck)
+{
+	if (m_hmenu==NULL)
+		return false;
+	return ::CheckMenuItem(m_hmenu,ID,MF_BYCOMMAND | (fCheck?MFS_CHECKED:MFS_UNCHECKED))>=0;
+}
+
+
+bool CPopupMenu::CheckRadioItem(int FirstID,int LastID,int CheckID)
+{
+	if (m_hmenu==NULL)
+		return false;
+	return ::CheckMenuRadioItem(m_hmenu,FirstID,LastID,CheckID,MF_BYCOMMAND)!=FALSE;
+}
+
+
+bool CPopupMenu::Popup(HWND hwnd,const POINT *pPos,UINT Flags)
+{
+	if (m_hmenu==NULL)
+		return false;
+	POINT pt;
+	if (pPos!=NULL)
+		pt=*pPos;
+	else
+		::GetCursorPos(&pt);
+	::TrackPopupMenu(GetPopupHandle(),Flags,pt.x,pt.y,0,hwnd,NULL);
+	return true;
+}
+
+
+bool CPopupMenu::Popup(HMENU hmenu,HWND hwnd,const POINT *pPos,UINT Flags,bool fToggle)
 {
 	if (m_hmenu==NULL) {
 		m_hmenu=hmenu;
-		::TrackPopupMenu(m_hmenu,Flags,x,y,0,hwnd,NULL);
+		POINT pt;
+		if (pPos!=NULL)
+			pt=*pPos;
+		else
+			::GetCursorPos(&pt);
+		::TrackPopupMenu(m_hmenu,Flags,pt.x,pt.y,0,hwnd,NULL);
 		m_hmenu=NULL;
 	} else {
 		if (fToggle)
@@ -333,13 +440,18 @@ bool CPopupMenu::Popup(HMENU hmenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle
 }
 
 
-bool CPopupMenu::Popup(HINSTANCE hinst,LPCTSTR pszName,UINT Flags,int x,int y,HWND hwnd,bool fToggle)
+bool CPopupMenu::Popup(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pPos,UINT Flags,bool fToggle)
 {
 	if (m_hmenu==NULL) {
 		m_hmenu=::LoadMenu(hinst,pszName);
 		if (m_hmenu==NULL)
 			return false;
-		::TrackPopupMenu(::GetSubMenu(m_hmenu,0),Flags,x,y,0,hwnd,NULL);
+		POINT pt;
+		if (pPos!=NULL)
+			pt=*pPos;
+		else
+			::GetCursorPos(&pt);
+		::TrackPopupMenu(GetPopupHandle(),Flags,pt.x,pt.y,0,hwnd,NULL);
 		::DestroyMenu(m_hmenu);
 		m_hmenu=NULL;
 	} else {

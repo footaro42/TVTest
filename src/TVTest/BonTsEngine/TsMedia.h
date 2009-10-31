@@ -210,10 +210,12 @@ public:
 	const WORD GetHorizontalSize(void) const;
 	const WORD GetVerticalSize(void) const;
 	const BYTE GetAspectRatioInfo(void) const;
+	const bool GetAspectRatio(BYTE *pAspectX, BYTE *pAspectY) const;
 	const BYTE GetFrameRateCode(void) const;
+	const bool GetFrameRate(DWORD *pNum, DWORD *pDenom) const;
 	const DWORD GetBitRate(void) const;
 	const bool IsMarkerBit(void) const;
-	const WORD GetVbvBufferSize(void) const;
+	const DWORD GetVbvBufferSize(void) const;
 	const bool IsConstrainedParamFlag(void) const;
 	const bool IsLoadIntraQuantiserMatrix(void) const;
 
@@ -230,7 +232,7 @@ protected:
 		BYTE byFrameRateCode;				// Frame Rate Code
 		DWORD dwBitRate;					// Bit Rate Value
 		bool bMarkerBit;					// Marker Bit
-		WORD wVbvBufferSize;				// VBV Buffer Size Value
+		DWORD dwVbvBufferSize;				// VBV Buffer Size Value
 		bool bConstrainedParamFlag;			// Constrained Parameters Flag
 		bool bLoadIntraQuantiserMatrix;		// Load Intra Quantiser Matrix
 		bool bLoadNonIntraQuantiserMatrix;	// Load NonIntra Quantiser Matrix
@@ -253,7 +255,7 @@ protected:
 					BYTE byColorPrimaries;
 					BYTE byTransferCharacteristics;
 					BYTE byMatrixCoefficients;
-					} Color;
+				} Color;
 				WORD wDisplayHorizontalSize;
 				WORD wDisplayVerticalSize;
 			} Display;

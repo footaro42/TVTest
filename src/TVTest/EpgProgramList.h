@@ -73,12 +73,13 @@ public:
 	WORD m_TSID;
 	WORD m_ServiceID;
 	WORD m_EventID;
+	bool m_fValidStartTime;
 	SYSTEMTIME m_stStartTime;
 	DWORD m_DurationSec;
 	BYTE m_ComponentType;
 	BYTE m_AudioComponentType;
-	BYTE m_ESMultiLangFlag;
-	BYTE m_MainComponentFlag;
+	bool m_fESMultiLangFlag;
+	//bool m_fMainComponentFlag;
 	BYTE m_SamplingRate;
 	std::vector<NibbleData> m_NibbleList;
 	CEventInfoData();

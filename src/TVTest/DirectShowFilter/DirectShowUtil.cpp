@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <initguid.h>
 #include "DirectShowUtil.h"
 #include "StdUtil.h"
 

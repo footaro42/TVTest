@@ -2,14 +2,16 @@
 #define CHANNEL_PANEL_H
 
 
-#include "InfoPanel.h"
+#include "PanelForm.h"
 #include "EpgProgramList.h"
 #include "ChannelList.h"
 #include "PointerArray.h"
 #include "Theme.h"
+#include "EventInfoPopup.h"
 
 
-class CChannelPanel : public CInfoPanelPage {
+class CChannelPanel : public CPanelForm::CPage
+{
 public:
 	CChannelPanel();
 	~CChannelPanel();
@@ -34,6 +36,8 @@ public:
 				   const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
 				   COLORREF MarginColor);
 	bool SetFont(const LOGFONT *pFont);
+	void SetDetailToolTip(bool fDetail);
+	bool GetDetailToolTip() const { return m_fDetailToolTip; }
 	static bool Initialize(HINSTANCE hinst);
 
 private:
@@ -63,6 +67,8 @@ private:
 		~CChannelEventInfo();
 		bool SetEventInfo(int Index,const CEventInfoData *pInfo);
 		const CChannelInfo *GetChannelInfo() const { return &m_ChannelInfo; }
+		const CEventInfoData &GetEventInfo(int Index) const { return m_EventInfo[Index]; }
+		bool IsEventEnabled(int Index) const;
 		WORD GetTransportStreamID() const { return m_ChannelInfo.GetTransportStreamID(); }
 		WORD GetServiceID() const { return m_ChannelInfo.GetServiceID(); }
 		int FormatEventText(LPTSTR pszText,int MaxLength,int Index) const;
@@ -74,14 +80,38 @@ private:
 	int m_CurChannel;
 	CEventHandler *m_pEventHandler;
 	HWND m_hwndToolTip;
+	bool m_fDetailToolTip;
+	CEventInfoPopup m_EventInfoPopup;
+	CEventInfoPopupManager m_EventInfoPopupManager;
+	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
+	{
+		CChannelPanel *m_pChannelPanel;
+	public:
+		CEventInfoPopupHandler(CChannelPanel *pChannelPanel);
+		bool HitTest(int x,int y,LPARAM *pParam);
+		bool GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
+	};
+	friend CEventInfoPopupHandler;
+	CEventInfoPopupHandler m_EventInfoPopupHandler;
+
+	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
 	static CChannelPanel *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void Draw(HDC hdc,const RECT *prcPaint);
+	void SetScrollPos(int Pos);
 	void SetScrollBar();
 	void CalcItemHeight();
 	void GetItemRect(int Index,RECT *pRect);
+	enum HitType {
+		HIT_CHANNELNAME,
+		HIT_EVENT1,
+		HIT_EVENT2
+	};
+	int HitTest(int x,int y,HitType *pType=NULL) const;
 	void SetToolTips();
+	bool EventInfoPopupHitTest(int x,int y,LPARAM *pParam);
+	bool GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
 };
 
 

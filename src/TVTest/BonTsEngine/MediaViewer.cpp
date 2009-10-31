@@ -84,6 +84,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_ForceAspectY(0)
 	, m_PanAndScan(0)
 	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
+	, m_bNoMaskSideCut(false)
 	, m_bIgnoreDisplayExtension(false)
 	, m_bUseAudioRendererClock(true)
 	, m_bAdjustAudioStreamTime(false)
@@ -134,6 +135,12 @@ void CMediaViewer::Reset(void)
 	SetVideoPID(PID_INVALID);
 	SetAudioPID(PID_INVALID);
 
+	/*
+	if (m_pMpeg2SeqClass)
+		m_pMpeg2SeqClass->ResetVideoInfo();
+	m_VideoInfo.Reset();
+	*/
+
 	if (m_pAacDecClass)
 		m_pAacDecClass->ResetDecoder();
 
@@ -158,7 +165,9 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
 	// フィルタグラフに入力
-	if (m_pBonSrcFilterClass && pTsPacket->GetPID()!=0x1FFF) {
+	if (m_pBonSrcFilterClass
+			&& pTsPacket->GetPID() != 0x1FFF
+			&& !pTsPacket->IsScrambled()) {
 		return m_pBonSrcFilterClass->InputMedia(pTsPacket);
 	}
 
@@ -721,8 +730,10 @@ void CMediaViewer::CloseViewer(void)
 		return;
 	*/
 
-	Flush();
-	Stop();
+	if (m_pFilterGraph) {
+		m_pFilterGraph->Abort();
+		Stop();
+	}
 
 	// COMインスタンスを開放する
 	if (m_pVideoRenderer!=NULL) {
@@ -1008,28 +1019,34 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 	//if (pThis->m_VideoInfo != *pVideoInfo) {
 		// ビデオ情報の更新
 		pThis->m_VideoInfo = *pVideoInfo;
-		pThis->ResizeVideoWindow();
+		pThis->AdjustVideoPosition();
 	//}
 	pThis->SendDecoderEvent(EID_VIDEO_SIZE_CHANGED);
 }
 
-const bool CMediaViewer::ResizeVideoWindow()
+const bool CMediaViewer::AdjustVideoPosition()
 {
-	// ウィンドウサイズを変更する
-	if (m_pVideoRenderer && m_wVideoWindowX>0 && m_wVideoWindowY>0) {
-		long WindowWidth,WindowHeight,VideoWidth,VideoHeight;
+	// 映像の位置を調整する
+	if (m_pVideoRenderer && m_wVideoWindowX > 0 && m_wVideoWindowY > 0) {
+		long WindowWidth, WindowHeight, DestWidth, DestHeight;
 
 		WindowWidth = m_wVideoWindowX;
 		WindowHeight = m_wVideoWindowY;
-		if (m_ViewStretchMode!=STRETCH_FIT) {
-			int AspectX,AspectY;
-			double aspect_rate;
+		if (m_ViewStretchMode == STRETCH_FIT) {
+			// ウィンドウサイズに合わせる
+			DestWidth = WindowWidth;
+			DestHeight = WindowHeight;
+		} else {
+			int AspectX, AspectY;
 			double window_rate = (double)WindowWidth / (double)WindowHeight;
+			double aspect_rate;
 
-			if (m_ForceAspectX>0 && m_ForceAspectY>0) {
+			if (m_ForceAspectX > 0 && m_ForceAspectY > 0) {
+				// アスペクト比が指定されている
 				AspectX = m_ForceAspectX;
 				AspectY = m_ForceAspectY;
-			} else if (m_VideoInfo.m_AspectRatioX>0 && m_VideoInfo.m_AspectRatioY>0) {
+			} else if (m_VideoInfo.m_AspectRatioX > 0 && m_VideoInfo.m_AspectRatioY > 0) {
+				// 映像のアスペクト比を使用する
 				AspectX = m_VideoInfo.m_AspectRatioX;
 				AspectY = m_VideoInfo.m_AspectRatioY;
 				if (m_bIgnoreDisplayExtension
@@ -1039,11 +1056,13 @@ const bool CMediaViewer::ResizeVideoWindow()
 					AspectY = AspectY * 3 * m_VideoInfo.m_OrigHeight / m_VideoInfo.m_DisplayHeight;
 				}
 			} else {
-				if (((m_VideoInfo.m_DisplayWidth==1920
-							|| m_VideoInfo.m_DisplayWidth==1440)
-						&& m_VideoInfo.m_DisplayHeight==1080)) {
+				// アスペクト比不明
+				if (m_VideoInfo.m_DisplayHeight == 1080) {
 					AspectX = 16;
 					AspectY = 9;
+				} else if (m_VideoInfo.m_DisplayWidth > 0 && m_VideoInfo.m_DisplayHeight > 0) {
+					AspectX = m_VideoInfo.m_DisplayWidth;
+					AspectY = m_VideoInfo.m_DisplayHeight;
 				} else {
 					AspectX = WindowWidth;
 					AspectY = WindowHeight;
@@ -1052,50 +1071,60 @@ const bool CMediaViewer::ResizeVideoWindow()
 			aspect_rate = (double)AspectX / (double)AspectY;
 			if ((m_ViewStretchMode==STRETCH_KEEPASPECTRATIO && aspect_rate>window_rate)
 					|| (m_ViewStretchMode==STRETCH_CUTFRAME && aspect_rate<window_rate)) {
-				VideoWidth = WindowWidth;
-				VideoHeight = VideoWidth * AspectY  / AspectX;
+				DestWidth = WindowWidth;
+				DestHeight = DestWidth * AspectY  / AspectX;
 			} else {
-				VideoHeight = WindowHeight;
-				VideoWidth = VideoHeight * AspectX / AspectY;
+				DestHeight = WindowHeight;
+				DestWidth = DestHeight * AspectX / AspectY;
 			}
-		} else {
-			VideoWidth = WindowWidth;
-			VideoHeight = WindowHeight;
 		}
-		RECT rcSrc,rcDst,rcWindow;
 
+		RECT rcSrc,rcDst,rcWindow;
 		CalcSourceRect(&rcSrc);
+#if 0
 		// 座標値がマイナスになるとマルチディスプレイでおかしくなる?
-		/*
-		rcDst.left=(WindowWidth-VideoWidth)/2;
-		rcDst.top=(WindowHeight-VideoHeight)/2,
-		rcDst.right=rcDst.left+VideoWidth;
-		rcDst.bottom=rcDst.top+VideoHeight;
-		*/
-		if (WindowWidth<VideoWidth) {
-			rcDst.left=0;
-			rcDst.right=WindowWidth;
-			rcSrc.left+=(VideoWidth-WindowWidth)*(rcSrc.right-rcSrc.left)/VideoWidth/2;
-			rcSrc.right=m_VideoInfo.m_OrigWidth-rcSrc.left;
+		rcDst.left = (WindowWidth - DestWidth) / 2;
+		rcDst.top = (WindowHeight - DestHeight) / 2,
+		rcDst.right = rcDst.left + DestWidth;
+		rcDst.bottom = rcDst.top + DestHeight;
+#else
+		if (WindowWidth < DestWidth) {
+			rcDst.left = 0;
+			rcDst.right = WindowWidth;
+			rcSrc.left += (DestWidth - WindowWidth) * (rcSrc.right - rcSrc.left) / DestWidth / 2;
+			rcSrc.right = m_VideoInfo.m_OrigWidth - rcSrc.left;
 		} else {
-			rcDst.left=(WindowWidth-VideoWidth)/2;
-			rcDst.right=rcDst.left+VideoWidth;
+			if (m_bNoMaskSideCut
+					&& WindowWidth > DestWidth
+					&& rcSrc.right - rcSrc.left < m_VideoInfo.m_OrigWidth) {
+				int NewDestWidth=m_VideoInfo.m_OrigWidth*DestWidth/(rcSrc.right-rcSrc.left);
+				if (NewDestWidth > WindowWidth)
+					NewDestWidth=WindowWidth;
+				int NewSrcWidth=(rcSrc.right-rcSrc.left)*NewDestWidth/DestWidth;
+				rcSrc.left=(m_VideoInfo.m_OrigWidth-NewSrcWidth)/2;
+				rcSrc.right=rcSrc.left+NewSrcWidth;
+TRACE(TEXT("Adjust %dx%d -> %dx%d [%d - %d (%d)]\n"),DestWidth,DestHeight,NewDestWidth,DestHeight,rcSrc.left,rcSrc.right,NewSrcWidth);
+				DestWidth=NewDestWidth;
+			}
+			rcDst.left = (WindowWidth - DestWidth) / 2;
+			rcDst.right = rcDst.left + DestWidth;
 		}
-		if (WindowHeight<VideoHeight) {
-			rcDst.top=0;
-			rcDst.bottom=WindowHeight;
-			rcSrc.top+=(VideoHeight-WindowHeight)*(rcSrc.bottom-rcSrc.top)/VideoHeight/2;
-			rcSrc.bottom=m_VideoInfo.m_OrigHeight-rcSrc.top;
+		if (WindowHeight < DestHeight) {
+			rcDst.top = 0;
+			rcDst.bottom = WindowHeight;
+			rcSrc.top += (DestHeight - WindowHeight) * (rcSrc.bottom - rcSrc.top) / DestHeight / 2;
+			rcSrc.bottom = m_VideoInfo.m_OrigHeight - rcSrc.top;
 		} else {
-			rcDst.top=(WindowHeight-VideoHeight)/2,
-			rcDst.bottom=rcDst.top+VideoHeight;
+			rcDst.top = (WindowHeight - DestHeight) / 2,
+			rcDst.bottom = rcDst.top + DestHeight;
 		}
-		rcWindow.left=0;
-		rcWindow.top=0;
-		rcWindow.right=WindowWidth;
-		rcWindow.bottom=WindowHeight;
+#endif
+		rcWindow.left = 0;
+		rcWindow.top = 0;
+		rcWindow.right = WindowWidth;
+		rcWindow.bottom = WindowHeight;
 		return m_pVideoRenderer->SetVideoPosition(
-			m_VideoInfo.m_OrigWidth,m_VideoInfo.m_OrigHeight,&rcSrc,&rcDst,&rcWindow);
+			m_VideoInfo.m_OrigWidth, m_VideoInfo.m_OrigHeight, &rcSrc, &rcDst, &rcWindow);
 	}
 	return false;
 }
@@ -1108,7 +1137,7 @@ const bool CMediaViewer::SetViewSize(const int x,const int y)
 	if (x>0 && y>0) {
 		m_wVideoWindowX = x;
 		m_wVideoWindowY = y;
-		return ResizeVideoWindow();
+		return AdjustVideoPosition();
 	}
 	return false;
 }
@@ -1347,7 +1376,7 @@ const bool CMediaViewer::SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags
 		m_ForceAspectX=AspectX;
 		m_ForceAspectY=AspectY;
 		m_PanAndScan=PanScanFlags;
-		ResizeVideoWindow();
+		AdjustVideoPosition();
 	}
 	return true;
 }
@@ -1359,7 +1388,21 @@ const bool CMediaViewer::SetViewStretchMode(ViewStretchMode Mode)
 		CBlockLock Lock(&m_ResizeLock);
 
 		m_ViewStretchMode=Mode;
-		return ResizeVideoWindow();
+		return AdjustVideoPosition();
+	}
+	return true;
+}
+
+
+const bool CMediaViewer::SetNoMaskSideCut(bool bNoMask, bool bAdjust)
+{
+	if (m_bNoMaskSideCut != bNoMask) {
+		m_bNoMaskSideCut = bNoMask;
+		if (bAdjust) {
+			CBlockLock Lock(&m_ResizeLock);
+
+			AdjustVideoPosition();
+		}
 	}
 	return true;
 }
@@ -1373,7 +1416,7 @@ const bool CMediaViewer::SetIgnoreDisplayExtension(bool bIgnore)
 		m_bIgnoreDisplayExtension = bIgnore;
 		if (m_VideoInfo.m_DisplayWidth != m_VideoInfo.m_OrigWidth
 				|| m_VideoInfo.m_DisplayHeight != m_VideoInfo.m_OrigHeight)
-			ResizeVideoWindow();
+			AdjustVideoPosition();
 	}
 	return true;
 }

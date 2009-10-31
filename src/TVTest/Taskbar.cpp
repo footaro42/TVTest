@@ -143,6 +143,8 @@ bool CTaskbarManager::Initialize(HWND hwnd)
 		if (pChangeFilter!=NULL)
 			pChangeFilter(m_TaskbarButtonCreatedMessage,MSGFLT_ADD);
 		::FreeLibrary(hLib);
+
+		m_hwnd=hwnd;
 	}
 	return true;
 }
@@ -154,6 +156,7 @@ void CTaskbarManager::Finalize()
 		m_pTaskbarList->Release();
 		m_pTaskbarList=NULL;
 	}
+	m_hwnd=NULL;
 }
 
 
@@ -185,6 +188,25 @@ bool CTaskbarManager::HandleMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 			tb[i].dwFlags=(THUMBBUTTONFLAGS)(THBF_ENABLED | THBF_DISMISSONCLICK);
 		}
 		m_pTaskbarList->ThumbBarAddButtons(m_hwnd,lengthof(tb),tb);
+		return true;
+	}
+	return false;
+}
+
+
+bool CTaskbarManager::SetRecordingStatus(bool fRecording)
+{
+	if (m_pTaskbarList!=NULL) {
+		if (fRecording) {
+			HICON hico=static_cast<HICON>(::LoadImage(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDI_TASKBAR_RECORDING),IMAGE_ICON,16,16,LR_DEFAULTCOLOR));
+
+			if (hico==NULL)
+				return false;
+			m_pTaskbarList->SetOverlayIcon(m_hwnd,hico,TEXT("˜^‰æ’†"));
+			::DestroyIcon(hico);
+		} else {
+			m_pTaskbarList->SetOverlayIcon(m_hwnd,NULL,NULL);
+		}
 		return true;
 	}
 	return false;

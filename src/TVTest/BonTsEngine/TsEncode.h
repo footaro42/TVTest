@@ -13,6 +13,7 @@ class CAribString
 {
 public:
 	static const DWORD AribToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
+	static const DWORD CaptionToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
 
 private:
 	enum CODE_SET
@@ -32,7 +33,20 @@ private:
 		CODE_JIS_X0201_KATAKANA,	// JIS X 0201 Katakana
 		CODE_JIS_KANJI_PLANE_1,		// JIS compatible Kanji Plane 1
 		CODE_JIS_KANJI_PLANE_2,		// JIS compatible Kanji Plane 2
-		CODE_ADDITIONAL_SYMBOLS		// Additional symbols
+		CODE_ADDITIONAL_SYMBOLS,	// Additional symbols
+		CODE_MACRO					// Macro
+	};
+
+	enum CHAR_SIZE {
+		SIZE_SMALL,		// è¨å^
+		SIZE_MEDIUM,	// íÜå^
+		SIZE_NORMAL,	// ïWèÄ
+		SIZE_MICRO,		// í¥è¨å^
+		SIZE_HIGH_W,	// ècî{
+		SIZE_WIDTH_W,	// â°î{
+		SIZE_W,			// ècâ°î{
+		SIZE_SPECIAL_1,	// ì¡éÍ1
+		SIZE_SPECIAL_2	// ì¡éÍ2
 	};
 
 	CODE_SET m_CodeG[4];
@@ -44,7 +58,12 @@ private:
 	BYTE m_byEscSeqIndex;
 	bool m_bIsEscSeqDrcs;
 
-	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
+	CHAR_SIZE m_CharSize;
+
+	bool m_bCaption;
+
+	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, const bool bCaption = false);
+	const DWORD ProcessString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
 	inline const int ProcessCharCode(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode, const CODE_SET CodeSet);
 
 	inline const int PutKanjiChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
@@ -53,6 +72,7 @@ private:
 	inline const int PutKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 	inline const int PutJisKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 	inline const int PutSymbolsChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutMacroChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 
 	inline void ProcessEscapeSeq(const BYTE byCode);
 
@@ -62,6 +82,10 @@ private:
 
 	inline const bool DesignationGSET(const BYTE byIndexG, const BYTE byCode);
 	inline const bool DesignationDRCS(const BYTE byIndexG, const BYTE byCode);
+
+	inline const bool IsSmallCharMode() const {
+		return m_CharSize == SIZE_SMALL || m_CharSize == SIZE_MEDIUM || m_CharSize == SIZE_MICRO;
+	}
 };
 
 
@@ -74,6 +98,8 @@ class CAribTime
 public:
 	static const bool AribToSystemTime(const BYTE *pHexData, SYSTEMTIME *pSysTime);
 	static void SplitAribMjd(const WORD wAribMjd, WORD *pwYear, WORD *pwMonth, WORD *pwDay, WORD *pwDayOfWeek = NULL);
+	static void MjdToSystemTime(const WORD wAribMjd, SYSTEMTIME *pSysTime);
 	static void SplitAribBcd(const BYTE *pAribBcd, WORD *pwHour, WORD *pwMinute, WORD *pwSecond = NULL);
 	static const DWORD AribBcdToSecond(const BYTE *pAribBcd);
+	static const WORD BcdHMToMinute(const WORD Bcd);
 };

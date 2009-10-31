@@ -32,6 +32,7 @@ public:
 	HRESULT GetMediaType(int iPosition, CMediaType *pMediaType);
 	HRESULT StartStreaming(void);
 	HRESULT StopStreaming(void);
+	HRESULT BeginFlush(void);
 	HRESULT Receive(IMediaSample *pSample);
 
 // CAacDecFilter

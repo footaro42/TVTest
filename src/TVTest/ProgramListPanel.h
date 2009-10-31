@@ -1,19 +1,22 @@
-#ifndef PROGRAM_LIST_VIEW
-#define PROGRAM_LIST_VIEW
+#ifndef PROGRAM_LIST_PANEL_H
+#define PROGRAM_LIST_PANEL_H
 
 
-#include "InfoPanel.h"
+#include "PanelForm.h"
 #include "EpgProgramList.h"
 #include "Theme.h"
+#include "EventInfoPopup.h"
 
 
 class CProgramItemInfo;
 
-class CProgramItemList {
+class CProgramItemList
+{
 	int m_NumItems;
 	CProgramItemInfo **m_ppItemList;
 	int m_ItemListLength;
 	void SortSub(CProgramItemInfo **ppFirst,CProgramItemInfo **ppLast);
+
 public:
 	CProgramItemList();
 	~CProgramItemList();
@@ -27,9 +30,11 @@ public:
 	void Attach(CProgramItemList *pList);
 };
 
-class CProgramListView : public CInfoPanelPage {
+class CProgramListPanel : public CPanelForm::CPage
+{
 	CEpgProgramList *m_pProgramList;
 	HFONT m_hfont;
+	HFONT m_hfontTitle;
 	int m_FontHeight;
 	int m_LineMargin;
 	Theme::GradientInfo m_EventBackGradient;
@@ -45,19 +50,37 @@ class CProgramListView : public CInfoPanelPage {
 	CProgramItemList m_ItemList;
 	int m_CurEventID;
 	int m_ScrollPos;
+	//HWND m_hwndToolTip;
+	CEventInfoPopup m_EventInfoPopup;
+	CEventInfoPopupManager m_EventInfoPopupManager;
+	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
+	{
+		CProgramListPanel *m_pPanel;
+	public:
+		CEventInfoPopupHandler(CProgramListPanel *pPanel);
+		bool HitTest(int x,int y,LPARAM *pParam);
+		bool GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
+	};
+	friend CEventInfoPopupHandler;
+	CEventInfoPopupHandler m_EventInfoPopupHandler;
+
+	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
-	static CProgramListView *GetThis(HWND hwnd);
+	static CProgramListPanel *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void DrawProgramList(HDC hdc,const RECT *prcPaint);
 	bool UpdateListInfo(WORD TransportStreamID,WORD ServiceID);
 	void CalcDimentions();
+	void SetScrollPos(int Pos);
 	void SetScrollBar();
 	void CalcFontHeight();
+	int HitTest(int x,int y) const;
+	//void SetToolTip();
 
 public:
 	static bool Initialize(HINSTANCE hinst);
-	CProgramListView();
-	~CProgramListView();
+	CProgramListPanel();
+	~CProgramListPanel();
 	void SetEpgProgramList(CEpgProgramList *pList) { m_pProgramList=pList; }
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool UpdateProgramList(WORD TransportStreamID,WORD ServiceID);

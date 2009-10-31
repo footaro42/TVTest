@@ -1,6 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
-#include "InfoPanel.h"
+#include "PanelForm.h"
 #include "DrawUtil.h"
 
 #ifdef _DEBUG
@@ -10,15 +10,13 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define INFO_PANEL_WINDOW_CLASS APP_NAME TEXT(" Info Panel")
 
 
+const LPCTSTR CPanelForm::m_pszClassName=APP_NAME TEXT(" Panel Form");
+HINSTANCE CPanelForm::m_hinst=NULL;
 
 
-HINSTANCE CInfoPanel::m_hinst=NULL;
-
-
-bool CInfoPanel::Initialize(HINSTANCE hinst)
+bool CPanelForm::Initialize(HINSTANCE hinst)
 {
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
@@ -32,7 +30,7 @@ bool CInfoPanel::Initialize(HINSTANCE hinst)
 		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
-		wc.lpszClassName=INFO_PANEL_WINDOW_CLASS;
+		wc.lpszClassName=m_pszClassName;
 		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
@@ -41,7 +39,7 @@ bool CInfoPanel::Initialize(HINSTANCE hinst)
 }
 
 
-CInfoPanel::CInfoPanel()
+CPanelForm::CPanelForm()
 {
 	LOGFONT lf;
 
@@ -72,21 +70,21 @@ CInfoPanel::CInfoPanel()
 }
 
 
-CInfoPanel::~CInfoPanel()
+CPanelForm::~CPanelForm()
 {
 	for (int i=0;i<m_NumWindows;i++)
 		delete m_pWindowList[i];
-	DeleteObject(m_hfont);
+	::DeleteObject(m_hfont);
 }
 
 
-bool CInfoPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
+bool CPanelForm::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
-	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,INFO_PANEL_WINDOW_CLASS,TEXT("パネル"),m_hinst);
+	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,m_pszClassName,TEXT("パネル"),m_hinst);
 }
 
 
-void CInfoPanel::SetVisible(bool fVisible)
+void CPanelForm::SetVisible(bool fVisible)
 {
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->OnVisibleChange(fVisible);
@@ -94,11 +92,12 @@ void CInfoPanel::SetVisible(bool fVisible)
 }
 
 
-bool CInfoPanel::AddWindow(CInfoPanelPage *pWindow,LPCTSTR pszTitle)
+bool CPanelForm::AddWindow(CPage *pWindow,int ID,LPCTSTR pszTitle)
 {
 	if (m_NumWindows==MAX_WINDOWS)
 		return false;
-	m_pWindowList[m_NumWindows]=new CWindowInfo(pWindow,pszTitle);
+	m_pWindowList[m_NumWindows]=new CWindowInfo(pWindow,ID,pszTitle);
+	m_TabOrder[m_NumWindows]=m_NumWindows;
 	m_NumWindows++;
 	if (m_hwnd!=NULL) {
 		CalcTabSize();
@@ -108,7 +107,25 @@ bool CInfoPanel::AddWindow(CInfoPanelPage *pWindow,LPCTSTR pszTitle)
 }
 
 
-bool CInfoPanel::SetCurTab(int Index)
+CPanelForm::CPage *CPanelForm::GetPageByIndex(int Index)
+{
+	if (Index<0 || Index>=m_NumWindows)
+		return NULL;
+	return m_pWindowList[Index]->m_pWindow;
+}
+
+
+CPanelForm::CPage *CPanelForm::GetPageByID(int ID)
+{
+	int Index=IDToIndex(ID);
+
+	if (Index<0)
+		return NULL;
+	return m_pWindowList[Index]->m_pWindow;
+}
+
+
+bool CPanelForm::SetCurTab(int Index)
 {
 	if (Index<-1 || Index>=m_NumWindows)
 		return false;
@@ -133,13 +150,97 @@ bool CInfoPanel::SetCurTab(int Index)
 }
 
 
-void CInfoPanel::SetEventHandler(CInfoPanelEventHandler *pHandler)
+int CPanelForm::IDToIndex(int ID) const
+{
+	for (int i=0;i<m_NumWindows;i++) {
+		if (m_pWindowList[i]->m_ID==ID)
+			return i;
+	}
+	return -1;
+}
+
+
+int CPanelForm::GetCurPageID() const
+{
+	if (m_CurTab<0)
+		return -1;
+	return m_pWindowList[m_CurTab]->m_ID;
+}
+
+
+bool CPanelForm::SetCurPageByID(int ID)
+{
+	int Index=IDToIndex(ID);
+
+	if (Index<0)
+		return false;
+	return SetCurTab(Index);
+}
+
+
+bool CPanelForm::SetTabVisible(int ID,bool fVisible)
+{
+	int Index=IDToIndex(ID);
+
+	if (Index<0)
+		return false;
+	if (m_pWindowList[Index]->m_fVisible!=fVisible) {
+		m_pWindowList[Index]->m_fVisible=fVisible;
+		if (m_hwnd!=NULL) {
+			CalcTabSize();
+			Invalidate();
+		}
+	}
+	return true;
+}
+
+
+bool CPanelForm::GetTabVisible(int ID) const
+{
+	int Index=IDToIndex(ID);
+
+	if (Index<0)
+		return false;
+	return m_pWindowList[Index]->m_fVisible;
+}
+
+
+bool CPanelForm::SetTabOrder(const int *pOrder)
+{
+	for (int i=0;i<m_NumWindows;i++) {
+		int j;
+		for (j=0;j<m_NumWindows;j++) {
+			if (m_pWindowList[j]->m_ID==pOrder[i])
+				break;
+		}
+		if (j==m_NumWindows)
+			return false;
+	}
+	::CopyMemory(m_TabOrder,pOrder,m_NumWindows*sizeof(int));
+	if (m_hwnd!=NULL)
+		Invalidate();
+	return true;
+}
+
+
+bool CPanelForm::GetTabInfo(int Index,TabInfo *pInfo) const
+{
+	if (Index<0 || Index>=m_NumWindows || pInfo==NULL)
+		return false;
+	const CWindowInfo *pWindowInfo=m_pWindowList[m_TabOrder[Index]];
+	pInfo->ID=pWindowInfo->m_ID;
+	pInfo->fVisible=pWindowInfo->m_fVisible;
+	return true;
+}
+
+
+void CPanelForm::SetEventHandler(CEventHandler *pHandler)
 {
 	m_pEventHandler=pHandler;
 }
 
 
-void CInfoPanel::SetBackColors(COLORREF crBack,COLORREF crMargin)
+void CPanelForm::SetBackColors(COLORREF crBack,COLORREF crMargin)
 {
 	m_crBackColor=crBack;
 	m_crMarginColor=crMargin;
@@ -148,7 +249,7 @@ void CInfoPanel::SetBackColors(COLORREF crBack,COLORREF crMargin)
 }
 
 
-void CInfoPanel::SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
+void CPanelForm::SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
 {
 	m_TabBackGradient=*pBackGradient;
 	m_crTabTextColor=crText;
@@ -158,7 +259,7 @@ void CInfoPanel::SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF 
 }
 
 
-void CInfoPanel::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
+void CPanelForm::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
 {
 	m_CurTabBackGradient=*pBackGradient;
 	m_crCurTabTextColor=crText;
@@ -168,7 +269,7 @@ void CInfoPanel::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORR
 }
 
 
-bool CInfoPanel::SetTabFont(const LOGFONT *pFont)
+bool CPanelForm::SetTabFont(const LOGFONT *pFont)
 {
 	HFONT hfont=::CreateFontIndirect(pFont);
 
@@ -187,7 +288,7 @@ bool CInfoPanel::SetTabFont(const LOGFONT *pFont)
 }
 
 
-bool CInfoPanel::SetPageFont(const LOGFONT *pFont)
+bool CPanelForm::SetPageFont(const LOGFONT *pFont)
 {
 	for (int i=0;i<m_NumWindows;i++)
 		m_pWindowList[i]->m_pWindow->SetFont(pFont);
@@ -195,18 +296,18 @@ bool CInfoPanel::SetPageFont(const LOGFONT *pFont)
 }
 
 
-CInfoPanel *CInfoPanel::GetThis(HWND hwnd)
+CPanelForm *CPanelForm::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CInfoPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return reinterpret_cast<CPanelForm*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
 }
 
 
-LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CInfoPanel *pThis=static_cast<CInfoPanel*>(OnCreate(hwnd,lParam));
+			CPanelForm *pThis=static_cast<CPanelForm*>(OnCreate(hwnd,lParam));
 
 			pThis->CalcTabSize();
 		}
@@ -214,7 +315,7 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 	case WM_PAINT:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
+			CPanelForm *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			BeginPaint(hwnd,&ps);
@@ -236,11 +337,17 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 				rc.right=pThis->m_TabWidth;
 				rc.bottom=pThis->m_TabHeight;
 				for (i=0;i<pThis->m_NumWindows;i++) {
+					int Index=pThis->m_TabOrder[i];
+					const CWindowInfo *pWindow=pThis->m_pWindowList[Index];
+
+					if (!pWindow->m_fVisible)
+						continue;
+
 					const Theme::GradientInfo *pGradient;
 					COLORREF crText,crBorder;
 					RECT rcText;
 
-					if (i==pThis->m_CurTab) {
+					if (Index==pThis->m_CurTab) {
 						pGradient=&pThis->m_CurTabBackGradient;
 						crText=pThis->m_crCurTabTextColor;
 						crBorder=pThis->m_crCurTabBorderColor;
@@ -253,13 +360,13 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 					hpen=CreatePen(PS_SOLID,1,crBorder);
 					hpenOld=SelectPen(ps.hdc,hpen);
 					Rectangle(ps.hdc,rc.left,rc.top,rc.right,
-									i==pThis->m_CurTab?rc.bottom+1:rc.bottom);
+								Index==pThis->m_CurTab?rc.bottom+1:rc.bottom);
 					SetTextColor(ps.hdc,crText);
 					rcText.left=rc.left+TAB_MARGIN;
 					rcText.top=rc.top+TAB_MARGIN;
 					rcText.right=rc.right-TAB_MARGIN;
 					rcText.bottom=rc.bottom-TAB_MARGIN;
-					DrawText(ps.hdc,pThis->m_pWindowList[i]->m_pszTitle,-1,&rcText,
+					DrawText(ps.hdc,pWindow->m_pszTitle,-1,&rcText,
 						DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 					SelectPen(ps.hdc,hpenOld);
 					DeleteObject(hpen);
@@ -270,8 +377,9 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 				SelectFont(ps.hdc,hfontOld);
 				SetBkMode(ps.hdc,OldBkMode);
 				SetTextColor(ps.hdc,crOldTextColor);
-				if (ps.rcPaint.right>pThis->m_NumWindows*pThis->m_TabWidth) {
-					rc.left=max(ps.rcPaint.left,(long)(pThis->m_NumWindows*pThis->m_TabWidth));
+				if (ps.rcPaint.right>rc.left) {
+					if (ps.rcPaint.left>rc.left)
+						rc.left=ps.rcPaint.left;
 					rc.top=ps.rcPaint.top;
 					rc.right=ps.rcPaint.right;
 					rc.bottom=min(ps.rcPaint.bottom,(long)pThis->m_TabHeight-1);
@@ -302,7 +410,7 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 	case WM_SIZE:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
+			CPanelForm *pThis=GetThis(hwnd);
 
 			if (pThis->m_CurTab>=0) {
 				pThis->m_pWindowList[pThis->m_CurTab]->m_pWindow->SetPosition(
@@ -315,25 +423,20 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 	case WM_LBUTTONDOWN:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
-			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+			CPanelForm *pThis=GetThis(hwnd);
+			int Index=pThis->HitTest(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 
-			if (y>=0 && y<pThis->m_TabHeight) {
-				int Index=x/pThis->m_TabWidth;
-
-				if (Index>=0 && Index<pThis->m_NumWindows
-						&& Index!=pThis->m_CurTab) {
-					pThis->SetCurTab(Index);
-					if (pThis->m_pEventHandler!=NULL)
-						pThis->m_pEventHandler->OnSelChange();
-				}
+			if (Index>=0 && Index!=pThis->m_CurTab) {
+				pThis->SetCurTab(Index);
+				if (pThis->m_pEventHandler!=NULL)
+					pThis->m_pEventHandler->OnSelChange();
 			}
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
+			CPanelForm *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL) {
 				POINT pt;
@@ -342,8 +445,11 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 				pt.x=GET_X_LPARAM(lParam);
 				pt.y=GET_Y_LPARAM(lParam);
 				pThis->GetClientRect(&rc);
-				if (PtInRect(&rc,pt)) {
-					pThis->m_pEventHandler->OnRButtonDown();
+				if (::PtInRect(&rc,pt)) {
+					if (pt.y<pThis->m_TabHeight)
+						pThis->m_pEventHandler->OnTabRButtonDown(pt.x,pt.y);
+					else
+						pThis->m_pEventHandler->OnRButtonDown();
 					return 0;
 				}
 			}
@@ -352,25 +458,22 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 	case WM_SETCURSOR:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
+			CPanelForm *pThis=GetThis(hwnd);
 			POINT pt;
 
 			::GetCursorPos(&pt);
 			::ScreenToClient(hwnd,&pt);
-			if (pt.y>=0 && pt.y<pThis->m_TabHeight) {
-				int Index=pt.x/pThis->m_TabWidth;
-
-				if (Index>=0 && Index<pThis->m_NumWindows) {
-					::SetCursor(::LoadCursor(NULL,IDC_HAND));
-					return TRUE;
-				}
+			int Index=pThis->HitTest(pt.x,pt.y);
+			if (Index>=0) {
+				::SetCursor(::LoadCursor(NULL,IDC_HAND));
+				return TRUE;
 			}
 		}
 		break;
 
 	case WM_KEYDOWN:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
+			CPanelForm *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL
 					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
@@ -380,7 +483,7 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 	case WM_DESTROY:
 		{
-			CInfoPanel *pThis=GetThis(hwnd);
+			CPanelForm *pThis=GetThis(hwnd);
 
 			pThis->OnDestroy();
 		}
@@ -390,7 +493,7 @@ LRESULT CALLBACK CInfoPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 }
 
 
-void CInfoPanel::CalcTabSize()
+void CPanelForm::CalcTabSize()
 {
 	HDC hdc;
 	HFONT hfontOld;
@@ -404,10 +507,12 @@ void CInfoPanel::CalcTabSize()
 	m_TabHeight=(tm.tmHeight+tm.tmInternalLeading)+TAB_MARGIN*2;
 	MaxWidth=0;
 	for (int i=0;i<m_NumWindows;i++) {
-		::GetTextExtentPoint32(hdc,m_pWindowList[i]->m_pszTitle,
-							   ::lstrlen(m_pWindowList[i]->m_pszTitle),&sz);
-		if (sz.cx>MaxWidth)
-			MaxWidth=sz.cx;
+		if (m_pWindowList[i]->m_fVisible) {
+			::GetTextExtentPoint32(hdc,m_pWindowList[i]->m_pszTitle,
+								   ::lstrlen(m_pWindowList[i]->m_pszTitle),&sz);
+			if (sz.cx>MaxWidth)
+				MaxWidth=sz.cx;
+		}
 	}
 	SelectFont(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);
@@ -415,16 +520,41 @@ void CInfoPanel::CalcTabSize()
 }
 
 
-
-
-CInfoPanel::CWindowInfo::CWindowInfo(CInfoPanelPage *pWindow,LPCTSTR pszTitle)
+int CPanelForm::HitTest(int x,int y) const
 {
-	m_pWindow=pWindow;
-	m_pszTitle=DuplicateString(pszTitle);
+	if (y<0 || y>=m_TabHeight)
+		return -1;
+
+	POINT pt;
+	RECT rc;
+
+	pt.x=x;
+	pt.y=y;
+	::SetRect(&rc,0,0,m_TabWidth,m_TabHeight);
+	for (int i=0;i<m_NumWindows;i++) {
+		int Index=m_TabOrder[i];
+		if (m_pWindowList[Index]->m_fVisible) {
+			if (::PtInRect(&rc,pt))
+				return Index;
+			::OffsetRect(&rc,m_TabWidth,0);
+		}
+	}
+	return -1;
 }
 
 
-CInfoPanel::CWindowInfo::~CWindowInfo()
+
+
+CPanelForm::CWindowInfo::CWindowInfo(CPage *pWindow,int ID,LPCTSTR pszTitle)
+	: m_pWindow(pWindow)
+	, m_ID(ID)
+	, m_pszTitle(DuplicateString(pszTitle))
+	, m_fVisible(true)
+{
+}
+
+
+CPanelForm::CWindowInfo::~CWindowInfo()
 {
 	delete [] m_pszTitle;
 }
@@ -432,11 +562,27 @@ CInfoPanel::CWindowInfo::~CWindowInfo()
 
 
 
-CInfoPanelPage::CInfoPanelPage()
+CPanelForm::CPage::CPage()
 {
 }
 
 
-CInfoPanelPage::~CInfoPanelPage()
+CPanelForm::CPage::~CPage()
 {
+}
+
+
+bool CPanelForm::CPage::GetDefaultFont(LOGFONT *pFont)
+{
+	return ::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),pFont)!=0;
+}
+
+
+HFONT CPanelForm::CPage::CreateDefaultFont()
+{
+	LOGFONT lf;
+
+	if (!GetDefaultFont(&lf))
+		return NULL;
+	return ::CreateFontIndirect(&lf);
 }

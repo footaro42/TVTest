@@ -24,7 +24,8 @@ class COSDOptions : public COptions {
 
 public:
 	enum {
-		NOTIFY_EVENTNAME	=0x00000001
+		NOTIFY_EVENTNAME	=0x00000001,
+		NOTIFY_ECMERROR		=0x00000002
 	};
 
 	COSDOptions();

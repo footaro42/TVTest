@@ -102,6 +102,8 @@ public:
 	};
 	const bool SetViewStretchMode(ViewStretchMode Mode);
 	const ViewStretchMode GetViewStretchMode() const { return m_ViewStretchMode; }
+	const bool SetNoMaskSideCut(bool bNoMask, bool bAdjust = true);
+	const bool GetNoMaskSideCut() const { return m_bNoMaskSideCut; }
 	const bool SetIgnoreDisplayExtension(bool bIgnore);
 	const bool GetIgnoreDisplayExtension() const { return m_bIgnoreDisplayExtension; }
 	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight);
@@ -141,7 +143,7 @@ public:
 #endif
 
 protected:
-	const bool ResizeVideoWindow();
+	const bool AdjustVideoPosition();
 	const bool CalcSourceRect(RECT *pRect);
 
 	// DirectShowインタフェース
@@ -201,6 +203,7 @@ protected:
 	int m_ForceAspectX,m_ForceAspectY;
 	BYTE m_PanAndScan;
 	ViewStretchMode m_ViewStretchMode;
+	bool m_bNoMaskSideCut;
 	bool m_bIgnoreDisplayExtension;
 	bool m_bUseAudioRendererClock;
 	bool m_bAdjustAudioStreamTime;

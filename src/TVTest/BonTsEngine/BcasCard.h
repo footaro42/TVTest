@@ -27,6 +27,19 @@ public:
 		ERR_EMMERROR		= 0x0000000AUL	// EMM処理エラー
 	};
 
+	struct BcasCardInfo
+	{
+		WORD CASystemID;				// CA_system_id
+		BYTE BcasCardID[6];				// Card ID
+		BYTE CardType;					// Card type
+		BYTE MessagePartitionLength;	// Message partition length
+		BYTE SystemKey[32];				// Descrambling system key
+		BYTE InitialCbc[8];				// Descrambler CBC initial value
+		BYTE CardManufacturerID;		// Manufacturer identifier
+		BYTE CardVersion;				// Version
+		WORD CheckCode;					// Check code
+	};
+
 	CBcasCard();
 	~CBcasCard();
 
@@ -37,8 +50,10 @@ public:
 	void CloseCard(void);
 	const bool ReOpenCard();
 	const bool IsCardOpen() const;
+	CCardReader::ReaderType GetCardReaderType() const;
 	LPCTSTR GetCardReaderName() const;
 
+	const bool GetBcasCardInfo(BcasCardInfo *pInfo);
 	const bool GetCASystemID(WORD *pID);
 	const BYTE * GetBcasCardID(void);
 	enum {
@@ -52,6 +67,7 @@ public:
 	const BYTE * GetSystemKey(void);
 	const BYTE * GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize);
 	const bool SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize);
+	const bool SendCommand(const BYTE *pSendData, const DWORD SendSize, BYTE *pReceiveData, DWORD *pReceiveSize);
 	const int FormatCardID(LPTSTR pszText, int MaxLength) const;
 	const char GetCardManufacturerID() const;
 	const BYTE GetCardVersion() const;
@@ -61,23 +77,12 @@ protected:
 
 	CCardReader *m_pCardReader;
 
-	struct TAG_BCASCARDINFO
-	{
-		WORD CASystemID;				// CA_system_id
-		BYTE BcasCardID[6];				// Card ID
-		BYTE CardType;					// Card type
-		BYTE MessagePartitionLength;	// Message partition length
-		BYTE SystemKey[32];				// Descrambling system key
-		BYTE InitialCbc[8];				// Descrambler CBC initial value
-		BYTE CardManufacturerID;		// Manufacturer identifier
-		BYTE CardVersion;				// Version
-		WORD CheckCode;					// Check code
-	} m_BcasCardInfo;
+	BcasCardInfo m_BcasCardInfo;
 
 	struct TAG_ECMSTATUS
 	{
 		DWORD dwLastEcmSize;	// 最後に問い合わせのあったECMサイズ
 		BYTE LastEcmData[256];	// 最後に問い合わせのあったECMデータ
-		BYTE KsData[16];		// Ks Odd + Even	
+		BYTE KsData[16];		// Ks Odd + Even
 	} m_EcmStatus;
 };

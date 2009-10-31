@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include <initguid.h>
 #include <mmreg.h>
 #include "AacDecFilter.h"
 
@@ -16,11 +17,33 @@ static char THIS_FILE[]=__FILE__;
 #define REFERENCE_TIME_SECOND 10000000LL
 
 // 5.1chダウンミックス設定
-// 本来は固定値じゃ駄目みたいだけど…
-#define DMR_CENTER		0.5		// 50%
-#define DMR_FRONT		1.0		// 100%
-#define DMR_REAR		0.7		// 70%
-#define DMR_LFE			0.7		// 70%
+/*
+本来の計算式 (STD-B21 6.2)
+┌─┬──┬─┬───┬────────────────┐
+│*1│*2  │*3│kの値 │計算式(*4)                      │
+├─┼──┼─┼───┼────────────────┤
+│ 1│ 0/1│ 0│1/√2 │Set1                            │
+│  │    │ 1│1/2   │Lt=a*(L+1/√2*C＋k*Sl)          │
+│  │    │ 2│1/2√2│Rt=a*(R+1/√2*C＋k*Sr)          │
+│  │    │ 3│0     │a=1/√2                         │
+├─┼──┼─┼───┼────────────────┤
+│ 0│    │  │      │Set3                            │
+│  │    │  │      │Lt=(1/√2)*(L+1/√2*C＋1/√2*Sl)│
+│  │    │  │      │Rt=(1/√2)*(R+1/√2*C＋1/√2*Sr)│
+└─┴──┴─┴───┴────────────────┘
+*1 matrix_mixdown_idx_present
+*2 pseudo_surround_enable
+*3 matrix_mixdown_idx
+*4 L=Left, R=Right, C=Center, Sl=Rear left, Sr=Rear right
+
+必要な値は NeAACDecStruct.pce (NeAACDecStruct* = NeAACDecHandle) で参照できるが、
+今のところそこまでしていない。
+*/
+#define RSQR	(1.0 / 1.4142135623730950488016887242097)
+#define DMR_CENTER		RSQR
+#define DMR_FRONT		1.0
+#define DMR_REAR		RSQR
+#define DMR_LFE			RSQR
 
 // 整数演算によるダウンミックス
 #define DOWNMIX_INT
@@ -224,6 +247,20 @@ HRESULT CAacDecFilter::StopStreaming(void)
 	m_AacDecoder.CloseDecoder();
 
 	return S_OK;
+}
+
+HRESULT CAacDecFilter::BeginFlush()
+{
+	HRESULT hr = S_OK;
+
+	m_AdtsParser.Reset();
+	m_AacDecoder.ResetDecoder();
+	m_StartTime = -1;
+	m_SampleCount = 0;
+	if (m_pOutput) {
+		hr = m_pOutput->DeliverBeginFlush();
+	}
+	return hr;
 }
 
 const BYTE CAacDecFilter::GetCurrentChannelNum()

@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "TsTable.h"
 #include "TsEncode.h"
+#include "TsUtilClass.h"
 
 
 #ifdef _DEBUG
@@ -176,7 +177,7 @@ const bool CPsiSingleTable::StorePacket(const CTsPacket *pPacket)
 
 	// パケットストア
 	m_PsiSectionParser.StorePacket(pPacket);
-	
+
 	return m_bTableUpdated;
 }
 
@@ -289,7 +290,7 @@ CPsiTableSuite & CPsiTableSuite::operator = (const CPsiTableSuite &Operand)
 	m_bTargetSectionExt = Operand.m_bTargetSectionExt;
 	m_bTableUpdated = Operand.m_bTableUpdated;
 	m_PsiSectionParser = Operand.m_PsiSectionParser;
-	
+
 	m_PsiSectionParser.SetRecvCallback(m_bTargetSectionExt, CPsiTableSuite::StoreSection, this);
 
 	return *this;
@@ -298,7 +299,7 @@ CPsiTableSuite & CPsiTableSuite::operator = (const CPsiTableSuite &Operand)
 const bool CPsiTableSuite::StorePacket(const CTsPacket *pPacket)
 {
 	m_bTableUpdated = false;
-	
+
 	// PSIセクションをテーブルに追加する
 	m_PsiSectionParser.StorePacket(pPacket);
 
@@ -396,8 +397,15 @@ void CALLBACK CPsiTableSuite::StoreSection(const CPsiSection *pSection, const PV
 // PATテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-CPatTable::CPatTable()
+CPatTable::CPatTable(
+#ifdef _DEBUG
+	bool bTrace
+#endif
+)
 	: CPsiSingleTable()
+#ifdef _DEBUG
+	, m_bDebugTrace(bTrace)
+#endif
 {
 	Reset();
 }
@@ -488,7 +496,10 @@ const bool CPatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 	// テーブルを解析する
 
-	TRACE(TEXT("\n------- PAT Table -------\nTS ID = %04X\n"), pCurSection->GetTableIdExtension());
+#ifdef _DEBUG
+	if (m_bDebugTrace)
+		TRACE(TEXT("\n------- PAT Table -------\nTS ID = %04X\n"), pCurSection->GetTableIdExtension());
+#endif
 
 	for (WORD wPos = 0 ; wPos < wDataSize ; wPos += 4, pHexData += 4) {
 		TAG_PATITEM PatItem;
@@ -498,11 +509,19 @@ const bool CPatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 		if (PatItem.wProgramID == 0) {
 			// NITのPID
-			TRACE(TEXT("NIT #%u [ID:%04X][PID:%04X]\n"), m_NitPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
+#ifdef _DEBUG
+			if (m_bDebugTrace)
+				TRACE(TEXT("NIT #%u [ID:%04X][PID:%04X]\n"),
+					  m_NitPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
+#endif
 			m_NitPIDArray.push_back(PatItem.wPID);
 		} else {
 			// PMTのPID
-			TRACE(TEXT("PMT #%u [ID:%04X][PID:%04X]\n"), m_PmtPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
+#ifdef _DEBUG
+			if (m_bDebugTrace)
+				TRACE(TEXT("PMT #%u [ID:%04X][PID:%04X]\n"),
+					  m_PmtPIDArray.size(), PatItem.wProgramID, PatItem.wPID);
+#endif
 			m_PmtPIDArray.push_back(PatItem);
 		}
 	}
@@ -586,8 +605,11 @@ const CDescBlock * CCatTable::GetCatDesc(void) const
 
 const bool CCatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
 {
-	if (pCurSection->GetTableID() != 0x01U)
-		return false;	// テーブルIDが不正
+	if (pCurSection->GetTableID() != 0x01
+			|| pCurSection->GetSectionLength() > 1021
+			|| pCurSection->GetSectionNumber() != 0x00
+			|| pCurSection->GetLastSectionNumber() != 0x00)
+		return false;
 
 	TRACE(TEXT("\n------- CAT Table -------\n"));
 
@@ -609,8 +631,15 @@ const bool CCatTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 // PMTテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-CPmtTable::CPmtTable()
+CPmtTable::CPmtTable(
+#ifdef _DEBUG
+	bool bTrace
+#endif
+)
 	: CPsiSingleTable()
+#ifdef _DEBUG
+	, m_bDebugTrace(bTrace)
+#endif
 {
 	Reset();
 }
@@ -731,15 +760,18 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	// 記述子ブロック
 	m_TableDescBlock.ParseBlock(&pHexData[4], wDescLen);
 
-	TRACE(TEXT("\n------- PMT Table -------\nProgram Number ID = %04X(%d)\nPCR PID = %04X\nECM PID = %04X\n"),
-		pCurSection->GetTableIdExtension(), pCurSection->GetTableIdExtension(), m_wPcrPID , (m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG))? dynamic_cast<const CCaMethodDesc *>(m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG))->GetCaPID() : 0xFFFFU);
+#ifdef _DEBUG
+	if (m_bDebugTrace)
+		TRACE(TEXT("\n------- PMT Table -------\nProgram Number ID = %04X(%d)\nPCR PID = %04X\nECM PID = %04X\n"),
+			pCurSection->GetTableIdExtension(), pCurSection->GetTableIdExtension(), m_wPcrPID , (m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG))? dynamic_cast<const CCaMethodDesc *>(m_TableDescBlock.GetDescByTag(CCaMethodDesc::DESC_TAG))->GetCaPID() : 0xFFFFU);
+#endif
 
 	// ストリーム情報を解析
 	for (WORD wPos = wDescLen + 4 ; wPos + 5 <= wDataSize ; wPos += 5 + wDescLen) {
 		TAG_PMTITEM PmtItem;
 
 		PmtItem.byStreamTypeID = pHexData[wPos + 0];													// +0
-		PmtItem.wEsPID = ((WORD)(pHexData[wPos + 1] & 0x1FU) << 8) | (WORD)pHexData[wPos + 2];			// +1,2	
+		PmtItem.wEsPID = ((WORD)(pHexData[wPos + 1] & 0x1FU) << 8) | (WORD)pHexData[wPos + 2];			// +1,2
 		wDescLen = ((WORD)(pHexData[wPos + 3] & 0x0FU) << 8) | (WORD)pHexData[wPos + 4];				// +3,4
 		if (wPos + 5 + wDescLen > wDataSize)
 			break;
@@ -747,7 +779,11 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 		// 記述子ブロック
 		PmtItem.DescBlock.ParseBlock(&pHexData[wPos + 5], wDescLen);
 
-		TRACE(TEXT("[%u] Stream Type ID = %02X  PID = %04X\n"), m_EsInfoArray.size(), PmtItem.byStreamTypeID, PmtItem.wEsPID);
+#ifdef _DEBUG
+		if (m_bDebugTrace)
+			TRACE(TEXT("[%u] Stream Type ID = %02X  PID = %04X\n"),
+				  m_EsInfoArray.size(), PmtItem.byStreamTypeID, PmtItem.wEsPID);
+#endif
 
 		// テーブルに追加する
 		m_EsInfoArray.push_back(PmtItem);
@@ -1091,7 +1127,8 @@ const WORD CHEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
 const SYSTEMTIME *CHEitTable::GetStartTime(DWORD Index,DWORD EventIndex) const
 {
 	if (Index >= GetServiceNum() || EventIndex > 1
-			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable
+			|| !m_EitArray[Index].EventList[EventIndex].bValidStartTime)
 		return NULL;
 	return &m_EitArray[Index].EventList[EventIndex].StartTime;
 }
@@ -1169,8 +1206,7 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
 
 	Info.EventID = (pHexData[6] << 8) | pHexData[7];
-	if (!CAribTime::AribToSystemTime(&pHexData[8], &Info.StartTime))
-		::ZeroMemory(&Info.StartTime, sizeof(SYSTEMTIME));
+	Info.bValidStartTime = CAribTime::AribToSystemTime(&pHexData[8], &Info.StartTime);
 	Info.Duration = CAribTime::AribBcdToSecond(&pHexData[13]);
 	Info.RunningStatus = pHexData[16] >> 5;
 	Info.FreeCaMode = (pHexData[16] & 0x10) != 0;
@@ -1266,7 +1302,7 @@ const WORD CLEitTable::GetOriginalNetworkID(DWORD Index) const
 
 const WORD CLEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex > 3
+	if (Index >= GetServiceNum() || EventIndex > 1
 			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return 0;
 	return m_EitArray[Index].EventList[EventIndex].EventID;
@@ -1274,15 +1310,16 @@ const WORD CLEitTable::GetEventID(DWORD Index,DWORD EventIndex) const
 
 const SYSTEMTIME *CLEitTable::GetStartTime(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex > 3
-			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
+	if (Index >= GetServiceNum() || EventIndex > 1
+			|| !m_EitArray[Index].EventList[EventIndex].bEnable
+			|| !m_EitArray[Index].EventList[EventIndex].bValidStartTime)
 		return NULL;
 	return &m_EitArray[Index].EventList[EventIndex].StartTime;
 }
 
 const DWORD CLEitTable::GetDuration(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex > 3
+	if (Index >= GetServiceNum() || EventIndex > 1
 			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return 0;
 	return m_EitArray[Index].EventList[EventIndex].Duration;
@@ -1290,7 +1327,7 @@ const DWORD CLEitTable::GetDuration(DWORD Index,DWORD EventIndex) const
 
 const BYTE CLEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
 {
-	if (Index >= GetServiceNum() || EventIndex > 3
+	if (Index >= GetServiceNum() || EventIndex > 1
 			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return 0xFF;
 	return m_EitArray[Index].EventList[EventIndex].RunningStatus;
@@ -1299,7 +1336,7 @@ const BYTE CLEitTable::GetRunningStatus(DWORD Index,DWORD EventIndex) const
 const bool CLEitTable::GetFreeCaMode(DWORD Index,DWORD EventIndex) const
 {
 	// Free CA Modeを返す
-	if (Index >= GetServiceNum() || EventIndex > 3
+	if (Index >= GetServiceNum() || EventIndex > 1
 			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return false;
 	return m_EitArray[Index].EventList[EventIndex].FreeCaMode;
@@ -1308,7 +1345,7 @@ const bool CLEitTable::GetFreeCaMode(DWORD Index,DWORD EventIndex) const
 const CDescBlock * CLEitTable::GetItemDesc(DWORD Index,DWORD EventIndex) const
 {
 	// アイテムの記述子ブロックを返す
-	if (Index >= GetServiceNum() || EventIndex > 3
+	if (Index >= GetServiceNum() || EventIndex > 1
 			|| !m_EitArray[Index].EventList[EventIndex].bEnable)
 		return NULL;
 	return &m_EitArray[Index].EventList[EventIndex].DescBlock;
@@ -1317,7 +1354,7 @@ const CDescBlock * CLEitTable::GetItemDesc(DWORD Index,DWORD EventIndex) const
 const bool CLEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
 {
 	if (pCurSection->GetTableID() != 0x4E
-			|| pCurSection->GetSectionNumber() > 3)
+			|| pCurSection->GetSectionNumber() > 1)
 		return false;
 
 	const WORD wDataSize = pCurSection->GetPayloadSize();
@@ -1352,8 +1389,7 @@ const bool CLEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
 
 	Info.EventID = (pHexData[6] << 8) | pHexData[7];
-	if (!CAribTime::AribToSystemTime(&pHexData[8], &Info.StartTime))
-		::ZeroMemory(&Info.StartTime, sizeof(SYSTEMTIME));
+	Info.bValidStartTime = CAribTime::AribToSystemTime(&pHexData[8], &Info.StartTime);
 	Info.Duration = CAribTime::AribBcdToSecond(&pHexData[13]);
 	Info.RunningStatus = pHexData[16] >> 5;
 	Info.FreeCaMode = (pHexData[16] & 0x10) != 0;
@@ -1398,8 +1434,26 @@ const bool CTotTable::GetDateTime(SYSTEMTIME *pTime) const
 {
 	if (pTime == NULL || !m_bValidDateTime)
 		return false;
-	*pTime = m_DateTime;
+	const int Offset = GetLocalTimeOffset();
+	if (Offset == 0) {
+		*pTime = m_DateTime;
+	} else {
+		CDateTime Time(m_DateTime);
+
+		Time.Offset(CDateTime::MINUTES(Offset));
+		Time.Get(pTime);
+	}
 	return true;
+}
+
+const int CTotTable::GetLocalTimeOffset() const
+{
+	const CLocalTimeOffsetDesc *pLocalTimeOffset = dynamic_cast<const CLocalTimeOffsetDesc*>(m_DescBlock.GetDescByTag(CLocalTimeOffsetDesc::DESC_TAG));
+
+	if (pLocalTimeOffset && pLocalTimeOffset->IsValid()) {
+		return pLocalTimeOffset->GetLocalTimeOffset();
+	}
+	return 0;
 }
 
 const CDescBlock * CTotTable::GetTotDesc(void) const
@@ -1469,7 +1523,7 @@ CPcrTable & CPcrTable::operator = (const CPcrTable &Operand)
 const bool CPcrTable::StorePacket(const CTsPacket *pPacket)
 {
 	if(!pPacket)return false;
-	
+
 	if(pPacket->m_AdaptationField.bPcrFlag){
 		m_ui64_Pcr = ((unsigned __int64)pPacket->m_AdaptationField.pOptionData[0] << 25 ) |
 			((unsigned __int64)pPacket->m_AdaptationField.pOptionData[1] << 17 )|

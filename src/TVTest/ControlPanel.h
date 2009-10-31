@@ -2,13 +2,14 @@
 #define CONTROL_PANEL_H
 
 
-#include "InfoPanel.h"
+#include "PanelForm.h"
 #include "Theme.h"
 
 
 class CControlPanelItem;
 
-class CControlPanel : public CInfoPanelPage {
+class CControlPanel : public CPanelForm::CPage
+ {
 	enum { MAX_ITEMS=16 };
 	CControlPanelItem *m_pItemList[MAX_ITEMS];
 	int m_NumItems;
@@ -22,10 +23,13 @@ class CControlPanel : public CInfoPanelPage {
 	HWND m_hwndMessage;
 	int m_HotItem;
 	bool m_fTrackMouseEvent;
+
+	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
 	static CControlPanel *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void SendCommand(int Command);
+
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CControlPanel();
@@ -37,6 +41,7 @@ public:
 	void SetColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,
 				   const Theme::GradientInfo *pOverBackGradient,COLORREF crOverText,
 				   COLORREF crMargin);
+	//bool SetFont(const LOGFONT *pFont);
 	int GetFontHeight() const { return m_FontHeight; }
 	void SetSendMessageWindow(HWND hwnd);
 	bool CheckRadioItem(int FirstID,int LastID,int CheckID);

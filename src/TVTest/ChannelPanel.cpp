@@ -11,14 +11,13 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define CHANNEL_LIST_WINDOW_CLASS APP_NAME TEXT(" Channel List")
-
 #define CHANNEL_LEFT_MARGIN	2
 #define EVENT_LEFT_MARGIN	8
 
 
 
 
+const LPCTSTR CChannelPanel::m_pszClassName=APP_NAME TEXT(" Channel Panel");
 HINSTANCE CChannelPanel::m_hinst=NULL;
 
 
@@ -36,7 +35,7 @@ bool CChannelPanel::Initialize(HINSTANCE hinst)
 		wc.hCursor=NULL;
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
-		wc.lpszClassName=CHANNEL_LIST_WINDOW_CLASS;
+		wc.lpszClassName=m_pszClassName;
 		if (RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
@@ -46,42 +45,36 @@ bool CChannelPanel::Initialize(HINSTANCE hinst)
 
 
 CChannelPanel::CChannelPanel()
+	: m_EventInfoPopupManager(&m_EventInfoPopup)
+	, m_EventInfoPopupHandler(this)
+	, m_pProgramList(NULL)
+	, m_FontHeight(0)
+	, m_ChannelNameMargin(2)
+	, m_EventNameLines(2)
+	, m_ItemHeight(0)
+	, m_ChannelBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+							RGB(128,128,128),RGB(128,128,128))
+	, m_ChannelTextColor(RGB(255,255,255))
+	, m_CurChannelBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+							   RGB(128,128,128),RGB(128,128,128))
+	, m_CurChannelTextColor(RGB(255,255,255))
+	, m_EventBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+						  RGB(0,0,0),RGB(0,0,0))
+	, m_EventTextColor(RGB(255,255,255))
+	, m_CurEventBackGradient(m_EventBackGradient)
+	, m_CurEventTextColor(m_EventTextColor)
+	, m_MarginColor(RGB(0,0,0))
+	, m_ScrollPos(0)
+	, m_CurChannel(-1)
+	, m_pEventHandler(NULL)
+	, m_hwndToolTip(NULL)
+	, m_fDetailToolTip(false)
 {
 	LOGFONT lf;
-
-	m_pProgramList=NULL;
-	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
+	GetDefaultFont(&lf);
 	m_hfont=::CreateFontIndirect(&lf);
 	lf.lfWeight=FW_BOLD;
 	m_hfontChannel=::CreateFontIndirect(&lf);
-	//m_FontHeight=abs(lf.lfHeight);
-	m_FontHeight=0;
-	m_ChannelNameMargin=2;
-	m_EventNameLines=2;
-	//m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
-	m_ItemHeight=0;
-	m_ChannelBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_ChannelBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_ChannelBackGradient.Color1=RGB(128,128,128);
-	m_ChannelBackGradient.Color2=RGB(128,128,128);
-	m_ChannelTextColor=RGB(255,255,255);
-	m_CurChannelBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_CurChannelBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_CurChannelBackGradient.Color1=RGB(128,128,128);
-	m_CurChannelBackGradient.Color2=RGB(128,128,128);
-	m_CurChannelTextColor=RGB(255,255,255);
-	m_EventBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_EventBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_EventBackGradient.Color1=RGB(0,0,0);
-	m_EventBackGradient.Color2=RGB(0,0,0);
-	m_EventTextColor=RGB(255,255,255);
-	m_CurEventBackGradient=m_EventBackGradient;
-	m_CurEventTextColor=m_EventTextColor;
-	m_MarginColor=RGB(0,0,0);
-	m_ScrollPos=0;
-	m_CurChannel=-1;
-	m_pEventHandler=NULL;
-	m_hwndToolTip=NULL;
 }
 
 
@@ -96,7 +89,7 @@ CChannelPanel::~CChannelPanel()
 bool CChannelPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 CHANNEL_LIST_WINDOW_CLASS,TEXT("チャンネル"),m_hinst);
+							 m_pszClassName,TEXT("チャンネル"),m_hinst);
 }
 
 
@@ -318,6 +311,13 @@ bool CChannelPanel::SetFont(const LOGFONT *pFont)
 		return false;
 	::DeleteObject(m_hfont);
 	m_hfont=hfont;
+	LOGFONT lf=*pFont;
+	lf.lfWeight=FW_BOLD;
+	hfont=::CreateFontIndirect(&lf);
+	if (hfont!=NULL) {
+		::DeleteObject(m_hfontChannel);
+		m_hfontChannel=hfont;
+	}
 	if (m_hwnd!=NULL) {
 		CalcItemHeight();
 		m_ScrollPos=0;
@@ -325,6 +325,21 @@ bool CChannelPanel::SetFont(const LOGFONT *pFont)
 		Invalidate();
 	}
 	return true;
+}
+
+
+void CChannelPanel::SetDetailToolTip(bool fDetail)
+{
+	if (m_fDetailToolTip!=fDetail) {
+		m_fDetailToolTip=fDetail;
+		if (m_hwnd!=NULL) {
+			if (fDetail)
+				m_EventInfoPopupManager.Initialize(m_hwnd,&m_EventInfoPopupHandler);
+			else
+				m_EventInfoPopupManager.Finalize();
+			::SendMessage(m_hwndToolTip,TTM_ACTIVATE,!fDetail,0);
+		}
+	}
 }
 
 
@@ -348,7 +363,10 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				hwnd,NULL,m_hinst,NULL);
 			::SendMessage(pThis->m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,256);
 			::SendMessage(pThis->m_hwndToolTip,TTM_SETDELAYTIME,TTDT_AUTOPOP,30000);
+			::SendMessage(pThis->m_hwndToolTip,TTM_ACTIVATE,!pThis->m_fDetailToolTip,0);
 			pThis->SetToolTips();
+			if (pThis->m_fDetailToolTip)
+				pThis->m_EventInfoPopupManager.Initialize(hwnd,&pThis->m_EventInfoPopupHandler);
 		}
 		return 0;
 
@@ -379,48 +397,35 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		return 0;
 
 	case WM_MOUSEWHEEL:
-		if (GET_WHEEL_DELTA_WPARAM(wParam)<0)
-			wParam=SB_LINEDOWN;
-		else
-			wParam=SB_LINEUP;
+		{
+			CChannelPanel *pThis=GetThis(hwnd);
+
+			pThis->SetScrollPos(pThis->m_ScrollPos-
+								GET_WHEEL_DELTA_WPARAM(wParam)*pThis->m_FontHeight/WHEEL_DELTA);
+		}
+		return 0;
+
 	case WM_VSCROLL:
 		{
 			CChannelPanel *pThis=GetThis(hwnd);
-			int Pos,Max;
+			int Pos,Page,Max;
 			RECT rc;
-			int Page;
 
 			Pos=pThis->m_ScrollPos;
 			pThis->GetClientRect(&rc);
 			Page=rc.bottom;
 			Max=max(pThis->m_ItemHeight*pThis->m_ChannelList.Length()-Page,0);
 			switch (LOWORD(wParam)) {
-			case SB_LINEUP:		Pos-=pThis->m_FontHeight/2;	break;
-			case SB_LINEDOWN:	Pos+=pThis->m_FontHeight/2;	break;
-			case SB_PAGEUP:		Pos-=Page;			break;
-			case SB_PAGEDOWN:	Pos+=Page;			break;
-			case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
-			case SB_TOP:		Pos=0;				break;
-			case SB_BOTTOM:		Pos=Max;			break;
+			case SB_LINEUP:		Pos-=pThis->m_FontHeight;	break;
+			case SB_LINEDOWN:	Pos+=pThis->m_FontHeight;	break;
+			case SB_PAGEUP:		Pos-=Page;					break;
+			case SB_PAGEDOWN:	Pos+=Page;					break;
+			case SB_THUMBTRACK:	Pos=HIWORD(wParam);			break;
+			case SB_TOP:		Pos=0;						break;
+			case SB_BOTTOM:		Pos=Max;					break;
 			default:	return 0;
 			}
-			if (Pos<0)
-				Pos=0;
-			else if (Pos>Max)
-				Pos=Max;
-			if (Pos!=pThis->m_ScrollPos) {
-				int Offset=Pos-pThis->m_ScrollPos;
-
-				pThis->m_ScrollPos=Pos;
-				if (abs(Offset)<Page) {
-					::ScrollWindowEx(hwnd,0,-Offset,
-								NULL,NULL,NULL,NULL,SW_ERASE | SW_INVALIDATE);
-				} else {
-					InvalidateRect(hwnd,NULL,TRUE);
-				}
-				pThis->SetScrollBar();
-				pThis->SetToolTips();
-			}
+			pThis->SetScrollPos(Pos);
 		}
 		return 0;
 
@@ -467,16 +472,51 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				LPNMTTDISPINFO pnmtdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 				int Channel=pnmtdi->lParam/2,Event=pnmtdi->lParam%2;
 
-				if (Channel<pThis->m_ChannelList.Length()) {
-					static TCHAR szText[512];
+				if (Channel>=0 && Channel<pThis->m_ChannelList.Length()) {
+					static TCHAR szText[1024];
 
 					pThis->m_ChannelList[Channel]->FormatEventText(szText,lengthof(szText),Event);
 					pnmtdi->lpszText=szText;
+				} else {
+					pnmtdi->lpszText=TEXT("");
 				}
 				pnmtdi->szText[0]='\0';
 				pnmtdi->hinst=NULL;
 			}
 			return 0;
+
+		case TTN_SHOW:
+			{
+				// ツールチップの位置がカーソルと重なっていると
+				// 出たり消えたりを繰り返しておかしくなるのでずらす
+				LPNMHDR pnmh=reinterpret_cast<LPNMHDR>(lParam);
+				RECT rcTip;
+				POINT pt;
+
+				::GetWindowRect(pnmh->hwndFrom,&rcTip);
+				::GetCursorPos(&pt);
+				if (::PtInRect(&rcTip,pt)) {
+					HMONITOR hMonitor=::MonitorFromRect(&rcTip,MONITOR_DEFAULTTONEAREST);
+					if (hMonitor!=NULL) {
+						MONITORINFO mi;
+
+						mi.cbSize=sizeof(mi);
+						if (::GetMonitorInfo(hMonitor,&mi)) {
+							if (rcTip.left<=mi.rcMonitor.left+16)
+								rcTip.left=pt.x+16;
+							else if (rcTip.right>=mi.rcMonitor.right-16)
+								rcTip.left=pt.x-(rcTip.right-rcTip.left)-8;
+							else
+								break;
+							::SetWindowPos(pnmh->hwndFrom,HWND_TOPMOST,
+										   rcTip.left,rcTip.top,0,0,
+										   SWP_NOSIZE | SWP_NOACTIVATE);
+							return TRUE;
+						}
+					}
+				}
+			}
+			break;
 		}
 		break;
 
@@ -550,6 +590,34 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 }
 
 
+void CChannelPanel::SetScrollPos(int Pos)
+{
+	RECT rc;
+
+	GetClientRect(&rc);
+	if (Pos<0) {
+		Pos=0;
+	} else {
+		int Max=max(m_ItemHeight*m_ChannelList.Length()-rc.bottom,0);
+		if (Pos>Max)
+			Pos=Max;
+	}
+	if (Pos!=m_ScrollPos) {
+		int Offset=Pos-m_ScrollPos;
+
+		m_ScrollPos=Pos;
+		if (abs(Offset)<rc.bottom) {
+			::ScrollWindowEx(m_hwnd,0,-Offset,
+							 NULL,NULL,NULL,NULL,SW_ERASE | SW_INVALIDATE);
+		} else {
+			Invalidate();
+		}
+		SetScrollBar();
+		SetToolTips();
+	}
+}
+
+
 void CChannelPanel::SetScrollBar()
 {
 	SCROLLINFO si;
@@ -591,6 +659,42 @@ void CChannelPanel::GetItemRect(int Index,RECT *pRect)
 	GetClientRect(pRect);
 	pRect->top=Index*m_ItemHeight-m_ScrollPos;
 	pRect->bottom=pRect->top+m_ItemHeight;
+}
+
+
+int CChannelPanel::HitTest(int x,int y,HitType *pType) const
+{
+	POINT pt;
+	RECT rc;
+
+	pt.x=x;
+	pt.y=y;
+	GetClientRect(&rc);
+	rc.top=-m_ScrollPos;
+	for (int i=0;i<m_ChannelList.Length();i++) {
+		rc.bottom=rc.top+m_FontHeight+m_ChannelNameMargin*2;
+		if (::PtInRect(&rc,pt)) {
+			if (pType!=NULL)
+				*pType=HIT_CHANNELNAME;
+			return i;
+		}
+		rc.top=rc.bottom;
+		rc.bottom=rc.top+m_EventNameLines*m_FontHeight;
+		if (::PtInRect(&rc,pt)) {
+			if (pType!=NULL)
+				*pType=HIT_EVENT1;
+			return i;
+		}
+		rc.top=rc.bottom;
+		rc.bottom=rc.top+m_EventNameLines*m_FontHeight;
+		if (::PtInRect(&rc,pt)) {
+			if (pType!=NULL)
+				*pType=HIT_EVENT2;
+			return i;
+		}
+		rc.top=rc.bottom;
+	}
+	return -1;
 }
 
 
@@ -636,6 +740,53 @@ void CChannelPanel::SetToolTips()
 }
 
 
+bool CChannelPanel::EventInfoPopupHitTest(int x,int y,LPARAM *pParam)
+{
+	if (m_fDetailToolTip) {
+		HitType Type;
+		int Channel=HitTest(x,y,&Type);
+
+		if (Channel>=0 && (Type==HIT_EVENT1 || Type==HIT_EVENT2)) {
+			int Event=Type==HIT_EVENT1?0:1;
+			if (m_ChannelList[Channel]->IsEventEnabled(Event)) {
+				*pParam=Channel*2+Event;
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
+bool CChannelPanel::GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo)
+{
+	int Channel=Param/2,Event=Param%2;
+
+	if (Channel<0 || Channel>=m_ChannelList.Length() || Event<0 && Event>1)
+		return false;
+	*ppInfo=&m_ChannelList[Channel]->GetEventInfo(Event);
+	return true;
+}
+
+
+CChannelPanel::CEventInfoPopupHandler::CEventInfoPopupHandler(CChannelPanel *pChannelPanel)
+	: m_pChannelPanel(pChannelPanel)
+{
+}
+
+
+bool CChannelPanel::CEventInfoPopupHandler::HitTest(int x,int y,LPARAM *pParam)
+{
+	return m_pChannelPanel->EventInfoPopupHitTest(x,y,pParam);
+}
+
+
+bool CChannelPanel::CEventInfoPopupHandler::GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo)
+{
+	return m_pChannelPanel->GetEventInfoPopupEventInfo(Param,ppInfo);
+}
+
+
 
 
 CChannelPanel::CChannelEventInfo::CChannelEventInfo(const CChannelInfo *pInfo,int OriginalIndex)
@@ -670,9 +821,17 @@ bool CChannelPanel::CChannelEventInfo::SetEventInfo(int Index,const CEventInfoDa
 }
 
 
+bool CChannelPanel::CChannelEventInfo::IsEventEnabled(int Index) const
+{
+	if (Index<0 || Index>1)
+		return false;
+	return m_EventInfo[Index].GetEventName()!=NULL;
+}
+
+
 int CChannelPanel::CChannelEventInfo::FormatEventText(LPTSTR pszText,int MaxLength,int Index) const
 {
-	if (Index<0 || Index>1 || m_EventInfo[Index].GetEventName()==NULL) {
+	if (!IsEventEnabled(Index)) {
 		pszText[0]='\0';
 		return 0;
 	}
@@ -680,7 +839,7 @@ int CChannelPanel::CChannelEventInfo::FormatEventText(LPTSTR pszText,int MaxLeng
 	const CEventInfoData *pInfo=&m_EventInfo[Index];
 	SYSTEMTIME stEnd;
 	pInfo->GetEndTime(&stEnd);
-	return StdUtil::snprintf(pszText,MaxLength,TEXT("%02d:%02d～%02d:%02d %s%s%s"),
+	return StdUtil::snprintf(pszText,MaxLength,TEXT("%d:%02d～%d:%02d %s%s%s"),
 							 pInfo->m_stStartTime.wHour,pInfo->m_stStartTime.wMinute,
 							 stEnd.wHour,stEnd.wMinute,
 							 pInfo->GetEventName(),

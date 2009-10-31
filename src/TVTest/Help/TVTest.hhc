@@ -163,6 +163,10 @@
 			<param name="Local" value="hint.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="Tips">
+			<param name="Local" value="appendix/tips.html">
+			</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="チャンネルファイル">
 			<param name="Local" value="appendix/channelfile.html">
 			</OBJECT>

@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include <initguid.h>
 #include "Mpeg2SequenceFilter.h"
 
 #ifdef _DEBUG
@@ -27,7 +28,7 @@ CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
 
 CMpeg2SequenceFilter::~CMpeg2SequenceFilter(void)
 {
-	TRACE(TEXT("CMpeg2SequenceFilter::~CMpeg2SequenceFilter\n"));
+	//TRACE(TEXT("CMpeg2SequenceFilter::~CMpeg2SequenceFilter\n"));
 }
 
 
@@ -127,18 +128,6 @@ HRESULT CMpeg2SequenceFilter::GetMediaType(int iPosition, CMediaType *pMediaType
 }
 
 
-HRESULT CMpeg2SequenceFilter::StartStreaming(void)
-{
-	return S_OK;
-}
-
-
-HRESULT CMpeg2SequenceFilter::StopStreaming(void)
-{
-	return S_OK;
-}
-
-
 HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 {
 	// 入力データポインタを取得する
@@ -162,6 +151,35 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	return S_OK;
 }
 */
+
+
+HRESULT CMpeg2SequenceFilter::StartStreaming(void)
+{
+	CAutoLock Lock(m_pLock);
+
+	m_Mpeg2Parser.Reset();
+	m_VideoInfo.Reset();
+
+	return S_OK;
+}
+
+
+HRESULT CMpeg2SequenceFilter::StopStreaming(void)
+{
+	return S_OK;
+}
+
+
+HRESULT CMpeg2SequenceFilter::BeginFlush()
+{
+	HRESULT hr = S_OK;
+
+	m_Mpeg2Parser.Reset();
+	m_VideoInfo.Reset();
+	if (m_pOutput)
+		hr = m_pOutput->DeliverBeginFlush();
+	return hr;
+}
 
 
 HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
@@ -217,29 +235,15 @@ void CMpeg2SequenceFilter::SetRecvCallback(MPEG2SEQUENCE_VIDEOINFO_FUNC pCallbac
 
 void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence)
 {
-	BYTE AspectX,AspectY;
-	WORD OrigWidth,OrigHeight;
-	WORD DisplayWidth,DisplayHeight;
+	BYTE AspectX, AspectY;
+	WORD OrigWidth, OrigHeight;
+	WORD DisplayWidth, DisplayHeight;
 
-	switch (pSequence->GetAspectRatioInfo()) {
-	case 2:
-		AspectX = 4;
-		AspectY = 3;
-		break;
-	case 3:
-		AspectX = 16;
-		AspectY = 9;
-		break;
-	case 4:
-		AspectX = 221;
-		AspectY = 100;
-		break;
-	default:
+	if (!pSequence->GetAspectRatio(&AspectX, &AspectY))
 		AspectX = AspectY = 0;
-	}
 
-	OrigWidth=pSequence->GetHorizontalSize();
-	OrigHeight=pSequence->GetVerticalSize();
+	OrigWidth = pSequence->GetHorizontalSize();
+	OrigHeight = pSequence->GetVerticalSize();
 
 	if (pSequence->GetExtendDisplayInfo()) {
 		DisplayWidth = pSequence->GetExtendDisplayHorizontalSize();
@@ -250,22 +254,16 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 	}
 
 	CMpeg2VideoInfo Info(OrigWidth, OrigHeight, DisplayWidth, DisplayHeight, AspectX, AspectY);
-	static const CMpeg2VideoInfo::FrameRate FrameRateList[] = {
-		{0,		0},
-		{24000,	1001},
-		{24,	1},
-		{25,	1},
-		{30000,	1001},
-		{30,	1},
-		{50,	1},
-		{60000,	1001},
-		{60,	1},
-	};
-	Info.m_FrameRate = FrameRateList[pSequence->GetFrameRateCode()];
+
+	pSequence->GetFrameRate(&Info.m_FrameRate.Num, &Info.m_FrameRate.Denom);
 
 	if (Info != m_VideoInfo) {
 		// 映像のサイズ及びフレームレートが変わった
 		m_VideoInfo = Info;
+
+		TRACE(TEXT("Mpeg2 sequence %d x %d [%d x %d (%d=%d:%d)]\n"),
+			  OrigWidth, OrigHeight, DisplayWidth, DisplayHeight, pSequence->GetAspectRatioInfo(), AspectX, AspectY);
+
 		// 通知
 		if (m_pfnVideoInfoRecvFunc)
 			m_pfnVideoInfoRecvFunc(&m_VideoInfo, m_pCallbackParam);
@@ -317,6 +315,14 @@ const bool CMpeg2SequenceFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 
 	*pInfo = m_VideoInfo;
 	return true;
+}
+
+
+void CMpeg2SequenceFilter::ResetVideoInfo()
+{
+	CAutoLock Lock(&m_ParserLock);
+
+	m_VideoInfo.Reset();
 }
 
 

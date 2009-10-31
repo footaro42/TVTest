@@ -17,10 +17,11 @@ static char THIS_FILE[]=__FILE__;
 
 
 CVideoRenderer::CVideoRenderer()
+	: m_pRenderer(NULL)
+	, m_pFilterGraph(NULL)
+	, m_hwndRender(NULL)
+	, m_bCrop1088To1080(true)
 {
-	m_pRenderer=NULL;
-	m_pFilterGraph=NULL;
-	m_hwndRender=NULL;
 }
 
 
@@ -495,12 +496,19 @@ bool CVideoRenderer_VMR7::SetVideoPosition(int SourceWidth,int SourceHeight,cons
 
 	LONG Width,Height;
 
-	if (SUCCEEDED(pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL))
-			&& SourceWidth>0 && SourceHeight>0) {
-		rcSrc.left=pSourceRect->left*Width/SourceWidth;
-		rcSrc.top=pSourceRect->top*Height/SourceHeight;
-		rcSrc.right=pSourceRect->right*Width/SourceWidth;
-		rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
+	if (SUCCEEDED(pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL))) {
+		if (SourceWidth>0 && SourceHeight>0) {
+			rcSrc.left=pSourceRect->left*Width/SourceWidth;
+			rcSrc.top=pSourceRect->top*Height/SourceHeight;
+			rcSrc.right=pSourceRect->right*Width/SourceWidth;
+			rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
+		} else {
+			rcSrc=*pSourceRect;
+		}
+		if (m_bCrop1088To1080 && Height==1088) {
+			rcSrc.top=rcSrc.top*1080/1088;
+			rcSrc.bottom=rcSrc.bottom*1080/1088;
+		}
 	} else {
 		rcSrc=*pSourceRect;
 	}
@@ -728,12 +736,19 @@ bool CVideoRenderer_VMR9::SetVideoPosition(int SourceWidth,int SourceHeight,cons
 
 	LONG Width,Height;
 
-	if (SUCCEEDED(pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL))
-			&& SourceWidth>0 && SourceHeight>0) {
-		rcSrc.left=pSourceRect->left*Width/SourceWidth;
-		rcSrc.top=pSourceRect->top*Height/SourceHeight;
-		rcSrc.right=pSourceRect->right*Width/SourceWidth;
-		rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
+	if (SUCCEEDED(pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL))) {
+		if (SourceWidth>0 && SourceHeight>0) {
+			rcSrc.left=pSourceRect->left*Width/SourceWidth;
+			rcSrc.top=pSourceRect->top*Height/SourceHeight;
+			rcSrc.right=pSourceRect->right*Width/SourceWidth;
+			rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
+		} else {
+			rcSrc=*pSourceRect;
+		}
+		if (m_bCrop1088To1080 && Height==1088) {
+			rcSrc.top=rcSrc.top*1080/1088;
+			rcSrc.bottom=rcSrc.bottom*1080/1088;
+		}
 	} else {
 		rcSrc=*pSourceRect;
 	}
@@ -1262,12 +1277,19 @@ bool CVideoRenderer_VMR7Renderless::SetVideoPosition(int SourceWidth,int SourceH
 
 	LONG Width,Height;
 
-	if (SUCCEEDED(pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL))
-			&& SourceWidth>0 && SourceHeight>0) {
-		rcSrc.left=pSourceRect->left*Width/SourceWidth;
-		rcSrc.top=pSourceRect->top*Height/SourceHeight;
-		rcSrc.right=pSourceRect->right*Width/SourceWidth;
-		rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
+	if (SUCCEEDED(pWindowlessControl->GetNativeVideoSize(&Width,&Height,NULL,NULL))) {
+		if (SourceWidth>0 && SourceHeight>0) {
+			rcSrc.left=pSourceRect->left*Width/SourceWidth;
+			rcSrc.top=pSourceRect->top*Height/SourceHeight;
+			rcSrc.right=pSourceRect->right*Width/SourceWidth;
+			rcSrc.bottom=pSourceRect->bottom*Height/SourceHeight;
+		} else {
+			rcSrc=*pSourceRect;
+		}
+		if (m_bCrop1088To1080 && Height==1088) {
+			rcSrc.top=rcSrc.top*1080/1088;
+			rcSrc.bottom=rcSrc.bottom*1080/1088;
+		}
 	} else {
 		rcSrc=*pSourceRect;
 	}

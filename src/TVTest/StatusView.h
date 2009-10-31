@@ -11,7 +11,7 @@
 
 class CStatusView;
 
-class CStatusItem {
+class __declspec(novtable) CStatusItem {
 protected:
 	CStatusView *m_pStatus;
 	int m_ID;
@@ -45,6 +45,8 @@ public:
 	virtual void OnRButtonDown(int x,int y) { OnLButtonDown(x,y); }
 	virtual void OnMouseMove(int x,int y) {}
 	virtual void OnVisibleChange(bool fVisible) {}
+	virtual void OnFocus(bool fFocus) {}
+	virtual bool OnMouseHover(int x,int y) { return false; }
 	friend CStatusView;
 };
 
@@ -69,7 +71,6 @@ private:
 	Theme::GradientInfo m_HighlightBackGradient;
 	COLORREF m_crHighlightTextColor;
 	Theme::BorderType m_BorderType;
-	enum { MAX_STATUS_ITEMS=16 };
 	CPointerVector<CStatusItem> m_ItemList;
 	int m_NumItems;
 	bool m_fSingleMode;
@@ -79,6 +80,9 @@ private:
 	bool m_fOnButtonDown;
 	CEventHandler *m_pEventHandler;
 	CVirtualScreen m_VirtualScreen;
+
+	void SetHotItem(int Item);
+
 	static CStatusView *GetStatusView(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
@@ -86,10 +90,10 @@ public:
 	static bool Initialize(HINSTANCE hinst);
 	CStatusView();
 	~CStatusView();
-	// CBasicWindow
+// CBasicWindow
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void SetVisible(bool fVisible);
-	// CStatusView
+// CStatusView
 	int NumItems() const { return m_NumItems; }
 	const CStatusItem *GetItem(int Index) const;
 	CStatusItem *GetItem(int Index);
@@ -112,7 +116,7 @@ public:
 	bool SetEventHandler(CEventHandler *pEventHandler);
 	bool SetItemOrder(const int *pOrderList);
 	bool DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,bool fHighlight=false) const;
-	// CTracer
+// CTracer
 	void OnTrace(LPCTSTR pszOutput);
 };
 

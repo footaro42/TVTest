@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "Dialog.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -106,6 +112,61 @@ bool CBasicDialog::SetVisible(bool fVisible)
 }
 
 
+bool CBasicDialog::GetPosition(RECT *pPosition) const
+{
+	if (pPosition==NULL)
+		return false;
+	if (m_hDlg==NULL)
+		m_Position.Get(pPosition);
+	else
+		::GetWindowRect(m_hDlg,pPosition);
+	return true;
+}
+
+
+bool CBasicDialog::GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const
+{
+	RECT rc;
+
+	GetPosition(&rc);
+	if (pLeft!=NULL)
+		*pLeft=rc.left;
+	if (pTop!=NULL)
+		*pTop=rc.top;
+	if (pWidth!=NULL)
+		*pWidth=rc.right-rc.left;
+	if (pHeight!=NULL)
+		*pHeight=rc.bottom-rc.top;
+	return true;
+}
+
+
+bool CBasicDialog::SetPosition(const RECT *pPosition)
+{
+	if (pPosition==NULL)
+		return false;
+	return SetPosition(pPosition->left,pPosition->top,
+					   pPosition->right-pPosition->left,
+					   pPosition->bottom-pPosition->top);
+}
+
+
+bool CBasicDialog::SetPosition(int Left,int Top,int Width,int Height)
+{
+	if (Width<0 || Height<0)
+		return false;
+	if (m_hDlg==NULL) {
+		m_Position.x=Left;
+		m_Position.y=Top;
+		m_Position.Width=Width;
+		m_Position.Height=Height;
+	} else {
+		::MoveWindow(m_hDlg,Left,Top,Width,Height,TRUE);
+	}
+	return true;
+}
+
+
 
 
 CResizableDialog::CResizableDialog()
@@ -152,6 +213,15 @@ INT_PTR CResizableDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 
 	case WM_SIZE:
 		DoLayout();
+		return TRUE;
+
+	case WM_DESTROY:
+		{
+			RECT rc;
+
+			::GetWindowRect(hDlg,&rc);
+			m_Position.Set(&rc);
+		}
 		return TRUE;
 	}
 	return FALSE;
@@ -216,4 +286,32 @@ bool CResizableDialog::AddControls(int FirstID,int LastID,unsigned int Align)
 			return false;
 	}
 	return true;
+}
+
+
+void CResizableDialog::ApplyPosition()
+{
+	if (m_Position.Width<m_MinSize.cx)
+		m_Position.Width=m_MinSize.cx;
+	if (m_Position.Height<m_MinSize.cy)
+		m_Position.Height=m_MinSize.cy;
+
+	RECT rc;
+	m_Position.Get(&rc);
+	HMONITOR hMonitor=::MonitorFromRect(&rc,MONITOR_DEFAULTTOPRIMARY);
+	MONITORINFO mi;
+	mi.cbSize=sizeof(mi);
+	if (::GetMonitorInfo(hMonitor,&mi)) {
+		if (rc.left<mi.rcMonitor.left)
+			m_Position.x=mi.rcMonitor.left;
+		else if (rc.right>mi.rcMonitor.right)
+			m_Position.x=mi.rcMonitor.right-m_Position.Width;
+		if (rc.top<mi.rcMonitor.top)
+			m_Position.y=mi.rcMonitor.top;
+		else if (rc.bottom>mi.rcMonitor.bottom)
+			m_Position.y=mi.rcMonitor.bottom-m_Position.Height;
+	}
+
+	::MoveWindow(m_hDlg,m_Position.x,m_Position.y,
+				 m_Position.Width,m_Position.Height,FALSE);
 }

@@ -35,6 +35,9 @@ CDtvEngine::CDtvEngine(void)
 	, m_MediaBuffer(this)
 	, m_MediaGrabber(this)
 	, m_TsSelector(this)
+#ifdef DTVENGINE_CAPTION_SUPPORT
+	, m_CaptionDecoder(this)
+#endif
 	, m_bBuiled(false)
 	, m_bIsFileMode(false)
 	, m_bDescramble(true)
@@ -96,7 +99,12 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 	}
 	m_bBuffering=bBuffering;
 	m_MediaTee.SetOutputDecoder(&m_MediaGrabber, 1UL);
+#ifndef DTVENGINE_CAPTION_SUPPORT
 	m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
+#else
+	m_MediaGrabber.SetOutputDecoder(&m_CaptionDecoder);
+	m_CaptionDecoder.SetOutputDecoder(&m_TsSelector);
+#endif
 	m_TsSelector.SetOutputDecoder(&m_FileWriter);
 
 	// イベントハンドラ設定
@@ -417,6 +425,12 @@ const int CDtvEngine::GetEventText(LPTSTR pszText, int MaxLength, bool bNext)
 }
 
 
+const int CDtvEngine::GetEventExtendedText(LPTSTR pszText, int MaxLength, bool bNext)
+{
+	return m_TsAnalyzer.GetEventExtendedText(m_CurServiceIndex, pszText, MaxLength, true, bNext);
+}
+
+
 const bool CDtvEngine::GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime, bool bNext)
 {
 	SYSTEMTIME stStart;
@@ -430,18 +444,29 @@ const bool CDtvEngine::GetEventTime(SYSTEMTIME *pStartTime, SYSTEMTIME *pEndTime
 		if (Duration == 0)
 			return false;
 
-		FILETIME ft;
-		ULARGE_INTEGER Time;
-
-		SystemTimeToFileTime(&stStart, &ft);
-		Time.LowPart=ft.dwLowDateTime;
-		Time.HighPart=ft.dwHighDateTime;
-		Time.QuadPart+=(ULONGLONG)Duration*10000000ULL;
-		ft.dwLowDateTime=Time.LowPart;
-		ft.dwHighDateTime=Time.HighPart;
-		FileTimeToSystemTime(&ft, pEndTime);
+		CDateTime Time(stStart);
+		Time.Offset(CDateTime::SECONDS(Duration));
+		Time.Get(pEndTime);
 	}
 	return true;
+}
+
+
+const DWORD CDtvEngine::GetEventDuration(bool bNext)
+{
+	return m_TsAnalyzer.GetEventDuration(m_CurServiceIndex, bNext);
+}
+
+
+const bool CDtvEngine::GetEventSeriesInfo(CTsAnalyzer::EventSeriesInfo *pInfo, bool bNext)
+{
+	return m_TsAnalyzer.GetEventSeriesInfo(m_CurServiceIndex, pInfo, bNext);
+}
+
+
+const bool CDtvEngine::GetEventInfo(CTsAnalyzer::EventInfo *pInfo, bool bNext)
+{
+	return m_TsAnalyzer.GetEventInfo(m_CurServiceIndex, pInfo, true, bNext);
 }
 
 
@@ -532,6 +557,10 @@ const bool CDtvEngine::SetService(const WORD wService)
 		if (m_bWriteCurServiceOnly)
 			SetWriteService(wServiceID);
 
+#ifdef DTVENGINE_CAPTION_SUPPORT
+		m_CaptionDecoder.SetTargetStream(wServiceID);
+#endif
+
 		return true;
 	}
 
@@ -616,8 +645,13 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 						// サービスが指定されている
 						if (m_TsAnalyzer.GetServiceIndexByID(m_SpecServiceID) < 0) {
 							// サービスがPATにない
-							TRACE(TEXT("Service not found %d\n"), m_SpecServiceID);
-							m_SpecServiceID = SID_INVALID;
+							if (m_TsAnalyzer.GetViewableServiceNum()>0) {
+								TRACE(TEXT("Service not found %d\n"), m_SpecServiceID);
+								m_SpecServiceID = SID_INVALID;
+							} else {
+								// まだ視聴可能なサービスのPMTが一つも来ていない場合は保留
+								bSetService = false;
+							}
 						} else {
 							int ServiceIndex = m_TsAnalyzer.GetViewableServiceIndexByID(m_SpecServiceID);
 							if (ServiceIndex >= 0) {
@@ -636,35 +670,39 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 					// ストリームIDは同じだが、構成ESのPIDが変わった可能性がある
 					TRACE(TEXT("CDtvEngine ■Stream Updated!! %04X\n"), wTransportStream);
 
+					bool bSetService = true;
 					WORD Service = 0xFFFF;
 					if (m_SpecServiceID != SID_INVALID) {
 						if (m_TsAnalyzer.GetServiceIndexByID(m_SpecServiceID) < 0) {
-							// サービスがPATにない
-							TRACE(TEXT("Service not found %d\n"), m_SpecServiceID);
-							m_SpecServiceID = SID_INVALID;
+							if (m_TsAnalyzer.GetViewableServiceNum()>0)
+								m_SpecServiceID = SID_INVALID;
+							else
+								bSetService = false;
 						} else {
 							int ServiceIndex = m_TsAnalyzer.GetViewableServiceIndexByID(m_SpecServiceID);
-							if (ServiceIndex >= 0) {
+							if (ServiceIndex >= 0)
 								Service = (WORD)ServiceIndex;
-							} else {
-								// サービスはPATにあるが、まだPMTが来ていない
-								goto ServiceListUpdatedHandler;
-							}
+							else
+								bSetService = false;
 						}
 					}
 					if (Service == 0xFFFF && m_CurServiceID != SID_INVALID) {
 						if (m_TsAnalyzer.GetServiceIndexByID(m_CurServiceID) < 0) {
-							m_CurServiceID = SID_INVALID;
+							if (m_TsAnalyzer.GetViewableServiceNum()>0)
+								m_CurServiceID = SID_INVALID;
+							else
+								bSetService = false;
 						} else {
 							int ServiceIndex = m_TsAnalyzer.GetViewableServiceIndexByID(m_CurServiceID);
-							if (ServiceIndex < 0)
-								goto ServiceListUpdatedHandler;
-							Service = (WORD)ServiceIndex;
+							if (ServiceIndex >= 0)
+								Service = (WORD)ServiceIndex;
+							else
+								bSetService = false;
 						}
 					}
-					SetService(Service);
+					if (bSetService)
+						SetService(Service);
 				}
-			ServiceListUpdatedHandler:
 				if (m_pEventHandler)
 					m_pEventHandler->OnServiceListUpdated(&m_TsAnalyzer, bStreamChanged);
 			}
@@ -721,10 +759,16 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 		}
 	} else if (pDecoder == &m_TsDescrambler) {
 		switch (dwEventID) {
-		case CTsDescrambler::EID_EMM_PROCESSED:
+		case CTsDescrambler::EVENT_EMM_PROCESSED:
 			// EMM処理が行われた
 			if (m_pEventHandler)
 				m_pEventHandler->OnEmmProcessed(static_cast<const BYTE*>(pParam));
+			return 0UL;
+
+		case CTsDescrambler::EVENT_ECM_ERROR:
+			// ECM処理でエラーが発生した
+			if (m_pEventHandler)
+				m_pEventHandler->OnEcmError(static_cast<LPCTSTR>(pParam));
 			return 0UL;
 		}
 	}
@@ -795,12 +839,12 @@ bool CDtvEngine::ResetMediaViewer()
 }
 
 
-bool CDtvEngine::OpenBcasCard(CCardReader::ReaderType CardReaderType)
+bool CDtvEngine::OpenBcasCard(CCardReader::ReaderType CardReaderType, LPCTSTR pszReaderName)
 {
 	// B-CASカードを開く
 	if (CardReaderType!=CCardReader::READER_NONE) {
 		Trace(TEXT("B-CASカードを開いています..."));
-		if (!m_TsDescrambler.OpenBcasCard(CardReaderType)) {
+		if (!m_TsDescrambler.OpenBcasCard(CardReaderType,pszReaderName)) {
 			TCHAR szText[256];
 
 			if (m_TsDescrambler.GetLastErrorText()!=NULL)
@@ -899,10 +943,12 @@ bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly, DWORD Stream)
 }
 
 
+/*
 CEpgDataInfo *CDtvEngine::GetEpgDataInfo(WORD ServiceID, bool bNext)
 {
 	return m_TsPacketParser.GetEpgDataInfo(ServiceID,bNext);
 }
+*/
 
 
 void CDtvEngine::SetTracer(CTracer *pTracer)

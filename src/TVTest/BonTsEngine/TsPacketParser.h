@@ -42,7 +42,7 @@ public:
 	bool InitializeEpgDataCap(LPCTSTR pszDllFileName);
 	bool UnInitializeEpgDataCap();
 	bool IsEpgDataCapLoaded() const;
-	CEpgDataInfo *GetEpgDataInfo(WORD wSID,bool bNext);
+	//CEpgDataInfo *GetEpgDataInfo(WORD wSID,bool bNext);
 	CEpgDataCapDllUtil2 *GetEpgDataCapDllUtil() { return &m_EpgCap; }
 	bool LockEpgDataCap();
 	bool UnlockEpgDataCap();

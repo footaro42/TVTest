@@ -7,6 +7,8 @@
 #include "ChannelList.h"
 #include "DriverManager.h"
 #include "Theme.h"
+#include "ProgramSearch.h"
+#include "EventInfoPopup.h"
 
 
 class CProgramGuideServiceInfo;
@@ -33,6 +35,7 @@ public:
 	CProgramGuideEventHandler();
 	virtual ~CProgramGuideEventHandler();
 	virtual bool OnClose() { return true; }
+	virtual void OnDestroy() {}
 	virtual void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo) {}
 	virtual bool OnBeginUpdate() { return true; }
 	virtual void OnEndUpdate() {}
@@ -99,6 +102,7 @@ public:
 		COLOR_CHANNELNAMETEXT,
 		COLOR_CURCHANNELNAMETEXT,
 		COLOR_TIMETEXT,
+		COLOR_TIMELINE,
 		COLOR_CONTENT_NEWS,
 		COLOR_CONTENT_SPORTS,
 		COLOR_CONTENT_INFORMATION,
@@ -144,6 +148,26 @@ private:
 		POINT StartCursorPos;
 		POINT StartScrollPos;
 	} m_DragInfo;
+	//HWND m_hwndToolTip;
+	CEventInfoPopup m_EventInfoPopup;
+	CEventInfoPopupManager m_EventInfoPopupManager;
+	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
+								 , public CEventInfoPopup::CEventHandler
+	{
+		CProgramGuide *m_pProgramGuide;
+	public:
+		CEventInfoPopupHandler(CProgramGuide *pProgramGuide);
+	// CEventInfoPopupManager::CEventHandler
+		bool HitTest(int x,int y,LPARAM *pParam);
+		bool GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
+		bool OnShow(const CEventInfoData *pInfo);
+	// CEventInfoPopup::CEventHandler
+		bool OnMenuPopup(HMENU hmenu);
+		void OnMenuSelected(int Command);
+	};
+	friend CEventInfoPopupHandler;
+	CEventInfoPopupHandler m_EventInfoPopupHandler;
+	bool m_fShowToolTip;
 	CChannelList m_ChannelList;
 	CTuningSpaceList m_TuningSpaceList;
 	int m_CurrentTuningSpace;
@@ -168,6 +192,17 @@ private:
 	Theme::GradientInfo m_TimeBarBackGradient;
 	CProgramGuideToolList m_ToolList;
 	int m_WheelScrollLines;
+
+	CProgramSearch m_ProgramSearch;
+	class CProgramSearchEventHandler : public CProgramSearch::CEventHandler {
+		CProgramGuide *m_pProgramGuide;
+	public:
+		CProgramSearchEventHandler(CProgramGuide *pProgramGuide);
+		bool Search(LPCTSTR pszKeyword);
+	};
+	friend class CProgramSearchEventHandler;
+	CProgramSearchEventHandler m_ProgramSearchEventHandler;
+
 	bool UpdateList();
 	bool SetTuningSpace(int Space);
 	void CalcLayout();
@@ -178,6 +213,7 @@ private:
 	void Scroll(int XOffset,int YOffset);
 	void SetScrollBar();
 	void SetTitleBar();
+	//void SetToolTip();
 	bool HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex);
 	static HINSTANCE m_hinst;
 	static CProgramGuide *GetThis(HWND hwnd);
@@ -189,6 +225,7 @@ public:
 	~CProgramGuide();
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	void Clear();
 	bool UpdateProgramGuide();
 	bool SetTuningSpaceList(LPCTSTR pszDriverFileName,const CTuningSpaceList *pList,int Space);
 	const CChannelList *GetChannelList() const { return &m_ChannelList; }
@@ -208,6 +245,8 @@ public:
 					  const Theme::GradientInfo *pCurChannelBackGradient,
 					  const Theme::GradientInfo *pTimeBarBackGradient);
 	bool SetFont(const LOGFONT *pFont);
+	bool SetShowToolTip(bool fShow);
+	bool GetShowToolTip() const { return m_fShowToolTip; }
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 	int GetWheelScrollLines() const { return m_WheelScrollLines; }
@@ -216,6 +255,7 @@ public:
 	bool SetMaximize(bool fMaximize);
 	bool GetDragScroll() const { return m_fDragScroll; }
 	bool SetDragScroll(bool fDragScroll);
+	CProgramSearch *GetProgramSearch() { return &m_ProgramSearch; }
 };
 
 

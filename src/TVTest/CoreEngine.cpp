@@ -19,7 +19,7 @@ CCoreEngine::CCoreEngine()
 	m_hDriverLib=NULL;
 	m_DriverType=DRIVER_UNKNOWN;
 	m_fDescramble=true;
-	m_CardReaderType=CCardReader::READER_SCARD;
+	m_CardReaderType=CARDREADER_SCARD;
 	m_fPacketBuffering=false;
 	m_PacketBufferLength=m_DtvEngine.m_MediaBuffer.GetBufferLength();
 	m_PacketBufferPoolPercentage=m_DtvEngine.m_MediaBuffer.GetPoolPercentage();
@@ -43,8 +43,10 @@ CCoreEngine::CCoreEngine()
 	m_BitRate=0;
 	m_PacketBufferUsedCount=0;
 	m_StreamRemain=0;
+	/*
 	m_pEpgDataInfo=NULL;
 	m_pEpgDataInfoNext=NULL;
+	*/
 	m_TimerResolution=0;
 }
 
@@ -52,8 +54,10 @@ CCoreEngine::CCoreEngine()
 CCoreEngine::~CCoreEngine()
 {
 	Close();
+	/*
 	delete m_pEpgDataInfo;
 	delete m_pEpgDataInfoNext;
+	*/
 	if (m_TimerResolution!=0)
 		::timeEndPeriod(m_TimerResolution);
 }
@@ -71,8 +75,8 @@ void CCoreEngine::Close()
 bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 {
 	if (!m_DtvEngine.BuildEngine(pEventHandler,
-				m_fDescramble?m_CardReaderType!=CCardReader::READER_NONE:false,
-				true/*m_fPacketBuffering*/)) {
+			m_fDescramble?m_CardReaderType!=CARDREADER_NONE:false,
+			true/*m_fPacketBuffering*/)) {
 		return false;
 	}
 	return true;
@@ -208,13 +212,43 @@ bool CCoreEngine::CloseMediaViewer()
 }
 
 
+bool CCoreEngine::OpenCardReader()
+{
+	if (m_CardReaderType==CARDREADER_SCARD && IsDriverSpecified()) {
+		// 現在の BonDriver 専用の winscard.dll があればそれを利用する
+		TCHAR szFileName[MAX_PATH];
+
+		if (::PathIsFileSpec(m_szDriverFileName)) {
+			::GetModuleFileName(NULL,szFileName,lengthof(szFileName));
+			::lstrcpy(::PathFindFileName(szFileName),m_szDriverFileName);
+		} else {
+			::lstrcpy(szFileName,m_szDriverFileName);
+		}
+		::PathRenameExtension(szFileName,TEXT(".scard"));
+		if (::PathFileExists(szFileName)) {
+			if (!m_DtvEngine.OpenBcasCard(CCardReader::READER_SCARD_DYNAMIC,szFileName)) {
+				SetError(m_DtvEngine.GetLastErrorException());
+				return false;
+			}
+			return true;
+		}
+	}
+	if (!m_DtvEngine.OpenBcasCard(
+			m_CardReaderType==CARDREADER_SCARD?CCardReader::READER_SCARD:
+			m_CardReaderType==CARDREADER_HDUS?CCardReader::READER_HDUS:
+			CCardReader::READER_NONE)) {
+		SetError(m_DtvEngine.GetLastErrorException());
+		return false;
+	}
+	return true;
+}
+
+
 bool CCoreEngine::OpenBcasCard()
 {
 	if (m_fDescramble) {
-		if (!m_DtvEngine.OpenBcasCard(m_CardReaderType)) {
-			SetError(m_DtvEngine.GetLastErrorException());
+		if (!OpenCardReader())
 			return false;
-		}
 	}
 	return true;
 }
@@ -229,6 +263,13 @@ bool CCoreEngine::CloseBcasCard()
 bool CCoreEngine::IsBcasCardOpen() const
 {
 	return m_DtvEngine.m_TsDescrambler.IsBcasCardOpen();
+}
+
+
+// ある BonDriver 専用の winscard.dll を使用しているか取得する
+bool CCoreEngine::IsDriverCardReader() const
+{
+	return m_DtvEngine.m_TsDescrambler.GetCardReaderType()==CCardReader::READER_SCARD_DYNAMIC;
 }
 
 
@@ -263,18 +304,16 @@ bool CCoreEngine::SetDescramble(bool fDescramble)
 }
 
 
-bool CCoreEngine::SetCardReaderType(CCardReader::ReaderType Type)
+bool CCoreEngine::SetCardReaderType(CardReaderType Type)
 {
-	if (Type<CCardReader::READER_NONE || Type>CCardReader::READER_LAST)
+	if (Type<CARDREADER_NONE || Type>CARDREADER_LAST)
 		return false;
 	if (m_CardReaderType!=Type) {
 		if (m_DtvEngine.IsEngineBuild()) {
-			if (!SetDescramble(Type!=CCardReader::READER_NONE))
+			if (!SetDescramble(Type!=CARDREADER_NONE))
 				return false;
-			if (!m_DtvEngine.OpenBcasCard(Type)) {
-				SetError(m_DtvEngine.GetLastErrorException());
+			if (!OpenCardReader())
 				return false;
-			}
 		}
 		m_CardReaderType=Type;
 	}
@@ -284,6 +323,9 @@ bool CCoreEngine::SetCardReaderType(CCardReader::ReaderType Type)
 
 bool CCoreEngine::IsNetworkDriverFileName(LPCTSTR pszFileName)
 {
+	if (pszFileName==NULL)
+		return false;
+
 	LPCTSTR pszName=::PathFindFileName(pszFileName);
 
 	if (::lstrcmpi(pszName,TEXT("BonDriver_UDP.dll"))==0
@@ -510,6 +552,7 @@ int CCoreEngine::GetPacketBufferUsedPercentage()
 }
 
 
+/*
 bool CCoreEngine::UpdateEpgDataInfo()
 {
 	WORD ServiceID;
@@ -529,6 +572,65 @@ const CEpgDataInfo *CCoreEngine::GetEpgDataInfo(bool fNext) const
 	if (fNext)
 		return m_pEpgDataInfoNext;
 	return m_pEpgDataInfo;
+}
+*/
+
+
+bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool fNext)
+{
+	if (pInfo==NULL)
+		return false;
+
+	CTsAnalyzer::EventInfo EventInfo;
+	TCHAR szEventName[256],szEventText[256],szEventExtText[2048];
+
+	EventInfo.pszEventName=szEventName;
+	EventInfo.MaxEventName=lengthof(szEventName);
+	EventInfo.pszEventText=szEventText;
+	EventInfo.MaxEventText=lengthof(szEventText);
+	EventInfo.pszEventExtendedText=szEventExtText;
+	EventInfo.MaxEventExtendedText=lengthof(szEventExtText);
+	if (ServiceID==0xFFFF) {
+		if (!m_DtvEngine.GetServiceID(&ServiceID))
+			return false;
+	}
+	int ServiceIndex=m_DtvEngine.m_TsAnalyzer.GetServiceIndexByID(ServiceID);
+	if (ServiceIndex<0
+			|| !m_DtvEngine.m_TsAnalyzer.GetEventInfo(ServiceIndex ,&EventInfo, true, fNext))
+		return false;
+
+	pInfo->m_OriginalNID=m_DtvEngine.m_TsAnalyzer.GetNetworkID();
+	pInfo->m_TSID=m_DtvEngine.m_TsAnalyzer.GetTransportStreamID();
+	m_DtvEngine.GetServiceID(&pInfo->m_ServiceID);
+	pInfo->m_EventID=EventInfo.EventID;
+	pInfo->m_fValidStartTime=EventInfo.bValidStartTime;
+	if (EventInfo.bValidStartTime)
+		pInfo->m_stStartTime=EventInfo.StartTime;
+	pInfo->m_DurationSec=EventInfo.Duration;
+	pInfo->m_ComponentType=EventInfo.Video.ComponentType;
+	if (EventInfo.Audio.size()>0) {
+		pInfo->m_AudioComponentType=EventInfo.Audio[0].ComponentType;
+		pInfo->m_fESMultiLangFlag=EventInfo.Audio[0].bESMultiLingualFlag;
+		pInfo->m_SamplingRate=EventInfo.Audio[0].SamplingRate;
+	} else {
+		pInfo->m_AudioComponentType=0;
+		pInfo->m_fESMultiLangFlag=false;
+		pInfo->m_SamplingRate=0;
+	}
+	pInfo->SetEventName(szEventName[0]!='\0'?szEventName:NULL);
+	pInfo->SetEventText(szEventText[0]!='\0'?szEventText:NULL);
+	pInfo->SetEventExtText(szEventExtText[0]!='\0'?szEventExtText:NULL);
+	pInfo->m_NibbleList.resize(EventInfo.ContentNibble.NibbleCount);
+	for (int i=0;i<EventInfo.ContentNibble.NibbleCount;i++) {
+		const CContentDesc::Nibble &ContentNibble=EventInfo.ContentNibble.NibbleList[i];
+		CEventInfoData::NibbleData &Nibble=pInfo->m_NibbleList[i];
+		Nibble.m_ContentNibbleLv1=ContentNibble.ContentNibbleLevel1;
+		Nibble.m_ContentNibbleLv2=ContentNibble.ContentNibbleLevel2;
+		Nibble.m_UserNibbleLv1=ContentNibble.UserNibble1;
+		Nibble.m_UserNibbleLv2=ContentNibble.UserNibble2;
+	}
+
+	return true;
 }
 
 

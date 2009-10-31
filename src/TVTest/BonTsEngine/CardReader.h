@@ -7,15 +7,17 @@
 #include "BonBaseClass.h"
 
 
-class CCardReader : public CBonBaseClass
+// カードリーダー基底クラス
+class __declspec(novtable) CCardReader : public CBonBaseClass
 {
 public:
 	enum ReaderType {
 		READER_NONE,
 		READER_SCARD,
+		READER_SCARD_DYNAMIC,
 		READER_HDUS,
+		READER_LAST=READER_HDUS
 	};
-	enum { READER_LAST=READER_HDUS };
 private:
 	ReaderType m_ReaderType;
 public:
@@ -31,6 +33,7 @@ public:
 	static CCardReader *CreateCardReader(ReaderType Type);
 };
 
+// スマートカードリーダー(スタティックリンク)
 class CSCardReader : public CCardReader
 {
 	SCARDCONTEXT m_ScardContext;
@@ -39,7 +42,6 @@ class CSCardReader : public CCardReader
 	LPTSTR m_pReaderList;
 	int m_NumReaders;
 	LPTSTR m_pszReaderName;
-	static LPCTSTR GetErrorText(LONG Code);
 public:
 	CSCardReader();
 	~CSCardReader();
@@ -51,6 +53,33 @@ public:
 	bool Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize);
 };
 
+// スマートカードリーダー(ダイナミックリンク)
+// わざわざスタティックリンクと分けているのは、BonCasLink等がバージョンによって
+// スタティックリンクでなければ利用できないため
+class CDynamicSCardReader : public CCardReader
+{
+	HMODULE m_hLib;
+	SCARDCONTEXT m_ScardContext;
+	SCARDHANDLE m_hBcasCard;
+	LPTSTR m_pReaderList;
+	int m_NumReaders;
+	LPTSTR m_pszReaderName;
+	typedef LONG (WINAPI *SCardTransmitFunc)(SCARDHANDLE,LPCSCARD_IO_REQUEST,LPCBYTE,
+											 DWORD,LPSCARD_IO_REQUEST,LPBYTE,LPDWORD);
+	SCardTransmitFunc m_pSCardTransmit;
+	bool Load(LPCTSTR pszFileName);
+public:
+	CDynamicSCardReader();
+	~CDynamicSCardReader();
+	bool Open(LPCTSTR pszReader);
+	void Close();
+	LPCTSTR GetReaderName() const;
+	int NumReaders() const;
+	LPCTSTR EnumReader(int Index) const;
+	bool Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize);
+};
+
+// HDUS内蔵カードリーダー
 class CHdusCardReader : public CCardReader
 {
 	IBaseFilter *m_pTuner;

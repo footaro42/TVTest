@@ -1,6 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "ChannelScan.h"
@@ -14,6 +12,10 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+// 信号レベルを考慮する場合の閾値
+#define SIGNAL_LEVEL_THRESHOLD	7.0f
+
+// スキャンスレッドから送られるメッセージ
 #define WM_APP_BEGINSCAN	WM_APP
 #define WM_APP_CHANNELFOUND	(WM_APP+1)
 #define WM_APP_ENDSCAN		(WM_APP+2)
@@ -372,6 +374,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				DlgCheckBox_Check(hDlg,IDC_CHANNELSCAN_SCANSERVICE,fBS || fCS);
 				EnableDlgItem(hDlg,IDC_CHANNELSCAN_LOADPRESET,fBS || fCS);
 				pThis->m_SortColumn=-1;
+				SetListViewSortMark(::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST),-1);
 			}
 			return TRUE;
 
@@ -409,6 +412,8 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 							}
 							pThis->m_fUpdated=true;
 							pThis->SetChannelList(pThis->m_ScanSpace);
+							pThis->m_SortColumn=-1;
+							SetListViewSortMark(::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST),-1);
 						}
 					}
 				}
@@ -421,6 +426,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				if (Space>=0) {
 					CChannelScan *pThis=GetThis(hDlg);
+					HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
 
 					if (GetAppClass().GetMainWindow()->IsPreview()) {
 						GetAppClass().GetMainWindow()->EnablePreview(false);
@@ -434,24 +440,42 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
 					pThis->m_ScanWait=(DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
 					pThis->m_RetryCount=DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
-					ListView_DeleteAllItems(::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST));
+					ListView_DeleteAllItems(hwndList);
 					if (::DialogBoxParam(GetAppClass().GetResourceInstance(),
 							MAKEINTRESOURCE(IDD_CHANNELSCAN),::GetParent(hDlg),
 							ScanDlgProc,reinterpret_cast<LPARAM>(pThis))==IDOK) {
-						HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
-						CChannelListSort ListSort(CChannelListSort::SORT_REMOTECONTROLKEYID);
+						if (ListView_GetItemCount(hwndList)>0) {
+							CChannelListSort ListSort(CChannelListSort::SORT_REMOTECONTROLKEYID);
 
-						ListSort.Sort(hwndList);
-						ListSort.UpdateChannelList(hwndList,&pThis->m_ScanningChannelList);
-						pThis->m_SortColumn=(int)CChannelListSort::SORT_REMOTECONTROLKEYID;
-						pThis->m_fSortDescending=false;
-						*pThis->m_TuningSpaceList.GetChannelList(Space)=
+							ListSort.Sort(hwndList);
+							ListSort.UpdateChannelList(hwndList,&pThis->m_ScanningChannelList);
+							pThis->m_SortColumn=(int)CChannelListSort::SORT_REMOTECONTROLKEYID;
+							pThis->m_fSortDescending=false;
+							*pThis->m_TuningSpaceList.GetChannelList(Space)=
 												pThis->m_ScanningChannelList;
-						if (pThis->m_TuningSpaceList.GetTuningSpaceName(Space)==NULL) {
-							pThis->m_TuningSpaceList.GetTuningSpaceInfo(Space)->SetName(
-								pThis->m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(Space));
-						}
+							if (pThis->m_TuningSpaceList.GetTuningSpaceName(Space)==NULL) {
+								pThis->m_TuningSpaceList.GetTuningSpaceInfo(Space)->SetName(
+									pThis->m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(Space));
+							}
+							SetListViewSortMark(hwndList,pThis->m_SortColumn,!pThis->m_fSortDescending);
+						} else {
+							// チャンネルが検出できなかった
+							TCHAR szText[1024];
 
+							::lstrcpy(szText,TEXT("チャンネルが検出できませんでした。"));
+							if ((pThis->m_fIgnoreSignalLevel
+										&& pThis->m_MaxSignalLevel<1.0f)
+									|| (!pThis->m_fIgnoreSignalLevel
+										&& pThis->m_MaxSignalLevel<SIGNAL_LEVEL_THRESHOLD)) {
+								::lstrcat(szText,TEXT("\n信号レベルが取得できないか、低すぎます。"));
+								if (!pThis->m_fIgnoreSignalLevel
+										&& pThis->m_MaxBitRate>1000000*8)
+									::lstrcat(szText,TEXT("\n[信号レベルを無視する] をチェックしてスキャンしてみてください。"));
+							} else if (pThis->m_MaxBitRate<1000000*8) {
+								::lstrcat(szText,TEXT("\nストリームを受信できません。"));
+							}
+							::MessageBox(hDlg,szText,TEXT("スキャン結果"),MB_OK | MB_ICONEXCLAMATION);
+						}
 						pThis->m_fUpdated=true;
 					} else {
 						pThis->SetChannelList(Space);
@@ -539,6 +563,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				ListSort.Sort(pnmlv->hdr.hwndFrom);
 				ListSort.UpdateChannelList(pnmlv->hdr.hwndFrom,
 					pThis->m_TuningSpaceList.GetChannelList(pThis->m_ScanSpace));
+				SetListViewSortMark(pnmlv->hdr.hwndFrom,pnmlv->iSubItem,!pThis->m_fSortDescending);
 			}
 			return TRUE;
 
@@ -691,6 +716,7 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 								 pThis->m_ScanChannel,i);
 			::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_PROGRESS,PBM_SETPOS,
 								 pThis->m_ScanChannel,0);
+			pThis->m_fOK=false;
 			pThis->m_hCancelEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
 			GetAppClass().BeginChannelScan();
 			pThis->m_hScanThread=::CreateThread(NULL,0,ScanProc,pThis,0,NULL);
@@ -789,6 +815,8 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 	bool fComplete=false;
 
 	pThis->m_ScanningChannelList.Clear();
+	pThis->m_MaxSignalLevel=0.0f;
+	pThis->m_MaxBitRate=0;
 	while (true) {
 		LPCTSTR pszName=pDtvEngine->m_BonSrcDecoder.GetChannelName(pThis->m_ScanSpace,pThis->m_ScanChannel);
 
@@ -804,10 +832,13 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		int NumServices;
 		TCHAR szName[32];
 		if (pThis->m_fIgnoreSignalLevel
-				|| pDtvEngine->m_BonSrcDecoder.GetSignalLevel()>7.0) {
+				|| pThis->GetSignalLevel()>=SIGNAL_LEVEL_THRESHOLD) {
 			for (int i=0;i<=pThis->m_RetryCount;i++) {
-				if (i>0 && ::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_RetryInterval)==WAIT_OBJECT_0)
-					goto End;
+				if (i>0) {
+					if (::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_RetryInterval)==WAIT_OBJECT_0)
+						goto End;
+					pThis->GetSignalLevel();
+				}
 				NumServices=pTsAnalyzer->GetViewableServiceNum();
 				if (NumServices>0) {
 					WORD ServiceID;
@@ -877,6 +908,19 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 End:
 	::PostMessage(pThis->m_hScanDlg,WM_APP_ENDSCAN,fComplete,0);
 	return 0;
+}
+
+
+float CChannelScan::GetSignalLevel()
+{
+	CBonSrcDecoder *pBonSrcDecoder=&m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder;
+	float SignalLevel=pBonSrcDecoder->GetSignalLevel();
+	if (SignalLevel>m_MaxSignalLevel)
+		m_MaxSignalLevel=SignalLevel;
+	DWORD BitRate=pBonSrcDecoder->GetBitRate();
+	if (BitRate>m_MaxBitRate)
+		m_MaxBitRate=BitRate;
+	return SignalLevel;
 }
 
 

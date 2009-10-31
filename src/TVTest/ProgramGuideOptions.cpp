@@ -1,10 +1,15 @@
 #include "stdafx.h"
-#include <commctrl.h>
 #include "TVTest.h"
 #include "ProgramGuideOptions.h"
 #include "Settings.h"
 #include "DialogUtil.h"
 #include "resource.h"
+
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
 
 
 
@@ -49,6 +54,10 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 			m_WheelScrollLines=Value;
 		m_pProgramGuide->SetWheelScrollLines(m_WheelScrollLines);
 
+		bool f;
+		if (Settings.Read(TEXT("ShowToolTip"),&f))
+			m_pProgramGuide->SetShowToolTip(f);
+
 		// Font
 		TCHAR szFont[LF_FACESIZE];
 		if (Settings.Read(TEXT("FontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
@@ -76,6 +85,44 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 		bool fDragScroll;
 		if (Settings.Read(TEXT("DragScroll"),&fDragScroll))
 			m_pProgramGuide->SetDragScroll(fDragScroll);
+
+		CProgramSearch *pProgramSearch=m_pProgramGuide->GetProgramSearch();
+		int NumSearchKeywords;
+		if (Settings.Read(TEXT("NumSearchKeywords"),&NumSearchKeywords)
+				&& NumSearchKeywords>0) {
+			LPTSTR *ppszKeywords=new LPTSTR[min(NumSearchKeywords,CProgramSearch::MAX_KEYWORD_HISTORY)];
+			TCHAR szName[32];
+
+			int j=0;
+			for (int i=0;i<NumSearchKeywords;i++) {
+				TCHAR szKeyword[CProgramSearch::MAX_KEYWORD_LENGTH];
+
+				::wsprintf(szName,TEXT("SearchKeyword%d"),i);
+				if (Settings.Read(szName,szKeyword,lengthof(szKeyword))
+						&& szKeyword[0]!='\0')
+					ppszKeywords[j++]=DuplicateString(szKeyword);
+			}
+			if (j>0) {
+				pProgramSearch->SetKeywordHistory(ppszKeywords,j);
+				for (j--;j>=0;j--)
+					delete [] ppszKeywords[j];
+			}
+			delete [] ppszKeywords;
+		}
+		for (int i=0;i<CProgramSearch::NUM_COLUMNS;i++) {
+			TCHAR szName[32];
+
+			::wsprintf(szName,TEXT("SearchColumn%d_Width"),i);
+			if (Settings.Read(szName,&Value))
+				pProgramSearch->SetColumnWidth(i,Value);
+		}
+		int Left,Top,Width,Height;
+		pProgramSearch->GetPosition(&Left,&Top,&Width,&Height);
+		Settings.Read(TEXT("SearchLeft"),&Left);
+		Settings.Read(TEXT("SearchTop"),&Top);
+		Settings.Read(TEXT("SearchWidth"),&Width);
+		Settings.Read(TEXT("SearchHeight"),&Height);
+		pProgramSearch->SetPosition(Left,Top,Width,Height);
 
 		Settings.Close();
 	}
@@ -125,6 +172,29 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Write(TEXT("FontItalic"),(int)m_Font.lfItalic);
 
 		Settings.Write(TEXT("DragScroll"),m_pProgramGuide->GetDragScroll());
+		Settings.Write(TEXT("ShowToolTip"),m_pProgramGuide->GetShowToolTip());
+
+		const CProgramSearch *pProgramSearch=m_pProgramGuide->GetProgramSearch();
+		int NumSearchKeywords=pProgramSearch->GetKeywordHistoryCount();
+		Settings.Write(TEXT("NumSearchKeywords"),NumSearchKeywords);
+		for (int i=0;i<NumSearchKeywords;i++) {
+			TCHAR szName[32];
+
+			::wsprintf(szName,TEXT("SearchKeyword%d"),i);
+			Settings.Write(szName,pProgramSearch->GetKeywordHistory(i));
+		}
+		for (int i=0;i<CProgramSearch::NUM_COLUMNS;i++) {
+			TCHAR szName[32];
+
+			::wsprintf(szName,TEXT("SearchColumn%d_Width"),i);
+			Settings.Write(szName,pProgramSearch->GetColumnWidth(i));
+		}
+		int Left,Top,Width,Height;
+		pProgramSearch->GetPosition(&Left,&Top,&Width,&Height);
+		Settings.Write(TEXT("SearchLeft"),Left);
+		Settings.Write(TEXT("SearchTop"),Top);
+		Settings.Write(TEXT("SearchWidth"),Width);
+		Settings.Write(TEXT("SearchHeight"),Height);
 
 		Settings.Close();
 	}

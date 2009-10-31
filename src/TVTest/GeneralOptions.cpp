@@ -5,7 +5,6 @@
 #include "AppMain.h"
 #include "GeneralOptions.h"
 #include "DialogUtil.h"
-#include "Util.h"
 #include "MessageDialog.h"
 #include "resource.h"
 
@@ -31,9 +30,10 @@ CGeneralOptions::CGeneralOptions()
 {
 	m_DefaultDriverType=DEFAULT_DRIVER_LAST;
 	m_szDefaultDriverName[0]='\0';
+	m_szLastDriverName[0]='\0';
 	m_szMpeg2DecoderName[0]='\0';
 	m_VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
-	m_CardReaderType=CCardReader::READER_SCARD;
+	m_CardReaderType=CCoreEngine::CARDREADER_SCARD;
 	m_fTemporaryNoDescramble=false;
 	m_fResident=false;
 	m_fKeepSingleTask=false;
@@ -75,7 +75,7 @@ bool CGeneralOptions::Apply(DWORD Flags)
 		if (!pCoreEngine->SetCardReaderType(m_CardReaderType)) {
 			AppMain.AddLog(pCoreEngine->GetLastErrorText());
 			pMainWindow->ShowErrorMessage(pCoreEngine);
-			pCoreEngine->SetCardReaderType(CCardReader::READER_NONE);
+			pCoreEngine->SetCardReaderType(CCoreEngine::CARDREADER_NONE);
 		}
 	}
 
@@ -113,6 +113,8 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 		m_DefaultDriverType=(DefaultDriverType)Value;
 	pSettings->Read(TEXT("DefaultDriver"),
 					m_szDefaultDriverName,lengthof(m_szDefaultDriverName));
+	pSettings->Read(TEXT("Driver"),
+					m_szLastDriverName,lengthof(m_szLastDriverName));
 	pSettings->Read(TEXT("Mpeg2Decoder"),
 					m_szMpeg2DecoderName,lengthof(m_szMpeg2DecoderName));
 	TCHAR szRenderer[16];
@@ -127,10 +129,10 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 	}
 	bool fNoDescramble;
 	if (pSettings->Read(TEXT("NoDescramble"),&fNoDescramble) && fNoDescramble)	// Backward compatibility
-		m_CardReaderType=CCardReader::READER_NONE;
+		m_CardReaderType=CCoreEngine::CARDREADER_NONE;
 	if (pSettings->Read(TEXT("CardReader"),&Value)
-			&& Value>=CCardReader::READER_NONE && Value<=CCardReader::READER_LAST)
-		m_CardReaderType=(CCardReader::ReaderType)Value;
+			&& Value>=CCoreEngine::CARDREADER_NONE && Value<=CCoreEngine::CARDREADER_LAST)
+		m_CardReaderType=(CCoreEngine::CardReaderType)Value;
 	pSettings->Read(TEXT("Resident"),&m_fResident);
 	pSettings->Read(TEXT("KeepSingleTask"),&m_fKeepSingleTask);
 	pSettings->Read(TEXT("DescrambleSSE2"),&m_fDescrambleUseSSE2);
@@ -149,10 +151,11 @@ bool CGeneralOptions::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("DefaultDriverType"),(int)m_DefaultDriverType);
 	pSettings->Write(TEXT("DefaultDriver"),m_szDefaultDriverName);
+	pSettings->Write(TEXT("Driver"),GetAppClass().GetCoreEngine()->GetDriverFileName());
 	pSettings->Write(TEXT("Mpeg2Decoder"),m_szMpeg2DecoderName);
 	pSettings->Write(TEXT("Renderer"),
 					 CVideoRenderer::EnumRendererName((int)m_VideoRendererType));
-	pSettings->Write(TEXT("NoDescramble"),m_CardReaderType==CCardReader::READER_NONE);	// Backward compatibility
+	pSettings->Write(TEXT("NoDescramble"),m_CardReaderType==CCoreEngine::CARDREADER_NONE);	// Backward compatibility
 	pSettings->Write(TEXT("CardReader"),(int)m_CardReaderType);
 	pSettings->Write(TEXT("Resident"),m_fResident);
 	pSettings->Write(TEXT("KeepSingleTask"),m_fKeepSingleTask);
@@ -188,6 +191,25 @@ bool CGeneralOptions::SetDefaultDriverName(LPCTSTR pszDriverName)
 }
 
 
+bool CGeneralOptions::GetFirstDriverName(LPTSTR pszDriverName) const
+{
+	switch (m_DefaultDriverType) {
+	case DEFAULT_DRIVER_NONE:
+		pszDriverName[0]='\0';
+		break;
+	case DEFAULT_DRIVER_LAST:
+		::lstrcpy(pszDriverName,m_szLastDriverName);
+		break;
+	case DEFAULT_DRIVER_CUSTOM:
+		::lstrcpy(pszDriverName,m_szDefaultDriverName);
+		break;
+	default:
+		return false;
+	}
+	return true;
+}
+
+
 LPCTSTR CGeneralOptions::GetMpeg2DecoderName() const
 {
 	return m_szMpeg2DecoderName;
@@ -219,15 +241,15 @@ bool CGeneralOptions::SetVideoRendererType(CVideoRenderer::RendererType Renderer
 }
 
 
-CCardReader::ReaderType CGeneralOptions::GetCardReaderType() const
+CCoreEngine::CardReaderType CGeneralOptions::GetCardReaderType() const
 {
 	return m_CardReaderType;
 }
 
 
-bool CGeneralOptions::SetCardReaderType(CCardReader::ReaderType CardReader)
+bool CGeneralOptions::SetCardReaderType(CCoreEngine::CardReaderType CardReader)
 {
-	if (CardReader<CCardReader::READER_NONE || CardReader>CCardReader::READER_LAST)
+	if (CardReader<CCoreEngine::CARDREADER_NONE || CardReader>CCoreEngine::CARDREADER_LAST)
 		return false;
 	m_CardReaderType=CardReader;
 	return true;
@@ -374,7 +396,7 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
 									IDC_OPTIONS_DESCRAMBLEBENCHMARK,false);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,pThis->m_fDescrambleCurServiceOnly);
-			if (pThis->m_CardReaderType==CCardReader::READER_NONE)
+			if (pThis->m_CardReaderType==CCoreEngine::CARDREADER_NONE)
 				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
 									IDC_OPTIONS_ENABLEEMMPROCESS,false);
 
@@ -481,7 +503,11 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					goto Again;
 
 				::SetCursor(hcurOld);
-				int Percentage=(int)(NormalTime*100/SSE2Time)-100;
+				int Percentage;
+				if (NormalTime>=SSE2Time)
+					Percentage=(int)(NormalTime*100/SSE2Time)-100;
+				else
+					Percentage=-(int)((SSE2Time*100/NormalTime)-100);
 				TCHAR szText[256];
 				::wsprintf(szText,TEXT("%lu 回の実行に掛かった時間\nSSE2不使用 : %lu ms\nSSE2使用 : %lu ms\nSSE2で高速化される割合 : %d %%\n\n%s"),
 						   BenchmarkCount,NormalTime,SSE2Time,Percentage,
@@ -536,9 +562,9 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
-				CCardReader::ReaderType CardReader=(CCardReader::ReaderType)
+				CCoreEngine::CardReaderType CardReader=(CCoreEngine::CardReaderType)
 					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_CARDREADER);
-				if ((pThis->m_fTemporaryNoDescramble && CardReader!=CCardReader::READER_NONE)
+				if ((pThis->m_fTemporaryNoDescramble && CardReader!=CCoreEngine::CARDREADER_NONE)
 						|| (!pThis->m_fTemporaryNoDescramble && CardReader!=pThis->m_CardReaderType)) {
 					pThis->m_CardReaderType=CardReader;
 					pThis->m_fTemporaryNoDescramble=false;

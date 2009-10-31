@@ -103,15 +103,11 @@ HRESULT CBonSrcPin::Inactive(void)
 {
 	TRACE(TEXT("CBonSrcPin::Inactive()\n"));
 
-	//DeliverEndOfStream();
-
 	HRESULT hr=CBaseOutputPin::Inactive();
-	if (FAILED(hr))
-		return hr;
 
 	EndStreamThread();
 
-	return S_OK;
+	return hr;
 }
 
 HRESULT CBonSrcPin::Run(REFERENCE_TIME tStart)
@@ -168,9 +164,9 @@ void CBonSrcPin::Reset()
 void CBonSrcPin::Flush()
 {
 	TRACE(TEXT("CBonSrcPin::Flush()\n"));
+	Reset();
 	DeliverBeginFlush();
 	DeliverEndFlush();
-	Reset();
 }
 
 bool CBonSrcPin::EnableSync(bool bEnable)

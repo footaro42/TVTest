@@ -32,6 +32,7 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_bIsPlaying(false)
 	, m_BitRate(0)
 	, m_StreamRemain(0)
+	, m_bPurgeStreamOnChannelChange(true)
 {
 }
 
@@ -188,11 +189,13 @@ const bool CBonSrcDecoder::CloseTuner(void)
 
 const bool CBonSrcDecoder::IsOpen() const
 {
-	return m_pBonDriver!=NULL;
+	return m_pBonDriver != NULL;
 }
 
 const bool CBonSrcDecoder::Play(void)
 {
+	TRACE(TEXT("CBonSrcDecoder::Play()\n"));
+
 	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		SetError(ERR_NOTOPEN,NULL);
@@ -231,6 +234,8 @@ const bool CBonSrcDecoder::Play(void)
 
 const bool CBonSrcDecoder::Stop(void)
 {
+	TRACE(TEXT("CBonSrcDecoder::Stop()\n"));
+
 	if (!m_bIsPlaying) {
 		// ストリームは再生中でない
 		/*
@@ -256,6 +261,8 @@ const bool CBonSrcDecoder::Stop(void)
 
 const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 {
+	TRACE(TEXT("CBonSrcDecoder::SetChannel(%d)\n"), byChannel);
+
 	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		SetError(ERR_NOTOPEN,NULL);
@@ -268,7 +275,8 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 	}
 
 	// 未処理のストリームを破棄する
-	m_pBonDriver->PurgeTsStream();
+	if (m_bPurgeStreamOnChannelChange)
+		m_pBonDriver->PurgeTsStream();
 
 	// チャンネルを変更する
 	if (!m_pBonDriver->SetChannel(byChannel)) {
@@ -290,6 +298,8 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 
 const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel)
 {
+	TRACE(TEXT("CBonSrcDecoder::SetChannel(%lu, %lu)\n"), dwSpace, dwChannel);
+
 	if (m_pBonDriver2 == NULL) {
 		// チューナが開かれていない
 		SetError(ERR_NOTOPEN,NULL);
@@ -302,7 +312,8 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 	}
 
 	// 未処理のストリームを破棄する
-	m_pBonDriver2->PurgeTsStream();
+	if (m_bPurgeStreamOnChannelChange)
+		m_pBonDriver2->PurgeTsStream();
 
 	// チャンネルを変更する
 	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
@@ -364,6 +375,8 @@ LPCTSTR CBonSrcDecoder::GetChannelName(const DWORD dwSpace, const DWORD dwChanne
 
 const bool CBonSrcDecoder::PurgeStream(void)
 {
+	TRACE(TEXT("CBonSrcDecoder::PurgeStream()\n"));
+
 	if (m_pBonDriver == NULL) {
 		// チューナが開かれていない
 		SetError(ERR_NOTOPEN,NULL);
@@ -504,7 +517,7 @@ int CBonSrcDecoder::NumSpaces() const
 {
 	int i;
 
-	for (i=0; GetSpaceName(i)!=NULL; i++);
+	for (i = 0; GetSpaceName(i) != NULL; i++);
 	return i;
 }
 
@@ -548,4 +561,11 @@ DWORD CBonSrcDecoder::GetBitRate() const
 DWORD CBonSrcDecoder::GetStreamRemain() const
 {
 	return m_StreamRemain;
+}
+
+
+void CBonSrcDecoder::SetPurgeStreamOnChannelChange(bool bPurge)
+{
+	TRACE(TEXT("CBonSrcDecoder::SetPurgeStreamOnChannelChange(%s)\n"), bPurge ? TEXT("true") : TEXT("false"));
+	m_bPurgeStreamOnChannelChange = bPurge;
 }

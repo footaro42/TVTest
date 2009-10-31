@@ -236,6 +236,7 @@ bool CTsPacketParser::IsEpgDataCapLoaded() const
 }
 
 
+/*
 CEpgDataInfo *CTsPacketParser::GetEpgDataInfo(WORD wSID,bool bNext)
 {
 	EPG_DATA_INFO *pData;
@@ -245,6 +246,7 @@ CEpgDataInfo *CTsPacketParser::GetEpgDataInfo(WORD wSID,bool bNext)
 		pInfo=new CEpgDataInfo(pData);
 	return pInfo;
 }
+*/
 
 
 bool CTsPacketParser::LockEpgDataCap()

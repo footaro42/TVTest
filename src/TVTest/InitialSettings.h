@@ -3,8 +3,7 @@
 
 
 #include "DriverManager.h"
-#include "DirectShowFilter/VideoRenderer.h"
-#include "BonTsEngine/CardReader.h"
+#include "CoreEngine.h"
 #include "Aero.h"
 #include "DrawUtil.h"
 
@@ -14,7 +13,7 @@ class CInitialSettings {
 	TCHAR m_szDriverFileName[MAX_PATH];
 	TCHAR m_szMpeg2DecoderName[128];
 	CVideoRenderer::RendererType m_VideoRenderer;
-	CCardReader::ReaderType m_CardReader;
+	CCoreEngine::CardReaderType m_CardReader;
 	TCHAR m_szRecordFolder[MAX_PATH];
 	CAeroGlass m_AeroGlass;
 	CGdiPlus m_GdiPlus;
@@ -29,7 +28,7 @@ public:
 	LPCTSTR GetMpeg2DecoderName() const { return m_szMpeg2DecoderName; }
 	bool GetMpeg2DecoderName(LPTSTR pszDecoderName,int MaxLength) const;
 	CVideoRenderer::RendererType GetVideoRenderer() const { return m_VideoRenderer; }
-	CCardReader::ReaderType GetCardReader() const { return m_CardReader; }
+	CCoreEngine::CardReaderType GetCardReader() const { return m_CardReader; }
 	LPCTSTR GetRecordFolder() const { return m_szRecordFolder; }
 	bool ShowDialog(HWND hwndOwner);
 };

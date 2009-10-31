@@ -9,6 +9,25 @@ class CBasicDialog {
 protected:
 	HWND m_hDlg;
 	bool m_fModeless;
+	struct Position {
+		int x,y;
+		int Width,Height;
+		Position() : x(0), y(0), Width(0), Height(0) {}
+		void Set(const RECT *pRect) {
+			x=pRect->left;
+			y=pRect->top;
+			Width=pRect->right-x;
+			Height=pRect->bottom-y;
+		}
+		void Get(RECT *pRect) const {
+			pRect->left=x;
+			pRect->top=y;
+			pRect->right=x+Width;
+			pRect->bottom=y+Height;
+		}
+	};
+	Position m_Position;
+
 	static CBasicDialog *GetThis(HWND hDlg);
 	static INT_PTR CALLBACK DialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	int ShowDialog(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate);
@@ -26,6 +45,10 @@ public:
 	bool ProcessMessage(LPMSG pMsg);
 	bool IsVisible() const;
 	bool SetVisible(bool fVisible);
+	bool GetPosition(RECT *pPosition) const;
+	bool GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const;
+	bool SetPosition(const RECT *pPosition);
+	bool SetPosition(int Left,int Top,int Width,int Height);
 };
 
 class CResizableDialog : public CBasicDialog {
@@ -60,6 +83,7 @@ protected:
 	void DoLayout();
 	bool AddControl(int ID,unsigned int Align);
 	bool AddControls(int FirstID,int LastID,unsigned int Align);
+	void ApplyPosition();
 
 public:
 	CResizableDialog();

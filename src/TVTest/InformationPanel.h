@@ -1,13 +1,13 @@
-#ifndef INFORMATION_H
-#define INFORMATION_H
+#ifndef INFORMATION_PANEL_H
+#define INFORMATION_PANEL_H
 
 
-#include "InfoPanel.h"
-#include "Util.h"
+#include "PanelForm.h"
 #include "Settings.h"
 
 
-class CInformationPanel : public CInfoPanelPage {
+class CInformationPanel : public CPanelForm::CPage
+{
 public:
 	class CEventHandler {
 	public:
@@ -29,7 +29,9 @@ public:
 	};
 
 private:
+	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
+
 	HWND m_hwndProgramInfo;
 	WNDPROC m_pOldProgramInfoProc;
 	HWND m_hwndProgramInfoPrev;
@@ -100,7 +102,7 @@ public:
 	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
 							ULONGLONG WroteSize=0,unsigned int RecordTime=0);
 	void SetProgramInfo(LPCTSTR pszInfo);
-	bool GetProgramInfoNext() { return m_fNextProgramInfo; }
+	bool GetProgramInfoNext() const { return m_fNextProgramInfo; }
 	bool SetEventHandler(CEventHandler *pHandler);
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;

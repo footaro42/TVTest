@@ -14,6 +14,7 @@ public:
 	bool Initialize(HWND hwnd);
 	void Finalize();
 	bool HandleMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
+	bool SetRecordingStatus(bool fRecording);
 };
 
 

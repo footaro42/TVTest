@@ -2,56 +2,13 @@
 
 #include "MediaData.h"
 #include "TsMedia.h"
+#include "VideoInfo.h"
 
 
 #define H264PARSERFILTER_NAME TEXT("H264 Parser Filter")
 
 // {46941C5F-AD0A-47fc-A35A-155ECFCEB4BA}
 DEFINE_GUID(CLSID_H264ParserFilter, 0x46941c5f, 0xad0a, 0x47fc, 0xa3, 0x5a, 0x15, 0x5e, 0xcf, 0xce, 0xb4, 0xba);
-
-class CMpeg2VideoInfo
-{
-public:
-	WORD m_OrigWidth,m_OrigHeight;
-	WORD m_DisplayWidth,m_DisplayHeight;
-	WORD m_PosX,m_PosY;
-	BYTE m_AspectRatioX,m_AspectRatioY;
-	CMpeg2VideoInfo()
-	{
-		m_OrigWidth=0;
-		m_OrigHeight=0;
-		m_DisplayWidth=0;
-		m_DisplayHeight=0;
-		m_PosX=0;
-		m_PosY=0;
-		m_AspectRatioX=0;
-		m_AspectRatioY=0;
-	}
-	CMpeg2VideoInfo(WORD OrigWidth,WORD OrigHeight,WORD DisplayWidth,WORD DisplayHeight,BYTE AspectX,BYTE AspectY)
-	{
-		m_OrigWidth=OrigWidth;
-		m_OrigHeight=OrigHeight;
-		m_DisplayWidth=DisplayWidth;
-		m_DisplayHeight=DisplayHeight;
-		m_PosX=(OrigWidth-DisplayWidth)/2;
-		m_PosY=(OrigHeight-DisplayHeight)/2;
-		m_AspectRatioX=AspectX;
-		m_AspectRatioY=AspectY;
-	}
-	bool operator==(const CMpeg2VideoInfo &Info) const
-	{
-		return m_OrigWidth==Info.m_OrigWidth
-			&& m_OrigHeight==Info.m_OrigHeight
-			&& m_DisplayWidth==Info.m_DisplayWidth
-			&& m_DisplayHeight==Info.m_DisplayHeight
-			&& m_AspectRatioX==Info.m_AspectRatioX
-			&& m_AspectRatioY==Info.m_AspectRatioY;
-	}
-	bool operator!=(const CMpeg2VideoInfo &Info) const
-	{
-		return !(*this==Info);
-	}
-};
 
 class CH264ParserFilter : public CTransformFilter,
 						  protected CH264Parser::IAccessUnitHandler
@@ -71,6 +28,7 @@ public:
 	HRESULT StartStreaming(void);
 	HRESULT StopStreaming(void);
 	//HRESULT Receive(IMediaSample *pSample);
+	HRESULT BeginFlush(void);
 
 // CH264ParserFilter
 	typedef void (CALLBACK *VideoInfoCallback)(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);

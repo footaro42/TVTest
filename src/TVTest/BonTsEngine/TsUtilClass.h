@@ -89,6 +89,40 @@ public:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// 日時クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CDateTime
+{
+	SYSTEMTIME m_Time;
+public:
+	CDateTime();
+	CDateTime(const SYSTEMTIME &Time);
+	CDateTime &operator=(const SYSTEMTIME &Time);
+	CDateTime &operator=(const FILETIME &Time);
+	void LocalTime();
+	void UTCTime();
+	bool LocalToUTC();
+	bool UTCToLocal();
+	bool Offset(LONGLONG Milliseconds);
+	void Set(const SYSTEMTIME &Time) { m_Time = Time; }
+	const SYSTEMTIME &Get() const { return m_Time; }
+	void Get(SYSTEMTIME *pTime) const;
+	int GetYear() const { return m_Time.wYear; }
+	int GetMonth() const { return m_Time.wMonth; }
+	int GetDay() const { return m_Time.wDay; }
+	int GetDayOfWeek() const { return m_Time.wDayOfWeek; }
+	int GetHour() const { return m_Time.wHour; }
+	int GetMinute() const { return m_Time.wMinute; }
+	int GetSecond() const { return m_Time.wSecond; }
+	DWORD GetMilliseconds() const { return m_Time.wMilliseconds; }
+	static LONGLONG SECONDS(int Sec) { return Sec * 1000LL; }
+	static LONGLONG MINUTES(int Min) { return Min * (1000LL * 60LL); }
+	static LONGLONG HOURS(int Hours) { return Hours * (1000LL * 60LL * 60LL); }
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // トレースクラス
 /////////////////////////////////////////////////////////////////////////////
 

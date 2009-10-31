@@ -200,6 +200,95 @@ bool CLocalEvent::IsSignaled()
 
 
 /////////////////////////////////////////////////////////////////////////////
+// 日時クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CDateTime::CDateTime()
+{
+}
+
+CDateTime::CDateTime(const SYSTEMTIME &Time)
+{
+	Set(Time);
+}
+
+CDateTime &CDateTime::operator=(const SYSTEMTIME &Time)
+{
+	Set(Time);
+	return *this;
+}
+
+CDateTime &CDateTime::operator=(const FILETIME &Time)
+{
+	::FileTimeToSystemTime(&Time, &m_Time);
+	return *this;
+}
+
+void CDateTime::LocalTime()
+{
+	::GetLocalTime(&m_Time);
+}
+
+void CDateTime::UTCTime()
+{
+	::GetSystemTime(&m_Time);
+}
+
+bool CDateTime::LocalToUTC()
+{
+#if 1
+	FILETIME ftLocal, ftUTC;
+
+	return ::SystemTimeToFileTime(&m_Time, &ftLocal)
+		&& ::LocalFileTimeToFileTime(&ftLocal, &ftUTC)
+		&& ::FileTimeToSystemTime(&ftUTC, &m_Time);
+#else
+	// TzSpecificLocalTimeToSystemTime は XP 以降の対応なので使いづらい…
+	TIME_ZONE_INFORMATION tzi;
+	if (::GetTimeZoneInformation(&tzi) == TIME_ZONE_ID_INVALID)
+		return false;
+	SYSTEMTIME st = m_Time;
+	return ::TzSpecificLocalTimeToSystemTime(&tzi, &st, &m_Time) != FALSE;
+#endif
+}
+
+bool CDateTime::UTCToLocal()
+{
+#if 0
+	FILETIME ftUTC, ftLocal;
+
+	return ::SystemTimeToFileTime(&m_Time, &ftUTC)
+		&& ::FileTimeToLocalFileTime(&ftUTC, &ftLocal)
+		&& ::FileTimeToSystemTime(&ftLocal, &m_Time);
+#else
+	SYSTEMTIME st = m_Time;
+	return ::SystemTimeToTzSpecificLocalTime(NULL, &st, &m_Time) != FALSE;
+#endif
+}
+
+bool CDateTime::Offset(LONGLONG Milliseconds)
+{
+	FILETIME ft;
+	ULARGE_INTEGER Time;
+
+	if (!::SystemTimeToFileTime(&m_Time, &ft))
+		return false;
+	Time.LowPart = ft.dwLowDateTime;
+	Time.HighPart = ft.dwHighDateTime;
+	Time.QuadPart += Milliseconds * 10000LL;
+	ft.dwLowDateTime = Time.LowPart;
+	ft.dwHighDateTime = Time.HighPart;
+	return ::FileTimeToSystemTime(&ft, &m_Time) != FALSE;
+}
+
+void CDateTime::Get(SYSTEMTIME *pTime) const
+{
+	if (pTime)
+		*pTime = m_Time;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // トレースクラス
 /////////////////////////////////////////////////////////////////////////////
 

@@ -8,6 +8,12 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+#ifdef _DEBUG
+#define TABLE_DEBUG	true
+#else
+#define TABLE_DEBUG
+#endif
+
 
 #ifndef TVH264
 #define VIEWABLE_STREAM_TYPE	0x02	// MPEG-2
@@ -72,7 +78,7 @@ void CTsAnalyzer::Reset()
 	m_TransportStreamID = 0x0000;
 
 	// PATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0000, new CPatTable, OnPatUpdated, this);
+	m_PidMapManager.MapTarget(0x0000, new CPatTable(TABLE_DEBUG), OnPatUpdated, this);
 
 	// NITテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(0x0010, new CNitTable, OnNitUpdated, this);
@@ -331,6 +337,25 @@ BYTE CTsAnalyzer::GetAudioComponentTag(const int Index, const int AudioIndex)
 
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
+
+BYTE CTsAnalyzer::GetVideoComponentType(const int Index)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (Index >= 0 && (size_t)Index < m_ServiceList.size()) {
+		const CDescBlock *pDescBlock = GetHEitItemDesc(Index);
+
+		if (pDescBlock) {
+			const CComponentDesc *pComponentDesc = dynamic_cast<const CComponentDesc*>(pDescBlock->GetDescByTag(CComponentDesc::DESC_TAG));
+
+			if (pComponentDesc != NULL)
+				return pComponentDesc->GetComponentType();
+		}
+	}
+	return 0;
+}
+
+
 BYTE CTsAnalyzer::GetAudioComponentType(const int Index, const int AudioIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -346,7 +371,8 @@ BYTE CTsAnalyzer::GetAudioComponentType(const int Index, const int AudioIndex)
 				if (pDesc->GetTag() == CAudioComponentDesc::DESC_TAG) {
 					const CAudioComponentDesc *pAudioDesc = dynamic_cast<const CAudioComponentDesc*>(pDesc);
 
-					if (pAudioDesc->GetComponentTag() == m_ServiceList[Index].AudioEsList[AudioIndex].ComponentTag)
+					if (pAudioDesc != NULL
+							&& pAudioDesc->GetComponentTag() == m_ServiceList[Index].AudioEsList[AudioIndex].ComponentTag)
 						return pAudioDesc->GetComponentType();
 				}
 			}
@@ -354,7 +380,8 @@ BYTE CTsAnalyzer::GetAudioComponentType(const int Index, const int AudioIndex)
 	}
 	return 0;
 }
-#endif
+
+#endif	// TS_ANALYZER_EIT_SUPPORT
 
 
 WORD CTsAnalyzer::GetSubtitleEsNum(const int Index)
@@ -689,6 +716,346 @@ int CTsAnalyzer::GetEventText(const int ServiceIndex, LPTSTR pszText, int MaxLen
 }
 
 
+bool CTsAnalyzer::GetEventVideoInfo(const int ServiceIndex, EventVideoInfo *pInfo, const bool bNext)
+{
+	if (pInfo == NULL)
+		return false;
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock) {
+		const CComponentDesc *pComponentDesc = dynamic_cast<const CComponentDesc *>(pDescBlock->GetDescByTag(CComponentDesc::DESC_TAG));
+
+		if (pComponentDesc) {
+			pInfo->StreamContent = pComponentDesc->GetStreamContent();
+			pInfo->ComponentType = pComponentDesc->GetComponentType();
+			pInfo->ComponentTag = pComponentDesc->GetComponentTag();
+			pInfo->LanguageCode = pComponentDesc->GetLanguageCode();
+			pComponentDesc->GetText(pInfo->szText, EventVideoInfo::MAX_TEXT);
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool CTsAnalyzer::GetEventAudioList(const int ServiceIndex, EventAudioList *pList, const bool bNext)
+{
+	if (pList == NULL)
+		return false;
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock) {
+		pList->clear();
+		for (WORD i = 0; i < pDescBlock->GetDescNum(); i++) {
+			const CBaseDesc *pDesc = pDescBlock->GetDescByIndex(i);
+
+			if (pDesc->GetTag() == CAudioComponentDesc::DESC_TAG) {
+				const CAudioComponentDesc *pAudioComponent = dynamic_cast<const CAudioComponentDesc*>(pDesc);
+
+				if (pAudioComponent) {
+					EventAudioInfo AudioInfo;
+
+					AudioInfo.StreamContent = pAudioComponent->GetStreamContent();
+					AudioInfo.ComponentType = pAudioComponent->GetComponentType();
+					AudioInfo.ComponentTag = pAudioComponent->GetComponentTag();
+					AudioInfo.SimulcastGroupTag = pAudioComponent->GetSimulcastGroupTag();
+					AudioInfo.bESMultiLingualFlag = pAudioComponent->GetESMultiLingualFlag();
+					AudioInfo.bMainComponentFlag = pAudioComponent->GetMainComponentFlag();
+					AudioInfo.QualityIndicator = pAudioComponent->GetQualityIndicator();
+					AudioInfo.SamplingRate = pAudioComponent->GetSamplingRate();
+					AudioInfo.LanguageCode = pAudioComponent->GetLanguageCode();
+					AudioInfo.LanguageCode2 = pAudioComponent->GetLanguageCode2();
+					pAudioComponent->GetText(AudioInfo.szText, EventAudioInfo::MAX_TEXT);
+					pList->push_back(AudioInfo);
+				}
+			}
+		}
+		return true;
+	}
+	return false;
+}
+
+
+bool CTsAnalyzer::GetEventContentNibble(const int ServiceIndex, EventContentNibble *pInfo, const bool bNext)
+{
+	if (pInfo == NULL)
+		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock != NULL) {
+		const CContentDesc *pContentDesc = dynamic_cast<const CContentDesc *>(pDescBlock->GetDescByTag(CContentDesc::DESC_TAG));
+
+		if (pContentDesc) {
+			pInfo->NibbleCount = pContentDesc->GetNibbleCount();
+			for (int i = 0; i < pInfo->NibbleCount; i++)
+				pContentDesc->GetNibble(i, &pInfo->NibbleList[i]);
+			return true;
+		}
+	}
+	return false;
+}
+
+
+#include "TsEncode.h"
+
+int CTsAnalyzer::GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bUseEventGroup, const bool bNext)
+{
+	if (pszText == NULL || MaxLength < 1)
+		return 0;
+
+	pszText[0] = '\0';
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock == NULL)
+		return 0;
+	if (pDescBlock->GetDescByTag(CExtendedEventDesc::DESC_TAG) == NULL) {
+		if (!bUseEventGroup)
+			return 0;
+
+		// イベント共有の参照先から情報を取得する
+#if 0
+		const CEventGroupDesc *pEventGroup = dynamic_cast<const CEventGroupDesc*>(pDescBlock->GetDescByTag(CEventGroupDesc::DESC_TAG));
+		if (pEventGroup == NULL
+				|| pEventGroup->GetGroupType() != CEventGroupDesc::GROUPTYPE_COMMON
+				|| pEventGroup->GetEventNum() < 1)
+			return 0;
+		const WORD EventID = GetEventID(ServiceIndex, bNext);
+		int i;
+		// 自己の記述がない場合は参照元
+		for (i = 0; i < pEventGroup->GetEventNum(); i++) {
+			CEventGroupDesc::EventInfo EventInfo;
+			if (pEventGroup->GetEventInfo(i, &EventInfo)
+					&& EventInfo.ServiceID == m_ServiceList[ServiceIndex].ServiceID
+					&& EventInfo.EventID == EventID)
+				return 0;
+		}
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		for (i = 0; i < pEventGroup->GetEventNum(); i++) {
+			CEventGroupDesc::EventInfo EventInfo;
+			if (pEventGroup->GetEventInfo(i, &EventInfo)) {
+				int Index = GetServiceIndexByID(EventInfo.ServiceID);
+				if (Index >= 0) {
+					if (pEitTable->GetEventID(pEitTable->GetServiceIndexByID(EventInfo.ServiceID), bNext ? 1 : 0) != EventInfo.EventID
+							|| (pDescBlock = GetHEitItemDesc(Index, bNext)) == NULL
+							|| pDescBlock->GetDescByTag(CExtendedEventDesc::DESC_TAG) == NULL)
+						return 0;
+					break;
+				}
+			}
+		}
+		if (i == pEventGroup->GetEventNum())
+			return 0;
+#else
+		/*
+			参照先にしかイベントグループ記述子が無かったり、
+			参照元なのに自己のService_idとevent_idが記述してあったりするので(なぜ?)
+			取りあえず先頭サービスが参照先になっている場合のみ想定する
+		*/
+		WORD ServiceID;
+		if (!GetFirstViewableServiceID(&ServiceID)
+				|| ServiceID == m_ServiceList[ServiceIndex].ServiceID)
+			return 0;
+		pDescBlock = GetHEitItemDesc(GetServiceIndexByID(ServiceID), bNext);
+		if (pDescBlock == NULL)
+			return false;
+		const CEventGroupDesc *pEventGroup = dynamic_cast<const CEventGroupDesc*>(pDescBlock->GetDescByTag(CEventGroupDesc::DESC_TAG));
+		if (pEventGroup == NULL
+				|| pEventGroup->GetGroupType() != CEventGroupDesc::GROUPTYPE_COMMON
+				|| pEventGroup->GetEventNum() <= 1)
+			return 0;
+		const WORD EventID = GetEventID(ServiceIndex, bNext);
+		int i;
+		for (i = 0; i < pEventGroup->GetEventNum(); i++) {
+			CEventGroupDesc::EventInfo EventInfo;
+			if (pEventGroup->GetEventInfo(i, &EventInfo)
+					&& EventInfo.ServiceID == m_ServiceList[ServiceIndex].ServiceID
+					&& EventInfo.EventID == EventID) {
+				break;
+			}
+		}
+		if (i == pEventGroup->GetEventNum())
+			return 0;
+		int Index = GetServiceIndexByID(ServiceID);
+		if (Index < 0
+				|| (pDescBlock = GetHEitItemDesc(Index, bNext)) == NULL
+				|| pDescBlock->GetDescByTag(CExtendedEventDesc::DESC_TAG) == NULL)
+			return 0;
+#endif
+	}
+
+	std::vector<const CExtendedEventDesc *> DescList;
+	for (int i = 0; i < pDescBlock->GetDescNum(); i++) {
+		const CBaseDesc *pDesc = pDescBlock->GetDescByIndex(i);
+		if (pDesc != NULL && pDesc->GetTag() == CExtendedEventDesc::DESC_TAG) {
+			const CExtendedEventDesc *pExtendedEvent = dynamic_cast<const CExtendedEventDesc *>(pDesc);
+			if (pExtendedEvent != NULL) {
+				DescList.push_back(pExtendedEvent);
+			}
+		}
+	}
+	if (DescList.size() == 0)
+		return 0;
+
+	// descriptor_number 順にソートする
+	for (int i = (int)DescList.size() - 2; i >= 0; i--) {
+		const CExtendedEventDesc *pKey = DescList[i];
+		int j;
+		for (j = i + 1; j < (int)DescList.size() && DescList[j]->GetDescriptorNumber() < pKey->GetDescriptorNumber(); j++)
+			DescList[j - 1] = DescList[j];
+		DescList[j - 1] = pKey;
+	}
+
+	struct ItemInfo {
+		BYTE DescriptorNumber;
+		LPCTSTR pszDescription;
+		int Data1Length;
+		const BYTE *pData1;
+		int Data2Length;
+		const BYTE *pData2;
+	};
+	std::vector<ItemInfo> ItemList;
+	for (int i = 0; i < (int)DescList.size(); i++) {
+		const CExtendedEventDesc *pExtendedEvent = DescList[i];
+		for (int j = 0; j < pExtendedEvent->GetItemCount(); j++) {
+			const CExtendedEventDesc::ItemInfo *pItem = pExtendedEvent->GetItem(j);
+			if (pItem == NULL)
+				continue;
+			if (pItem->szDescription[0] != '\0') {
+				// 新規項目
+				ItemInfo Item;
+				Item.DescriptorNumber = pExtendedEvent->GetDescriptorNumber();
+				Item.pszDescription = pItem->szDescription;
+				Item.Data1Length = pItem->ItemLength;
+				Item.pData1 = pItem->ItemChar;
+				Item.Data2Length = 0;
+				Item.pData2 = NULL;
+				ItemList.push_back(Item);
+			} else if (ItemList.size() > 0) {
+				// 前の項目の続き
+				ItemInfo &Item = ItemList[ItemList.size() - 1];
+				if (Item.DescriptorNumber == pExtendedEvent->GetDescriptorNumber() - 1
+						&& Item.pData2 == NULL) {
+					Item.Data2Length = pItem->ItemLength;
+					Item.pData2 = pItem->ItemChar;
+				}
+			}
+		}
+	}
+
+	TCHAR szText[1024];
+	int Length;
+	int Pos = 0;
+	for (int i = 0; i < (int)ItemList.size(); i++) {
+		ItemInfo &Item = ItemList[i];
+		Length = ::lstrlen(Item.pszDescription);
+		if (Length + 2 >= MaxLength - Pos)
+			break;
+		::lstrcpy(&pszText[Pos], Item.pszDescription);
+		Pos += Length;
+		pszText[Pos++] = '\r';
+		pszText[Pos++] = '\n';
+		if (Item.pData2 == NULL) {
+			CAribString::AribToString(szText, 1024, Item.pData1, Item.Data1Length);
+		} else {
+			BYTE Buffer[220 * 2];
+			::CopyMemory(Buffer, Item.pData1, Item.Data1Length);
+			::CopyMemory(Buffer + Item.Data1Length, Item.pData2, Item.Data2Length);
+			CAribString::AribToString(szText, 1024, Buffer, Item.Data1Length + Item.Data2Length);
+		}
+		LPTSTR p = szText;
+		while (*p != '\0') {
+			if (Pos >= MaxLength - 1)
+				break;
+			pszText[Pos++] = *p;
+			if (*p == '\r') {
+				if (*(p + 1) != '\n') {
+					if (Pos == MaxLength - 1)
+						break;
+					pszText[Pos++] = '\n';
+				}
+			}
+			p++;
+		}
+		if (Pos + 2 >= MaxLength)
+			break;
+		pszText[Pos++] = '\r';
+		pszText[Pos++] = '\n';
+	}
+	pszText[Pos] = '\0';
+
+	return Pos;
+}
+
+
+bool CTsAnalyzer::GetEventSeriesInfo(const int ServiceIndex, EventSeriesInfo *pInfo, const bool bNext)
+{
+	if (pInfo == NULL)
+		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+	if (pDescBlock != NULL) {
+		const CSeriesDesc *pSeriesDesc = dynamic_cast<const CSeriesDesc *>(pDescBlock->GetDescByTag(CSeriesDesc::DESC_TAG));
+
+		if (pSeriesDesc) {
+			pInfo->SeriesID = pSeriesDesc->GetSeriesID();
+			pInfo->RepeatLabel = pSeriesDesc->GetRepeatLabel();
+			pInfo->ProgramPattern = pSeriesDesc->GetProgramPattern();
+			pInfo->bIsExpireDateValid = pSeriesDesc->IsExpireDateValid()
+				&& pSeriesDesc->GetExpireDate(&pInfo->ExpireDate);
+			pInfo->EpisodeNumber = pSeriesDesc->GetEpisodeNumber();
+			pInfo->LastEpisodeNumber = pSeriesDesc->GetLastEpisodeNumber();
+			pSeriesDesc->GetSeriesName(pInfo->szSeriesName, CSeriesDesc::MAX_SERIES_NAME);
+			return true;
+		}
+	}
+	return false;
+}
+
+
+bool CTsAnalyzer::GetEventInfo(const int ServiceIndex, EventInfo *pInfo, const bool bUseEventGroup, const bool bNext)
+{
+	if (pInfo == NULL)
+		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	pInfo->EventID = GetEventID(ServiceIndex, bNext);
+	if (pInfo->EventID == 0)
+		return false;
+	pInfo->bValidStartTime = GetEventStartTime(ServiceIndex, &pInfo->StartTime, bNext);
+	pInfo->Duration = GetEventDuration(ServiceIndex, bNext);
+	if (pInfo->pszEventName != NULL && pInfo->MaxEventName > 0) {
+		pInfo->pszEventName[0] = '\0';
+		GetEventName(ServiceIndex, pInfo->pszEventName, pInfo->MaxEventName, bNext);
+	}
+	if (pInfo->pszEventText != NULL && pInfo->MaxEventText > 0) {
+		pInfo->pszEventText[0] = '\0';
+		GetEventText(ServiceIndex, pInfo->pszEventText, pInfo->MaxEventText, bNext);
+	}
+	if (pInfo->pszEventExtendedText != NULL && pInfo->MaxEventExtendedText > 0) {
+		pInfo->pszEventExtendedText[0] = '\0';
+		GetEventExtendedText(ServiceIndex, pInfo->pszEventExtendedText, pInfo->MaxEventExtendedText, bUseEventGroup, bNext);
+	}
+
+	::ZeroMemory(&pInfo->Video, sizeof(EventVideoInfo));
+	GetEventVideoInfo(ServiceIndex, &pInfo->Video, bNext);
+
+	pInfo->Audio.clear();
+	GetEventAudioList(ServiceIndex, &pInfo->Audio, bNext);
+
+	if (!GetEventContentNibble(ServiceIndex, &pInfo->ContentNibble, bNext))
+		pInfo->ContentNibble.NibbleCount = 0;
+
+	return true;
+}
+
+
 const CDescBlock *CTsAnalyzer::GetHEitItemDesc(const int ServiceIndex, const bool bNext) const
 {
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
@@ -826,7 +1193,7 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[Index].ServiceType = 0xFF;
 
 		// PMTのPIDをマップ
-		pMapManager->MapTarget(pPatTable->GetPmtPID(Index), new CPmtTable, OnPmtUpdated, pParam);
+		pMapManager->MapTarget(pPatTable->GetPmtPID(Index), new CPmtTable(TABLE_DEBUG), OnPmtUpdated, pParam);
 	}
 
 	// イベントハンドラ呼び出し

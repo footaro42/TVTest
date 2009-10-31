@@ -14,6 +14,9 @@ bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,Fill
 bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction=DIRECTION_HORZ,int GlossRatio1=96,int GlossRatio2=48);
 bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr);
 
+int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width);
+bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight);
+
 }
 
 

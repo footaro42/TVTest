@@ -356,3 +356,44 @@ bool ExtendListBox(HWND hwndList,unsigned int Flags)
 	SetProp(hwndList,TEXT("ExListBox"),pOldProc);
 	return true;
 }
+
+
+bool SetListViewSortMark(HWND hwndList,int Column,bool fAscending)
+{
+	HMODULE hLib=::GetModuleHandle(TEXT("comctl32.dll"));
+	if (hLib==NULL)
+		return false;
+
+	DLLGETVERSIONPROC pDllGetVersion=(DLLGETVERSIONPROC)::GetProcAddress(hLib,"DllGetVersion");
+
+	if (pDllGetVersion==NULL)
+		return false;
+
+	DLLVERSIONINFO dvi;
+	dvi.cbSize=sizeof(dvi);
+	if (FAILED((*pDllGetVersion)(&dvi)) || dvi.dwMajorVersion<6)
+		return false;
+
+	HWND hwndHeader=ListView_GetHeader(hwndList);
+	HDITEM hdi;
+#ifndef HDF_SORTUP
+#define HDF_SORTUP		0x0400
+#define HDF_SORTDOWN	0x0200
+#endif
+
+	hdi.mask=HDI_FORMAT;
+	int Count=Header_GetItemCount(hwndHeader);
+	for (int i=0;i<Count;i++) {
+		Header_GetItem(hwndHeader,i,&hdi);
+		if (i==Column) {
+			hdi.fmt=(hdi.fmt&~(HDF_SORTUP | HDF_SORTDOWN)) |
+					(fAscending?HDF_SORTUP:HDF_SORTDOWN);
+			Header_SetItem(hwndHeader,i,&hdi);
+		} else if ((hdi.fmt&(HDF_SORTUP | HDF_SORTDOWN))!=0) {
+			hdi.fmt&=~(HDF_SORTUP | HDF_SORTDOWN);
+			Header_SetItem(hwndHeader,i,&hdi);
+		}
+	}
+
+	return true;
+}

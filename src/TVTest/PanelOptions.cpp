@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "PanelOptions.h"
-#include "InfoPanel.h"
+#include "ChannelPanel.h"
 #include "DialogUtil.h"
 #include "resource.h"
 
@@ -12,11 +12,15 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define TAB_ITEM_MARGIN	2
+#define TAB_CHECK_WIDTH	14
+
+
 
 
 CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
+	: m_pPanelFrame(pPanelFrame)
 {
-	m_pPanelFrame=pPanelFrame;
 	m_fSnapAtMainWindow=true;
 	m_SnapMargin=4;
 	m_fAttachToMainWindow=true;
@@ -24,11 +28,31 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
 	m_FirstTab=-1;
 	m_LastTab=0;
+	for (int i=0;i<NUM_PANELS;i++) {
+		m_TabList[i].ID=PANEL_ID_FIRST+i;
+		m_TabList[i].fVisible=true;
+	}
+	m_fChannelDetailToolTip=false;
 }
 
 
 CPanelOptions::~CPanelOptions()
 {
+}
+
+
+bool CPanelOptions::InitializePanelForm(CPanelForm *pPanelForm)
+{
+	int TabOrder[NUM_PANELS];
+
+	pPanelForm->SetPageFont(&m_Font);
+	pPanelForm->SetCurPageByID(GetFirstTab());
+	for (int i=0;i<NUM_PANELS;i++) {
+		TabOrder[i]=m_TabList[i].ID;
+		pPanelForm->SetTabVisible(m_TabList[i].ID,m_TabList[i].fVisible);
+	}
+	pPanelForm->SetTabOrder(TabOrder);
+	return true;
 }
 
 
@@ -58,10 +82,10 @@ bool CPanelOptions::Read(CSettings *pSettings)
 	int Value;
 
 	if (pSettings->Read(TEXT("InfoCurTab"),&Value)
-			&& Value>=PANEL_TAB_FIRST && Value<=PANEL_TAB_LAST)
+			&& Value>=PANEL_ID_FIRST && Value<=PANEL_ID_LAST)
 		m_LastTab=Value;
 	if (pSettings->Read(TEXT("PanelFirstTab"),&Value)
-			&& Value>=-1 && Value<=PANEL_TAB_LAST)
+			&& Value>=-1 && Value<=PANEL_ID_LAST)
 		m_FirstTab=Value;
 	pSettings->Read(TEXT("PanelSnapAtMainWindow"),&m_fSnapAtMainWindow);
 	pSettings->Read(TEXT("PanelAttachToMainWindow"),&m_fAttachToMainWindow);
@@ -91,12 +115,56 @@ bool CPanelOptions::Read(CSettings *pSettings)
 	if (pSettings->Read(TEXT("PanelFontItalic"),&Value))
 		m_Font.lfItalic=Value;
 	/*
-	CInfoPanel *pPanel=dynamic_cast<CInfoPanel*>(m_pPanelFrame->GetWindow());
+	CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
 	if (pPanel!=NULL) {
 		pPanel->SetTabFont(&m_Font);
 		pPanel->SetPageFont(&m_Font);
 	}
 	*/
+
+	int TabCount;
+	if (pSettings->Read(TEXT("PanelTabCount"),&TabCount) && TabCount>0) {
+		int j=0;
+		for (int i=0;i<TabCount;i++) {
+			TCHAR szName[32];
+			int ID;
+
+			::wsprintf(szName,TEXT("PanelTab%d_ID"),i);
+			if (pSettings->Read(szName,&ID)
+					&& ID>=PANEL_ID_FIRST && ID<=PANEL_ID_LAST) {
+				int k;
+				for (k=0;k<j;k++) {
+					if (m_TabList[k].ID==ID)
+						break;
+				}
+				if (k==j) {
+					bool fVisible=true;
+
+					::wsprintf(szName,TEXT("PanelTab%d_Visible"),i);
+					pSettings->Read(szName,&fVisible);
+					m_TabList[j].ID=ID;
+					m_TabList[j].fVisible=fVisible;
+					j++;
+				}
+			}
+		}
+		if (j<NUM_PANELS) {
+			for (int i=PANEL_ID_FIRST;i<=PANEL_ID_LAST && j<NUM_PANELS;i++) {
+				int k;
+				for (k=0;k<j;k++) {
+					if (m_TabList[k].ID==i)
+						break;
+				}
+				if (k==j) {
+					m_TabList[j].ID=i;
+					m_TabList[j].fVisible=true;
+					j++;
+				}
+			}
+		}
+	}
+
+	pSettings->Read(TEXT("ChannelPanelDetailToolTip"),&m_fChannelDetailToolTip);
 
 	return true;
 }
@@ -113,6 +181,25 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("PanelFontSize"),(int)m_Font.lfHeight);
 	pSettings->Write(TEXT("PanelFontWeight"),(int)m_Font.lfWeight);
 	pSettings->Write(TEXT("PanelFontItalic"),(int)m_Font.lfItalic);
+	// Tab order
+	pSettings->Write(TEXT("PanelTabCount"),NUM_PANELS);
+	for (int i=0;i<NUM_PANELS;i++) {
+		TCHAR szName[32];
+
+		::wsprintf(szName,TEXT("PanelTab%d_ID"),i);
+		pSettings->Write(szName,m_TabList[i].ID);
+		::wsprintf(szName,TEXT("PanelTab%d_Visible"),i);
+		pSettings->Write(szName,m_TabList[i].fVisible);
+	}
+	// Channel panel
+	bool fChannelDetailToolTip=m_fChannelDetailToolTip;
+	CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
+	if (pPanel!=NULL) {
+		CChannelPanel *pChannelPanel=dynamic_cast<CChannelPanel*>(pPanel->GetPageByID(PANEL_ID_CHANNEL));
+		if (pChannelPanel!=NULL)
+			fChannelDetailToolTip=pChannelPanel->GetDetailToolTip();
+	}
+	pSettings->Write(TEXT("ChannelPanelDetailToolTip"),fChannelDetailToolTip);
 	return true;
 }
 
@@ -145,6 +232,16 @@ CPanelOptions *CPanelOptions::GetThis(HWND hDlg)
 
 BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
+	static const LPCTSTR pszTabList[] = {
+		TEXT("情報"),
+		TEXT("番組表"),
+		TEXT("チャンネル"),
+		TEXT("操作"),
+#ifndef TVH264
+		TEXT("字幕"),
+#endif
+	};
+
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
@@ -171,13 +268,17 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			pThis->m_CurSettingFont=pThis->m_Font;
 			SetFontInfo(hDlg,&pThis->m_Font);
 
-			static const LPCTSTR pszTabList[] = {
-				TEXT("最後に表示したタブ"),
-				TEXT("情報"),
-				TEXT("番組表"),
-				TEXT("チャンネル"),
-				TEXT("操作"),
-			};
+			HWND hwndTabList=::GetDlgItem(hDlg,IDC_PANELOPTIONS_TABLIST);
+			RECT rc;
+			::GetClientRect(::GetDlgItem(hDlg,IDC_PANELOPTIONS_TABLIST),&rc);
+			::SendMessage(hwndTabList,LB_SETITEMHEIGHT,0,rc.bottom);
+			::SendMessage(hwndTabList,LB_SETCOLUMNWIDTH,rc.right/NUM_PANELS,0);
+			for (int i=0;i<NUM_PANELS;i++)
+				::SendMessage(hwndTabList,LB_ADDSTRING,0,
+				MAKELPARAM(pThis->m_TabList[i].ID,pThis->m_TabList[i].fVisible));
+			::SetProp(hwndTabList,TEXT("TabList"),SubclassWindow(hwndTabList,TabListProc));
+
+			DlgComboBox_AddString(hDlg,IDC_PANELOPTIONS_FIRSTTAB,TEXT("最後に表示したタブ"));
 			for (int i=0;i<lengthof(pszTabList);i++)
 				DlgComboBox_AddString(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pszTabList[i]);
 			DlgComboBox_SetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pThis->m_FirstTab+1);
@@ -189,6 +290,39 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				::GetDlgItem(hDlg,IDC_PANELOPTIONS_OPACITY_TB)) {
 			SyncEditWithTrackBar(hDlg,IDC_PANELOPTIONS_OPACITY_TB,
 									  IDC_PANELOPTIONS_OPACITY_EDIT);
+		}
+		return TRUE;
+
+	case WM_DRAWITEM:
+		{
+			LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
+
+			if ((INT)pdis->itemID>=0) {
+				int ID=LOWORD(pdis->itemData);
+				if (ID>PANEL_ID_LAST)
+					break;
+				bool fVisible=HIWORD(pdis->itemData)!=0;
+				bool fSelected=(pdis->itemState&ODS_SELECTED)!=0;
+				COLORREF OldTextColor;
+				int OldBkMode;
+				RECT rc;
+
+				::FillRect(pdis->hDC,&pdis->rcItem,reinterpret_cast<HBRUSH>((fSelected?COLOR_HIGHLIGHT:COLOR_WINDOW)+1));
+				OldTextColor=::SetTextColor(pdis->hDC,::GetSysColor(fSelected?COLOR_HIGHLIGHTTEXT:COLOR_WINDOWTEXT));
+				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
+				rc=pdis->rcItem;
+				::InflateRect(&rc,-TAB_ITEM_MARGIN,-TAB_ITEM_MARGIN);
+				rc.right=rc.left+TAB_CHECK_WIDTH;
+				::DrawFrameControl(pdis->hDC,&rc,DFC_BUTTON,
+								DFCS_BUTTONCHECK | (fVisible?DFCS_CHECKED:0));
+				rc.left=rc.right+TAB_ITEM_MARGIN;
+				rc.right=pdis->rcItem.right-TAB_ITEM_MARGIN;
+				::DrawText(pdis->hDC,pszTabList[ID],-1,&rc,DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+				::SetTextColor(pdis->hDC,OldTextColor);
+				::SetBkMode(pdis->hDC,OldBkMode);
+			}
+			if ((pdis->itemState&ODS_FOCUS)!=0)
+				::DrawFocusRect(pdis->hDC,&pdis->rcItem);
 		}
 		return TRUE;
 
@@ -208,6 +342,37 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 					SetFontInfo(hDlg,&pThis->m_CurSettingFont);
 			}
 			return TRUE;
+
+		case IDC_PANELOPTIONS_TABLIST:
+			if (HIWORD(wParam)==CBN_SELCHANGE) {
+				int Sel=DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST);
+
+				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_LEFT,Sel>0);
+				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_RIGHT,Sel+1<NUM_PANELS);
+			}
+			return TRUE;
+
+		case IDC_PANELOPTIONS_TAB_LEFT:
+		case IDC_PANELOPTIONS_TAB_RIGHT:
+			{
+				int From=DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST),To;
+
+				if (LOWORD(wParam)==IDC_PANELOPTIONS_TAB_LEFT)
+					To=From-1;
+				else
+					To=From+1;
+				if (To<0 || To>=NUM_PANELS)
+					return TRUE;
+				LPARAM Data1=DlgListBox_GetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,From);
+				LPARAM Data2=DlgListBox_GetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,To);
+				DlgListBox_SetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,To,Data1);
+				DlgListBox_SetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,From,Data2);
+				DlgListBox_SetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST,To);
+				InvalidateDlgItem(hDlg,IDC_PANELOPTIONS_TABLIST);
+				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_LEFT,To>0);
+				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_RIGHT,To+1<NUM_PANELS);
+			}
+			return TRUE;
 		}
 		return TRUE;
 
@@ -225,13 +390,30 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				pThis->m_pPanelFrame->SetOpacity(pThis->m_Opacity);
 				if (!CompareLogFont(&pThis->m_Font,&pThis->m_CurSettingFont)) {
 					pThis->m_Font=pThis->m_CurSettingFont;
-					CInfoPanel *pPanel=dynamic_cast<CInfoPanel*>(pThis->m_pPanelFrame->GetWindow());
+					CPanelForm *pPanel=dynamic_cast<CPanelForm*>(pThis->m_pPanelFrame->GetWindow());
 					if (pPanel!=NULL) {
 						pPanel->SetTabFont(&pThis->m_Font);
 						pPanel->SetPageFont(&pThis->m_Font);
 					}
 				}
 				pThis->m_FirstTab=DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
+
+				for (int i=0;i<NUM_PANELS;i++) {
+					LPARAM Data=DlgListBox_GetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,i);
+					pThis->m_TabList[i].ID=LOWORD(Data);
+					pThis->m_TabList[i].fVisible=HIWORD(Data)!=0;
+				}
+				{
+					CPanelForm *pPanel=dynamic_cast<CPanelForm*>(pThis->m_pPanelFrame->GetWindow());
+					if (pPanel!=NULL) {
+						int TabOrder[NUM_PANELS];
+						for (int i=0;i<NUM_PANELS;i++) {
+							TabOrder[i]=pThis->m_TabList[i].ID;
+							pPanel->SetTabVisible(pThis->m_TabList[i].ID,pThis->m_TabList[i].fVisible);
+						}
+						pPanel->SetTabOrder(TabOrder);
+					}
+				}
 			}
 			break;
 		}
@@ -246,4 +428,38 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		return TRUE;
 	}
 	return FALSE;
+}
+
+
+LRESULT CALLBACK CPanelOptions::TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	WNDPROC pOldWndProc=static_cast<WNDPROC>(::GetProp(hwnd,TEXT("TabList")));
+
+	if (pOldWndProc==NULL)
+		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+	switch (uMsg) {
+	case WM_LBUTTONDOWN:
+		{
+			int x=GET_X_LPARAM(lParam);
+			int Count=::SendMessage(hwnd,LB_GETCOUNT,0,0);
+
+			for (int i=0;i<Count;i++) {
+				RECT rc;
+				::SendMessage(hwnd,LB_GETITEMRECT,i,reinterpret_cast<LPARAM>(&rc));
+				if (x>=rc.left+TAB_ITEM_MARGIN && x<rc.left+TAB_ITEM_MARGIN+TAB_CHECK_WIDTH) {
+					LPARAM Data=::SendMessage(hwnd,LB_GETITEMDATA,i,0);
+					Data=MAKELPARAM(LOWORD(Data),!HIWORD(Data));
+					::SendMessage(hwnd,LB_SETITEMDATA,i,Data);
+					::InvalidateRect(hwnd,&rc,TRUE);
+					break;
+				}
+			}
+		}
+		break;
+
+	case WM_NCDESTROY:
+		::RemoveProp(hwnd,TEXT("TabList"));
+		break;
+	}
+	return ::CallWindowProc(pOldWndProc,hwnd,uMsg,wParam,lParam);
 }

@@ -15,8 +15,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 CMessageDialog::CMessageDialog()
-	: m_hLib(NULL)
-	, m_pszText(NULL)
+	: m_pszText(NULL)
 	, m_pszTitle(NULL)
 	, m_pszSystemMessage(NULL)
 	, m_pszCaption(NULL)
@@ -26,8 +25,6 @@ CMessageDialog::CMessageDialog()
 
 CMessageDialog::~CMessageDialog()
 {
-	if (m_hLib)
-		::FreeLibrary(m_hLib);
 	delete [] m_pszText;
 	delete [] m_pszTitle;
 	delete [] m_pszSystemMessage;
@@ -37,44 +34,9 @@ CMessageDialog::~CMessageDialog()
 
 void CMessageDialog::LogFontToCharFormat(const LOGFONT *plf,CHARFORMAT *pcf)
 {
-	pcf->cbSize=sizeof(CHARFORMAT);
-	pcf->dwMask=CFM_BOLD | CFM_CHARSET | CFM_COLOR | CFM_FACE | CFM_ITALIC | CFM_SIZE | CFM_STRIKEOUT | CFM_UNDERLINE;
 	HDC hdc=::GetDC(m_hDlg);
-	pcf->yHeight=abs(plf->lfHeight)*72*20/::GetDeviceCaps(hdc,LOGPIXELSY);
+	CRichEditUtil::LogFontToCharFormat(hdc,plf,pcf);
 	::ReleaseDC(m_hDlg,hdc);
-	pcf->dwEffects=0;
-	if (plf->lfWeight>=FW_BOLD)
-		pcf->dwEffects|=CFE_BOLD;
-	if (plf->lfItalic)
-		pcf->dwEffects|=CFE_ITALIC;
-	if (plf->lfUnderline)
-		pcf->dwEffects|=CFE_UNDERLINE;
-	if (plf->lfStrikeOut)
-		pcf->dwEffects|=CFE_STRIKEOUT;
-	pcf->crTextColor=::GetSysColor(COLOR_WINDOWTEXT);
-	pcf->bPitchAndFamily=plf->lfPitchAndFamily;
-	pcf->bCharSet=plf->lfCharSet;
-	::lstrcpy(pcf->szFaceName,plf->lfFaceName);
-}
-
-
-void CMessageDialog::AppendText(HWND hwndEdit,LPCTSTR pszText,const CHARFORMAT *pcf)
-{
-	CHARRANGE cr;
-
-	cr.cpMin=0;
-	cr.cpMax=-1;
-	::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
-	::SendMessage(hwndEdit,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&cr));
-	cr.cpMin=cr.cpMax;
-	::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
-	::SendMessage(hwndEdit,EM_REPLACESEL,0,reinterpret_cast<LPARAM>(pszText));
-	cr.cpMin-=2;
-	cr.cpMax=-1;
-	::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
-	::SendMessage(hwndEdit,EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(pcf));
-	cr.cpMin=cr.cpMax=0;
-	::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
 }
 
 
@@ -115,30 +77,20 @@ BOOL CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 			pThis->LogFontToCharFormat(&ncm.lfMessageFont,&cf);
 			cfBold=cf;
+			cfBold.dwMask|=CFM_BOLD;
 			cfBold.dwEffects|=CFE_BOLD;
 			if (pThis->m_pszTitle!=NULL) {
-				pThis->AppendText(hwndEdit,pThis->m_pszTitle,&cfBold);
-				pThis->AppendText(hwndEdit,TEXT("\n"),&cf);
+				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszTitle,&cfBold);
+				CRichEditUtil::AppendText(hwndEdit,TEXT("\n"),&cf);
 			}
 			if (pThis->m_pszText!=NULL) {
-				pThis->AppendText(hwndEdit,pThis->m_pszText,&cf);
+				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszText,&cf);
 			}
 			if (pThis->m_pszSystemMessage!=NULL) {
-				pThis->AppendText(hwndEdit,TEXT("\n\nWindowsのエラーメッセージ :\n"),&cfBold);
-				pThis->AppendText(hwndEdit,pThis->m_pszSystemMessage,&cf);
+				CRichEditUtil::AppendText(hwndEdit,TEXT("\n\nWindowsのエラーメッセージ :\n"),&cfBold);
+				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszSystemMessage,&cf);
 			}
-			int NumLines=::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
-			int MaxWidth=0;
-			for (int i=0;i<NumLines;i++) {
-				int Index=::SendMessage(hwndEdit,EM_LINEINDEX,i,0);
-				POINTL pt;
-				::SendMessage(hwndEdit,EM_POSFROMCHAR,
-							  reinterpret_cast<WPARAM>(&pt),
-							  Index+::SendMessage(hwndEdit,EM_LINELENGTH,Index,0));
-				if (pt.x>MaxWidth)
-					MaxWidth=pt.x;
-			}
-			MaxWidth+=8;
+			int MaxWidth=CRichEditUtil::GetMaxLineWidth(hwndEdit)+8;
 			RECT rcEdit,rcDlg,rcClient,rcOK;
 			::GetWindowRect(hwndEdit,&rcEdit);
 			::OffsetRect(&rcEdit,-rcEdit.left,-rcEdit.top);
@@ -248,16 +200,7 @@ BOOL CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
 
 				if (::SendMessage(hwndEdit,EM_SELECTIONTYPE,0,0)==SEL_EMPTY) {
-					CHARRANGE cr,crOld;
-
-					::SendMessage(hwndEdit,EM_HIDESELECTION,TRUE,0);
-					::SendMessage(hwndEdit,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&crOld));
-					cr.cpMin=0;
-					cr.cpMax=-1;
-					::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
-					::SendMessage(hwndEdit,WM_COPY,0,0);
-					::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&crOld));
-					::SendMessage(hwndEdit,EM_HIDESELECTION,FALSE,0);
+					CRichEditUtil::CopyAllText(hwndEdit);
 				} else {
 					::SendMessage(hwndEdit,WM_COPY,0,0);
 				}
@@ -291,30 +234,27 @@ bool CMessageDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTST
 {
 	if (pszText==NULL && pszTitle==NULL && pszSystemMessage==NULL)
 		return false;
-	if (m_hLib==NULL) {
-		m_hLib=::LoadLibrary(TEXT("Riched32.dll"));
-		if (m_hLib==NULL) {
-			TCHAR szMessage[1024];
+	if (!m_RichEditUtil.LoadRichEditLib()) {
+		TCHAR szMessage[2048];
 
-			szMessage[0]='\0';
-			if (pszTitle!=NULL)
-				::lstrcat(szMessage,pszTitle);
-			if (pszText!=NULL) {
-				if (szMessage[0]!='\0')
-					::lstrcat(szMessage,TEXT("\n"));
-				::lstrcat(szMessage,pszText);
-			}
-			if (pszSystemMessage!=NULL) {
-				if (szMessage[0]!='\0')
-					::lstrcat(szMessage,TEXT("\n\n"));
-				::lstrcat(szMessage,TEXT("Windowsのエラーメッセージ:\n"));
-				::lstrcat(szMessage,pszSystemMessage);
-			}
-			return ::MessageBox(hwndOwner,szMessage,pszCaption,MB_OK |
-								(Type==TYPE_INFO?MB_ICONINFORMATION:
-								 Type==TYPE_WARNING?MB_ICONEXCLAMATION:
-								 Type==TYPE_ERROR?MB_ICONSTOP:0))==IDOK;
+		szMessage[0]='\0';
+		if (pszTitle!=NULL)
+			::lstrcat(szMessage,pszTitle);
+		if (pszText!=NULL) {
+			if (szMessage[0]!='\0')
+				::lstrcat(szMessage,TEXT("\n"));
+			::lstrcat(szMessage,pszText);
 		}
+		if (pszSystemMessage!=NULL) {
+			if (szMessage[0]!='\0')
+				::lstrcat(szMessage,TEXT("\n\n"));
+			::lstrcat(szMessage,TEXT("Windowsのエラーメッセージ:\n"));
+			::lstrcat(szMessage,pszSystemMessage);
+		}
+		return ::MessageBox(hwndOwner,szMessage,pszCaption,MB_OK |
+							(Type==TYPE_INFO?MB_ICONINFORMATION:
+							 Type==TYPE_WARNING?MB_ICONEXCLAMATION:
+							 Type==TYPE_ERROR?MB_ICONSTOP:0))==IDOK;
 	}
 	ReplaceString(&m_pszText,pszText);
 	ReplaceString(&m_pszTitle,pszTitle);

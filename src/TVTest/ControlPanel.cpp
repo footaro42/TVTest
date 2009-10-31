@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "ControlPanel.h"
-#include "Util.h"
 #include "DrawUtil.h"
 #include "resource.h"
 
@@ -12,11 +11,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define CONTROL_PANEL_WINDOW_CLASS APP_NAME TEXT(" Control Panel")
 
 
-
-
+const LPCTSTR CControlPanel::m_pszClassName=APP_NAME TEXT(" Control Panel");
 HINSTANCE CControlPanel::m_hinst=NULL;
 
 
@@ -31,11 +28,11 @@ bool CControlPanel::Initialize(HINSTANCE hinst)
 		wc.cbWndExtra=0;
 		wc.hInstance=hinst;
 		wc.hIcon=NULL;
-		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
+		wc.hCursor=::LoadCursor(NULL,IDC_ARROW);
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
-		wc.lpszClassName=CONTROL_PANEL_WINDOW_CLASS;
-		if (RegisterClass(&wc)==0)
+		wc.lpszClassName=m_pszClassName;
+		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
@@ -47,8 +44,8 @@ CControlPanel::CControlPanel()
 {
 	m_NumItems=0;
 	LOGFONT lf;
-	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
-	m_hfont=CreateFontIndirect(&lf);
+	GetDefaultFont(&lf);
+	m_hfont=::CreateFontIndirect(&lf);
 	m_FontHeight=abs(lf.lfHeight);
 	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
 	m_BackGradient.Direction=Theme::DIRECTION_VERT;
@@ -79,7 +76,7 @@ CControlPanel::~CControlPanel()
 bool CControlPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 CONTROL_PANEL_WINDOW_CLASS,TEXT("ëÄçÏ"),m_hinst);
+							 m_pszClassName,TEXT("ëÄçÏ"),m_hinst);
 }
 
 
@@ -127,6 +124,24 @@ void CControlPanel::SetColors(const Theme::GradientInfo *pBackGradient,COLORREF 
 	if (m_hwnd!=NULL)
 		Invalidate();
 }
+
+
+/*
+bool CControlPanel::SetFont(const LOGFONT *pFont)
+{
+	HFONT hfont=::CreateFontIndirect(pFont);
+
+	if (hfont==NULL)
+		return false;
+	if (m_hfont!=NULL)
+		::DeleteObject(m_hfont);
+	m_hfont=hfont;
+	if (m_hwnd!=NULL) {
+		Invalidate();
+	}
+	return true;
+}
+*/
 
 
 void CControlPanel::SetSendMessageWindow(HWND hwnd)

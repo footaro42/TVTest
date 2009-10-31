@@ -94,13 +94,26 @@ const bool CBcasCard::ReOpenCard()
 		SetError(ERR_CARDNOTOPEN,NULL);
 		return false;
 	}
-	return OpenCard(m_pCardReader->GetReaderType(),m_pCardReader->GetReaderName());
+
+	CCardReader::ReaderType Type=m_pCardReader->GetReaderType();
+	LPTSTR pszReaderName=StdUtil::strdup(m_pCardReader->GetReaderName());
+	bool bResult=OpenCard(Type,pszReaderName);
+	delete [] pszReaderName;
+	return bResult;
 }
 
 
 const bool CBcasCard::IsCardOpen() const
 {
 	return m_pCardReader!=NULL;
+}
+
+
+CCardReader::ReaderType CBcasCard::GetCardReaderType() const
+{
+	if (m_pCardReader)
+		return m_pCardReader->GetReaderType();
+	return CCardReader::READER_NONE;
 }
 
 
@@ -160,6 +173,26 @@ const bool CBcasCard::InitialSetting(void)
 
 	// ECMステータス初期化
 	::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
+
+	return true;
+}
+
+
+const bool CBcasCard::GetBcasCardInfo(BcasCardInfo *pInfo)
+{
+	if (!m_pCardReader) {
+		SetError(ERR_CARDNOTOPEN, NULL);
+		return false;
+	}
+
+	if (pInfo == NULL) {
+		SetError(ERR_BADARGUMENT, NULL);
+		return false;
+	}
+
+	*pInfo = m_BcasCardInfo;
+
+	ClearError();
 
 	return true;
 }
@@ -329,18 +362,18 @@ const bool CBcasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize
 		return false;
 	}
 
-	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > 263UL) {
+	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > 262UL) {
 		SetError(ERR_BADARGUMENT, TEXT(""));
 		return false;
 	}
 
 	static const BYTE EmmReceiveCmd[] = {0x90, 0x36, 0x00, 0x00};
-	BYTE SendData[272], RecvData[1024];
+	BYTE SendData[268], RecvData[1024];
 
 	::CopyMemory(SendData, EmmReceiveCmd, sizeof(EmmReceiveCmd));
 	SendData[sizeof(EmmReceiveCmd)] = (BYTE)dwEmmSize;
 	::CopyMemory(&SendData[sizeof(EmmReceiveCmd) + 1], pEmmData, dwEmmSize);
-	SendData[sizeof(EmmReceiveCmd) + dwEmmSize + 1] = 0x00;
+	SendData[sizeof(EmmReceiveCmd) + 1 + dwEmmSize] = 0x00;
 
 	::ZeroMemory(RecvData, sizeof(RecvData));
 	DWORD RecvSize = sizeof(RecvData);
@@ -366,6 +399,29 @@ const bool CBcasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize
 	SetError(ERR_EMMERROR, TEXT("EMMが受け付けられません。"));
 
 	return false;
+}
+
+
+const bool CBcasCard::SendCommand(const BYTE *pSendData, const DWORD SendSize, BYTE *pReceiveData, DWORD *pReceiveSize)
+{
+	if (!m_pCardReader) {
+		SetError(ERR_CARDNOTOPEN, TEXT(""));
+		return false;
+	}
+
+	if (pSendData == NULL || SendSize == 0
+			|| pReceiveData == NULL || pReceiveSize == NULL) {
+		SetError(ERR_BADARGUMENT, TEXT(""));
+		return false;
+	}
+
+	if (!m_pCardReader->Transmit(pSendData, SendSize, pReceiveData, pReceiveSize)) {
+		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
+		return false;
+	}
+
+	ClearError();
+	return true;
 }
 
 

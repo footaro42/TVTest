@@ -27,6 +27,7 @@ private:
 	CBasicWindow *m_pWindow;
 	LPTSTR m_pszTitle;
 	bool m_fShowTitle;
+	bool m_fEnableFloating;
 	Theme::GradientInfo m_TitleBackGradient;
 	COLORREF m_crTitleTextColor;
 	CEventHandler *m_pEventHandler;
@@ -45,6 +46,7 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool SetWindow(CBasicWindow *pWindow,LPCTSTR pszTitle);
 	void ShowTitle(bool fShow);
+	void EnableFloating(bool fEnable);
 	void SetEventHandler(CEventHandler *pHandler);
 	CBasicWindow *GetWindow() { return m_pWindow; }
 	bool SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText);
@@ -111,6 +113,7 @@ public:
 	CPanelFrame();
 	~CPanelFrame();
 	bool Create(HWND hwndOwner,CSplitter *pSplitter,int PanelID,CBasicWindow *pWindow,LPCTSTR pszTitle);
+	CPanel *GetPanel() { return &m_Panel; }
 	CBasicWindow *GetWindow() { return m_Panel.GetWindow(); }
 	bool SetFloating(bool fFloating);
 	bool GetFloating() const { return m_fFloating; }

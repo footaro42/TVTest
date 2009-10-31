@@ -10,9 +10,9 @@
 #define WINVER 0x0501		// これを Windows の他のバージョン向けに適切な値に変更してください。
 #endif
 
-#ifndef _WIN32_WINNT		// Windows XP 以降のバージョンに固有の機能の使用を許可します。                   
+#ifndef _WIN32_WINNT		// Windows XP 以降のバージョンに固有の機能の使用を許可します。
 #define _WIN32_WINNT 0x0501	// これを Windows の他のバージョン向けに適切な値に変更してください。
-#endif						
+#endif
 
 #ifndef _WIN32_WINDOWS		// Windows 98 以降のバージョンに固有の機能の使用を許可します。
 #define _WIN32_WINDOWS 0x0410 // これを Windows Me またはそれ以降のバージョン向けに適切な値に変更してください。
@@ -33,6 +33,7 @@
 #include <tchar.h>
 #include <commctrl.h>
 #include <shlwapi.h>
+#include <Streams.h>	// DirectShow BaseClasses
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
@@ -55,10 +56,6 @@
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
 #endif
-
-
-#include <Streams.h>
-#include <InitGuid.h>
 
 
 // 警告の無効設定

@@ -170,12 +170,12 @@ const bool CCaMethodDesc::StoreContents(const BYTE *pPayload)
 {
 	// フォーマットをチェック
 	if(m_byDescTag != DESC_TAG)return false;							// タグが不正
-	else if(m_byDescLen < 4U)return false;								// CAメソッド記述子の最小サイズは4
-	else if((pPayload[2] & 0xE0U) != 0xE0U)return false;				// 固定ビットが不正
+	if(m_byDescLen < 4U)return false;								// CAメソッド記述子の最小サイズは4
+	if((pPayload[2] & 0xE0U) != 0xE0U)return false;				// 固定ビットが不正
 
 	// 記述子を解析
-	m_wCaMethodID = (WORD)pPayload[0] << 8 | (WORD)pPayload[1];			// +0,1	Conditional Access Method ID
-	m_wCaPID = (WORD)(pPayload[2] & 0x1FU) << 8 | (WORD)pPayload[3];	// +2,3	Conditional Access PID
+	m_wCaMethodID = ((WORD)pPayload[0] << 8) | (WORD)pPayload[1];			// +0,1	Conditional Access Method ID
+	m_wCaPID = ((WORD)(pPayload[2] & 0x1FU) << 8) | (WORD)pPayload[3];	// +2,3	Conditional Access PID
 	m_PrivateData.SetData(&pPayload[4], m_byDescLen - 4U);				// +4-	Private Data
 
 	return true;
@@ -380,6 +380,118 @@ const bool CShortEventDesc::StoreContents(const BYTE *pPayload)
 		CAribString::AribToString(m_szEventDesc, sizeof(m_szEventDesc) / sizeof(TCHAR), &pPayload[Pos], Length);
 	}
 
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x4E] Extended Event 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CExtendedEventDesc::CExtendedEventDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CExtendedEventDesc::CExtendedEventDesc(const CExtendedEventDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CExtendedEventDesc & CExtendedEventDesc::operator = (const CExtendedEventDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CExtendedEventDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	// インスタンスのコピー
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CExtendedEventDesc *pSrcDesc = dynamic_cast<const CExtendedEventDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_DescriptorNumber = pSrcDesc->m_DescriptorNumber;
+		m_LastDescriptorNumber = pSrcDesc->m_LastDescriptorNumber;
+		m_LanguageCode = pSrcDesc->m_LanguageCode;
+		m_ItemList = pSrcDesc->m_ItemList;
+	}
+}
+
+void CExtendedEventDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_DescriptorNumber = 0;
+	m_LastDescriptorNumber = 0;
+	m_LanguageCode = 0UL;
+	m_ItemList.clear();
+}
+
+BYTE CExtendedEventDesc::GetDescriptorNumber() const
+{
+	return m_DescriptorNumber;
+}
+
+BYTE CExtendedEventDesc::GetLastDescriptorNumber() const
+{
+	return m_LastDescriptorNumber;
+}
+
+DWORD CExtendedEventDesc::GetLanguageCode(void) const
+{
+	return m_LanguageCode;
+}
+
+int CExtendedEventDesc::GetItemCount() const
+{
+	return (int)m_ItemList.size();
+}
+
+const CExtendedEventDesc::ItemInfo * CExtendedEventDesc::GetItem(int Index) const
+{
+	if (Index < 0 || Index >= (int)m_ItemList.size())
+		return NULL;
+	return &m_ItemList[Index];
+}
+
+const bool CExtendedEventDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 5)
+		return false;
+
+	m_DescriptorNumber = pPayload[0] >> 4;
+	m_LastDescriptorNumber = pPayload[0] & 0x0F;
+	m_LanguageCode = ((DWORD)pPayload[1] << 16) | ((DWORD)pPayload[2] << 8) | (DWORD)pPayload[3];
+	m_ItemList.clear();
+	const int ItemLength = pPayload[4];
+	if (5 + ItemLength > (int)m_byDescLen)
+		return false;
+	int Pos = 5;
+	while (Pos < 5 + ItemLength) {
+		ItemInfo Item;
+
+		const int DescriptionLength = pPayload[Pos];
+		if (Pos + 1 + DescriptionLength > (int)m_byDescLen)
+			break;
+		Item.szDescription[0] = '\0';
+		if (DescriptionLength > 0)
+			CAribString::AribToString(Item.szDescription, MAX_DESCRIPTION, &pPayload[Pos + 1], DescriptionLength);
+		Pos += 1 + DescriptionLength;
+
+		const BYTE ItemLength = pPayload[Pos];
+		if (Pos + 1 + (int)ItemLength > (int)m_byDescLen)
+			break;
+		Item.ItemLength = min(ItemLength, 220);
+		::CopyMemory(Item.ItemChar, &pPayload[Pos + 1], Item.ItemLength);
+
+		m_ItemList.push_back(Item);
+
+		Pos += 1 + ItemLength;
+	}
 	return true;
 }
 
@@ -888,6 +1000,496 @@ const bool CAudioComponentDesc::StoreContents(const BYTE *pPayload)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0x54] Content 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+// ※現在のところ使用していないので未テストです。
+
+CContentDesc::CContentDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CContentDesc::CContentDesc(const CContentDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CContentDesc & CContentDesc::operator = (const CContentDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CContentDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CContentDesc *pSrcDesc = dynamic_cast<const CContentDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_NibbleCount = pSrcDesc->m_NibbleCount;
+		::CopyMemory(m_NibbleList, pSrcDesc->m_NibbleList, pSrcDesc->m_NibbleCount * sizeof(Nibble));
+	}
+}
+
+void CContentDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_NibbleCount = 0;
+}
+
+int CContentDesc::GetNibbleCount() const
+{
+	return m_NibbleCount;
+}
+
+bool CContentDesc::GetNibble(int Index, Nibble *pNibble) const
+{
+	if (Index < 0 || Index >= m_NibbleCount || pNibble == NULL)
+		return false;
+	*pNibble = m_NibbleList[Index];
+	return true;
+}
+
+const bool CContentDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen > 14)
+		return false;
+
+	m_NibbleCount = m_byDescLen / 2;
+	for (int i = 0; i < m_NibbleCount; i++) {
+		m_NibbleList[i].ContentNibbleLevel1 = pPayload[i * 2 + 0] >> 4;
+		m_NibbleList[i].ContentNibbleLevel2 = pPayload[i * 2 + 0] & 0x0F;
+		m_NibbleList[i].UserNibble1 = pPayload[i * 2 + 1] >> 4;
+		m_NibbleList[i].UserNibble2 = pPayload[i * 2 + 1] & 0x0F;
+	}
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0xCF] Logo Transmission 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+// ※現在のところ使用していないので未テストです。
+
+CLogoTransmissionDesc::CLogoTransmissionDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CLogoTransmissionDesc::CLogoTransmissionDesc(const CLogoTransmissionDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CLogoTransmissionDesc & CLogoTransmissionDesc::operator = (const CLogoTransmissionDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CLogoTransmissionDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CLogoTransmissionDesc *pSrcDesc = dynamic_cast<const CLogoTransmissionDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_LogoTransmissionType = pSrcDesc->m_LogoTransmissionType;
+		m_LogoID = pSrcDesc->m_LogoID;
+		m_LogoVersion = pSrcDesc->m_LogoVersion;
+		m_DownloadDataID = pSrcDesc->m_DownloadDataID;
+		::lstrcpyA(m_LogoChar, pSrcDesc->m_LogoChar);
+	}
+}
+
+void CLogoTransmissionDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_LogoTransmissionType = TRANSMISSION_UNDEFINED;
+	m_LogoID = LOGOID_INVALID;
+	m_LogoVersion = LOGOVERSION_INVALID;
+	m_DownloadDataID = DATAID_INVALID;
+	m_LogoChar[0] = '\0';
+}
+
+BYTE CLogoTransmissionDesc::GetLogoTransmissionType() const
+{
+	return m_LogoTransmissionType;
+}
+
+WORD CLogoTransmissionDesc::GetLogoID() const
+{
+	return m_LogoID;
+}
+
+WORD CLogoTransmissionDesc::GetLogoVersion() const
+{
+	return m_LogoVersion;
+}
+
+WORD CLogoTransmissionDesc::GetDownloadDataID() const
+{
+	return m_DownloadDataID;
+}
+
+int CLogoTransmissionDesc::GetLogoChar(char *pChar, int MaxLength) const
+{
+	if (pChar == 0 || MaxLength <= 0)
+		return 0;
+	::lstrcpynA(pChar, m_LogoChar, MaxLength);
+	return ::lstrlenA(m_LogoChar);
+}
+
+const bool CLogoTransmissionDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 1)
+		return false;
+
+	m_LogoTransmissionType = pPayload[0];
+	m_LogoID = LOGOID_INVALID;
+	m_LogoVersion = LOGOVERSION_INVALID;
+	m_DownloadDataID = DATAID_INVALID;
+	m_LogoChar[0] = '\0';
+	if (m_LogoTransmissionType == 0x01) {
+		// CDT伝送方式1
+		if (m_byDescLen < 7)
+			return false;
+		m_LogoID = ((WORD)(pPayload[1] & 0x01) << 8) | (WORD)pPayload[2];
+		m_LogoVersion = ((WORD)(pPayload[3] & 0x0F) << 8) | (WORD) pPayload[4];
+		m_DownloadDataID = ((WORD)pPayload[5] << 8) | (WORD)pPayload[6];
+	} else if (m_LogoTransmissionType == 0x02) {
+		// CDT伝送方式2
+		if (m_byDescLen < 3)
+			return false;
+		m_LogoID = ((WORD)(pPayload[1] & 0x01) << 8) | (WORD)pPayload[2];
+	} else if (m_LogoTransmissionType == 0x03) {
+		// 簡易ロゴ方式
+		int i;
+		for (i = 0; i < (int)m_byDescLen - 1 && i < MAX_LOGO_CHAR - 1; i++) {
+			m_LogoChar[i] = pPayload[1 + i];
+		}
+		m_LogoChar[i] = '\0';
+	}
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0xD5] Series 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CSeriesDesc::CSeriesDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CSeriesDesc::CSeriesDesc(const CSeriesDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CSeriesDesc & CSeriesDesc::operator = (const CSeriesDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CSeriesDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CSeriesDesc *pSrcDesc = dynamic_cast<const CSeriesDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_SeriesID = pSrcDesc->m_SeriesID;
+		m_RepeatLabel = pSrcDesc->m_RepeatLabel;
+		m_ProgramPattern = pSrcDesc->m_ProgramPattern;
+		m_bExpireDateValidFlag = pSrcDesc->m_bExpireDateValidFlag;
+		m_ExpireDate = pSrcDesc->m_ExpireDate;
+		m_EpisodeNumber = pSrcDesc->m_EpisodeNumber;
+		m_LastEpisodeNumber = pSrcDesc->m_LastEpisodeNumber;
+		::lstrcpy(m_szSeriesName, pSrcDesc->m_szSeriesName);
+	}
+}
+
+void CSeriesDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_SeriesID = SERIESID_INVALID;
+	m_RepeatLabel = 0x00;
+	m_ProgramPattern = PROGRAMPATTERN_INVALID;
+	m_bExpireDateValidFlag = false;
+	m_EpisodeNumber = 0;
+	m_LastEpisodeNumber = 0;
+	m_szSeriesName[0] = '\0';
+}
+
+WORD CSeriesDesc::GetSeriesID() const
+{
+	return m_SeriesID;
+}
+
+BYTE CSeriesDesc::GetRepeatLabel() const
+{
+	return m_RepeatLabel;
+}
+
+BYTE CSeriesDesc::GetProgramPattern() const
+{
+	return m_ProgramPattern;
+}
+
+bool CSeriesDesc::IsExpireDateValid() const
+{
+	return m_bExpireDateValidFlag;
+}
+
+bool CSeriesDesc::GetExpireDate(SYSTEMTIME *pDate) const
+{
+	if (pDate == NULL || !m_bExpireDateValidFlag)
+		return false;
+	*pDate = m_ExpireDate;
+	return true;
+}
+
+WORD CSeriesDesc::GetEpisodeNumber() const
+{
+	return m_EpisodeNumber;
+}
+
+WORD CSeriesDesc::GetLastEpisodeNumber() const
+{
+	return m_LastEpisodeNumber;
+}
+
+int CSeriesDesc::GetSeriesName(LPTSTR pszName, int MaxName) const
+{
+	if (pszName == NULL || MaxName <= 0)
+		return 0;
+	::lstrcpyn(pszName, m_szSeriesName, MaxName);
+	return ::lstrlen(m_szSeriesName);
+}
+
+const bool CSeriesDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 8)
+		return false;
+
+	m_SeriesID = ((WORD)pPayload[0] << 8) | (WORD)pPayload[1];
+	m_RepeatLabel = pPayload[2] >> 4;
+	m_ProgramPattern = (pPayload[2] & 0x0E) >> 1;
+	m_bExpireDateValidFlag = (pPayload[2] & 0x01) != 0;
+	if (m_bExpireDateValidFlag)
+		CAribTime::MjdToSystemTime(((WORD)pPayload[3] << 8) | (WORD)pPayload[4], &m_ExpireDate);
+	m_EpisodeNumber = ((WORD)pPayload[5] << 4) | (WORD)(pPayload[6] >> 4);
+	m_LastEpisodeNumber = ((WORD)(pPayload[6] & 0x0F) << 8) | (WORD)pPayload[7];
+	m_szSeriesName[0] = '\0';
+	if (m_byDescLen > 8)
+		CAribString::AribToString(m_szSeriesName, MAX_SERIES_NAME, &pPayload[8], m_byDescLen - 8);
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0xD6] Event Group 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CEventGroupDesc::CEventGroupDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CEventGroupDesc::CEventGroupDesc(const CEventGroupDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CEventGroupDesc & CEventGroupDesc::operator = (const CEventGroupDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CEventGroupDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CEventGroupDesc *pSrcDesc = dynamic_cast<const CEventGroupDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_GroupType = pSrcDesc->m_GroupType;
+		m_EventList = pSrcDesc->m_EventList;
+	}
+}
+
+void CEventGroupDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_GroupType = GROUPTYPE_UNDEFINED;
+	m_EventList.clear();
+}
+
+BYTE CEventGroupDesc::GetGroupType() const
+{
+	return m_GroupType;
+}
+
+int CEventGroupDesc::GetEventNum() const
+{
+	return (int)m_EventList.size();
+}
+
+bool CEventGroupDesc::GetEventInfo(int Index, EventInfo *pInfo) const
+{
+	if (Index < 0 || Index >= (int)m_EventList.size() || pInfo == NULL)
+		return false;
+	*pInfo = m_EventList[Index];
+	return true;
+}
+
+const bool CEventGroupDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 7)
+		return false;
+
+	m_GroupType = pPayload[0] >> 4;
+	const int EventCount = pPayload[0] & 0x0F;
+	m_EventList.clear();
+	if (m_GroupType != 0x04 && m_GroupType != 0x05) {
+		int Pos = 1;
+		if (Pos + EventCount * 4 > m_byDescLen)
+			return false;
+		for (int i = 0; i < EventCount; i++) {
+			EventInfo Info;
+			Info.ServiceID = ((WORD)pPayload[Pos + 0] << 8) | (WORD)pPayload[Pos + 1];
+			Info.EventID   = ((WORD)pPayload[Pos + 2] << 8) | (WORD)pPayload[Pos + 3];
+			Info.OriginalNetworkID = 0;
+			Info.TransportStreamID = 0;
+			m_EventList.push_back(Info);
+			Pos += 4;
+		}
+	} else {
+		if (EventCount != 0)
+			return false;
+		int Pos = 1;
+		while (Pos + 8 <= m_byDescLen) {
+			EventInfo Info;
+			Info.OriginalNetworkID = ((WORD)pPayload[Pos + 0] << 8) | (WORD)pPayload[Pos + 1];
+			Info.TransportStreamID = ((WORD)pPayload[Pos + 2] << 8) | (WORD)pPayload[Pos + 3];
+			Info.ServiceID = ((WORD)pPayload[Pos + 4] << 8) | (WORD)pPayload[Pos + 5];
+			Info.EventID   = ((WORD)pPayload[Pos + 6] << 8) | (WORD)pPayload[Pos + 7];
+			m_EventList.push_back(Info);
+			Pos += 8;
+		}
+	}
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x58] Local Time Offset 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CLocalTimeOffsetDesc::CLocalTimeOffsetDesc()
+{
+	Reset();
+}
+
+CLocalTimeOffsetDesc::CLocalTimeOffsetDesc(const CLocalTimeOffsetDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CLocalTimeOffsetDesc & CLocalTimeOffsetDesc::operator = (const CLocalTimeOffsetDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CLocalTimeOffsetDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CLocalTimeOffsetDesc *pSrcDesc = dynamic_cast<const CLocalTimeOffsetDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_Info = pSrcDesc->m_Info;
+	}
+}
+
+void CLocalTimeOffsetDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	::ZeroMemory(&m_Info, sizeof(TimeOffsetInfo));
+}
+
+bool CLocalTimeOffsetDesc::IsValid() const
+{
+	return m_Info.bValid
+		&& m_Info.CountryCode == COUNTRYCODE_JPN
+		&& m_Info.CountryRegionID == COUNTRYREGION_ALL;
+}
+
+DWORD CLocalTimeOffsetDesc::GetCountryCode() const
+{
+	return m_Info.CountryCode;
+}
+
+BYTE CLocalTimeOffsetDesc::GetCountryRegionID() const
+{
+	return m_Info.CountryRegionID;
+}
+
+int CLocalTimeOffsetDesc::GetLocalTimeOffset() const
+{
+	return m_Info.LocalTimeOffsetPolarity == 0 ? m_Info.LocalTimeOffset : -(int)m_Info.LocalTimeOffset;
+}
+
+bool CLocalTimeOffsetDesc::GetTimeOfChange(SYSTEMTIME *pTime) const
+{
+	if (pTime == NULL || !m_Info.bValid)
+		return false;
+	*pTime = m_Info.TimeOfChange;
+	return true;
+}
+
+int CLocalTimeOffsetDesc::GetNextTimeOffset() const
+{
+	return m_Info.LocalTimeOffsetPolarity == 0 ? m_Info.NextTimeOffset : -(int)m_Info.NextTimeOffset;
+}
+
+const bool CLocalTimeOffsetDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 13)
+		return false;
+
+	m_Info.bValid = true;
+	m_Info.CountryCode = ((DWORD)pPayload[0] << 16) | ((DWORD)pPayload[1] << 8) | (DWORD)pPayload[2];
+	m_Info.CountryRegionID = (pPayload[3] & 0xFC) >> 2;
+	m_Info.LocalTimeOffsetPolarity = pPayload[3] & 0x01;
+	m_Info.LocalTimeOffset = CAribTime::BcdHMToMinute(((WORD)pPayload[4] << 8) | (WORD)pPayload[5]);
+	CAribTime::AribToSystemTime(&pPayload[6], &m_Info.TimeOfChange);
+	m_Info.NextTimeOffset = CAribTime::BcdHMToMinute(((WORD)pPayload[11] << 8) | (WORD)pPayload[12]);
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1020,12 +1622,19 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 	case CCaMethodDesc::DESC_TAG		: return new CCaMethodDesc;
 	case CServiceDesc::DESC_TAG			: return new CServiceDesc;
 	case CShortEventDesc::DESC_TAG		: return new CShortEventDesc;
+	case CExtendedEventDesc::DESC_TAG	: return new CExtendedEventDesc;
 	case CStreamIdDesc::DESC_TAG		: return new CStreamIdDesc;
 	case CNetworkNameDesc::DESC_TAG		: return new CNetworkNameDesc;
 	case CSystemManageDesc::DESC_TAG	: return new CSystemManageDesc;
 	case CTSInfoDesc::DESC_TAG			: return new CTSInfoDesc;
 	case CComponentDesc::DESC_TAG		: return new CComponentDesc;
 	case CAudioComponentDesc::DESC_TAG	: return new CAudioComponentDesc;
+	case CSeriesDesc::DESC_TAG			: return new CSeriesDesc;
+	case CEventGroupDesc::DESC_TAG		: return new CEventGroupDesc;
+	case CLocalTimeOffsetDesc::DESC_TAG	: return new CLocalTimeOffsetDesc;
+	// 今のところ利用していない
+	//case CContentDesc::DESC_TAG			: return new CContentDesc;
+	//case CLogoTransmissionDesc::DESC_TAG	: return new CLogoTransmissionDesc;
 	default								: return new CBaseDesc;
 	}
 }

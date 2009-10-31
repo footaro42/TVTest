@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.7
+	TVTest プラグインヘッダ ver.0.0.8
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -87,6 +87,13 @@
 /*
 	更新履歴
 
+	ver.0.0.8 (TVTest ver.0.5.57 or later)
+	・以下のメッセージを追加した
+	  ・MESSAGE_GETBCASINFO
+	  ・MESSAGE_SENDBCASCOMMAND
+	  ・MESSAGE_GETHOSTINFO
+	・MESSAGE_SETCHANNEL のパラメータにサービスIDを追加した
+
 	ver.0.0.7 (TVTest ver.0.5.45 or later)
 	・MESSAGE_DOCOMMAND を追加した
 
@@ -148,8 +155,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_5	0x00000005UL
 #define TVTEST_PLUGIN_VERSION_0_0_6	0x00000006UL
 #define TVTEST_PLUGIN_VERSION_0_0_7	0x00000007UL
+#define TVTEST_PLUGIN_VERSION_0_0_8	0x00000008UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_7
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_8
 #endif
 
 // エクスポート関数定義用
@@ -199,75 +207,80 @@ typedef BOOL (WINAPI *FinalizeFunc)();
 
 // メッセージ
 enum {
-	MESSAGE_GETVERSION,
-	MESSAGE_QUERYMESSAGE,
-	MESSAGE_MEMORYALLOC,
-	MESSAGE_SETEVENTCALLBACK,
-	MESSAGE_GETCURRENTCHANNELINFO,
-	MESSAGE_SETCHANNEL,
-	MESSAGE_GETSERVICE,
-	MESSAGE_SETSERVICE,
-	MESSAGE_GETTUNINGSPACENAME,
-	MESSAGE_GETCHANNELINFO,
-	MESSAGE_GETSERVICEINFO,
-	MESSAGE_GETDRIVERNAME,
-	MESSAGE_SETDRIVERNAME,
-	MESSAGE_STARTRECORD,
-	MESSAGE_STOPRECORD,
-	MESSAGE_PAUSERECORD,
-	MESSAGE_GETRECORD,
-	MESSAGE_MODIFYRECORD,
-	MESSAGE_GETZOOM,
-	MESSAGE_SETZOOM,
-	MESSAGE_GETPANSCAN,
-	MESSAGE_SETPANSCAN,
-	MESSAGE_GETSTATUS,
-	MESSAGE_GETRECORDSTATUS,
-	MESSAGE_GETVIDEOINFO,
-	MESSAGE_GETVOLUME,
-	MESSAGE_SETVOLUME,
-	MESSAGE_GETSTEREOMODE,
-	MESSAGE_SETSTEREOMODE,
-	MESSAGE_GETFULLSCREEN,
-	MESSAGE_SETFULLSCREEN,
-	MESSAGE_GETPREVIEW,
-	MESSAGE_SETPREVIEW,
-	MESSAGE_GETSTANDBY,
-	MESSAGE_SETSTANDBY,
-	MESSAGE_GETALWAYSONTOP,
-	MESSAGE_SETALWAYSONTOP,
-	MESSAGE_CAPTUREIMAGE,
-	MESSAGE_SAVEIMAGE,
-	MESSAGE_RESET,
-	MESSAGE_CLOSE,
-	MESSAGE_SETSTREAMCALLBACK,
-	MESSAGE_ENABLEPLUGIN,
-	MESSAGE_GETCOLOR,
-	MESSAGE_DECODEARIBSTRING,
-	MESSAGE_GETCURRENTPROGRAMINFO,
+	MESSAGE_GETVERSION,				// プログラムのバージョンを取得
+	MESSAGE_QUERYMESSAGE,			// メッセージに対応しているか問い合わせる
+	MESSAGE_MEMORYALLOC,			// メモリ確保
+	MESSAGE_SETEVENTCALLBACK,		// イベントハンドル用コールバックの設定
+	MESSAGE_GETCURRENTCHANNELINFO,	// 現在のチャンネルの情報を取得
+	MESSAGE_SETCHANNEL,				// チャンネルを設定
+	MESSAGE_GETSERVICE,				// サービスを取得
+	MESSAGE_SETSERVICE,				// サービスを設定
+	MESSAGE_GETTUNINGSPACENAME,		// チューニング空間名を取得
+	MESSAGE_GETCHANNELINFO,			// チャンネルの情報を取得
+	MESSAGE_GETSERVICEINFO,			// サービスの情報を取得
+	MESSAGE_GETDRIVERNAME,			// BonDriverのファイル名を取得
+	MESSAGE_SETDRIVERNAME,			// BonDriverを設定
+	MESSAGE_STARTRECORD,			// 録画の開始
+	MESSAGE_STOPRECORD,				// 録画の停止
+	MESSAGE_PAUSERECORD,			// 録画の一時停止/再開
+	MESSAGE_GETRECORD,				// 録画設定の取得
+	MESSAGE_MODIFYRECORD,			// 録画設定の変更
+	MESSAGE_GETZOOM,				// 表示倍率の取得
+	MESSAGE_SETZOOM,				// 表示倍率の設定
+	MESSAGE_GETPANSCAN,				// パンスキャンの設定を取得
+	MESSAGE_SETPANSCAN,				// パンスキャンを設定
+	MESSAGE_GETSTATUS,				// ステータスを取得
+	MESSAGE_GETRECORDSTATUS,		// 録画ステータスを取得
+	MESSAGE_GETVIDEOINFO,			// 映像の情報を取得
+	MESSAGE_GETVOLUME,				// 音量を取得
+	MESSAGE_SETVOLUME,				// 音量を設定
+	MESSAGE_GETSTEREOMODE,			// ステレオモードを取得
+	MESSAGE_SETSTEREOMODE,			// ステレオモードを設定
+	MESSAGE_GETFULLSCREEN,			// 全画面表示の状態を取得
+	MESSAGE_SETFULLSCREEN,			// 全画面表示の状態を設定
+	MESSAGE_GETPREVIEW,				// 再生が有効か取得
+	MESSAGE_SETPREVIEW,				// 再生の有効状態を設定
+	MESSAGE_GETSTANDBY,				// 待機状態であるか取得
+	MESSAGE_SETSTANDBY,				// 待機状態を設定
+	MESSAGE_GETALWAYSONTOP,			// 常に最前面表示であるか取得
+	MESSAGE_SETALWAYSONTOP,			// 常に最前面表示を設定
+	MESSAGE_CAPTUREIMAGE,			// 画像をキャプチャする
+	MESSAGE_SAVEIMAGE,				// 画像を保存する
+	MESSAGE_RESET,					// リセットを行う
+	MESSAGE_CLOSE,					// ウィンドウを閉じる
+	MESSAGE_SETSTREAMCALLBACK,		// ストリームコールバックを設定
+	MESSAGE_ENABLEPLUGIN,			// プラグインの有効状態を設定
+	MESSAGE_GETCOLOR,				// 色の設定を取得
+	MESSAGE_DECODEARIBSTRING,		// ARIB文字列のデコード
+	MESSAGE_GETCURRENTPROGRAMINFO,	// 現在の番組の情報を取得
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
-	MESSAGE_QUERYEVENT,
-	MESSAGE_GETTUNINGSPACE,
-	MESSAGE_GETTUNINGSPACEINFO,
-	MESSAGE_SETNEXTCHANNEL,
+	MESSAGE_QUERYEVENT,				// イベントに対応しているか取得
+	MESSAGE_GETTUNINGSPACE,			// 現在のチューニング空間を取得
+	MESSAGE_GETTUNINGSPACEINFO,		// チューニング空間の情報を取得
+	MESSAGE_SETNEXTCHANNEL,			// チャンネルを次に設定する
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
-	MESSAGE_GETAUDIOSTREAM,
-	MESSAGE_SETAUDIOSTREAM,
+	MESSAGE_GETAUDIOSTREAM,			// 音声ストリームを取得
+	MESSAGE_SETAUDIOSTREAM,			// 音声ストリームを設定
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
-	MESSAGE_ISPLUGINENABLED,
-	MESSAGE_REGISTERCOMMAND,
-	MESSAGE_ADDLOG,
+	MESSAGE_ISPLUGINENABLED,		// プラグインの有効状態を取得
+	MESSAGE_REGISTERCOMMAND,		// コマンドの登録
+	MESSAGE_ADDLOG,					// ログを記録
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
-	MESSAGE_RESETSTATUS,
+	MESSAGE_RESETSTATUS,			// ステータスを初期化
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
-	MESSAGE_SETAUDIOCALLBACK,
+	MESSAGE_SETAUDIOCALLBACK,		// 音声のコールバック関数を設定
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
-	MESSAGE_DOCOMMAND,
+	MESSAGE_DOCOMMAND,				// コマンドの実行
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+	MESSAGE_GETBCASINFO,			// B-CAS カードの情報を取得
+	MESSAGE_SENDBCASCOMMAND,		// B-CAS カードにコマンドを送信
+	MESSAGE_GETHOSTINFO,			// ホストプログラムの情報を取得
 #endif
 	MESSAGE_TRAILER
 };
@@ -312,7 +325,7 @@ inline DWORD GetMajorVersion(DWORD Version) { return Version>>24; }
 inline DWORD GetMinorVersion(DWORD Version) { return (Version&0x00FFF000UL)>>12; }
 inline DWORD GetBuildVersion(DWORD Version) { return Version&0x00000FFFUL; }
 
-// TVTestのバージョンを取得する
+// プログラム(TVTest)のバージョンを取得する
 // 上位8ビットがメジャーバージョン、次の12ビットがマイナーバージョン、
 // 下位12ビットがビルドナンバー
 // GetMajorVersion/GetMinorVersion/GetBuildVersionを使って取得できる
@@ -383,9 +396,15 @@ inline bool MsgGetCurrentChannelInfo(PluginParam *pParam,ChannelInfo *pInfo) {
 }
 
 // チャンネルを設定する
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_8
 inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETCHANNEL,Space,Channel)!=0;
 }
+#else
+inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel,WORD ServiceID=0) {
+	return (*pParam->Callback)(pParam,MESSAGE_SETCHANNEL,Space,MAKELPARAM(Channel,ServiceID))!=0;
+}
+#endif
 
 // 現在のサービス及びサービス数を取得する
 // サービスのインデックスが返る。エラー時は-1が返る
@@ -440,14 +459,14 @@ inline bool MsgGetServiceInfo(PluginParam *pParam,int Index,ServiceInfo *pInfo) 
 	return (*pParam->Callback)(pParam,MESSAGE_GETSERVICEINFO,Index,(LPARAM)pInfo)!=0;
 }
 
-// ドライバのファイル名を取得する
+// BonDriverのファイル名を取得する
 // 戻り値はファイル名の長さ(ナルを除く)
 // pszNameをNULLで呼べば長さだけを取得できる
 inline int MsgGetDriverName(PluginParam *pParam,LPWSTR pszName,int MaxLength) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETDRIVERNAME,(LPARAM)pszName,MaxLength);
 }
 
-// ドライバを設定する
+// BonDriverを設定する
 inline bool MsgSetDriverName(PluginParam *pParam,LPCWSTR pszName) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETDRIVERNAME,(LPARAM)pszName,0)!=0;
 }
@@ -694,12 +713,12 @@ inline bool MsgSetFullscreen(PluginParam *pParam,bool fFullscreen) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETFULLSCREEN,fFullscreen,0)!=0;
 }
 
-// 表示が有効であるか取得する
+// 再生が有効であるか取得する
 inline bool MsgGetPreview(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETPREVIEW,0,0)!=0;
 }
 
-// 表示の有効状態を設定する
+// 再生の有効状態を設定する
 inline bool MsgSetPreview(PluginParam *pParam,bool fPreview) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETPREVIEW,fPreview,0)!=0;
 }
@@ -725,7 +744,7 @@ inline bool MsgSetAlwaysOnTop(PluginParam *pParam,bool fAlwaysOnTop) {
 }
 
 // 画像をキャプチャする
-// 戻り値はDIBデータへのポインタ
+// 戻り値はパックDIBデータ(BITMAPINFOHEADER + ピクセルデータ)へのポインタ
 // 不要になった場合はMsgMemoryFreeで開放する
 inline void *MsgCaptureImage(PluginParam *pParam,DWORD Flags=0) {
 	return (void*)(*pParam->Callback)(pParam,MESSAGE_CAPTUREIMAGE,Flags,0);
@@ -786,6 +805,8 @@ inline bool MsgEnablePlugin(PluginParam *pParam,bool fEnable) {
 }
 
 // 色の設定を取得する
+// pszColor に取得したい色の名前を指定します。
+// 名前は配色設定ファイル(*.httheme)の項目名("StatusBack" など)と同じです。
 inline COLORREF MsgGetColor(PluginParam *pParam,LPCWSTR pszColor) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCOLOR,(LPARAM)pszColor,0);
 }
@@ -829,6 +850,10 @@ struct ProgramInfo {
 };
 
 // 現在の番組の情報を取得する
+// 事前に Size メンバに構造体のサイズを設定します。
+// また、pszEventName / pszEventText / pszEventExtText メンバに取得先のバッファへのポインタを、
+// MaxEventName / MaxEventText / MaxEventExtText メンバにバッファの長さ(文字数)を設定します。
+// 必要のない情報は、ポインタを NULL にすると取得されません。
 inline bool MsgGetCurrentProgramInfo(PluginParam *pParam,ProgramInfo *pInfo,bool fNext=false) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCURRENTPROGRAMINFO,(LPARAM)pInfo,fNext)!=0;
 }
@@ -909,6 +934,7 @@ struct CommandInfo {
 
 // コマンドを登録する
 // TVTInitialize 内で呼びます。
+// コマンドを登録すると、ショートカットキーやリモコンに機能を割り当てられるようになります。
 // 以下のように使用します。
 // MsgRegisterCommand(pParam, ID_MYCOMMAND, L"MyCommand", L"私のコマンド");
 // コマンドが実行されると EVENT_COMMAND イベントが送られます。
@@ -941,7 +967,7 @@ inline bool MsgAddLog(PluginParam *pParam,LPCWSTR pszText)
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
 
 // ステータス(MESSAGE_GETSTATUS で取得できる内容)をリセットする
-// リセットが行われると EVENT_STATUSRESET が送られる
+// リセットが行われると EVENT_STATUSRESET が送られます。
 inline bool MsgResetStatus(PluginParam *pParam)
 {
 	return (*pParam->Callback)(pParam,MESSAGE_RESETSTATUS,0,0)!=0;
@@ -956,19 +982,19 @@ inline bool MsgResetStatus(PluginParam *pParam)
 // pData の先には Samples * Channels 分のデータが入っている
 // 今のところ、5.1chをダウンミックスする設定になっている場合
 // ダウンミックスされたデータが渡されるが、そのうち仕様を変えるかも知れない
-// 戻り値は0を返すこと
+// 戻り値は今のところ常に0を返す
 typedef LRESULT (CALLBACK *AudioCallbackFunc)(short *pData,DWORD Samples,int Channels,void *pClientData);
 
 // 音声のサンプルを取得するコールバック関数を設定する
-// pClinetData はコールバック関数に渡される
+// pClinetData はコールバック関数に渡されます。
 inline bool MsgSetAudioCallback(PluginParam *pParam,AudioCallbackFunc pCallback,void *pClientData=NULL)
 {
 	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOCALLBACK,(LPARAM)pCallback,(LPARAM)pClientData)!=0;
 }
 
-#endif
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
 
 // コマンドを実行する
 // 文字列を指定してコマンドを実行します。
@@ -979,7 +1005,86 @@ inline bool MsgDoCommand(PluginParam *pParam,LPCWSTR pszCommand)
 	return (*pParam->Callback)(pParam,MESSAGE_DOCOMMAND,(LPARAM)pszCommand,0)!=0;
 }
 
-#endif
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+
+// B-CAS の情報
+struct BCasInfo {
+	DWORD Size;						// 構造体のサイズ
+	WORD CASystemID;				// CA_system_id
+	BYTE CardID[6];					// カードID
+	BYTE CardType;					// カード種別
+	BYTE MessagePartitionLength;	// メッセージ分割長
+	BYTE SystemKey[32];				// システム鍵
+	BYTE InitialCBC[8];				// CBC初期値
+	BYTE CardManufacturerID;		// メーカ識別
+	BYTE CardVersion;				// バージョン
+	WORD CheckCode;					// チェックコード
+	char szFormatCardID[25];		// 可読形式のカードID (4桁の数字x5)
+};
+
+// B-CAS カードの情報を取得する
+// カードが開かれていない場合は false が返ります。
+inline bool MsgGetBCasInfo(PluginParam *pParam,BCasInfo *pInfo)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_GETBCASINFO,(LPARAM)pInfo,0)!=0;
+}
+
+// B-CAS コマンドの情報
+struct BCasCommandInfo {
+	const BYTE *pSendData;	// 送信データ
+	DWORD SendSize;			// 送信サイズ (バイト単位)
+	BYTE *pReceiveData;		// 受信データ
+	DWORD ReceiveSize;		// 受信サイズ (バイト単位)
+};
+
+// B-CAS カードにコマンドを送信する
+// BCasCommandInfo の pSendData に送信データへのポインタを指定して、
+// SendSize に送信データのバイト数を設定します。
+// また、pReceiveData に受信データを格納するバッファへのポインタを指定して、
+// ReceiveSize にバッファに格納できる最大サイズを設定します。
+// 送信が成功すると、ReceiveSize に受信したデータのサイズが返されます。
+inline bool MsgSendBCasCommand(PluginParam *pParam,BCasCommandInfo *pInfo)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_SENDBCASCOMMAND,(LPARAM)pInfo,0)!=0;
+}
+
+// B-CAS カードにコマンドを送信する
+inline bool MsgSendBCasCommand(PluginParam *pParam,const BYTE *pSendData,DWORD SendSize,BYTE *pReceiveData,DWORD *pReceiveSize)
+{
+	BCasCommandInfo Info;
+	Info.pSendData=pSendData;
+	Info.SendSize=SendSize;
+	Info.pReceiveData=pReceiveData;
+	Info.ReceiveSize=*pReceiveSize;
+	if (!MsgSendBCasCommand(pParam,&Info))
+		return false;
+	*pReceiveSize=Info.ReceiveSize;
+	return true;
+}
+
+// ホストプログラムの情報
+struct HostInfo {
+	DWORD Size;						// 構造体のサイズ
+	LPCWSTR pszAppName;				// プログラム名 ("TVTest" など)
+	struct {
+		int Major;					// メジャーバージョン
+		int Minor;					// マイナーバージョン
+		int Build;					// ビルドナンバー
+	} Version;
+	LPCWSTR pszVersionText;			// バージョン文字列 ("1.2.0" など)
+	DWORD SupportedPluginVersion;	// 対応しているプラグインのバージョン
+};
+
+// ホストプログラムの情報を取得する
+// 事前に HostInfo の Size メンバに構造体のサイズを設定して呼び出します。
+inline bool MsgGetHostInfo(PluginParam *pParam,HostInfo *pInfo)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_GETHOSTINFO,(LPARAM)pInfo,0)!=0;
+}
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
 
 
 /*
@@ -1022,9 +1127,15 @@ public:
 		pInfo->Size=sizeof(ChannelInfo);
 		return MsgGetCurrentChannelInfo(m_pParam,pInfo);
 	}
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_8
 	bool SetChannel(int Space,int Channel) {
 		return MsgSetChannel(m_pParam,Space,Channel);
 	}
+#else
+	bool SetChannel(int Space,int Channel,WORD ServiceID=0) {
+		return MsgSetChannel(m_pParam,Space,Channel,ServiceID);
+	}
+#endif
 	int GetService(int *pNumServices=NULL) {
 		return MsgGetService(m_pParam,pNumServices);
 	}
@@ -1216,6 +1327,22 @@ public:
 		return MsgDoCommand(m_pParam,pszCommand);
 	}
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+	bool GetBCasInfo(BCasInfo *pInfo) {
+		pInfo->Size=sizeof(BCasInfo);
+		return MsgGetBCasInfo(m_pParam,pInfo);
+	}
+	bool SendBCasCommand(BCasCommandInfo *pInfo) {
+		return MsgSendBCasCommand(m_pParam,pInfo);
+	}
+	bool SendBCasCommand(const BYTE *pSendData,DWORD SendSize,BYTE *pReceiveData,DWORD *pReceiveSize) {
+		return MsgSendBCasCommand(m_pParam,pSendData,SendSize,pReceiveData,pReceiveSize);
+	}
+	bool GetHostInfo(HostInfo *pInfo) {
+		pInfo->Size=sizeof(HostInfo);
+		return MsgGetHostInfo(m_pParam,pInfo);
+	}
+#endif
 };
 
 /*
@@ -1378,6 +1505,15 @@ public:
 	派生させたプラグインクラスのインスタンスを new で生成して返します。例えば、
 	以下のように書きます。
 
+	#include <windows.h>
+	#define TVTEST_PLUGIN_CLASS_IMPLEMENT
+	#include "TVTestPlugin.h"
+
+	// プラグインクラスの宣言
+	class CMyPluginClass : public TVTest::CTVTestPlugin {
+		...
+	};
+
 	TVTest::CTVTestPlugin *CreatePluginClass()
 	{
 		return new CMyPluginClass;
@@ -1387,10 +1523,12 @@ public:
 
 TVTest::CTVTestPlugin *CreatePluginClass();
 
-HINSTANCE g_hinstDLL;
-TVTest::CTVTestPlugin *g_pPlugin;
+HINSTANCE g_hinstDLL;				// DLL のインスタンスハンドル
+TVTest::CTVTestPlugin *g_pPlugin;	// プラグインクラスへのポインタ
 
 
+// エントリポイント
+// プラグインクラスのインスタンスの生成と破棄を行っています
 BOOL WINAPI DllMain(HINSTANCE hinstDLL,DWORD fdwReason,LPVOID lpvReserved)
 {
 	switch (fdwReason) {

@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include <initguid.h>
 #include "H264ParserFilter.h"
 #include "DirectShowUtil.h"
 
@@ -144,6 +145,7 @@ HRESULT CH264ParserFilter::StartStreaming(void)
 {
 	CAutoLock AutoLock(m_pLock);
 
+	m_H264Parser.Reset();
 	m_PrevTime = -1;
 	return S_OK;
 }
@@ -228,6 +230,18 @@ HRESULT CH264ParserFilter::Receive(IMediaSample *pSample)
 	return hr;
 }
 */
+
+
+HRESULT CH264ParserFilter::BeginFlush(void)
+{
+	HRESULT hr = S_OK;
+
+	m_H264Parser.Reset();
+	m_PrevTime = -1;
+	if (m_pOutput)
+		hr = m_pOutput->DeliverBeginFlush();
+	return hr;
+}
 
 
 void CH264ParserFilter::SetVideoInfoCallback(VideoInfoCallback pCallback, const PVOID pParam)

@@ -48,15 +48,18 @@ class CChannelMenu {
 	HMENU m_hmenu;
 	CEpgProgramList *m_pProgramList;
 	const CChannelList *m_pChannelList;
+	int m_CurChannel;
 	HFONT m_hfont;
+	HFONT m_hfontCurrent;
 	int m_TextHeight;
 	int m_ChannelNameWidth;
 	int m_EventNameWidth;
-	enum { MENU_MARGIN=4 };
+	enum { MENU_MARGIN=2 };
+	void CreateFont(HDC hdc);
 public:
 	CChannelMenu(CEpgProgramList *pProgramList);
 	~CChannelMenu();
-	bool Create(const CChannelList *pChannelList);
+	bool Create(const CChannelList *pChannelList,int CurChannel,bool fUpdateProgramList);
 	void Destroy();
 	bool Popup(UINT Flags,int x,int y,HWND hwnd);
 	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
@@ -67,9 +70,19 @@ class CPopupMenu {
 	HMENU m_hmenu;
 public:
 	CPopupMenu();
+	CPopupMenu(HINSTANCE hinst,LPCTSTR pszName);
+	CPopupMenu(HINSTANCE hinst,int ID);
 	~CPopupMenu();
-	bool Popup(HMENU hmenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
-	bool Popup(HINSTANCE hinst,LPCTSTR pszName,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
+	HMENU GetPopupHandle();
+	bool EnableItem(int ID,bool fEnable);
+	bool CheckItem(int ID,bool fCheck);
+	bool CheckRadioItem(int FirstID,int LastID,int CheckID);
+	bool Popup(HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON);
+	bool Popup(HMENU hmenu,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true);
+	bool Popup(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true);
+	bool Popup(HINSTANCE hinst,int ID,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true) {
+		return Popup(hinst,MAKEINTRESOURCE(ID),hwnd,pPos,Flags,fToggle);
+	}
 };
 
 

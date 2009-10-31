@@ -1,8 +1,7 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
-#include "Information.h"
+#include "InformationPanel.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -12,7 +11,6 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define INFORMATION_WINDOW_CLASS APP_NAME TEXT(" Information")
 #define IDC_PROGRAMINFO		1000
 #define IDC_PROGRAMINFOPREV	1001
 #define IDC_PROGRAMINFONEXT	1002
@@ -24,6 +22,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+const LPCTSTR CInformationPanel::m_pszClassName=APP_NAME TEXT(" Information Panel");
 HINSTANCE CInformationPanel::m_hinst=NULL;
 
 
@@ -53,7 +52,7 @@ bool CInformationPanel::Initialize(HINSTANCE hinst)
 		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
-		wc.lpszClassName=INFORMATION_WINDOW_CLASS;
+		wc.lpszClassName=m_pszClassName;
 		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
@@ -69,15 +68,13 @@ CInformationPanel::CInformationPanel()
 	, m_hwndProgramInfoNext(NULL)
 	, m_hbrBack(NULL)
 	, m_hbrProgramInfoBack(NULL)
+	, m_hFont(NULL)
 	, m_pEventHandler(NULL)
 {
 	m_crBackColor=RGB(0,0,0);
 	m_crTextColor=RGB(255,255,255);
 	m_crProgramInfoBackColor=RGB(0,0,0);
 	m_crProgramInfoTextColor=RGB(255,255,255);
-	LOGFONT lf;
-	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
-	m_hFont=CreateFontIndirect(&lf);
 	m_LineMargin=1;
 	m_ItemVisibility=(unsigned int)-1;
 
@@ -98,16 +95,15 @@ CInformationPanel::CInformationPanel()
 
 CInformationPanel::~CInformationPanel()
 {
-	if (m_hwnd!=NULL)
-		::DestroyWindow(m_hwnd);
-	::DeleteObject(m_hFont);
+	if (m_hFont!=NULL)
+		::DeleteObject(m_hFont);
 }
 
 
 bool CInformationPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
-							 INFORMATION_WINDOW_CLASS,TEXT("èÓïÒ"),m_hinst);
+							 m_pszClassName,TEXT("èÓïÒ"),m_hinst);
 }
 
 
@@ -133,6 +129,8 @@ void CInformationPanel::ResetStatistics()
 	if (m_hwnd!=NULL) {
 		InvalidateRect(m_hwnd,NULL,TRUE);
 		SetWindowText(m_hwndProgramInfo,TEXT(""));
+		EnableWindow(m_hwndProgramInfoPrev,FALSE);
+		EnableWindow(m_hwndProgramInfoNext,TRUE);
 	}
 }
 
@@ -175,7 +173,8 @@ bool CInformationPanel::SetFont(const LOGFONT *pFont)
 
 	if (hfont==NULL)
 		return false;
-	::DeleteObject(m_hFont);
+	if (m_hFont!=NULL)
+		::DeleteObject(m_hFont);
 	m_hFont=hfont;
 	if (m_hwnd!=NULL) {
 		CalcFontHeight();
@@ -310,7 +309,7 @@ bool CInformationPanel::SetEventHandler(CEventHandler *pHandler)
 
 CInformationPanel *CInformationPanel::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CInformationPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return static_cast<CInformationPanel*>(GetBasicWindow(hwnd));
 }
 
 
@@ -320,14 +319,13 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CInformationPanel *pThis=static_cast<CInformationPanel*>(
-					reinterpret_cast<LPCREATESTRUCT>(lParam)->lpCreateParams);
+			CInformationPanel *pThis=static_cast<CInformationPanel*>(OnCreate(hwnd,lParam));
 
-			SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(pThis));
-			pThis->m_hwnd=hwnd;
+			if (pThis->m_hFont==NULL)
+				pThis->m_hFont=CreateDefaultFont();
 			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
 				pThis->m_ProgramInfo.GetSafe(),
-				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY,
+				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFO,m_hinst,NULL);
 			SetWindowFont(pThis->m_hwndProgramInfo,pThis->m_hFont,FALSE);
 			::SetProp(pThis->m_hwndProgramInfo,APP_NAME TEXT("This"),pThis);
@@ -388,7 +386,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 						pThis->m_OriginalVideoWidth,pThis->m_OriginalVideoHeight,
 						pThis->m_DisplayVideoWidth,pThis->m_DisplayVideoHeight,
 						pThis->m_AspectX,pThis->m_AspectY);
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 				}
 			}
 			if (pThis->IsItemVisible(ITEM_DECODER)
@@ -428,7 +426,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 						wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
 														BitRate/100,BitRate%100);
 					}
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 				}
 			}
 			if (pThis->IsItemVisible(ITEM_ERROR)) {
@@ -441,9 +439,9 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 									pCoreEngine->GetContinuityErrorPacketCount(),
 									pCoreEngine->GetErrorPacketCount());
 					if (pCoreEngine->GetDescramble()
-							&& pCoreEngine->GetCardReaderType()!=CCardReader::READER_NONE)
+							&& pCoreEngine->GetCardReaderType()!=CCoreEngine::CARDREADER_NONE)
 					wsprintf(szText+Length,TEXT(" / S %u"),pCoreEngine->GetScramblePacketCount());
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 				}
 			}
 			if (pThis->IsItemVisible(ITEM_RECORD)) {
@@ -462,7 +460,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 							Size/100,Size%100,FreeSpace/100,FreeSpace%100);
 					} else
 						lstrcpy(szText,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"));
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE);
+					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 				}
 			}
 			SetBkMode(ps.hdc,OldBkMode);
@@ -479,7 +477,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			SetTextColor(hdc,pThis->m_crProgramInfoTextColor);
 			SetBkColor(hdc,pThis->m_crProgramInfoBackColor);
-			return (LRESULT)pThis->m_hbrProgramInfoBack;
+			return reinterpret_cast<LRESULT>(pThis->m_hbrProgramInfoBack);
 		}
 
 	case WM_DRAWITEM:
@@ -643,8 +641,11 @@ LRESULT CALLBACK CInformationPanel::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPAR
 							szURL[i++]=*p++;
 					} else {
 						while (*p>0xFF00 && *p<=0xFF5E && i<lengthof(szURL)-1) {
+							/*
 							i+=::LCMapString(LOCALE_USER_DEFAULT,LCMAP_HALFWIDTH,
 											 p,1,&szURL[i],lengthof(szURL)-1-i);
+							*/
+							szURL[i++]=*p-0xFEE0;
 							p++;
 						}
 					}
@@ -673,12 +674,14 @@ LRESULT CALLBACK CInformationPanel::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPAR
 			if (Command==1) {
 				DWORD Start,End;
 
+				::SendMessage(hwnd,WM_SETREDRAW,FALSE,0);
 				::SendMessage(hwnd,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
 				if (Start==End)
 					::SendMessage(hwnd,EM_SETSEL,0,-1);
 				::SendMessage(hwnd,WM_COPY,0,0);
 				if (Start==End)
 					::SendMessage(hwnd,EM_SETSEL,Start,End);
+				::SendMessage(hwnd,WM_SETREDRAW,TRUE,0);
 			} else if (Command==2) {
 				::SendMessage(hwnd,EM_SETSEL,0,-1);
 			} else if (Command>=3) {

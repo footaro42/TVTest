@@ -7,7 +7,8 @@
 #include "Options.h"
 
 
-class CChannelScan : public COptions {
+class CChannelScan : public COptions
+{
 	enum {
 		UPDATE_CHANNELLIST	= 0x0000001UL,
 		UPDATE_PREVIEW		= 0x0000002UL
@@ -34,10 +35,13 @@ class CChannelScan : public COptions {
 	int m_SortColumn;
 	bool m_fSortDescending;
 	bool m_fChanging;
+	float m_MaxSignalLevel;
+	DWORD m_MaxBitRate;
 
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
 	CChannelInfo *GetSelectedChannelInfo() const;
+	float GetSignalLevel();
 	static DWORD WINAPI ScanProc(LPVOID lpParameter);
 	static BOOL CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static BOOL CALLBACK ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

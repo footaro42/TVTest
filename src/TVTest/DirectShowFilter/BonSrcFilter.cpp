@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include <initguid.h>
 #include "BonSrcFilter.h"
 
 #ifdef _DEBUG

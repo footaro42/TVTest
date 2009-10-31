@@ -65,6 +65,8 @@ public:
 	int GetCurChannel() const;
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
+	void SetPurgeStreamOnChannelChange(bool bPurge);
+
 private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
 	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
@@ -86,4 +88,6 @@ private:
 
 	DWORD m_BitRate;
 	DWORD m_StreamRemain;
+
+	bool m_bPurgeStreamOnChannelChange;
 };

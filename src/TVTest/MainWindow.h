@@ -4,10 +4,18 @@
 
 #include "View.h"
 #include "ChannelManager.h"
+#include "Splitter.h"
 #include "TitleBar.h"
 #include "StatusView.h"
 #include "Settings.h"
+#include "NotificationBar.h"
+#include "Panel.h"
 
+
+#define MAIN_WINDOW_CLASS		APP_NAME TEXT(" Window")
+#define FULLSCREEN_WINDOW_CLASS	APP_NAME TEXT(" Fullscreen")
+
+#define MAIN_TITLE_TEXT APP_NAME
 
 #define WM_APP_SERVICEUPDATE	WM_APP
 #define WM_APP_CHANNELCHANGE	(WM_APP+1)
@@ -18,20 +26,38 @@
 #define WM_APP_FILEWRITEERROR	(WM_APP+6)
 #define WM_APP_VIDEOSIZECHANGED	(WM_APP+7)
 #define WM_APP_EMMPROCESSED		(WM_APP+8)
-#define WM_APP_EPGFILELOADED	(WM_APP+9)
+#define WM_APP_ECMERROR			(WM_APP+9)
+#define WM_APP_EPGFILELOADED	(WM_APP+10)
+#define WM_APP_TVTESTACTIVE		(WM_APP+11)
+
+enum {
+	PANE_ID_VIEW=1,
+	PANE_ID_PANEL
+};
 
 
 class CFullscreen : public CBasicWindow {
+	CSplitter m_Splitter;
+	CViewWindow m_ViewWindow;
 	CVideoContainerWindow *m_pVideoContainer;
 	CViewWindow *m_pViewWindow;
 	CTitleBar m_TitleBar;
+	CPanel m_Panel;
+	class CPanelEventHandler : public CPanel::CEventHandler {
+	public:
+		bool OnClose();
+	};
+	CPanelEventHandler m_PanelEventHandler;
 	bool m_fShowCursor;
 	bool m_fMenu;
 	bool m_fShowStatusView;
 	bool m_fShowTitleBar;
 	bool m_fShowSideBar;
+	bool m_fShowPanel;
+	int m_PanelWidth;
 	POINT m_LastCursorMovePos;
 
+	bool OnCreate();
 	void OnMouseCommand(int Command);
 	void OnLButtonDoubleClick();
 	void ShowStatusView(bool fShow);
@@ -45,6 +71,8 @@ public:
 	CFullscreen();
 	~CFullscreen();
 	bool Create(HWND hwndOwner,CVideoContainerWindow *pVideoContainer,CViewWindow *pViewWindow);
+	void ShowPanel(bool fShow);
+	bool IsPanelVisible() const { return m_fShowPanel; }
 	void OnRButtonDown();
 	void OnMButtonDown();
 	void OnMouseMove();
@@ -60,8 +88,10 @@ class CMainWindow : public CBasicWindow {
 	};
 	static const ZoomRateInfo ZoomRateList[];
 
+	CSplitter m_Splitter;
 	CVideoContainerWindow m_VideoContainer;
 	CViewWindow m_ViewWindow;
+	CTitleBar m_TitleBar;
 	bool m_fFullscreen;
 	CFullscreen m_Fullscreen;
 	bool m_fMaximize;
@@ -70,6 +100,9 @@ class CMainWindow : public CBasicWindow {
 	bool m_fShowTitleBar;
 	bool m_fCustomTitleBar;
 	bool m_fShowSideBar;
+	static int m_ThinFrameWidth;
+	static bool m_fThinFrameCreate;
+	bool m_fThinFrame;
 	bool m_fStandby;
 	bool m_fStandbyInit;
 	bool m_fMinimizeInit;
@@ -84,11 +117,23 @@ class CMainWindow : public CBasicWindow {
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
 	bool m_fClosing;
+	int m_WheelCount;
+	int m_PrevWheelMode;
+	DWORD m_PrevWheelTime;
 	bool m_fWheelChannelChanging;
 	BOOL m_fScreenSaverActive;
 	BOOL m_fLowPowerActiveOriginal;
 	BOOL m_fPowerOffActiveOriginal;
+	enum {
+		ASPECTRATIO_DEFAULT,
+		ASPECTRATIO_16x9,
+		ASPECTRATIO_LETTERBOX,
+		ASPECTRATIO_SUPERFRAME,
+		ASPECTRATIO_SIDECUT,
+		ASPECTRATIO_4x3
+	};
 	int m_AspectRatioType;
+	DWORD m_AspectRatioResetTime;
 	int m_VideoSizeChangedTimerCount;
 	bool m_fShowRecordRemainTime;
 	unsigned int m_ProgramListUpdateTimerCount;
@@ -173,6 +218,7 @@ public:
 	int ShowMessage(LPCTSTR pszText,LPCTSTR pszCaption=NULL,UINT Type=MB_OK | MB_ICONEXCLAMATION) const;
 	void ShowErrorMessage(LPCTSTR pszText);
 	void ShowErrorMessage(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
+	void ShowNotificationBar(LPCTSTR pszText,CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO);
 	void AdjustWindowSize(int Width,int Height);
 	bool ReadSettings(CSettings *pSettings);
 	bool WriteSettings(CSettings *pSettings);
@@ -184,6 +230,8 @@ public:
 	bool GetTitleBarVisible() const { return m_fShowTitleBar; }
 	void SetCustomTitleBar(bool fCustom);
 	bool GetCustomTitleBar() const { return m_fCustomTitleBar; }
+	void SetThinFrame(bool fThinFrame);
+	bool GetThinFrame() const { return m_fThinFrame; }
 	void SetTitleText();
 	void SetSideBarVisible(bool fVisible);
 	bool GetSideBarVisible() const { return m_fShowSideBar; }
@@ -240,6 +288,8 @@ public:
 	void ResetDisplayStatus();
 	bool IsWheelChannelChanging() const { return m_fWheelChannelChanging; }
 	CStatusView *GetStatusView() const;
+	CSplitter &GetSplitter() { return m_Splitter; }
+	CTitleBar &GetTitleBar() { return m_TitleBar; }
 	bool UpdateProgramInfo();
 	static bool Initialize();
 };

@@ -37,6 +37,9 @@ CCardReader *CCardReader::CreateCardReader(ReaderType Type)
 	case READER_SCARD:
 		pReader=new CSCardReader;
 		break;
+	case READER_SCARD_DYNAMIC:
+		pReader=new CDynamicSCardReader;
+		break;
 	case READER_HDUS:
 		pReader=new CHdusCardReader;
 		break;
@@ -60,158 +63,7 @@ CCardReader *CCardReader::CreateCardReader(ReaderType Type)
 #pragma comment(lib, "WinScard.lib")
 
 
-CSCardReader::CSCardReader()
-{
-	m_hBcasCard=NULL;
-	m_bIsEstablish=false;
-	m_pReaderList=NULL;
-	m_NumReaders=0;
-	m_pszReaderName=NULL;
-	if (::SCardEstablishContext(SCARD_SCOPE_USER,NULL,NULL,&m_ScardContext)==SCARD_S_SUCCESS) {
-		m_bIsEstablish=true;
-
-		// カードリーダを列挙する
-		DWORD dwBuffSize = 0UL;
-
-		if (::SCardListReaders(m_ScardContext,NULL,NULL,&dwBuffSize)==SCARD_S_SUCCESS) {
-			/*
-				ここで取得される文字列は本来、null文字で区切られ2つのnull文字で終端する形式だが、
-				偽winscard.dllで普通のnull終端の文字列を返すバグが蔓延している。
-			*/
-			m_pReaderList=new TCHAR[dwBuffSize+1];
-			::ZeroMemory(m_pReaderList,dwBuffSize+1);
-			if (::SCardListReaders(m_ScardContext,NULL,m_pReaderList,&dwBuffSize)==SCARD_S_SUCCESS) {
-				LPCTSTR p=m_pReaderList;
-
-				while (*p) {
-					p+=lstrlen(p)+1;
-					m_NumReaders++;
-				}
-			} else {
-				delete [] m_pReaderList;
-				m_pReaderList=NULL;
-			}
-		}
-	}
-}
-
-
-CSCardReader::~CSCardReader()
-{
-	Close();
-	if (m_bIsEstablish)
-		::SCardReleaseContext(m_ScardContext);
-	delete [] m_pReaderList;
-	delete [] m_pszReaderName;
-}
-
-
-bool CSCardReader::Open(LPCTSTR pszReader)
-{
-	if (!m_bIsEstablish) {
-		SetError(TEXT("コンテキストを確立できません。"));
-		return false;
-	}
-
-	// 一旦クローズする
-	Close();
-
-	if (pszReader) {
-		// 指定されたカードリーダに対してオープンを試みる
-		LONG Result;
-		DWORD dwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
-
-		Result=::SCardConnect(m_ScardContext,pszReader,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol);
-		if (Result!=SCARD_S_SUCCESS) {
-			SetError(TEXT("カードリーダに接続できません。"),NULL,GetErrorText(Result));
-			return false;
-		}
-
-		if (dwActiveProtocol!=SCARD_PROTOCOL_T1) {
-			Close();
-			SetError(TEXT("アクティブプロトコルが不正です。"));
-			return false;
-		}
-	} else {
-		// 全てのカードリーダに対してオープンを試みる
-		if (m_pReaderList==NULL) {
-			SetError(TEXT("カードリーダが見付かりません。"));
-			return false;
-		}
-
-		LPCTSTR p=m_pReaderList;
-
-		while (*p) {
-			if (Open(p))
-				return true;
-			p+=lstrlen(p)+1;
-		}
-		return false;
-	}
-
-	m_pszReaderName=StdUtil::strdup(pszReader);
-
-	ClearError();
-
-	return true;
-}
-
-
-void CSCardReader::Close()
-{
-	if (m_hBcasCard) {
-		::SCardDisconnect(m_hBcasCard,SCARD_LEAVE_CARD);
-		m_hBcasCard=NULL;
-		delete [] m_pszReaderName;
-		m_pszReaderName=NULL;
-	}
-}
-
-
-LPCTSTR CSCardReader::GetReaderName() const
-{
-	return m_pszReaderName;
-}
-
-
-int CSCardReader::NumReaders() const
-{
-	return m_NumReaders;
-}
-
-
-LPCTSTR CSCardReader::EnumReader(int Index) const
-{
-	if (Index<0 || Index>=m_NumReaders)
-		return NULL;
-	LPCTSTR p=m_pReaderList;
-	for (int i=0;i<Index;i++)
-		p+=lstrlen(p)+1;
-	return p;
-}
-
-
-bool CSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
-{
-	if (m_hBcasCard==NULL) {
-		SetError(TEXT("カードリーダが開かれていません。"));
-		return false;
-	}
-
-	LONG Result=::SCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize);
-
-	if (Result!=SCARD_S_SUCCESS) {
-		SetError(TEXT("コマンド送信エラーです。"),NULL,GetErrorText(Result));
-		return false;
-	}
-
-	ClearError();
-
-	return true;
-}
-
-
-LPCTSTR CSCardReader::GetErrorText(LONG Code)
+static LPCTSTR GetSCardErrorText(LONG Code)
 {
 	switch (Code) {
 	case ERROR_BROKEN_PIPE:
@@ -344,6 +196,396 @@ LPCTSTR CSCardReader::GetErrorText(LONG Code)
 		return TEXT("SCARD_W_CACHE_ITEM_TOO_BIG: The new cache item exceeds the maximum per-item size defined for the cache.");
 	}
 	return NULL;
+}
+
+
+CSCardReader::CSCardReader()
+	: m_hBcasCard(NULL)
+	, m_bIsEstablish(false)
+	, m_pReaderList(NULL)
+	, m_NumReaders(0)
+	, m_pszReaderName(NULL)
+{
+	if (::SCardEstablishContext(SCARD_SCOPE_USER,NULL,NULL,&m_ScardContext)==SCARD_S_SUCCESS) {
+		m_bIsEstablish=true;
+
+		// カードリーダを列挙する
+		DWORD dwBuffSize = 0UL;
+
+		if (::SCardListReaders(m_ScardContext,NULL,NULL,&dwBuffSize)==SCARD_S_SUCCESS) {
+			/*
+				ここで取得される文字列は本来、null文字で区切られ2つのnull文字で終端する形式だが、
+				偽winscard.dllで普通のnull終端の文字列を返すバグが蔓延している。
+			*/
+			m_pReaderList=new TCHAR[dwBuffSize+1];
+			::ZeroMemory(m_pReaderList,dwBuffSize+1);
+			if (::SCardListReaders(m_ScardContext,NULL,m_pReaderList,&dwBuffSize)==SCARD_S_SUCCESS) {
+				LPCTSTR p=m_pReaderList;
+				while (*p) {
+					p+=::lstrlen(p)+1;
+					m_NumReaders++;
+				}
+			} else {
+				delete [] m_pReaderList;
+				m_pReaderList=NULL;
+			}
+		}
+	}
+}
+
+
+CSCardReader::~CSCardReader()
+{
+	Close();
+	if (m_bIsEstablish)
+		::SCardReleaseContext(m_ScardContext);
+	delete [] m_pReaderList;
+	delete [] m_pszReaderName;
+}
+
+
+bool CSCardReader::Open(LPCTSTR pszReader)
+{
+	if (!m_bIsEstablish) {
+		SetError(TEXT("コンテキストを確立できません。"));
+		return false;
+	}
+
+	// 一旦クローズする
+	Close();
+
+	if (pszReader) {
+		// 指定されたカードリーダに対してオープンを試みる
+		LONG Result;
+		DWORD dwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
+
+		Result=::SCardConnect(m_ScardContext,pszReader,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol);
+		if (Result!=SCARD_S_SUCCESS) {
+			SetError(TEXT("カードリーダに接続できません。"),NULL,GetSCardErrorText(Result));
+			return false;
+		}
+
+		if (dwActiveProtocol!=SCARD_PROTOCOL_T1) {
+			Close();
+			SetError(TEXT("アクティブプロトコルが不正です。"));
+			return false;
+		}
+	} else {
+		// 全てのカードリーダに対してオープンを試みる
+		if (m_pReaderList==NULL) {
+			SetError(TEXT("カードリーダが見付かりません。"));
+			return false;
+		}
+
+		LPCTSTR p=m_pReaderList;
+		while (*p) {
+			if (Open(p))
+				return true;
+			p+=::lstrlen(p)+1;
+		}
+		return false;
+	}
+
+	m_pszReaderName=StdUtil::strdup(pszReader);
+
+	ClearError();
+
+	return true;
+}
+
+
+void CSCardReader::Close()
+{
+	if (m_hBcasCard) {
+		::SCardDisconnect(m_hBcasCard,SCARD_LEAVE_CARD);
+		m_hBcasCard=NULL;
+		delete [] m_pszReaderName;
+		m_pszReaderName=NULL;
+	}
+}
+
+
+LPCTSTR CSCardReader::GetReaderName() const
+{
+	return m_pszReaderName;
+}
+
+
+int CSCardReader::NumReaders() const
+{
+	return m_NumReaders;
+}
+
+
+LPCTSTR CSCardReader::EnumReader(int Index) const
+{
+	if (Index<0 || Index>=m_NumReaders)
+		return NULL;
+	LPCTSTR p=m_pReaderList;
+	for (int i=0;i<Index;i++)
+		p+=::lstrlen(p)+1;
+	return p;
+}
+
+
+bool CSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
+{
+	if (m_hBcasCard==NULL) {
+		SetError(TEXT("カードリーダが開かれていません。"));
+		return false;
+	}
+
+	LONG Result=::SCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize);
+
+	if (Result!=SCARD_S_SUCCESS) {
+		SetError(TEXT("コマンド送信エラーです。"),NULL,GetSCardErrorText(Result));
+		return false;
+	}
+
+	ClearError();
+
+	return true;
+}
+
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+//
+// winscard.dll互換カードリーダー(動的リンク)
+//
+///////////////////////////////////////////////////////////////////////////////
+
+
+#ifdef UNICODE
+#define FUNC_NAME(symbol) symbol "W"
+#else
+#define FUNC_NAME(symbol) symbol "A"
+#endif
+
+
+CDynamicSCardReader::CDynamicSCardReader()
+	: m_hLib(NULL)
+	, m_hBcasCard(NULL)
+	, m_pReaderList(NULL)
+	, m_NumReaders(0)
+	, m_pszReaderName(NULL)
+	, m_pSCardTransmit(NULL)
+{
+}
+
+
+CDynamicSCardReader::~CDynamicSCardReader()
+{
+	Close();
+
+	if (m_hLib) {
+		typedef LONG (WINAPI *SCardReleaseContextFunc)(SCARDCONTEXT);
+		SCardReleaseContextFunc pReleaseContext=
+			(SCardReleaseContextFunc)::GetProcAddress(m_hLib,"SCardReleaseContext");
+
+		if (pReleaseContext)
+			pReleaseContext(m_ScardContext);
+		::FreeLibrary(m_hLib);
+	}
+
+	delete [] m_pReaderList;
+	delete [] m_pszReaderName;
+}
+
+
+bool CDynamicSCardReader::Load(LPCTSTR pszFileName)
+{
+	m_hLib=::LoadLibrary(pszFileName);
+	if (m_hLib==NULL) {
+		SetError(TEXT("ライブラリをロードできません。"));
+		return false;
+	}
+
+	typedef LONG (WINAPI *SCardEstablishContextFunc)(DWORD,LPCVOID,LPCVOID,LPSCARDCONTEXT);
+	typedef LONG (WINAPI *SCardListReadersFunc)(SCARDCONTEXT,LPCTSTR,LPTSTR,LPDWORD);
+	SCardEstablishContextFunc pEstablishContext=
+		(SCardEstablishContextFunc)::GetProcAddress(m_hLib,"SCardEstablishContext");
+	SCardListReadersFunc pListReaders=
+		(SCardListReadersFunc)::GetProcAddress(m_hLib,FUNC_NAME("SCardListReaders"));
+	m_pSCardTransmit=(SCardTransmitFunc)::GetProcAddress(m_hLib,"SCardTransmit");
+	if (pEstablishContext==NULL || pListReaders==NULL || m_pSCardTransmit==NULL) {
+		::FreeLibrary(m_hLib);
+		m_hLib=NULL;
+		SetError(TEXT("関数のアドレスを取得できません。"));
+		return false;
+	}
+
+	if (pEstablishContext(SCARD_SCOPE_USER,NULL,NULL,&m_ScardContext)!=SCARD_S_SUCCESS) {
+		::FreeLibrary(m_hLib);
+		m_hLib=NULL;
+		SetError(TEXT("コンテキストを確立できません。"));
+		return false;
+	}
+
+	// カードリーダを列挙する
+	DWORD dwBuffSize = 0UL;
+
+	if (pListReaders(m_ScardContext,NULL,NULL,&dwBuffSize)==SCARD_S_SUCCESS) {
+		/*
+			ここで取得される文字列は本来、null文字で区切られ2つのnull文字で終端する形式だが、
+			偽winscard.dllで普通のnull終端の文字列を返すバグが蔓延している。
+		*/
+		m_pReaderList=new TCHAR[dwBuffSize+1];
+		::ZeroMemory(m_pReaderList,dwBuffSize+1);
+		if (pListReaders(m_ScardContext,NULL,m_pReaderList,&dwBuffSize)==SCARD_S_SUCCESS) {
+			LPCTSTR p=m_pReaderList;
+			while (*p) {
+				p+=::lstrlen(p)+1;
+				m_NumReaders++;
+			}
+		} else {
+			delete [] m_pReaderList;
+			m_pReaderList=NULL;
+		}
+	}
+
+	return true;
+}
+
+
+// "ファイル名|リーダ名" の形式で指定する
+bool CDynamicSCardReader::Open(LPCTSTR pszReader)
+{
+	if (pszReader==NULL) {
+		SetError(TEXT("ファイル名が指定されていません。"));
+		return false;
+	}
+
+	LPCTSTR pszReaderName=NULL;
+	TCHAR szFileName[MAX_PATH];
+	LPCTSTR p=pszReader;
+	while (*p!='\0') {
+		if (*p=='|') {
+			if (*(p+1)!='\0')
+				pszReaderName=p+1;
+			break;
+		}
+		p++;
+	}
+	if (pszReaderName!=NULL)
+		::lstrcpyn(szFileName,pszReader,pszReaderName-pszReader);
+	else
+		::lstrcpy(szFileName,pszReader);
+	if (m_hLib==NULL) {
+		if (!Load(szFileName))
+			return false;
+	} else {
+		// 一旦クローズする
+		Close();
+	}
+
+	if (pszReaderName) {
+		// 指定されたカードリーダに対してオープンを試みる
+		typedef LONG (WINAPI *SCardConnectFunc)(SCARDCONTEXT,LPCTSTR,DWORD,DWORD,LPSCARDHANDLE,LPDWORD);
+		SCardConnectFunc pConnect=(SCardConnectFunc)::GetProcAddress(m_hLib,FUNC_NAME("SCardConnect"));
+		if (pConnect==NULL) {
+			SetError(TEXT("SCardConnect関数のアドレスを取得できません。"));
+			return false;
+		}
+
+		LONG Result;
+		DWORD dwActiveProtocol = SCARD_PROTOCOL_UNDEFINED;
+
+		Result=pConnect(m_ScardContext,pszReaderName,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol);
+		if (Result!=SCARD_S_SUCCESS) {
+			SetError(TEXT("カードリーダに接続できません。"),NULL,GetSCardErrorText(Result));
+			return false;
+		}
+
+		if (dwActiveProtocol!=SCARD_PROTOCOL_T1) {
+			Close();
+			SetError(TEXT("アクティブプロトコルが不正です。"));
+			return false;
+		}
+	} else {
+		// 全てのカードリーダに対してオープンを試みる
+		if (m_pReaderList==NULL) {
+			SetError(TEXT("カードリーダが見付かりません。"));
+			return false;
+		}
+
+		LPCTSTR p=m_pReaderList;
+		while (*p) {
+			TCHAR szReader[MAX_PATH+256];
+
+			::wsprintf(szReader,TEXT("%s|%s"),szFileName,p);
+			if (Open(szReader))
+				return true;
+			p+=::lstrlen(p)+1;
+		}
+		return false;
+	}
+
+	m_pszReaderName=StdUtil::strdup(pszReader);
+
+	ClearError();
+
+	return true;
+}
+
+
+void CDynamicSCardReader::Close()
+{
+	if (m_hBcasCard) {
+		typedef LONG (WINAPI *SCardDisconnectFunc)(SCARDHANDLE,DWORD);
+		SCardDisconnectFunc pDisconnect=
+			(SCardDisconnectFunc)::GetProcAddress(m_hLib,"SCardDisconnect");
+
+		if (pDisconnect)
+			pDisconnect(m_hBcasCard,SCARD_LEAVE_CARD);
+		m_hBcasCard=NULL;
+		delete [] m_pszReaderName;
+		m_pszReaderName=NULL;
+	}
+}
+
+
+LPCTSTR CDynamicSCardReader::GetReaderName() const
+{
+	return m_pszReaderName;
+}
+
+
+int CDynamicSCardReader::NumReaders() const
+{
+	return m_NumReaders;
+}
+
+
+LPCTSTR CDynamicSCardReader::EnumReader(int Index) const
+{
+	if (Index<0 || Index>=m_NumReaders)
+		return NULL;
+	LPCTSTR p=m_pReaderList;
+	for (int i=0;i<Index;i++)
+		p+=::lstrlen(p)+1;
+	return p;
+}
+
+
+bool CDynamicSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
+{
+	if (m_hBcasCard==NULL) {
+		SetError(TEXT("カードリーダが開かれていません。"));
+		return false;
+	}
+
+	LONG Result=m_pSCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize);
+
+	if (Result!=SCARD_S_SUCCESS) {
+		SetError(TEXT("コマンド送信エラーです。"),NULL,GetSCardErrorText(Result));
+		return false;
+	}
+
+	ClearError();
+
+	return true;
 }
 
 

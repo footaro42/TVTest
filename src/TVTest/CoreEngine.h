@@ -3,6 +3,7 @@
 
 
 #include "DtvEngine.h"
+#include "EpgProgramList.h"
 
 
 class CCoreEngine : public CBonErrorHandler {
@@ -13,6 +14,12 @@ public:
 		DRIVER_TCP,
 		DRIVER_HDUS
 	};
+	enum CardReaderType {
+		CARDREADER_NONE,
+		CARDREADER_SCARD,
+		CARDREADER_HDUS,
+		CARDREADER_LAST=CARDREADER_HDUS
+	};
 	enum { MAX_VOLUME=100 };
 
 private:
@@ -21,7 +28,7 @@ private:
 	HMODULE m_hDriverLib;
 	DriverType m_DriverType;
 	bool m_fDescramble;
-	CCardReader::ReaderType m_CardReaderType;
+	CardReaderType m_CardReaderType;
 	bool m_fPacketBuffering;
 	DWORD m_PacketBufferLength;
 	int m_PacketBufferPoolPercentage;
@@ -45,9 +52,13 @@ private:
 	DWORD m_BitRate;
 	DWORD m_StreamRemain;
 	DWORD m_PacketBufferUsedCount;
+	/*
 	CEpgDataInfo *m_pEpgDataInfo;
 	CEpgDataInfo *m_pEpgDataInfoNext;
+	*/
 	UINT m_TimerResolution;
+
+	bool OpenCardReader();
 
 public:
 	CCoreEngine();
@@ -72,12 +83,13 @@ public:
 	bool OpenBcasCard();
 	bool CloseBcasCard();
 	bool IsBcasCardOpen() const;
+	bool IsDriverCardReader() const;
 	bool IsBuildComplete() const;
 	bool EnablePreview(bool fPreview);
 	bool SetDescramble(bool fDescramble);
 	bool GetDescramble() const { return m_fDescramble; }
-	bool SetCardReaderType(CCardReader::ReaderType Type);
-	CCardReader::ReaderType GetCardReaderType() const { return m_CardReaderType; }
+	bool SetCardReaderType(CardReaderType Type);
+	CardReaderType GetCardReaderType() const { return m_CardReaderType; }
 	DriverType GetDriverType() const { return m_DriverType; }
 	bool IsUDPDriver() const { return m_DriverType==DRIVER_UDP; }
 	bool IsTCPDriver() const { return m_DriverType==DRIVER_TCP; }
@@ -131,8 +143,11 @@ public:
 	float GetBitRateFloat() const { return (float)m_BitRate/(float)(1024*1024); }
 	DWORD GetStreamRemain() const { return m_StreamRemain; }
 	int GetPacketBufferUsedPercentage();
+	/*
 	bool UpdateEpgDataInfo();
 	const CEpgDataInfo *GetEpgDataInfo(bool fNext=false) const;
+	*/
+	bool GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID=0xFFFF,bool fNext=false);
 	void *GetCurrentImage();
 	bool SetMinTimerResolution(bool fMin);
 //private:
