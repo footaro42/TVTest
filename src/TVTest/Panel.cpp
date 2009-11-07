@@ -399,7 +399,7 @@ CPanelFrame::CPanelFrame()
 	m_WindowPosition.Height=240;
 	m_fFloating=true;
 	m_DockingWidth=-1;
-	m_Opacity=100;
+	m_Opacity=255;
 	m_DragDockingTarget=DOCKING_NONE;
 	m_pEventHandler=NULL;
 }
@@ -415,9 +415,9 @@ bool CPanelFrame::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 	if (!CreateBasicWindow(hwndParent,Style,ExStyle,ID,
 						   PANEL_FRAME_WINDOW_CLASS,TEXT("ƒpƒlƒ‹"),m_hinst))
 		return false;
-	if (m_Opacity<100) {
+	if (m_Opacity<255) {
 		SetExStyle(ExStyle|WS_EX_LAYERED);
-		::SetLayeredWindowAttributes(m_hwnd,0,m_Opacity*255/100,LWA_ALPHA);
+		::SetLayeredWindowAttributes(m_hwnd,0,m_Opacity,LWA_ALPHA);
 	}
 	return true;
 }
@@ -528,16 +528,16 @@ bool CPanelFrame::SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORRE
 
 bool CPanelFrame::SetOpacity(int Opacity)
 {
-	if (Opacity<0 || Opacity>100)
+	if (Opacity<0 || Opacity>255)
 		return false;
 	if (Opacity!=m_Opacity) {
 		if (m_hwnd!=NULL) {
 			DWORD ExStyle=GetExStyle();
 
-			if (Opacity<100) {
+			if (Opacity<255) {
 				if ((ExStyle&WS_EX_LAYERED)==0)
 					SetExStyle(ExStyle|WS_EX_LAYERED);
-				::SetLayeredWindowAttributes(m_hwnd,0,Opacity*255/100,LWA_ALPHA);
+				::SetLayeredWindowAttributes(m_hwnd,0,Opacity,LWA_ALPHA);
 			} else {
 				if ((ExStyle&WS_EX_LAYERED)!=0)
 					SetExStyle(ExStyle^WS_EX_LAYERED);
@@ -804,8 +804,8 @@ bool CDropHelper::Initialize(HINSTANCE hinst)
 
 
 CDropHelper::CDropHelper()
+	: m_Opacity(128)
 {
-	m_Opacity=128;
 }
 
 

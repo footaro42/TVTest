@@ -28,6 +28,7 @@
 // プラグインクラス
 class CSleepTimer : public TVTest::CTVTestPlugin
 {
+	bool m_fInitialized;				// 初期化済みか?
 	TCHAR m_szIniFileName[MAX_PATH];	// INIファイルのパス
 	DWORD m_SleepTime;					// スリープまでの時間(秒単位)
 	enum SleepMode {
@@ -39,12 +40,14 @@ class CSleepTimer : public TVTest::CTVTestPlugin
 	};
 	SleepMode m_Mode;					// スリープ時の動作
 	bool m_fForce;						// 強制
+	bool m_fMonitorOff;					// モニタをOFFにする
 	bool m_fConfirm;					// 確認を取る
 	bool m_fShowSettings;				// プラグイン有効時に設定表示
 	HWND m_hwnd;						// ウィンドウハンドル
 	bool m_fEnabled;					// プラグインが有効か?
 	int m_ConfirmTimeout;				// 確認のタイムアウト時間(秒単位)
 	int m_ConfirmTimerCount;			// 確認のタイマー
+	bool InitializePlugin();
 	static LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData);
 	static CSleepTimer *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -60,9 +63,11 @@ public:
 
 
 CSleepTimer::CSleepTimer()
-	: m_SleepTime(600)
+	: m_fInitialized(false)
+	, m_SleepTime(600)
 	, m_Mode(MODE_EXIT)
 	, m_fForce(false)
+	, m_fMonitorOff(false)
 	, m_fConfirm(true)
 	, m_fShowSettings(true)
 	, m_hwnd(NULL)
@@ -77,7 +82,7 @@ bool CSleepTimer::GetPluginInfo(TVTest::PluginInfo *pInfo)
 	// プラグインの情報を返す
 	pInfo->Type           = TVTest::PLUGIN_TYPE_NORMAL;
 	pInfo->Flags          = TVTest::PLUGIN_FLAG_HASSETTINGS;
-	pInfo->pszPluginName  = L"SleepTimer";
+	pInfo->pszPluginName  = L"Sleep Timer";
 	pInfo->pszCopyright   = L"Public Domain";
 	pInfo->pszDescription = L"指定時間後にスリープする";
 	return true;
@@ -88,12 +93,26 @@ bool CSleepTimer::Initialize()
 {
 	// 初期化処理
 
+	// イベントコールバック関数を登録
+	m_pApp->SetEventCallback(EventCallback,this);
+
+	return true;
+}
+
+
+// プラグインが有効にされた時の初期化処理
+bool CSleepTimer::InitializePlugin()
+{
+	if (m_fInitialized)
+		return true;
+
 	// 設定の読み込み
 	::GetModuleFileName(g_hinstDLL,m_szIniFileName,MAX_PATH);
 	::PathRenameExtension(m_szIniFileName,TEXT(".ini"));
 	m_SleepTime=::GetPrivateProfileInt(TEXT("Settings"),TEXT("Time"),m_SleepTime,m_szIniFileName);
 	m_Mode=(SleepMode)::GetPrivateProfileInt(TEXT("Settings"),TEXT("Mode"),m_Mode,m_szIniFileName);
 	m_fForce=::GetPrivateProfileInt(TEXT("Settings"),TEXT("Force"),m_fForce,m_szIniFileName)!=0;
+	m_fMonitorOff=::GetPrivateProfileInt(TEXT("Settings"),TEXT("MonitorOff"),m_fMonitorOff,m_szIniFileName)!=0;
 	m_fConfirm=::GetPrivateProfileInt(TEXT("Settings"),TEXT("Confirm"),m_fConfirm,m_szIniFileName)!=0;
 	m_fShowSettings=::GetPrivateProfileInt(TEXT("Settings"),TEXT("ShowSettings"),m_fShowSettings,m_szIniFileName)!=0;
 
@@ -119,9 +138,7 @@ bool CSleepTimer::Initialize()
 	if (m_hwnd==NULL)
 		return false;
 
-	// イベントコールバック関数を登録
-	m_pApp->SetEventCallback(EventCallback,this);
-
+	m_fInitialized=true;
 	return true;
 }
 
@@ -142,14 +159,18 @@ bool CSleepTimer::Finalize()
 	m_pApp->EnablePlugin(false);	// 次回起動時に有効にならないように
 
 	// ウィンドウの破棄
-	::DestroyWindow(m_hwnd);
+	if (m_hwnd)
+		::DestroyWindow(m_hwnd);
 
-	// 設定の保存
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("Time"),m_SleepTime,m_szIniFileName);
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("Mode"),m_Mode,m_szIniFileName);
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("Force"),m_fForce,m_szIniFileName);
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("Confirm"),m_fConfirm,m_szIniFileName);
-	::WritePrivateProfileInt(TEXT("Settings"),TEXT("ShowSettings"),m_fShowSettings,m_szIniFileName);
+	if (m_fInitialized) {
+		// 設定の保存
+		::WritePrivateProfileInt(TEXT("Settings"),TEXT("Time"),m_SleepTime,m_szIniFileName);
+		::WritePrivateProfileInt(TEXT("Settings"),TEXT("Mode"),m_Mode,m_szIniFileName);
+		::WritePrivateProfileInt(TEXT("Settings"),TEXT("Force"),m_fForce,m_szIniFileName);
+		::WritePrivateProfileInt(TEXT("Settings"),TEXT("MonitorOff"),m_fMonitorOff,m_szIniFileName);
+		::WritePrivateProfileInt(TEXT("Settings"),TEXT("Confirm"),m_fConfirm,m_szIniFileName);
+		::WritePrivateProfileInt(TEXT("Settings"),TEXT("ShowSettings"),m_fShowSettings,m_szIniFileName);
+	}
 
 	return true;
 }
@@ -181,6 +202,12 @@ bool CSleepTimer::DoSleep()
 	case MODE_EXIT:
 		if (!m_pApp->Close(m_fForce?TVTest::CLOSE_EXIT:0))
 			return false;
+		if (m_fMonitorOff) {
+			// モニタをOFFにする
+			::PostMessage(HWND_BROADCAST,WM_SYSCOMMAND,SC_MONITORPOWER,1);
+			::Sleep(1000);
+			::PostMessage(HWND_BROADCAST,WM_SYSCOMMAND,SC_MONITORPOWER,2);
+		}
 		break;
 	case MODE_POWEROFF:
 		if (!::ExitWindowsEx((m_fForce?EWX_FORCE:0) | EWX_POWEROFF,0))
@@ -214,6 +241,7 @@ LRESULT CALLBACK CSleepTimer::EventCallback(UINT Event,LPARAM lParam1,LPARAM lPa
 	switch (Event) {
 	case TVTest::EVENT_PLUGINENABLE:
 		// プラグインの有効状態が変化した
+		pThis->InitializePlugin();
 		if (lParam1!=0 && pThis->m_fShowSettings) {
 			if (::DialogBoxParam(g_hinstDLL,MAKEINTRESOURCE(IDD_SETTINGS),
 								 pThis->m_pApp->GetAppWindow(),SettingsDlgProc,
@@ -229,6 +257,7 @@ LRESULT CALLBACK CSleepTimer::EventCallback(UINT Event,LPARAM lParam1,LPARAM lPa
 
 	case TVTest::EVENT_PLUGINSETTINGS:
 		// プラグインの設定を行う
+		pThis->InitializePlugin();
 		return ::DialogBoxParam(g_hinstDLL,MAKEINTRESOURCE(IDD_SETTINGS),
 								reinterpret_cast<HWND>(lParam1),SettingsDlgProc,
 								reinterpret_cast<LPARAM>(pThis))==IDOK;
@@ -316,6 +345,7 @@ BOOL CALLBACK CSleepTimer::SettingsDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				::SendDlgItemMessage(hDlg,IDC_SETTINGS_MODE,CB_ADDSTRING,0,(LPARAM)ModeList[i]);
 			::SendDlgItemMessage(hDlg,IDC_SETTINGS_MODE,CB_SETCURSEL,(WPARAM)pThis->m_Mode,0);
 			::CheckDlgButton(hDlg,IDC_SETTINGS_FORCE,pThis->m_fForce?BST_CHECKED:BST_UNCHECKED);
+			::CheckDlgButton(hDlg,IDC_SETTINGS_MONITOROFF,pThis->m_fMonitorOff?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_SETTINGS_CONFIRM,pThis->m_fConfirm?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_SETTINGS_SHOWSETTINGS,pThis->m_fShowSettings?BST_CHECKED:BST_UNCHECKED);
 		}
@@ -331,8 +361,8 @@ BOOL CALLBACK CSleepTimer::SettingsDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					(ULONGLONG)::GetDlgItemInt(hDlg,IDC_SETTINGS_TIME_HOURS,NULL,FALSE)*(60*60)+
 					(ULONGLONG)::GetDlgItemInt(hDlg,IDC_SETTINGS_TIME_MINUTES,NULL,FALSE)*60ULL+
 					(ULONGLONG)::GetDlgItemInt(hDlg,IDC_SETTINGS_TIME_SECONDS,NULL,FALSE);
-				if (Time>USER_TIMER_MAXIMUM) {
-					::MessageBox(hDlg,TEXT("スリープまでの時間が未来すぎるよ。"),NULL,MB_OK | MB_ICONEXCLAMATION);
+				if (Time*1000>USER_TIMER_MAXIMUM) {
+					::MessageBox(hDlg,TEXT("スリープまでの時間が長すぎるよ。"),NULL,MB_OK | MB_ICONEXCLAMATION);
 					return TRUE;
 				}
 				if (Time==0) {
@@ -342,6 +372,7 @@ BOOL CALLBACK CSleepTimer::SettingsDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				pThis->m_SleepTime=(DWORD)Time;
 				pThis->m_Mode=(SleepMode)::SendDlgItemMessage(hDlg,IDC_SETTINGS_MODE,CB_GETCURSEL,0,0);
 				pThis->m_fForce=::IsDlgButtonChecked(hDlg,IDC_SETTINGS_FORCE)==BST_CHECKED;
+				pThis->m_fMonitorOff=::IsDlgButtonChecked(hDlg,IDC_SETTINGS_MONITOROFF)==BST_CHECKED;
 				pThis->m_fConfirm=::IsDlgButtonChecked(hDlg,IDC_SETTINGS_CONFIRM)==BST_CHECKED;
 				pThis->m_fShowSettings=::IsDlgButtonChecked(hDlg,IDC_SETTINGS_SHOWSETTINGS)==BST_CHECKED;
 				if (pThis->m_fEnabled)

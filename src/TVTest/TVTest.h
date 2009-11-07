@@ -9,12 +9,12 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	6
-#define VERSION_BUILD	0
+#define VERSION_BUILD	1
 
-#define VERSION_TEXT_A	"0.6.0"
-#define VERSION_TEXT_W	L"0.6.0"
+#define VERSION_TEXT_A	"0.6.1"
+#define VERSION_TEXT_W	L"0.6.1"
 
-#define ABOUT_TEXT	"TVTest ver.0.6.0\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVTest ver.0.6.1\nby HDUSTestの中の人 && HDUSスレの皆さん"
 
 #else
 

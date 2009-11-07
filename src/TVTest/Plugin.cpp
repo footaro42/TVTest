@@ -29,6 +29,7 @@ CCriticalLock CPlugin::m_AudioStreamLock;
 CPlugin::CPlugin()
 	: m_hLib(NULL)
 	, m_pszFileName(NULL)
+	, m_Version(0)
 	, m_Type(0)
 	, m_Flags(0)
 	, m_pszPluginName(NULL)
@@ -67,9 +68,9 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		SetError(TEXT("関数のアドレスを取得できません。"));
 		return false;
 	}
-	DWORD Version=pGetVersion();
-	if (TVTest::GetMajorVersion(Version)!=TVTest::GetMajorVersion(TVTEST_PLUGIN_VERSION)
-		|| TVTest::GetMinorVersion(Version)!=TVTest::GetMinorVersion(TVTEST_PLUGIN_VERSION)) {
+	m_Version=pGetVersion();
+	if (TVTest::GetMajorVersion(m_Version)!=TVTest::GetMajorVersion(TVTEST_PLUGIN_VERSION)
+		|| TVTest::GetMinorVersion(m_Version)!=TVTest::GetMinorVersion(TVTEST_PLUGIN_VERSION)) {
 		::FreeLibrary(hLib);
 		SetError(TEXT("対応していないバージョンです。"));
 		return false;
@@ -332,12 +333,17 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETCHANNEL:
 		{
+			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
 			CAppMain &AppMain=GetAppClass();
-			int Channel=(SHORT)LOWORD(lParam2);
-			WORD ServiceID=HIWORD(lParam2);
 
 			AppMain.OpenTuner();
-			return AppMain.SetChannel((int)lParam1,Channel,ServiceID!=0?(int)ServiceID:-1);
+			if (pThis->m_Version<TVTEST_PLUGIN_VERSION_0_0_8) {
+				return AppMain.SetChannel((int)lParam1,(int)lParam2);
+			} else {
+				int Channel=(SHORT)LOWORD(lParam2);
+				WORD ServiceID=HIWORD(lParam2);
+				return AppMain.SetChannel((int)lParam1,Channel,ServiceID!=0?(int)ServiceID:-1);
+			}
 		}
 
 	case TVTest::MESSAGE_GETSERVICE:
@@ -439,8 +445,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 					pServiceInfo->AudioComponentType[i]=
 						pTsAnalyzer->GetAudioComponentType(ServiceIndex,i);
 				}
-				if (Info.SubtitleEsList.size()>0)
-					pServiceInfo->SubtitlePID=Info.SubtitleEsList[0].PID;
+				if (Info.CaptionEsList.size()>0)
+					pServiceInfo->SubtitlePID=Info.CaptionEsList[0].PID;
 				else
 					pServiceInfo->SubtitlePID=0;
 				pServiceInfo->Reserved=0;

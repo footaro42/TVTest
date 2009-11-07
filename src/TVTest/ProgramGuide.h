@@ -245,6 +245,7 @@ public:
 					  const Theme::GradientInfo *pCurChannelBackGradient,
 					  const Theme::GradientInfo *pTimeBarBackGradient);
 	bool SetFont(const LOGFONT *pFont);
+	bool SetEventInfoFont(const LOGFONT *pFont);
 	bool SetShowToolTip(bool fShow);
 	bool GetShowToolTip() const { return m_fShowToolTip; }
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);

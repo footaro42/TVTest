@@ -24,6 +24,7 @@ public:
 
 private:
 	bool m_fFileMode;
+	TCHAR m_szDriverDirectory[MAX_PATH];
 	TCHAR m_szDriverFileName[MAX_PATH];
 	HMODULE m_hDriverLib;
 	DriverType m_DriverType;
@@ -58,6 +59,7 @@ private:
 	*/
 	UINT m_TimerResolution;
 
+	bool GetDriverPath(LPTSTR pszPath) const;
 	bool OpenCardReader();
 
 public:
@@ -65,6 +67,9 @@ public:
 	~CCoreEngine();
 	void Close();
 	bool BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler);
+	LPCTSTR GetDriverDirectory() const { return m_szDriverDirectory; }
+	bool GetDriverDirectory(LPTSTR pszDirectory) const;
+	bool SetDriverDirectory(LPCTSTR pszDirectory);
 	bool SetDriverFileName(LPCTSTR pszFileName);
 	LPCTSTR GetDriverFileName() const { return m_szDriverFileName; }
 	bool IsDriverSpecified() const { return m_szDriverFileName[0]!='\0'; }

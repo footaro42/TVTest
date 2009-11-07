@@ -328,6 +328,12 @@ bool CChannelPanel::SetFont(const LOGFONT *pFont)
 }
 
 
+bool CChannelPanel::SetEventInfoFont(const LOGFONT *pFont)
+{
+	return m_EventInfoPopup.SetFont(pFont);
+}
+
+
 void CChannelPanel::SetDetailToolTip(bool fDetail)
 {
 	if (m_fDetailToolTip!=fDetail) {

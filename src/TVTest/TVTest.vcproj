@@ -315,10 +315,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\AudioOptions.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\BasicWindow.cpp"
 				>
 			</File>
@@ -487,6 +483,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PlaybackOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Plugin.cpp"
 				>
 			</File>
@@ -650,10 +650,6 @@
 			</File>
 			<File
 				RelativePath=".\AppUtil.h"
-				>
-			</File>
-			<File
-				RelativePath=".\AudioOptions.h"
 				>
 			</File>
 			<File
@@ -830,6 +826,10 @@
 			</File>
 			<File
 				RelativePath=".\PanelOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PlaybackOptions.h"
 				>
 			</File>
 			<File

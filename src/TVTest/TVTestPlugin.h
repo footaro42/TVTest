@@ -87,7 +87,7 @@
 /*
 	更新履歴
 
-	ver.0.0.8 (TVTest ver.0.5.57 or later)
+	ver.0.0.8 (TVTest ver.0.6.0 or later)
 	・以下のメッセージを追加した
 	  ・MESSAGE_GETBCASINFO
 	  ・MESSAGE_SENDBCASCOMMAND
@@ -402,7 +402,7 @@ inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel) {
 }
 #else
 inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel,WORD ServiceID=0) {
-	return (*pParam->Callback)(pParam,MESSAGE_SETCHANNEL,Space,MAKELPARAM(Channel,ServiceID))!=0;
+	return (*pParam->Callback)(pParam,MESSAGE_SETCHANNEL,Space,MAKELPARAM((SHORT)Channel,ServiceID))!=0;
 }
 #endif
 

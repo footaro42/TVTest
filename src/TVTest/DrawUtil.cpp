@@ -12,8 +12,10 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+namespace DrawUtil {
 
-bool DrawUtil::Fill(HDC hdc,const RECT *pRect,COLORREF Color)
+
+bool Fill(HDC hdc,const RECT *pRect,COLORREF Color)
 {
 	HBRUSH hbr=::CreateSolidBrush(Color);
 
@@ -25,7 +27,7 @@ bool DrawUtil::Fill(HDC hdc,const RECT *pRect,COLORREF Color)
 }
 
 
-bool DrawUtil::FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction)
+bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction)
 {
 	if (pRect->left>pRect->right || pRect->top>pRect->bottom)
 		return false;
@@ -90,7 +92,7 @@ bool DrawUtil::FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF C
 }
 
 
-bool DrawUtil::FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction,int GlossRatio1,int GlossRatio2)
+bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction,int GlossRatio1,int GlossRatio2)
 {
 	COLORREF crCenter=MixColor(Color1,Color2,128);
 	RECT rc;
@@ -120,7 +122,7 @@ bool DrawUtil::FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLO
 }
 
 
-bool DrawUtil::FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr)
+bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr)
 {
 	RECT rc;
 
@@ -152,7 +154,7 @@ bool DrawUtil::FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect
 }
 
 
-int DrawUtil::CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
+int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
 {
 	if (hdc==NULL || pszText==NULL)
 		return 0;
@@ -189,7 +191,7 @@ int DrawUtil::CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
 }
 
 
-bool DrawUtil::DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight)
+bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight)
 {
 	if (hdc==NULL || pszText==NULL || pRect==NULL)
 		return false;
@@ -224,6 +226,318 @@ bool DrawUtil::DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHe
 	}
 	return true;
 }
+
+
+bool GetSystemFont(FontType Type,LOGFONT *pLogFont)
+{
+	if (pLogFont==NULL)
+		return false;
+	if (Type==FONT_DEFAULT) {
+		return ::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),pLogFont)==sizeof(LOGFONT);
+	} else {
+		NONCLIENTMETRICS ncm;
+		LOGFONT *plf;
+#if WINVER<0x0600
+		ncm.cbSize=sizeof(ncm);
+#else
+		ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+		::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
+		switch (Type) {
+		case FONT_MESSAGE:		plf=&ncm.lfMessageFont;		break;
+		case FONT_MENU:			plf=&ncm.lfMenuFont;		break;
+		case FONT_CAPTION:		plf=&ncm.lfCaptionFont;		break;
+		case FONT_SMALLCAPTION:	plf=&ncm.lfSmCaptionFont;	break;
+		default:
+			return false;
+		}
+		*pLogFont=*plf;
+	}
+	return true;
+}
+
+
+CFont::CFont()
+	: m_hfont(NULL)
+{
+}
+
+CFont::CFont(const CFont &Font)
+	: m_hfont(NULL)
+{
+	*this=Font;
+}
+
+CFont::CFont(const LOGFONT *pFont)
+	: m_hfont(NULL)
+{
+	Create(pFont);
+}
+
+CFont::CFont(FontType Type)
+	: m_hfont(NULL)
+{
+	Create(Type);
+}
+
+CFont::~CFont()
+{
+	Destroy();
+}
+
+CFont &CFont::operator=(const CFont &Font)
+{
+	if (Font.m_hfont) {
+		LOGFONT lf;
+		Font.GetLogFont(&lf);
+		Create(&lf);
+	} else {
+		if (m_hfont)
+			::DeleteObject(m_hfont);
+		m_hfont=NULL;
+	}
+	return *this;
+}
+
+bool CFont::operator==(const CFont &Font) const
+{
+	if (m_hfont==NULL)
+		return Font.m_hfont==NULL;
+	if (Font.m_hfont==NULL)
+		return m_hfont==NULL;
+	LOGFONT lf1,lf2;
+	GetLogFont(&lf1);
+	Font.GetLogFont(&lf2);
+	return CompareLogFont(&lf1,&lf2);
+}
+
+bool CFont::operator!=(const CFont &Font) const
+{
+	return !(*this==Font);
+}
+
+bool CFont::Create(const LOGFONT *pLogFont)
+{
+	if (pLogFont==NULL)
+		return false;
+	HFONT hfont=::CreateFontIndirect(pLogFont);
+	if (hfont==NULL)
+		return false;
+	if (m_hfont)
+		::DeleteObject(m_hfont);
+	m_hfont=hfont;
+	return true;
+}
+
+bool CFont::Create(FontType Type)
+{
+	LOGFONT lf;
+
+	if (!GetSystemFont(Type,&lf))
+		return false;
+	return Create(&lf);
+}
+
+void CFont::Destroy()
+{
+	if (m_hfont) {
+		::DeleteObject(m_hfont);
+		m_hfont=NULL;
+	}
+}
+
+bool CFont::GetLogFont(LOGFONT *pLogFont) const
+{
+	if (m_hfont==NULL || pLogFont==NULL)
+		return false;
+	return ::GetObject(m_hfont,sizeof(LOGFONT),pLogFont)==sizeof(LOGFONT);
+}
+
+
+CDeviceContext::CDeviceContext(HDC hdc)
+	: m_Flags(0)
+	, m_hdc(hdc)
+	, m_hwnd(NULL)
+	, m_pPaint(NULL)
+{
+}
+
+CDeviceContext::CDeviceContext(HWND hwnd)
+	: m_Flags(FLAG_DCFROMHWND)
+	, m_hdc(::GetDC(hwnd))
+	, m_hwnd(hwnd)
+	, m_pPaint(NULL)
+{
+}
+
+CDeviceContext::CDeviceContext(HWND hwnd,PAINTSTRUCT *pPaint)
+	: m_Flags(FLAG_WMPAINT)
+	, m_hdc(::BeginPaint(hwnd,pPaint))
+	, m_hwnd(hwnd)
+	, m_pPaint(pPaint)
+{
+}
+
+CDeviceContext::~CDeviceContext()
+{
+	Release();
+}
+
+void CDeviceContext::Restore()
+{
+	if (m_hdc) {
+		if ((m_Flags&FLAG_BRUSHSELECTED)!=0)
+			::SelectObject(m_hdc,m_hbrOld);
+		if ((m_Flags&FLAG_PENSELECTED)!=0)
+			::SelectObject(m_hdc,m_hpenOld);
+		if ((m_Flags&FLAG_FONTSELECTED)!=0)
+			::SelectObject(m_hdc,m_hfontOld);
+		if ((m_Flags&FLAG_TEXTCOLOR)!=0)
+			::SetTextColor(m_hdc,m_OldTextColor);
+		if ((m_Flags&FLAG_BKCOLOR)!=0)
+			::SetBkColor(m_hdc,m_OldBkColor);
+		if ((m_Flags&FLAG_BKMODE)!=0)
+			::SetBkMode(m_hdc,m_OldBkMode);
+		m_Flags&=~FLAG_RESTOREMASK;
+	}
+}
+
+void CDeviceContext::Release()
+{
+	if (m_hdc) {
+		Restore();
+		if ((m_Flags&FLAG_DCFROMHWND)!=0)
+			::ReleaseDC(m_hwnd/*::WindowFromDC(m_hdc)*/,m_hdc);
+		else if ((m_Flags&FLAG_WMPAINT)!=0)
+			::EndPaint(m_hwnd,m_pPaint);
+		m_hdc=NULL;
+	}
+	m_Flags=0;
+	m_hwnd=NULL;
+	m_pPaint=NULL;
+}
+
+void CDeviceContext::SetBrush(HBRUSH hbr)
+{
+	if (m_hdc && hbr) {
+		HBRUSH hbrOld=static_cast<HBRUSH>(::SelectObject(m_hdc,hbr));
+		if ((m_Flags&FLAG_BRUSHSELECTED)==0) {
+			m_hbrOld=hbrOld;
+			m_Flags|=FLAG_BRUSHSELECTED;
+		}
+	}
+}
+
+void CDeviceContext::SetPen(HPEN hpen)
+{
+	if (m_hdc && hpen) {
+		HPEN hpenOld=static_cast<HPEN>(::SelectObject(m_hdc,hpen));
+		if ((m_Flags&FLAG_PENSELECTED)==0) {
+			m_hpenOld=hpenOld;
+			m_Flags|=FLAG_PENSELECTED;
+		}
+	}
+}
+
+void CDeviceContext::SetFont(HFONT hfont)
+{
+	if (m_hdc && hfont) {
+		HFONT hfontOld=static_cast<HFONT>(::SelectObject(m_hdc,hfont));
+		if ((m_Flags&FLAG_FONTSELECTED)==0) {
+			m_hfontOld=hfontOld;
+			m_Flags|=FLAG_FONTSELECTED;
+		}
+	}
+}
+
+void CDeviceContext::SetFont(const CFont &Font)
+{
+	SetFont(Font.GetHandle());
+}
+
+void CDeviceContext::SetTextColor(COLORREF Color)
+{
+	if (m_hdc) {
+		COLORREF OldTextColor=::SetTextColor(m_hdc,Color);
+		if ((m_Flags&FLAG_TEXTCOLOR)==0) {
+			m_OldTextColor=OldTextColor;
+			m_Flags|=FLAG_TEXTCOLOR;
+		}
+	}
+}
+
+void CDeviceContext::SetBkColor(COLORREF Color)
+{
+	if (m_hdc) {
+		COLORREF OldBkColor=::SetBkColor(m_hdc,Color);
+		if ((m_Flags&FLAG_BKCOLOR)==0) {
+			m_OldBkColor=OldBkColor;
+			m_Flags|=FLAG_BKCOLOR;
+		}
+	}
+}
+
+void CDeviceContext::SetBkMode(int BkMode)
+{
+	if (m_hdc) {
+		int OldBkMode=::SetBkMode(m_hdc,BkMode);
+		if ((m_Flags&FLAG_BKMODE)==0) {
+			m_OldBkMode=OldBkMode;
+			m_Flags|=FLAG_BKMODE;
+		}
+	}
+}
+
+void CDeviceContext::DrawRectangle(int Left,int Top,int Right,int Bottom,RectangleStyle Style)
+{
+	if (m_hdc==NULL)
+		return;
+	switch (Style) {
+	case RECTANGLE_NORMAL:
+		::Rectangle(m_hdc,Left,Top,Right,Bottom);
+		break;
+	case RECTANGLE_FILL:
+		{
+			HBRUSH hbr=static_cast<HBRUSH>(::GetCurrentObject(m_hdc,OBJ_BRUSH));
+			if (hbr) {
+				RECT rc;
+				::SetRect(&rc,Left,Top,Right,Bottom);
+				::FillRect(m_hdc,&rc,hbr);
+			}
+		}
+		break;
+	case RECTANGLE_BORDER:
+		{
+			HBRUSH hbrOld=static_cast<HBRUSH>(::SelectObject(m_hdc,::GetStockObject(NULL_BRUSH)));
+			::Rectangle(m_hdc,Left,Top,Right,Bottom);
+			::SelectObject(m_hdc,hbrOld);
+		}
+		break;
+	}
+}
+
+void CDeviceContext::DrawRectangle(const RECT *pRect,RectangleStyle Style)
+{
+	if (m_hdc && pRect)
+		DrawRectangle(pRect->left,pRect->top,pRect->right,pRect->bottom,Style);
+}
+
+void CDeviceContext::DrawLine(int x1,int y1,int x2,int y2)
+{
+	if (m_hdc) {
+		::MoveToEx(m_hdc,x1,y1,NULL);
+		::LineTo(m_hdc,x2,y2);
+	}
+}
+
+void CDeviceContext::DrawText(LPCTSTR pszText,int Length,RECT *pRect,UINT Format)
+{
+	if (m_hdc)
+		::DrawText(m_hdc,pszText,Length,pRect,Format);
+}
+
+
+}	// namespace DrawUtil
 
 
 

@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include <math.h>
-#include <shlwapi.h>
 #include <shlobj.h>
 #include "Util.h"
 
@@ -9,9 +8,6 @@
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
-
-
-#pragma comment(lib,"shlwapi.lib")
 
 
 #define lengthof(a) (sizeof(a)/sizeof(a[0]))

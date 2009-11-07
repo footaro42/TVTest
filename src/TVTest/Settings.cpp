@@ -234,3 +234,80 @@ bool CSettings::WriteColor(LPCTSTR pszValueName,COLORREF crData)
 						GetRValue(crData),GetGValue(crData),GetBValue(crData));
 	return Write(pszValueName,szText);
 }
+
+
+#define FONT_FLAG_ITALIC	0x0001U
+#define FONT_FLAG_UNDERLINE	0x0002U
+#define FONT_FLAG_STRIKEOUT	0x0004U
+
+bool CSettings::Read(LPCTSTR pszValueName,LOGFONT *pFont)
+{
+	TCHAR szData[LF_FACESIZE+32];
+
+	if (!Read(pszValueName,szData,sizeof(szData)/sizeof(TCHAR)) || szData[0]=='\0')
+		return false;
+
+	LPTSTR p=szData,q;
+	for (int i=0;*p!='\0';i++) {
+		while (*p==' ')
+			p++;
+		q=p;
+		while (*p!='\0' && *p!=',')
+			p++;
+		if (*p!='\0')
+			*p++='\0';
+		if (*q!='\0') {
+			switch (i) {
+			case 0:
+				::lstrcpyn(pFont->lfFaceName,q,LF_FACESIZE);
+				pFont->lfWidth=0;
+				pFont->lfEscapement=0;
+				pFont->lfOrientation=0;
+				pFont->lfWeight=FW_NORMAL;
+				pFont->lfItalic=0;
+				pFont->lfUnderline=0;
+				pFont->lfStrikeOut=0;
+				pFont->lfCharSet=DEFAULT_CHARSET;
+				pFont->lfOutPrecision=OUT_DEFAULT_PRECIS;
+				pFont->lfClipPrecision=CLIP_DEFAULT_PRECIS;
+				pFont->lfQuality=DRAFT_QUALITY;
+				pFont->lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
+				break;
+			case 1:
+				pFont->lfHeight=StrToInt(q);
+				break;
+			case 2:
+				pFont->lfWeight=StrToInt(q);
+				break;
+			case 3:
+				{
+					unsigned int Flags=StrToUInt(q);
+					pFont->lfItalic=(Flags&FONT_FLAG_ITALIC)!=0;
+					pFont->lfUnderline=(Flags&FONT_FLAG_UNDERLINE)!=0;
+					pFont->lfStrikeOut=(Flags&FONT_FLAG_STRIKEOUT)!=0;
+				}
+				break;
+			}
+		} else if (i==0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
+bool CSettings::Write(LPCTSTR pszValueName,const LOGFONT *pFont)
+{
+	TCHAR szData[LF_FACESIZE+32];
+	unsigned int Flags=0;
+
+	if (pFont->lfItalic)
+		Flags|=FONT_FLAG_ITALIC;
+	if (pFont->lfUnderline)
+		Flags|=FONT_FLAG_UNDERLINE;
+	if (pFont->lfStrikeOut)
+		Flags|=FONT_FLAG_STRIKEOUT;
+	::wsprintf(szData,TEXT("%s,%d,%d,%u"),
+			   pFont->lfFaceName,pFont->lfHeight,pFont->lfWeight,Flags);
+	return Write(pszValueName,szData);
+}

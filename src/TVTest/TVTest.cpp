@@ -32,7 +32,7 @@
 #include "OperationOptions.h"
 #include "ColorScheme.h"
 #include "OSDOptions.h"
-#include "AudioOptions.h"
+#include "PlaybackOptions.h"
 #include "CaptureOptions.h"
 #include "EpgOptions.h"
 #include "ProgramGuideOptions.h"
@@ -140,7 +140,7 @@ static COperationOptions OperationOptions;
 static CAccelerator Accelerator;
 static CHDUSController HDUSController;
 static CDriverOptions DriverOptions;
-static CAudioOptions AudioOptions;
+static CPlaybackOptions PlaybackOptions;
 static CRecordOptions RecordOptions;
 static CRecordManager RecordManager;
 static CCaptureOptions CaptureOptions;
@@ -461,6 +461,12 @@ bool CAppMain::GetAppDirectory(LPTSTR pszDirectory) const
 	FilePath.RemoveFileName();
 	FilePath.GetPath(pszDirectory);
 	return true;
+}
+
+
+bool CAppMain::GetDriverDirectory(LPTSTR pszDirectory) const
+{
+	return CoreEngine.GetDriverDirectory(pszDirectory);
 }
 
 
@@ -1121,7 +1127,7 @@ bool CAppMain::LoadSettings()
 		OSDOptions.Read(&Setting);
 		PanelOptions.Read(&Setting);
 		OperationOptions.Read(&Setting);
-		AudioOptions.Read(&Setting);
+		PlaybackOptions.Read(&Setting);
 		RecordOptions.Read(&Setting);
 		CaptureOptions.Read(&Setting);
 		Accelerator.Read(&Setting);
@@ -1206,7 +1212,7 @@ bool CAppMain::SaveSettings()
 		OSDOptions.Write(&Setting);
 		PanelOptions.Write(&Setting);
 		OperationOptions.Write(&Setting);
-		AudioOptions.Write(&Setting);
+		PlaybackOptions.Write(&Setting);
 		RecordOptions.Write(&Setting);
 		CaptureOptions.Write(&Setting);
 		Accelerator.Write(&Setting);
@@ -1494,6 +1500,18 @@ bool CAppMain::IsFirstExecute() const
 }
 
 
+void CAppMain::SetProgress(int Pos,int Max)
+{
+	TaskbarManager.SetProgress(Pos,Max);
+}
+
+
+void CAppMain::EndProgress()
+{
+	TaskbarManager.EndProgress();
+}
+
+
 COLORREF CAppMain::GetColor(LPCTSTR pszText) const
 {
 	return ColorSchemeOptions.GetColor(pszText);
@@ -1763,6 +1781,45 @@ CAudioChannelStatusItem::CAudioChannelStatusItem() : CStatusItem(STATUS_ITEM_AUD
 {
 }
 
+enum LanguageTextType {
+	LANGUAGE_TEXT_LONG,
+	LANGUAGE_TEXT_SIMPLE,
+	LANGUAGE_TEXT_SHORT
+};
+
+static LPCTSTR GetLanguageText(DWORD LanguageCode,LanguageTextType Type)
+{
+	static const struct {
+		DWORD LanguageCode;
+		LPCTSTR pszLongText;
+		LPCTSTR pszSimpleText;
+		LPCTSTR pszShortText;
+	} LanguageList[] = {
+		{LANGUAGE_CODE_JPN,	TEXT("日本語"),		TEXT("日本語"),	TEXT("日")},
+		{LANGUAGE_CODE_ENG,	TEXT("英語"),		TEXT("英語"),	TEXT("英")},
+		{LANGUAGE_CODE_DEU,	TEXT("ドイツ語"),	TEXT("独語"),	TEXT("独")},
+		{LANGUAGE_CODE_FRA,	TEXT("フランス語"),	TEXT("仏語"),	TEXT("仏")},
+		{LANGUAGE_CODE_ITA,	TEXT("イタリア語"),	TEXT("伊語"),	TEXT("伊")},
+		{LANGUAGE_CODE_RUS,	TEXT("ロシア語"),	TEXT("露語"),	TEXT("露")},
+		{LANGUAGE_CODE_ZHO,	TEXT("中国語"),		TEXT("中国語"),	TEXT("中")},
+		{LANGUAGE_CODE_KOR,	TEXT("韓国語"),		TEXT("韓国語"),	TEXT("韓")},
+		{LANGUAGE_CODE_SPA,	TEXT("スペイン語"),	TEXT("西語"),	TEXT("西")},
+		{LANGUAGE_CODE_ETC,	TEXT("その他言語"),	TEXT("その他"),	TEXT("他")},
+	};
+
+	int i;
+	for (i=0;i<lengthof(LanguageList)-1;i++) {
+		if (LanguageList[i].LanguageCode==LanguageCode)
+			break;
+	}
+	switch (Type) {
+	case LANGUAGE_TEXT_LONG:	return LanguageList[i].pszLongText;
+	case LANGUAGE_TEXT_SIMPLE:	return LanguageList[i].pszSimpleText;
+	case LANGUAGE_TEXT_SHORT:	return LanguageList[i].pszShortText;
+	}
+	return TEXT("");
+}
+
 void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
 	int NumChannels=CoreEngine.m_DtvEngine.GetAudioChannelNum();
@@ -1780,10 +1837,31 @@ void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		case 2:
 			{
 				const int StereoMode=CoreEngine.GetStereoMode();
+				CTsAnalyzer::EventAudioInfo AudioInfo;
 
-				if (CoreEngine.m_DtvEngine.GetAudioComponentType()==0x02) {
-					wsprintf(p,TEXT("Dual (%s)"),
-							 StereoMode==0?TEXT("主+副"):StereoMode==1?TEXT("主"):TEXT("副"));
+				if (CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo)
+						&& AudioInfo.ComponentType==0x02) {
+					// Dual mono
+					if (AudioInfo.bESMultiLingualFlag) {
+						// 2カ国語
+						p+=wsprintf(p,TEXT("[二] "));
+						switch (StereoMode) {
+						case 0:
+							wsprintf(p,TEXT("%s+%s"),
+									 GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_SHORT),
+									 GetLanguageText(AudioInfo.LanguageCode2,LANGUAGE_TEXT_SHORT));
+							break;
+						case 1:
+							lstrcpy(p,GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_SIMPLE));
+							break;
+						case 2:
+							lstrcpy(p,GetLanguageText(AudioInfo.LanguageCode2,LANGUAGE_TEXT_SIMPLE));
+							break;
+						}
+					} else {
+						wsprintf(p,TEXT("Dual (%s)"),
+								 StereoMode==0?TEXT("主+副"):StereoMode==1?TEXT("主"):TEXT("副"));
+					}
 				} else {
 					lstrcpy(p,TEXT("Stereo"));
 					if (StereoMode!=0)
@@ -1820,7 +1898,7 @@ void CAudioChannelStatusItem::OnRButtonDown(int x,int y)
 	UINT Flags;
 
 	GetMenuPos(&pt,&Flags);
-	MainMenu.PopupSubMenu(CMainMenu::SUBMENU_STEREOMODE,Flags | TPM_RIGHTBUTTON,
+	MainMenu.PopupSubMenu(CMainMenu::SUBMENU_AUDIO,Flags | TPM_RIGHTBUTTON,
 						  pt.x,pt.y,MainWindow.GetHandle());
 }
 
@@ -2165,6 +2243,9 @@ public:
 	void OnRButtonDown(int x,int y);
 	void OnFocus(bool fFocus);
 	bool OnMouseHover(int x,int y);
+	bool SetEventInfoFont(const LOGFONT *pFont) {
+		return m_EventInfoPopup.SetFont(pFont);
+	}
 };
 
 CProgramInfoStatusItem::CProgramInfoStatusItem() : CStatusItem(STATUS_ITEM_PROGRAMINFO,256)
@@ -2616,6 +2697,17 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 }
 
 
+static void ApplyEventInfoFont()
+{
+	ProgramListPanel.SetEventInfoFont(EpgOptions.GetEventInfoFont());
+	ChannelPanel.SetEventInfoFont(EpgOptions.GetEventInfoFont());
+	ProgramGuide.SetEventInfoFont(EpgOptions.GetEventInfoFont());
+	CProgramInfoStatusItem *pProgramInfo=dynamic_cast<CProgramInfoStatusItem*>(StatusView.GetItemByID(STATUS_ITEM_PROGRAMINFO));
+	if (pProgramInfo!=NULL)
+		pProgramInfo->SetEventInfoFont(EpgOptions.GetEventInfoFont());
+}
+
+
 
 
 class COptionDialog : public COptionFrame {
@@ -2661,7 +2753,7 @@ private:
 	int m_StartPage;
 	HWND m_hDlg;
 	HWND m_hDlgList[NUM_PAGES];
-	HIMAGELIST m_himlIcons;
+	HBITMAP m_hbmIcons;
 	HFONT m_hfontTitle;
 	bool m_fSettingError;
 	void CreatePage(int Page);
@@ -2696,15 +2788,15 @@ const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 		CHDUSController::DlgProc,		&HDUSController,	RGB(255,255,128)},
 	{TEXT("ドライバ別設定"),		MAKEINTRESOURCE(IDD_OPTIONS_DRIVER),
 		CDriverOptions::DlgProc,		&DriverOptions,		RGB(128,255,128)},
-	{TEXT("音声"),					MAKEINTRESOURCE(IDD_OPTIONS_AUDIO),
-		CAudioOptions::DlgProc,			&AudioOptions,		RGB(32,64,192)},
+	{TEXT("再生"),					MAKEINTRESOURCE(IDD_OPTIONS_PLAYBACK),
+		CPlaybackOptions::DlgProc,		&PlaybackOptions,		RGB(32,64,192)},
 	{TEXT("録画"),					MAKEINTRESOURCE(IDD_OPTIONS_RECORD),
 		CRecordOptions::DlgProc,		&RecordOptions,		RGB(128,0,160)},
 	{TEXT("キャプチャ"),			MAKEINTRESOURCE(IDD_OPTIONS_CAPTURE),
 		CCaptureOptions::DlgProc,		&CaptureOptions,	RGB(0,128,128)},
 	{TEXT("チャンネルスキャン"),	MAKEINTRESOURCE(IDD_OPTIONS_CHANNELSCAN),
 		CChannelScan::DlgProc,			&ChannelScan,		RGB(0,160,255)},
-	{TEXT("EPG"),					MAKEINTRESOURCE(IDD_OPTIONS_EPG),
+	{TEXT("EPG/番組情報"),			MAKEINTRESOURCE(IDD_OPTIONS_EPG),
 		CEpgOptions::DlgProc,			&EpgOptions,		RGB(128,0,255)},
 	{TEXT("EPG番組表"),				MAKEINTRESOURCE(IDD_OPTIONS_PROGRAMGUIDE),
 		CProgramGuideOptions::DlgProc,	&ProgramGuideOptions,RGB(160,255,0)},
@@ -2720,7 +2812,7 @@ const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 COptionDialog::COptionDialog()
 	: m_CurrentPage(0)
 	, m_hfontTitle(NULL)
-	, m_himlIcons(NULL)
+	, m_hbmIcons(NULL)
 {
 }
 
@@ -2790,6 +2882,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			pThis->m_hDlg=hDlg;
 			COptions::ClearGeneralUpdateFlags();
 			for (i=0;i<NUM_PAGES;i++) {
+				m_PageList[i].pOptions->ClearUpdateFlags();
 				pThis->m_hDlgList[i]=NULL;
 				/*
 				::SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_ADDSTRING,0,
@@ -2802,7 +2895,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			pThis->CreatePage(pThis->m_CurrentPage);
 			::ShowWindow(pThis->m_hDlgList[pThis->m_CurrentPage],SW_SHOW);
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_SETCURSEL,pThis->m_CurrentPage,0);
-			pThis->m_himlIcons=::ImageList_LoadBitmap(hInst,MAKEINTRESOURCE(IDB_OPTIONS),ICON_WIDTH,1,RGB(192,192,192));
+			pThis->m_hbmIcons=::LoadBitmap(hInst,MAKEINTRESOURCE(IDB_OPTIONS));
 			if (pThis->m_hfontTitle==NULL) {
 				HFONT hfont;
 				LOGFONT lf;
@@ -2820,7 +2913,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			MEASUREITEMSTRUCT *pmis=reinterpret_cast<MEASUREITEMSTRUCT*>(lParam);
 
 			//pmis->itemHeight=ICON_HEIGHT+LIST_MARGIN*2;
-			pmis->itemHeight=ICON_HEIGHT+LIST_MARGIN;
+			pmis->itemHeight=ICON_HEIGHT;
 			return TRUE;
 		}
 
@@ -2831,7 +2924,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 			if (wParam==IDC_OPTIONS_LIST) {
 				const bool fSelected=(pdis->itemState&ODS_SELECTED)!=0;
-				COLORREF crOldText;
+				COLORREF crText,crOldText;
 				int OldBkMode;
 				RECT rc;
 
@@ -2845,18 +2938,24 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
 					DrawUtil::FillGradient(pdis->hDC,&rc,
 						RGB(0,0,0),pThis->m_PageList[pdis->itemData].crTitleColor);
-					crOldText=::SetTextColor(pdis->hDC,RGB(255,255,255));
+					crText=RGB(255,255,255);
 				} else {
 					::FillRect(pdis->hDC,&pdis->rcItem,
 							   reinterpret_cast<HBRUSH>(COLOR_WINDOW+1));
-					crOldText=::SetTextColor(pdis->hDC,::GetSysColor(COLOR_WINDOWTEXT));
+					crText=::GetSysColor(COLOR_WINDOWTEXT);
 				}
-				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
 				rc=pdis->rcItem;
-				::InflateRect(&rc,-LIST_MARGIN,-LIST_MARGIN);
-				::ImageList_Draw(pThis->m_himlIcons,pdis->itemData,pdis->hDC,
-								 rc.left,rc.top,
-								 /*fSelected?ILD_SELECTED:*/ILD_TRANSPARENT);
+				rc.left+=LIST_MARGIN;
+				HDC hdcMem=::CreateCompatibleDC(pdis->hDC);
+				if (hdcMem!=NULL) {
+					HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,pThis->m_hbmIcons));
+					::TransparentBlt(pdis->hDC,rc.left,rc.top,ICON_WIDTH,ICON_HEIGHT,
+									 hdcMem,pdis->itemData*ICON_WIDTH,0,ICON_WIDTH,ICON_HEIGHT,RGB(255,255,255));
+					::SelectObject(hdcMem,hbmOld);
+					::DeleteDC(hdcMem);
+				}
+				crOldText=::SetTextColor(pdis->hDC,crText);
+				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
 				rc.left+=ICON_WIDTH+ICON_TEXT_MARGIN;
 				::DrawText(pdis->hDC,pThis->m_PageList[pdis->itemData].pszTitle,-1,
 						   &rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
@@ -2940,9 +3039,9 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		{
 			COptionDialog *pThis=GetThis(hDlg);
 
-			if (pThis->m_himlIcons!=NULL) {
-				::ImageList_Destroy(pThis->m_himlIcons);
-				pThis->m_himlIcons=NULL;
+			if (pThis->m_hbmIcons!=NULL) {
+				::DeleteObject(pThis->m_hbmIcons);
+				pThis->m_hbmIcons=NULL;
 			}
 			pThis->m_hDlg=NULL;
 			::RemoveProp(hDlg,TEXT("This"));
@@ -3006,6 +3105,9 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 			CoreEngine.EnablePreview(true);
 	}
 	*/
+	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_EVENTINFOFONT)!=0) {
+		ApplyEventInfoFont();
+	}
 	if (NetworkRemoconOptions.GetUpdateFlags()!=0) {
 		AppMain.InitializeChannel();
 		if (pNetworkRemocon!=NULL)
@@ -4191,7 +4293,7 @@ void CFullscreen::OnMouseMove()
 		return;
 	GetCursorPos(&pt);
 	::ScreenToClient(m_hwnd,&pt);
-	if (abs(m_LastCursorMovePos.x-pt.x)<2 && abs(m_LastCursorMovePos.y-pt.y)<2)
+	if (abs(m_LastCursorMovePos.x-pt.x)<4 && abs(m_LastCursorMovePos.y-pt.y)<4)
 		return;
 	m_LastCursorMovePos=pt;
 	if (!m_fShowCursor) {
@@ -5027,8 +5129,10 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 			break;
 		}
 	}
+	/*
 	MainMenu.CheckRadioItem(CM_STEREO_THROUGH,CM_STEREO_RIGHT,
 							CM_STEREO_THROUGH+CoreEngine.GetStereoMode());
+	*/
 	MainMenu.CheckRadioItem(CM_CAPTURESIZE_FIRST,CM_CAPTURESIZE_LAST,
 							CM_CAPTURESIZE_FIRST+CaptureOptions.GetPresetCaptureSize());
 	MainMenu.CheckItem(CM_CAPTUREPREVIEW,fShowCaptureWindow);
@@ -5476,16 +5580,22 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			ChannelPanel.ClearChannelList();
 		}
 		if (!PanelFrame.GetFloating()) {
-			int Size;
+			int Width=PanelFrame.GetDockingWidth()+m_Splitter.GetBarWidth();
 			RECT rc;
 
-			MainWindow.GetPosition(&rc);
-			Size=PanelFrame.GetDockingWidth();
-			if (fShowPanelWindow)
-				rc.right+=Size;
-			else
-				rc.right-=Size;
-			MainWindow.SetPosition(&rc);
+			GetPosition(&rc);
+			if (m_Splitter.IDToIndex(PANE_ID_PANEL)==0) {
+				if (fShowPanelWindow)
+					rc.left-=Width;
+				else
+					rc.left+=Width;
+			} else {
+				if (fShowPanelWindow)
+					rc.right+=Width;
+				else
+					rc.right-=Width;
+			}
+			SetPosition(&rc);
 		}
 		if (fShowPanelWindow)
 			UpdatePanel();
@@ -5643,7 +5753,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_ENABLEBUFFERING:
 		CoreEngine.SetPacketBuffering(!CoreEngine.GetPacketBuffering());
-		GeneralOptions.SetPacketBuffering(CoreEngine.GetPacketBuffering());
+		PlaybackOptions.SetPacketBuffering(CoreEngine.GetPacketBuffering());
 		return;
 
 	case CM_RESETBUFFER:
@@ -6268,9 +6378,12 @@ bool CMainWindow::UpdateProgramInfo()
 	TCHAR szText[2048];
 	int Length=0;
 
+	if (fNext)
+		Length=::wsprintf(szText,TEXT("次 : "));
+
 	SYSTEMTIME stStart,stEnd;
 	if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,&stEnd,fNext)) {
-		Length=::wsprintf(szText,TEXT("%d/%d/%d(%s) %d:%02d～%d:%02d\r\n"),
+		Length+=::wsprintf(&szText[Length],TEXT("%d/%d/%d(%s) %d:%02d～%d:%02d\r\n"),
 			stStart.wYear,
 			stStart.wMonth,
 			stStart.wDay,
@@ -6731,8 +6844,10 @@ bool CMainWindow::SetStereoMode(int StereoMode)
 	if (StereoMode!=GetStereoMode()) {
 		if (!CoreEngine.SetStereoMode(StereoMode))
 			return false;
+		/*
 		MainMenu.CheckRadioItem(CM_STEREO_THROUGH,CM_STEREO_RIGHT,
 								CM_STEREO_THROUGH+StereoMode);
+		*/
 		StatusView.UpdateItem(STATUS_ITEM_AUDIOCHANNEL);
 		PluginList.SendStereoModeChangeEvent(StereoMode);
 	}
@@ -6886,8 +7001,11 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			}
 			pThis->m_TitleBar.SetMaximizeMode(wParam==SIZE_MAXIMIZED/*pThis->GetMaximize()*/);
 
+			// ウィンドウ枠を細くしていると最小化時に変なサイズにされる
+			if (wParam==SIZE_MINIMIZED)
+				return 0;
+
 			int Width=LOWORD(lParam),Height=HIWORD(lParam);
-			//bool fShowSideBar=pThis->m_fShowSideBar && SideBar.GetParent()==pThis->m_Splitter.GetHandle();
 
 			if ((pThis->m_fShowStatusBar || StatusView.GetVisible())
 					&& StatusView.GetParent()==hwnd) {
@@ -6907,33 +7025,14 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				pThis->m_ViewWindow.GetScreenPosition(&rc);
 				MapWindowRect(NULL,pThis->m_Splitter.GetHandle(),&rc);
 				TitleBarUtil.Layout(&rc,&rcBar);
-				/*
-				if (fShowSideBar)
-					rcBar.left+=SideBar.GetBarWidth();
-				*/
 				pThis->m_TitleBar.SetPosition(&rcBar);
 			}
-			/*
-			if (fShowSideBar) {
-				RECT rc;
-
-				rc.left=0;
-				rc.top=0;
-				rc.right=SideBar.GetBarWidth();
-				rc.bottom=Height;
-				SideBar.SetPosition(&rc);
-			}
-			*/
 			if (NotificationBar.GetVisible()) {
 				RECT rc,rcView;
 
 				NotificationBar.GetPosition(&rc);
 				pThis->m_ViewWindow.GetClientRect(&rcView);
 				rc.left=rcView.left;
-				/*
-				if (fShowSideBar)
-					rc.left+=SideBar.GetBarWidth();
-				*/
 				rc.right=rcView.right;
 				NotificationBar.SetPosition(&rc);
 			}
@@ -7404,6 +7503,75 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 					MainMenu.CheckRadioItem(CM_SERVICE_FIRST,
 											CM_SERVICE_FIRST+ServiceList.NumServices()-1,
 											CM_SERVICE_FIRST+CurService);
+			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_AUDIO)) {
+				CTsAnalyzer::EventAudioInfo AudioInfo;
+
+				ClearMenu(hmenu);
+				if (CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo)
+						&& AudioInfo.ComponentType==0x02) {
+					// Dual mono
+					TCHAR szText[80],szAudio1[64],szAudio2[64];
+
+					szAudio1[0]='\0';
+					szAudio2[0]='\0';
+					if (AudioInfo.szText[0]!='\0') {
+						LPTSTR pszDelimiter=::StrChr(AudioInfo.szText,'\r');
+						if (pszDelimiter!=NULL) {
+							*pszDelimiter='\0';
+							::lstrcpyn(szAudio1,AudioInfo.szText,lengthof(szAudio1));
+							::lstrcpyn(szAudio2,pszDelimiter+1,lengthof(szAudio2));
+						}
+					}
+					if (AudioInfo.bESMultiLingualFlag) {
+						// 2カ国語
+						LPCTSTR pszLang1=szAudio1[0]!='\0'?szAudio1:GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG);
+						LPCTSTR pszLang2=szAudio2[0]!='\0'?szAudio2:GetLanguageText(AudioInfo.LanguageCode2,LANGUAGE_TEXT_LONG);
+						::wsprintf(szText,TEXT("%s+%s(&S)"),pszLang1,pszLang2);
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_THROUGH,szText);
+						::wsprintf(szText,TEXT("%s(&L)"),pszLang1);
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_LEFT,szText);
+						::wsprintf(szText,TEXT("%s(&R)"),pszLang2);
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_RIGHT,szText);
+					} else {
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_THROUGH,TEXT("主+副音声(&S)"));
+						if (szAudio1[0]!='\0')
+							::wsprintf(szText,TEXT("主音声(%s)(&L)"),szAudio1);
+						else
+							::lstrcpy(szText,TEXT("主音声(&L)"));
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_LEFT,szText);
+						if (szAudio2[0]!='\0')
+							::wsprintf(szText,TEXT("副音声(%s)(&R)"),szAudio2);
+						else
+							::lstrcpy(szText,TEXT("副音声(&R)"));
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_RIGHT,szText);
+					}
+				} else {
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_THROUGH,TEXT("ステレオ/スルー(&S)"));
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_LEFT,TEXT("左(主音声)(&L)"));
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_RIGHT,TEXT("右(副音声)(&R)"));
+				}
+				::CheckMenuRadioItem(hmenu,CM_STEREO_THROUGH,CM_STEREO_RIGHT,
+									 CM_STEREO_THROUGH+CoreEngine.GetStereoMode(),MF_BYCOMMAND);
+				::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
+				const int NumAudioStreams=CoreEngine.m_DtvEngine.GetAudioStreamNum();
+				if (NumAudioStreams>0) {
+					for (int i=0;i<NumAudioStreams;i++) {
+						TCHAR szText[64],szComponentText[32];
+
+						::wsprintf(szText,TEXT("&%d: 音声%d"),i+1,i+1);
+						if (NumAudioStreams>1
+								&& CoreEngine.m_DtvEngine.GetAudioComponentText(szComponentText,lengthof(szComponentText))>0) {
+							LPTSTR p=::StrChr(szComponentText,'\r');
+							if (p!=NULL)
+								*p='/';
+							::wsprintf(szText+::lstrlen(szText),TEXT(" (%s)"),szComponentText);
+						}
+						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_AUDIOSTREAM_FIRST+i,szText);
+					}
+					MainMenu.CheckRadioItem(CM_AUDIOSTREAM_FIRST,
+											CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
+											CM_AUDIOSTREAM_FIRST+CoreEngine.m_DtvEngine.GetAudioStream());
+				}
 			}
 		}
 		break;
@@ -7499,13 +7667,15 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		break;
 
 	case WM_APP_SERVICEUPDATE:
+		// サービスが更新された
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 			CServiceUpdateInfo *pInfo=reinterpret_cast<CServiceUpdateInfo*>(lParam);
-			HMENU hmenu;
 			int i;
 
 #if 0	// メニューを開いた時に設定するように変更
+			HMENU hmenu;
+
 			hmenu=MainMenu.GetSubMenu(CMainMenu::SUBMENU_SERVICE);
 			ClearMenu(hmenu);
 			for (i=0;i<pInfo->m_NumServices;i++) {
@@ -7522,9 +7692,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				MainMenu.CheckRadioItem(CM_SERVICE_FIRST,
 										CM_SERVICE_FIRST+pInfo->m_NumServices-1,
 										CM_SERVICE_FIRST+pInfo->m_CurService);
-#endif
 
-			hmenu=MainMenu.GetSubMenu(CMainMenu::SUBMENU_STEREOMODE);
+			hmenu=MainMenu.GetSubMenu(CMainMenu::SUBMENU_AUDIO);
 			for (i=::GetMenuItemCount(hmenu)-1;i>=4;i--)
 				::DeleteMenu(hmenu,i,MF_BYPOSITION);
 			int NumAudioStreams=CoreEngine.m_DtvEngine.GetAudioStreamNum();
@@ -7539,6 +7708,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 										CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
 										CM_AUDIOSTREAM_FIRST+CoreEngine.m_DtvEngine.GetAudioStream());
 			}
+#endif
 
 			if (!AppMain.IsChannelScanning()
 					&& pInfo->m_NumServices>0 && pInfo->m_CurService>=0) {
@@ -8878,7 +9048,7 @@ bool CMainWindow::CPreviewManager::EnablePreview(bool fEnable)
 		m_pVideoContainer->SetVisible(fEnable);
 		CoreEngine.m_DtvEngine.m_MediaViewer.SetVisible(fEnable);
 		if (CoreEngine.EnablePreview(fEnable)) {
-			if (AudioOptions.GetMinTimerResolution())
+			if (PlaybackOptions.GetMinTimerResolution())
 				CoreEngine.SetMinTimerResolution(fEnable);
 			m_fPreview=fEnable;
 			PluginList.SendPreviewChangeEvent(fEnable);
@@ -8898,7 +9068,7 @@ bool CMainWindow::CPreviewManager::BuildMediaViewer()
 										 m_pVideoContainer->GetHandle(),
 										 GeneralOptions.GetVideoRendererType(),
 										 GeneralOptions.GetMpeg2DecoderName(),
-										 AudioOptions.GetAudioDeviceName());
+										 PlaybackOptions.GetAudioDeviceName());
 	if (!fOK) {
 		AppMain.OnError(&CoreEngine,TEXT("DirectShowの初期化ができません。"));
 	}
@@ -9024,8 +9194,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	{
 		TCHAR szDirectory[MAX_PATH];
-
-		AppMain.GetAppDirectory(szDirectory);
+		CoreEngine.GetDriverDirectory(szDirectory);
 		DriverManager.Find(szDirectory);
 	}
 	DriverOptions.Initialize(&DriverManager);
@@ -9133,15 +9302,15 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
-	CoreEngine.SetMinTimerResolution(AudioOptions.GetMinTimerResolution());
+	CoreEngine.SetMinTimerResolution(PlaybackOptions.GetMinTimerResolution());
 	CoreEngine.SetDescramble(!CmdLineParser.m_fNoDescramble);
 	CoreEngine.SetCardReaderType(GeneralOptions.GetCardReaderType());
 	CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(GeneralOptions.GetDescrambleCurServiceOnly());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableSSE2(GeneralOptions.GetDescrambleUseSSE2());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableEmmProcess(GeneralOptions.GetEnableEmmProcess());
-	CoreEngine.SetPacketBufferLength(GeneralOptions.GetPacketBufferLength());
-	CoreEngine.SetPacketBufferPoolPercentage(GeneralOptions.GetPacketBufferPoolPercentage());
-	CoreEngine.SetPacketBuffering(GeneralOptions.GetPacketBuffering());
+	CoreEngine.SetPacketBufferLength(PlaybackOptions.GetPacketBufferLength());
+	CoreEngine.SetPacketBufferPoolPercentage(PlaybackOptions.GetPacketBufferPoolPercentage());
+	CoreEngine.SetPacketBuffering(PlaybackOptions.GetPacketBuffering());
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(&Logger);
 	CoreEngine.BuildDtvEngine(&DtvEngineHandler);
@@ -9169,9 +9338,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetNoMaskSideCut(ViewOptions.GetNoMaskSideCut(),false);
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(ViewOptions.GetIgnoreDisplayExtension());
-	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(AudioOptions.GetUseAudioRendererClock());
-	CoreEngine.m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(AudioOptions.GetAdjustAudioStreamTime());
-	CoreEngine.SetDownMixSurround(AudioOptions.GetDownMixSurround());
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(PlaybackOptions.GetUseAudioRendererClock());
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(PlaybackOptions.GetAdjustAudioStreamTime());
+	CoreEngine.SetDownMixSurround(PlaybackOptions.GetDownMixSurround());
 	if (!CmdLineParser.m_fStandby && !CmdLineParser.m_fNoDirectShow) {
 		MainWindow.BuildMediaViewer();
 	}
@@ -9188,7 +9357,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
-	if (AudioOptions.GetRestoreMute() && fMuteStatus)
+	if (PlaybackOptions.GetRestoreMute() && fMuteStatus)
 		MainWindow.SetMute(true);
 	if ((!ViewOptions.GetRestorePlayStatus() || fEnablePlay)
 			&& CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
@@ -9302,6 +9471,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	ProgramGuide.SetDriverList(&DriverManager);
 
 	CaptureWindow.SetEventHandler(&CaptureWindowEventHandler);
+
+	ApplyEventInfoFont();
 
 	CommandList.Initialize(&DriverManager,&PluginList);
 	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,

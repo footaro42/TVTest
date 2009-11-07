@@ -36,6 +36,7 @@ public:
 				   const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
 				   COLORREF MarginColor);
 	bool SetFont(const LOGFONT *pFont);
+	bool SetEventInfoFont(const LOGFONT *pFont);
 	void SetDetailToolTip(bool fDetail);
 	bool GetDetailToolTip() const { return m_fDetailToolTip; }
 	static bool Initialize(HINSTANCE hinst);

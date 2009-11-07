@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "CoreEngine.h"
 
@@ -15,6 +14,7 @@ static char THIS_FILE[]=__FILE__;
 CCoreEngine::CCoreEngine()
 {
 	m_fFileMode=false;
+	m_szDriverDirectory[0]='\0';
 	m_szDriverFileName[0]='\0';
 	m_hDriverLib=NULL;
 	m_DriverType=DRIVER_UNKNOWN;
@@ -83,6 +83,40 @@ bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 }
 
 
+bool CCoreEngine::GetDriverDirectory(LPTSTR pszDirectory) const
+{
+	if (m_szDriverDirectory[0]!='\0') {
+		if (::PathIsRelative(m_szDriverDirectory)) {
+			TCHAR szTemp[MAX_PATH];
+
+			::GetModuleFileName(NULL,szTemp,lengthof(szTemp));
+			::PathRemoveFileSpec(szTemp);
+			::PathAppend(szTemp,m_szDriverDirectory);
+			::PathCanonicalize(pszDirectory,szTemp);
+		} else {
+			::lstrcpy(pszDirectory,m_szDriverDirectory);
+		}
+	} else {
+		::GetModuleFileName(NULL,pszDirectory,MAX_PATH);
+		::PathRemoveFileSpec(pszDirectory);
+	}
+	return true;
+}
+
+
+bool CCoreEngine::SetDriverDirectory(LPCTSTR pszDirectory)
+{
+	if (pszDirectory==NULL) {
+		m_szDriverDirectory[0]='\0';
+	} else {
+		if (::lstrlen(pszDirectory)>=MAX_PATH)
+			return false;
+		::lstrcpy(m_szDriverDirectory,pszDirectory);
+	}
+	return true;
+}
+
+
 bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
 {
 	if (pszFileName==NULL || ::lstrlen(pszFileName)>=MAX_PATH)
@@ -92,10 +126,27 @@ bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
 }
 
 
+bool CCoreEngine::GetDriverPath(LPTSTR pszPath) const
+{
+	if (::PathIsRelative(m_szDriverFileName)) {
+		TCHAR szTemp[MAX_PATH];
+
+		GetDriverDirectory(szTemp);
+		::PathAppend(szTemp,m_szDriverFileName);
+		::PathCanonicalize(pszPath,szTemp);
+	} else {
+		::lstrcpy(pszPath,m_szDriverFileName);
+	}
+	return true;
+}
+
+
 bool CCoreEngine::LoadDriver()
 {
 	UnloadDriver();
-	m_hDriverLib=::LoadLibrary(m_szDriverFileName);
+	TCHAR szDriverPath[MAX_PATH];
+	GetDriverPath(szDriverPath);
+	m_hDriverLib=::LoadLibrary(szDriverPath);
 	if (m_hDriverLib==NULL) {
 		int ErrorCode=::GetLastError();
 		TCHAR szText[MAX_PATH+64];
@@ -218,12 +269,7 @@ bool CCoreEngine::OpenCardReader()
 		// åªç›ÇÃ BonDriver êÍópÇÃ winscard.dll Ç™Ç†ÇÍÇŒÇªÇÍÇóòópÇ∑ÇÈ
 		TCHAR szFileName[MAX_PATH];
 
-		if (::PathIsFileSpec(m_szDriverFileName)) {
-			::GetModuleFileName(NULL,szFileName,lengthof(szFileName));
-			::lstrcpy(::PathFindFileName(szFileName),m_szDriverFileName);
-		} else {
-			::lstrcpy(szFileName,m_szDriverFileName);
-		}
+		GetDriverPath(szFileName);
 		::PathRenameExtension(szFileName,TEXT(".scard"));
 		if (::PathFileExists(szFileName)) {
 			if (!m_DtvEngine.OpenBcasCard(CCardReader::READER_SCARD_DYNAMIC,szFileName)) {

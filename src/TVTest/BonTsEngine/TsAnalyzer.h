@@ -30,7 +30,7 @@ public:
 		BYTE VideoStreamType;
 		EsInfo VideoEs;
 		std::vector<EsInfo> AudioEsList;
-		std::vector<EsInfo> SubtitleEsList;
+		std::vector<EsInfo> CaptionEsList;
 		std::vector<EsInfo> DataCarrouselEsList;
 		WORD PcrPID;
 		ULONGLONG PcrTimeStamp;
@@ -67,10 +67,12 @@ public:
 	BYTE GetAudioComponentTag(const int Index, const int AudioIndex);
 #ifdef TS_ANALYZER_EIT_SUPPORT
 	BYTE GetVideoComponentType(const int Index);
+	int GetAudioIndexByComponentTag(const int Index, const BYTE ComponentTag);
 	BYTE GetAudioComponentType(const int Index, const int AudioIndex);
+	int GetAudioComponentText(const int Index, const int AudioIndex, LPTSTR pszText, int MaxLength);
 #endif
-	WORD GetSubtitleEsNum(const int Index);
-	bool GetSubtitleEsPID(const int Index, const WORD SubtitleIndex, WORD *pSubtitlePID);
+	WORD GetCaptionEsNum(const int Index);
+	bool GetCaptionEsPID(const int Index, const WORD CaptionIndex, WORD *pCaptionPID);
 	WORD GetDataCarrouselEsNum(const int Index);
 	bool GetDataCarrouselEsPID(const int Index, const WORD DataCarrouselIndex, WORD *pDataCarrouselPID);
 	bool GetPcrPID(const int Index, WORD *pPcrPID);
@@ -164,6 +166,7 @@ public:
 		EventContentNibble ContentNibble;
 	};
 	bool GetEventVideoInfo(const int ServiceIndex, EventVideoInfo *pInfo, const bool bNext = false);
+	bool GetEventAudioInfo(const int ServiceIndex, const int AudioIndex, EventAudioInfo *pInfo, bool bNext = false);
 	bool GetEventAudioList(const int ServiceIndex, EventAudioList *pList, const bool bNext = false);
 	bool GetEventContentNibble(const int ServiceIndex, EventContentNibble *pInfo, const bool bNext = false);
 	bool GetEventInfo(const int ServiceIndex, EventInfo *pInfo, const bool bUseEventGroup = true, const bool bNext = false);
@@ -199,6 +202,7 @@ protected:
 #ifdef TVH264
 	const CDescBlock *GetLEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
 #endif
+	const CAudioComponentDesc *GetAudioComponentDescByComponentTag(const CDescBlock *pDescBlock, const BYTE ComponentTag);
 #endif
 
 	CTsPidMapManager m_PidMapManager;

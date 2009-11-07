@@ -38,7 +38,7 @@ bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
 		TCHAR szFileName[MAX_PATH];
 
 		if (::PathIsFileSpec(m_pszFileName)) {
-			GetAppClass().GetAppDirectory(szFileName);
+			GetAppClass().GetDriverDirectory(szFileName);
 			::PathAppend(szFileName,m_pszFileName);
 		} else {
 			::lstrcpy(szFileName,m_pszFileName);

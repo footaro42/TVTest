@@ -27,6 +27,8 @@ public:
 	bool Write(LPCTSTR pszValueName,bool fData);
 	bool ReadColor(LPCTSTR pszValueName,COLORREF *pcrData);
 	bool WriteColor(LPCTSTR pszValueName,COLORREF crData);
+	bool Read(LPCTSTR pszValueName,LOGFONT *pFont);
+	bool Write(LPCTSTR pszValueName,const LOGFONT *pFont);
 };
 
 

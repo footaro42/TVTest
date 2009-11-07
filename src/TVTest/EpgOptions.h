@@ -56,6 +56,9 @@ private:
 	};
 	CEpgDataLoaderEventHandler m_EpgDataLoaderEventHandler;
 
+	LOGFONT m_EventInfoFont;
+	LOGFONT m_CurEventInfoFont;
+
 	bool GetEpgFileFullPath(LPTSTR pszFileName);
 	static DWORD WINAPI LoadThread(LPVOID lpParameter);
 	static CEpgOptions *GetThis(HWND hDlg);
@@ -75,6 +78,7 @@ public:
 	bool LoadEpgData();
 	bool AsyncLoadEpgData(CEpgLoadEventHandler *pEventHandler=NULL);
 	bool IsEpgDataLoading() const;
+	const LOGFONT *GetEventInfoFont() const { return &m_EventInfoFont; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

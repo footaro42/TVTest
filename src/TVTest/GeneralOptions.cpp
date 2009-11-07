@@ -28,6 +28,7 @@ static void FillRandomData(BYTE *pData,size_t Size)
 
 CGeneralOptions::CGeneralOptions()
 {
+	m_szDriverDirectory[0]='\0';
 	m_DefaultDriverType=DEFAULT_DRIVER_LAST;
 	m_szDefaultDriverName[0]='\0';
 	m_szLastDriverName[0]='\0';
@@ -41,9 +42,6 @@ CGeneralOptions::CGeneralOptions()
 	m_fDescrambleUseSSE2=false;
 	m_fDescrambleCurServiceOnly=false;
 	m_fEnableEmmProcess=false;
-	m_fPacketBuffering=false;
-	m_PacketBufferLength=40000;
-	m_PacketBufferPoolPercentage=50;
 }
 
 
@@ -92,14 +90,6 @@ bool CGeneralOptions::Apply(DWORD Flags)
 		pCoreEngine->m_DtvEngine.m_TsDescrambler.EnableEmmProcess(m_fEnableEmmProcess);
 	}
 
-	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
-		if (m_fPacketBuffering) {
-			pCoreEngine->SetPacketBufferLength(m_PacketBufferLength);
-			pCoreEngine->SetPacketBufferPoolPercentage(m_PacketBufferPoolPercentage);
-		}
-		pCoreEngine->SetPacketBuffering(m_fPacketBuffering);
-	}
-
 	return true;
 }
 
@@ -108,6 +98,12 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 {
 	int Value;
 
+	TCHAR szDirectory[MAX_PATH];
+	if (pSettings->Read(TEXT("DriverDirectory"),szDirectory,lengthof(szDirectory))
+			&& szDirectory[0]!='\0') {
+		::lstrcpy(m_szDriverDirectory,szDirectory);
+		GetAppClass().GetCoreEngine()->SetDriverDirectory(szDirectory);
+	}
 	if (pSettings->Read(TEXT("DefaultDriverType"),&Value)
 			&& Value>=DEFAULT_DRIVER_NONE && Value<=DEFAULT_DRIVER_CUSTOM)
 		m_DefaultDriverType=(DefaultDriverType)Value;
@@ -138,17 +134,13 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("DescrambleSSE2"),&m_fDescrambleUseSSE2);
 	pSettings->Read(TEXT("DescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
 	pSettings->Read(TEXT("ProcessEMM"),&m_fEnableEmmProcess);
-	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
-	unsigned int BufferLength;
-	if (pSettings->Read(TEXT("PacketBufferLength"),&BufferLength))
-		m_PacketBufferLength=BufferLength;
-	pSettings->Read(TEXT("PacketBufferPoolPercentage"),&m_PacketBufferPoolPercentage);
 	return true;
 }
 
 
 bool CGeneralOptions::Write(CSettings *pSettings) const
 {
+	pSettings->Write(TEXT("DriverDirectory"),m_szDriverDirectory);
 	pSettings->Write(TEXT("DefaultDriverType"),(int)m_DefaultDriverType);
 	pSettings->Write(TEXT("DefaultDriver"),m_szDefaultDriverName);
 	pSettings->Write(TEXT("Driver"),GetAppClass().GetCoreEngine()->GetDriverFileName());
@@ -162,9 +154,6 @@ bool CGeneralOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("DescrambleSSE2"),m_fDescrambleUseSSE2);
 	pSettings->Write(TEXT("DescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	pSettings->Write(TEXT("ProcessEMM"),m_fEnableEmmProcess);
-	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
-	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
-	pSettings->Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
 	return true;
 }
 
@@ -286,31 +275,6 @@ bool CGeneralOptions::GetEnableEmmProcess() const
 }
 
 
-bool CGeneralOptions::GetPacketBuffering() const
-{
-	return m_fPacketBuffering;
-}
-
-
-bool CGeneralOptions::SetPacketBuffering(bool fBuffering)
-{
-	m_fPacketBuffering=fBuffering;
-	return true;
-}
-
-
-DWORD CGeneralOptions::GetPacketBufferLength() const
-{
-	return m_PacketBufferLength;
-}
-
-
-int CGeneralOptions::GetPacketBufferPoolPercentage() const
-{
-	return m_PacketBufferPoolPercentage;
-}
-
-
 BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
@@ -318,6 +282,9 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 		{
 			CGeneralOptions *pThis=static_cast<CGeneralOptions*>(OnInitDialog(hDlg,lParam));
 			CAppMain &AppMain=GetAppClass();
+
+			::SendDlgItemMessage(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,EM_LIMITTEXT,MAX_PATH-1,0);
+			::SetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,pThis->m_szDriverDirectory);
 
 			// Driver
 			::CheckRadioButton(hDlg,IDC_OPTIONS_DEFAULTDRIVER_NONE,
@@ -327,11 +294,11 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 								IDC_OPTIONS_DEFAULTDRIVER_BROWSE,
 						   pThis->m_DefaultDriverType==DEFAULT_DRIVER_CUSTOM);
 
-			TCHAR szDirectory[MAX_PATH];
 			const CDriverManager *pDriverManager=AppMain.GetDriverManager();
 			DlgComboBox_LimitText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,MAX_PATH-1);
-			AppMain.GetAppDirectory(szDirectory);
 			/*
+			TCHAR szDirectory[MAX_PATH];
+			AppMain.GetDriverDirectory(szDirectory);
 			pDriverManager->Find(szDirectory);
 			AppMain.UpdateDriverMenu();
 			*/
@@ -401,21 +368,31 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 									IDC_OPTIONS_ENABLEEMMPROCESS,false);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS,pThis->m_fEnableEmmProcess);
-
-			// Buffering
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEBUFFERING,pThis->m_fPacketBuffering);
-			EnableDlgItems(hDlg,IDC_OPTIONS_BUFFERING_FIRST,IDC_OPTIONS_BUFFERING_LAST,
-					pThis->m_fPacketBuffering);
-			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,pThis->m_PacketBufferLength,FALSE);
-			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERSIZE_UD,1,INT_MAX);
-			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,
-						  pThis->m_PacketBufferPoolPercentage,TRUE);
-			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE_UD,0,100);
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case IDC_OPTIONS_DRIVERDIRECTORY_BROWSE:
+			{
+				TCHAR szDirectory[MAX_PATH];
+
+				if (::GetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,szDirectory,lengthof(szDirectory))>0) {
+					if (::PathIsRelative(szDirectory)) {
+						TCHAR szTemp[MAX_PATH];
+
+						GetAppClass().GetAppDirectory(szTemp);
+						::PathAppend(szTemp,szDirectory);
+						::PathCanonicalize(szDirectory,szTemp);
+					}
+				} else {
+					GetAppClass().GetAppDirectory(szDirectory);
+				}
+				if (BrowseFolderDialog(hDlg,szDirectory,TEXT("ドライバの検索フォルダを選択してください。")))
+					::SetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,szDirectory);
+			}
+			return TRUE;
+
 		case IDC_OPTIONS_DEFAULTDRIVER_NONE:
 		case IDC_OPTIONS_DEFAULTDRIVER_LAST:
 		case IDC_OPTIONS_DEFAULTDRIVER_CUSTOM:
@@ -520,12 +497,6 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 								   TEXT("ベンチマークテスト結果"),NULL,TEXT("ベンチマークテスト"));
 			}
 			return TRUE;
-
-		case IDC_OPTIONS_ENABLEBUFFERING:
-			EnableDlgItemsSyncCheckBox(hDlg,IDC_OPTIONS_BUFFERING_FIRST,
-									   IDC_OPTIONS_BUFFERING_LAST,
-									   IDC_OPTIONS_ENABLEBUFFERING);
-			return TRUE;
 		}
 		return TRUE;
 
@@ -535,6 +506,8 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			{
 				CGeneralOptions *pThis=GetThis(hDlg);
 
+				::GetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,
+								 pThis->m_szDriverDirectory,lengthof(pThis->m_szDriverDirectory));
 				pThis->m_DefaultDriverType=(DefaultDriverType)
 					(GetCheckedRadioButton(hDlg,IDC_OPTIONS_DEFAULTDRIVER_NONE,
 										   IDC_OPTIONS_DEFAULTDRIVER_CUSTOM)-
@@ -594,18 +567,6 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					pThis->m_fEnableEmmProcess=fEmm;
 					pThis->SetUpdateFlag(UPDATE_ENABLEEMMPROCESS);
 				}
-
-				bool fBuffering=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ENABLEBUFFERING);
-				DWORD BufferLength=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,NULL,FALSE);
-				int PoolPercentage=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,NULL,TRUE);
-				if (fBuffering!=pThis->m_fPacketBuffering
-					|| (fBuffering
-						&& (BufferLength!=pThis->m_PacketBufferLength
-							|| PoolPercentage!=pThis->m_PacketBufferPoolPercentage)))
-					pThis->SetUpdateFlag(UPDATE_PACKETBUFFERING);
-				pThis->m_fPacketBuffering=fBuffering;
-				pThis->m_PacketBufferLength=BufferLength;
-				pThis->m_PacketBufferPoolPercentage=PoolPercentage;
 			}
 			return TRUE;
 		}

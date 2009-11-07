@@ -26,7 +26,6 @@ record.html
 commandline.html
 options.html
 options\accelerator.html
-options\audio.html
 options\capture.html
 options\channelscan.html
 options\colorscheme.html
@@ -39,6 +38,7 @@ options\networkremocon.html
 options\operation.html
 options\osd.html
 options\panel.html
+options\playback.html
 options\plugin.html
 options\programguide.html
 options\programguidetool.html
@@ -52,7 +52,6 @@ appendix\channelfile.html
 
 [ALIAS]
 HELP_ID_OPTIONS_ACCELERATOR=options\accelerator.html
-HELP_ID_OPTIONS_AUDIO=options\audio.html
 HELP_ID_OPTIONS_CAPTURE=options\capture.html
 HELP_ID_OPTIONS_CHANNELSCAN=options\channelscan.html
 HELP_ID_OPTIONS_COLORSCHEME=options\colorscheme.html
@@ -65,6 +64,7 @@ HELP_ID_OPTIONS_NETWORKREMOCON=options\networkremocon.html
 HELP_ID_OPTIONS_OPERATION=options\operation.html
 HELP_ID_OPTIONS_OSD=options\osd.html
 HELP_ID_OPTIONS_PANEL=options\panel.html
+HELP_ID_OPTIONS_PLAYBACK=options\playback.html
 HELP_ID_OPTIONS_PLUGIN=options\plugin.html
 HELP_ID_OPTIONS_PROGRAMGUIDE=options\programguide.html
 HELP_ID_OPTIONS_RECORD=options\record.html

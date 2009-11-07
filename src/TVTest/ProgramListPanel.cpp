@@ -558,6 +558,12 @@ bool CProgramListPanel::SetFont(const LOGFONT *pFont)
 }
 
 
+bool CProgramListPanel::SetEventInfoFont(const LOGFONT *pFont)
+{
+	return m_EventInfoPopup.SetFont(pFont);
+}
+
+
 void CProgramListPanel::CalcFontHeight()
 {
 	HDC hdc;

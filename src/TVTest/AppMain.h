@@ -9,7 +9,8 @@
 #include "DriverManager.h"
 
 
-class CAppMain {
+class CAppMain
+{
 	TCHAR m_szIniFileName[MAX_PATH];
 	TCHAR m_szDefaultChannelFileName[MAX_PATH];
 	TCHAR m_szChannelSettingFileName[MAX_PATH];
@@ -24,6 +25,7 @@ public:
 	HINSTANCE GetInstance() const;
 	HINSTANCE GetResourceInstance() const;
 	bool GetAppDirectory(LPTSTR pszDirectory) const;
+	bool GetDriverDirectory(LPTSTR pszDirectory) const;
 	LPCTSTR GetIniFileName() const { return m_szIniFileName; }
 	bool AddLog(LPCTSTR pszText, ...);
 	void OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
@@ -57,6 +59,8 @@ public:
 	void EndChannelScan();
 	bool IsChannelScanning() const { return m_fChannelScanning; }
 	bool IsDriverNoSignalLevel(LPCTSTR pszFileName) const;
+	void SetProgress(int Pos,int Max);
+	void EndProgress();
 	COLORREF GetColor(LPCTSTR pszText) const;
 	CCoreEngine *GetCoreEngine();
 	const CCoreEngine *GetCoreEngine() const;

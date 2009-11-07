@@ -93,6 +93,7 @@ public:
 		const Theme::GradientInfo *pCurTitleBackGradient,COLORREF CurTitleTextColor,
 		COLORREF MarginColor);
 	bool SetFont(const LOGFONT *pFont);
+	bool SetEventInfoFont(const LOGFONT *pFont);
 };
 
 

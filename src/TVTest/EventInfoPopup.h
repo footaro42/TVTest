@@ -5,6 +5,7 @@
 #include "BasicWindow.h"
 #include "EpgProgramList.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 #include "RichEditUtil.h"
 
 
@@ -34,6 +35,7 @@ public:
 	bool IsHandle(HWND hwnd) const { return m_hwnd==hwnd; }
 	void SetColor(COLORREF BackColor,COLORREF TextColor);
 	void SetTitleColor(Theme::GradientInfo *pBackGradient,COLORREF TextColor);
+	bool SetFont(const LOGFONT *pFont);
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool IsSelected() const;
 	LPTSTR GetSelectedText() const;
@@ -48,8 +50,8 @@ private:
 	COLORREF m_TextColor;
 	Theme::GradientInfo m_TitleBackGradient;
 	COLORREF m_TitleTextColor;
-	HFONT m_hfont;
-	HFONT m_hfontTitle;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_TitleFont;
 	int m_TitleLineMargin;
 	int m_TitleLineHeight;
 	int m_TitleHeight;

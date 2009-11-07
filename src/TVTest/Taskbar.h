@@ -15,6 +15,8 @@ public:
 	void Finalize();
 	bool HandleMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool SetRecordingStatus(bool fRecording);
+	bool SetProgress(int Pos,int Max);
+	bool EndProgress();
 };
 
 

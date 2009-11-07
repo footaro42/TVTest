@@ -109,8 +109,8 @@
 			<param name="Local" value="options\driver.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-			<param name="Name" value="‰¹º">
-			<param name="Local" value="options\audio.html">
+			<param name="Name" value="Ä¶">
+			<param name="Local" value="options\playback.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="˜^‰æ">
@@ -125,7 +125,7 @@
 			<param name="Local" value="options\channelscan.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-			<param name="Name" value="EPG">
+			<param name="Name" value="EPG/”Ô‘gî•ñ">
 			<param name="Local" value="options\epg.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">

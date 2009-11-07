@@ -41,13 +41,10 @@ public:
 	bool GetDescrambleUseSSE2() const { return m_fDescrambleUseSSE2; }
 	bool GetDescrambleCurServiceOnly() const;
 	bool GetEnableEmmProcess() const;
-	bool GetPacketBuffering() const;
-	bool SetPacketBuffering(bool fBuffering);
-	DWORD GetPacketBufferLength() const;
-	int GetPacketBufferPoolPercentage() const;
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 private:
+	TCHAR m_szDriverDirectory[MAX_PATH];
 	DefaultDriverType m_DefaultDriverType;
 	TCHAR m_szDefaultDriverName[MAX_PATH];
 	TCHAR m_szLastDriverName[MAX_PATH];
@@ -60,9 +57,6 @@ private:
 	bool m_fDescrambleUseSSE2;
 	bool m_fDescrambleCurServiceOnly;
 	bool m_fEnableEmmProcess;
-	bool m_fPacketBuffering;
-	DWORD m_PacketBufferLength;
-	int m_PacketBufferPoolPercentage;
 	static CGeneralOptions *GetThis(HWND hDlg);
 	enum {
 		UPDATE_DECODER				= 0x00000001UL,
@@ -70,8 +64,7 @@ private:
 		UPDATE_CARDREADER			= 0x00000004UL,
 		UPDATE_RESIDENT				= 0x00000008UL,
 		UPDATE_DESCRAMBLECURONLY	= 0x00000010UL,
-		UPDATE_ENABLEEMMPROCESS		= 0x00000020UL,
-		UPDATE_PACKETBUFFERING		= 0x00000040UL
+		UPDATE_ENABLEEMMPROCESS		= 0x00000020UL
 	};
 };
 

@@ -33,6 +33,9 @@ class CPanelOptions : public COptions {
 	int m_Opacity;
 	LOGFONT m_Font;
 	LOGFONT m_CurSettingFont;
+	bool m_fSpecCaptionFont;
+	LOGFONT m_CaptionFont;
+	LOGFONT m_CurSettingCaptionFont;
 	int m_FirstTab;
 	int m_LastTab;
 	struct TabInfo {

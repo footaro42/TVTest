@@ -16,6 +16,7 @@ class CPlugin : public CBonErrorHandler {
 	HMODULE m_hLib;
 	LPTSTR m_pszFileName;
 	TVTest::PluginParam m_PluginParam;
+	DWORD m_Version;
 	DWORD m_Type;
 	DWORD m_Flags;
 	LPWSTR m_pszPluginName;

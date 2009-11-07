@@ -356,6 +356,35 @@ BYTE CTsAnalyzer::GetVideoComponentType(const int Index)
 }
 
 
+int CTsAnalyzer::GetAudioIndexByComponentTag(const int Index, const BYTE ComponentTag)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (Index >= 0 && (size_t)Index < m_ServiceList.size()
+			&& m_ServiceList[Index].AudioEsList.size() > 0) {
+		const CDescBlock *pDescBlock = GetHEitItemDesc(Index);
+
+		if (pDescBlock) {
+			for (WORD i = 0; i < pDescBlock->GetDescNum(); i++) {
+				const CBaseDesc *pDesc = pDescBlock->GetDescByIndex(i);
+
+				if (pDesc->GetTag() == CAudioComponentDesc::DESC_TAG) {
+					const CAudioComponentDesc *pAudioDesc = dynamic_cast<const CAudioComponentDesc*>(pDesc);
+
+					if (pAudioDesc) {
+						for (size_t j = 0; j < m_ServiceList[Index].AudioEsList.size(); j++) {
+							if (pAudioDesc->GetComponentTag() == m_ServiceList[Index].AudioEsList[j].ComponentTag)
+								return (int)j;
+						}
+					}
+				}
+			}
+		}
+	}
+	return -1;
+}
+
+
 BYTE CTsAnalyzer::GetAudioComponentType(const int Index, const int AudioIndex)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -365,17 +394,34 @@ BYTE CTsAnalyzer::GetAudioComponentType(const int Index, const int AudioIndex)
 		const CDescBlock *pDescBlock = GetHEitItemDesc(Index);
 
 		if (pDescBlock) {
-			for (WORD i = 0 ; i < pDescBlock->GetDescNum() ; i++) {
-				const CBaseDesc *pDesc = pDescBlock->GetDescByIndex(i);
+			const CAudioComponentDesc *pAudioDesc =
+				GetAudioComponentDescByComponentTag(pDescBlock, m_ServiceList[Index].AudioEsList[AudioIndex].ComponentTag);
+			if (pAudioDesc != NULL)
+				return pAudioDesc->GetComponentType();
+		}
+	}
+	return 0;
+}
 
-				if (pDesc->GetTag() == CAudioComponentDesc::DESC_TAG) {
-					const CAudioComponentDesc *pAudioDesc = dynamic_cast<const CAudioComponentDesc*>(pDesc);
 
-					if (pAudioDesc != NULL
-							&& pAudioDesc->GetComponentTag() == m_ServiceList[Index].AudioEsList[AudioIndex].ComponentTag)
-						return pAudioDesc->GetComponentType();
-				}
-			}
+int CTsAnalyzer::GetAudioComponentText(const int Index, const int AudioIndex, LPTSTR pszText, int MaxLength)
+{
+	if (pszText == NULL || MaxLength < 1)
+		return 0;
+
+	pszText[0] = '\0';
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (Index >= 0 && (size_t)Index < m_ServiceList.size()
+			&& AudioIndex >= 0 && (size_t)AudioIndex < m_ServiceList[Index].AudioEsList.size()) {
+		const CDescBlock *pDescBlock = GetHEitItemDesc(Index);
+
+		if (pDescBlock) {
+			const CAudioComponentDesc *pAudioDesc =
+				GetAudioComponentDescByComponentTag(pDescBlock, m_ServiceList[Index].AudioEsList[AudioIndex].ComponentTag);
+			if (pAudioDesc != NULL)
+				return pAudioDesc->GetText(pszText, MaxLength);
 		}
 	}
 	return 0;
@@ -384,26 +430,26 @@ BYTE CTsAnalyzer::GetAudioComponentType(const int Index, const int AudioIndex)
 #endif	// TS_ANALYZER_EIT_SUPPORT
 
 
-WORD CTsAnalyzer::GetSubtitleEsNum(const int Index)
+WORD CTsAnalyzer::GetCaptionEsNum(const int Index)
 {
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (Index >= 0 && (size_t)Index < m_ServiceList.size())
-		return (WORD)m_ServiceList[Index].SubtitleEsList.size();
+		return (WORD)m_ServiceList[Index].CaptionEsList.size();
 	return 0;
 }
 
 
-bool CTsAnalyzer::GetSubtitleEsPID(const int Index, const WORD SubtitleIndex, WORD *pSubtitlePID)
+bool CTsAnalyzer::GetCaptionEsPID(const int Index, const WORD CaptionIndex, WORD *pCaptionPID)
 {
-	if (pSubtitlePID == NULL)
+	if (pCaptionPID == NULL)
 		return false;
 
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (Index >= 0 && (size_t)Index < m_ServiceList.size()
-			&& (size_t)SubtitleIndex < m_ServiceList[Index].SubtitleEsList.size()) {
-		*pSubtitlePID = m_ServiceList[Index].SubtitleEsList[SubtitleIndex].PID;
+			&& (size_t)CaptionIndex < m_ServiceList[Index].CaptionEsList.size()) {
+		*pCaptionPID = m_ServiceList[Index].CaptionEsList[CaptionIndex].PID;
 		return true;
 	}
 	return false;
@@ -738,6 +784,45 @@ bool CTsAnalyzer::GetEventVideoInfo(const int ServiceIndex, EventVideoInfo *pInf
 }
 
 
+static void AudioComponentDescToAudioInfo(const CAudioComponentDesc *pAudioDesc, CTsAnalyzer::EventAudioInfo *pInfo)
+{
+	pInfo->StreamContent = pAudioDesc->GetStreamContent();
+	pInfo->ComponentType = pAudioDesc->GetComponentType();
+	pInfo->ComponentTag = pAudioDesc->GetComponentTag();
+	pInfo->SimulcastGroupTag = pAudioDesc->GetSimulcastGroupTag();
+	pInfo->bESMultiLingualFlag = pAudioDesc->GetESMultiLingualFlag();
+	pInfo->bMainComponentFlag = pAudioDesc->GetMainComponentFlag();
+	pInfo->QualityIndicator = pAudioDesc->GetQualityIndicator();
+	pInfo->SamplingRate = pAudioDesc->GetSamplingRate();
+	pInfo->LanguageCode = pAudioDesc->GetLanguageCode();
+	pInfo->LanguageCode2 = pAudioDesc->GetLanguageCode2();
+	pAudioDesc->GetText(pInfo->szText, CTsAnalyzer::EventAudioInfo::MAX_TEXT);
+}
+
+bool CTsAnalyzer::GetEventAudioInfo(const int ServiceIndex, const int AudioIndex, EventAudioInfo *pInfo, bool bNext)
+{
+	if (pInfo == NULL)
+		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()
+			&& AudioIndex >= 0 && (size_t)AudioIndex < m_ServiceList[ServiceIndex].AudioEsList.size()) {
+		const CDescBlock *pDescBlock = GetHEitItemDesc(ServiceIndex, bNext);
+
+		if (pDescBlock) {
+			const CAudioComponentDesc *pAudioDesc =
+				GetAudioComponentDescByComponentTag(pDescBlock, m_ServiceList[ServiceIndex].AudioEsList[AudioIndex].ComponentTag);
+			if (pAudioDesc != NULL) {
+				AudioComponentDescToAudioInfo(pAudioDesc, pInfo);
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+
 bool CTsAnalyzer::GetEventAudioList(const int ServiceIndex, EventAudioList *pList, const bool bNext)
 {
 	if (pList == NULL)
@@ -755,17 +840,7 @@ bool CTsAnalyzer::GetEventAudioList(const int ServiceIndex, EventAudioList *pLis
 				if (pAudioComponent) {
 					EventAudioInfo AudioInfo;
 
-					AudioInfo.StreamContent = pAudioComponent->GetStreamContent();
-					AudioInfo.ComponentType = pAudioComponent->GetComponentType();
-					AudioInfo.ComponentTag = pAudioComponent->GetComponentTag();
-					AudioInfo.SimulcastGroupTag = pAudioComponent->GetSimulcastGroupTag();
-					AudioInfo.bESMultiLingualFlag = pAudioComponent->GetESMultiLingualFlag();
-					AudioInfo.bMainComponentFlag = pAudioComponent->GetMainComponentFlag();
-					AudioInfo.QualityIndicator = pAudioComponent->GetQualityIndicator();
-					AudioInfo.SamplingRate = pAudioComponent->GetSamplingRate();
-					AudioInfo.LanguageCode = pAudioComponent->GetLanguageCode();
-					AudioInfo.LanguageCode2 = pAudioComponent->GetLanguageCode2();
-					pAudioComponent->GetText(AudioInfo.szText, EventAudioInfo::MAX_TEXT);
+					AudioComponentDescToAudioInfo(pAudioComponent, &AudioInfo);
 					pList->push_back(AudioInfo);
 				}
 			}
@@ -1090,6 +1165,25 @@ const CDescBlock *CTsAnalyzer::GetLEitItemDesc(const int ServiceIndex, const boo
 #endif
 
 
+const CAudioComponentDesc *CTsAnalyzer::GetAudioComponentDescByComponentTag(const CDescBlock *pDescBlock, const BYTE ComponentTag)
+{
+	if (pDescBlock != NULL) {
+		for (WORD i = 0; i < pDescBlock->GetDescNum(); i++) {
+			const CBaseDesc *pDesc = pDescBlock->GetDescByIndex(i);
+
+			if (pDesc->GetTag() == CAudioComponentDesc::DESC_TAG) {
+				const CAudioComponentDesc *pAudioDesc = dynamic_cast<const CAudioComponentDesc*>(pDesc);
+
+				if (pAudioDesc != NULL
+						&& pAudioDesc->GetComponentTag() == ComponentTag)
+					return pAudioDesc;
+			}
+		}
+	}
+	return NULL;
+}
+
+
 #endif	// TS_ANALYZER_EIT_SUPPORT
 
 
@@ -1183,7 +1277,7 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[Index].VideoEs.PID = PID_INVALID;
 		pThis->m_ServiceList[Index].VideoEs.ComponentTag = COMPONENTTAG_INVALID;
 		pThis->m_ServiceList[Index].AudioEsList.clear();
-		pThis->m_ServiceList[Index].SubtitleEsList.clear();
+		pThis->m_ServiceList[Index].CaptionEsList.clear();
 		pThis->m_ServiceList[Index].DataCarrouselEsList.clear();
 		pThis->m_ServiceList[Index].PcrPID = PID_INVALID;
 		pThis->m_ServiceList[Index].EcmPID = PID_INVALID;
@@ -1222,7 +1316,7 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	Info.VideoEs.PID = PID_INVALID;
 	Info.VideoEs.ComponentTag = COMPONENTTAG_INVALID;
 	Info.AudioEsList.clear();
-	Info.SubtitleEsList.clear();
+	Info.CaptionEsList.clear();
 	Info.DataCarrouselEsList.clear();
 	for (WORD EsIndex = 0; EsIndex < pPmtTable->GetEsInfoNum(); EsIndex++) {
 		const BYTE StreamType = pPmtTable->GetStreamTypeID(EsIndex);
@@ -1248,7 +1342,7 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 			break;
 
 		case 0x06:	// ITU-T Rec.H.222 | ISO/IEC 13818-1
-			Info.SubtitleEsList.push_back(EsInfo(EsPID, ComponentTag));
+			Info.CaptionEsList.push_back(EsInfo(EsPID, ComponentTag));
 			break;
 
 		case 0x0D:

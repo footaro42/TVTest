@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
@@ -31,6 +30,15 @@ CEpgOptions::CEpgOptions(CCoreEngine *pCoreEngine)
 	m_hLoadThread=NULL;
 	m_pEpgDataLoader=NULL;
 	m_EpgDataLoaderEventHandler.SetPacketParser(&pCoreEngine->m_DtvEngine.m_TsPacketParser);
+
+	NONCLIENTMETRICS ncm;
+#if WINVER<0x0600
+	ncm.cbSize=sizeof(ncm);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
+	m_EventInfoFont=ncm.lfMessageFont;
 }
 
 
@@ -59,6 +67,8 @@ bool CEpgOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("EpgUpdateWhenStandby"),&m_fUpdateWhenStandby);
 	pSettings->Read(TEXT("UseEpgData"),&m_fUseEpgData);
 	pSettings->Read(TEXT("EpgDataFolder"),m_szEpgDataFolder,lengthof(m_szEpgDataFolder));
+
+	pSettings->Read(TEXT("EventInfoFont"),&m_EventInfoFont);
 	return true;
 }
 
@@ -71,6 +81,8 @@ bool CEpgOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("EpgUpdateWhenStandby"),m_fUpdateWhenStandby);
 	pSettings->Write(TEXT("UseEpgData"),m_fUseEpgData);
 	pSettings->Write(TEXT("EpgDataFolder"),m_szEpgDataFolder);
+
+	pSettings->Write(TEXT("EventInfoFont"),&m_EventInfoFont);
 	return true;
 }
 
@@ -213,6 +225,19 @@ CEpgOptions *CEpgOptions::GetThis(HWND hDlg)
 }
 
 
+static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
+{
+	HDC hdc;
+	TCHAR szText[LF_FACESIZE+16];
+
+	hdc=::GetDC(hDlg);
+	if (hdc==NULL)
+		return;
+	::wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
+	::SetDlgItemText(hDlg,IDC_EVENTINFOOPTIONS_FONT_INFO,szText);
+	::ReleaseDC(hDlg,hdc);
+}
+
 BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
@@ -240,6 +265,9 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 			EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
 								IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
 						   pThis->m_fUseEpgData);
+
+			pThis->m_CurEventInfoFont=pThis->m_EventInfoFont;
+			SetFontInfo(hDlg,&pThis->m_CurEventInfoFont);
 		}
 		return TRUE;
 
@@ -335,6 +363,15 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,szFolder);
 			}
 			return TRUE;
+
+		case IDC_EVENTINFOOPTIONS_FONT_CHOOSE:
+			{
+				CEpgOptions *pThis=GetThis(hDlg);
+
+				if (ChooseFontDialog(hDlg,&pThis->m_CurEventInfoFont))
+					SetFontInfo(hDlg,&pThis->m_CurEventInfoFont);
+			}
+			return TRUE;
 		}
 		return TRUE;
 
@@ -369,6 +406,11 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 					pThis->AsyncLoadEpgData();
 				}
 				pThis->m_fUseEpgData=fUseEpgData;
+
+				if (!CompareLogFont(&pThis->m_EventInfoFont,&pThis->m_CurEventInfoFont)) {
+					pThis->m_EventInfoFont=pThis->m_CurEventInfoFont;
+					SetGeneralUpdateFlag(UPDATE_GENERAL_EVENTINFOFONT);
+				}
 			}
 			break;
 		}

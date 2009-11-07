@@ -211,3 +211,27 @@ bool CTaskbarManager::SetRecordingStatus(bool fRecording)
 	}
 	return false;
 }
+
+
+bool CTaskbarManager::SetProgress(int Pos,int Max)
+{
+	if (m_pTaskbarList!=NULL) {
+		if (Pos>=Max) {
+			m_pTaskbarList->SetProgressState(m_hwnd,TBPF_NOPROGRESS);
+		} else {
+			if (Pos==0)
+				m_pTaskbarList->SetProgressState(m_hwnd,TBPF_NORMAL);
+			m_pTaskbarList->SetProgressValue(m_hwnd,Pos,Max);
+		}
+		return true;
+	}
+	return false;
+}
+
+
+bool CTaskbarManager::EndProgress()
+{
+	if (m_pTaskbarList!=NULL)
+		m_pTaskbarList->SetProgressState(m_hwnd,TBPF_NOPROGRESS);
+	return true;
+}

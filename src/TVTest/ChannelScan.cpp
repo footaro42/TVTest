@@ -768,6 +768,7 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				EstimateRemain/60,EstimateRemain%60);
 			::SetDlgItemText(hDlg,IDC_CHANNELSCAN_INFO,szText);
 			::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_PROGRESS,PBM_SETPOS,wParam,0);
+			GetAppClass().SetProgress(wParam,pThis->m_NumChannels);
 		}
 		return TRUE;
 
@@ -787,6 +788,7 @@ BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 
 			::WaitForSingleObject(pThis->m_hScanThread,INFINITE);
 			GetAppClass().EndChannelScan();
+			GetAppClass().EndProgress();
 			::EndDialog(hDlg,wParam!=0 || pThis->m_fOK?IDOK:IDCANCEL);
 		}
 		return TRUE;

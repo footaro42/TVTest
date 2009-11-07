@@ -401,6 +401,12 @@ const BYTE CDtvEngine::GetAudioComponentType()
 }
 
 
+const int CDtvEngine::GetAudioComponentText(LPTSTR pszText, int MaxLength)
+{
+	return m_TsAnalyzer.GetAudioComponentText(m_CurServiceIndex, m_CurAudioStream, pszText, MaxLength);
+}
+
+
 const bool CDtvEngine::SetStereoMode(int iMode)
 {
 	return m_MediaViewer.SetStereoMode(iMode);
@@ -469,6 +475,11 @@ const bool CDtvEngine::GetEventInfo(CTsAnalyzer::EventInfo *pInfo, bool bNext)
 	return m_TsAnalyzer.GetEventInfo(m_CurServiceIndex, pInfo, true, bNext);
 }
 
+
+const bool CDtvEngine::GetEventAudioInfo(CTsAnalyzer::EventAudioInfo *pInfo, bool bNext)
+{
+	return m_TsAnalyzer.GetEventAudioInfo(m_CurServiceIndex, m_CurAudioStream, pInfo, bNext);
+}
 
 const bool CDtvEngine::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
 {

@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "EventInfoPopup.h"
-#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -59,16 +58,11 @@ CEventInfoPopup::CEventInfoPopup()
 	, m_ButtonMargin(3)
 	, m_pEventHandler(NULL)
 {
-	NONCLIENTMETRICS ncm;
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(ncm);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	m_hfont=::CreateFontIndirect(&ncm.lfMessageFont);
-	ncm.lfMessageFont.lfWeight=FW_BOLD;
-	m_hfontTitle=::CreateFontIndirect(&ncm.lfMessageFont);
+	LOGFONT lf;
+	DrawUtil::GetSystemFont(DrawUtil::FONT_MESSAGE,&lf);
+	m_Font.Create(&lf);
+	lf.lfWeight=FW_BOLD;
+	m_TitleFont.Create(&lf);
 }
 
 
@@ -77,10 +71,6 @@ CEventInfoPopup::~CEventInfoPopup()
 	Destroy();
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pPopup=NULL;
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	if (m_hfontTitle!=NULL)
-		::DeleteObject(m_hfontTitle);
 }
 
 
@@ -188,7 +178,7 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 	LOGFONT lf;
 	CHARFORMAT cf;
 	HDC hdc=::GetDC(m_hwndEdit);
-	::GetObject(m_hfont,sizeof(LOGFONT),&lf);
+	m_Font.GetLogFont(&lf);
 	CRichEditUtil::LogFontToCharFormat(hdc,&lf,&cf);
 	cf.dwMask|=CFM_COLOR;
 	cf.crTextColor=m_TextColor;
@@ -221,7 +211,7 @@ void CEventInfoPopup::CalcTitleHeight()
 	hdc=::GetDC(m_hwnd);
 	if (hdc==NULL)
 		return;
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfontTitle));
+	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_TitleFont.GetHandle()));
 	::GetTextMetrics(hdc,&tm);
 	//FontHeight=tm.tmHeight+tm.tmInternalLeading;
 	FontHeight=tm.tmHeight;
@@ -313,6 +303,26 @@ void CEventInfoPopup::SetTitleColor(Theme::GradientInfo *pBackGradient,COLORREF 
 }
 
 
+bool CEventInfoPopup::SetFont(const LOGFONT *pFont)
+{
+	LOGFONT lf=*pFont;
+
+	m_Font.Create(&lf);
+	lf.lfWeight=FW_BOLD;
+	m_TitleFont.Create(&lf);
+	if (m_hwnd!=NULL) {
+		CalcTitleHeight();
+		RECT rc;
+		GetClientRect(&rc);
+		::MoveWindow(m_hwndEdit,0,m_TitleHeight,rc.right,max(rc.bottom-m_TitleHeight,0),TRUE);
+		Invalidate();
+
+		::SendMessage(m_hwndEdit,WM_SETFONT,reinterpret_cast<WPARAM>(m_Font.GetHandle()),TRUE);
+	}
+	return true;
+}
+
+
 void CEventInfoPopup::SetEventHandler(CEventHandler *pEventHandler)
 {
 	if (m_pEventHandler!=NULL)
@@ -352,7 +362,7 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 			pThis->m_hwndEdit=::CreateWindowEx(0,TEXT("RichEdit20W"),TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | ES_NOHIDESEL,0,0,0,0,
 				hwnd,(HMENU)1,m_hinst,NULL);
-			::SendMessage(pThis->m_hwndEdit,WM_SETFONT,(WPARAM)pThis->m_hfont,FALSE);
+			::SendMessage(pThis->m_hwndEdit,WM_SETFONT,reinterpret_cast<WPARAM>(pThis->m_Font.GetHandle()),FALSE);
 			::SendMessage(pThis->m_hwndEdit,EM_SETEVENTMASK,0,ENM_MOUSEEVENTS | ENM_LINK);
 			::SendMessage(pThis->m_hwndEdit,EM_SETBKGNDCOLOR,0,pThis->m_BackColor);
 		}
@@ -383,7 +393,7 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 			::GetClientRect(hwnd,&rc);
 			rc.bottom=pThis->m_TitleHeight;
 			Theme::FillGradient(ps.hdc,&rc,&pThis->m_TitleBackGradient);
-			hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_hfontTitle));
+			hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_TitleFont.GetHandle()));
 			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
 			OldTextColor=::SetTextColor(ps.hdc,pThis->m_TitleTextColor);
 			if (pThis->m_EventInfo.m_fValidStartTime) {

@@ -1554,6 +1554,12 @@ bool CProgramGuide::SetFont(const LOGFONT *pFont)
 }
 
 
+bool CProgramGuide::SetEventInfoFont(const LOGFONT *pFont)
+{
+	return m_EventInfoPopup.SetFont(pFont);
+}
+
+
 bool CProgramGuide::SetShowToolTip(bool fShow)
 {
 	if (m_fShowToolTip!=fShow) {

@@ -315,10 +315,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\AudioOptions.cpp"
-				>
-			</File>
-			<File
 				RelativePath=".\BasicWindow.cpp"
 				>
 			</File>
@@ -407,6 +403,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\EventInfoPopup.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\GeneralOptions.cpp"
 				>
 			</File>
@@ -479,6 +479,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PlaybackOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Plugin.cpp"
 				>
 			</File>
@@ -495,7 +499,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ProgramListView.cpp"
+				RelativePath=".\ProgramListPanel.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\ProgramSearch.cpp"
 				>
 			</File>
 			<File
@@ -520,6 +528,10 @@
 			</File>
 			<File
 				RelativePath=".\ResidentManager.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\RichEditUtil.cpp"
 				>
 			</File>
 			<File
@@ -729,6 +741,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\EventInfoPopup.h"
+				>
+			</File>
+			<File
 				RelativePath=".\GeneralOptions.h"
 				>
 			</File>
@@ -809,6 +825,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PlaybackOptions.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Plugin.h"
 				>
 			</File>
@@ -825,7 +845,11 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ProgramListView.h"
+				RelativePath=".\ProgramListPanel.h"
+				>
+			</File>
+			<File
+				RelativePath=".\ProgramSearch.h"
 				>
 			</File>
 			<File
@@ -854,6 +878,10 @@
 			</File>
 			<File
 				RelativePath=".\Resource.h"
+				>
+			</File>
+			<File
+				RelativePath=".\RichEditUtil.h"
 				>
 			</File>
 			<File

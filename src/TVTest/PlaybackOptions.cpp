@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "AudioOptions.h"
+#include "PlaybackOptions.h"
 #include "DirectShowUtil.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -9,7 +9,7 @@
 
 
 
-CAudioOptions::CAudioOptions()
+CPlaybackOptions::CPlaybackOptions()
 {
 	m_szAudioDeviceName[0]='\0';
 	m_fDownMixSurround=true;
@@ -17,15 +17,34 @@ CAudioOptions::CAudioOptions()
 	m_fUseAudioRendererClock=true;
 	m_fAdjustAudioStreamTime=false;
 	m_fMinTimerResolution=true;
+	m_fPacketBuffering=false;
+	m_PacketBufferLength=40000;
+	m_PacketBufferPoolPercentage=50;
 }
 
 
-CAudioOptions::~CAudioOptions()
+CPlaybackOptions::~CPlaybackOptions()
 {
 }
 
 
-bool CAudioOptions::Read(CSettings *pSettings)
+bool CPlaybackOptions::Apply(DWORD Flags)
+{
+	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
+		CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+
+		if (!m_fPacketBuffering)
+			pCoreEngine->SetPacketBuffering(false);
+		pCoreEngine->SetPacketBufferLength(m_PacketBufferLength);
+		pCoreEngine->SetPacketBufferPoolPercentage(m_PacketBufferPoolPercentage);
+		if (m_fPacketBuffering)
+			pCoreEngine->SetPacketBuffering(true);
+	}
+	return true;
+}
+
+
+bool CPlaybackOptions::Read(CSettings *pSettings)
 {
 	pSettings->Read(TEXT("AudioDevice"),m_szAudioDeviceName,MAX_AUDIO_DEVICE_NAME);
 	pSettings->Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
@@ -33,11 +52,16 @@ bool CAudioOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
 	pSettings->Read(TEXT("AdjustAudioStreamTime"),&m_fAdjustAudioStreamTime);
 	pSettings->Read(TEXT("MinTimerResolution"),&m_fMinTimerResolution);
+	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
+	unsigned int BufferLength;
+	if (pSettings->Read(TEXT("PacketBufferLength"),&BufferLength))
+		m_PacketBufferLength=BufferLength;
+	pSettings->Read(TEXT("PacketBufferPoolPercentage"),&m_PacketBufferPoolPercentage);
 	return true;
 }
 
 
-bool CAudioOptions::Write(CSettings *pSettings) const
+bool CPlaybackOptions::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("AudioDevice"),m_szAudioDeviceName);
 	pSettings->Write(TEXT("DownMixSurround"),m_fDownMixSurround);
@@ -45,22 +69,32 @@ bool CAudioOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
 	pSettings->Write(TEXT("AdjustAudioStreamTime"),m_fAdjustAudioStreamTime);
 	pSettings->Write(TEXT("MinTimerResolution"),m_fMinTimerResolution);
+	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
+	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
+	pSettings->Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
 	return true;
 }
 
 
-CAudioOptions *CAudioOptions::GetThis(HWND hDlg)
+bool CPlaybackOptions::SetPacketBuffering(bool fBuffering)
 {
-	return static_cast<CAudioOptions*>(GetOptions(hDlg));
+	m_fPacketBuffering=fBuffering;
+	return true;
 }
 
 
-BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+CPlaybackOptions *CPlaybackOptions::GetThis(HWND hDlg)
+{
+	return static_cast<CPlaybackOptions*>(GetOptions(hDlg));
+}
+
+
+BOOL CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CAudioOptions *pThis=static_cast<CAudioOptions*>(OnInitDialog(hDlg,lParam));
+			CPlaybackOptions *pThis=static_cast<CPlaybackOptions*>(OnInitDialog(hDlg,lParam));
 
 			int Sel=0;
 			DlgComboBox_AddString(hDlg,IDC_AUDIOOPTIONS_DEVICE,TEXT("デフォルト"));
@@ -81,6 +115,26 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION,pThis->m_fMinTimerResolution);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME,pThis->m_fAdjustAudioStreamTime);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,!pThis->m_fUseAudioRendererClock);
+
+			// Buffering
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEBUFFERING,pThis->m_fPacketBuffering);
+			EnableDlgItems(hDlg,IDC_OPTIONS_BUFFERING_FIRST,IDC_OPTIONS_BUFFERING_LAST,
+					pThis->m_fPacketBuffering);
+			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,pThis->m_PacketBufferLength,FALSE);
+			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERSIZE_UD,1,INT_MAX);
+			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,
+						  pThis->m_PacketBufferPoolPercentage,TRUE);
+			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE_UD,0,100);
+		}
+		return TRUE;
+
+	case WM_COMMAND:
+		switch (LOWORD(wParam)) {
+		case IDC_OPTIONS_ENABLEBUFFERING:
+			EnableDlgItemsSyncCheckBox(hDlg,IDC_OPTIONS_BUFFERING_FIRST,
+									   IDC_OPTIONS_BUFFERING_LAST,
+									   IDC_OPTIONS_ENABLEBUFFERING);
+			return TRUE;
 		}
 		return TRUE;
 
@@ -88,7 +142,7 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CAudioOptions *pThis=GetThis(hDlg);
+				CPlaybackOptions *pThis=GetThis(hDlg);
 
 				TCHAR szAudioDevice[MAX_AUDIO_DEVICE_NAME];
 				int Sel=DlgComboBox_GetCurSel(hDlg,IDC_AUDIOOPTIONS_DEVICE);
@@ -124,6 +178,18 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(f);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
+
+				bool fBuffering=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ENABLEBUFFERING);
+				DWORD BufferLength=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,NULL,FALSE);
+				int PoolPercentage=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,NULL,TRUE);
+				if (fBuffering!=pThis->m_fPacketBuffering
+					|| (fBuffering
+						&& (BufferLength!=pThis->m_PacketBufferLength
+							|| PoolPercentage!=pThis->m_PacketBufferPoolPercentage)))
+					pThis->SetUpdateFlag(UPDATE_PACKETBUFFERING);
+				pThis->m_fPacketBuffering=fBuffering;
+				pThis->m_PacketBufferLength=BufferLength;
+				pThis->m_PacketBufferPoolPercentage=PoolPercentage;
 			}
 			break;
 		}
@@ -131,7 +197,7 @@ BOOL CALLBACK CAudioOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 	case WM_DESTROY:
 		{
-			CAudioOptions *pThis=GetThis(hDlg);
+			CPlaybackOptions *pThis=GetThis(hDlg);
 
 			pThis->OnDestroy();
 		}

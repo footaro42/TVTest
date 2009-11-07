@@ -20,19 +20,23 @@ static char THIS_FILE[]=__FILE__;
 
 CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	: m_pPanelFrame(pPanelFrame)
+	, m_fSnapAtMainWindow(true)
+	, m_SnapMargin(4)
+	, m_fAttachToMainWindow(true)
+	, m_Opacity(100)
+	, m_fSpecCaptionFont(false)
+	, m_FirstTab(-1)
+	, m_LastTab(0)
+	, m_fChannelDetailToolTip(false)
 {
-	m_fSnapAtMainWindow=true;
-	m_SnapMargin=4;
-	m_fAttachToMainWindow=true;
-	m_Opacity=100;
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
-	m_FirstTab=-1;
-	m_LastTab=0;
+#ifndef TVH264
+	m_CaptionFont=m_Font;
+#endif
 	for (int i=0;i<NUM_PANELS;i++) {
 		m_TabList[i].ID=PANEL_ID_FIRST+i;
 		m_TabList[i].fVisible=true;
 	}
-	m_fChannelDetailToolTip=false;
 }
 
 
@@ -46,6 +50,13 @@ bool CPanelOptions::InitializePanelForm(CPanelForm *pPanelForm)
 	int TabOrder[NUM_PANELS];
 
 	pPanelForm->SetPageFont(&m_Font);
+#ifndef TVH264
+	if (m_fSpecCaptionFont) {
+		CPanelForm::CPage *pCaptionPanel=pPanelForm->GetPageByID(PANEL_ID_CAPTION);
+		if (pCaptionPanel!=NULL)
+			pCaptionPanel->SetFont(&m_CaptionFont);
+	}
+#endif
 	pPanelForm->SetCurPageByID(GetFirstTab());
 	for (int i=0;i<NUM_PANELS;i++) {
 		TabOrder[i]=m_TabList[i].ID;
@@ -90,7 +101,7 @@ bool CPanelOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("PanelSnapAtMainWindow"),&m_fSnapAtMainWindow);
 	pSettings->Read(TEXT("PanelAttachToMainWindow"),&m_fAttachToMainWindow);
 	if (pSettings->Read(TEXT("PanelOpacity"),&m_Opacity))
-		m_pPanelFrame->SetOpacity(m_Opacity);
+		m_pPanelFrame->SetOpacity(m_Opacity*255/100);
 
 	// Font
 	TCHAR szFont[LF_FACESIZE];
@@ -114,13 +125,11 @@ bool CPanelOptions::Read(CSettings *pSettings)
 		m_Font.lfWeight=Value;
 	if (pSettings->Read(TEXT("PanelFontItalic"),&Value))
 		m_Font.lfItalic=Value;
-	/*
-	CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
-	if (pPanel!=NULL) {
-		pPanel->SetTabFont(&m_Font);
-		pPanel->SetPageFont(&m_Font);
-	}
-	*/
+#ifndef TVH264
+	pSettings->Read(TEXT("CaptionPanelFontSpec"),&m_fSpecCaptionFont);
+	if (!pSettings->Read(TEXT("CaptionPanelFont"),&m_CaptionFont))
+		m_CaptionFont=m_Font;
+#endif
 
 	int TabCount;
 	if (pSettings->Read(TEXT("PanelTabCount"),&TabCount) && TabCount>0) {
@@ -181,6 +190,10 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("PanelFontSize"),(int)m_Font.lfHeight);
 	pSettings->Write(TEXT("PanelFontWeight"),(int)m_Font.lfWeight);
 	pSettings->Write(TEXT("PanelFontItalic"),(int)m_Font.lfItalic);
+#ifndef TVH264
+	pSettings->Write(TEXT("CaptionPanelFontSpec"),m_fSpecCaptionFont);
+	pSettings->Write(TEXT("CaptionPanelFont"),&m_CaptionFont);
+#endif
 	// Tab order
 	pSettings->Write(TEXT("PanelTabCount"),NUM_PANELS);
 	for (int i=0;i<NUM_PANELS;i++) {
@@ -204,7 +217,7 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 }
 
 
-static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
+static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 {
 	HDC hdc;
 	TCHAR szText[LF_FACESIZE+16];
@@ -213,7 +226,7 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 	if (hdc==NULL)
 		return;
 	wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
-	SetDlgItemText(hDlg,IDC_PANELOPTIONS_FONTINFO,szText);
+	SetDlgItemText(hDlg,ID,szText);
 	ReleaseDC(hDlg,hdc);
 }
 
@@ -265,9 +278,6 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			::SendDlgItemMessage(hDlg,IDC_PANELOPTIONS_OPACITY_UD,
 										UDM_SETRANGE,0,MAKELPARAM(100,20));
 
-			pThis->m_CurSettingFont=pThis->m_Font;
-			SetFontInfo(hDlg,&pThis->m_Font);
-
 			HWND hwndTabList=::GetDlgItem(hDlg,IDC_PANELOPTIONS_TABLIST);
 			RECT rc;
 			::GetClientRect(::GetDlgItem(hDlg,IDC_PANELOPTIONS_TABLIST),&rc);
@@ -282,6 +292,17 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			for (int i=0;i<lengthof(pszTabList);i++)
 				DlgComboBox_AddString(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pszTabList[i]);
 			DlgComboBox_SetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pThis->m_FirstTab+1);
+
+			pThis->m_CurSettingFont=pThis->m_Font;
+			SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&pThis->m_Font);
+#ifndef TVH264
+			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT,pThis->m_fSpecCaptionFont);
+			EnableDlgItems(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,
+						   IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE,
+						   pThis->m_fSpecCaptionFont);
+			pThis->m_CurSettingCaptionFont=pThis->m_CaptionFont;
+			SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&pThis->m_CaptionFont);
+#endif
 		}
 		return TRUE;
 
@@ -334,15 +355,6 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 										  IDC_PANELOPTIONS_OPACITY_TB);
 			return TRUE;
 
-		case IDC_PANELOPTIONS_CHOOSEFONT:
-			{
-				CPanelOptions *pThis=GetThis(hDlg);
-
-				if (ChooseFontDialog(hDlg,&pThis->m_CurSettingFont))
-					SetFontInfo(hDlg,&pThis->m_CurSettingFont);
-			}
-			return TRUE;
-
 		case IDC_PANELOPTIONS_TABLIST:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
 				int Sel=DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST);
@@ -373,6 +385,32 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_RIGHT,To+1<NUM_PANELS);
 			}
 			return TRUE;
+
+		case IDC_PANELOPTIONS_CHOOSEFONT:
+			{
+				CPanelOptions *pThis=GetThis(hDlg);
+
+				if (ChooseFontDialog(hDlg,&pThis->m_CurSettingFont))
+					SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&pThis->m_CurSettingFont);
+			}
+			return TRUE;
+
+		case IDC_PANELOPTIONS_SPECCAPTIONFONT:
+			EnableDlgItemsSyncCheckBox(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,
+									   IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE,
+									   IDC_PANELOPTIONS_SPECCAPTIONFONT);
+			return TRUE;
+
+#ifndef TVH264
+		case IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE:
+			{
+				CPanelOptions *pThis=GetThis(hDlg);
+
+				if (ChooseFontDialog(hDlg,&pThis->m_CurSettingCaptionFont))
+					SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&pThis->m_CurSettingCaptionFont);
+			}
+			return TRUE;
+#endif
 		}
 		return TRUE;
 
@@ -381,21 +419,14 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		case PSN_APPLY:
 			{
 				CPanelOptions *pThis=GetThis(hDlg);
+				CPanelForm *pPanel=dynamic_cast<CPanelForm*>(pThis->m_pPanelFrame->GetWindow());
 
 				pThis->m_fSnapAtMainWindow=
 					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW);
 				pThis->m_fAttachToMainWindow=
 					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW);
 				pThis->m_Opacity=::GetDlgItemInt(hDlg,IDC_PANELOPTIONS_OPACITY_EDIT,NULL,TRUE);
-				pThis->m_pPanelFrame->SetOpacity(pThis->m_Opacity);
-				if (!CompareLogFont(&pThis->m_Font,&pThis->m_CurSettingFont)) {
-					pThis->m_Font=pThis->m_CurSettingFont;
-					CPanelForm *pPanel=dynamic_cast<CPanelForm*>(pThis->m_pPanelFrame->GetWindow());
-					if (pPanel!=NULL) {
-						pPanel->SetTabFont(&pThis->m_Font);
-						pPanel->SetPageFont(&pThis->m_Font);
-					}
-				}
+				pThis->m_pPanelFrame->SetOpacity(pThis->m_Opacity*255/100);
 				pThis->m_FirstTab=DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
 
 				for (int i=0;i<NUM_PANELS;i++) {
@@ -403,17 +434,44 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 					pThis->m_TabList[i].ID=LOWORD(Data);
 					pThis->m_TabList[i].fVisible=HIWORD(Data)!=0;
 				}
-				{
-					CPanelForm *pPanel=dynamic_cast<CPanelForm*>(pThis->m_pPanelFrame->GetWindow());
+				if (pPanel!=NULL) {
+					int TabOrder[NUM_PANELS];
+					for (int i=0;i<NUM_PANELS;i++) {
+						TabOrder[i]=pThis->m_TabList[i].ID;
+						pPanel->SetTabVisible(pThis->m_TabList[i].ID,pThis->m_TabList[i].fVisible);
+					}
+					pPanel->SetTabOrder(TabOrder);
+				}
+
+				bool fFontChanged=!CompareLogFont(&pThis->m_Font,&pThis->m_CurSettingFont);
+				if (fFontChanged) {
+					pThis->m_Font=pThis->m_CurSettingFont;
 					if (pPanel!=NULL) {
-						int TabOrder[NUM_PANELS];
-						for (int i=0;i<NUM_PANELS;i++) {
-							TabOrder[i]=pThis->m_TabList[i].ID;
-							pPanel->SetTabVisible(pThis->m_TabList[i].ID,pThis->m_TabList[i].fVisible);
-						}
-						pPanel->SetTabOrder(TabOrder);
+						pPanel->SetTabFont(&pThis->m_Font);
+						pPanel->SetPageFont(&pThis->m_Font);
 					}
 				}
+#ifndef TVH264
+				bool fChangeCaptionFont=false;
+				bool fSpecCaptionFont=DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT);
+				if (pThis->m_fSpecCaptionFont!=fSpecCaptionFont) {
+					pThis->m_fSpecCaptionFont=fSpecCaptionFont;
+					fChangeCaptionFont=true;
+				}
+				if (!CompareLogFont(&pThis->m_CaptionFont,&pThis->m_CurSettingCaptionFont)) {
+					pThis->m_CaptionFont=pThis->m_CurSettingCaptionFont;
+					if (pThis->m_fSpecCaptionFont)
+						fChangeCaptionFont=true;
+				} else if (pThis->m_fSpecCaptionFont && fFontChanged) {
+					fChangeCaptionFont=true;
+				}
+				if (fChangeCaptionFont) {
+					CPanelForm::CPage *pCaptionPanel=pPanel->GetPageByID(PANEL_ID_CAPTION);
+					if (pCaptionPanel!=NULL)
+						pCaptionPanel->SetFont(pThis->m_fSpecCaptionFont?
+											   &pThis->m_CaptionFont:&pThis->m_Font);
+				}
+#endif
 			}
 			break;
 		}

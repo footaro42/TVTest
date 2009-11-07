@@ -186,11 +186,11 @@ void CStreamInfo::SetService()
 						   j+1,PID,PID,pServiceInfo->AudioEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			int NumSubtitleStreams=pServiceInfo->SubtitleEsList.size();
-			for (j=0;j<NumSubtitleStreams;j++) {
-				PID=pServiceInfo->SubtitleEsList[j].PID;
+			int NumCaptionStreams=pServiceInfo->CaptionEsList.size();
+			for (j=0;j<NumCaptionStreams;j++) {
+				PID=pServiceInfo->CaptionEsList[j].PID;
 				::wsprintf(szText,TEXT("Žš–‹%d PID %#04x (%d) Component tag %#02x"),
-						   j+1,PID,PID,pServiceInfo->SubtitleEsList[j].ComponentTag);
+						   j+1,PID,PID,pServiceInfo->CaptionEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 			int NumDataStreams=pServiceInfo->DataCarrouselEsList.size();
