@@ -59,7 +59,6 @@ private:
 	*/
 	UINT m_TimerResolution;
 
-	bool GetDriverPath(LPTSTR pszPath) const;
 	bool OpenCardReader();
 
 public:
@@ -72,6 +71,7 @@ public:
 	bool SetDriverDirectory(LPCTSTR pszDirectory);
 	bool SetDriverFileName(LPCTSTR pszFileName);
 	LPCTSTR GetDriverFileName() const { return m_szDriverFileName; }
+	bool GetDriverPath(LPTSTR pszPath) const;
 	bool IsDriverSpecified() const { return m_szDriverFileName[0]!='\0'; }
 	bool LoadDriver();
 	bool UnloadDriver();

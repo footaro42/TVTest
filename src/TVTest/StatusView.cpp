@@ -529,9 +529,9 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 					POINT pt;
 
 					::GetCursorPos(&pt);
-					::GetWindowRect(hwnd,&rc);
+					::ScreenToClient(hwnd,&pt);
+					::GetClientRect(hwnd,&rc);
 					if (::PtInRect(&rc,pt)) {
-						::ScreenToClient(hwnd,&pt);
 						::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
 					} else {
 						pStatus->SetHotItem(-1);

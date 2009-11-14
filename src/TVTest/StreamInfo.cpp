@@ -25,6 +25,27 @@ CStreamInfo::~CStreamInfo()
 }
 
 
+static void CopyText(LPCTSTR pszText)
+{
+	HGLOBAL hData=::GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE,(::lstrlen(pszText)+1)*sizeof(TCHAR));
+	if (hData!=NULL) {
+		::lstrcpy(static_cast<LPTSTR>(::GlobalLock(hData)),pszText);
+		::GlobalUnlock(hData);
+		if (::OpenClipboard(GetAppClass().GetMainWindow()->GetHandle())) {
+			::EmptyClipboard();
+			::SetClipboardData(
+#ifdef UNICODE
+				CF_UNICODETEXT,
+#else
+				CF_TEXT,
+#endif
+				hData);
+			::CloseClipboard();
+		}
+	}
+}
+
+
 INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	INT_PTR Result=CResizableDialog::DlgProc(hDlg,uMsg,wParam,lParam);
@@ -66,24 +87,9 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				p+=::lstrlen(p);
 				*p++='\r';
 				*p++='\n';
-				CopyTreeViewText(hwndTree,TreeView_GetChild(hwndTree,TreeView_GetRoot(hwndTree)),
-								 p,Length-(p-pszText));
-				HGLOBAL hData=::GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE,(::lstrlen(pszText)+1)*sizeof(TCHAR));
-				if (hData!=NULL) {
-					::lstrcpy(static_cast<LPTSTR>(::GlobalLock(hData)),pszText);
-					::GlobalUnlock(hData);
-					if (::OpenClipboard(GetAppClass().GetMainWindow()->GetHandle())) {
-						::EmptyClipboard();
-						::SetClipboardData(
-#ifdef UNICODE
-							CF_UNICODETEXT,
-#else
-							CF_TEXT,
-#endif
-							hData);
-						::CloseClipboard();
-					}
-				}
+				GetTreeViewText(hwndTree,TreeView_GetChild(hwndTree,TreeView_GetRoot(hwndTree)),true,
+								p,Length-(p-pszText));
+				CopyText(pszText);
 				delete [] pszText;
 			}
 			return TRUE;
@@ -95,6 +101,41 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			return TRUE;
 		}
 		return TRUE;
+
+	case WM_NOTIFY:
+		switch (reinterpret_cast<NMHDR*>(lParam)->code) {
+		case NM_RCLICK:
+			{
+				NMHDR *pnmhdr=reinterpret_cast<NMHDR*>(lParam);
+				//HTREEITEM hItem=TreeView_GetSelection(pnmhdr->hwndFrom);
+				DWORD Pos=::GetMessagePos();
+				TVHITTESTINFO tvhti;
+				tvhti.pt.x=(SHORT)LOWORD(Pos);
+				tvhti.pt.y=(SHORT)HIWORD(Pos);
+				::ScreenToClient(pnmhdr->hwndFrom,&tvhti.pt);
+				HTREEITEM hItem=TreeView_HitTest(pnmhdr->hwndFrom,&tvhti);
+				if (hItem!=NULL) {
+					HMENU hmenu=::CreatePopupMenu();
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("コピー(&C)"));
+					POINT pt;
+					::GetCursorPos(&pt);
+					switch (::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,pt.x,pt.y,0,hDlg,NULL)) {
+					case 1:
+						{
+							int Length=0x8000;
+							LPTSTR pszText=new TCHAR[Length];
+
+							if (GetTreeViewText(pnmhdr->hwndFrom,hItem,false,pszText,Length)>0)
+								CopyText(pszText);
+							delete [] pszText;
+						}
+						break;
+					}
+				}
+			}
+			return TRUE;
+		}
+		break;
 	}
 	return Result;
 }
@@ -129,6 +170,9 @@ void CStreamInfo::SetService()
 	}
 	::SetDlgItemText(m_hDlg,IDC_STREAMINFO_NETWORK,szText);
 
+	CTsAnalyzer::CServiceList ServiceList;
+	pAnalyzer->GetServiceList(&ServiceList);
+
 	HWND hwndTree=::GetDlgItem(m_hDlg,IDC_STREAMINFO_SERVICE);
 	TVINSERTSTRUCT tvis;
 	HTREEITEM hItem;
@@ -140,13 +184,11 @@ void CStreamInfo::SetService()
 	tvis.item.state=TVIS_EXPANDED;
 	tvis.item.stateMask=(UINT)-1;
 	tvis.item.pszText=TEXT("サービス");
-	tvis.item.cChildren=1;
+	tvis.item.cChildren=ServiceList.NumServices()>0?1:0;
 	hItem=TreeView_InsertItem(hwndTree,&tvis);
 	if (hItem!=NULL) {
-		CTsAnalyzer::CServiceList ServiceList;
 		int i,j;
 
-		pAnalyzer->GetServiceList(&ServiceList);
 		for (i=0;i<ServiceList.NumServices();i++) {
 			const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
 			TCHAR szServiceName[64];
@@ -212,10 +254,45 @@ void CStreamInfo::SetService()
 			}
 		}
 	}
+
+	const CChannelInfo *pChannelInfo=GetAppClass().GetChannelManager()->GetCurrentChannelInfo();
+	if (pChannelInfo!=NULL) {
+		tvis.hParent=TVI_ROOT;
+		tvis.hInsertAfter=TVI_LAST;
+		tvis.item.mask=TVIF_STATE | TVIF_TEXT | TVIF_CHILDREN;
+		tvis.item.state=TVIS_EXPANDED;
+		tvis.item.stateMask=(UINT)-1;
+		tvis.item.pszText=TEXT("チャンネルファイル用フォーマット");
+		tvis.item.cChildren=ServiceList.NumServices()>0?1:0;;
+		hItem=TreeView_InsertItem(hwndTree,&tvis);
+		if (hItem!=NULL) {
+			const int RemoteControlKeyID=pAnalyzer->GetRemoteControlKeyID();
+
+			for (int i=0;i<ServiceList.NumServices();i++) {
+				const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
+
+				tvis.hParent=hItem;
+				tvis.item.state=0;
+				tvis.item.cChildren=0;
+				if (pServiceInfo->szServiceName[0]!='\0')
+					::lstrcpy(szText,pServiceInfo->szServiceName);
+				else
+					::wsprintf(szText,TEXT("サービス%d"),i+1);
+				::wsprintf(szText+::lstrlen(szText),TEXT(",%d,%d,%d,%d,%d,%d,%d"),
+						   pChannelInfo->GetSpace(),
+						   pChannelInfo->GetChannelIndex(),
+						   RemoteControlKeyID,
+						   i,
+						   pServiceInfo->ServiceID,NID,TSID);
+				tvis.item.pszText=szText;
+				TreeView_InsertItem(hwndTree,&tvis);
+			}
+		}
+	}
 }
 
 
-int CStreamInfo::CopyTreeViewText(HWND hwndTree,HTREEITEM hItem,LPTSTR pszText,int MaxText,int Level)
+int CStreamInfo::GetTreeViewText(HWND hwndTree,HTREEITEM hItem,bool fSiblings,LPTSTR pszText,int MaxText,int Level)
 {
 	if (MaxText<=0)
 		return 0;
@@ -244,10 +321,12 @@ int CStreamInfo::CopyTreeViewText(HWND hwndTree,HTREEITEM hItem,LPTSTR pszText,i
 		}
 		HTREEITEM hChild=TreeView_GetChild(hwndTree,tvi.hItem);
 		if (hChild!=NULL) {
-			int Length=CopyTreeViewText(hwndTree,hChild,p,MaxText,Level+1);
+			int Length=GetTreeViewText(hwndTree,hChild,true,p,MaxText,Level+1);
 			p+=Length;
 			MaxText-=Length;
 		}
+		if (!fSiblings)
+			break;
 		tvi.hItem=TreeView_GetNextSibling(hwndTree,tvi.hItem);
 	}
 	*p='\0';

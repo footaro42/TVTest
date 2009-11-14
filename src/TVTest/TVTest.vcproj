@@ -387,6 +387,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\DisplayMenu.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\DrawUtil.cpp"
 				>
 			</File>
@@ -722,6 +726,10 @@
 			</File>
 			<File
 				RelativePath=".\DialogUtil.h"
+				>
+			</File>
+			<File
+				RelativePath=".\DisplayMenu.h"
 				>
 			</File>
 			<File

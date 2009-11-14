@@ -22,7 +22,7 @@ private:
 	CEventHandler *m_pEventHandler;
 	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void SetService();
-	static int CopyTreeViewText(HWND hwndTree,HTREEITEM hItem,LPTSTR pszText,int MaxText,int Level=0);
+	static int GetTreeViewText(HWND hwndTree,HTREEITEM hItem,bool fSiblings,LPTSTR pszText,int MaxText,int Level=0);
 };
 
 

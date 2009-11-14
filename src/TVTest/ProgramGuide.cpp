@@ -2493,7 +2493,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 					if (pDriverInfo!=NULL) {
 						CDriverInfo DriverInfo(pDriverInfo->GetFileName());
 
-						if (DriverInfo.LoadTuningSpaceList(false)) {
+						if (DriverInfo.LoadTuningSpaceList()) {
 							pThis->SetTuningSpaceList(DriverInfo.GetFileName(),
 												  DriverInfo.GetTuningSpaceList(),-1);
 							pThis->UpdateProgramGuide();

@@ -78,8 +78,8 @@ public:
 	const int GetAudioStreamNum(const int Service = -1);
 	const bool SetAudioStream(int StreamIndex);
 	const int GetAudioStream() const;
-	const BYTE GetAudioComponentType();
-	const int GetAudioComponentText(LPTSTR pszText, int MaxLength);
+	const BYTE GetAudioComponentType(const int AudioIndex = -1);
+	const int GetAudioComponentText(LPTSTR pszText, int MaxLength, const int AudioIndex = -1);
 	const bool SetStereoMode(int iMode);
 	const WORD GetEventID(bool bNext = false);
 	const int GetEventName(LPTSTR pszName, int MaxLength, bool bNext = false);
@@ -89,7 +89,7 @@ public:
 	const DWORD GetEventDuration(bool bNext = false);
 	const bool GetEventSeriesInfo(CTsAnalyzer::EventSeriesInfo *pInfo, bool bNext = false);
 	const bool GetEventInfo(CTsAnalyzer::EventInfo *pInfo, bool bNext = false);
-	const bool GetEventAudioInfo(CTsAnalyzer::EventAudioInfo *pInfo, bool bNext = false);
+	const bool GetEventAudioInfo(CTsAnalyzer::EventAudioInfo *pInfo, const int AudioIndex = -1, bool bNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
 	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 

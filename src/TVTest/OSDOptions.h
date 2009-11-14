@@ -19,6 +19,10 @@ class COSDOptions : public COptions {
 	LOGFONT m_NotificationBarFont;
 	LOGFONT m_CurNotificationBarFont;
 
+	LOGFONT m_DisplayMenuFont;
+	LOGFONT m_CurDisplayMenuFont;
+	bool m_fDisplayMenuFontAutoSize;
+
 	void EnableNotify(unsigned int Type,bool fEnabled);
 	static COSDOptions *GetThis(HWND hDlg);
 
@@ -30,6 +34,10 @@ public:
 
 	COSDOptions();
 	~COSDOptions();
+// COptions
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
+// COSDOptions
 	bool GetShowOSD() const { return m_fShowOSD; }
 	bool GetPseudoOSD() const { return m_fPseudoOSD; }
 	COLORREF GetTextColor() const { return m_TextColor; }
@@ -39,10 +47,9 @@ public:
 	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
 	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }
 	bool IsNotifyEnabled(unsigned int Type) const;
+	const LOGFONT *GetDisplayMenuFont() const { return &m_DisplayMenuFont; }
+	bool IsDisplayMenuFontAutoSize() const { return m_fDisplayMenuFontAutoSize; }
 	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
 };
 
 

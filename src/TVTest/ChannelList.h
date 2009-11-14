@@ -118,6 +118,7 @@ public:
 	LPCTSTR GetName() const { return m_pszName; }
 	bool SetName(LPCTSTR pszName);
 	TuningSpaceType GetType() const { return m_Space; }
+	int NumChannels() const;
 };
 
 class CTuningSpaceList {

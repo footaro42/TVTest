@@ -757,8 +757,13 @@ bool CFilePath::SetDirectory(LPCTSTR pszDirectory)
 	} else {
 		TCHAR szPath[MAX_PATH];
 
-		::PathCombine(szPath,pszDirectory,GetFileName());
-		::lstrcpy(m_szPath,szPath);
+		if (IsRelative()) {
+			::PathCombine(szPath,pszDirectory,m_szPath);
+			::PathCanonicalize(m_szPath,szPath);
+		} else {
+			::PathCombine(szPath,pszDirectory,GetFileName());
+			::lstrcpy(m_szPath,szPath);
+		}
 	}
 	return true;
 }
@@ -779,6 +784,14 @@ bool CFilePath::HasDirectory() const
 	if (m_szPath[0]=='\0')
 		return false;
 	return !::PathIsFileSpec(m_szPath);
+}
+
+
+bool CFilePath::IsRelative() const
+{
+	if (m_szPath[0]=='\0')
+		return false;
+	return ::PathIsRelative(m_szPath)!=0;
 }
 
 

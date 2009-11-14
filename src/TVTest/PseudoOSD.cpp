@@ -9,8 +9,6 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define PSEUDO_OSD_WINDOW_CLASS APP_NAME TEXT(" Pseudo OSD")
-
 #define TIMER_ID_HIDE		1
 #define TIMER_ID_ANIMATION	2
 
@@ -20,6 +18,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+const LPCTSTR CPseudoOSD::m_pszWindowClass=APP_NAME TEXT(" Pseudo OSD");
 HINSTANCE CPseudoOSD::m_hinst=NULL;
 
 
@@ -37,12 +36,21 @@ bool CPseudoOSD::Initialize(HINSTANCE hinst)
 		wc.hCursor=NULL;
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
-		wc.lpszClassName=PSEUDO_OSD_WINDOW_CLASS;
+		wc.lpszClassName=m_pszWindowClass;
 		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
 	return true;
+}
+
+
+bool CPseudoOSD::IsPseudoOSD(HWND hwnd)
+{
+	TCHAR szClass[64];
+
+	return ::GetClassName(hwnd,szClass,lengthof(szClass))>0
+		&& ::lstrcmpi(szClass,m_pszWindowClass)==0;
 }
 
 
@@ -59,8 +67,12 @@ CPseudoOSD::CPseudoOSD()
 	m_hFont=::CreateFontIndirect(&lf);
 #else
 	NONCLIENTMETRICS ncm;
+#if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,sizeof(ncm),&ncm,0);
+#else
+	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
+#endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	ncm.lfMessageFont.lfHeight=32;
 	ncm.lfMessageFont.lfQuality=NONANTIALIASED_QUALITY;
 	m_hFont=::CreateFontIndirect(&ncm.lfMessageFont);
@@ -89,7 +101,7 @@ bool CPseudoOSD::Create(HWND hwndParent)
 {
 	if (m_hwnd!=NULL)
 		return false;
-	return ::CreateWindowEx(0,PSEUDO_OSD_WINDOW_CLASS,NULL,WS_CHILD,
+	return ::CreateWindowEx(0,m_pszWindowClass,NULL,WS_CHILD,
 							m_Position.Left,m_Position.Top,
 							m_Position.Width,m_Position.Height,
 							hwndParent,NULL,m_hinst,this)!=NULL;

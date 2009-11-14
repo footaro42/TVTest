@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.8
+	TVTest プラグインヘッダ ver.0.0.9
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -87,6 +87,11 @@
 /*
 	更新履歴
 
+	ver.0.0.9 (TVTest ver.0.6.2 or later)
+	・MESSAGE_GETSETTING と MESSAGE_GETDRIVERFULLPATHNAME を追加した
+	・EVENT_SETTINGSCHANGE を追加した
+	・MESSAGE_RESET にパラメータを追加した
+
 	ver.0.0.8 (TVTest ver.0.6.0 or later)
 	・以下のメッセージを追加した
 	  ・MESSAGE_GETBCASINFO
@@ -156,8 +161,9 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_0_0_6	0x00000006UL
 #define TVTEST_PLUGIN_VERSION_0_0_7	0x00000007UL
 #define TVTEST_PLUGIN_VERSION_0_0_8	0x00000008UL
+#define TVTEST_PLUGIN_VERSION_0_0_9	0x00000009UL
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_8
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_9
 #endif
 
 // エクスポート関数定義用
@@ -282,6 +288,10 @@ enum {
 	MESSAGE_SENDBCASCOMMAND,		// B-CAS カードにコマンドを送信
 	MESSAGE_GETHOSTINFO,			// ホストプログラムの情報を取得
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+	MESSAGE_GETSETTING,				// 設定の取得
+	MESSAGE_GETDRIVERFULLPATHNAME,	// BonDriverのフルパスを取得
+#endif
 	MESSAGE_TRAILER
 };
 
@@ -314,6 +324,9 @@ enum {
 	EVENT_RESET,				// リセットされた
 	EVENT_STATUSRESET,			// ステータスがリセットされた
 	EVENT_AUDIOSTREAMCHANGE,	// 音声ストリームが変更された
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+	EVENT_SETTINGSCHANGE,		// 設定が変更された
 #endif
 	EVENT_TRAILER
 };
@@ -460,13 +473,16 @@ inline bool MsgGetServiceInfo(PluginParam *pParam,int Index,ServiceInfo *pInfo) 
 }
 
 // BonDriverのファイル名を取得する
-// 戻り値はファイル名の長さ(ナルを除く)
-// pszNameをNULLで呼べば長さだけを取得できる
+// 戻り値はファイル名の長さ(終端のNullを除く)が返ります。
+// pszNameをNULLで呼べば長さだけを取得できます。
+// 取得されるのは、ディレクトリを含まないファイル名のみか、相対パスの場合もあります。
+// フルパスを取得したい場合は MsgGetDriverFullPathName を使用してください。
 inline int MsgGetDriverName(PluginParam *pParam,LPWSTR pszName,int MaxLength) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETDRIVERNAME,(LPARAM)pszName,MaxLength);
 }
 
 // BonDriverを設定する
+// ファイル名のみか相対パスを指定すると、ドライバ検索フォルダの設定が使用されます。
 inline bool MsgSetDriverName(PluginParam *pParam,LPCWSTR pszName) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETDRIVERNAME,(LPARAM)pszName,0)!=0;
 }
@@ -744,8 +760,9 @@ inline bool MsgSetAlwaysOnTop(PluginParam *pParam,bool fAlwaysOnTop) {
 }
 
 // 画像をキャプチャする
-// 戻り値はパックDIBデータ(BITMAPINFOHEADER + ピクセルデータ)へのポインタ
-// 不要になった場合はMsgMemoryFreeで開放する
+// 戻り値はパックDIBデータ(BITMAPINFOHEADER + ピクセルデータ)へのポインタです。
+// 不要になった場合はMsgMemoryFreeで開放します。
+// キャプチャできなかった場合はNULLが返ります。
 inline void *MsgCaptureImage(PluginParam *pParam,DWORD Flags=0) {
 	return (void*)(*pParam->Callback)(pParam,MESSAGE_CAPTUREIMAGE,Flags,0);
 }
@@ -756,9 +773,21 @@ inline bool MsgSaveImage(PluginParam *pParam) {
 }
 
 // リセットを行う
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_9
 inline bool MsgReset(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_RESET,0,0)!=0;
 }
+#else
+// リセットのフラグ
+enum {
+	RESET_ALL		= 0x00000000UL,	// 全て
+	RESET_VIEWER	= 0x00000001UL	// ビューアのみ
+};
+
+inline bool MsgReset(PluginParam *pParam,DWORD Flags=RESET_ALL) {
+	return (*pParam->Callback)(pParam,MESSAGE_RESET,Flags,0)!=0;
+}
+#endif
 
 // ウィンドウクローズのフラグ
 enum {
@@ -1067,7 +1096,7 @@ inline bool MsgSendBCasCommand(PluginParam *pParam,const BYTE *pSendData,DWORD S
 // ホストプログラムの情報
 struct HostInfo {
 	DWORD Size;						// 構造体のサイズ
-	LPCWSTR pszAppName;				// プログラム名 ("TVTest" など)
+	LPCWSTR pszAppName;				// プログラム名 ("TVTest"、"TVH264" など)
 	struct {
 		int Major;					// メジャーバージョン
 		int Minor;					// マイナーバージョン
@@ -1085,6 +1114,107 @@ inline bool MsgGetHostInfo(PluginParam *pParam,HostInfo *pInfo)
 }
 
 #endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+
+// 設定の情報
+struct SettingInfo {
+	LPCWSTR pszName;		// 設定名
+	DWORD Type;				// 値の型 (SETTING_TYPE_???)
+	union {
+		int Int;			// int
+		unsigned int UInt;	// unsigned int
+		LPWSTR pszString;	// 文字列
+		void *pData;		// データ
+	} Value;
+	DWORD ValueSize;		// 値のサイズ (バイト単位)
+};
+
+// 設定の値の型
+enum SettingType {
+	SETTING_TYPE_UNDEFINED,	// 未定義
+	SETTING_TYPE_INT,		// int
+	SETTING_TYPE_UINT,		// unsigned int
+	SETTING_TYPE_STRING,	// 文字列
+	SETTING_TYPE_DATA		// データ
+};
+
+/*
+	今のところ以下の設定が取得できます。
+	設定名の大文字と小文字は区別されません。
+
+	設定名                内容                                型
+	DriverDirectory       BonDriver の検索ディレクトリ        文字列
+	IniFilePath           Ini ファイルのパス                  文字列
+*/
+
+// 設定を取得する
+// 呼び出す前に SettingInfo のメンバを設定しておきます。
+// 文字列とデータの場合、ValueSize に設定の格納に必要なバイト数が返されます。
+// 通常は下にある型ごとにオーバーロードされた関数を使用した方が便利です。
+inline bool MsgGetSetting(PluginParam *pParam,SettingInfo *pInfo)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_GETSETTING,(LPARAM)pInfo,0)!=0;
+}
+
+// intの設定を取得する
+inline bool MsgGetSetting(PluginParam *pParam,LPCWSTR pszName,int *pValue)
+{
+	SettingInfo Info;
+	Info.pszName=pszName;
+	Info.Type=SETTING_TYPE_INT;
+	Info.ValueSize=sizeof(int);
+	if (!(*pParam->Callback)(pParam,MESSAGE_GETSETTING,(LPARAM)&Info,0))
+		return false;
+	*pValue=Info.Value.Int;
+	return true;
+}
+
+// unsigned intの設定を取得する
+inline bool MsgGetSetting(PluginParam *pParam,LPCWSTR pszName,unsigned int *pValue)
+{
+	SettingInfo Info;
+	Info.pszName=pszName;
+	Info.Type=SETTING_TYPE_UINT;
+	Info.ValueSize=sizeof(unsigned int);
+	if (!(*pParam->Callback)(pParam,MESSAGE_GETSETTING,(LPARAM)&Info,0))
+		return false;
+	*pValue=Info.Value.UInt;
+	return true;
+}
+
+// 文字列の設定を取得する
+// 戻り値は取得した文字列の長さ(終端のNullを含む)です。
+// pszString を NULL にすると、必要なバッファの長さ(終端のNullを含む)が返ります。
+// 設定が取得できなかった場合は 0 が返ります。
+/*
+	// 例
+	WCHAR szIniPath[MAX_PATH];
+	if (MsgGetSetting(pParam, L"IniFilePath", szIniPath, MAX_PATH)>0) {
+		// 呼び出しが成功した場合は、szIniPath に Ini ファイルのパスが格納されています
+	}
+*/
+inline DWORD MsgGetSetting(PluginParam *pParam,LPCWSTR pszName,LPWSTR pszString,DWORD MaxLength)
+{
+	SettingInfo Info;
+	Info.pszName=pszName;
+	Info.Type=SETTING_TYPE_STRING;
+	Info.Value.pszString=pszString;
+	Info.ValueSize=MaxLength*sizeof(WCHAR);
+	if (!(*pParam->Callback)(pParam,MESSAGE_GETSETTING,(LPARAM)&Info,0))
+		return 0;
+	return Info.ValueSize/sizeof(WCHAR);
+}
+
+// BonDriverのフルパス名を取得する
+// 戻り値はパスの長さ(終端のNullを除く)が返ります。
+// pszPahtをNULLで呼べば長さだけを取得できます。
+inline int MsgGetDriverFullPathName(PluginParam *pParam,LPWSTR pszPath,int MaxLength)
+{
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETDRIVERFULLPATHNAME,(LPARAM)pszPath,MaxLength);
+}
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
 
 
 /*
@@ -1252,9 +1382,15 @@ public:
 	bool SaveImage() {
 		return MsgSaveImage(m_pParam);
 	}
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_9
 	bool Reset() {
 		return MsgReset(m_pParam);
 	}
+#else
+	bool Reset(DWORD Flags=RESET_ALL) {
+		return MsgReset(m_pParam,Flags);
+	}
+#endif
 	bool Close(DWORD Flags=0) {
 		return MsgClose(m_pParam,Flags);
 	}
@@ -1341,6 +1477,23 @@ public:
 	bool GetHostInfo(HostInfo *pInfo) {
 		pInfo->Size=sizeof(HostInfo);
 		return MsgGetHostInfo(m_pParam,pInfo);
+	}
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+	bool GetSetting(SettingInfo *pInfo) {
+		return MsgGetSetting(m_pParam,pInfo);
+	}
+	bool GetSetting(LPCWSTR pszName,int *pValue) {
+		return MsgGetSetting(m_pParam,pszName,pValue);
+	}
+	bool GetSetting(LPCWSTR pszName,unsigned int *pValue) {
+		return MsgGetSetting(m_pParam,pszName,pValue);
+	}
+	DWORD GetSetting(LPCWSTR pszName,LPWSTR pszString,DWORD MaxLength) {
+		return MsgGetSetting(m_pParam,pszName,pszString,MaxLength);
+	}
+	int GetDriverFullPathName(LPWSTR pszPath,int MaxLength) {
+		return MsgGetDriverFullPathName(m_pParam,pszPath,MaxLength);
 	}
 #endif
 };
@@ -1454,6 +1607,10 @@ protected:
 	// 音声ストリームが変更された
 	virtual bool OnAudioStreamChange(int Stream) { return false; }
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+	// 設定が変更された
+	virtual bool OnSettingsChange() { return false; }
+#endif
 public:
 	virtual ~CTVTestEventHandler() {}
 	LRESULT HandleEvent(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData) {
@@ -1482,6 +1639,9 @@ public:
 		case EVENT_RESET:				return OnReset();
 		case EVENT_STATUSRESET:			return OnStatusReset();
 		case EVENT_AUDIOSTREAMCHANGE:	return OnAudioStreamChange(lParam1);
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+		case EVENT_SETTINGSCHANGE:		return OnSettingsChange();
 #endif
 		}
 		return 0;

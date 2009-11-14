@@ -7,6 +7,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TVTest_KeyHook", "TVTest_Ke
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "TVH264", "TVH264.vcproj", "{A447A794-452A-4CA9-8A87-1BDB84D5CB7B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "Tuner", "Tuner\Tuner.vcproj", "{B27E22C3-C916-4854-A6D8-8A9509D24C91}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -32,6 +34,12 @@ Global
 		{A447A794-452A-4CA9-8A87-1BDB84D5CB7B}.Release_PGO|Win32.Build.0 = Release_PGO|Win32
 		{A447A794-452A-4CA9-8A87-1BDB84D5CB7B}.Release|Win32.ActiveCfg = Release|Win32
 		{A447A794-452A-4CA9-8A87-1BDB84D5CB7B}.Release|Win32.Build.0 = Release|Win32
+		{B27E22C3-C916-4854-A6D8-8A9509D24C91}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B27E22C3-C916-4854-A6D8-8A9509D24C91}.Debug|Win32.Build.0 = Debug|Win32
+		{B27E22C3-C916-4854-A6D8-8A9509D24C91}.Release_PGO|Win32.ActiveCfg = Release|Win32
+		{B27E22C3-C916-4854-A6D8-8A9509D24C91}.Release_PGO|Win32.Build.0 = Release|Win32
+		{B27E22C3-C916-4854-A6D8-8A9509D24C91}.Release|Win32.ActiveCfg = Release|Win32
+		{B27E22C3-C916-4854-A6D8-8A9509D24C91}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

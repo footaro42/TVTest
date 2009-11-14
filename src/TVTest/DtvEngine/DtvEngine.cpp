@@ -395,15 +395,15 @@ const int CDtvEngine::GetAudioStream() const
 }
 
 
-const BYTE CDtvEngine::GetAudioComponentType()
+const BYTE CDtvEngine::GetAudioComponentType(const int AudioIndex)
 {
-	return m_TsAnalyzer.GetAudioComponentType(m_CurServiceIndex, m_CurAudioStream);
+	return m_TsAnalyzer.GetAudioComponentType(m_CurServiceIndex, AudioIndex < 0 ? m_CurAudioStream : AudioIndex);
 }
 
 
-const int CDtvEngine::GetAudioComponentText(LPTSTR pszText, int MaxLength)
+const int CDtvEngine::GetAudioComponentText(LPTSTR pszText, int MaxLength, const int AudioIndex)
 {
-	return m_TsAnalyzer.GetAudioComponentText(m_CurServiceIndex, m_CurAudioStream, pszText, MaxLength);
+	return m_TsAnalyzer.GetAudioComponentText(m_CurServiceIndex, AudioIndex < 0 ? m_CurAudioStream : AudioIndex, pszText, MaxLength);
 }
 
 
@@ -476,9 +476,9 @@ const bool CDtvEngine::GetEventInfo(CTsAnalyzer::EventInfo *pInfo, bool bNext)
 }
 
 
-const bool CDtvEngine::GetEventAudioInfo(CTsAnalyzer::EventAudioInfo *pInfo, bool bNext)
+const bool CDtvEngine::GetEventAudioInfo(CTsAnalyzer::EventAudioInfo *pInfo, const int AudioIndex, bool bNext)
 {
-	return m_TsAnalyzer.GetEventAudioInfo(m_CurServiceIndex, m_CurAudioStream, pInfo, bNext);
+	return m_TsAnalyzer.GetEventAudioInfo(m_CurServiceIndex, AudioIndex < 0 ? m_CurAudioStream : AudioIndex, pInfo, bNext);
 }
 
 const bool CDtvEngine::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
@@ -566,7 +566,7 @@ const bool CDtvEngine::SetService(const WORD wService)
 			SetDescrambleService(wServiceID);
 
 		if (m_bWriteCurServiceOnly)
-			SetWriteService(wServiceID);
+			SetWriteService(wServiceID, m_WriteStream);
 
 #ifdef DTVENGINE_CAPTION_SUPPORT
 		m_CaptionDecoder.SetTargetStream(wServiceID);

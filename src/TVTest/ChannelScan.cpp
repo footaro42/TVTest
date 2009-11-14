@@ -644,12 +644,14 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				if (pThis->m_fUpdated) {
 					CFilePath FilePath(pThis->m_pCoreEngine->GetDriverFileName());
-					TCHAR szAppDir[MAX_PATH];
 
 					pThis->m_TuningSpaceList.MakeAllChannelList();
-					GetAppClass().GetAppDirectory(szAppDir);
-					if (!FilePath.HasDirectory())
+					if (FilePath.IsRelative()) {
+						TCHAR szAppDir[MAX_PATH];
+						GetAppClass().GetAppDirectory(szAppDir);
+						FilePath.RemoveDirectory();
 						FilePath.SetDirectory(szAppDir);
+					}
 					FilePath.SetExtension(CHANNEL_FILE_EXTENSION);
 					pThis->m_TuningSpaceList.SaveToFile(FilePath.GetPath());
 					pThis->SetUpdateFlag(UPDATE_CHANNELLIST);

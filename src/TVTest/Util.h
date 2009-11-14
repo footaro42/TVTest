@@ -87,6 +87,7 @@ public:
 	CFilePath(const CFilePath &Path);
 	CFilePath(LPCTSTR pszPath);
 	~CFilePath();
+	bool IsEmpty() const { return m_szPath[0]=='\0'; }
 	bool SetPath(LPCTSTR pszPath);
 	LPCTSTR GetPath() const { return m_szPath; }
 	void GetPath(LPTSTR pszPath) const;
@@ -103,6 +104,7 @@ public:
 	bool SetDirectory(LPCTSTR pszDirectory);
 	bool RemoveDirectory();
 	bool HasDirectory() const;
+	bool IsRelative() const;
 	bool IsExists() const;
 	bool IsValid(bool fWildcard=false) const;
 };

@@ -878,7 +878,16 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		return TRUE;
 
 	case TVTest::MESSAGE_RESET:
-		GetAppClass().GetMainWindow()->PostCommand(CM_RESET);
+		{
+			DWORD Flags=(DWORD)lParam1;
+
+			if (Flags==TVTest::RESET_ALL)
+				GetAppClass().GetMainWindow()->SendCommand(CM_RESET);
+			else if (Flags==TVTest::RESET_VIEWER)
+				GetAppClass().GetMainWindow()->SendCommand(CM_RESETVIEWER);
+			else
+				return FALSE;
+		}
 		return TRUE;
 
 	case TVTest::MESSAGE_CLOSE:
@@ -1213,6 +1222,51 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			pHostInfo->SupportedPluginVersion=TVTEST_PLUGIN_VERSION;
 		}
 		return TRUE;
+
+	case TVTest::MESSAGE_GETSETTING:
+		{
+			TVTest::SettingInfo *pSetting=reinterpret_cast<TVTest::SettingInfo*>(lParam1);
+
+			if (pSetting==NULL || pSetting->pszName==NULL)
+				return FALSE;
+			if (::lstrcmpi(pSetting->pszName,TEXT("DriverDirectory"))==0) {
+				if (pSetting->Type!=TVTest::SETTING_TYPE_STRING)
+					return FALSE;
+				TCHAR szDirectory[MAX_PATH];
+				GetAppClass().GetDriverDirectory(szDirectory);
+				if (pSetting->Value.pszString!=NULL)
+					::lstrcpyn(pSetting->Value.pszString,szDirectory,pSetting->ValueSize);
+				else
+					pSetting->ValueSize=(::lstrlen(szDirectory)+1)*sizeof(WCHAR);
+			} else if (::lstrcmpi(pSetting->pszName,TEXT("IniFilePath"))==0) {
+				if (pSetting->Type!=TVTest::SETTING_TYPE_STRING)
+					return FALSE;
+				LPCTSTR pszPath=GetAppClass().GetIniFileName();
+				if (pSetting->Value.pszString!=NULL)
+					::lstrcpyn(pSetting->Value.pszString,pszPath,pSetting->ValueSize);
+				else
+					pSetting->ValueSize=(::lstrlen(pszPath)+1)*sizeof(WCHAR);
+			} else {
+				return FALSE;
+			}
+			if (pSetting->Type==TVTest::SETTING_TYPE_STRING
+					&& pSetting->Value.pszString!=NULL)
+				pSetting->ValueSize=(::lstrlen(pSetting->Value.pszString)+1)*sizeof(WCHAR);
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_GETDRIVERFULLPATHNAME:
+		{
+			LPWSTR pszPath=reinterpret_cast<LPWSTR>(lParam1);
+			int MaxLength=(int)lParam2;
+			TCHAR szFileName[MAX_PATH];
+
+			if (!GetAppClass().GetCoreEngine()->GetDriverPath(szFileName))
+				return 0;
+			if (pszPath!=NULL && MaxLength>0)
+				::lstrcpyn(pszPath,szFileName,MaxLength);
+			return ::lstrlen(szFileName);
+		}
 	}
 	return 0;
 }
@@ -1536,6 +1590,12 @@ bool CPluginList::SendStatusResetEvent()
 bool CPluginList::SendAudioStreamChangeEvent(int Stream)
 {
 	return SendEvent(TVTest::EVENT_AUDIOSTREAMCHANGE,Stream);
+}
+
+
+bool CPluginList::SendSettingsChangeEvent()
+{
+	return SendEvent(TVTest::EVENT_SETTINGSCHANGE);
 }
 
 

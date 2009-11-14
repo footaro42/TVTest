@@ -198,7 +198,7 @@ static const struct {
 		{40,201,16,11},{184,11}},
 	{TEXT(">>|"),			VK_F18,	MK_CONTROL | MK_SHIFT,	0,
 		{56,201,16,11},{200,11}},
-	{TEXT("‚µ‚¨‚è"),		VK_F19,	MK_CONTROL | MK_SHIFT,	0,
+	{TEXT("‚µ‚¨‚è"),		VK_F19,	MK_CONTROL | MK_SHIFT,	CM_CHANNELDISPLAYMENU,
 		{24,215,16,11},{216,11}},
 	{TEXT("ƒWƒƒƒ“ƒv"),		VK_F20,	MK_CONTROL | MK_SHIFT,	0,
 		{40,215,16,11},{232,11}},

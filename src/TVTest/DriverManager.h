@@ -13,10 +13,16 @@ class CDriverInfo {
 	CTuningSpaceList m_TuningSpaceList;
 public:
 	CDriverInfo(LPCTSTR pszFileName);
+	CDriverInfo(const CDriverInfo &Info);
 	~CDriverInfo();
 	LPCTSTR GetFileName() const { return m_pszFileName; }
 	LPCTSTR GetTunerName() const { return m_pszTunerName; }
-	bool LoadTuningSpaceList(bool fUseDriver);
+	enum LoadTuningSpaceListMode {
+		LOADTUNINGSPACE_DEFAULT,
+		LOADTUNINGSPACE_NOLOADDRIVER,
+		LOADTUNINGSPACE_USEDRIVER
+	};
+	bool LoadTuningSpaceList(LoadTuningSpaceListMode Mode=LOADTUNINGSPACE_DEFAULT);
 	bool IsTuningSpaceListLoaded() const { return m_fChannelFileLoaded; }
 	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
 };

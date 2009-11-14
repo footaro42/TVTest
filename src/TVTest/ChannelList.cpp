@@ -589,6 +589,14 @@ bool CTuningSpaceInfo::SetName(LPCTSTR pszName)
 }
 
 
+int CTuningSpaceInfo::NumChannels() const
+{
+	if (m_pChannelList==NULL)
+		return 0;
+	return m_pChannelList->NumChannels();
+}
+
+
 
 
 CTuningSpaceList::CTuningSpaceList()
@@ -906,6 +914,8 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 							p++;
 							SkipSpaces(&p);
 							for (i=0;p[i]!=')' && p[i]!='\0' && p[i]!='\r' && p[i]!='\n';i++);
+							if (p[i]==')' && p[i+1]==')')
+								i++;
 							if (i>0) {
 #ifdef UNICODE
 								szName[::MultiByteToWideChar(CP_ACP,0,p,i,szName,lengthof(szName)-1)]='\0';

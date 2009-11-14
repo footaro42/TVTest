@@ -128,6 +128,8 @@ bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
 
 bool CCoreEngine::GetDriverPath(LPTSTR pszPath) const
 {
+	if (m_szDriverFileName[0]=='\0' || pszPath==NULL)
+		return false;
 	if (::PathIsRelative(m_szDriverFileName)) {
 		TCHAR szTemp[MAX_PATH];
 

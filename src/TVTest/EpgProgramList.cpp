@@ -552,6 +552,8 @@ void CEpgProgramList::Clear()
 
 int CEpgProgramList::NumServices() const
 {
+	CBlockLock Lock(const_cast<CCriticalLock*>(&m_Lock));
+
 	return ServiceMap.size();
 }
 

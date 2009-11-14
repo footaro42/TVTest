@@ -3,6 +3,7 @@
 
 
 class CPseudoOSD {
+	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
 	HWND m_hwnd;
 	COLORREF m_crBackColor;
@@ -20,6 +21,8 @@ class CPseudoOSD {
 												WPARAM wParam,LPARAM lParam);
 public:
 	static bool Initialize(HINSTANCE hinst);
+	static bool IsPseudoOSD(HWND hwnd);
+
 	CPseudoOSD();
 	~CPseudoOSD();
 	bool Create(HWND hwndParent);

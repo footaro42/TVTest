@@ -453,8 +453,7 @@ void CDriverOptions::InitDlgItem(int Driver)
 					InitChannelType==CDriverSettings::INITIALCHANNEL_CUSTOM);
 		bool fCur=::lstrcmpi(pszFileName,
 			::PathFindFileName(GetAppClass().GetCoreEngine()->GetDriverFileName()))==0;
-		if (fCur || pDriverInfo->LoadTuningSpaceList(
-				!::PathMatchSpec(pszFileName,TEXT("BonDriver_Spinel*.dll")))) {
+		if (fCur || pDriverInfo->LoadTuningSpaceList()) {
 			const CTuningSpaceList *pTuningSpaceList;
 			int i;
 

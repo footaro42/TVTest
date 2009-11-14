@@ -39,6 +39,9 @@ COSDOptions::COSDOptions()
 	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	m_NotificationBarFont=ncm.lfMessageFont;
 	m_NotificationBarFont.lfHeight=-14;
+
+	m_DisplayMenuFont=ncm.lfMessageFont;
+	m_fDisplayMenuFontAutoSize=true;
 }
 
 
@@ -85,6 +88,9 @@ bool COSDOptions::Read(CSettings *pSettings)
 		m_NotificationBarFont.lfWeight=Value;
 	if (pSettings->Read(TEXT("NotificationBarFontItalic"),&Value))
 		m_NotificationBarFont.lfItalic=Value;
+
+	pSettings->Read(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
+	pSettings->Read(TEXT("DisplayMenuFontAutoSize"),&m_fDisplayMenuFontAutoSize);
 	return true;
 }
 
@@ -105,6 +111,9 @@ bool COSDOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("NotificationBarFontSize"),(int)m_NotificationBarFont.lfHeight);
 	pSettings->Write(TEXT("NotificationBarFontWeight"),(int)m_NotificationBarFont.lfWeight);
 	pSettings->Write(TEXT("NotificationBarFontItalic"),(int)m_NotificationBarFont.lfItalic);
+
+	pSettings->Write(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
+	pSettings->Write(TEXT("DisplayMenuFontAutoSize"),m_fDisplayMenuFontAutoSize);
 	return true;
 }
 
@@ -130,7 +139,7 @@ COSDOptions *COSDOptions::GetThis(HWND hDlg)
 }
 
 
-static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
+static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 {
 	HDC hdc;
 	TCHAR szText[LF_FACESIZE+16];
@@ -139,7 +148,7 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 	if (hdc==NULL)
 		return;
 	wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
-	SetDlgItemText(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,szText);
+	SetDlgItemText(hDlg,ID,szText);
 	ReleaseDC(hDlg,hdc);
 }
 
@@ -164,8 +173,12 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 			::SetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,pThis->m_NotificationBarDuration/1000,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_NOTIFICATIONBAR_DURATION_UPDOWN,1,60);
 			pThis->m_CurNotificationBarFont=pThis->m_NotificationBarFont;
-			SetFontInfo(hDlg,&pThis->m_CurNotificationBarFont);
+			SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&pThis->m_CurNotificationBarFont);
 			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,pThis->m_fEnableNotificationBar);
+
+			pThis->m_CurDisplayMenuFont=pThis->m_DisplayMenuFont;
+			SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&pThis->m_DisplayMenuFont);
+			DlgCheckBox_Check(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE,pThis->m_fDisplayMenuFontAutoSize);
 		}
 		return TRUE;
 
@@ -207,7 +220,16 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 				COSDOptions *pThis=GetThis(hDlg);
 
 				if (ChooseFontDialog(hDlg,&pThis->m_CurNotificationBarFont))
-					SetFontInfo(hDlg,&pThis->m_CurNotificationBarFont);
+					SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&pThis->m_CurNotificationBarFont);
+			}
+			return TRUE;
+
+		case IDC_DISPLAYMENU_FONT_CHOOSE:
+			{
+				COSDOptions *pThis=GetThis(hDlg);
+
+				if (ChooseFontDialog(hDlg,&pThis->m_CurDisplayMenuFont))
+					SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&pThis->m_CurDisplayMenuFont);
 			}
 			return TRUE;
 		}
@@ -233,6 +255,9 @@ BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 				pThis->m_NotificationBarDuration=
 					::GetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,NULL,FALSE)*1000;
 				pThis->m_NotificationBarFont=pThis->m_CurNotificationBarFont;
+
+				pThis->m_DisplayMenuFont=pThis->m_CurDisplayMenuFont;
+				pThis->m_fDisplayMenuFontAutoSize=DlgCheckBox_IsChecked(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE);
 			}
 			return TRUE;
 		}

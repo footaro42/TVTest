@@ -184,21 +184,22 @@ static const struct {
 
 
 const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
-	{CM_ZOOM_100,		VK_HOME,		0,			false},
-	{CM_ASPECTRATIO,	'A',			0,			false},
-	{CM_FULLSCREEN,		VK_RETURN,		MOD_ALT,	false},
-	{CM_ALWAYSONTOP,	'T',			0,			false},
-	{CM_VOLUME_MUTE,	'M',			0,			false},
-	{CM_VOLUME_UP,		VK_UP,			0,			false},
-	{CM_VOLUME_DOWN,	VK_DOWN,		0,			false},
-	{CM_SWITCHAUDIO,	'S',			0,			false},
-	{CM_CHANNEL_DOWN,	VK_LEFT,		0,			false},
-	{CM_CHANNEL_UP,		VK_RIGHT,		0,			false},
-	{CM_RECORD,			'R',			0,			false},
-	{CM_COPY,			'C',			0,			false},
-	{CM_SAVEIMAGE,		'V',			0,			false},
-	{CM_INFORMATION,	'I',			0,			false},
-	{CM_PROGRAMGUIDE,	'E',			0,			false},
+	{CM_ZOOM_100,			VK_HOME,		0,			false},
+	{CM_ASPECTRATIO,		'A',			0,			false},
+	{CM_FULLSCREEN,			VK_RETURN,		MOD_ALT,	false},
+	{CM_ALWAYSONTOP,		'T',			0,			false},
+	{CM_VOLUME_MUTE,		'M',			0,			false},
+	{CM_VOLUME_UP,			VK_UP,			0,			false},
+	{CM_VOLUME_DOWN,		VK_DOWN,		0,			false},
+	{CM_SWITCHAUDIO,		'S',			0,			false},
+	{CM_CHANNEL_DOWN,		VK_LEFT,		0,			false},
+	{CM_CHANNEL_UP,			VK_RIGHT,		0,			false},
+	{CM_RECORD,				'R',			0,			false},
+	{CM_COPY,				'C',			0,			false},
+	{CM_SAVEIMAGE,			'V',			0,			false},
+	{CM_INFORMATION,		'I',			0,			false},
+	{CM_PROGRAMGUIDE,		'E',			0,			false},
+	{CM_CHANNELDISPLAYMENU,	'Z',			0,			false},
 };
 
 const CAccelerator::AppCommandInfo CAccelerator::m_DefaultAppCommandList[] = {

@@ -130,6 +130,7 @@ public:
 	bool SendResetEvent();
 	bool SendStatusResetEvent();
 	bool SendAudioStreamChangeEvent(int Stream);
+	bool SendSettingsChangeEvent();
 };
 
 class CPluginOptions : public COptions {

@@ -365,8 +365,7 @@ LRESULT CALLBACK CSkinController::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 					pThis->m_pApp->SaveImage();
 					break;
 				case FUNC_OPTION:
-					::MessageBox(hwnd,TEXT("Not implemented."),TEXT("Sorry"),
-								 MB_OK);
+					pThis->m_pApp->DoCommand(L"Options");
 					break;
 				case FUNC_CLOSE:
 					pThis->m_pApp->Close();
@@ -374,16 +373,10 @@ LRESULT CALLBACK CSkinController::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 				default:
 					if (ButtonList[pThis->m_CurButton].Func>=FUNC_CH1
 							&& ButtonList[pThis->m_CurButton].Func<=FUNC_CH12) {
-						TVTest::ChannelInfo ChannelInfo;
-						int CurSpace=pThis->m_pApp->GetTuningSpace();
+						WCHAR szCommand[16];
 
-						for (int i=0;pThis->m_pApp->GetChannelInfo(CurSpace,i,&ChannelInfo);i++) {
-							if (ChannelInfo.RemoteControlKeyID==
-									(ButtonList[pThis->m_CurButton].Func-FUNC_CH1)+1) {
-								pThis->m_pApp->SetChannel(CurSpace,i);
-								break;
-							}
-						}
+						::wsprintfW(szCommand,L"Channel%d",(ButtonList[pThis->m_CurButton].Func-FUNC_CH1)+1);
+						pThis->m_pApp->DoCommand(szCommand);
 						break;
 					}
 				}

@@ -18,6 +18,7 @@ public:
 	CBasicWindow();
 	virtual ~CBasicWindow();
 	virtual bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0)=0;
+	bool IsCreated() const { return m_hwnd!=NULL; }
 	void Destroy();
 	bool SetPosition(int Left,int Top,int Width,int Height);
 	bool SetPosition(const RECT *pPosition);

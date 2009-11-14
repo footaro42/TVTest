@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "DriverManager.h"
@@ -18,10 +17,19 @@ typedef IBonDriver *(*CreateBonDriverFunc)();
 
 
 CDriverInfo::CDriverInfo(LPCTSTR pszFileName)
+	: m_pszFileName(DuplicateString(pszFileName))
+	, m_pszTunerName(NULL)
+	, m_fChannelFileLoaded(false)
 {
-	m_pszFileName=DuplicateString(pszFileName);
-	m_pszTunerName=NULL;
-	m_fChannelFileLoaded=false;
+}
+
+
+CDriverInfo::CDriverInfo(const CDriverInfo &Info)
+	: m_pszFileName(DuplicateString(Info.m_pszFileName))
+	, m_pszTunerName(DuplicateString(Info.m_pszTunerName))
+	, m_fChannelFileLoaded(Info.m_fChannelFileLoaded)
+	, m_TuningSpaceList(Info.m_TuningSpaceList)
+{
 }
 
 
@@ -32,9 +40,21 @@ CDriverInfo::~CDriverInfo()
 }
 
 
-bool CDriverInfo::LoadTuningSpaceList(bool fUseDriver)
+bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 {
 	if (!m_fChannelFileLoaded) {
+		bool fUseDriver;
+		if (Mode==LOADTUNINGSPACE_NOLOADDRIVER) {
+			fUseDriver=false;
+		} else if (Mode==LOADTUNINGSPACE_USEDRIVER) {
+			fUseDriver=true;
+		} else {
+			// チューナを開かずにチューニング空間とチャンネルを取得できない
+			// ドライバはロードしないようにする
+			fUseDriver=!::PathMatchSpec(m_pszFileName,TEXT("BonDriver_Spinel*.dll"))
+				&& !PathMatchSpec(m_pszFileName,TEXT("BonDriver_Friio*.dll"));
+		}
+
 		TCHAR szFileName[MAX_PATH];
 
 		if (::PathIsFileSpec(m_pszFileName)) {

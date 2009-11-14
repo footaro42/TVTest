@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.6.1
+    TVTest ver.0.6.2
 
 
 ◆ はじめに
@@ -41,8 +41,10 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.6.1_Src.zip  ソースファイル
-  ・TVTest_SDK_091108.zip プラグイン開発用 SDK
+  ・TVTest_0.6.2_Src.zip  ソースファイル
+  ・TVTest_SDK_091115.zip プラグイン開発用 SDK
+  ・Tuner.dll             各チューナー用アイコンの DLL
+  ・Tuner.ini             チューナーの表示設定ファイル
   ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
   ・BonDriver_UDP.txt     BonDriver_UDP.dll の説明
   ・Preset_BS.ch2         BS 用チャンネルプリセット
@@ -406,6 +408,9 @@
     zlib version 1.2.3  Copyright (C) 1995-2004 Jean-loup Gailly and Mark Adler
   ・BonDriver_UDP.dll は Meru-co 氏作の BonDriver(Meru customize edition) for
     UDP ver1.20 を少し改変したものです。
+  ・Tuner.dll に含まれるフォルダのアイコンは Everaldo Coelho 氏の作成したもので
+    す。
+    Copyright (c) 2006-2007 Everaldo Coelho.
 
 
 ◆ 謝辞
@@ -433,6 +438,15 @@
 
 
 ◆ 更新履歴
+
+  ver.0.6.2
+    ・チャンネル選択メニュー画面の表示機能を追加した
+    ・ストリームの情報にチャンネルファイル用フォーマットの表示を追加した
+    ・音声ストリームが複数ある際にメニューの表示が正しくない不具合を修正
+    ・録画中にサービスが切り替わると、字幕とデータ放送を保存しないように設定し
+      ていても保存されてしまう不具合を修正
+    ・プラグイン用機能を更新した
+    ・その他微修正
 
   ver.0.6.1
     ・BonDriver の検索フォルダを設定できるようにした
