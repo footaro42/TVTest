@@ -272,7 +272,7 @@ public:
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
 	bool DoCommand(LPCWSTR pszCommand);
 	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
-	bool BeginProgramGuideUpdate();
+	bool BeginProgramGuideUpdate(bool fStandby=false);
 	void OnProgramGuideUpdateEnd(bool fRelease=true);
 	void EndProgramGuideUpdate(bool fRelease=true);
 	void BeginProgramListUpdateTimer();

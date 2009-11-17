@@ -35,6 +35,7 @@ public:
 	bool IsFirstExecute() const;
 	bool SaveChannelSettings();
 	bool InitializeChannel();
+	bool RestoreChannel();
 	bool UpdateChannelList(const CTuningSpaceList *pList);
 	const CChannelInfo *GetCurrentChannelInfo() const;
 	bool SetChannel(int Space,int Channel,int ServiceID=-1);

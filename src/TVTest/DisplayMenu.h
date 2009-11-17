@@ -100,13 +100,14 @@ private:
 	CEventHandler *m_pEventHandler;
 	POINT m_LastCursorPos;
 
-	struct DriverInfo {
+	struct TunerInfo {
 		TCHAR DriverMasks[MAX_PATH];
 		TCHAR szDisplayName[64];
 		TCHAR szIconFile[MAX_PATH];
 		int Index;
+		bool fUseDriverChannel;
 	};
-	std::vector<DriverInfo> m_DriverInfoList;
+	std::vector<TunerInfo> m_TunerInfoList;
 
 	void LoadSettings();
 	void Layout();

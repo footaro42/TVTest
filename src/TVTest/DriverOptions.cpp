@@ -453,19 +453,26 @@ void CDriverOptions::InitDlgItem(int Driver)
 					InitChannelType==CDriverSettings::INITIALCHANNEL_CUSTOM);
 		bool fCur=::lstrcmpi(pszFileName,
 			::PathFindFileName(GetAppClass().GetCoreEngine()->GetDriverFileName()))==0;
-		if (fCur || pDriverInfo->LoadTuningSpaceList()) {
+		if (fCur || pDriverInfo->LoadTuningSpaceList(CDriverInfo::LOADTUNINGSPACE_USEDRIVER_NOOPEN)) {
 			const CTuningSpaceList *pTuningSpaceList;
-			int i;
+			int NumSpaces,i;
 
-			if (fCur)
+			if (fCur) {
 				pTuningSpaceList=GetAppClass().GetChannelManager()->GetDriverTuningSpaceList();
-			else
+				NumSpaces=pTuningSpaceList->NumSpaces();
+			} else {
 				pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
+				NumSpaces=pTuningSpaceList->NumSpaces();
+				if (NumSpaces<pDriverInfo->GetDriverSpaceList()->NumSpaces())
+					NumSpaces=pDriverInfo->GetDriverSpaceList()->NumSpaces();
+			}
 			DlgComboBox_AddString(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_SPACE,TEXT("‚·‚×‚Ä"));
-			for (i=0;i<pTuningSpaceList->NumSpaces();i++) {
+			for (i=0;i<NumSpaces;i++) {
 				LPCTSTR pszName=pTuningSpaceList->GetTuningSpaceName(i);
 				TCHAR szName[16];
 
+				if (pszName==NULL && !fCur)
+					pszName=pDriverInfo->GetDriverSpaceList()->GetTuningSpaceName(i);
 				if (pszName==NULL) {
 					::wsprintf(szName,TEXT("Space %d"),i+1);
 					pszName=szName;
@@ -517,11 +524,11 @@ void CDriverOptions::SetChannelList(int Driver)
 		return;
 	bool fCur=::lstrcmpi(pSettings->GetFileName(),
 						 ::PathFindFileName(GetAppClass().GetCoreEngine()->GetDriverFileName()))==0;
-	const CTuningSpaceList *pTuningSpaceList;
+	const CDriverInfo *pDriverInfo;
 	int i;
 
 	if (!fCur) {
-		pTuningSpaceList=m_pDriverManager->GetDriverInfo(Driver)->GetTuningSpaceList();
+		pDriverInfo=m_pDriverManager->GetDriverInfo(Driver);
 	}
 	if (pSettings->GetAllChannels()) {
 		DlgComboBox_AddString(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,TEXT("Žw’è‚È‚µ"));
@@ -531,7 +538,7 @@ void CDriverOptions::SetChannelList(int Driver)
 			if (fCur)
 				pChannelList=GetAppClass().GetChannelManager()->GetFileChannelList(i);
 			else
-				pChannelList=pTuningSpaceList->GetChannelList(i);
+				pChannelList=pDriverInfo->GetChannelList(i);
 			if (pChannelList==NULL)
 				break;
 			AddChannelList(pChannelList);
@@ -544,7 +551,7 @@ void CDriverOptions::SetChannelList(int Driver)
 			if (fCur)
 				pChannelList=GetAppClass().GetChannelManager()->GetChannelList(i);
 			else
-				pChannelList=pTuningSpaceList->GetChannelList(i);
+				pChannelList=pDriverInfo->GetChannelList(i);
 			if (pChannelList!=NULL) {
 				DlgComboBox_AddString(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,TEXT("Žw’è‚È‚µ"));
 				AddChannelList(pChannelList);

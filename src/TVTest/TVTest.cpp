@@ -679,6 +679,26 @@ bool CAppMain::InitializeChannel()
 }
 
 
+bool CAppMain::RestoreChannel()
+{
+	if (RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0) {
+		int Space=RestoreChannelInfo.fAllChannels?CChannelManager::SPACE_ALL:RestoreChannelInfo.Space;
+		const CChannelList *pList=ChannelManager.GetChannelList(Space);
+		if (pList!=NULL) {
+			int Index=pList->Find(RestoreChannelInfo.Space,
+								  RestoreChannelInfo.Channel,
+								  RestoreChannelInfo.ServiceID);
+			if (Index<0 && RestoreChannelInfo.ServiceID>0)
+				Index=pList->Find(RestoreChannelInfo.Space,
+								  RestoreChannelInfo.Channel);
+			if (Index>=0)
+				return AppMain.SetChannel(Space,Index);
+		}
+	}
+	return false;
+}
+
+
 bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 {
 	bool fNetworkDriver=CoreEngine.IsNetworkDriver();
@@ -3936,9 +3956,17 @@ static CMySplitterEventHandler SplitterEventHandler;
 class CMyChannelDisplayMenuEventHandler : public CChannelDisplayMenu::CEventHandler {
 	void OnTunerSelect(LPCTSTR pszDriverFileName,int TuningSpace)
 	{
-		if (AppMain.SetDriver(pszDriverFileName)) {
+		if (CoreEngine.IsDriverOpen()
+				&& ::lstrcmpi(CoreEngine.GetDriverFileName(),pszDriverFileName)==0) {
+			MainWindow.SendCommand(CM_CHANNELDISPLAYMENU);
+		} else if (AppMain.SetDriver(pszDriverFileName)) {
 			if (TuningSpace!=SPACE_NOTSPECIFIED) {
-				ChannelManager.SetCurrentChannel(TuningSpace,-1);
+				MainWindow.SendCommand(CM_SPACE_FIRST+TuningSpace);
+				if (TuningSpace==SPACE_ALL
+						|| TuningSpace==RestoreChannelInfo.Space)
+					AppMain.RestoreChannel();
+			} else {
+				AppMain.RestoreChannel();
 			}
 			MainWindow.SendCommand(CM_CHANNELDISPLAYMENU);
 		}
@@ -6132,8 +6160,17 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		if (id>=CM_SPACE_ALL && id<=CM_SPACE_LAST) {
 			int Space=id-CM_SPACE_FIRST;
 
-			if (Space!=ChannelManager.GetCurrentSpace())
-				AppMain.SetChannel(Space,0);
+			if (Space!=ChannelManager.GetCurrentSpace()) {
+				const CChannelList *pChannelList=ChannelManager.GetChannelList(Space);
+				if (pChannelList!=NULL) {
+					for (int i=0;i<pChannelList->NumChannels();i++) {
+						if (pChannelList->IsEnabled(i)) {
+							AppMain.SetChannel(Space,i);
+							return;
+						}
+					}
+				}
+			}
 			return;
 		}
 		if (id>=CM_DRIVER_FIRST && id<=CM_DRIVER_LAST) {
@@ -6145,18 +6182,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				if (!CoreEngine.IsDriverOpen()
 						|| ::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())!=0) {
 					if (AppMain.SetDriver(pDriverInfo->GetFileName())) {
-						if (RestoreChannelInfo.Space>=0
-								&& RestoreChannelInfo.Channel>=0) {
-							int Space=RestoreChannelInfo.fAllChannels?CChannelManager::SPACE_ALL:RestoreChannelInfo.Space;
-							const CChannelList *pList=ChannelManager.GetChannelList(Space);
-							if (pList!=NULL) {
-								int Index=pList->Find(RestoreChannelInfo.Space,
-													  RestoreChannelInfo.Channel,
-													  RestoreChannelInfo.ServiceID);
-								if (Index>=0)
-									AppMain.SetChannel(Space,Index);
-							}
-						}
+						AppMain.RestoreChannel();
 					}
 				}
 			}
@@ -8467,12 +8493,16 @@ HMENU CMainWindow::CreateTunerSelectMenu()
 			*/
 			continue;
 		}
-		if (pDriverInfo->LoadTuningSpaceList()) {
+		if (pDriverInfo->LoadTuningSpaceList(CDriverInfo::LOADTUNINGSPACE_NOLOADDRIVER)) {
 			HMENU hmenuDriver=::CreatePopupMenu();
-			const CTuningSpaceList *pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
+			const CTuningSpaceList *pTuningSpaceList=pDriverInfo->GetAvailableTuningSpaceList();
 
 			for (j=0;j<pTuningSpaceList->NumSpaces();j++) {
 				pChannelList=pTuningSpaceList->GetChannelList(j);
+				if (pChannelList->NumEnableChannels()==0) {
+					Command+=pChannelList->NumChannels();
+					continue;
+				}
 				if (pTuningSpaceList->NumSpaces()>1)
 					hmenuSpace=::CreatePopupMenu();
 				else
@@ -8487,8 +8517,9 @@ HMENU CMainWindow::CreateTunerSelectMenu()
 						pszName=pChannelInfo->GetName();
 						CopyToMenuText(pszName!=NULL?pszName:TEXT("???"),
 									   szText+Length,lengthof(szText)-Length);
-						::AppendMenu(hmenuSpace,MFT_STRING | MFS_ENABLED,Command++,szText);
+						::AppendMenu(hmenuSpace,MFT_STRING | MFS_ENABLED,Command,szText);
 					}
+					Command++;
 				}
 				if (hmenuSpace!=hmenuDriver) {
 					pszName=pTuningSpaceList->GetTuningSpaceName(j);
@@ -8555,7 +8586,8 @@ bool CMainWindow::ProcessTunerSelectMenu(int Command)
 		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0)
 			continue;
 		if (pDriverInfo->IsTuningSpaceListLoaded()) {
-			const CTuningSpaceList *pTuningSpaceList=pDriverInfo->GetTuningSpaceList();
+			const CTuningSpaceList *pTuningSpaceList=pDriverInfo->GetAvailableTuningSpaceList();
+
 			for (j=0;j<pTuningSpaceList->NumSpaces();j++) {
 				pChannelList=pTuningSpaceList->GetChannelList(j);
 				if (Command-CommandBase<pChannelList->NumChannels()) {
@@ -8650,7 +8682,7 @@ bool CMainWindow::SetStandby(bool fStandby)
 					&& CoreEngine.m_DtvEngine.IsSrcFilterOpen()
 					&& !RecordManager.IsRecording()
 					&& !CoreEngine.IsNetworkDriver())
-				BeginProgramGuideUpdate();
+				BeginProgramGuideUpdate(true);
 			if (!RecordManager.IsRecording() && !m_fProgramGuideUpdating)
 				AppMain.CloseTuner();
 		} else {
@@ -8883,7 +8915,7 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 }
 
 
-bool CMainWindow::BeginProgramGuideUpdate()
+bool CMainWindow::BeginProgramGuideUpdate(bool fStandby)
 {
 	if (!m_fProgramGuideUpdating) {
 		if (RecordManager.IsRecording()) {
@@ -8911,8 +8943,10 @@ bool CMainWindow::BeginProgramGuideUpdate()
 		}
 		m_fProgramGuideUpdating=true;
 		m_ProgramGuideUpdateStartChannel=ChannelManager.GetCurrentChannel();
-		m_fRestorePreview=IsPreview();
-		EnablePreview(false);
+		if (!fStandby) {
+			m_fRestorePreview=IsPreview();
+			EnablePreview(false);
+		}
 		AppMain.SetChannel(ChannelManager.GetCurrentSpace(),i);
 		::SetTimer(m_hwnd,TIMER_ID_PROGRAMGUIDEUPDATE,m_fStandby?60000:30000,NULL);
 	}
@@ -9656,18 +9690,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			SetCommandLineChannel(&CmdLineParser);
 		} else if (RestoreChannelInfo.Space>=0
 				&& RestoreChannelInfo.Channel>=0) {
-			int Space=RestoreChannelInfo.fAllChannels?CChannelManager::SPACE_ALL:RestoreChannelInfo.Space;
-			const CChannelList *pList=ChannelManager.GetChannelList(Space);
-			if (pList!=NULL) {
-				int Index=pList->Find(RestoreChannelInfo.Space,
-									  RestoreChannelInfo.Channel,
-									  RestoreChannelInfo.ServiceID);
-				if (Index<0 && RestoreChannelInfo.ServiceID>0)
-					Index=pList->Find(RestoreChannelInfo.Space,
-									  RestoreChannelInfo.Channel);
-				if (Index>=0)
-					AppMain.SetChannel(Space,Index);
-			}
+			AppMain.RestoreChannel();
 		} else {
 			// ‰Šúƒ`ƒƒƒ“ƒlƒ‹‚Éİ’è‚·‚é
 			const CChannelList *pList=ChannelManager.GetCurrentChannelList();

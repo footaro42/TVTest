@@ -91,31 +91,38 @@ bool CChannelDisplayMenu::SetDriverManager(CDriverManager *pDriverManager)
 	LoadSettings();
 	for (int i=0;i<pDriverManager->NumDrivers();i++) {
 		CDriverInfo *pDriverInfo=pDriverManager->GetDriverInfo(i);
+		const TunerInfo *pTunerInfo=NULL;
 
-		if (!pDriverInfo->IsTuningSpaceListLoaded())
-			pDriverInfo->LoadTuningSpaceList();
-		CTuner *pTuner=new CTuner(pDriverInfo);
-		m_TunerList.Add(pTuner);
-		LPCTSTR pszFileName=::PathFindFileName(pTuner->GetDriverFileName());
-		for (size_t j=0;j<m_DriverInfoList.size();j++) {
-			const DriverInfo &Info=m_DriverInfoList[j];
+		LPCTSTR pszFileName=::PathFindFileName(pDriverInfo->GetFileName());
+		for (size_t j=0;j<m_TunerInfoList.size();j++) {
+			const TunerInfo &Info=m_TunerInfoList[j];
 			LPCTSTR p=Info.DriverMasks;
 			while (*p!='\0') {
 				if (::PathMatchSpec(pszFileName,p)) {
-					if (Info.szDisplayName[0]!='\0')
-						pTuner->SetDisplayName(Info.szDisplayName);
-					if (Info.szIconFile[0]!='\0') {
-						HICON hico=::ExtractIcon(GetAppClass().GetInstance(),
-												 Info.szIconFile,Info.Index);
-						if (hico!=NULL && hico!=(HICON)1)
-							pTuner->SetIcon(hico);
-					}
+					pTunerInfo=&Info;
 					goto End;
 				}
 				p+=::lstrlen(p)+1;
 			}
 		}
 	End:
+		bool fUseDriverChannel=pTunerInfo!=NULL && pTunerInfo->fUseDriverChannel;
+		pDriverInfo->LoadTuningSpaceList(
+			fUseDriverChannel?
+				CDriverInfo::LOADTUNINGSPACE_DEFAULT:
+				CDriverInfo::LOADTUNINGSPACE_NOLOADDRIVER);
+		CTuner *pTuner=new CTuner(pDriverInfo);
+		if (pTunerInfo!=NULL) {
+			if (pTunerInfo->szDisplayName[0]!='\0')
+				pTuner->SetDisplayName(pTunerInfo->szDisplayName);
+			if (pTunerInfo->szIconFile[0]!='\0') {
+				HICON hico=::ExtractIcon(GetAppClass().GetInstance(),
+										 pTunerInfo->szIconFile,pTunerInfo->Index);
+				if (hico!=NULL && hico!=(HICON)1)
+					pTuner->SetIcon(hico);
+			}
+		}
+		m_TunerList.Add(pTuner);
 		m_TotalTuningSpaces+=pTuner->NumSpaces();
 	}
 	if (m_hwnd!=NULL) {
@@ -207,10 +214,10 @@ void CChannelDisplayMenu::LoadSettings()
 	GetAppClass().GetAppDirectory(szIniFileName);
 	::PathAppend(szIniFileName,TEXT("Tuner.ini"));
 	if (Settings.Open(szIniFileName,TEXT("TunerSettings"),CSettings::OPEN_READ)) {
-		m_DriverInfoList.clear();
+		m_TunerInfoList.clear();
 		for (int i=0;;i++) {
 			TCHAR szName[32],*p;
-			DriverInfo Info;
+			TunerInfo Info;
 
 			::wsprintf(szName,TEXT("Tuner%d_Driver"),i);
 			if (!Settings.Read(szName,Info.DriverMasks,lengthof(Info.DriverMasks)-1))
@@ -245,7 +252,10 @@ void CChannelDisplayMenu::LoadSettings()
 				}
 				p++;
 			}
-			m_DriverInfoList.push_back(Info);
+			::wsprintf(szName,TEXT("Tuner%d_UseDriverChannel"),i);
+			if (!Settings.Read(szName,&Info.fUseDriverChannel))
+				Info.fUseDriverChannel=false;
+			m_TunerInfoList.push_back(Info);
 		}
 		Settings.Close();
 	}
@@ -1043,30 +1053,34 @@ CChannelDisplayMenu::CTuner::CTuner(const CDriverInfo *pDriverInfo)
 	, m_pszDisplayName(NULL)
 	, m_hIcon(NULL)
 {
-	const CTuningSpaceList *pList=pDriverInfo->GetTuningSpaceList();
+	const CTuningSpaceList *pList=pDriverInfo->GetAvailableTuningSpaceList();
 
-	for (int i=0;i<pList->NumSpaces();i++) {
-		const CTuningSpaceInfo *pSrcTuningSpace=pList->GetTuningSpaceInfo(i);
-		const CChannelList *pSrcChannelList=pSrcTuningSpace->GetChannelList();
+	if (pList!=NULL) {
+		for (int i=0;i<pList->NumSpaces();i++) {
+			const CTuningSpaceInfo *pSrcTuningSpace=pList->GetTuningSpaceInfo(i);
+			if (pSrcTuningSpace==NULL)
+				break;
+			const CChannelList *pSrcChannelList=pSrcTuningSpace->GetChannelList();
 
-		if (pSrcChannelList!=NULL && pSrcChannelList->NumEnableChannels()>0) {
-			CTuningSpaceInfo *pTuningSpace;
+			if (pSrcChannelList!=NULL && pSrcChannelList->NumEnableChannels()>0) {
+				CTuningSpaceInfo *pTuningSpace;
 
-			if (m_TuningSpaceList.Length()>0
-					&& pSrcTuningSpace->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL
-					&& m_TuningSpaceList[m_TuningSpaceList.Length()-1]->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL) {
-				pTuningSpace=m_TuningSpaceList[m_TuningSpaceList.Length()-1];
-				pTuningSpace->SetName(TEXT("’nã"));
-			} else {
-				pTuningSpace=new CTuningSpaceInfo;
-				pTuningSpace->Create(NULL,pSrcTuningSpace->GetName());
-				m_TuningSpaceList.Add(pTuningSpace);
-			}
-			for (int j=0;j<pSrcChannelList->NumChannels();j++) {
-				const CChannelInfo *pChannelInfo=pSrcChannelList->GetChannelInfo(j);
+				if (m_TuningSpaceList.Length()>0
+						&& pSrcTuningSpace->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL
+						&& m_TuningSpaceList[m_TuningSpaceList.Length()-1]->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL) {
+					pTuningSpace=m_TuningSpaceList[m_TuningSpaceList.Length()-1];
+					pTuningSpace->SetName(TEXT("’nã"));
+				} else {
+					pTuningSpace=new CTuningSpaceInfo;
+					pTuningSpace->Create(NULL,pSrcTuningSpace->GetName());
+					m_TuningSpaceList.Add(pTuningSpace);
+				}
+				for (int j=0;j<pSrcChannelList->NumChannels();j++) {
+					const CChannelInfo *pChannelInfo=pSrcChannelList->GetChannelInfo(j);
 
-				if (pChannelInfo->IsEnabled()) {
-					pTuningSpace->GetChannelList()->AddChannel(*pChannelInfo);
+					if (pChannelInfo->IsEnabled()) {
+						pTuningSpace->GetChannelList()->AddChannel(*pChannelInfo);
+					}
 				}
 			}
 		}
