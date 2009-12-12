@@ -119,7 +119,7 @@ private:
 	void UpdateChannelItem(int Index) const;
 	int TunerItemHitTest(int x,int y) const;
 	int ChannelItemHitTest(int x,int y) const;
-	bool SetCurTuner(int Index);
+	bool SetCurTuner(int Index,bool fUpdate=false);
 	bool SetCurChannel(int Index);
 	void SetTunerScrollPos(int Pos,bool fScroll);
 	void SetChannelScrollPos(int Pos,bool fScroll);

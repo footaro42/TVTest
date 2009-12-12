@@ -132,7 +132,7 @@ public:
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
-	bool SetAudioOnly(bool bOnly);
+	//bool SetAudioOnly(bool bOnly);
 	bool CheckHangUp(DWORD TimeOut);
 #ifdef TVH264
 	bool SetAdjustSampleTime(bool bAdjust);

@@ -163,6 +163,7 @@ CCommandLineParser::CCommandLineParser()
 	m_fNoDirectShow=false;
 	m_fSilent=false;
 	m_fNoPlugin=false;
+	m_szPluginsDirectory[0]='\0';
 	m_fSingleTask=false;
 	m_fInitialSettings=false;
 	m_fSaveLog=false;
@@ -190,7 +191,9 @@ CCommandLineParser::CCommandLineParser()
 	/noplugin		プラグインを読み込まない
 	/noview			プレビュー無効
 	/nr				ネットワークリモコンを使用する
-	/p				UDP のポート番号 (e.g. /p 1234)
+	/p /port		UDP のポート番号 (e.g. /p 1234)
+	/plugin-		指定されたプラグインを読み込まない
+	/plugindir		プラグインのフォルダ
 	/rch			リモコンチャンネル
 	/rec			録画
 	/reccurservice	現在のサービスのみ録画
@@ -256,6 +259,16 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					|| Args.IsOption(TEXT("port"))) {
 				if (Args.Next())
 					Args.GetValue(&m_UDPPort);
+			} else if (Args.IsOption(TEXT("plugin-"))) {
+				if (Args.Next()) {
+					TCHAR szPlugin[MAX_PATH];
+					if (Args.GetText(szPlugin,MAX_PATH))
+						m_NoLoadPlugins.push_back(CDynamicString(szPlugin));
+				}
+			} else if (Args.IsOption(TEXT("plugindir"))
+					|| Args.IsOption(TEXT("pluginsdir"))) {
+				if (Args.Next())
+					Args.GetText(m_szPluginsDirectory,MAX_PATH);
 			} else if (Args.IsOption(TEXT("rec"))) {
 				m_fRecord=true;
 			} else if (Args.IsOption(TEXT("reccurservice"))) {

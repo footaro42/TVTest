@@ -813,7 +813,7 @@ bool CVideoRenderer_VMR9Renderless::GetDestPosition(RECT *pRect)
 
 bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 {
-	bool fOK=false;
+	bool bOK=false;
 
 	if (m_pRenderer) {
 		if (m_pAllocator->SetCapture(true)) {
@@ -845,14 +845,16 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 
 						hr=pSurface->GetDC(&hdcSurface);
 						if (SUCCEEDED(hr)) {
-							HBITMAP hbmOld;
+							hdcMem=::CreateCompatibleDC(hdcSurface);
+							if (hdcMem) {
+								HBITMAP hbmOld;
 
-							hdcMem=::CreateCompatibleDC(NULL);
-							hbmOld=(HBITMAP)::SelectObject(hdcMem,hbm);
-							::BitBlt(hdcMem,0,0,desc.Width,Height,
-									 hdcSurface,0,0,SRCCOPY);
-							::SelectObject(hdcMem,hbmOld);
-							::DeleteDC(hdcMem);
+								hbmOld=(HBITMAP)::SelectObject(hdcMem,hbm);
+								::BitBlt(hdcMem,0,0,desc.Width,Height,
+										 hdcSurface,0,0,SRCCOPY);
+								::SelectObject(hdcMem,hbmOld);
+								::DeleteDC(hdcMem);
+							}
 							pSurface->ReleaseDC(hdcSurface);
 #else
 						D3DLOCKED_RECT rect;
@@ -882,7 +884,7 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 							if (pDib) {
 								::CopyMemory(pDib,&bmi.bmiHeader,sizeof(BITMAPINFOHEADER));
 								::CopyMemory(pDib+sizeof(BITMAPINFOHEADER),pBits,BitsSize);
-								fOK=true;
+								bOK=true;
 								*ppBuffer=pDib;
 							}
 						}
@@ -894,7 +896,7 @@ bool CVideoRenderer_VMR9Renderless::GetCurrentImage(void **ppBuffer)
 			m_pAllocator->SetCapture(false);
 		}
 	}
-	return fOK;
+	return bOK;
 }
 
 

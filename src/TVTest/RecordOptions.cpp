@@ -26,7 +26,7 @@ CRecordOptions::CRecordOptions()
 	m_fConfirmStopStatusBarOnly=false;
 	m_fCurServiceOnly=false;
 	m_fSaveSubtitle=true;
-	m_fSaveDataCarrousel=false;
+	m_fSaveDataCarrousel=true;
 	m_fDescrambleCurServiceOnly=false;
 	m_BufferSize=0x100000;
 }

@@ -169,7 +169,7 @@ bool CViewWindow::Initialize(HINSTANCE hinst)
 		wc.cbWndExtra=0;
 		wc.hInstance=hinst;
 		wc.hIcon=NULL;
-		wc.hCursor=LoadCursor(NULL,IDC_ARROW);
+		wc.hCursor=NULL;
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=VIEW_WINDOW_CLASS;
@@ -182,11 +182,12 @@ bool CViewWindow::Initialize(HINSTANCE hinst)
 
 
 CViewWindow::CViewWindow()
+	: m_pVideoContainer(NULL)
+	, m_hwndMessage(NULL)
+	, m_hbmLogo(NULL)
+	, m_fEdge(false)
+	, m_fShowCursor(true)
 {
-	m_pVideoContainer=NULL;
-	m_hwndMessage=NULL;
-	m_hbmLogo=NULL;
-	m_fEdge=false;
 }
 
 
@@ -244,6 +245,26 @@ void CViewWindow::SetEdge(bool fEdge)
 		m_fEdge=fEdge;
 		if (m_hwnd)
 			Invalidate();
+	}
+}
+
+
+void CViewWindow::ShowCursor(bool fShow)
+{
+	if (m_fShowCursor!=fShow) {
+		m_fShowCursor=fShow;
+		if (m_hwnd!=NULL) {
+			POINT pt;
+			HWND hwnd;
+
+			::GetCursorPos(&pt);
+			::ScreenToClient(m_hwnd,&pt);
+			hwnd=::ChildWindowFromPointEx(m_hwnd,pt,CWP_SKIPINVISIBLE);
+			if (hwnd==m_hwnd
+					|| (m_pVideoContainer!=NULL
+							&& hwnd==m_pVideoContainer->GetHandle()))
+				::SetCursor(fShow?::LoadCursor(NULL,IDC_ARROW):NULL);
+		}
 	}
 }
 
@@ -362,8 +383,15 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
-			::SetCursor(::LoadCursor(NULL,IDC_ARROW));
-			return TRUE;
+			HWND hwndCursor=reinterpret_cast<HWND>(wParam);
+			CViewWindow *pThis=GetThis(hwnd);
+
+			if (hwndCursor==hwnd
+					|| (pThis->m_pVideoContainer!=NULL
+						&& hwndCursor==pThis->m_pVideoContainer->GetHandle())) {
+				::SetCursor(pThis->m_fShowCursor?::LoadCursor(NULL,IDC_ARROW):NULL);
+				return TRUE;
+			}
 		}
 		break;
 

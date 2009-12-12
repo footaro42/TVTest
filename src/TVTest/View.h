@@ -26,6 +26,7 @@ class CViewWindow : public CBasicWindow {
 	HWND m_hwndMessage;
 	HBITMAP m_hbmLogo;
 	bool m_fEdge;
+	bool m_fShowCursor;
 	static CViewWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
@@ -36,6 +37,7 @@ public:
 	void SetMessageWindow(HWND hwnd);
 	bool SetLogo(HBITMAP hbm);
 	void SetEdge(bool fEdge);
+	void ShowCursor(bool fShow);
 	int GetVerticalEdgeWidth() const;
 	int GetHorizontalEdgeHeight() const;
 	static bool Initialize(HINSTANCE hinst);

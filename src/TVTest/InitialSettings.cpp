@@ -120,10 +120,10 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				}
 			}
 
-			// MPEG-2 decoder
+			// MPEG-2 or H.264 decoder
 			{
 				CDirectShowFilterFinder FilterFinder;
-				WCHAR szFilterName[128];
+				WCHAR szFilterName[MAX_DECODER_NAME];
 				int Sel=0,Count=0;
 
 				if (FilterFinder.FindFilter(&MEDIATYPE_Video,
@@ -286,17 +286,56 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 		case IDOK:
 			{
 				CInitialSettings *pThis=GetThis(hDlg);
+				TCHAR szMpeg2Decoder[MAX_DECODER_NAME];
+				CVideoRenderer::RendererType VideoRenderer;
+
+				int SelDecoder=DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER);
+				if (SelDecoder>0) {
+					DlgComboBox_GetLBString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,SelDecoder,szMpeg2Decoder);
+				} else if (DlgComboBox_GetCount(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER)>1) {
+					DlgComboBox_GetLBString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,1,szMpeg2Decoder);
+				} else {
+					::MessageBox(hDlg,
+						TEXT("デコーダが見付からないため、再生を行うことができません。\n")
+						TEXT("映像を再生するにはデコーダをインストールしてください。"),
+						TEXT("お知らせ"),
+						MB_OK | MB_ICONINFORMATION);
+					szMpeg2Decoder[0]='\0';
+				}
+				VideoRenderer=(CVideoRenderer::RendererType)
+					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_VIDEORENDERER);
+#ifndef TVH264
+				// 相性の悪い組み合わせに対して注意を表示する
+				static const struct {
+					LPCTSTR pszDecoder;
+					CVideoRenderer::RendererType Renderer;
+					LPCTSTR pszMessage;
+				} ConflictList[] = {
+					{TEXT("CyberLink"),	CVideoRenderer::RENDERER_DEFAULT,
+						TEXT("CyberLink のデコーダとデフォルトレンダラの組み合わせで、\n")
+						TEXT("一部の番組で比率がおかしくなる現象が出る事があるため、\n")
+						TEXT("レンダラをデフォルト以外にすることをお奨めします。\n")
+						TEXT("現在の設定を変更しますか?")},
+				};
+				for (int i=0;i<lengthof(ConflictList);i++) {
+					if (::StrCmpNI(szMpeg2Decoder,ConflictList[i].pszDecoder,::lstrlen(ConflictList[i].pszDecoder))==0
+							&& VideoRenderer==ConflictList[i].Renderer) {
+
+						if (::MessageBox(hDlg,ConflictList[i].pszMessage,TEXT("注意"),
+										 MB_YESNO | MB_ICONINFORMATION)==IDYES)
+							return TRUE;
+						break;
+					}
+				}
+#endif
 
 				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,
 								 pThis->m_szDriverFileName,MAX_PATH);
-				int Sel=DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER);
-				if (Sel>0)
-					DlgComboBox_GetLBString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,
-					Sel,reinterpret_cast<LPARAM>(pThis->m_szMpeg2DecoderName));
+				if (SelDecoder>0)
+					::lstrcpy(pThis->m_szMpeg2DecoderName,szMpeg2Decoder);
 				else
 					pThis->m_szMpeg2DecoderName[0]='\0';
-				pThis->m_VideoRenderer=(CVideoRenderer::RendererType)
-					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_VIDEORENDERER);
+				pThis->m_VideoRenderer=VideoRenderer;
 				pThis->m_CardReader=(CCoreEngine::CardReaderType)
 					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER);
 

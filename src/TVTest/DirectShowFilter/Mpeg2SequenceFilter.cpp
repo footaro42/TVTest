@@ -12,11 +12,14 @@ static char THIS_FILE[]=__FILE__;
 
 
 CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
-	//: CTransformFilter(MPEG2SEQUENCEFILTER_NAME, pUnk, CLSID_MPEG2SEQFILTER)
+#ifndef MPEG2SEQUENCEFILTER_INPLACE
+	: CTransformFilter(MPEG2SEQUENCEFILTER_NAME, pUnk, CLSID_MPEG2SEQFILTER)
+#else
 	: CTransInPlaceFilter(MPEG2SEQUENCEFILTER_NAME, pUnk, CLSID_MPEG2SEQFILTER, phr, FALSE)
+#endif
 	, m_pfnVideoInfoRecvFunc(NULL)
 	, m_pCallbackParam(NULL)
-	, m_bDeliverSamples(true)
+	//, m_bDeliverSamples(true)
 	, m_Mpeg2Parser(this)
 	, m_VideoInfo()
 {
@@ -68,7 +71,9 @@ HRESULT CMpeg2SequenceFilter::CheckInputType(const CMediaType* mtIn)
 }
 
 
-/*
+#ifndef MPEG2SEQUENCEFILTER_INPLACE
+
+
 HRESULT CMpeg2SequenceFilter::CheckTransform(const CMediaType* mtIn, const CMediaType* mtOut)
 {
 	CheckPointer(mtIn, E_POINTER);
@@ -82,16 +87,8 @@ HRESULT CMpeg2SequenceFilter::CheckTransform(const CMediaType* mtIn, const CMedi
 
 	return VFW_E_TYPE_NOT_ACCEPTED;
 }
-*/
 
 
-HRESULT CMpeg2SequenceFilter::CompleteConnect(PIN_DIRECTION direction,IPin *pReceivePin)
-{
-	return S_OK;
-}
-
-
-/*
 HRESULT CMpeg2SequenceFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOCATOR_PROPERTIES *pprop)
 {
 	CAutoLock AutoLock(m_pLock);
@@ -101,8 +98,8 @@ HRESULT CMpeg2SequenceFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOC
 	// バッファは1個あればよい
 	if(!pprop->cBuffers)pprop->cBuffers = 1L;
 
-	// とりあえず1MB確保
-	if(pprop->cbBuffer < 0x100000L)pprop->cbBuffer = 0x100000L;
+	// とりあえず16MB確保
+	if(pprop->cbBuffer < 0x1000000L)pprop->cbBuffer = 0x1000000L;
 
 	// アロケータプロパティを設定しなおす
 	ALLOCATOR_PROPERTIES Actual;
@@ -130,27 +127,85 @@ HRESULT CMpeg2SequenceFilter::GetMediaType(int iPosition, CMediaType *pMediaType
 
 HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 {
-	// 入力データポインタを取得する
-	BYTE *pInData = NULL;
-	pIn->GetPointer(&pInData);
-	long lDataSize = pIn->GetActualDataLength();
+	BYTE *pData;
+	HRESULT hr = pIn->GetPointer(&pData);
+	if (FAILED(hr))
+		return hr;
+	LONG DataSize = pIn->GetActualDataLength();
 
-	// 出力ポインタ取得
 	pOut->SetActualDataLength(0);
-	const DWORD dwOffset = pOut->GetActualDataLength();
-	BYTE *pOutBuff = NULL;
-	pOut->GetPointer(&pOutBuff);
-	pOutBuff = &pOutBuff[dwOffset];
+	m_pOutSample = pOut;
 
 	// シーケンスを取得
-	m_Mpeg2Parser.StoreEs(pInData,lDataSize);
+	m_ParserLock.Lock();
+	m_Mpeg2Parser.StoreEs(pData, DataSize);
+	m_ParserLock.Unlock();
 
-	// そのまま出力にコピー
-	::CopyMemory(pOutBuff,pInData,lDataSize);
-	pOut->SetActualDataLength(dwOffset + lDataSize);
+	return /*m_bDeliverSamples && */pOut->GetActualDataLength() > 0 ? S_OK : S_FALSE;
+}
+
+
+void CMpeg2SequenceFilter::SetFixSquareDisplay(bool bFix)
+{
+	m_Mpeg2Parser.SetFixSquareDisplay(bFix);
+}
+
+
+#else	// ndef MPEG2SEQUENCEFILTER_INPLACE
+
+
+HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
+{
+	BYTE *pData;
+	HRESULT hr = pSample->GetPointer(&pData);
+	if (FAILED(hr))
+		return hr;
+	LONG DataSize = pSample->GetActualDataLength();
+
+	// シーケンスを取得
+	m_ParserLock.Lock();
+	m_Mpeg2Parser.StoreEs(pData, DataSize);
+	m_ParserLock.Unlock();
+
+	//return m_bDeliverSamples ? S_OK : S_FALSE;
 	return S_OK;
 }
-*/
+
+
+HRESULT CMpeg2SequenceFilter::Receive(IMediaSample *pSample)
+{
+	const AM_SAMPLE2_PROPERTIES *pProps = m_pInput->SampleProps();
+	if (pProps->dwStreamId != AM_STREAM_MEDIA)
+		return m_pOutput->Deliver(pSample);
+
+	if (UsingDifferentAllocators()) {
+		pSample = Copy(pSample);
+		if (pSample == NULL)
+			return E_UNEXPECTED;
+	}
+
+	HRESULT hr = Transform(pSample);
+	if (SUCCEEDED(hr)) {
+		if (hr == S_OK)
+			hr = m_pOutput->Deliver(pSample);
+		else
+			hr = S_OK;
+	}
+
+	if (UsingDifferentAllocators())
+		pSample->Release();
+
+	return hr;
+}
+
+
+#endif	// MPEG2SEQUENCEFILTER_INPLACE
+
+
+HRESULT CMpeg2SequenceFilter::CompleteConnect(PIN_DIRECTION direction,IPin *pReceivePin)
+{
+	return S_OK;
+}
 
 
 HRESULT CMpeg2SequenceFilter::StartStreaming(void)
@@ -182,50 +237,6 @@ HRESULT CMpeg2SequenceFilter::BeginFlush()
 }
 
 
-HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
-{
-	BYTE *pData;
-	HRESULT hr = pSample->GetPointer(&pData);
-	if (FAILED(hr))
-		return hr;
-	LONG DataSize = pSample->GetActualDataLength();
-
-	// シーケンスを取得
-	m_ParserLock.Lock();
-	m_Mpeg2Parser.StoreEs(pData, DataSize);
-	m_ParserLock.Unlock();
-
-	return m_bDeliverSamples ? S_OK : S_FALSE;
-}
-
-
-HRESULT CMpeg2SequenceFilter::Receive(IMediaSample *pSample)
-{
-	const AM_SAMPLE2_PROPERTIES *pProps = m_pInput->SampleProps();
-	if (pProps->dwStreamId != AM_STREAM_MEDIA)
-		return m_pOutput->Deliver(pSample);
-
-	if (UsingDifferentAllocators()) {
-		pSample = Copy(pSample);
-		if (pSample==NULL)
-			return E_UNEXPECTED;
-	}
-
-	HRESULT hr = Transform(pSample);
-	if (SUCCEEDED(hr)) {
-		if (hr == S_OK)
-			hr = m_pOutput->Deliver(pSample);
-		else
-			hr = S_OK;
-	}
-
-	if (UsingDifferentAllocators())
-		pSample->Release();
-
-	return hr;
-}
-
-
 void CMpeg2SequenceFilter::SetRecvCallback(MPEG2SEQUENCE_VIDEOINFO_FUNC pCallback, const PVOID pParam)
 {
 	m_pfnVideoInfoRecvFunc = pCallback;
@@ -235,6 +246,15 @@ void CMpeg2SequenceFilter::SetRecvCallback(MPEG2SEQUENCE_VIDEOINFO_FUNC pCallbac
 
 void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence)
 {
+#ifndef MPEG2SEQUENCEFILTER_INPLACE
+	LONG Offset = m_pOutSample->GetActualDataLength();
+	BYTE *pData;
+	if (SUCCEEDED(m_pOutSample->GetPointer(&pData))
+			&& SUCCEEDED(m_pOutSample->SetActualDataLength(Offset + pSequence->GetSize()))) {
+		::CopyMemory(&pData[Offset], pSequence->GetData(), pSequence->GetSize());
+	}
+#endif
+
 	BYTE AspectX, AspectY;
 	WORD OrigWidth, OrigHeight;
 	WORD DisplayWidth, DisplayHeight;
@@ -326,8 +346,10 @@ void CMpeg2SequenceFilter::ResetVideoInfo()
 }
 
 
+/*
 const bool CMpeg2SequenceFilter::SetDeliverSamples(bool bDeliver)
 {
 	m_bDeliverSamples = bDeliver;
 	return true;
 }
+*/

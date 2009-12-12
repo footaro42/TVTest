@@ -223,6 +223,8 @@ public:
 	const WORD GetExtendDisplayHorizontalSize(void) const;
 	const WORD GetExtendDisplayVerticalSize(void) const;
 
+	void SetFixSquareDisplay(bool bFix);
+
 protected:
 	struct TAG_MPEG2SEQHEADER {
 		// sequence_header()
@@ -261,6 +263,7 @@ protected:
 			} Display;
 		} Extention;
 	} m_Header;
+	bool m_bFixSquareDisplay;
 };
 
 
@@ -284,6 +287,7 @@ public:
 	const bool StorePacket(const CPesPacket *pPacket);
 	const bool StoreEs(const BYTE *pData, const DWORD dwSize);
 	void Reset(void);
+	void SetFixSquareDisplay(bool bFix);
 
 protected:
 	virtual void OnPesPacket(const CPesParser *pPesParser, const CPesPacket *pPacket);

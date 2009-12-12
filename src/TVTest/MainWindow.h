@@ -60,6 +60,7 @@ class CFullscreen : public CBasicWindow {
 	bool OnCreate();
 	void OnMouseCommand(int Command);
 	void OnLButtonDoubleClick();
+	void ShowCursor(bool fShow);
 	void ShowStatusView(bool fShow);
 	void ShowTitleBar(bool fShow);
 	void ShowSideBar(bool fShow);
@@ -151,6 +152,18 @@ class CMainWindow : public CBasicWindow {
 	};
 	CPreviewManager m_PreviewManager;
 
+	enum {
+		TIMER_ID_UPDATE=1,
+		TIMER_ID_OSD,
+		TIMER_ID_DISPLAY,
+		TIMER_ID_WHEELCHANNELCHANGE,
+		TIMER_ID_WHEELCHANNELCHANGE_DONE,
+		TIMER_ID_PROGRAMLISTUPDATE,
+		TIMER_ID_PROGRAMGUIDEUPDATE,
+		TIMER_ID_CHANNELPANELUPDATE,
+		TIMER_ID_VIDEOSIZECHANGED,
+		TIMER_ID_RESETERRORCOUNT
+	};
 	class CTimer {
 		HWND m_hwnd;
 		UINT m_ID;
@@ -173,6 +186,7 @@ class CMainWindow : public CBasicWindow {
 		bool IsEnabled() const { return m_hwnd!=NULL; }
 	};
 	CTimer m_ChannelPanelTimer;
+	CTimer m_ResetErrorCountTimer;
 
 	bool OnCreate(const CREATESTRUCT *pcs);
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
@@ -183,6 +197,7 @@ class CMainWindow : public CBasicWindow {
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);
 	bool OpenTuner();
+	void SetTitleText(bool fEvent);
 	void SetTuningSpaceMenu();
 	void SetChannelMenu();
 	void SetNetworkRemoconChannelMenu(HMENU hmenu);
@@ -193,17 +208,6 @@ class CMainWindow : public CBasicWindow {
 	static DWORD WINAPI ExitWatchThread(LPVOID lpParameter);
 
 public:
-	enum {
-		TIMER_ID_UPDATE=1,
-		TIMER_ID_OSD,
-		TIMER_ID_DISPLAY,
-		TIMER_ID_WHEELCHANNELCHANGE,
-		TIMER_ID_WHEELCHANNELCHANGE_DONE,
-		TIMER_ID_PROGRAMLISTUPDATE,
-		TIMER_ID_PROGRAMGUIDEUPDATE,
-		TIMER_ID_CHANNELPANELUPDATE,
-		TIMER_ID_VIDEOSIZECHANGED
-	};
 	enum { COMMAND_FROM_MOUSE=8 };
 
 	CMainWindow();
@@ -232,7 +236,6 @@ public:
 	bool GetCustomTitleBar() const { return m_fCustomTitleBar; }
 	void SetThinFrame(bool fThinFrame);
 	bool GetThinFrame() const { return m_fThinFrame; }
-	void SetTitleText();
 	void SetSideBarVisible(bool fVisible);
 	bool GetSideBarVisible() const { return m_fShowSideBar; }
 	bool EnablePreview(bool fEnable);
@@ -258,7 +261,7 @@ public:
 	void SetMaximizeStatus(bool fMaximize) { m_fMaximize=fMaximize; }
 	bool GetMaximizeStatus() const { return m_fMaximize; }
 	void OnChannelListUpdated();
-	void OnChannelChanged();
+	void OnChannelChanged(bool fSpaceChanged);
 	void OnDriverChanged();
 	void OnTunerOpened();
 	void OnTunerClosed();

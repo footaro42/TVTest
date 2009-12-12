@@ -104,7 +104,7 @@ class CPluginList {
 public:
 	CPluginList();
 	~CPluginList();
-	bool LoadPlugins(LPCTSTR pszDirectory);
+	bool LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR> *pExcludePlugins=NULL);
 	void FreePlugins();
 	int NumPlugins() const { return m_PluginList.Length(); }
 	CPlugin *GetPlugin(int Index);

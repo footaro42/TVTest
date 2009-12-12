@@ -503,7 +503,17 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 					TEXT("設定で有効なMPEG-2デコーダが選択されているか確認してください。\nまた、レンダラを変えてみてください。"));
 			}
 		}
-#else
+
+#ifndef MPEG2SEQUENCEFILTER_INPLACE
+		/*
+			CyberLinkのデコーダとデフォルトレンダラの組み合わせで
+			1080x1080(4:3)の映像が正方形に表示される問題に対応
+			…しようと思ったが変になるので保留
+		*/
+		if (::StrCmpNI(m_pszMpeg2DecoderName, TEXT("CyberLink"), 9) == 0)
+			m_pMpeg2SeqClass->SetFixSquareDisplay(true);
+#endif
+#else	// ndef TVH264
 		Trace(TEXT("H.264デコーダの接続中..."));
 
 		/* H.264デコーダー */
@@ -543,7 +553,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 					TEXT("設定で有効なH.264デコーダが選択されているか確認してください。\nまた、レンダラを変えてみてください。"));
 			}
 		}
-#endif
+#endif	// TVH264
 
 #ifdef USE_GRABBER_FILTER
 		// グラバをテスト実装したがいまいちうまくいかないので保留
@@ -1711,6 +1721,7 @@ const bool CMediaViewer::ClearOSD()
 }
 
 
+/*
 bool CMediaViewer::SetAudioOnly(bool bOnly)
 {
 #ifndef TVH264
@@ -1721,6 +1732,7 @@ bool CMediaViewer::SetAudioOnly(bool bOnly)
 	return false;
 #endif
 }
+*/
 
 
 bool CMediaViewer::CheckHangUp(DWORD TimeOut)

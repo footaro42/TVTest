@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <new>
 #include "MediaBuffer.h"
 
 #ifdef _DEBUG
@@ -129,8 +130,14 @@ bool CMediaBuffer::Play()
 	if (!m_bEnableBuffering)
 		return true;
 	m_Lock.Lock();
-	if (m_pBuffer==NULL)
-		m_pBuffer=new BYTE[m_BufferLength*CTsPacket::BUFFER_SIZE];
+	if (m_pBuffer==NULL) {
+		try {
+			m_pBuffer=new BYTE[m_BufferLength*CTsPacket::BUFFER_SIZE];
+		} catch (std::bad_alloc) {
+			m_Lock.Unlock();
+			return false;
+		}
+	}
 	m_FirstBuffer=0;
 	m_LastBuffer=0;
 	m_UsedCount=0;
@@ -195,7 +202,14 @@ bool CMediaBuffer::SetBufferLength(DWORD BufferLength)
 		return true;
 	m_Lock.Lock();
 	if (m_pBuffer) {
-		BYTE *pNewBuffer=new BYTE[BufferLength*CTsPacket::BUFFER_SIZE];
+		BYTE *pNewBuffer;
+
+		try {
+			pNewBuffer=new BYTE[BufferLength*CTsPacket::BUFFER_SIZE];
+		} catch (std::bad_alloc) {
+			m_Lock.Unlock();
+			return false;
+		}
 
 		if (m_UsedCount>0) {
 			if (m_UsedCount>BufferLength) {

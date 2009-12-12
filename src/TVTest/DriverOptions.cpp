@@ -12,10 +12,11 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define DRIVER_FLAG_NOSIGNALLEVEL				0x00000001
-#define DRIVER_FLAG_DESCRAMBLEDRIVER			0x00000002
-#define DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE	0x00000004
-#define DRIVER_FLAG_ALLCHANNELS					0x00000008
+#define DRIVER_FLAG_NOSIGNALLEVEL					0x00000001
+#define DRIVER_FLAG_DESCRAMBLEDRIVER				0x00000002
+#define DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE		0x00000004
+#define DRIVER_FLAG_ALLCHANNELS						0x00000008
+#define DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT	0x00000010
 
 
 
@@ -29,6 +30,7 @@ class CDriverSettings {
 	bool m_fDescrambleDriver;
 	bool m_fNoSignalLevel;
 	bool m_fPurgeStreamOnChannelChange;
+	bool m_fResetChannelChangeErrorCount;
 public:
 	int m_LastSpace;
 	int m_LastChannel;
@@ -60,6 +62,8 @@ public:
 	void SetNoSignalLevel(bool fNoSignalLevel) { m_fNoSignalLevel=fNoSignalLevel; }
 	bool GetPurgeStreamOnChannelChange() const { return m_fPurgeStreamOnChannelChange; }
 	void SetPurgeStreamOnChannelChange(bool fPurge) { m_fPurgeStreamOnChannelChange=fPurge; }
+	bool GetResetChannelChangeErrorCount() const { return m_fResetChannelChangeErrorCount; }
+	void SetResetChannelChangeErrorCount(bool fReset) { m_fResetChannelChangeErrorCount=fReset; }
 };
 
 
@@ -72,6 +76,7 @@ CDriverSettings::CDriverSettings(LPCTSTR pszFileName)
 	, m_fDescrambleDriver(false)
 	, m_fNoSignalLevel(GetAppClass().GetCoreEngine()->IsNetworkDriverFileName(pszFileName))
 	, m_fPurgeStreamOnChannelChange(false)
+	, m_fResetChannelChangeErrorCount(false)
 	, m_LastSpace(-1)
 	, m_LastChannel(-1)
 	, m_LastServiceID(-1)
@@ -89,6 +94,7 @@ CDriverSettings::CDriverSettings(const CDriverSettings &Settings)
 	, m_fDescrambleDriver(Settings.m_fDescrambleDriver)
 	, m_fNoSignalLevel(Settings.m_fNoSignalLevel)
 	, m_fPurgeStreamOnChannelChange(Settings.m_fPurgeStreamOnChannelChange)
+	, m_fResetChannelChangeErrorCount(Settings.m_fResetChannelChangeErrorCount)
 	, m_LastSpace(Settings.m_LastSpace)
 	, m_LastChannel(Settings.m_LastChannel)
 	, m_LastServiceID(Settings.m_LastServiceID)
@@ -114,6 +120,7 @@ CDriverSettings &CDriverSettings::operator=(const CDriverSettings &Settings)
 		m_fDescrambleDriver=Settings.m_fDescrambleDriver;
 		m_fNoSignalLevel=Settings.m_fNoSignalLevel;
 		m_fPurgeStreamOnChannelChange=Settings.m_fPurgeStreamOnChannelChange;
+		m_fResetChannelChangeErrorCount=Settings.m_fResetChannelChangeErrorCount;
 		m_LastSpace=Settings.m_LastSpace;
 		m_LastChannel=Settings.m_LastChannel;
 		m_LastServiceID=Settings.m_LastServiceID;
@@ -261,6 +268,7 @@ bool CDriverOptions::Load(LPCTSTR pszFileName)
 						pSettings->SetNoSignalLevel((Value&DRIVER_FLAG_NOSIGNALLEVEL)!=0);
 						pSettings->SetPurgeStreamOnChannelChange((Value&DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE)!=0);
 						pSettings->SetAllChannels((Value&DRIVER_FLAG_ALLCHANNELS)!=0);
+						pSettings->SetResetChannelChangeErrorCount((Value&DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT)!=0);
 					}
 					::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
 					if (Settings.Read(szName,&Value))
@@ -314,6 +322,8 @@ bool CDriverOptions::Save(LPCTSTR pszFileName) const
 				Flags|=DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE;
 			if (pSettings->GetAllChannels())
 				Flags|=DRIVER_FLAG_ALLCHANNELS;
+			if (pSettings->GetResetChannelChangeErrorCount())
+				Flags|=DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT;
 			Settings.Write(szName,Flags);
 			::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
 			Settings.Write(szName,pSettings->m_LastSpace);
@@ -401,7 +411,6 @@ bool CDriverOptions::IsDescrambleDriver(LPCTSTR pszFileName) const
 		return false;
 
 	int Index=m_SettingList.Find(pszFileName);
-
 	if (Index<0)
 		return false;
 	return m_SettingList.GetDriverSettings(Index)->GetDescrambleDriver();
@@ -414,7 +423,6 @@ bool CDriverOptions::IsNoSignalLevel(LPCTSTR pszFileName) const
 		return false;
 
 	int Index=m_SettingList.Find(pszFileName);
-
 	if (Index<0)
 		return false;
 	return m_SettingList.GetDriverSettings(Index)->GetNoSignalLevel();
@@ -427,10 +435,21 @@ bool CDriverOptions::IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const
 		return false;
 
 	int Index=m_SettingList.Find(pszFileName);
-
 	if (Index<0)
 		return false;
 	return m_SettingList.GetDriverSettings(Index)->GetPurgeStreamOnChannelChange();
+}
+
+
+bool CDriverOptions::IsResetChannelChangeErrorCount(LPCTSTR pszFileName) const
+{
+	if (pszFileName==NULL)
+		return false;
+
+	int Index=m_SettingList.Find(pszFileName);
+	if (Index<0)
+		return false;
+	return m_SettingList.GetDriverSettings(Index)->GetResetChannelChangeErrorCount();
 }
 
 
@@ -512,6 +531,8 @@ void CDriverOptions::InitDlgItem(int Driver)
 						  /*fNetwork?true:*/pSettings->GetNoSignalLevel());
 		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_PURGESTREAMONCHANNELCHANGE,
 						  pSettings->GetPurgeStreamOnChannelChange());
+		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_RESETCHANNELCHANGEERRORCOUNT,
+						  pSettings->GetResetChannelChangeErrorCount());
 	}
 }
 
@@ -735,6 +756,17 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 				if (pSettings!=NULL) {
 					pSettings->SetPurgeStreamOnChannelChange(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_PURGESTREAMONCHANNELCHANGE));
+				}
+			}
+			return TRUE;
+
+		case IDC_DRIVEROPTIONS_RESETCHANNELCHANGEERRORCOUNT:
+			{
+				CDriverOptions *pThis=GetThis(hDlg);
+				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+
+				if (pSettings!=NULL) {
+					pSettings->SetResetChannelChangeErrorCount(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_RESETCHANNELCHANGEERRORCOUNT));
 				}
 			}
 			return TRUE;

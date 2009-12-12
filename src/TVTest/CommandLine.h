@@ -2,6 +2,9 @@
 #define COMMAND_LINE_H
 
 
+#include <vector>
+
+
 class CCommandLineParser {
 public:
 	CCommandLineParser();
@@ -35,6 +38,8 @@ public:
 	bool m_fNoDirectShow;
 	bool m_fSilent;
 	bool m_fNoPlugin;
+	std::vector<CDynamicString> m_NoLoadPlugins;
+	TCHAR m_szPluginsDirectory[MAX_PATH];
 	bool m_fSingleTask;
 	bool m_fInitialSettings;
 	bool m_fSaveLog;

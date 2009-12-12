@@ -24,6 +24,7 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 	{HEXRGB(0x3384FF),	TEXT("StatusHighlightBack"),		TEXT("ステータスバー選択背景1")},
 	{HEXRGB(0x33D6FF),	TEXT("StatusHighlightBack2"),		TEXT("ステータスバー選択背景2")},
 	{HEXRGB(0x333333),	TEXT("StatusHighlightText"),		TEXT("ステータスバー選択文字")},
+	{HEXRGB(0xDF3F00),	TEXT("StatusRecordingCircle"),		TEXT("ステータスバー録画●")},
 	{HEXRGB(0x666666),	TEXT("PanelBack"),					TEXT("パネル背景")},
 	{HEXRGB(0xCCCCCC),	TEXT("PanelText"),					TEXT("パネル文字")},
 	{HEXRGB(0xCCCCCC),	TEXT("PanelTabBack"),				TEXT("パネルタブ背景1")},

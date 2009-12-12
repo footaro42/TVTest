@@ -91,15 +91,32 @@ bool CEpgOptions::InitializeEpgDataCap()
 {
 	if (m_szEpgDataCapDllPath[0]=='\0')
 		return true;
-	return m_pCoreEngine->m_DtvEngine.m_TsPacketParser.InitializeEpgDataCap(m_szEpgDataCapDllPath);
+
+	TCHAR szPath[MAX_PATH];
+
+	if (!::PathIsFileSpec(m_szEpgDataCapDllPath)
+			&& ::PathIsRelative(m_szEpgDataCapDllPath)) {
+		TCHAR szTemp[MAX_PATH];
+
+		GetAppClass().GetAppDirectory(szTemp);
+		::PathAppend(szTemp,m_szEpgDataCapDllPath);
+		::PathCanonicalize(szPath,szTemp);
+	} else {
+		::lstrcpy(szPath,m_szEpgDataCapDllPath);
+	}
+	GetAppClass().AddLog(TEXT("EpgDataCap を初期化します... (DLL : \"%s\")"),szPath);
+	return m_pCoreEngine->m_DtvEngine.m_TsPacketParser.InitializeEpgDataCap(szPath);
 }
 
 
 bool CEpgOptions::GetEpgFileFullPath(LPTSTR pszFileName)
 {
-	if (::PathIsFileSpec(m_szEpgFileName)) {
-		::GetModuleFileName(NULL,pszFileName,MAX_PATH);
-		::lstrcpy(::PathFindFileName(pszFileName),m_szEpgFileName);
+	if (::PathIsRelative(m_szEpgFileName)) {
+		TCHAR szTemp[MAX_PATH];
+
+		GetAppClass().GetAppDirectory(szTemp);
+		::PathAppend(szTemp,m_szEpgFileName);
+		::PathCanonicalize(pszFileName,szTemp);
 	} else {
 		::lstrcpy(pszFileName,m_szEpgFileName);
 	}
@@ -115,8 +132,10 @@ bool CEpgOptions::LoadEpgFile(CEpgProgramList *pEpgList)
 		TCHAR szFileName[MAX_PATH];
 
 		GetEpgFileFullPath(szFileName);
-		if (::PathFileExists(szFileName))
+		if (::PathFileExists(szFileName)) {
+			GetAppClass().AddLog(TEXT("EPG データを \"%s\" から読み込みます..."),szFileName);
 			fOK=pEpgList->LoadFromFile(szFileName);
+		}
 	}
 	return fOK;
 }
@@ -134,6 +153,8 @@ bool CEpgOptions::AsyncLoadEpgFile(CEpgProgramList *pEpgList)
 
 		GetEpgFileFullPath(szFileName);
 		if (::PathFileExists(szFileName)) {
+			GetAppClass().AddLog(TEXT("EPG データを \"%s\" から読み込みます..."),szFileName);
+
 			EpgLoadInfo *pInfo=new EpgLoadInfo;
 
 			pInfo->pList=pEpgList;
@@ -386,10 +407,8 @@ BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 								 szPath,lengthof(szPath));
 				if (::lstrcmpi(szPath,pThis->m_szEpgDataCapDllPath)!=0) {
 					pThis->m_pCoreEngine->m_DtvEngine.m_TsPacketParser.UnInitializeEpgDataCap();
-					if (szPath[0]!='\0') {
-						pThis->m_pCoreEngine->m_DtvEngine.m_TsPacketParser.InitializeEpgDataCap(szPath);
-					}
 					::lstrcpy(pThis->m_szEpgDataCapDllPath,szPath);
+					pThis->InitializeEpgDataCap();
 				}
 				pThis->m_fSaveEpgFile=
 					::IsDlgButtonChecked(hDlg,IDC_EPGOPTIONS_SAVEEPGFILE)==BST_CHECKED;

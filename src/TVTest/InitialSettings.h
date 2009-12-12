@@ -9,9 +9,10 @@
 
 
 class CInitialSettings {
+	enum { MAX_DECODER_NAME=128 };
 	const CDriverManager *m_pDriverManager;
 	TCHAR m_szDriverFileName[MAX_PATH];
-	TCHAR m_szMpeg2DecoderName[128];
+	TCHAR m_szMpeg2DecoderName[MAX_DECODER_NAME];
 	CVideoRenderer::RendererType m_VideoRenderer;
 	CCoreEngine::CardReaderType m_CardReader;
 	TCHAR m_szRecordFolder[MAX_PATH];

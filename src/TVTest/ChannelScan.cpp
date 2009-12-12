@@ -445,11 +445,15 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 							MAKEINTRESOURCE(IDD_CHANNELSCAN),::GetParent(hDlg),
 							ScanDlgProc,reinterpret_cast<LPARAM>(pThis))==IDOK) {
 						if (ListView_GetItemCount(hwndList)>0) {
-							CChannelListSort ListSort(CChannelListSort::SORT_REMOTECONTROLKEYID);
-
+							CChannelListSort::SortType SortType;
+							if (pThis->m_ScanningChannelList.HasRemoteControlKeyID())
+								SortType=CChannelListSort::SORT_REMOTECONTROLKEYID;
+							else
+								SortType=CChannelListSort::SORT_SERVICEID;
+							CChannelListSort ListSort(SortType);
 							ListSort.Sort(hwndList);
 							ListSort.UpdateChannelList(hwndList,&pThis->m_ScanningChannelList);
-							pThis->m_SortColumn=(int)CChannelListSort::SORT_REMOTECONTROLKEYID;
+							pThis->m_SortColumn=(int)SortType;
 							pThis->m_fSortDescending=false;
 							*pThis->m_TuningSpaceList.GetChannelList(Space)=
 												pThis->m_ScanningChannelList;

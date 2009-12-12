@@ -442,9 +442,12 @@ BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			return TRUE;
 
 		case IDC_OPTIONS_DESCRAMBLEBENCHMARK:
-			if (::MessageBox(hDlg,TEXT("ベンチマークテストを開始します。\n終了するまで操作は行わないようにしてください。\n結果はばらつきがありますので、数回実行してください。"),
-							 TEXT("ベンチマークテスト"),
-							 MB_OKCANCEL | MB_ICONINFORMATION)==IDOK) {
+			if (::MessageBox(hDlg,
+					TEXT("ベンチマークテストを開始します。\n")
+					TEXT("終了するまで操作は行わないようにしてください。\n")
+					TEXT("結果はばらつきがありますので、数回実行してください。"),
+					TEXT("ベンチマークテスト"),
+					MB_OKCANCEL | MB_ICONINFORMATION)==IDOK) {
 				static const DWORD BENCHMARK_COUNT=400000;
 				HCURSOR hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
 				CMulti2Decoder Multi2Decoder;

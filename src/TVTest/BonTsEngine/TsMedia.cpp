@@ -662,6 +662,7 @@ inline const bool CAdtsParser::SyncFrame(const BYTE byData)
 
 CMpeg2Sequence::CMpeg2Sequence()
 	: CMediaData()
+	, m_bFixSquareDisplay(false)
 {
 	Reset();
 }
@@ -679,6 +680,7 @@ CMpeg2Sequence & CMpeg2Sequence::operator = (const CMpeg2Sequence &Operand)
 		// インスタンスのコピー
 		CMediaData::operator = (Operand);
 		m_Header = Operand.m_Header;
+		m_bFixSquareDisplay = Operand.m_bFixSquareDisplay;
 	}
 
 	return *this;
@@ -697,6 +699,7 @@ const bool CMpeg2Sequence::ParseHeader(void)
 	m_Header.wHorizontalSize			= ((WORD)m_pData[4] << 4) | ((WORD)(m_pData[5] & 0xF0U) >> 4);				// +4,+5 bit7-4
 	m_Header.wVerticalSize				= ((WORD)(m_pData[5] & 0x0FU) << 8) | (WORD)m_pData[6];						// +5 bit3-0, +6
 	m_Header.byAspectRatioInfo			= (m_pData[7] & 0xF0U) >> 4;												// +7 bit7-4
+	BYTE * const pAspectRatioInfo = &m_pData[7];
 	m_Header.byFrameRateCode			= m_pData[7] & 0x0FU;														// +7 bit3-0
 	m_Header.dwBitRate					= ((DWORD)m_pData[8] << 10) | ((DWORD)m_pData[9] << 2) | ((DWORD)(m_pData[10] & 0xC0U) >> 6);	// +8, +9, +10 bit7-6
 	m_Header.bMarkerBit					= (m_pData[10] & 0x20U)? true : false;										// +10 bit5
@@ -770,6 +773,15 @@ const bool CMpeg2Sequence::ParseHeader(void)
 					break;
 				m_Header.Extention.Display.wDisplayHorizontalSize = ((WORD)m_pData[i + 1] << 6) | ((WORD)(m_pData[i + 2] & 0xFCU) >> 2);
 				m_Header.Extention.Display.wDisplayVerticalSize   = ((WORD)(m_pData[i + 2] & 0x01U) << 13) | ((WORD)m_pData[i + 3] << 5) | ((WORD)(m_pData[i + 4] & 0xF8U) >> 3);
+				// For CyberLink decoder bug.
+				if (m_bFixSquareDisplay
+						&& m_Header.Extention.Display.wDisplayHorizontalSize == 1080
+						&& m_Header.Extention.Display.wDisplayVerticalSize == 1080
+						&& m_Header.byAspectRatioInfo == 2) {
+					m_pData[i + 1] = m_Header.wHorizontalSize >> 6;
+					m_pData[i + 2] = ((m_Header.wHorizontalSize & 0x3F) << 2) | (m_pData[i + 2] & 0x03);
+					*pAspectRatioInfo = (3 << 4) | (*pAspectRatioInfo & 0x0F);
+				}
 				m_Header.Extention.Display.bHave = true;
 				i += 5;
 				break;
@@ -933,6 +945,10 @@ const WORD CMpeg2Sequence::GetExtendDisplayVerticalSize(void) const
 	return m_Header.Extention.Display.wDisplayVerticalSize;
 }
 
+void CMpeg2Sequence::SetFixSquareDisplay(bool bFix)
+{
+	m_bFixSquareDisplay = bFix;
+}
 
 
 //////////////////////////////////////////////////////////////////////
@@ -1029,6 +1045,11 @@ void CMpeg2Parser::Reset(void)
 	m_dwSyncState = 0xFFFFFFFFUL;
 
 	m_Mpeg2Sequence.Reset();
+}
+
+void CMpeg2Parser::SetFixSquareDisplay(bool bFix)
+{
+	m_Mpeg2Sequence.SetFixSquareDisplay(bFix);
 }
 
 void CMpeg2Parser::OnPesPacket(const CPesParser *pPesParser, const CPesPacket *pPacket)

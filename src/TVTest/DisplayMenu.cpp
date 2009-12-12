@@ -160,7 +160,7 @@ bool CChannelDisplayMenu::SetSelect(LPCTSTR pszDriverFileName,const CChannelInfo
 					}
 				}
 			}
-			SetCurTuner(TunerIndex+Space);
+			SetCurTuner(TunerIndex+Space,true);
 			if (Channel>=0)
 				SetCurChannel(Channel);
 			return true;
@@ -461,17 +461,19 @@ int CChannelDisplayMenu::ChannelItemHitTest(int x,int y) const
 }
 
 
-bool CChannelDisplayMenu::SetCurTuner(int Index)
+bool CChannelDisplayMenu::SetCurTuner(int Index,bool fUpdate)
 {
 	if (Index<-1 || Index>=m_TotalTuningSpaces)
 		return false;
-	if (Index!=m_CurTuner) {
-		m_CurTuner=Index;
-		if (Index>=0) {
-			if (Index<m_TunerScrollPos)
-				SetTunerScrollPos(Index,false);
-			else if (Index>=m_TunerScrollPos+m_VisibleTunerItems)
-				SetTunerScrollPos(Index-(m_VisibleTunerItems-1),false);
+	if (Index!=m_CurTuner || fUpdate) {
+		if (Index!=m_CurTuner) {
+			m_CurTuner=Index;
+			if (Index>=0) {
+				if (Index<m_TunerScrollPos)
+					SetTunerScrollPos(Index,false);
+				else if (Index>=m_TunerScrollPos+m_VisibleTunerItems)
+					SetTunerScrollPos(Index-(m_VisibleTunerItems-1),false);
+			}
 		}
 		m_CurChannel=-1;
 		m_ChannelScrollPos=0;

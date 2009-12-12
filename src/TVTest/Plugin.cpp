@@ -1354,7 +1354,7 @@ int CPluginList::CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,voi
 }
 
 
-bool CPluginList::LoadPlugins(LPCTSTR pszDirectory)
+bool CPluginList::LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR> *pExcludePlugins)
 {
 	TCHAR szFileName[MAX_PATH];
 	HANDLE hFind;
@@ -1365,6 +1365,20 @@ bool CPluginList::LoadPlugins(LPCTSTR pszDirectory)
 	hFind=::FindFirstFile(szFileName,&wfd);
 	if (hFind!=INVALID_HANDLE_VALUE) {
 		do {
+			if (pExcludePlugins!=NULL) {
+				bool fExclude=false;
+				for (size_t i=0;i<pExcludePlugins->size();i++) {
+					if (::lstrcmpi((*pExcludePlugins)[i],wfd.cFileName)==0) {
+						fExclude=true;
+						break;
+					}
+				}
+				if (fExclude) {
+					GetAppClass().AddLog(TEXT("%s は除外指定されているため読み込まれません。"),wfd.cFileName);
+					continue;
+				}
+			}
+
 			CPlugin *pPlugin=new CPlugin;
 
 			::PathCombine(szFileName,pszDirectory,wfd.cFileName);
@@ -1743,9 +1757,9 @@ BOOL CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			ListView_InsertColumn(hwndList,0,&lvc);
 			lvc.pszText=TEXT("プラグイン名");
 			ListView_InsertColumn(hwndList,1,&lvc);
-			lvc.pszText=TEXT("著作権");
-			ListView_InsertColumn(hwndList,2,&lvc);
 			lvc.pszText=TEXT("説明");
+			ListView_InsertColumn(hwndList,2,&lvc);
+			lvc.pszText=TEXT("著作権");
 			ListView_InsertColumn(hwndList,3,&lvc);
 			for (i=0;i<pThis->m_pPluginList->NumPlugins();i++) {
 				const CPlugin *pPlugin=pThis->m_pPluginList->GetPlugin(i);
@@ -1762,10 +1776,10 @@ BOOL CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetPluginName());
 				ListView_SetItem(hwndList,&lvi);
 				lvi.iSubItem=2;
-				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetCopyright());
+				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetDescription());
 				ListView_SetItem(hwndList,&lvi);
 				lvi.iSubItem=3;
-				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetDescription());
+				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetCopyright());
 				ListView_SetItem(hwndList,&lvi);
 			}
 			for (i=0;i<4;i++)
