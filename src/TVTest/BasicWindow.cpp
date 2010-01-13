@@ -277,7 +277,7 @@ bool CBasicWindow::SetStyle(DWORD Style,bool fFrameChange)
 	::SetWindowLong(m_hwnd,GWL_STYLE,Style);
 	if (fFrameChange)
 		::SetWindowPos(m_hwnd,NULL,0,0,0,0,
-			SWP_FRAMECHANGED | SWP_DRAWFRAME | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
+			SWP_FRAMECHANGED | SWP_DRAWFRAME | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 	return true;
 }
 
@@ -297,7 +297,7 @@ bool CBasicWindow::SetExStyle(DWORD ExStyle,bool fFrameChange)
 	::SetWindowLong(m_hwnd,GWL_EXSTYLE,ExStyle);
 	if (fFrameChange)
 		::SetWindowPos(m_hwnd,NULL,0,0,0,0,
-			SWP_FRAMECHANGED | SWP_DRAWFRAME | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE);
+			SWP_FRAMECHANGED | SWP_DRAWFRAME | SWP_NOZORDER | SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
 	return true;
 }
 

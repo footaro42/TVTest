@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <streams.h>
 #include <d3d9.h>
 #include <vmr9.h>
 #include "VideoRenderer.h"
@@ -39,6 +38,14 @@ bool CVideoRenderer::ShowProperty(HWND hwndOwner)
 }
 
 
+bool CVideoRenderer::HasProperty()
+{
+	if (m_pRenderer)
+		return DirectShowUtil::HasPropertyPage(m_pRenderer);
+	return false;
+}
+
+
 
 
 class CVideoRenderer_Default : public CVideoRenderer {
@@ -60,9 +67,9 @@ public:
 
 
 CVideoRenderer_Default::CVideoRenderer_Default()
+	: m_pVideoWindow(NULL)
+	, m_pBasicVideo(NULL)
 {
-	m_pVideoWindow=NULL;
-	m_pBasicVideo=NULL;
 }
 
 
@@ -847,8 +854,6 @@ bool CVideoRenderer_VMR9::SetVisible(bool fVisible)
 
 
 
-#if 1
-
 #include <ddraw.h>
 #define D3D_OVERLOADS
 #include <d3d.h>
@@ -1385,8 +1390,6 @@ bool CVideoRenderer_VMR7Renderless::SetVisible(bool fVisible)
 	return false;
 }
 
-#endif
-
 
 
 
@@ -1451,7 +1454,7 @@ CVideoRenderer::RendererType CVideoRenderer::ParseName(LPCTSTR pszName)
 	int i;
 
 	for (i=0;(pszRenderer=EnumRendererName(i))!=NULL;i++) {
-		if (lstrcmpi(pszName,pszRenderer)==0)
+		if (::lstrcmpi(pszName,pszRenderer)==0)
 			return (RendererType)i;
 	}
 	return RENDERER_UNDEFINED;

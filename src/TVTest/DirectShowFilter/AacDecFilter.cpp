@@ -63,6 +63,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_AacDecoder(this)
 	, m_pOutSample(NULL)
 	, m_byCurChannelNum(0)
+	, m_bDualMono(false)
 	, m_StereoMode(STEREOMODE_STEREO)
 	, m_bDownMixSurround(true)
 	, m_pStreamCallback(NULL)
@@ -265,6 +266,10 @@ HRESULT CAacDecFilter::BeginFlush()
 
 const BYTE CAacDecFilter::GetCurrentChannelNum()
 {
+	if (m_byCurChannelNum == 0)
+		return CHANNEL_INVALID;
+	if (m_bDualMono)
+		return CHANNEL_DUALMONO;
 	return m_byCurChannelNum;
 }
 
@@ -434,6 +439,7 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 		m_SampleCount = 0;
 	}
 	m_byCurChannelNum = byChannel;
+	m_bDualMono = byChannel == 2 && m_AacDecoder.GetChannelConfig() == 0;
 
 	pOutBuff = &pOutBuff[dwOffset];
 	// ダウンミックス
@@ -637,17 +643,17 @@ bool CAacDecFilter::SetStereoMode(int StereoMode)
 
 bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 {
-	if (bDownMix != m_bDownMixSurround) {
-		CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(m_pLock);
 
-		m_bDownMixSurround = bDownMix;
-	}
+	m_bDownMixSurround = bDownMix;
 	return true;
 }
 
 
 bool CAacDecFilter::SetNormalize(bool bNormalize,float Level)
 {
+	CAutoLock AutoLock(m_pLock);
+
 	m_bNormalize = bNormalize;
 	m_NormalizeLevel = Level;
 	return true;

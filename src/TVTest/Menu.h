@@ -7,29 +7,26 @@
 #include "EpgProgramList.h"
 
 
-class CMainMenu {
+class CMainMenu
+ {
 	HMENU m_hmenu;
 	bool m_fPopup;
 	int m_PopupMenu;
+
 public:
+	// サブメニュー項目の位置
 	enum {
-		SUBMENU_ZOOM=0,
-		SUBMENU_ASPECTRATIO=1,
-		SUBMENU_CHANNEL=5,
-		SUBMENU_SERVICE=6,
-		SUBMENU_SPACE=7,
-		SUBMENU_CHANNELHISTORY=8,
-		SUBMENU_VOLUME=10,
-		SUBMENU_AUDIO=11,
-//#ifndef TVH264
-		SUBMENU_BAR=25,
-		SUBMENU_PLUGIN=26
-/*
-#else
-		SUBMENU_BAR=26,
-		SUBMENU_PLUGIN=27
-#endif
-*/
+		SUBMENU_ZOOM			= 0,
+		SUBMENU_ASPECTRATIO		= 1,
+		SUBMENU_CHANNEL			= 5,
+		SUBMENU_SERVICE			= 6,
+		SUBMENU_SPACE			= 7,
+		SUBMENU_CHANNELHISTORY	= 8,
+		SUBMENU_VOLUME			= 10,
+		SUBMENU_AUDIO			= 11,
+		SUBMENU_BAR				= 25,
+		SUBMENU_PLUGIN			= 26,
+		SUBMENU_FILTERPROPERTY	= 28
 	};
 	CMainMenu();
 	~CMainMenu();
@@ -44,7 +41,8 @@ public:
 	bool SetAccelerator(CAccelerator *pAccelerator);
 };
 
-class CChannelMenu {
+class CChannelMenu
+{
 	HMENU m_hmenu;
 	CEpgProgramList *m_pProgramList;
 	const CChannelList *m_pChannelList;
@@ -56,6 +54,7 @@ class CChannelMenu {
 	int m_EventNameWidth;
 	enum { MENU_MARGIN=2 };
 	void CreateFont(HDC hdc);
+
 public:
 	CChannelMenu(CEpgProgramList *pProgramList);
 	~CChannelMenu();
@@ -66,8 +65,10 @@ public:
 	bool OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
 };
 
-class CPopupMenu {
+class CPopupMenu
+{
 	HMENU m_hmenu;
+
 public:
 	CPopupMenu();
 	CPopupMenu(HINSTANCE hinst,LPCTSTR pszName);

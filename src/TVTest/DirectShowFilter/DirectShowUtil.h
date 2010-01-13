@@ -3,10 +3,13 @@
 // EVRを利用しない場合はコメントアウトする
 //#define USE_MEDIA_FOUNDATION
 
-// TVTestでの注意: 上のコメントはMeru-co氏によるオリジナルにおけるものです
+/*
+	TVTestでの注意:
+	上のコメントはMeru-co氏によるオリジナルにおけるものです。
+	TVTestでは関係ありません。
+*/
 
 #include <vector>
-//#include <streams.h>
 #include <d3d9.h>
 #include <vmr9.h>
 #ifdef USE_MEDIA_FOUNDATION
@@ -71,7 +74,12 @@ public:
 	~CDirectShowFilterFinder();
 
 	void Clear();
-	bool FindFilter(const CLSID *pidInType,const CLSID *pidInSubType,const CLSID *pidOutType=NULL,const CLSID *pidOutubType=NULL);
+	bool FindFilter(const GUID *pInTypes,int InTypeCount,
+					const GUID *pOutTypes=NULL,int OutTypeCount=0,
+					DWORD Merit=MERIT_DO_NOT_USE+1);
+	bool FindFilter(const GUID *pidInType,const GUID *pidInSubType,
+					const GUID *pidOutType=NULL,const GUID *pidOutubType=NULL,
+					DWORD Merit=MERIT_DO_NOT_USE+1);
 	bool PriorityFilterGoToHead(const CLSID idPriorityClass);
 	bool IgnoreFilterGoToTail(const CLSID idIgnoreClass,bool bRemoveIt=false);
 	int GetFilterCount();
@@ -125,6 +133,7 @@ void RemoveFromRot(const DWORD dwRegister);
 // 構築用ユーティリティ
 IPin* GetFilterPin(IBaseFilter *pFilter, const PIN_DIRECTION dir, const AM_MEDIA_TYPE *pMediaType=NULL);
 bool ShowPropertyPage(IBaseFilter *pFilter, HWND hWndParent);
+bool HasPropertyPage(IBaseFilter *pFilter);
 //bool AppendMpeg2Decoder_and_Connect(IGraphBuilder *pFilterGraph, CDirectShowUtil *pUtil, IBaseFilter **ppMpeg2DecoderFilter,wchar_t *lpszDecoderName,int iDecNameBufLen, IPin **ppCurrentOutputPin, IPin **ppNewOutputPin=NULL);
 HRESULT AppendFilterAndConnect(IGraphBuilder *pFilterGraph,
 	IBaseFilter *pFilter,LPCWSTR lpwszFilterName,
@@ -180,4 +189,4 @@ IMFVideoMixerControl*	MF_GetVideoMixerControl(IBaseFilter *pEvr);
 IMFVideoProcessor*		MF_GetVideoProcessor(IBaseFilter *pEvr);
 #endif
 
-}
+}	// namespace DirectShowUtil

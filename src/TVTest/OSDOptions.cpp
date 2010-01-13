@@ -24,12 +24,11 @@ COSDOptions::COSDOptions()
 	m_FadeTime=3000;
 	m_fEnableNotificationBar=true;
 	m_NotificationBarDuration=3000;
-	m_NotificationBarFlags=
-#ifndef TVH264
-		NOTIFY_EVENTNAME | NOTIFY_ECMERROR;
-#else
-		0;
+	m_NotificationBarFlags=NOTIFY_EVENTNAME
+#ifndef TVH264_FOR_1SEG
+		 | NOTIFY_ECMERROR
 #endif
+		;
 	NONCLIENTMETRICS ncm;
 #if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
@@ -38,7 +37,12 @@ COSDOptions::COSDOptions()
 #endif
 	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 	m_NotificationBarFont=ncm.lfMessageFont;
-	m_NotificationBarFont.lfHeight=-14;
+	m_NotificationBarFont.lfHeight=
+#ifndef TVH264_FOR_1SEG
+		-14;
+#else
+		-12;
+#endif
 
 	m_DisplayMenuFont=ncm.lfMessageFont;
 	m_fDisplayMenuFontAutoSize=true;
@@ -152,7 +156,7 @@ static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 	ReleaseDC(hDlg,hdc);
 }
 
-BOOL CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

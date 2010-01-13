@@ -118,9 +118,13 @@ public:
 		bool LoadFromFile(LPCWSTR pszFileName);
 		bool LoadFromResource(HINSTANCE hinst,LPCWSTR pszName);
 		bool LoadFromResource(HINSTANCE hinst,LPCTSTR pszName,LPCTSTR pszType);
-		int Width() const;
-		int Height() const;
+		bool Create(int Width,int Height,int BitsPerPixel);
+		bool CreateFromBitmap(HBITMAP hbm,HPALETTE hpal=NULL);
+		int GetWidth() const;
+		int GetHeight() const;
+		void Clear();
 		friend CGdiPlus;
+		friend class CCanvas;
 	};
 
 	class CBrush {
@@ -139,6 +143,7 @@ public:
 		Gdiplus::Graphics *m_pGraphics;
 	public:
 		CCanvas(HDC hdc);
+		CCanvas(CImage *pImage);
 		~CCanvas();
 		bool Clear(BYTE r,BYTE g,BYTE b,BYTE a=255);
 		friend CGdiPlus;
@@ -150,6 +155,8 @@ public:
 	void Finalize();
 	bool IsInitialized() const { return m_fInitialized; }
 	bool DrawImage(CCanvas *pCanvas,CImage *pImage,int x,int y);
+	bool DrawImage(CCanvas *pCanvas,int DstX,int DstY,int DstWidth,int DstHeight,
+				   CImage *pImage,int SrcX,int SrcY,int SrcWidth,int SrcHeight,float Opacity=1.0f);
 	bool FillRect(CCanvas *pCanvas,CBrush *pBrush,const RECT *pRect);
 };
 

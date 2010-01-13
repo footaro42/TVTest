@@ -27,7 +27,7 @@ CCoreEngine::CCoreEngine()
 	m_OriginalVideoHeight=0;
 	m_DisplayVideoWidth=0;
 	m_DisplayVideoHeight=0;
-	m_NumAudioChannels=0;
+	m_NumAudioChannels=CMediaViewer::AUDIO_CHANNEL_INVALID;
 	m_NumAudioStreams=0;
 	m_AudioComponentType=0;
 	m_fMute=false;

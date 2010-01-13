@@ -188,11 +188,8 @@ public:
 	const DWORD GetCrcErrorCount(void) const;
 
 private:
-	const BYTE StoreHeader(const BYTE *pPayload, const BYTE byRemain);
-	const BYTE StorePayload(const BYTE *pPayload, const BYTE byRemain);
-
-	const BYTE StartUnit(const BYTE *pPayload, const BYTE byRemain);
-	const BYTE StoreUnit(const BYTE *pPayload, const BYTE byRemain);
+	const bool StoreHeader(const BYTE *pPayload, BYTE *pbyRemain);
+	const bool StorePayload(const BYTE *pPayload, BYTE *pbyRemain);
 
 	IPsiSectionHandler *m_pPsiSectionHandler;
 	CPsiSection m_PsiSection;

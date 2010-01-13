@@ -1,7 +1,6 @@
 #pragma once
 
-#include "TransFrm.h"
-#include "TsMedia.h"
+#include "../BonTsEngine/TsMedia.h"
 #include "VideoInfo.h"
 
 
@@ -9,7 +8,7 @@
 #define MPEG2SEQUENCEFILTER_INPLACE
 
 // テンプレート名
-#define MPEG2SEQUENCEFILTER_NAME	(L"Mpeg2 Sequence Filter")
+#define MPEG2SEQUENCEFILTER_NAME	L"Mpeg2 Sequence Filter"
 
 // このフィルタのGUID {3F8400DA-65F1-4694-BB05-303CDE739680}
 DEFINE_GUID(CLSID_MPEG2SEQFILTER, 0x3f8400da, 0x65f1, 0x4694, 0xbb, 0x5, 0x30, 0x3c, 0xde, 0x73, 0x96, 0x80);

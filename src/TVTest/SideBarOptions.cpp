@@ -5,6 +5,12 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -36,7 +42,7 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_INFORMATION,			24},
 	{CM_PROGRAMGUIDE,			25},
 	{CM_STATUSBAR,				26},
-	{CM_DECODERPROPERTY,		27},
+	{CM_VIDEODECODERPROPERTY,	27},
 	{CM_OPTIONS,				28},
 	{CM_STREAMINFO,				29},
 	{CM_CHANNELDISPLAYMENU,		30},
@@ -55,10 +61,16 @@ static const CSideBar::SideBarItem ItemList[] = {
 };
 
 static const int DefaultItemList[] = {
+#ifndef TVH264_FOR_1SEG
 	CM_ZOOM_25,
 	CM_ZOOM_33,
+#endif
 	CM_ZOOM_50,
 	CM_ZOOM_100,
+#ifdef TVH264_FOR_1SEG
+	CM_ZOOM_150,
+	CM_ZOOM_200,
+#endif
 	0,
 	CM_FULLSCREEN,
 	CM_ALWAYSONTOP,
@@ -148,7 +160,7 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 		TCHAR szName[32];
 
 		::wsprintf(szName,TEXT("Item%d"),i);
-		if (m_ItemList[i]=='\0')
+		if (m_ItemList[i]==0)
 			Settings.Write(szName,TEXT(""));
 		else
 			Settings.Write(szName,pCommandList->GetCommandText(pCommandList->IDToIndex(m_ItemList[i])));

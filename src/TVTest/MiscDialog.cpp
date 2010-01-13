@@ -80,8 +80,8 @@ INT_PTR CAboutDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				rcClient.left=rc.right;
 				m_GdiPlus.FillRect(&Canvas,&Brush,&rcClient);
 				m_GdiPlus.DrawImage(&Canvas,&m_LogoImage,
-									(rc.right-m_LogoImage.Width())/2,
-									(rc.bottom-m_LogoImage.Height())/2);
+									(rc.right-m_LogoImage.GetWidth())/2,
+									(rc.bottom-m_LogoImage.GetHeight())/2);
 			}
 			::EndPaint(hDlg,&ps);
 			return TRUE;

@@ -2,15 +2,18 @@
 #define VIDEO_RENDERER_H
 
 
-#include "Exception.h"
+#include "../BonTsEngine/Exception.h"
 
 
-class __declspec(novtable) CVideoRenderer : public CBonErrorHandler {
+// ‰f‘œƒŒƒ“ƒ_ƒ‰Šî’êƒNƒ‰ƒX
+class __declspec(novtable) CVideoRenderer : public CBonErrorHandler
+{
 protected:
 	IBaseFilter *m_pRenderer;
 	IGraphBuilder *m_pFilterGraph;
 	HWND m_hwndRender;
 	bool m_bCrop1088To1080;
+
 public:
 	enum RendererType {
 		RENDERER_UNDEFINED=-1,
@@ -36,6 +39,7 @@ public:
 	virtual bool DisplayModeChanged() { return true; }
 	virtual bool SetVisible(bool fVisible) { return true; }
 	virtual bool ShowProperty(HWND hwndOwner);
+	virtual bool HasProperty();
 	IBaseFilter *GetRendererFilter() const { return m_pRenderer; }
 	virtual bool SetCrop1088To1080(bool bCrop) { return false; }
 	static bool CreateRenderer(RendererType Type,CVideoRenderer **ppRenderer);

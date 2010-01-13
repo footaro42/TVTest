@@ -24,7 +24,7 @@ CAacDecoder::CAacDecoder(IPcmHandler *pPcmHandler)
 	: m_pPcmHandler(pPcmHandler)
 	, m_hDecoder(NULL)
 	, m_bInitRequest(false)
-	, m_byLastChannelConfig(0U)
+	, m_byLastChannelConfig(0xFF)
 {
 }
 
@@ -106,18 +106,20 @@ const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 	// デコード
 
 	// 初回フレーム解析
-	if (m_bInitRequest) {
+	if (m_bInitRequest || pFrame->GetChannelConfig() != m_byLastChannelConfig) {
+		if (!m_bInitRequest) {
+			// チャンネル設定が変化した、デコーダリセット
+			if (!ResetDecoder())
+				return false;
+		}
+
 		unsigned long SampleRate;
 		unsigned char Channels;
-
 		if (::NeAACDecInit(m_hDecoder, const_cast<BYTE*>(pFrame->GetData()), pFrame->GetSize(), &SampleRate, &Channels) < 0) {
 			return false;
 		}
+
 		m_bInitRequest = false;
-		m_byLastChannelConfig = pFrame->GetChannelConfig();
-	} else if (pFrame->GetChannelConfig() != m_byLastChannelConfig) {
-		// チャンネル設定が変化した、デコーダリセット
-		ResetDecoder();
 		m_byLastChannelConfig = pFrame->GetChannelConfig();
 	}
 
@@ -151,6 +153,12 @@ const bool CAacDecoder::Decode(const CAdtsFrame *pFrame)
 	}
 
 	return true;
+}
+
+
+const BYTE CAacDecoder::GetChannelConfig() const
+{
+	return m_byLastChannelConfig;
 }
 
 

@@ -288,19 +288,29 @@ const bool CPsiSection::ParseHeader(const bool bIsExtended)
 		}
 
 	// ヘッダのフォーマット適合性をチェックする
-	if((m_pData[1] & 0x30U) != 0x30U)return false;										// 固定ビット異常
-	else if(m_Header.wSectionLength > 4093U)return false;								// セクション長異常
+	if (m_Header.byTableID == 0xFF)
+		return false;
+	if((m_pData[1] & 0x30U) != 0x30U)
+		return false;									// 固定ビット異常
+	else if(m_Header.wSectionLength > 4093U)
+		return false;									// セクション長異常
 	else if(m_Header.bSectionSyntaxIndicator){
 		// 拡張形式のエラーチェック
-		if(!bIsExtended)return false;													// 目的のヘッダではない
-		else if((m_pData[5] & 0xC0U) != 0xC0U)return false;								// 固定ビット異常
-		else if(m_Header.bySectionNumber > m_Header.byLastSectionNumber)return false;	// セクション番号異常
-		else if(m_Header.wSectionLength < 9U)return false;								// セクション長異常
+		if(!bIsExtended)
+			return false;								// 目的のヘッダではない
+		else if((m_pData[5] & 0xC0U) != 0xC0U)
+			return false;								// 固定ビット異常
+		else if(m_Header.bySectionNumber > m_Header.byLastSectionNumber)
+			return false;	// セクション番号異常
+		else if(m_Header.wSectionLength < 9U)
+			return false;								// セクション長異常
 		}
 	else{
 		// 標準形式のエラーチェック	
-		if(bIsExtended)return false;													// 目的のヘッダではない
-		else if(m_Header.wSectionLength < 4U)return false;								// セクション長異常
+		if(bIsExtended)
+			return false;								// 目的のヘッダではない
+		else if(m_Header.wSectionLength < 4U)
+			return false;								// セクション長異常
 		}
 
 	return true;
@@ -534,20 +544,29 @@ CPsiSectionParser & CPsiSectionParser::operator = (const CPsiSectionParser &Oper
 void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 {
 	const BYTE *pData = pPacket->GetPayloadData();
-	const BYTE bySize = pPacket->GetPayloadSize();
-	if (!bySize || !pData)
+	const BYTE byPayloadSize = pPacket->GetPayloadSize();
+	if (!byPayloadSize || !pData)
 		return;
 
-	const BYTE byUnitStartPos = (pPacket->m_Header.bPayloadUnitStartIndicator)? (pData[0] + 1U) : 0U;
+	BYTE byPos, bySize;
 
-	if (byUnitStartPos) {
+	if (pPacket->m_Header.bPayloadUnitStartIndicator) {
 		// [ヘッダ断片 | ペイロード断片] + [スタッフィングバイト] + ヘッダ先頭 + [ヘッダ断片] + [ペイロード断片] + [スタッフィングバイト]
-		BYTE byPos = 1U;
+		const BYTE byUnitStartPos = pData[0] + 1U;
+		if (byUnitStartPos >= byPayloadSize)
+			return;
 
 		if (byUnitStartPos > 1U) {
 			// ユニット開始位置が先頭ではない場合(断片がある場合)
-			byPos += StoreHeader(&pData[byPos], bySize - byPos);
-			byPos += StorePayload(&pData[byPos], bySize - byPos);
+			byPos = 1U;
+			bySize = byUnitStartPos - byPos;
+			if (m_bIsStoring) {
+				StorePayload(&pData[byPos], &bySize);
+			} else if (StoreHeader(&pData[byPos], &bySize)) {
+				byPos += bySize;
+				bySize = byUnitStartPos - byPos;
+				StorePayload(&pData[byPos], &bySize);
+			}
 		}
 
 		// ユニット開始位置から新規セクションのストアを開始する
@@ -555,16 +574,32 @@ void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 		m_PsiSection.ClearSize();
 
 		byPos = byUnitStartPos;
-		byPos += StoreHeader(&pData[byPos], bySize - byPos);
-		byPos += StorePayload(&pData[byPos], bySize - byPos);
+		while (byPos < byPayloadSize) {
+			bySize = byPayloadSize - byPos;
+			if (!m_bIsStoring) {
+				if (!StoreHeader(&pData[byPos], &bySize))
+					break;
+				byPos += bySize;
+				bySize = byPayloadSize - byPos;
+			}
+			if (!StorePayload(&pData[byPos], &bySize))
+				break;
+			byPos += bySize;
+			if (byPos >= byPayloadSize || pData[byPos] == 0xFF)
+				break;
+		}
 	} else {
 		// [ヘッダ断片] + ペイロード + [スタッフィングバイト]
-		BYTE byPos = 0U;
-		byPos += StoreHeader(&pData[byPos], bySize - byPos);
-		byPos += StorePayload(&pData[byPos], bySize - byPos);
+		byPos = 0U;
+		bySize = byPayloadSize;
+		if (!m_bIsStoring) {
+			if (!StoreHeader(&pData[byPos], &bySize))
+				return;
+			byPos += bySize;
+			bySize = byPayloadSize - byPos;
+		}
+		StorePayload(&pData[byPos], &bySize);
 	}
-
-	return;
 }
 
 void CPsiSectionParser::Reset(void)
@@ -582,42 +617,49 @@ const DWORD CPsiSectionParser::GetCrcErrorCount(void) const
 	return m_dwCrcErrorCount;
 }
 
-const BYTE CPsiSectionParser::StoreHeader(const BYTE *pPayload, const BYTE byRemain)
+const bool CPsiSectionParser::StoreHeader(const BYTE *pPayload, BYTE *pbyRemain)
 {
 	// ヘッダを解析してセクションのストアを開始する
-	if (m_bIsStoring)
-		return 0U;
+	if (m_bIsStoring) {
+		*pbyRemain = 0;
+		return false;
+	}
 
 	const BYTE byHeaderSize = (m_bTargetExt)? 8U : 3U;
 	const BYTE byHeaderRemain = byHeaderSize - (BYTE)m_PsiSection.GetSize();
 
-	if (byRemain >= byHeaderRemain) {
+	if (*pbyRemain >= byHeaderRemain) {
 		// ヘッダストア完了、ヘッダを解析してペイロードのストアを開始する
 		m_PsiSection.AddData(pPayload, byHeaderRemain);
 		if (m_PsiSection.ParseHeader(m_bTargetExt)) {
 			// ヘッダフォーマットOK、ヘッダのみのCRCを計算する
 			m_wStoreSize = m_PsiSection.GetSectionLength() + 3U;
-			m_dwStoreCrc = CCrcCalculator::CalcCrc32(pPayload, byHeaderSize);
+			m_dwStoreCrc = CCrcCalculator::CalcCrc32(m_PsiSection.GetData(), byHeaderSize);
 			m_bIsStoring = true;
-			return byHeaderRemain;
+			*pbyRemain = byHeaderRemain;
+			return true;
 		} else {
 			// ヘッダエラー
 			m_PsiSection.Reset();
-			return byRemain;
+			*pbyRemain = byHeaderRemain;
+			return false;
 		}
 	} else {
 		// ヘッダストア未完了、次のデータを待つ
-		m_PsiSection.AddData(pPayload, byRemain);
-		return byRemain;
+		m_PsiSection.AddData(pPayload, *pbyRemain);
+		return false;
 	}
 }
 
-const BYTE CPsiSectionParser::StorePayload(const BYTE *pPayload, const BYTE byRemain)
+const bool CPsiSectionParser::StorePayload(const BYTE *pPayload, BYTE *pbyRemain)
 {
 	// セクションのストアを完了する
-	if (!m_bIsStoring)
-		return 0U;
+	if (!m_bIsStoring) {
+		*pbyRemain = 0;
+		return false;
+	}
 
+	const BYTE byRemain = *pbyRemain;
 	const WORD wStoreRemain = m_wStoreSize - (WORD)m_PsiSection.GetSize();
 
 	if (wStoreRemain <= (WORD)byRemain) {
@@ -640,12 +682,13 @@ const BYTE CPsiSectionParser::StorePayload(const BYTE *pPayload, const BYTE byRe
 		m_PsiSection.Reset();
 		m_bIsStoring = false;
 
-		return (BYTE)wStoreRemain;
+		*pbyRemain = (BYTE)wStoreRemain;
+		return true;
 	} else {
 		// ストア未完了、次のペイロードを待つ
 		m_PsiSection.AddData(pPayload, byRemain);
 		m_dwStoreCrc = CCrcCalculator::CalcCrc32(pPayload, byRemain, m_dwStoreCrc);
-		return byRemain;
+		return false;
 	}
 }
 

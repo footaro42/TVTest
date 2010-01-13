@@ -70,8 +70,8 @@ public:
 private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
 	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
-	bool PauseStreamRecieve(DWORD TimeOut = 3000);
-	bool ResumeStreamRecieve(DWORD TimeOut = 3000);
+	bool PauseStreamRecieve(DWORD TimeOut = 4000);
+	bool ResumeStreamRecieve(DWORD TimeOut = 4000);
 
 	IBonDriver *m_pBonDriver;
 	IBonDriver2 *m_pBonDriver2;	
@@ -79,6 +79,7 @@ private:
 	HANDLE m_hStreamRecvThread;
 	CLocalEvent m_PauseEvent;
 	CLocalEvent m_ResumeEvent;
+	CLocalEvent m_BreakEvent;
 	volatile bool m_bKillSignal;
 
 	CMediaData m_TsStream;

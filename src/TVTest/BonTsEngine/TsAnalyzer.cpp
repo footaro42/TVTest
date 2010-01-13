@@ -8,17 +8,25 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+#define PID_HEIT	0x0012
+#define PID_LEIT	0x0027
+
 #ifdef _DEBUG
 #define TABLE_DEBUG	true
 #else
 #define TABLE_DEBUG
 #endif
 
+#define STREAM_TYPE_MPEG2	0x02	// MPEG-2
+#define STREAM_TYPE_H264	0x1B	// H.264
 
+#ifndef RECTEST
 #ifndef TVH264
-#define VIEWABLE_STREAM_TYPE	0x02	// MPEG-2
+#define VIEWABLE_STREAM_TYPE	STREAM_TYPE_MPEG2
 #else
-#define VIEWABLE_STREAM_TYPE	0x1B	// H.264
+#define VIEWABLE_STREAM_TYPE	STREAM_TYPE_H264
+#define AUDIO_ONLY_STREAM_LISTENER	// 音声のみでも再生可能とする
+#endif
 #endif
 
 
@@ -86,11 +94,11 @@ void CTsAnalyzer::Reset()
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
 	// H-EITテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0012, new CHEitTable);
+	m_PidMapManager.MapTarget(PID_HEIT, new CHEitTable);
 
-#ifdef TVH264
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
 	// L-EITテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0027, new CLEitTable);
+	m_PidMapManager.MapTarget(PID_LEIT, new CLEitTable);
 #endif
 #endif
 
@@ -155,13 +163,34 @@ int CTsAnalyzer::GetServiceIndexByID(const WORD ServiceID)
 }
 
 
+bool CTsAnalyzer::IsViewableService(const int Index)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (Index < 0 || (size_t)Index >= m_ServiceList.size())
+		return false;
+
+#ifdef RECTEST
+	return m_ServiceList[Index].VideoStreamType == STREAM_TYPE_MPEG2
+		|| m_ServiceList[Index].VideoStreamType == STREAM_TYPE_H264;
+#else
+	return m_ServiceList[Index].VideoStreamType == VIEWABLE_STREAM_TYPE
+#ifdef AUDIO_ONLY_STREAM_LISTENER
+		|| (m_ServiceList[Index].VideoStreamType == 0xFF
+			&& m_ServiceList[Index].AudioEsList.size() > 0)
+#endif
+		;
+#endif
+}
+
+
 WORD CTsAnalyzer::GetViewableServiceNum()
 {
 	CBlockLock Lock(&m_DecoderLock);
 	WORD Count = 0;
 
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		if (m_ServiceList[i].VideoStreamType == VIEWABLE_STREAM_TYPE)
+		if (IsViewableService(i))
 			Count++;
 	}
 	return Count;
@@ -177,7 +206,7 @@ bool CTsAnalyzer::GetViewableServiceID(const int Index, WORD *pServiceID)
 
 	int j = 0;
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		if (m_ServiceList[i].VideoStreamType == VIEWABLE_STREAM_TYPE) {
+		if (IsViewableService(i)) {
 			if (j == Index) {
 				*pServiceID = m_ServiceList[i].ServiceID;
 				return true;
@@ -200,7 +229,7 @@ bool CTsAnalyzer::GetFirstViewableServiceID(WORD *pServiceID)
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
 		if (!m_ServiceList[i].bIsUpdated)
 			return false;
-		if (m_ServiceList[i].VideoStreamType == VIEWABLE_STREAM_TYPE) {
+		if (IsViewableService(i)) {
 			*pServiceID = m_ServiceList[i].ServiceID;
 			return true;
 		}
@@ -218,7 +247,7 @@ int CTsAnalyzer::GetViewableServiceIndexByID(const WORD ServiceID)
 
 	int j = 0;
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		if (m_ServiceList[i].VideoStreamType == VIEWABLE_STREAM_TYPE) {
+		if (IsViewableService(i)) {
 			if (m_ServiceList[i].ServiceID == ServiceID)
 				return j;
 			j++;
@@ -559,7 +588,7 @@ bool CTsAnalyzer::GetViewableServiceList(CServiceList *pList)
 
 	pList->m_ServiceList.clear();
 	for (size_t i = 0 ; i < m_ServiceList.size() ; i++) {
-		if (m_ServiceList[i].VideoStreamType == VIEWABLE_STREAM_TYPE)
+		if (IsViewableService(i))
 			pList->m_ServiceList.push_back(m_ServiceList[i]);
 	}
 	return true;
@@ -618,7 +647,7 @@ WORD CTsAnalyzer::GetEventID(const int ServiceIndex, const bool fNext)
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -627,8 +656,8 @@ WORD CTsAnalyzer::GetEventID(const int ServiceIndex, const bool fNext)
 				return pEitTable->GetEventID(Index,fNext?1:0);
 		}
 
-#ifdef TVH264
-		const CLEitTable *pLEitTable=dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
+		const CLEitTable *pLEitTable=dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
 		if (pLEitTable) {
 			int Index=pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -650,7 +679,7 @@ bool CTsAnalyzer::GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemT
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -664,17 +693,18 @@ bool CTsAnalyzer::GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemT
 			}
 		}
 
-#ifdef TVH264
-		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
+		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
 		if (pLEitTable) {
 			int Index = pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
 
 			if (Index >= 0) {
 				const SYSTEMTIME *pStartTime = pLEitTable->GetStartTime(Index, bNext ? 1 : 0);
-				if (pStartTime)
+				if (pStartTime) {
 					*pSystemTime = *pStartTime;
-				return true;
+					return true;
+				}
 			}
 		}
 #endif
@@ -688,7 +718,7 @@ DWORD CTsAnalyzer::GetEventDuration(const int ServiceIndex, const bool bNext)
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -697,8 +727,8 @@ DWORD CTsAnalyzer::GetEventDuration(const int ServiceIndex, const bool bNext)
 				return pEitTable->GetDuration(Index, bNext ? 1 : 0);
 		}
 
-#ifdef TVH264
-		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
+		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
 		if (pLEitTable) {
 			int Index = pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -724,7 +754,7 @@ int CTsAnalyzer::GetEventName(const int ServiceIndex, LPTSTR pszName, int MaxLen
 			return pShortEvent->GetEventName(pszName, MaxLength);
 	}
 
-#ifdef TVH264
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
 	pDescBlock = GetLEitItemDesc(ServiceIndex, bNext);
 	if (pDescBlock) {
 		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
@@ -749,7 +779,7 @@ int CTsAnalyzer::GetEventText(const int ServiceIndex, LPTSTR pszText, int MaxLen
 			return pShortEvent->GetEventDesc(pszText, MaxLength);
 	}
 
-#ifdef TVH264
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
 	pDescBlock = GetLEitItemDesc(ServiceIndex, bNext);
 	if (pDescBlock) {
 		const CShortEventDesc *pShortEvent = dynamic_cast<const CShortEventDesc *>(pDescBlock->GetDescByTag(CShortEventDesc::DESC_TAG));
@@ -908,7 +938,7 @@ int CTsAnalyzer::GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, in
 					&& EventInfo.EventID == EventID)
 				return 0;
 		}
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 		for (i = 0; i < pEventGroup->GetEventNum(); i++) {
 			CEventGroupDesc::EventInfo EventInfo;
 			if (pEventGroup->GetEventInfo(i, &EventInfo)) {
@@ -1134,7 +1164,7 @@ bool CTsAnalyzer::GetEventInfo(const int ServiceIndex, EventInfo *pInfo, const b
 const CDescBlock *CTsAnalyzer::GetHEitItemDesc(const int ServiceIndex, const bool bNext) const
 {
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(0x0012));
+		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -1147,11 +1177,11 @@ const CDescBlock *CTsAnalyzer::GetHEitItemDesc(const int ServiceIndex, const boo
 }
 
 
-#ifdef TVH264
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
 const CDescBlock *CTsAnalyzer::GetLEitItemDesc(const int ServiceIndex, const bool bNext) const
 {
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CLEitTable *pEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(0x0027));
+		const CLEitTable *pEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -1332,7 +1362,8 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		}
 
 		switch (StreamType) {
-		case 0x02:	// ITU-T Rec. H.262 | ISO/IEC 13818-2 Video or ISO/IEC 11172-2
+		case STREAM_TYPE_MPEG2:
+			// ITU-T Rec. H.262 | ISO/IEC 13818-2 Video or ISO/IEC 11172-2
 			if (Info.VideoEs.PID == PID_INVALID
 					|| Info.VideoStreamType != 0x02) {
 				Info.VideoStreamType = StreamType;
@@ -1353,7 +1384,8 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 			Info.AudioEsList.push_back(EsInfo(EsPID, ComponentTag));
 			break;
 
-		case 0x1B:	// ITU-T Rec.H.264 | ISO/IEC 14496-10Video
+		case STREAM_TYPE_H264:
+			// ITU-T Rec.H.264 | ISO/IEC 14496-10Video
 			if (Info.VideoEs.PID == PID_INVALID) {
 				Info.VideoStreamType = StreamType;
 				Info.VideoEs.PID = EsPID;

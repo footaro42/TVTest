@@ -209,6 +209,7 @@ bool CSettings::Read(LPCTSTR pszValueName,bool *pfData)
 
 bool CSettings::Write(LPCTSTR pszValueName,bool fData)
 {
+	// よく考えたら否定文もあるので yes/no は変だが、今更変えられない…
 	return Write(pszValueName,fData?TEXT("yes"):TEXT("no"));
 }
 

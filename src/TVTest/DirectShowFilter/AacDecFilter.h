@@ -36,6 +36,10 @@ public:
 	HRESULT Receive(IMediaSample *pSample);
 
 // CAacDecFilter
+	enum {
+		CHANNEL_DUALMONO	= 0x00,
+		CHANNEL_INVALID		= 0xFF
+	};
 	const BYTE GetCurrentChannelNum();
 
 	// Append by HDUSTestÇÃíÜÇÃêl
@@ -66,6 +70,7 @@ protected:
 	CMediaType m_MediaType;
 	IMediaSample *m_pOutSample;
 	BYTE m_byCurChannelNum;
+	bool m_bDualMono;
 
 private:
 	const DWORD DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples);

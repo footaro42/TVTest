@@ -25,8 +25,6 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_pBonDriver(NULL)
 	, m_pBonDriver2(NULL)
 	, m_hStreamRecvThread(NULL)
-	, m_PauseEvent()
-	, m_ResumeEvent()
 	, m_bKillSignal(false)
 	, m_TsStream(0x10000UL)
 	, m_bIsPlaying(false)
@@ -120,7 +118,9 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	*/
 
 	// ストリーム受信スレッド起動
-	if (!m_PauseEvent.Create(true) || !m_ResumeEvent.Create()) {
+	if (!m_PauseEvent.Create(true)
+			|| !m_ResumeEvent.Create()
+			|| !m_BreakEvent.Create()) {
 		SetError(ERR_INTERNAL, TEXT("イベントオブジェクトを作成できません。"));
 		goto OnError;
 	}
@@ -145,6 +145,7 @@ OnError:
 	m_pBonDriver2 = NULL;
 	m_PauseEvent.Close();
 	m_ResumeEvent.Close();
+	m_BreakEvent.Close();
 	return false;
 }
 
@@ -158,7 +159,7 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		Trace(TEXT("ストリーム受信スレッドを停止しています..."));
 		m_bKillSignal = true;
 		m_PauseEvent.Set();
-		if (::WaitForSingleObject(m_hStreamRecvThread, 1000UL) != WAIT_OBJECT_0) {
+		if (::WaitForSingleObject(m_hStreamRecvThread, 5000UL) != WAIT_OBJECT_0) {
 			// スレッド強制終了
 			::TerminateThread(m_hStreamRecvThread, 0UL);
 			Trace(TEXT("ストリーム受信スレッドを強制終了しました。"));
@@ -168,6 +169,7 @@ const bool CBonSrcDecoder::CloseTuner(void)
 	}
 	m_PauseEvent.Close();
 	m_ResumeEvent.Close();
+	m_BreakEvent.Close();
 
 	if (m_pBonDriver) {
 		// チューナを閉じる
@@ -462,18 +464,21 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 					goto Break;
 			} while (dwStreamRemain>0);
 
+#if 1
 			// ウェイト(24Mbpsとして次のデータ到着まで約15msかかる)
 			::Sleep(5UL);
-			//pThis->m_pBonDriver->WaitTsStream(20);
+#else
+			// WaitTsStream で待つと負荷が上がる環境があるらしい
+			pThis->m_pBonDriver->WaitTsStream(20);
+#endif
 		}
 	Break:
 		if (pThis->m_bKillSignal)
 			break;
 		pThis->m_PauseEvent.Reset();
-		pThis->m_ResumeEvent.Set();
-		pThis->m_PauseEvent.Wait(5000);
-		pThis->m_PauseEvent.Reset();
-		//pThis->m_ResumeEvent.Set();
+		pThis->m_ResumeEvent.Reset();
+		pThis->m_BreakEvent.Set();
+		pThis->m_ResumeEvent.Wait(10000);
 	}
 
 	pThis->m_BitRate=0;
@@ -492,9 +497,9 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 */
 bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 {
-	m_ResumeEvent.Reset();
+	m_BreakEvent.Reset();
 	m_PauseEvent.Set();
-	if (m_ResumeEvent.Wait(TimeOut) == WAIT_TIMEOUT) {
+	if (m_BreakEvent.Wait(TimeOut) == WAIT_TIMEOUT) {
 		m_PauseEvent.Reset();
 		return false;
 	}
@@ -504,11 +509,7 @@ bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 
 bool CBonSrcDecoder::ResumeStreamRecieve(DWORD TimeOut)
 {
-	m_PauseEvent.Set();
-	/*
-	if (m_ResumeEvent.Wait(TimeOut) == WAIT_TIMEOUT)
-		return false;
-	*/
+	m_ResumeEvent.Set();
 	return true;
 }
 

@@ -23,7 +23,7 @@ CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_Mpeg2Parser(this)
 	, m_VideoInfo()
 {
-	TRACE(TEXT("CMpeg2SequenceFilter::CMpeg2SequenceFilter %p\n"), this);
+	TRACE(TEXT("CMpeg2SequenceFilter::CMpeg2SequenceFilter() %p\n"), this);
 
 	*phr = S_OK;
 }
@@ -31,7 +31,7 @@ CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
 
 CMpeg2SequenceFilter::~CMpeg2SequenceFilter(void)
 {
-	//TRACE(TEXT("CMpeg2SequenceFilter::~CMpeg2SequenceFilter\n"));
+	TRACE(TEXT("CMpeg2SequenceFilter::~CMpeg2SequenceFilter()\n"));
 }
 
 
@@ -188,7 +188,7 @@ HRESULT CMpeg2SequenceFilter::Receive(IMediaSample *pSample)
 	if (SUCCEEDED(hr)) {
 		if (hr == S_OK)
 			hr = m_pOutput->Deliver(pSample);
-		else
+		else if (hr == S_FALSE)
 			hr = S_OK;
 	}
 

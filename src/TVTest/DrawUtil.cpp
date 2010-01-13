@@ -2,6 +2,7 @@
 #include "DrawUtil.h"
 #include "Util.h"
 
+// このマクロを使うとGDI+のヘッダでエラーが出る
 /*
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -9,7 +10,6 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 */
-
 
 
 namespace DrawUtil {
@@ -567,6 +567,7 @@ bool CGdiPlus::Initialize()
 {
 	if (!m_fInitialized) {
 		// GDI+ の DLL がロードできるか調べる
+		// (gdiplus.dllが無くても起動するように遅延ロードの指定をしている)
 		HMODULE hLib=::LoadLibrary(TEXT("gdiplus.dll"));
 		if (hLib==NULL)
 			return false;
@@ -599,8 +600,32 @@ bool CGdiPlus::DrawImage(CCanvas *pCanvas,CImage *pImage,int x,int y)
 	if (pCanvas!=NULL && pCanvas->m_pGraphics!=NULL
 			 && pImage!=NULL && pImage->m_pBitmap!=NULL) {
 		return pCanvas->m_pGraphics->DrawImage(pImage->m_pBitmap,x,y,
-											   pImage->Width(),
-											   pImage->Height())==Gdiplus::Ok;
+											   pImage->GetWidth(),
+											   pImage->GetHeight())==Gdiplus::Ok;
+	}
+	return false;
+}
+
+
+bool CGdiPlus::DrawImage(CCanvas *pCanvas,int DstX,int DstY,int DstWidth,int DstHeight,
+	CImage *pImage,int SrcX,int SrcY,int SrcWidth,int SrcHeight,float Opacity)
+{
+	if (pCanvas!=NULL && pCanvas->m_pGraphics!=NULL
+			 && pImage!=NULL && pImage->m_pBitmap!=NULL) {
+		Gdiplus::ImageAttributes Attributes;
+		Gdiplus::ColorMatrix Matrix = {
+			1.0f, 0.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 1.0f, 0.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+			0.0f, 0.0f, 0.0f, 0.0f, 1.0f,
+ 		};
+		Matrix.m[3][3]=Opacity;
+		Attributes.SetColorMatrix(&Matrix);
+		return pCanvas->m_pGraphics->DrawImage(pImage->m_pBitmap,
+			Gdiplus::Rect(DstX,DstY,DstWidth,DstHeight),
+			SrcX,SrcY,SrcWidth,SrcHeight,
+			Gdiplus::UnitPixel,&Attributes)==Gdiplus::Ok;
 	}
 	return false;
 }
@@ -693,7 +718,37 @@ bool CGdiPlus::CImage::LoadFromResource(HINSTANCE hinst,LPCTSTR pszName,LPCTSTR 
 }
 
 
-int CGdiPlus::CImage::Width() const
+bool CGdiPlus::CImage::Create(int Width,int Height,int BitsPerPixel)
+{
+	Free();
+	if (Width<=0 || Height<=0)
+		return false;
+	Gdiplus::PixelFormat Format;
+	switch (BitsPerPixel) {
+	case 1:		Format=PixelFormat1bppIndexed;	break;
+	case 4:		Format=PixelFormat4bppIndexed;	break;
+	case 8:		Format=PixelFormat8bppIndexed;	break;
+	case 24:	Format=PixelFormat24bppRGB;	break;
+	case 32:	Format=PixelFormat32bppARGB;	break;
+	default:	return false;
+	}
+	m_pBitmap=new Gdiplus::Bitmap(Width,Height,Format);
+	if (m_pBitmap==NULL)
+		return false;
+	Clear();
+	return true;
+}
+
+
+bool CGdiPlus::CImage::CreateFromBitmap(HBITMAP hbm,HPALETTE hpal)
+{
+	Free();
+	m_pBitmap=Gdiplus::Bitmap::FromHBITMAP(hbm,hpal);
+	return m_pBitmap!=NULL;
+}
+
+
+int CGdiPlus::CImage::GetWidth() const
 {
 	if (m_pBitmap==NULL)
 		return 0;
@@ -701,11 +756,30 @@ int CGdiPlus::CImage::Width() const
 }
 
 
-int CGdiPlus::CImage::Height() const
+int CGdiPlus::CImage::GetHeight() const
 {
 	if (m_pBitmap==NULL)
 		return 0;
 	return m_pBitmap->GetHeight();
+}
+
+
+void CGdiPlus::CImage::Clear()
+{
+	if (m_pBitmap!=NULL) {
+		Gdiplus::Rect rc(0,0,m_pBitmap->GetWidth(),m_pBitmap->GetHeight());
+		Gdiplus::BitmapData Data;
+
+		if (m_pBitmap->LockBits(&rc,Gdiplus::ImageLockModeWrite,
+								m_pBitmap->GetPixelFormat(),&Data)==Gdiplus::Ok) {
+			BYTE *pBits=static_cast<BYTE*>(Data.Scan0);
+			for (UINT y=0;y<Data.Height;y++) {
+				::ZeroMemory(pBits,abs(Data.Stride));
+				pBits+=Data.Stride;
+			}
+			m_pBitmap->UnlockBits(&Data);
+		}
+	}
 }
 
 
@@ -764,6 +838,14 @@ bool CGdiPlus::CBrush::CreateSolidBrush(BYTE r,BYTE g,BYTE b,BYTE a)
 CGdiPlus::CCanvas::CCanvas(HDC hdc)
 {
 	m_pGraphics=new Gdiplus::Graphics(hdc);
+}
+
+
+CGdiPlus::CCanvas::CCanvas(CImage *pImage)
+	: m_pGraphics(NULL)
+{
+	if (pImage!=NULL)
+		m_pGraphics=new Gdiplus::Graphics(pImage->m_pBitmap);
 }
 
 

@@ -380,14 +380,16 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			rc.bottom-=STATUS_BORDER;
 
 			if (!pStatus->m_fSingleMode) {
+				const int Height=rc.bottom-rc.top;
 				int MaxWidth=0;
 				for (int i=0;i<pStatus->m_NumItems;i++) {
 					const CStatusItem *pItem=pStatus->m_ItemList[i];
 					if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
 						MaxWidth=pItem->GetWidth();
 				}
-				if (MaxWidth>pStatus->m_VirtualScreen.GetWidth())
-					pStatus->m_VirtualScreen.Create(MaxWidth+STATUS_MARGIN*2,rc.bottom-rc.top);
+				if (MaxWidth>pStatus->m_VirtualScreen.GetWidth()
+						|| Height>pStatus->m_VirtualScreen.GetHeight())
+					pStatus->m_VirtualScreen.Create(MaxWidth+STATUS_MARGIN*2,Height);
 				hdc=pStatus->m_VirtualScreen.GetDC();
 				if (hdc==NULL)
 					hdc=ps.hdc;

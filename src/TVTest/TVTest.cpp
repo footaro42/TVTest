@@ -170,79 +170,16 @@ static CImageCodec ImageCodec;
 static CCaptureWindow CaptureWindow;
 static bool fShowCaptureWindow=false;
 
-#if defined(TVH264) && defined(USE_TBS_FILTER)
-//#define TBS_FILTER_INTERFACE
-#endif
-
-#ifdef TBS_FILTER_INTERFACE
-#include <vector>
-class CTBSFilterTSIDList {
-	std::vector<WORD> m_TSIDList;
-public:
-	void Add(WORD TSID) {
-		for (size_t i=0;i<m_TSIDList.size();i++) {
-			if (m_TSIDList[i]==TSID)
-				return;
-		}
-		m_TSIDList.push_back(TSID);
-	}
-	void Remove(WORD TSID) {
-		std::vector<WORD>::iterator itr;
-
-		for (itr=m_TSIDList.begin();itr!=m_TSIDList.end();itr++) {
-			if (*itr==TSID) {
-				m_TSIDList.erase(itr);
-				return;
-			}
-		}
-	}
-	bool HasTSID(WORD TSID) const {
-		for (size_t i=0;i<m_TSIDList.size();i++) {
-			if (m_TSIDList[i]==TSID)
-				return true;
-		}
-		return false;
-	}
-	bool Load(LPCTSTR pszFileName) {
-		CSettings Settings;
-
-		if (!Settings.Open(pszFileName,TEXT("TBSFilter"),CSettings::OPEN_READ))
-			return false;
-		int Count;
-		if (Settings.Read(TEXT("TSIDCount"),&Count) && Count>0) {
-			m_TSIDList.clear();
-			for (int i=0;i<Count;i++) {
-				TCHAR szName[16];
-				int TSID;
-
-				::wsprintf(szName,TEXT("TSID%d"),i);
-				if (!Settings.Read(szName,&TSID))
-					break;
-				m_TSIDList.push_back(TSID);
-			}
-		}
-		Settings.Close();
-		return true;
-	}
-	bool Save(LPCTSTR pszFileName) const {
-		CSettings Settings;
-
-		if (!Settings.Open(pszFileName,TEXT("TBSFilter"),CSettings::OPEN_WRITE))
-			return false;
-		Settings.Clear();
-		Settings.Write(TEXT("TSIDCount"),(unsigned int)m_TSIDList.size());
-		for (size_t i=0;i<m_TSIDList.size();i++) {
-			TCHAR szName[16];
-
-			::wsprintf(szName,TEXT("TSID%d"),i);
-			Settings.Write(szName,(int)m_TSIDList[i]);
-		}
-		Settings.Close();
-		return true;
-	}
+static const struct {
+	CMediaViewer::PropertyFilter Filter;
+	int Command;
+} g_DirectShowFilterPropertyList[] = {
+	{CMediaViewer::PROPERTY_FILTER_VIDEODECODER,		CM_VIDEODECODERPROPERTY},
+	{CMediaViewer::PROPERTY_FILTER_VIDEORENDERER,		CM_VIDEORENDERERPROPERTY},
+	{CMediaViewer::PROPERTY_FILTER_AUDIOFILTER,			CM_AUDIOFILTERPROPERTY},
+	{CMediaViewer::PROPERTY_FILTER_AUDIORENDERER,		CM_AUDIORENDERERPROPERTY},
+	{CMediaViewer::PROPERTY_FILTER_MPEG2DEMULTIPLEXER,	CM_DEMULTIPLEXERPROPERTY},
 };
-static CTBSFilterTSIDList TBSFilterTSIDList;
-#endif	// TBS_FILTER_INTERFACE
 
 
 class CMyGetChannelReceiver : public CNetworkRemoconReceiver {
@@ -784,7 +721,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 			ChannelManager.SetCurrentChannel(OldSpace,OldChannel);
 			return false;
 		}
-#ifdef TVH264
+#ifdef TVH264_FOR_1SEG
 		// 予めTSIDを設定して表示を早くする
 		if ((pChInfo->GetTransportStreamID() & 0xFF00) == 0x7F00
 				|| (pChInfo->GetTransportStreamID() & 0xFF00) == 0x7E00) {
@@ -1172,9 +1109,6 @@ bool CAppMain::LoadSettings()
 	PluginOptions.Load(m_szIniFileName);
 	ChannelHistory.Load(m_szIniFileName);
 	InfoPanel.Load(m_szIniFileName);
-#ifdef TBS_FILTER_INTERFACE
-	TBSFilterTSIDList.Load(m_szIniFileName);
-#endif
 	return true;
 }
 
@@ -1257,9 +1191,6 @@ bool CAppMain::SaveSettings()
 	PluginOptions.Save(m_szIniFileName);
 	ChannelHistory.Save(m_szIniFileName);
 	InfoPanel.Save(m_szIniFileName);
-#ifdef TBS_FILTER_INTERFACE
-	TBSFilterTSIDList.Save(m_szIniFileName);
-#endif
 	return true;
 }
 
@@ -1684,7 +1615,13 @@ void CVideoSizeStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 void CVideoSizeStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,pRect,TEXT("1920 x 1080 (100 %)"));
+	DrawText(hdc,pRect,
+#ifndef TVH264_FOR_1SEG
+			 TEXT("1920 x 1080 (100 %)")
+#else
+			 TEXT("320 x 180 (100 %)")
+#endif
+			 );
 }
 
 void CVideoSizeStatusItem::OnLButtonDown(int x,int y)
@@ -1848,7 +1785,7 @@ void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 	int NumChannels=CoreEngine.m_DtvEngine.GetAudioChannelNum();
 	TCHAR szText[32];
 
-	if (NumChannels>0) {
+	if (NumChannels!=CMediaViewer::AUDIO_CHANNEL_INVALID) {
 		LPTSTR p=szText;
 
 		if (CoreEngine.m_DtvEngine.GetAudioStreamNum()>1)
@@ -1857,15 +1794,17 @@ void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		case 1:
 			lstrcpy(p,TEXT("Mono"));
 			break;
+		case CMediaViewer::AUDIO_CHANNEL_DUALMONO:
 		case 2:
 			{
 				const int StereoMode=CoreEngine.GetStereoMode();
 				CTsAnalyzer::EventAudioInfo AudioInfo;
+				bool fValidAudioInfo=CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo);
 
-				if (CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo)
-						&& AudioInfo.ComponentType==0x02) {
+				if (NumChannels==CMediaViewer::AUDIO_CHANNEL_DUALMONO
+						|| (fValidAudioInfo && AudioInfo.ComponentType==0x02)) {
 					// Dual mono
-					if (AudioInfo.bESMultiLingualFlag) {
+					if (fValidAudioInfo && AudioInfo.bESMultiLingualFlag) {
 						// 2カ国語
 						p+=wsprintf(p,TEXT("[二] "));
 						switch (StereoMode) {
@@ -2210,7 +2149,7 @@ void CSignalLevelStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 void CSignalLevelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,pRect,TEXT("52.30 dB / 16.73 Mbps"));
+	DrawText(hdc,pRect,TEXT("34.52 dB / 16.73 Mbps"));
 }
 
 
@@ -3127,32 +3066,16 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_BUILDMEDIAVIEWER)!=0) {
 		if (CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()
 				|| MainWindow.IsMediaViewerBuildError()) {
+			bool fOldError=MainWindow.IsMediaViewerBuildError();
 			CoreEngine.m_DtvEngine.SetTracer(&StatusView);
-			MainWindow.BuildMediaViewer();
+			bool fResult=MainWindow.BuildMediaViewer();
 			CoreEngine.m_DtvEngine.SetTracer(NULL);
 			StatusView.SetSingleText(NULL);
+			// エラーで再生オフになっていた場合はオンにする
+			if (fResult && fOldError && !MainWindow.IsPreview())
+				MainWindow.EnablePreview(true);
 		}
 	}
-	/*
-	if (m_UpdateFlags&COptions::UPDATE_DRIVER) {
-		if (AppMain.SetDriver(szDriverFileName))
-			m_UpdateFlags|=COptions::UPDATE_PREVIEW;
-	}
-	if (m_UpdateFlags&COptions::UPDATE_CHANNELLIST) {
-		AppMain.UpdateChannelList(ChannelScan.GetTuningSpaceList());
-		//MainWindow.PostCommand(CM_CHANNEL_FIRST);
-	} else if (m_UpdateFlags&COptions::UPDATE_NETWORKREMOCON) {
-		//NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
-		//										 &CoreEngine,&ChannelManager);
-		AppMain.InitializeChannel();
-		if (pNetworkRemocon!=NULL)
-			pNetworkRemocon->GetChannel(&GetChannelReceiver);
-	}
-	if (m_UpdateFlags&COptions::UPDATE_PREVIEW) {
-		if (MainWindow.IsPreview())
-			CoreEngine.EnablePreview(true);
-	}
-	*/
 	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_EVENTINFOFONT)!=0) {
 		ApplyEventInfoFont();
 	}
@@ -4653,13 +4576,6 @@ void CMyDtvEngineHandler::OnServiceUpdated(CTsAnalyzer *pTsAnalyzer,bool fListUp
 void CMyDtvEngineHandler::OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer,bool bStreamChanged)
 {
 	OnServiceUpdated(pTsAnalyzer,true,bStreamChanged);
-
-#ifdef TBS_FILTER_INTERFACE
-	bool fEnable=TBSFilterTSIDList.HasTSID(pProgManager->GetTransportStreamID());
-
-	CoreEngine.m_DtvEngine.m_MediaViewer.EnableTBSFilter(fEnable);
-	MainMenu.CheckItem(CM_TBSFILTER,fEnable);
-#endif
 }
 
 void CMyDtvEngineHandler::OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer)
@@ -4740,6 +4656,7 @@ const CMainWindow::ZoomRateInfo CMainWindow::ZoomRateList[] = {
 	{  1,   1},
 	{  3,   2},
 	{  2,   1},
+	{  3,   1},
 };
 int CMainWindow::m_ThinFrameWidth=2;
 bool CMainWindow::m_fThinFrameCreate=false;
@@ -4768,8 +4685,8 @@ CMainWindow::CMainWindow()
 	, m_ChannelPanelTimer(TIMER_ID_CHANNELPANELUPDATE)
 	, m_ResetErrorCountTimer(TIMER_ID_RESETERRORCOUNT)
 {
-	// 適当にデフォルト位置を設定
-#ifndef TVH264
+	// 適当にデフォルトサイズを設定
+#ifndef TVH264_FOR_1SEG
 	m_WindowPosition.Width=960;
 	m_WindowPosition.Height=540;
 #else
@@ -4807,6 +4724,7 @@ CMainWindow::CMainWindow()
 	m_fShowRecordRemainTime=false;
 	m_ProgramListUpdateTimerCount=0;
 	m_fViewerBuildError=false;
+	m_CurEventStereoMode=-1;
 }
 
 
@@ -5317,6 +5235,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_ZOOM_100:
 	case CM_ZOOM_150:
 	case CM_ZOOM_200:
+	case CM_ZOOM_300:
 		{
 			if (m_fFullscreen)
 				SetFullscreen(false);
@@ -5592,6 +5511,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		CoreEngine.m_DtvEngine.ResetMediaViewer();
 		return;
 
+	case CM_REBUILDVIEWER:
+		BuildMediaViewer();
+		return;
+
 	case CM_RECORD:
 	case CM_RECORD_START:
 	case CM_RECORD_STOP:
@@ -5795,12 +5718,23 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		SetCustomTitleBar(!m_fCustomTitleBar);
 		return;
 
-	case CM_DECODERPROPERTY:
+	case CM_VIDEODECODERPROPERTY:
+	case CM_VIDEORENDERERPROPERTY:
+	case CM_AUDIOFILTERPROPERTY:
+	case CM_AUDIORENDERERPROPERTY:
+	case CM_DEMULTIPLEXERPROPERTY:
 		{
 			HWND hwndOwner=GetVideoHostWindow();
 
-			if (hwndOwner==NULL || IsWindowEnabled(hwndOwner))
-				CoreEngine.m_DtvEngine.DisplayVideoDecoderProperty(hwndOwner);
+			if (hwndOwner==NULL || ::IsWindowEnabled(hwndOwner)) {
+				for (int i=0;i<lengthof(g_DirectShowFilterPropertyList);i++) {
+					if (g_DirectShowFilterPropertyList[i].Command==id) {
+						CoreEngine.m_DtvEngine.m_MediaViewer.DisplayFilterProperty(
+							g_DirectShowFilterPropertyList[i].Filter,hwndOwner);
+						break;
+					}
+				}
+			}
 		}
 		return;
 
@@ -6096,24 +6030,6 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		PanelForm.SetCurPageByID(id-CM_PANEL_FIRST);
 		return;
 
-#ifdef TBS_FILTER_INTERFACE
-	case CM_TBSFILTER:
-		{
-			bool fEnable=!CoreEngine.m_DtvEngine.m_MediaViewer.IsTBSFilterEnabled();
-
-			if (CoreEngine.m_DtvEngine.m_MediaViewer.EnableTBSFilter(fEnable)) {
-				WORD TSID=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID();
-
-				if (fEnable)
-					TBSFilterTSIDList.Add(TSID);
-				else
-					TBSFilterTSIDList.Remove(TSID);
-				MainMenu.CheckItem(CM_TBSFILTER,fEnable);
-			}
-		}
-		return;
-#endif
-
 	default:
 		if (id>=CM_AUDIOSTREAM_FIRST && id<=CM_AUDIOSTREAM_LAST) {
 			if (CoreEngine.m_DtvEngine.SetAudioStream(id-CM_AUDIOSTREAM_FIRST)) {
@@ -6289,7 +6205,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 			if ((UpdateStatus&(CCoreEngine::STATUS_AUDIOCHANNELS
 							 | CCoreEngine::STATUS_AUDIOSTREAMS
 							 | CCoreEngine::STATUS_AUDIOCOMPONENTTYPE))!=0) {
-				SetStereoMode(CoreEngine.m_DtvEngine.GetAudioComponentType()==0x02?1:0);
+				AutoSelectStereoMode();
 				StatusView.UpdateItem(STATUS_ITEM_AUDIOCHANNEL);
 			}
 
@@ -6345,6 +6261,9 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 					AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_DEFAULT);
 					CheckZoomMenu();
 				}
+
+				m_CurEventStereoMode=-1;
+				AutoSelectStereoMode();
 			}
 
 			if (RecordManager.IsRecording()) {
@@ -6654,6 +6573,10 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 		m_ResetErrorCountTimer.Begin(m_hwnd,5000);
 	else
 		m_ResetErrorCountTimer.End();
+	/*
+	SetStereoMode(0);
+	m_CurEventStereoMode=-1;
+	*/
 }
 
 
@@ -6701,7 +6624,7 @@ void CMainWindow::ShowChannelOSD()
 
 			ChannelOSD.Create(m_VideoContainer.GetHandle());
 			ChannelOSD.SetTextHeight(
-#ifndef TVH264
+#ifndef TVH264_FOR_1SEG
 				32
 #else
 				20
@@ -7039,6 +6962,7 @@ bool CMainWindow::SetStereoMode(int StereoMode)
 	if (StereoMode!=GetStereoMode()) {
 		if (!CoreEngine.SetStereoMode(StereoMode))
 			return false;
+		m_CurEventStereoMode=StereoMode;
 		/*
 		MainMenu.CheckRadioItem(CM_STEREO_THROUGH,CM_STEREO_RIGHT,
 								CM_STEREO_THROUGH+StereoMode);
@@ -7050,6 +6974,17 @@ bool CMainWindow::SetStereoMode(int StereoMode)
 }
 
 
+void CMainWindow::AutoSelectStereoMode()
+{
+	if (m_CurEventStereoMode<0) {
+		SetStereoMode(
+			CoreEngine.m_DtvEngine.GetAudioChannelNum()==CMediaViewer::AUDIO_CHANNEL_DUALMONO
+			|| CoreEngine.m_DtvEngine.GetAudioComponentType()==0x02?1:0);
+		m_CurEventStereoMode=-1;
+	}
+}
+
+
 bool CMainWindow::SwitchAudio()
 {
 	int NumStreams=CoreEngine.m_DtvEngine.GetAudioStreamNum();
@@ -7057,10 +6992,13 @@ bool CMainWindow::SwitchAudio()
 	if (NumStreams>1) {
 		SendCommand(CM_AUDIOSTREAM_FIRST+
 					(CoreEngine.m_DtvEngine.GetAudioStream()+1)%NumStreams);
-	} else if (CoreEngine.m_DtvEngine.GetAudioChannelNum()==2) {
-		SetStereoMode((GetStereoMode()+1)%3);
 	} else {
-		return false;
+		int NumChannels=CoreEngine.m_DtvEngine.GetAudioChannelNum();
+		if (NumChannels==CMediaViewer::AUDIO_CHANNEL_DUALMONO || NumChannels==2) {
+			SetStereoMode((GetStereoMode()+1)%3);
+		} else {
+			return false;
+		}
 	}
 	return true;
 }
@@ -7778,6 +7716,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 											CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
 											CM_AUDIOSTREAM_FIRST+CoreEngine.m_DtvEngine.GetAudioStream());
 				}
+			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_FILTERPROPERTY)) {
+				for (int i=0;i<lengthof(g_DirectShowFilterPropertyList);i++) {
+					MainMenu.EnableItem(g_DirectShowFilterPropertyList[i].Command,
+						CoreEngine.m_DtvEngine.m_MediaViewer.FilterHasProperty(
+							g_DirectShowFilterPropertyList[i].Filter));
+				}
 			}
 		}
 		break;
@@ -8048,11 +7992,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 			if (pThis==NULL)
 				return 0;
+			szCmdLine[0]='\0';
 			if (atom!=0) {
-				if (::GlobalGetAtomName(atom,szCmdLine,lengthof(szCmdLine))!=0)
-					pThis->OnExecute(szCmdLine);
+				::GlobalGetAtomName(atom,szCmdLine,lengthof(szCmdLine));
 				::GlobalDeleteAtom(atom);
 			}
+			pThis->OnExecute(szCmdLine);
 		}
 		return 0;
 
@@ -8960,12 +8905,13 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 {
 	CCommandLineParser CmdLine;
 
+	SendCommand(CM_SHOW);
+	PluginList.SendExecuteEvent(pszCmdLine);
 	CmdLine.Parse(pszCmdLine);
 	if (CmdLine.m_fSilent)
 		CmdLineParser.m_fSilent=true;
 	if (CmdLine.m_fSaveLog)
 		CmdLineParser.m_fSaveLog=true;
-	SendCommand(CM_SHOW);
 	if (CmdLine.m_fFullscreen)
 		SetFullscreen(true);
 	if (CmdLine.m_szDriverName[0]!='\0')
@@ -8979,7 +8925,6 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 						  CmdLine.m_RecordDelay,CmdLine.m_RecordDuration);
 	} else if (CmdLine.m_fRecordStop)
 		AppMain.StopRecord();
-	PluginList.SendExecuteEvent(pszCmdLine);
 	return true;
 }
 
@@ -9304,8 +9249,8 @@ bool CMainWindow::CPreviewManager::BuildMediaViewer()
 	if (m_fPreview)
 		EnablePreview(false);
 
+	CoreEngine.m_DtvEngine.m_MediaViewer.SetAudioFilter(PlaybackOptions.GetAudioFilterName());
 	bool fOK=CoreEngine.BuildMediaViewer(m_pVideoContainer->GetHandle(),
-										 //MainWindow.GetHandle(),
 										 m_pVideoContainer->GetHandle(),
 										 GeneralOptions.GetVideoRendererType(),
 										 GeneralOptions.GetMpeg2DecoderName(),
@@ -9394,7 +9339,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			MainWindow.SetMaximizeStatus(true);
 	}
 
-#ifdef TVH264
+#ifdef TVH264_FOR_1SEG
 	PanelFrame.SetFloating(false);
 #endif
 
@@ -9415,6 +9360,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 				atom=::GlobalAddAtom(pszCmdLine);
 			else
 				atom=0;
+			// ATOM だと256文字までしか渡せないので、WM_COPYDATA 辺りの方がいいかも
 			::PostMessage(hwnd,WM_APP_EXECUTE,(WPARAM)atom,0);
 			return FALSE;
 		} else if (!CmdLineParser.m_fSingleTask) {

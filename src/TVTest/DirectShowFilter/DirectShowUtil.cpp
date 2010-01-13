@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include <initguid.h>
 #include "DirectShowUtil.h"
-#include "StdUtil.h"
+#include "../HelperClass/StdUtil.h"
 
 #ifdef USE_MEDIA_FOUNDATION
 #pragma comment(lib,"mf.lib")
@@ -23,24 +23,20 @@ CDirectShowFilterFinder::CDirectShowFilterFinder()
 	//::CoInitialize(NULL);
 }
 
-
 CDirectShowFilterFinder::~CDirectShowFilterFinder()
 {
 	//::CoUninitialize();
 }
-
 
 void CDirectShowFilterFinder::Clear()
 {
 	m_FilterList.clear();
 }
 
-
 int CDirectShowFilterFinder::GetFilterCount()
 {
 	return m_FilterList.size();
 }
-
 
 bool CDirectShowFilterFinder::GetFilterInfo(const int iIndex,CLSID *pidClass,LPWSTR pwszFriendlyName,int iBufLen)
 {
@@ -59,74 +55,86 @@ bool CDirectShowFilterFinder::GetFilterInfo(const int iIndex,CLSID *pidClass,LPW
 	return true;
 }
 
-
-bool CDirectShowFilterFinder::FindFilter(const CLSID *pidInType,const CLSID *pidInSubType,const CLSID *pidOutType,const CLSID *pidOutSubType)
+bool CDirectShowFilterFinder::FindFilter(const GUID *pInTypes,int InTypeCount,
+	const GUID *pOutTypes,int OutTypeCount,DWORD Merit)
 {
-	// idType idSubType のフィルタを検索する(変換フィルタ)
+	// フィルタを検索する
 	bool bRet = false;
 	IFilterMapper2 *pMapper=NULL;
-	HRESULT hr=CoCreateInstance(CLSID_FilterMapper2,NULL, CLSCTX_INPROC, IID_IFilterMapper2,(void **) &pMapper);
+	HRESULT hr=::CoCreateInstance(CLSID_FilterMapper2, NULL, CLSCTX_INPROC, IID_IFilterMapper2, (void **)&pMapper);
 
-	if(SUCCEEDED(hr)) {
+	if (SUCCEEDED(hr)) {
 		IEnumMoniker *pEnum=NULL;
-		GUID arInType[2],arOutType[2];
-		GUID *pInTypes,*pOutTypes;
-		if(pidInType)    arInType[0] = *pidInType;
-		if(pidInSubType) arInType[1] = *pidInSubType;
-		pInTypes = (pidInType && pidInSubType) ? arInType : NULL;
-		if(pidOutType)   arOutType[0] = *pidOutType;
-		if(pidOutSubType)arOutType[1] = *pidOutSubType;
-		pOutTypes = (pidOutType && pidOutSubType) ? arOutType : NULL;
 
 		hr = pMapper->EnumMatchingFilters(
 			&pEnum,
 			0,					// 予約済み
 			TRUE,				// 完全一致を使用するか
-			MERIT_DO_NOT_USE+1,	// 最小のメリット
+			Merit,				// 最小のメリット
 			TRUE,				// 1 つ以上の入力ピンか?
-			pInTypes?1:0,		// 入力のメジャータイプ/サブタイプの対の数
+			InTypeCount,		// 入力のメジャータイプ/サブタイプの対の数
 			pInTypes,			// 入力のメジャータイプ/サブタイプの対の配列
 			NULL,				// 入力メディア
 			NULL,				// 入力ピンのカテゴリ
 			FALSE,				// レンダラでなければならないか
 			TRUE,				// 1 つ以上の出力ピンか
-			pOutTypes?1:0,		// 出力のメジャータイプ/サブタイプの対の数
+			OutTypeCount,		// 出力のメジャータイプ/サブタイプの対の数
 			pOutTypes,			// 出力のメジャータイプ/サブタイプの対の配列
 			NULL,				// 出力メディア
 			NULL);				// 出力ピンのカテゴリ
-		if(SUCCEEDED(hr)){
+		if (SUCCEEDED(hr)) {
 			IMoniker *pMoniker;
 			ULONG cFetched;
-			while(pEnum->Next(1, &pMoniker, &cFetched) == S_OK){
+			while (pEnum->Next(1, &pMoniker, &cFetched) == S_OK) {
 				IPropertyBag *pPropBag;
 				hr=pMoniker->BindToStorage(0, 0, IID_IPropertyBag, (void **)&pPropBag);
-				if(SUCCEEDED(hr)){
+				if (SUCCEEDED(hr)) {
 					VARIANT varName,varID;
-					VariantInit(&varName);
-					VariantInit(&varID);
+					::VariantInit(&varName);
+					::VariantInit(&varID);
 					hr=pPropBag->Read(L"FriendlyName", &varName, 0);
-					if(SUCCEEDED(hr)){
+					if (SUCCEEDED(hr)) {
 						hr=pPropBag->Read(L"CLSID", &varID, 0);
-						if(SUCCEEDED(hr)){
+						if (SUCCEEDED(hr)) {
 							bRet = true;
 							CFilterInfo FilterInfo;
 							FilterInfo.SetFriendlyName(varName.bstrVal);
-							CLSIDFromString(varID.bstrVal,&FilterInfo.m_clsid);
+							::CLSIDFromString(varID.bstrVal,&FilterInfo.m_clsid);
 							m_FilterList.push_back(FilterInfo);
-							SysFreeString(varID.bstrVal);
-							}
-							SysFreeString(varName.bstrVal);
+							::SysFreeString(varID.bstrVal);
 						}
-						pPropBag->Release();
+						SysFreeString(varName.bstrVal);
 					}
+					pPropBag->Release();
 				}
-				pEnum->Release();
 			}
-			pMapper->Release();
+			pEnum->Release();
 		}
+		pMapper->Release();
+	}
 	return bRet;
 }
 
+bool CDirectShowFilterFinder::FindFilter(const GUID *pidInType,const GUID *pidInSubType,const GUID *pidOutType,const GUID *pidOutSubType,DWORD Merit)
+{
+	GUID arInType[2],arOutType[2];
+	GUID *pInTypes=NULL,*pOutTypes=NULL;
+
+	if (pidInType || pidInSubType) {
+		arInType[0] = pidInType ? *pidInType : GUID_NULL;
+		arInType[1] = pidInSubType ? *pidInSubType : GUID_NULL;
+		pInTypes = arInType;
+	}
+	if (pidOutType || pidOutSubType) {
+		arOutType[0] = pidOutType ? *pidOutType : GUID_NULL;
+		arOutType[1] = pidOutSubType ? *pidOutSubType : GUID_NULL;
+		pOutTypes = arOutType;
+	}
+
+	return FindFilter(pInTypes, pInTypes ? 1 : 0,
+					  pOutTypes, pOutTypes ? 1 : 0,
+					  Merit);
+}
 
 // 優先するフィルタをリスト先端に持ってくる
 bool CDirectShowFilterFinder::PriorityFilterGoToHead(const CLSID idPriorityClass)
@@ -151,7 +159,6 @@ bool CDirectShowFilterFinder::PriorityFilterGoToHead(const CLSID idPriorityClass
 	m_FilterList=TmpList;
 	return true;
 }
-
 
 // 無視するフィルタをリスト終端に持ってくる
 bool CDirectShowFilterFinder::IgnoreFilterGoToTail(const CLSID idIgnoreClass,bool bRemoveIt)
@@ -453,39 +460,60 @@ bool DirectShowUtil::ShowPropertyPage(IBaseFilter *pFilter, HWND hWndParent)
 	ISpecifyPropertyPages *pProp = NULL;
 
 	HRESULT hr = pFilter->QueryInterface(IID_ISpecifyPropertyPages, (void **)&pProp);
-	if(SUCCEEDED(hr)){
-		CAUUID caGUID;
-		FILTER_INFO stFilterInfo;
+	if (SUCCEEDED(hr)) {
+		CAUUID caGUID = {0, NULL};
 
-		pProp->GetPages(&caGUID);
-		SAFE_RELEASE(pProp);
-		hr = pFilter->QueryFilterInfo(&stFilterInfo);
-		if(SUCCEEDED(hr)){
-			IUnknown *pFilterUnk=NULL;
+		if (SUCCEEDED(pProp->GetPages(&caGUID))) {
+			FILTER_INFO stFilterInfo;
 
-			hr = pFilter->QueryInterface(IID_IUnknown, (void **)&pFilterUnk);
-			if(SUCCEEDED(hr)){
-				OleCreatePropertyFrame(
-					hWndParent,             // 親ウィンドウ。
-					0, 0,                   // 予約済み。
-					stFilterInfo.achName,   // ダイアログ ボックスのキャプション。
-					1,                      // オブジェクト数 (フィルタのみ)。
-					&pFilterUnk,            // オブジェクト ポインタの配列。
-					caGUID.cElems,          // プロパティ ページ数。
-					caGUID.pElems,          // プロパティ ページ CLSID の配列。
-					0,                      // ロケール識別子。
-					0, NULL                 // 予約済み。
-				);
-				CoTaskMemFree(caGUID.pElems);
-				SAFE_RELEASE(pFilterUnk);
-				bRet = true;
+			hr = pFilter->QueryFilterInfo(&stFilterInfo);
+			if (SUCCEEDED(hr)) {
+				IUnknown *pFilterUnk=NULL;
+
+				hr = pFilter->QueryInterface(IID_IUnknown, (void **)&pFilterUnk);
+				if (SUCCEEDED(hr)) {
+					::OleCreatePropertyFrame(
+						hWndParent,             // 親ウィンドウ。
+						0, 0,                   // 予約済み。
+						stFilterInfo.achName,   // ダイアログ ボックスのキャプション。
+						1,                      // オブジェクト数 (フィルタのみ)。
+						&pFilterUnk,            // オブジェクト ポインタの配列。
+						caGUID.cElems,          // プロパティ ページ数。
+						caGUID.pElems,          // プロパティ ページ CLSID の配列。
+						0,                      // ロケール識別子。
+						0, NULL                 // 予約済み。
+					);
+					SAFE_RELEASE(pFilterUnk);
+					bRet = true;
+				}
+				SAFE_RELEASE(stFilterInfo.pGraph);
 			}
-			SAFE_RELEASE(stFilterInfo.pGraph);
+			::CoTaskMemFree(caGUID.pElems);
 		}
+		SAFE_RELEASE(pProp);
 	}
 	return bRet;
 }
 
+bool DirectShowUtil::HasPropertyPage(IBaseFilter *pFilter)
+{
+	bool bRet = false;
+
+	if (pFilter) {
+		ISpecifyPropertyPages *pProp = NULL;
+		HRESULT hr = pFilter->QueryInterface(IID_ISpecifyPropertyPages, (void**)&pProp);
+		if (SUCCEEDED(hr)) {
+			CAUUID caGUID = {0, NULL};
+
+			if (SUCCEEDED(pProp->GetPages(&caGUID))) {
+				bRet = caGUID.cElems > 0;
+				::CoTaskMemFree(caGUID.pElems);
+			}
+			SAFE_RELEASE(pProp);
+		}
+	}
+	return bRet;
+}
 
 #if 0
 // Mpegデコーダを追加してピン接続を行う。

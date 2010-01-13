@@ -5,9 +5,15 @@
 #include "TsStream.h"
 #include "TsDescriptor.h"
 
+// EIT の解析を行う
 #define TS_ANALYZER_EIT_SUPPORT
+#if defined(TVH264) || defined(RECTEST)
+// L-EIT[p/f] の解析を行う
+#define TS_ANALYZER_L_EIT_SUPPORT
+#endif
 
 
+// TS 解析クラス
 class CTsAnalyzer : public CMediaDecoder
 {
 public:
@@ -52,6 +58,7 @@ public:
 	WORD GetServiceNum();
 	bool GetServiceID(const int Index, WORD *pServiceID);
 	int GetServiceIndexByID(const WORD ServiceID);
+	bool IsViewableService(const int Index);
 	WORD GetViewableServiceNum();
 	bool GetViewableServiceID(const int Index, WORD *pServiceID);
 	bool GetFirstViewableServiceID(WORD *pServiceID);
@@ -199,7 +206,7 @@ protected:
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
 	const CDescBlock *GetHEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
-#ifdef TVH264
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
 	const CDescBlock *GetLEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
 #endif
 	const CAudioComponentDesc *GetAudioComponentDescByComponentTag(const CDescBlock *pDescBlock, const BYTE ComponentTag);

@@ -9,11 +9,17 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+/*
+	処理内容はワンセグ仕様(320x240 or 320x180 / 15fps / Progressive)前提なので、
+	それ以外の場合は問題が出ると思います。
+*/
 
 // REFERENCE_TIMEの一秒
 #define REFERENCE_TIME_SECOND 10000000LL
 
+// フレームレート
 #define FRAME_RATE (REFERENCE_TIME_SECOND * 15000 / 1001)
+// フレームの表示時間を算出
 #define FRAME_TIME(time) ((LONGLONG)(time) * REFERENCE_TIME_SECOND * 1001 / 15000)
 
 inline LONGLONG llabs(LONGLONG val)
@@ -29,7 +35,7 @@ CH264ParserFilter::CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_H264Parser(this)
 	, m_bAdjustTime(false)
 {
-	TRACE(TEXT("CH264ParserFilter::CH264ParserFilter %p\n"),this);
+	TRACE(TEXT("CH264ParserFilter::CH264ParserFilter() %p\n"),this);
 
 	m_MediaType.InitMediaType();
 	m_MediaType.SetType(&MEDIATYPE_Video);
@@ -43,19 +49,19 @@ CH264ParserFilter::CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr)
 		return;
 	}
 	::ZeroMemory(pvih, sizeof(VIDEOINFOHEADER));
-	pvih->dwBitRate = 128000;
+	pvih->dwBitRate = 320000;
 	pvih->AvgTimePerFrame = FRAME_TIME(1);
 	pvih->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
 	pvih->bmiHeader.biWidth = 320;
 	pvih->bmiHeader.biHeight = 240;
 	pvih->bmiHeader.biCompression = MAKEFOURCC('h','2','6','4');
 
-	*phr=S_OK;
+	*phr = S_OK;
 }
 
 CH264ParserFilter::~CH264ParserFilter(void)
 {
-	//TRACE(TEXT("CH264ParserFilter::~CH264ParserFilter\n"));
+	TRACE(TEXT("CH264ParserFilter::~CH264ParserFilter()\n"));
 }
 
 IBaseFilter* WINAPI CH264ParserFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CH264ParserFilter **ppClassIf)
@@ -155,7 +161,6 @@ HRESULT CH264ParserFilter::StopStreaming(void)
 	return S_OK;
 }
 
-
 HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 {
 	CAutoLock AutoLock(m_pLock);
@@ -201,6 +206,7 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 				::CopyMemory(pOutData, pInData, DataSize);
 		}
 	}
+	m_DeliverResult = S_OK;
 
 	m_ParserLock.Lock();
 	m_H264Parser.StoreEs(pInData, DataSize);
@@ -209,28 +215,33 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	if (pOut->GetActualDataLength() == 0)
 		return S_FALSE;
 
-	return S_OK;
+	return m_DeliverResult;
 }
 
-/*
 HRESULT CH264ParserFilter::Receive(IMediaSample *pSample)
 {
+	const AM_SAMPLE2_PROPERTIES *pProps = m_pInput->SampleProps();
+	if (pProps->dwStreamId != AM_STREAM_MEDIA)
+		return m_pOutput->Deliver(pSample);
+
 	IMediaSample *pOutSample;
 	HRESULT hr;
 
 	hr = InitializeOutputSample(pSample, &pOutSample);
-	if (FAILED(hr)) {
+	if (FAILED(hr))
 		return hr;
-	}
 	hr = Transform(pSample, pOutSample);
-	if (hr == NOERROR) {
-		hr = m_pOutput->Deliver(pOutSample);
+	if (SUCCEEDED(hr)) {
+		if (hr == S_OK)
+			hr = m_pOutput->Deliver(pOutSample);
+		else if (hr == S_FALSE)
+			hr = S_OK;
 	}
+
 	pOutSample->Release();
+
 	return hr;
 }
-*/
-
 
 HRESULT CH264ParserFilter::BeginFlush(void)
 {
@@ -243,7 +254,6 @@ HRESULT CH264ParserFilter::BeginFlush(void)
 	return hr;
 }
 
-
 void CH264ParserFilter::SetVideoInfoCallback(VideoInfoCallback pCallback, const PVOID pParam)
 {
 	CAutoLock Lock(m_pLock);
@@ -251,7 +261,6 @@ void CH264ParserFilter::SetVideoInfoCallback(VideoInfoCallback pCallback, const 
 	m_pfnVideoInfoCallback = pCallback;
 	m_pCallbackParam = pParam;
 }
-
 
 bool CH264ParserFilter::SetAdjustTime(bool bAdjust)
 {
@@ -261,34 +270,37 @@ bool CH264ParserFilter::SetAdjustTime(bool bAdjust)
 	return true;
 }
 
-
 void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit)
 {
 	if (m_bAdjustTime) {
 		/*
 			1フレーム単位でタイムスタンプを設定しないとかくつく
-			ただしこんなやり方が許されるのかは知らない
-			(とりあえずうまくいっているようだが...)
 		*/
-		BYTE *pOutData = NULL;
-		HRESULT hr = m_pOutSample->GetPointer(&pOutData);
-		if (SUCCEEDED(hr)) {
-			hr = m_pOutSample->SetActualDataLength(pAccessUnit->GetSize());
-			if (SUCCEEDED(hr)) {
-				::CopyMemory(pOutData, pAccessUnit->GetData(), pAccessUnit->GetSize());
-				m_pOutput->Deliver(m_pOutSample);
+		if (SUCCEEDED(m_DeliverResult)) {
+			if (m_pOutSample->GetActualDataLength() > 0) {
+				m_DeliverResult = m_pOutput->Deliver(m_pOutSample);
+				m_pOutSample->SetActualDataLength(0);
 			}
-			m_pOutSample->SetActualDataLength(0);
 
-			// タイムスタンプ設定
-			if (m_BaseTime >= 0) {
-				REFERENCE_TIME StartTime = m_BaseTime + FRAME_TIME(m_SampleCount + 1);
-				REFERENCE_TIME EndTime = m_BaseTime + FRAME_TIME(m_SampleCount + 2);
-				m_pOutSample->SetTime(&StartTime, &EndTime);
-				m_PrevTime = StartTime;
+			BYTE *pOutData = NULL;
+			HRESULT hr = m_pOutSample->GetPointer(&pOutData);
+			if (SUCCEEDED(hr)) {
+				hr = m_pOutSample->SetActualDataLength(pAccessUnit->GetSize());
+				if (SUCCEEDED(hr)) {
+					::CopyMemory(pOutData, pAccessUnit->GetData(), pAccessUnit->GetSize());
+				}
 			}
 		}
+
 		m_SampleCount++;
+
+		// タイムスタンプ設定
+		if (m_BaseTime >= 0) {
+			REFERENCE_TIME StartTime = m_BaseTime + FRAME_TIME(m_SampleCount);
+			REFERENCE_TIME EndTime = m_BaseTime + FRAME_TIME(m_SampleCount + 1);
+			m_pOutSample->SetTime(&StartTime, &EndTime);
+			m_PrevTime = EndTime;
+		}
 	}
 
 	// 全然できていません

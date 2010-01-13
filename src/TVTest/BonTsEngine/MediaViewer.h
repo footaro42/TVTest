@@ -8,22 +8,17 @@
 #include <Bdaiface.h>
 #include "MediaDecoder.h"
 #include "TsUtilClass.h"
-#include "BonSrcFilter.h"
-#include "AacDecFilter.h"
-#include "DirectShowUtil.h"
-#include "VideoRenderer.h"
-#include "ImageMixer.h"
+#include "../DirectShowFilter/DirectShowUtil.h"
+#include "../DirectShowFilter/BonSrcFilter.h"
+#include "../DirectShowFilter/AacDecFilter.h"
+#include "../DirectShowFilter/VideoRenderer.h"
+#include "../DirectShowFilter/ImageMixer.h"
 #ifndef TVH264
-#include "Mpeg2SequenceFilter.h"
+#include "../DirectShowFilter/Mpeg2SequenceFilter.h"
 #else
-#include "H264ParserFilter.h"
-#define USE_TBS_FILTER
+#include "../DirectShowFilter/H264ParserFilter.h"
+#define USE_TBS_FILTER	// TBSフィルタ有効
 #endif
-/*
-#ifdef USE_TBS_FILTER
-#include "TBSFilter.h"
-#endif
-*/
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -53,7 +48,7 @@ public:
 // CMediaViewer
 	const bool OpenViewer(HWND hOwnerHwnd = NULL,HWND hMessageDrainHwnd = NULL,
 		CVideoRenderer::RendererType RendererType = CVideoRenderer::RENDERER_DEFAULT,
-		LPCWSTR pszMpeg2Decoder = NULL, LPCWSTR pszAudioDevice = NULL);
+		LPCWSTR pszVideoDecoder = NULL, LPCWSTR pszAudioDevice = NULL);
 	void CloseViewer(void);
 	const bool IsOpen() const;
 
@@ -70,14 +65,25 @@ public:
 	const bool SetVolume(const float fVolume);
 	const bool GetVideoSize(WORD *pwWidth,WORD *pwHeight);
 	const bool GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspectRatioY);
+	enum {
+		AUDIO_CHANNEL_DUALMONO	= 0x00,
+		AUDIO_CHANNEL_INVALID	= 0xFF
+	};
 	const BYTE GetAudioChannelNum();
 	const bool SetStereoMode(const int iMode);
 	const int GetStereoMode() const;
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
-	const bool DisplayVideoDecoderProperty(HWND hWndParent);
-	const bool DisplayVideoRandererProperty(HWND hWndParent);
 
-	// Append by HDUSTestの中の人
+	enum PropertyFilter {
+		PROPERTY_FILTER_VIDEODECODER,
+		PROPERTY_FILTER_VIDEORENDERER,
+		PROPERTY_FILTER_MPEG2DEMULTIPLEXER,
+		PROPERTY_FILTER_AUDIOFILTER,
+		PROPERTY_FILTER_AUDIORENDERER
+	};
+	const bool DisplayFilterProperty(PropertyFilter Filter, HWND hwndOwner);
+	const bool FilterHasProperty(PropertyFilter Filter);
+
 	const bool Pause();
 	const bool Flush();
 	const bool GetVideoRendererName(LPTSTR pszName,int Length) const;
@@ -96,9 +102,9 @@ public:
 	const bool SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags = 0);
 	BYTE GetPanAndScan() const { return m_PanAndScan; }
 	enum ViewStretchMode {
-		STRETCH_KEEPASPECTRATIO,
-		STRETCH_CUTFRAME,
-		STRETCH_FIT
+		STRETCH_KEEPASPECTRATIO,	// アスペクト比保持
+		STRETCH_CUTFRAME,			// 全体表示(収まらない分はカット)
+		STRETCH_FIT					// ウィンドウサイズに合わせる
 	};
 	const bool SetViewStretchMode(ViewStretchMode Mode);
 	const ViewStretchMode GetViewStretchMode() const { return m_ViewStretchMode; }
@@ -127,6 +133,7 @@ public:
 	bool GetUseAudioRendererClock() const { return m_bUseAudioRendererClock; }
 	bool SetAdjustAudioStreamTime(bool bAdjust);
 	bool SetAudioStreamCallback(CAacDecFilter::StreamCallback pCallback, void *pParam = NULL);
+	bool SetAudioFilter(LPCWSTR pszFilterName);
 	const bool RepaintVideo(HWND hwnd,HDC hdc);
 	const bool DisplayModeChanged();
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
@@ -146,21 +153,27 @@ protected:
 	const bool AdjustVideoPosition();
 	const bool CalcSourceRect(RECT *pRect);
 
-	// DirectShowインタフェース
 	bool m_bInit;
+
+	// DirectShowインタフェース
+	IGraphBuilder *m_pFilterGraph;
 	IMediaControl *m_pMediaControl;
 
 	// DirectShowフィルタ
-	IGraphBuilder *m_pFilterGraph;
-	IBaseFilter *m_pMpeg2DecFilter;
+	IBaseFilter *m_pVideoDecoderFilter;
 	// Source
 	IBaseFilter *m_pSrcFilter;
 	CBonSrcFilter *m_pBonSrcFilterClass;
-	// AAC
+	// AACデコーダ
 	IBaseFilter *m_pAacDecFilter;
 	CAacDecFilter *m_pAacDecClass;
-	// Renderer
+	// 音声フィルタ
+	LPWSTR m_pszAudioFilterName;
+	IBaseFilter *m_pAudioFilter;
+	// 映像レンダラ
 	CVideoRenderer *m_pVideoRenderer;
+	// 音声レンダラ
+	IBaseFilter *m_pAudioRenderer;
 
 #ifndef TVH264
 	// Mpeg2-Sequence
@@ -171,13 +184,8 @@ protected:
 	IBaseFilter *m_pH264ParserFilter;
 	CH264ParserFilter *m_pH264ParserClass;
 #endif
-/*
-#ifdef USE_TBS_FILTER
-	CTBSFilter *m_pTBSFilter;
-#endif
-*/
 
-	LPWSTR m_pszMpeg2DecoderName;
+	LPWSTR m_pszVideoDecoderName;
 
 	// MPEG2Demultiplexerインタフェース
 	IBaseFilter *m_pMp2DemuxFilter;
@@ -196,7 +204,6 @@ protected:
 	CMpeg2VideoInfo m_VideoInfo;
 	HWND m_hOwnerWnd;
 
-	// Append by HDUSTestの中の人
 	CCriticalLock m_ResizeLock;
 	CVideoRenderer::RendererType m_VideoRendererType;
 	LPWSTR m_pszAudioRendererName;

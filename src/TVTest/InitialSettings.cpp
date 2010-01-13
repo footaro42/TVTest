@@ -21,6 +21,7 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 	m_VideoRenderer=CVideoRenderer::RENDERER_DEFAULT;
 #if 0
 	// VistaではビデオレンダラのデフォルトをEVRにする
+	// ...と問題が出る環境もあるみたい
 	{
 		OSVERSIONINFO osvi;
 
@@ -30,7 +31,12 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 			m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
 	}
 #endif
-	m_CardReader=CCoreEngine::CARDREADER_SCARD;
+	m_CardReader=
+#ifndef TVH264_FOR_1SEG
+		CCoreEngine::CARDREADER_SCARD;
+#else
+		CCoreEngine::CARDREADER_NONE;
+#endif
 	if (!::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_MYVIDEO,FALSE)
 			&& !::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_PERSONAL,FALSE))
 		m_szRecordFolder[0]='\0';
@@ -163,7 +169,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				static const LPCTSTR pszCardReaderList[] = {
 					TEXT("なし(スクランブル解除しない)"),
 					TEXT("スマートカードリーダ"),
-					TEXT("HDUS内蔵カードリーダ")
+					TEXT("HDUS内蔵カードリーダ"),
 				};
 				CCardReader *pCardReader;
 
@@ -389,8 +395,8 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					rcClient.left=rc.right;
 					pThis->m_GdiPlus.FillRect(&Canvas,&Brush,&rcClient);
 					pThis->m_GdiPlus.DrawImage(&Canvas,&pThis->m_LogoImage,
-						(rc.right-pThis->m_LogoImage.Width())/2,
-						(rc.bottom-pThis->m_LogoImage.Height())/2);
+						(rc.right-pThis->m_LogoImage.GetWidth())/2,
+						(rc.bottom-pThis->m_LogoImage.GetHeight())/2);
 				}
 				::EndPaint(hDlg,&ps);
 				return TRUE;

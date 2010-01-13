@@ -33,6 +33,8 @@ public:
 	const bool ResetDecoder(void);
 	const bool Decode(const CAdtsFrame *pFrame);
 
+	const BYTE GetChannelConfig() const;
+
 protected:
 // CAdtsParser::IFrameHandler
 	virtual void OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame *pFrame);

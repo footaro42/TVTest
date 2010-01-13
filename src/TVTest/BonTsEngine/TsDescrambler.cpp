@@ -924,7 +924,8 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 //////////////////////////////////////////////////////////////////////
 
 CEmmProcessor::CEmmProcessor(CTsDescrambler *pDescrambler)
-	: m_pDescrambler(pDescrambler)
+	: CPsiSingleTable(true)
+	, m_pDescrambler(pDescrambler)
 {
 }
 

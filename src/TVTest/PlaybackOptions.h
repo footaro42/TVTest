@@ -8,10 +8,14 @@
 class CPlaybackOptions : public COptions
 {
 	enum {
-		UPDATE_PACKETBUFFERING	=0x00000001UL
+		UPDATE_PACKETBUFFERING	= 0x00000001UL
 	};
-	enum { MAX_AUDIO_DEVICE_NAME=128 };
+	enum {
+		MAX_AUDIO_DEVICE_NAME = 128,
+		MAX_AUDIO_FILTER_NAME = 128
+	};
 	TCHAR m_szAudioDeviceName[MAX_AUDIO_DEVICE_NAME];
+	TCHAR m_szAudioFilterName[MAX_AUDIO_FILTER_NAME];
 	bool m_fDownMixSurround;
 	bool m_fRestoreMute;
 	bool m_fUseAudioRendererClock;
@@ -26,7 +30,13 @@ class CPlaybackOptions : public COptions
 public:
 	CPlaybackOptions();
 	~CPlaybackOptions();
+// COptions
+	bool Apply(DWORD Flags);
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
+// CPlaybackOptions
 	LPCTSTR GetAudioDeviceName() const { return m_szAudioDeviceName; }
+	LPCTSTR GetAudioFilterName() const { return m_szAudioFilterName; }
 	bool GetDownMixSurround() const { return m_fDownMixSurround; }
 	bool GetRestoreMute() const { return m_fRestoreMute; }
 	bool GetUseAudioRendererClock() const { return m_fUseAudioRendererClock; }
@@ -36,11 +46,7 @@ public:
 	bool SetPacketBuffering(bool fBuffering);
 	DWORD GetPacketBufferLength() const { return m_PacketBufferLength; }
 	int GetPacketBufferPoolPercentage() const { return m_PacketBufferPoolPercentage; }
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-// COptions
-	bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

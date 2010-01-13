@@ -1116,7 +1116,8 @@ CH264AccessUnit & CH264AccessUnit::operator = (const CH264AccessUnit &Operand)
 
 const bool CH264AccessUnit::ParseHeader(void)
 {
-	if (m_pData[0] != 0 || m_pData[1] != 0 || m_pData[2] != 0x01)
+	if (m_dwDataSize < 5
+			|| m_pData[0] != 0 || m_pData[1] != 0 || m_pData[2] != 0x01)
 		return false;
 
 	bool bFoundStartCode;
@@ -1244,6 +1245,7 @@ const bool CH264AccessUnit::ParseHeader(void)
 				return false;
 			}
 #endif
+			m_bFoundSPS = true;
 			Pos += (Bitstream.GetPos() + 7) >> 3;
 		} else if (NALUnitType == 0x09) {
 			// Access unit delimiter
@@ -1263,11 +1265,12 @@ const bool CH264AccessUnit::ParseHeader(void)
 		}
 	} while (bFoundStartCode);
 
-	return true;
+	return m_bFoundSPS;
 }
 
 void CH264AccessUnit::Reset(void)
 {
+	m_bFoundSPS = false;
 	::ZeroMemory(&m_Header, sizeof(TAG_H264ACCESSUNIT));
 }
 

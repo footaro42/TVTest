@@ -5,7 +5,8 @@
 #include "Options.h"
 
 
-class COSDOptions : public COptions {
+class COSDOptions : public COptions
+{
 	bool m_fShowOSD;
 	bool m_fPseudoOSD;
 	COLORREF m_TextColor;
@@ -49,7 +50,7 @@ public:
 	bool IsNotifyEnabled(unsigned int Type) const;
 	const LOGFONT *GetDisplayMenuFont() const { return &m_DisplayMenuFont; }
 	bool IsDisplayMenuFontAutoSize() const { return m_fDisplayMenuFontAutoSize; }
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

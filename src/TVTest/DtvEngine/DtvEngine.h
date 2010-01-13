@@ -91,7 +91,6 @@ public:
 	const bool GetEventInfo(CTsAnalyzer::EventInfo *pInfo, bool bNext = false);
 	const bool GetEventAudioInfo(CTsAnalyzer::EventAudioInfo *pInfo, const int AudioIndex = -1, bool bNext = false);
 	const bool GetVideoDecoderName(LPWSTR lpName,int iBufLen);
-	const bool DisplayVideoDecoderProperty(HWND hWndParent);
 
 	const bool SetChannel(const BYTE byTuningSpace, const WORD wChannel, const WORD ServiceID = SID_INVALID);
 	const bool SetService(const WORD wService);
@@ -119,7 +118,6 @@ public:
 	bool SetWriteService(WORD ServiceID, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool SetWriteCurServiceOnly(bool bOnly, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
-	//CEpgDataInfo *GetEpgDataInfo(WORD ServiceID, bool bNext=false);
 // CBonBaseClass
 	void SetTracer(CTracer *pTracer);
 
@@ -150,7 +148,6 @@ protected:
 	WORD m_CurServiceID;
 	WORD m_SpecServiceID;
 	int m_CurAudioStream;
-	unsigned __int64 m_u64CurPcrTimeStamp;
 
 	bool m_bBuiled;
 	bool m_bIsFileMode;

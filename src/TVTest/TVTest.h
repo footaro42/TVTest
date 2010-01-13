@@ -9,12 +9,12 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	6
-#define VERSION_BUILD	4
+#define VERSION_BUILD	5
 
-#define VERSION_TEXT_A	"0.6.4"
-#define VERSION_TEXT_W	L"0.6.4"
+#define VERSION_TEXT_A	"0.6.5"
+#define VERSION_TEXT_W	L"0.6.5"
 
-#define ABOUT_TEXT	"TVTest ver.0.6.4\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVTest ver.0.6.5\nby HDUSTestの中の人 && HDUSスレの皆さん"
 
 #else
 
@@ -22,13 +22,16 @@
 #define APP_NAME_W	L"TVH264"
 
 #define VERSION_MAJOR	0
-#define VERSION_MINOR	3
-#define VERSION_BUILD	1
+#define VERSION_MINOR	4
+#define VERSION_BUILD	0
 
-#define VERSION_TEXT_A	"0.3.1"
-#define VERSION_TEXT_W	L"0.3.1"
+#define VERSION_TEXT_A	"0.4.0"
+#define VERSION_TEXT_W	L"0.4.0"
 
-#define ABOUT_TEXT	"TVH264 ver.0.3.1\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVH264 ver.0.4.0\nby HDUSTestの中の人 && HDUSスレの皆さん"
+
+// ワンセグ向け
+#define TVH264_FOR_1SEG
 
 #endif	// TVH264
 
@@ -51,6 +54,7 @@
 #ifndef SAFE_DELETE
 //#define SAFE_DELETE(p)		if (p) { delete p; (p)=NULL; }
 //#define SAFE_DELETE_ARRAY(p)	if (p) { delete [] p; (p)=NULL; }
+// delete NULL でもいいので...
 #define SAFE_DELETE(p)			((void)(delete p,(p)=NULL))
 #define SAFE_DELETE_ARRAY(p)	((void)(delete [] p,(p)=NULL))
 #endif

@@ -139,6 +139,7 @@ class CMainWindow : public CBasicWindow {
 	bool m_fShowRecordRemainTime;
 	unsigned int m_ProgramListUpdateTimerCount;
 	bool m_fViewerBuildError;
+	int m_CurEventStereoMode;
 
 	class CPreviewManager {
 		bool m_fPreview;
@@ -191,6 +192,7 @@ class CMainWindow : public CBasicWindow {
 	bool OnCreate(const CREATESTRUCT *pcs);
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
 	void OnTimer(HWND hwnd,UINT id);
+	void AutoSelectStereoMode();
 	bool OnExecute(LPCTSTR pszCmdLine);
 	void CheckZoomMenu();
 	void ShowChannelOSD();

@@ -33,9 +33,9 @@ EXTERN_C const CLSID CLSID_NullRenderer;
 CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 1UL, 0UL)
 	, m_bInit(false)
-	, m_pMediaControl(NULL)
 
 	, m_pFilterGraph(NULL)
+	, m_pMediaControl(NULL)
 
 	, m_pSrcFilter(NULL)
 	, m_pBonSrcFilterClass(NULL)
@@ -43,9 +43,13 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pAacDecFilter(NULL)
 	, m_pAacDecClass(NULL)
 
-	, m_pMpeg2DecFilter(NULL)
+	, m_pVideoDecoderFilter(NULL)
 
 	, m_pVideoRenderer(NULL)
+	, m_pAudioRenderer(NULL)
+
+	, m_pszAudioFilterName(NULL)
+	, m_pAudioFilter(NULL)
 
 #ifndef TVH264
 	, m_pMpeg2SeqFilter(NULL)
@@ -55,13 +59,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pH264ParserClass(NULL)
 #endif
 
-/*
-#ifdef USE_TBS_FILTER
-	, m_pTBSFilter(NULL)
-#endif
-*/
-
-	, m_pszMpeg2DecoderName(NULL)
+	, m_pszVideoDecoderName(NULL)
 
 	, m_pMp2DemuxFilter(NULL)
 	, m_pMp2DemuxVideoMap(NULL)
@@ -103,6 +101,9 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 CMediaViewer::~CMediaViewer()
 {
 	CloseViewer();
+
+	if (m_pszAudioFilterName)
+		delete [] m_pszAudioFilterName;
 
 	// COMライブラリ開放
 	//::CoUninitialize();
@@ -176,7 +177,7 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 
 const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			CVideoRenderer::RendererType RendererType,
-			LPCWSTR pszMpeg2Decoder, LPCWSTR pszAudioDevice)
+			LPCWSTR pszVideoDecoder, LPCWSTR pszAudioDevice)
 {
 	CTryBlockLock Lock(&m_DecoderLock);
 	if (!Lock.TryLock(LOCK_TIMEOUT)) {
@@ -232,32 +233,6 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			if (pOutput==NULL)
 				throw CBonException(TEXT("ソースフィルタの出力ピンを取得できません。"));
 		}
-
-#if 0
-#ifdef USE_TBS_FILTER
-		Trace(TEXT("TBSフィルタの接続中..."));
-
-		/* CTBSFilter */
-		{
-			bool bOK = false;
-
-			// インスタンス作成
-			m_pTBSFilter = CTBSFilter::CreateInstance(NULL, &hr);
-			if (m_pTBSFilter != NULL && hr == S_OK) {
-				// フィルタグラフに追加してBonSrcFilterと接続
-				hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-										m_pTBSFilter,L"TBSFilter",&pOutput);
-				if (SUCCEEDED(hr)) {
-					if (pOutput==NULL)
-						throw CBonException(TEXT("TBSFilterの出力ピンを取得できません。"));
-					bOK = true;
-				}
-			}
-			if (!bOK)
-				SAFE_RELEASE(m_pTBSFilter);
-		}
-#endif
-#endif
 
 		Trace(TEXT("MPEG-2 Demultiplexerフィルタの接続中..."));
 
@@ -407,6 +382,11 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 												  m_pAudioStreamCallbackParam);
 		}
 #else
+		/*
+			外部AACデコーダを利用すると、チャンネル数が切り替わった際に音が出なくなる、
+			デュアルモノラルがステレオとして再生される、といった問題が出る
+		*/
+
 		/* CAacParserFilter */
 		{
 			IBaseFilter *m_pAacParserFilter;
@@ -439,16 +419,16 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 
 			for (int i=0;i<FilterFinder.GetFilterCount();i++){
 				if (FilterFinder.GetFilterInfo(i,&idAac,szAacDecoder,128)) {
-					TRACE(TEXT("AacDecoder %d : %s\n"),i,szAacDecoder);
-					if (!bConnectSuccess) {
-						hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-								idAac,szAacDecoder,&m_pAacDecFilter,
-								&pOutputAudio);
-						if (SUCCEEDED(hr)) {
-							TRACE(TEXT("AAC decoder connected : %s\n"),szAacDecoder);
-							bConnectSuccess=true;
-							//break;
-						}
+					if (pszAudioDecoder!=NULL && pszAudioDecoder[0]!='\0'
+							&& ::lstrcmpi(szAacDecoder,pszAudioDecoder)!=0)
+						continue;
+					hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+							idAac,szAacDecoder,&m_pAacDecFilter,
+							&pOutputAudio);
+					if (SUCCEEDED(hr)) {
+						TRACE(TEXT("AAC decoder connected : %s\n"),szAacDecoder);
+						bConnectSuccess=true;
+						break;
 					}
 				}
 			}
@@ -462,6 +442,39 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			}
 		}
 #endif
+
+		/* ユーザー指定の音声フィルタの接続 */
+		if (m_pszAudioFilterName) {
+			Trace(TEXT("音声フィルタの接続中..."));
+
+			// 検索
+			bool bConnectSuccess=false;
+			CDirectShowFilterFinder FilterFinder;
+			if (FilterFinder.FindFilter(&MEDIATYPE_Audio,&MEDIASUBTYPE_PCM)) {
+				WCHAR szAudioFilter[128];
+				CLSID idAudioFilter;
+
+				for (int i=0;i<FilterFinder.GetFilterCount();i++) {
+					if (FilterFinder.GetFilterInfo(i,&idAudioFilter,szAudioFilter,128)) {
+						if (::lstrcmpi(m_pszAudioFilterName,szAudioFilter)!=0)
+							continue;
+						hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
+								idAudioFilter,szAudioFilter,&m_pAudioFilter,
+								&pOutputAudio);
+						if (SUCCEEDED(hr)) {
+							TRACE(TEXT("音声フィルタ接続 : %s\n"),szAudioFilter);
+							bConnectSuccess=true;
+						}
+						break;
+					}
+				}
+			}
+			if (!bConnectSuccess) {
+				throw CBonException(hr,
+					TEXT("音声フィルタをフィルタグラフに追加できません。"),
+					TEXT("音声フィルタが利用できないか、音声デバイスに対応していない可能性があります。"));
+			}
+		}
 
 #ifndef TVH264
 		Trace(TEXT("MPEG-2デコーダの接続中..."));
@@ -481,23 +494,21 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 
 			for (int i=0;i<FilterFinder.GetFilterCount();i++){
 				if (FilterFinder.GetFilterInfo(i,&idMpeg2Vid,szMpeg2Decoder,128)) {
-					if (pszMpeg2Decoder!=NULL && pszMpeg2Decoder[0]!='\0'
-							&& ::lstrcmpi(szMpeg2Decoder,pszMpeg2Decoder)!=0)
+					if (pszVideoDecoder!=NULL && pszVideoDecoder[0]!='\0'
+							&& ::lstrcmpi(szMpeg2Decoder,pszVideoDecoder)!=0)
 						continue;
 					hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							idMpeg2Vid,szMpeg2Decoder,&m_pMpeg2DecFilter,
+							idMpeg2Vid,szMpeg2Decoder,&m_pVideoDecoderFilter,
 							&pOutputVideo,NULL,true);
 					if (SUCCEEDED(hr)) {
 						bConnectSuccess=true;
 						break;
 					}
-				} else {
-					// フィルタ情報取得失敗
 				}
 			}
 			// どれかのフィルタで接続できたか
 			if (bConnectSuccess) {
-				m_pszMpeg2DecoderName=StdUtil::strdup(szMpeg2Decoder);
+				m_pszVideoDecoderName=StdUtil::strdup(szMpeg2Decoder);
 			} else {
 				throw CBonException(hr,TEXT("MPEG-2デコーダフィルタをフィルタグラフに追加できません。"),
 					TEXT("設定で有効なMPEG-2デコーダが選択されているか確認してください。\nまた、レンダラを変えてみてください。"));
@@ -510,7 +521,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			1080x1080(4:3)の映像が正方形に表示される問題に対応
 			…しようと思ったが変になるので保留
 		*/
-		if (::StrCmpNI(m_pszMpeg2DecoderName, TEXT("CyberLink"), 9) == 0)
+		if (::StrCmpNI(m_pszVideoDecoderName, TEXT("CyberLink"), 9) == 0)
 			m_pMpeg2SeqClass->SetFixSquareDisplay(true);
 #endif
 #else	// ndef TVH264
@@ -525,29 +536,27 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 				throw CBonException(TEXT("H.264デコーダが見付かりません。"),
 									TEXT("H.264デコーダがインストールされているか確認してください。"));
 
-			WCHAR szMpeg2Decoder[128];
-			CLSID idMpeg2Vid;
+			WCHAR szH264Decoder[128];
+			CLSID idH264Decoder;
 			bool bConnectSuccess=false;
 
 			for (int i=0;i<FilterFinder.GetFilterCount();i++){
-				if (FilterFinder.GetFilterInfo(i,&idMpeg2Vid,szMpeg2Decoder,128)) {
-					if (pszMpeg2Decoder!=NULL && pszMpeg2Decoder[0]!='\0'
-							&& ::lstrcmpi(szMpeg2Decoder,pszMpeg2Decoder)!=0)
+				if (FilterFinder.GetFilterInfo(i,&idH264Decoder,szH264Decoder,128)) {
+					if (pszVideoDecoder!=NULL && pszVideoDecoder[0]!='\0'
+							&& ::lstrcmpi(szH264Decoder,pszVideoDecoder)!=0)
 						continue;
 					hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							idMpeg2Vid,szMpeg2Decoder,&m_pMpeg2DecFilter,
+							idH264Decoder,szH264Decoder,&m_pVideoDecoderFilter,
 							&pOutputVideo,NULL,true);
 					if (SUCCEEDED(hr)) {
 						bConnectSuccess=true;
 						break;
 					}
-				} else {
-					// フィルタ情報取得失敗
 				}
 			}
 			// どれかのフィルタで接続できたか
 			if (bConnectSuccess) {
-				m_pszMpeg2DecoderName=StdUtil::strdup(szMpeg2Decoder);
+				m_pszVideoDecoderName=StdUtil::strdup(szH264Decoder);
 			} else {
 				throw CBonException(hr,TEXT("H.264デコーダフィルタをフィルタグラフに追加できません。"),
 					TEXT("設定で有効なH.264デコーダが選択されているか確認してください。\nまた、レンダラを変えてみてください。"));
@@ -590,14 +599,13 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 
 		// 音声レンダラ構築
 		{
-			IBaseFilter *pAudioRenderer;
 			bool fOK = false;
 
 			if (pszAudioDevice != NULL && pszAudioDevice[0] != '\0') {
 				CDirectShowDeviceEnumerator DevEnum;
 
 				if (DevEnum.CreateFilter(CLSID_AudioRendererCategory,
-										 pszAudioDevice, &pAudioRenderer)) {
+										 pszAudioDevice, &m_pAudioRenderer)) {
 					m_pszAudioRendererName=StdUtil::strdup(pszAudioDevice);
 					fOK = true;
 				}
@@ -605,7 +613,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			if (!fOK) {
 				hr = ::CoCreateInstance(CLSID_DSoundRender, NULL,
 									CLSCTX_INPROC_SERVER, IID_IBaseFilter,
-									reinterpret_cast<void**>(&pAudioRenderer));
+									reinterpret_cast<void**>(&m_pAudioRenderer));
 				if (SUCCEEDED(hr)) {
 					m_pszAudioRendererName=StdUtil::strdup(TEXT("DirectSound Renderer"));
 					fOK = true;
@@ -613,7 +621,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			}
 			if (fOK) {
 				hr = DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							pAudioRenderer, L"Audio Renderer", &pOutputAudio);
+						m_pAudioRenderer, L"Audio Renderer", &pOutputAudio);
 				if (SUCCEEDED(hr)) {
 #ifdef _DEBUG
 					if (pszAudioDevice != NULL && pszAudioDevice[0] != '\0')
@@ -626,7 +634,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 								reinterpret_cast<LPVOID*>(&pMediaFilter)))) {
 							IReferenceClock *pReferenceClock;
 
-							if (SUCCEEDED(pAudioRenderer->QueryInterface(IID_IReferenceClock,
+							if (SUCCEEDED(m_pAudioRenderer->QueryInterface(IID_IReferenceClock,
 									reinterpret_cast<LPVOID*>(&pReferenceClock)))) {
 								pMediaFilter->SetSyncSource(pReferenceClock);
 								pReferenceClock->Release();
@@ -639,23 +647,21 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 				} else {
 					fOK = false;
 				}
-				pAudioRenderer->Release();
 				if (!fOK) {
 					hr = m_pFilterGraph->Render(pOutputAudio);
 					if (FAILED(hr))
 						throw CBonException(hr, TEXT("音声レンダラを接続できません。"),
-							TEXT("設定で有効なサウンドデバイスが選択されているか確認してください。"));
+							TEXT("設定で有効な音声デバイスが選択されているか確認してください。"));
 				}
 			} else {
 				// 音声デバイスが無い?
 				// Nullレンダラを繋げておく
 				hr = ::CoCreateInstance(CLSID_NullRenderer, NULL,
 										CLSCTX_INPROC_SERVER, IID_IBaseFilter,
-									reinterpret_cast<void**>(&pAudioRenderer));
+										reinterpret_cast<void**>(&m_pAudioRenderer));
 				if (SUCCEEDED(hr)) {
 					hr = DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-						pAudioRenderer, L"Null Audio Renderer", &pOutputAudio);
-					pAudioRenderer->Release();
+						m_pAudioRenderer, L"Null Audio Renderer", &pOutputAudio);
 					if (FAILED(hr)) {
 						throw CBonException(hr, TEXT("Null音声レンダラを接続できません。"));
 					}
@@ -763,15 +769,17 @@ void CMediaViewer::CloseViewer(void)
 	}
 #endif
 
-	if (m_pszMpeg2DecoderName!=NULL) {
-		delete [] m_pszMpeg2DecoderName;
-		m_pszMpeg2DecoderName=NULL;
+	if (m_pszVideoDecoderName!=NULL) {
+		delete [] m_pszVideoDecoderName;
+		m_pszVideoDecoderName=NULL;
 	}
 
-	SAFE_RELEASE(m_pMpeg2DecFilter);
+	SAFE_RELEASE(m_pVideoDecoderFilter);
 
 	SAFE_RELEASE(m_pAacDecFilter);
 	m_pAacDecClass=NULL;
+
+	SAFE_RELEASE(m_pAudioRenderer);
 
 #ifndef TVH264
 	SAFE_RELEASE(m_pMpeg2SeqFilter);
@@ -781,18 +789,14 @@ void CMediaViewer::CloseViewer(void)
 	m_pH264ParserClass=NULL;
 #endif
 
-/*
-#ifdef USE_TBS_FILTER
-	SAFE_RELEASE(m_pTBSFilter);
-#endif
-*/
-
 	SAFE_RELEASE(m_pMp2DemuxAudioMap);
 	SAFE_RELEASE(m_pMp2DemuxVideoMap);
 	SAFE_RELEASE(m_pMp2DemuxFilter);
 
 	SAFE_RELEASE(m_pSrcFilter);
 	m_pBonSrcFilterClass=NULL;
+
+	SAFE_RELEASE(m_pAudioFilter);
 
 	SAFE_RELEASE(m_pMediaControl);
 
@@ -955,10 +959,6 @@ const bool CMediaViewer::SetVideoPID(const WORD wPID)
 	}
 
 #ifdef USE_TBS_FILTER
-/*
-	if (m_pTBSFilter != NULL)
-		m_pTBSFilter->SetVideoPID(wPID);
-*/
 	if (m_pBonSrcFilterClass!=NULL)
 		m_pBonSrcFilterClass->SetVideoPID(wPID);
 #endif
@@ -996,10 +996,6 @@ const bool CMediaViewer::SetAudioPID(const WORD wPID)
 	}
 
 #ifdef USE_TBS_FILTER
-	/*
-	if (m_pTBSFilter != NULL)
-		m_pTBSFilter->SetAudioPID(wPID);
-	*/
 	if (m_pBonSrcFilterClass!=NULL)
 		m_pBonSrcFilterClass->SetAudioPID(wPID);
 #endif
@@ -1241,26 +1237,68 @@ const int CMediaViewer::GetStereoMode() const
 const bool CMediaViewer::GetVideoDecoderName(LPWSTR lpName,int iBufLen)
 {
 	// 選択されているビデオデコーダー名の取得
-	if (m_pszMpeg2DecoderName!=NULL) {
-		::lstrcpynW(lpName,m_pszMpeg2DecoderName,iBufLen);
-		return true;
+	if (lpName == NULL || iBufLen < 1)
+		return false;
+	if (m_pszVideoDecoderName == NULL) {
+		if (iBufLen > 0)
+			lpName[0] = '\0';
+		return false;
 	}
-	if (iBufLen>0)
-		lpName[0]='\0';
+	::lstrcpynW(lpName, m_pszVideoDecoderName, iBufLen);
+	return true;
+}
+
+const bool CMediaViewer::DisplayFilterProperty(PropertyFilter Filter, HWND hwndOwner)
+{
+	switch (Filter) {
+	case PROPERTY_FILTER_VIDEODECODER:
+		if (m_pVideoDecoderFilter)
+			return DirectShowUtil::ShowPropertyPage(m_pVideoDecoderFilter,hwndOwner);
+		break;
+	case PROPERTY_FILTER_VIDEORENDERER:
+		if (m_pVideoRenderer)
+			return m_pVideoRenderer->ShowProperty(hwndOwner);
+		break;
+	case PROPERTY_FILTER_MPEG2DEMULTIPLEXER:
+		if (m_pMp2DemuxFilter)
+			return DirectShowUtil::ShowPropertyPage(m_pMp2DemuxFilter,hwndOwner);
+		break;
+	case PROPERTY_FILTER_AUDIOFILTER:
+		if (m_pAudioFilter)
+			return DirectShowUtil::ShowPropertyPage(m_pAudioFilter,hwndOwner);
+		break;
+	case PROPERTY_FILTER_AUDIORENDERER:
+		if (m_pAudioRenderer)
+			return DirectShowUtil::ShowPropertyPage(m_pAudioRenderer,hwndOwner);
+		break;
+	}
 	return false;
 }
 
-const bool CMediaViewer::DisplayVideoDecoderProperty(HWND hWndParent)
+const bool CMediaViewer::FilterHasProperty(PropertyFilter Filter)
 {
-	if (m_pMpeg2DecFilter)
-		return DirectShowUtil::ShowPropertyPage(m_pMpeg2DecFilter,hWndParent);
-	return false;
-}
-
-const bool CMediaViewer::DisplayVideoRandererProperty(HWND hWndParent)
-{
-	if (m_pVideoRenderer)
-		return m_pVideoRenderer->ShowProperty(hWndParent);
+	switch (Filter) {
+	case PROPERTY_FILTER_VIDEODECODER:
+		if (m_pVideoDecoderFilter)
+			return DirectShowUtil::HasPropertyPage(m_pVideoDecoderFilter);
+		break;
+	case PROPERTY_FILTER_VIDEORENDERER:
+		if (m_pVideoRenderer)
+			return m_pVideoRenderer->HasProperty();
+		break;
+	case PROPERTY_FILTER_MPEG2DEMULTIPLEXER:
+		if (m_pMp2DemuxFilter)
+			return DirectShowUtil::HasPropertyPage(m_pMp2DemuxFilter);
+		break;
+	case PROPERTY_FILTER_AUDIOFILTER:
+		if (m_pAudioFilter)
+			return DirectShowUtil::HasPropertyPage(m_pAudioFilter);
+		break;
+	case PROPERTY_FILTER_AUDIORENDERER:
+		if (m_pAudioRenderer)
+			return DirectShowUtil::HasPropertyPage(m_pAudioRenderer);
+		break;
+	}
 	return false;
 }
 
@@ -1661,6 +1699,18 @@ bool CMediaViewer::SetAudioStreamCallback(CAacDecFilter::StreamCallback pCallbac
 }
 
 
+bool CMediaViewer::SetAudioFilter(LPCWSTR pszFilterName)
+{
+	if (m_pszAudioFilterName) {
+		delete [] m_pszAudioFilterName;
+		m_pszAudioFilterName = NULL;
+	}
+	if (pszFilterName && pszFilterName[0] != '\0')
+		m_pszAudioFilterName = StdUtil::strdup(pszFilterName);
+	return true;
+}
+
+
 const bool CMediaViewer::RepaintVideo(HWND hwnd,HDC hdc)
 {
 	if (m_pVideoRenderer)
@@ -1721,6 +1771,7 @@ const bool CMediaViewer::ClearOSD()
 }
 
 
+// 使い道ない
 /*
 bool CMediaViewer::SetAudioOnly(bool bOnly)
 {
@@ -1759,10 +1810,6 @@ bool CMediaViewer::SetAdjustSampleTime(bool bAdjust)
 #ifdef USE_TBS_FILTER
 bool CMediaViewer::EnableTBSFilter(bool bEnable)
 {
-	/*
-	if (m_pTBSFilter != NULL)
-		return m_pTBSFilter->Enable(bEnable);
-	*/
 	if (m_pBonSrcFilterClass != NULL)
 		return m_pBonSrcFilterClass->EnableSync(bEnable);
 	return false;
@@ -1771,10 +1818,6 @@ bool CMediaViewer::EnableTBSFilter(bool bEnable)
 
 bool CMediaViewer::IsTBSFilterEnabled() const
 {
-	/*
-	if (m_pTBSFilter != NULL)
-		return m_pTBSFilter->IsEnabled();
-	*/
 	if (m_pBonSrcFilterClass != NULL)
 		return m_pBonSrcFilterClass->IsSyncEnabled();
 	return false;

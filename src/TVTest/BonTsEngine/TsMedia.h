@@ -323,6 +323,7 @@ public:
 	const WORD GetVerticalSize() const;
 
 protected:
+	bool m_bFoundSPS;
 	struct TAG_H264ACCESSUNIT {
 		// AUD (Access Unit Delimiter)
 		struct {

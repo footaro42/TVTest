@@ -38,6 +38,10 @@
 			<param name="Local" value="statusbar.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="サイドバー">
+			<param name="Local" value="sidebar.html">
+			</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="パネル">
 			<param name="Local" value="panel.html">
 			</OBJECT>
