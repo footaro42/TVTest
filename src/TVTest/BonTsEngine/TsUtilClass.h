@@ -84,6 +84,8 @@ public:
 	bool Set();
 	bool Reset();
 	DWORD Wait(DWORD Timeout = INFINITE);
+	DWORD SignalAndWait(HANDLE hHandle, DWORD Timeout = INFINITE, bool bAlertable = false);
+	DWORD SignalAndWait(CLocalEvent *pEvent, DWORD Timeout = INFINITE);
 	bool IsSignaled();
 };
 

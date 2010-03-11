@@ -90,12 +90,12 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 		int NumSearchKeywords;
 		if (Settings.Read(TEXT("NumSearchKeywords"),&NumSearchKeywords)
 				&& NumSearchKeywords>0) {
-			LPTSTR *ppszKeywords=new LPTSTR[min(NumSearchKeywords,CProgramSearch::MAX_KEYWORD_HISTORY)];
-			TCHAR szName[32];
-
+			if (NumSearchKeywords>CProgramSearch::MAX_KEYWORD_HISTORY)
+				NumSearchKeywords=CProgramSearch::MAX_KEYWORD_HISTORY;
+			LPTSTR *ppszKeywords=new LPTSTR[NumSearchKeywords];
 			int j=0;
 			for (int i=0;i<NumSearchKeywords;i++) {
-				TCHAR szKeyword[CProgramSearch::MAX_KEYWORD_LENGTH];
+				TCHAR szName[32],szKeyword[CProgramSearch::MAX_KEYWORD_LENGTH];
 
 				::wsprintf(szName,TEXT("SearchKeyword%d"),i);
 				if (Settings.Read(szName,szKeyword,lengthof(szKeyword))
@@ -254,7 +254,7 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 }
 
 
-BOOL CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	static LOGFONT lfCurFont;
 

@@ -35,9 +35,7 @@ CDtvEngine::CDtvEngine(void)
 	, m_MediaBuffer(this)
 	, m_MediaGrabber(this)
 	, m_TsSelector(this)
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	, m_CaptionDecoder(this)
-#endif
 	, m_bBuiled(false)
 	, m_bIsFileMode(false)
 	, m_bDescramble(true)
@@ -101,12 +99,8 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 	}
 	m_bBuffering=bBuffering;
 	m_MediaTee.SetOutputDecoder(&m_MediaGrabber, 1UL);
-#ifndef DTVENGINE_CAPTION_SUPPORT
-	m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
-#else
 	m_MediaGrabber.SetOutputDecoder(&m_CaptionDecoder);
 	m_CaptionDecoder.SetOutputDecoder(&m_TsSelector);
-#endif
 	m_TsSelector.SetOutputDecoder(&m_FileWriter);
 
 	// イベントハンドラ設定
@@ -547,11 +541,13 @@ const bool CDtvEngine::SetService(const WORD wService)
 		TRACE(TEXT("------- Service Select -------\n"));
 		TRACE(TEXT("%d (ServiceID = %04X)\n"), m_CurServiceIndex, wServiceID);
 
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 		const BYTE VideoComponentTag = m_TsAnalyzer.GetVideoComponentTag(m_CurServiceIndex);
 		const bool b1Seg = VideoComponentTag >= 0x81 && VideoComponentTag <= 0x8F;
 		m_MediaViewer.SetAdjustSampleTime(b1Seg);
+#ifdef USE_TBS_FILTER
 		m_MediaViewer.EnableTBSFilter(b1Seg);
+#endif
 #endif
 
 		m_MediaViewer.SetVideoPID(wVideoPID);
@@ -563,9 +559,7 @@ const bool CDtvEngine::SetService(const WORD wService)
 		if (m_bWriteCurServiceOnly)
 			SetWriteService(wServiceID, m_WriteStream);
 
-#ifdef DTVENGINE_CAPTION_SUPPORT
 		m_CaptionDecoder.SetTargetStream(wServiceID);
-#endif
 
 		return true;
 	}
@@ -759,10 +753,6 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 		case CMediaViewer::EID_VIDEO_SIZE_CHANGED:
 			if (m_pEventHandler)
 				m_pEventHandler->OnVideoSizeChanged(&m_MediaViewer);
-			return 0UL;
-
-		case CMediaViewer::EID_FILTER_GRAPH_FLUSH:
-			//m_BonSrcDecoder.PurgeStream();
 			return 0UL;
 		}
 	} else if (pDecoder == &m_TsDescrambler) {

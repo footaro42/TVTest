@@ -114,6 +114,9 @@ bool CSideBarOptions::Load(LPCTSTR pszFileName)
 				&& Value>=PLACE_FIRST && Value<=PLACE_LAST)
 			m_Place=(PlaceType)Value;
 		if (Settings.Read(TEXT("ItemCount"),&NumItems) && NumItems>0) {
+			// はまるのを防ぐために、アイテムの種類*2 を上限にしておく
+			if (NumItems>=lengthof(ItemList)*2)
+				NumItems=lengthof(ItemList)*2;
 			m_ItemList.clear();
 			for (int i=0;i<NumItems;i++) {
 				TCHAR szName[32],szCommand[CCommandList::MAX_COMMAND_TEXT];
@@ -156,11 +159,11 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 	Settings.Write(TEXT("Place"),(int)m_Place);
 	Settings.Write(TEXT("ItemCount"),(int)m_ItemList.size());
 	const CCommandList *pCommandList=m_pSideBar->GetCommandList();
-	for (int i=0;i<(int)m_ItemList.size();i++) {
+	for (size_t i=0;i<m_ItemList.size();i++) {
 		TCHAR szName[32];
 
 		::wsprintf(szName,TEXT("Item%d"),i);
-		if (m_ItemList[i]==0)
+		if (m_ItemList[i]==ITEM_SEPARATOR)
 			Settings.Write(szName,TEXT(""));
 		else
 			Settings.Write(szName,pCommandList->GetCommandText(pCommandList->IDToIndex(m_ItemList[i])));
@@ -184,7 +187,7 @@ void CSideBarOptions::ApplyItemList() const
 {
 	m_pSideBar->DeleteAllItems();
 	for (size_t i=0;i<m_ItemList.size();i++) {
-		if (m_ItemList[i]==0) {
+		if (m_ItemList[i]==ITEM_SEPARATOR) {
 			CSideBar::SideBarItem Item;
 
 			Item.Command=CSideBar::ITEM_SEPARATOR;
@@ -195,10 +198,11 @@ void CSideBarOptions::ApplyItemList() const
 			int j;
 
 			for (j=0;j<lengthof(ItemList);j++) {
-				if (ItemList[j].Command==m_ItemList[i])
+				if (ItemList[j].Command==m_ItemList[i]) {
+					m_pSideBar->AddItem(&ItemList[j]);
 					break;
+				}
 			}
-			m_pSideBar->AddItem(&ItemList[j]);
 		}
 	}
 	m_pSideBar->Invalidate();
@@ -220,7 +224,7 @@ CSideBarOptions *CSideBarOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -344,7 +348,7 @@ BOOL CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				lvi.iSubItem=0;
 				lvi.pszText=TEXT("(区切り)");
 				lvi.iImage=-1;
-				lvi.lParam=0;
+				lvi.lParam=ITEM_SEPARATOR;
 				ListView_InsertItem(hwndList,&lvi);
 			}
 			return TRUE;
@@ -447,7 +451,7 @@ void CSideBarOptions::SetItemList(HWND hwndList,const int *pList,int NumItems)
 	lvi.iSubItem=0;
 	lvi.pszText=szText;
 	for (int i=0;i<NumItems;i++) {
-		if (pList[i]==0) {
+		if (pList[i]==ITEM_SEPARATOR) {
 			::lstrcpy(szText,TEXT("(区切り)"));
 			lvi.iImage=-1;
 		} else {

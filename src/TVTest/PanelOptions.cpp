@@ -24,15 +24,21 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	, m_SnapMargin(4)
 	, m_fAttachToMainWindow(true)
 	, m_Opacity(100)
-	, m_fSpecCaptionFont(false)
+	, m_fSpecCaptionFont(true)
 	, m_FirstTab(-1)
 	, m_LastTab(0)
 	, m_fChannelDetailToolTip(false)
 {
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
-#ifndef TVH264
-	m_CaptionFont=m_Font;
+	NONCLIENTMETRICS ncm;
+	ncm.cbSize=
+#if WINVER<0x0600
+		sizeof(ncm);
+#else
+		offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
 #endif
+	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
+	m_CaptionFont=ncm.lfMessageFont;
 	for (int i=0;i<NUM_PANELS;i++) {
 		m_TabList[i].ID=PANEL_ID_FIRST+i;
 		m_TabList[i].fVisible=true;
@@ -50,13 +56,11 @@ bool CPanelOptions::InitializePanelForm(CPanelForm *pPanelForm)
 	int TabOrder[NUM_PANELS];
 
 	pPanelForm->SetPageFont(&m_Font);
-#ifndef TVH264
 	if (m_fSpecCaptionFont) {
 		CPanelForm::CPage *pCaptionPanel=pPanelForm->GetPageByID(PANEL_ID_CAPTION);
 		if (pCaptionPanel!=NULL)
 			pCaptionPanel->SetFont(&m_CaptionFont);
 	}
-#endif
 	pPanelForm->SetCurPageByID(GetFirstTab());
 	for (int i=0;i<NUM_PANELS;i++) {
 		TabOrder[i]=m_TabList[i].ID;
@@ -125,14 +129,14 @@ bool CPanelOptions::Read(CSettings *pSettings)
 		m_Font.lfWeight=Value;
 	if (pSettings->Read(TEXT("PanelFontItalic"),&Value))
 		m_Font.lfItalic=Value;
-#ifndef TVH264
 	pSettings->Read(TEXT("CaptionPanelFontSpec"),&m_fSpecCaptionFont);
 	if (!pSettings->Read(TEXT("CaptionPanelFont"),&m_CaptionFont))
 		m_CaptionFont=m_Font;
-#endif
 
 	int TabCount;
 	if (pSettings->Read(TEXT("PanelTabCount"),&TabCount) && TabCount>0) {
+		if (TabCount>NUM_PANELS)
+			TabCount=NUM_PANELS;
 		int j=0;
 		for (int i=0;i<TabCount;i++) {
 			TCHAR szName[32];
@@ -190,10 +194,8 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("PanelFontSize"),(int)m_Font.lfHeight);
 	pSettings->Write(TEXT("PanelFontWeight"),(int)m_Font.lfWeight);
 	pSettings->Write(TEXT("PanelFontItalic"),(int)m_Font.lfItalic);
-#ifndef TVH264
 	pSettings->Write(TEXT("CaptionPanelFontSpec"),m_fSpecCaptionFont);
 	pSettings->Write(TEXT("CaptionPanelFont"),&m_CaptionFont);
-#endif
 	// Tab order
 	pSettings->Write(TEXT("PanelTabCount"),NUM_PANELS);
 	for (int i=0;i<NUM_PANELS;i++) {
@@ -243,16 +245,14 @@ CPanelOptions *CPanelOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	static const LPCTSTR pszTabList[] = {
 		TEXT("情報"),
 		TEXT("番組表"),
 		TEXT("チャンネル"),
 		TEXT("操作"),
-#ifndef TVH264
 		TEXT("字幕"),
-#endif
 	};
 
 	switch (uMsg) {
@@ -295,14 +295,12 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 
 			pThis->m_CurSettingFont=pThis->m_Font;
 			SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&pThis->m_Font);
-#ifndef TVH264
 			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT,pThis->m_fSpecCaptionFont);
 			EnableDlgItems(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,
 						   IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE,
 						   pThis->m_fSpecCaptionFont);
 			pThis->m_CurSettingCaptionFont=pThis->m_CaptionFont;
 			SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&pThis->m_CaptionFont);
-#endif
 		}
 		return TRUE;
 
@@ -401,7 +399,6 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 									   IDC_PANELOPTIONS_SPECCAPTIONFONT);
 			return TRUE;
 
-#ifndef TVH264
 		case IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE:
 			{
 				CPanelOptions *pThis=GetThis(hDlg);
@@ -410,7 +407,6 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 					SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&pThis->m_CurSettingCaptionFont);
 			}
 			return TRUE;
-#endif
 		}
 		return TRUE;
 
@@ -451,7 +447,7 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 						pPanel->SetPageFont(&pThis->m_Font);
 					}
 				}
-#ifndef TVH264
+
 				bool fChangeCaptionFont=false;
 				bool fSpecCaptionFont=DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT);
 				if (pThis->m_fSpecCaptionFont!=fSpecCaptionFont) {
@@ -471,7 +467,6 @@ BOOL CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 						pCaptionPanel->SetFont(pThis->m_fSpecCaptionFont?
 											   &pThis->m_CaptionFont:&pThis->m_Font);
 				}
-#endif
 			}
 			break;
 		}

@@ -7,7 +7,7 @@
 
 // EIT ‚Ì‰ğÍ‚ğs‚¤
 #define TS_ANALYZER_EIT_SUPPORT
-#if defined(TVH264) || defined(RECTEST)
+#ifdef BONTSENGINE_1SEG_SUPPORT
 // L-EIT[p/f] ‚Ì‰ğÍ‚ğs‚¤
 #define TS_ANALYZER_L_EIT_SUPPORT
 #endif

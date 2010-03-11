@@ -25,6 +25,7 @@ static const struct {
 	{TEXT("Zoom100"),				CM_ZOOM_100},
 	{TEXT("Zoom150"),				CM_ZOOM_150},
 	{TEXT("Zoom200"),				CM_ZOOM_200},
+	{TEXT("Zoom250"),				CM_ZOOM_250},
 	{TEXT("Zoom300"),				CM_ZOOM_300},
 	{TEXT("AspectRatio"),			CM_ASPECTRATIO},
 	{TEXT("AspectDefault"),			CM_ASPECTRATIO_DEFAULT},
@@ -168,7 +169,7 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,const CPlugin
 int CCommandList::NumCommands() const
 {
 	return lengthof(CommandList)+m_DriverList.Length()+
-		m_PluginList.Length()+m_PluginCommandList.Length();
+				m_PluginList.Length()+m_PluginCommandList.Length();
 }
 
 

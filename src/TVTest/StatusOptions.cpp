@@ -31,113 +31,111 @@ CStatusOptions::~CStatusOptions()
 
 bool CStatusOptions::Load(LPCTSTR pszFileName)
 {
-	CSettings Setting;
+	CSettings Settings;
 
-	if (Setting.Open(pszFileName,TEXT("Status"),CSettings::OPEN_READ)) {
-		int NumItems,i,j;
+	if (!Settings.Open(pszFileName,TEXT("Status"),CSettings::OPEN_READ))
+		return false;
+
+	int NumItems;
+	if (Settings.Read(TEXT("NumItems"),&NumItems)
+			&& NumItems>0 && NumItems<=NUM_STATUS_ITEMS) {
 		StatusItemInfo ItemList[NUM_STATUS_ITEMS];
+		int i,j,k;
 
-		if (!Setting.Read(TEXT("NumItems"),&NumItems) || NumItems<1 || NumItems>NUM_STATUS_ITEMS)
-			return false;
-		for (i=0;i<NumItems;i++) {
+		for (i=j=0;i<NumItems;i++) {
 			TCHAR szKey[32];
 
-			wsprintf(szKey,TEXT("Item%d_ID"),i);
-			if (!Setting.Read(szKey,&ItemList[i].ID))
-				return false;
-			for (j=0;j<i;j++) {
-				if (ItemList[i].ID==ItemList[j].ID)
-					return false;
-			}
-			for (j=0;j<NUM_STATUS_ITEMS;j++) {
-				if (ItemList[i].ID==m_ItemList[j].ID)
-					break;
-			}
-			if (j==NUM_STATUS_ITEMS)
-				return false;
-			wsprintf(szKey,TEXT("Item%d_Visible"),i);
-			Setting.Read(szKey,&ItemList[i].fVisible);
-			wsprintf(szKey,TEXT("Item%d_Width"),i);
-			if (!Setting.Read(szKey,&ItemList[i].Width) || ItemList[i].Width<1)
-				ItemList[i].Width=-1;
-		}
-		if (NumItems<NUM_STATUS_ITEMS) {
-			int k;
-
-			k=NumItems;
-			for (i=0;i<NUM_STATUS_ITEMS;i++) {
-				for (j=0;j<NumItems;j++) {
-					if (ItemList[j].ID==m_ItemList[i].ID)
+			::wsprintf(szKey,TEXT("Item%d_ID"),i);
+			if (Settings.Read(szKey,&ItemList[j].ID)
+					&& ItemList[j].ID>=STATUS_ITEM_FIRST
+					&& ItemList[j].ID<=STATUS_ITEM_LAST) {
+				for (k=0;k<j;k++) {
+					if (ItemList[k].ID==ItemList[j].ID)
 						break;
 				}
-				if (j==NumItems)
-					m_ItemList[k++]=m_ItemList[i];
+				if (k==j) {
+					::wsprintf(szKey,TEXT("Item%d_Visible"),i);
+					Settings.Read(szKey,&ItemList[j].fVisible);
+					::wsprintf(szKey,TEXT("Item%d_Width"),i);
+					if (!Settings.Read(szKey,&ItemList[j].Width) || ItemList[j].Width<1)
+						ItemList[j].Width=-1;
+					j++;
+				}
 			}
 		}
+		NumItems=j;
 		for (i=0;i<NumItems;i++)
 			m_ItemList[i]=ItemList[i];
-
-		// Font
-		TCHAR szFont[LF_FACESIZE];
-		int Value;
-
-		if (Setting.Read(TEXT("FontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
-			lstrcpy(m_lfItemFont.lfFaceName,szFont);
-			m_lfItemFont.lfEscapement=0;
-			m_lfItemFont.lfOrientation=0;
-			m_lfItemFont.lfUnderline=0;
-			m_lfItemFont.lfStrikeOut=0;
-			m_lfItemFont.lfCharSet=DEFAULT_CHARSET;
-			m_lfItemFont.lfOutPrecision=OUT_DEFAULT_PRECIS;
-			m_lfItemFont.lfClipPrecision=CLIP_DEFAULT_PRECIS;
-			m_lfItemFont.lfQuality=DRAFT_QUALITY;
-			m_lfItemFont.lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
+		if (NumItems<NUM_STATUS_ITEMS) {
+			for (i=0;i<NUM_STATUS_ITEMS;i++) {
+				for (k=0;k<NumItems;k++) {
+					if (ItemList[k].ID==m_ItemList[i].ID)
+						break;
+				}
+				if (k==NumItems)
+					m_ItemList[j++]=m_ItemList[i];
+			}
 		}
-		if (Setting.Read(TEXT("FontSize"),&Value)) {
-			m_lfItemFont.lfHeight=Value;
-			m_lfItemFont.lfWidth=0;
-		}
-		if (Setting.Read(TEXT("FontWeight"),&Value))
-			m_lfItemFont.lfWeight=Value;
-		if (Setting.Read(TEXT("FontItalic"),&Value))
-			m_lfItemFont.lfItalic=Value;
+	}
 
-		Setting.Read(TEXT("TOTTime"),&m_fShowTOTTime);
-	} else
-		return false;
+	// Font
+	TCHAR szFont[LF_FACESIZE];
+	int Value;
+	if (Settings.Read(TEXT("FontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
+		lstrcpy(m_lfItemFont.lfFaceName,szFont);
+		m_lfItemFont.lfEscapement=0;
+		m_lfItemFont.lfOrientation=0;
+		m_lfItemFont.lfUnderline=0;
+		m_lfItemFont.lfStrikeOut=0;
+		m_lfItemFont.lfCharSet=DEFAULT_CHARSET;
+		m_lfItemFont.lfOutPrecision=OUT_DEFAULT_PRECIS;
+		m_lfItemFont.lfClipPrecision=CLIP_DEFAULT_PRECIS;
+		m_lfItemFont.lfQuality=DRAFT_QUALITY;
+		m_lfItemFont.lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
+	}
+	if (Settings.Read(TEXT("FontSize"),&Value)) {
+		m_lfItemFont.lfHeight=Value;
+		m_lfItemFont.lfWidth=0;
+	}
+	if (Settings.Read(TEXT("FontWeight"),&Value))
+		m_lfItemFont.lfWeight=Value;
+	if (Settings.Read(TEXT("FontItalic"),&Value))
+		m_lfItemFont.lfItalic=Value;
+
+	Settings.Read(TEXT("TOTTime"),&m_fShowTOTTime);
+
 	return true;
 }
 
 
 bool CStatusOptions::Save(LPCTSTR pszFileName) const
 {
-	CSettings Setting;
+	CSettings Settings;
 
-	if (Setting.Open(pszFileName,TEXT("Status"),CSettings::OPEN_WRITE)) {
-		int i;
+	if (!Settings.Open(pszFileName,TEXT("Status"),CSettings::OPEN_WRITE))
+		return false;
 
-		if (!Setting.Write(TEXT("NumItems"),NUM_STATUS_ITEMS))
-			return false;
-		for (i=0;i<NUM_STATUS_ITEMS;i++) {
+	if (Settings.Write(TEXT("NumItems"),NUM_STATUS_ITEMS)) {
+		for (int i=0;i<NUM_STATUS_ITEMS;i++) {
 			TCHAR szKey[32];
 
-			wsprintf(szKey,TEXT("Item%d_ID"),i);
-			Setting.Write(szKey,m_ItemList[i].ID);
-			wsprintf(szKey,TEXT("Item%d_Visible"),i);
-			Setting.Write(szKey,m_ItemList[i].fVisible);
-			wsprintf(szKey,TEXT("Item%d_Width"),i);
-			Setting.Write(szKey,m_ItemList[i].Width);
+			::wsprintf(szKey,TEXT("Item%d_ID"),i);
+			Settings.Write(szKey,m_ItemList[i].ID);
+			::wsprintf(szKey,TEXT("Item%d_Visible"),i);
+			Settings.Write(szKey,m_ItemList[i].fVisible);
+			::wsprintf(szKey,TEXT("Item%d_Width"),i);
+			Settings.Write(szKey,m_ItemList[i].Width);
 		}
+	}
 
-		// Font
-		Setting.Write(TEXT("FontName"),m_lfItemFont.lfFaceName);
-		Setting.Write(TEXT("FontSize"),(int)m_lfItemFont.lfHeight);
-		Setting.Write(TEXT("FontWeight"),(int)m_lfItemFont.lfWeight);
-		Setting.Write(TEXT("FontItalic"),(int)m_lfItemFont.lfItalic);
+	// Font
+	Settings.Write(TEXT("FontName"),m_lfItemFont.lfFaceName);
+	Settings.Write(TEXT("FontSize"),(int)m_lfItemFont.lfHeight);
+	Settings.Write(TEXT("FontWeight"),(int)m_lfItemFont.lfWeight);
+	Settings.Write(TEXT("FontItalic"),(int)m_lfItemFont.lfItalic);
 
-		Setting.Write(TEXT("TOTTime"),m_fShowTOTTime);
-	} else
-		return false;
+	Settings.Write(TEXT("TOTTime"),m_fShowTOTTime);
+
 	return true;
 }
 
@@ -145,7 +143,7 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 void CStatusOptions::SetDefaultItemList()
 {
 	static const bool fTVTest=
-#ifndef TVH264
+#ifndef TVH264_FOR_1SEG
 		true;
 #else
 		false;
@@ -191,27 +189,13 @@ void CStatusOptions::InitListBox(HWND hDlg)
 static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 {
 	HDC hdc;
-	HFONT hfont,hfontOld;
+	TCHAR szText[LF_FACESIZE+16];
 
 	hdc=GetDC(hDlg);
-	if (hdc==NULL)
-		return;
-	hfont=CreateFontIndirect(plf);
-	if (hfont!=NULL) {
-		TEXTMETRIC tm;
-		TCHAR szText[LF_FACESIZE+16];
-		int PixelsPerInch;
-
-		hfontOld=(HFONT)SelectObject(hdc,hfont);
-		GetTextMetrics(hdc,&tm);
-		PixelsPerInch=GetDeviceCaps(hdc,LOGPIXELSY);
-		wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,
-			((tm.tmHeight-tm.tmInternalLeading)*72+PixelsPerInch/2)/PixelsPerInch);
-		SetDlgItemText(hDlg,IDC_STATUSOPTIONS_FONTINFO,szText);
-		SelectObject(hdc,hfontOld);
-		DeleteObject(hfont);
-	}
+	wsprintf(szText,TEXT("%s, %d pt"),
+			 plf->lfFaceName,CalcFontPointHeight(hdc,plf));
 	ReleaseDC(hDlg,hdc);
+	SetDlgItemText(hDlg,IDC_STATUSOPTIONS_FONTINFO,szText);
 }
 
 
@@ -221,7 +205,7 @@ CStatusOptions *CStatusOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	static LOGFONT lfCurFont;
 
@@ -581,24 +565,26 @@ LRESULT CALLBACK CStatusOptions::ItemListProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		return 0;
 
 	case WM_LBUTTONUP:
-		if (GetCapture()==hwnd) {
+		if (GetCapture()==hwnd)
 			ReleaseCapture();
-			if (pThis->m_DragTimerID!=0) {
-				KillTimer(hwnd,pThis->m_DragTimerID);
-				pThis->m_DragTimerID=0;
-			}
-			if (pThis->m_DropInsertPos>=0) {
-				int From=ListBox_GetCurSel(hwnd),To;
+		return 0;
 
-				pThis->DrawInsertMark(hwnd,pThis->m_DropInsertPos);
-				To=pThis->m_DropInsertPos;
-				if (To>From)
-					To--;
-				SetWindowRedraw(hwnd,FALSE);
-				ListBox_MoveItem(hwnd,From,To);
-				SetWindowRedraw(hwnd,TRUE);
-				pThis->m_DropInsertPos=-1;
-			}
+	case WM_CAPTURECHANGED:
+		if (pThis->m_DragTimerID!=0) {
+			KillTimer(hwnd,pThis->m_DragTimerID);
+			pThis->m_DragTimerID=0;
+		}
+		if (pThis->m_DropInsertPos>=0) {
+			int From=ListBox_GetCurSel(hwnd),To;
+
+			pThis->DrawInsertMark(hwnd,pThis->m_DropInsertPos);
+			To=pThis->m_DropInsertPos;
+			if (To>From)
+				To--;
+			SetWindowRedraw(hwnd,FALSE);
+			ListBox_MoveItem(hwnd,From,To);
+			SetWindowRedraw(hwnd,TRUE);
+			pThis->m_DropInsertPos=-1;
 		}
 		return 0;
 

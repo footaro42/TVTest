@@ -11,21 +11,16 @@ enum {
 	PANEL_ID_INFORMATION,
 	PANEL_ID_PROGRAMLIST,
 	PANEL_ID_CHANNEL,
-	PANEL_ID_CONTROL
-#ifndef TVH264
-	,PANEL_ID_CAPTION
-#endif
-	,NUM_PANELS
+	PANEL_ID_CONTROL,
+	PANEL_ID_CAPTION,
+	NUM_PANELS
 };
 
 #define PANEL_ID_FIRST	PANEL_ID_INFORMATION
-#ifndef TVH264
 #define PANEL_ID_LAST	PANEL_ID_CAPTION
-#else
-#define PANEL_ID_LAST	PANEL_ID_CONTROL
-#endif
 
-class CPanelOptions : public COptions {
+class CPanelOptions : public COptions
+{
 	CPanelFrame *m_pPanelFrame;
 	bool m_fSnapAtMainWindow;
 	int m_SnapMargin;
@@ -44,6 +39,7 @@ class CPanelOptions : public COptions {
 	};
 	TabInfo m_TabList[NUM_PANELS];
 	bool m_fChannelDetailToolTip;
+
 	static CPanelOptions *GetThis(HWND hDlg);
 	static LRESULT CALLBACK TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
@@ -64,7 +60,7 @@ public:
 	const LOGFONT *GetFont() const { return &m_Font; }
 	int GetFirstTab() const;
 	bool GetChannelDetailToolTip() const { return m_fChannelDetailToolTip; }
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

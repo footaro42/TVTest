@@ -21,6 +21,7 @@ CPlaybackOptions::CPlaybackOptions()
 	m_fPacketBuffering=false;
 	m_PacketBufferLength=40000;
 	m_PacketBufferPoolPercentage=50;
+	m_StreamThreadPriority=THREAD_PRIORITY_NORMAL;
 }
 
 
@@ -31,15 +32,18 @@ CPlaybackOptions::~CPlaybackOptions()
 
 bool CPlaybackOptions::Apply(DWORD Flags)
 {
-	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
-		CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+	CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
 
+	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
 		if (!m_fPacketBuffering)
 			pCoreEngine->SetPacketBuffering(false);
 		pCoreEngine->SetPacketBufferLength(m_PacketBufferLength);
 		pCoreEngine->SetPacketBufferPoolPercentage(m_PacketBufferPoolPercentage);
 		if (m_fPacketBuffering)
 			pCoreEngine->SetPacketBuffering(true);
+	}
+	if ((Flags&UPDATE_STREAMTHREADPRIORITY)!=0) {
+		pCoreEngine->m_DtvEngine.m_BonSrcDecoder.SetStreamThreadPriority(m_StreamThreadPriority);
 	}
 	return true;
 }
@@ -57,8 +61,11 @@ bool CPlaybackOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
 	unsigned int BufferLength;
 	if (pSettings->Read(TEXT("PacketBufferLength"),&BufferLength))
-		m_PacketBufferLength=BufferLength;
-	pSettings->Read(TEXT("PacketBufferPoolPercentage"),&m_PacketBufferPoolPercentage);
+		m_PacketBufferLength=min(BufferLength,MAX_PACKET_BUFFER_LENGTH);
+	if (pSettings->Read(TEXT("PacketBufferPoolPercentage"),&m_PacketBufferPoolPercentage))
+		m_PacketBufferPoolPercentage=CLAMP(m_PacketBufferPoolPercentage,0,100);
+	if (pSettings->Read(TEXT("StreamThreadPriority"),&m_StreamThreadPriority))
+		m_StreamThreadPriority=CLAMP(m_StreamThreadPriority,THREAD_PRIORITY_NORMAL,THREAD_PRIORITY_HIGHEST);
 	return true;
 }
 
@@ -75,6 +82,7 @@ bool CPlaybackOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
 	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
 	pSettings->Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
+	pSettings->Write(TEXT("StreamThreadPriority"),m_StreamThreadPriority);
 	return true;
 }
 
@@ -153,10 +161,19 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			EnableDlgItems(hDlg,IDC_OPTIONS_BUFFERING_FIRST,IDC_OPTIONS_BUFFERING_LAST,
 					pThis->m_fPacketBuffering);
 			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,pThis->m_PacketBufferLength,FALSE);
-			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERSIZE_UD,1,INT_MAX);
+			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERSIZE_UD,1,MAX_PACKET_BUFFER_LENGTH);
 			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,
 						  pThis->m_PacketBufferPoolPercentage,TRUE);
 			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE_UD,0,100);
+
+			static const LPCTSTR ThreadPriorityList[] = {
+				TEXT("’Êí (Ä¶—Dæ)"),
+				TEXT("‚‚ß"),
+				TEXT("Å‚ (˜^‰æ—Dæ)"),
+			};
+			for (int i=0;i<lengthof(ThreadPriorityList);i++)
+				DlgComboBox_AddString(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,ThreadPriorityList[i]);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,pThis->m_StreamThreadPriority);
 		}
 		return TRUE;
 
@@ -224,7 +241,9 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 
 				bool fBuffering=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ENABLEBUFFERING);
 				DWORD BufferLength=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,NULL,FALSE);
+				BufferLength=CLAMP(BufferLength,0,MAX_PACKET_BUFFER_LENGTH);
 				int PoolPercentage=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,NULL,TRUE);
+				PoolPercentage=CLAMP(PoolPercentage,0,100);
 				if (fBuffering!=pThis->m_fPacketBuffering
 					|| (fBuffering
 						&& (BufferLength!=pThis->m_PacketBufferLength
@@ -233,6 +252,12 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				pThis->m_fPacketBuffering=fBuffering;
 				pThis->m_PacketBufferLength=BufferLength;
 				pThis->m_PacketBufferPoolPercentage=PoolPercentage;
+
+				Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY);
+				if (Sel>=0 && Sel!=pThis->m_StreamThreadPriority) {
+					pThis->m_StreamThreadPriority=Sel;
+					pThis->SetUpdateFlag(UPDATE_STREAMTHREADPRIORITY);
+				}
 			}
 			break;
 		}

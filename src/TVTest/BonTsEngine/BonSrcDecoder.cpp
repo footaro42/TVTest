@@ -30,6 +30,7 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_bIsPlaying(false)
 	, m_BitRate(0)
 	, m_StreamRemain(0)
+	, m_StreamThreadPriority(THREAD_PRIORITY_NORMAL)
 	, m_bPurgeStreamOnChannelChange(true)
 {
 }
@@ -100,7 +101,7 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	// IBonDriver2インタフェース取得
 	m_pBonDriver2 = dynamic_cast<IBonDriver2 *>(m_pBonDriver);
 
-	/*
+#if 0
 	// 初期チャンネルをセットする
 	if (m_pBonDriver2) {
 		// IBonDriver2
@@ -115,7 +116,7 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 			goto OnError;
 		}
 	}
-	*/
+#endif
 
 	// ストリーム受信スレッド起動
 	if (!m_PauseEvent.Create(true)
@@ -158,8 +159,7 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		// ストリーム受信スレッド停止
 		Trace(TEXT("ストリーム受信スレッドを停止しています..."));
 		m_bKillSignal = true;
-		m_PauseEvent.Set();
-		if (::WaitForSingleObject(m_hStreamRecvThread, 5000UL) != WAIT_OBJECT_0) {
+		if (m_PauseEvent.SignalAndWait(m_hStreamRecvThread, 5000UL) != WAIT_OBJECT_0) {
 			// スレッド強制終了
 			::TerminateThread(m_hStreamRecvThread, 0UL);
 			Trace(TEXT("ストリーム受信スレッドを強制終了しました。"));
@@ -417,6 +417,8 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 
 	::CoInitialize(NULL);
 
+	::SetThreadPriority(::GetCurrentThread(),pThis->m_StreamThreadPriority);
+
 	// チューナからTSデータを取り出すスレッド
 	while (true) {
 		DWORD BitRateTime=::GetTickCount();
@@ -477,8 +479,7 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 			break;
 		pThis->m_PauseEvent.Reset();
 		pThis->m_ResumeEvent.Reset();
-		pThis->m_BreakEvent.Set();
-		pThis->m_ResumeEvent.Wait(10000);
+		pThis->m_BreakEvent.SignalAndWait(&pThis->m_ResumeEvent,20000);
 	}
 
 	pThis->m_BitRate=0;
@@ -498,8 +499,7 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
 {
 	m_BreakEvent.Reset();
-	m_PauseEvent.Set();
-	if (m_BreakEvent.Wait(TimeOut) == WAIT_TIMEOUT) {
+	if (m_PauseEvent.SignalAndWait(&m_BreakEvent, TimeOut) == WAIT_TIMEOUT) {
 		m_PauseEvent.Reset();
 		return false;
 	}
@@ -562,6 +562,20 @@ DWORD CBonSrcDecoder::GetBitRate() const
 DWORD CBonSrcDecoder::GetStreamRemain() const
 {
 	return m_StreamRemain;
+}
+
+
+bool CBonSrcDecoder::SetStreamThreadPriority(int Priority)
+{
+	if (m_StreamThreadPriority != Priority) {
+		TRACE(TEXT("CBonSrcDecoder::SetStreamThreadPriority(%d)\n"), Priority);
+		if (m_hStreamRecvThread) {
+			if (!::SetThreadPriority(m_hStreamRecvThread, Priority))
+				return false;
+		}
+		m_StreamThreadPriority = Priority;
+	}
+	return true;
 }
 
 

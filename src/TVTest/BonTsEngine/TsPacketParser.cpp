@@ -28,6 +28,9 @@ CTsPacketParser::CTsPacketParser(IEventHandler *pEventHandler)
 	, m_ErrorPacketCount(0)
 	, m_ContinuityErrorPacketCount(0)
 	, m_bLockEpgDataCap(false)
+#ifdef BONTSENGINE_1SEG_SUPPORT
+	, m_bGeneratePAT(true)
+#endif
 {
 	// パケット連続性カウンタを初期化する
 	::FillMemory(m_abyContCounter, sizeof(m_abyContCounter), 0x10UL);
@@ -54,7 +57,7 @@ void CTsPacketParser::Reset(void)
 	// 状態をリセットする
 	m_TsPacket.ClearSize();
 
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 	m_PATGenerator.Reset();
 #endif
 }
@@ -171,7 +174,7 @@ bool inline CTsPacketParser::ParsePacket(void)
 		m_ContinuityErrorPacketCount++;
 	case CTsPacket::EC_VALID:
 		{
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 			/*
 			// PAT の無い状態をシミュレート
 			if (m_TsPacket.GetPID() == 0) {
@@ -179,7 +182,7 @@ bool inline CTsPacketParser::ParsePacket(void)
 				break;
 			}
 			*/
-			if (m_PATGenerator.StorePacket(&m_TsPacket)) {
+			if (m_PATGenerator.StorePacket(&m_TsPacket) && m_bGeneratePAT) {
 				if (m_PATGenerator.GetPAT(&m_PATPacket)) {
 					OutputMedia(&m_PATPacket);
 				}
@@ -219,7 +222,7 @@ bool inline CTsPacketParser::ParsePacket(void)
 
 bool CTsPacketParser::InitializeEpgDataCap(LPCTSTR pszDllFileName)
 {
-	return m_EpgCap.Initialize(pszDllFileName,FALSE)==NO_ERR;
+	return m_EpgCap.Initialize(pszDllFileName, FALSE) == NO_ERR;
 }
 
 
@@ -236,24 +239,11 @@ bool CTsPacketParser::IsEpgDataCapLoaded() const
 }
 
 
-/*
-CEpgDataInfo *CTsPacketParser::GetEpgDataInfo(WORD wSID,bool bNext)
-{
-	EPG_DATA_INFO *pData;
-	CEpgDataInfo *pInfo=NULL;
-
-	if (m_EpgCap.GetPFData(wSID,&pData,bNext)==NO_ERR)
-		pInfo=new CEpgDataInfo(pData);
-	return pInfo;
-}
-*/
-
-
 bool CTsPacketParser::LockEpgDataCap()
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	m_bLockEpgDataCap=true;
+	m_bLockEpgDataCap = true;
 	return true;
 }
 
@@ -262,14 +252,23 @@ bool CTsPacketParser::UnlockEpgDataCap()
 {
 	CBlockLock Lock(&m_DecoderLock);
 
-	m_bLockEpgDataCap=false;
+	m_bLockEpgDataCap = false;
 	return true;
 }
 
 
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
+
+bool CTsPacketParser::EnablePATGeneration(bool bEnable)
+{
+	m_bGeneratePAT = bEnable;
+	return true;
+}
+
+
 bool CTsPacketParser::SetTransportStreamID(WORD TransportStreamID)
 {
 	return m_PATGenerator.SetTransportStreamID(TransportStreamID);
 }
+
 #endif

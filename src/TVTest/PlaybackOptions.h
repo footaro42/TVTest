@@ -8,11 +8,15 @@
 class CPlaybackOptions : public COptions
 {
 	enum {
-		UPDATE_PACKETBUFFERING	= 0x00000001UL
+		UPDATE_PACKETBUFFERING		= 0x00000001UL,
+		UPDATE_STREAMTHREADPRIORITY	= 0x00000002UL
 	};
 	enum {
 		MAX_AUDIO_DEVICE_NAME = 128,
 		MAX_AUDIO_FILTER_NAME = 128
+	};
+	enum {
+		MAX_PACKET_BUFFER_LENGTH = 0x00100000UL
 	};
 	TCHAR m_szAudioDeviceName[MAX_AUDIO_DEVICE_NAME];
 	TCHAR m_szAudioFilterName[MAX_AUDIO_FILTER_NAME];
@@ -24,6 +28,7 @@ class CPlaybackOptions : public COptions
 	bool m_fPacketBuffering;
 	DWORD m_PacketBufferLength;
 	int m_PacketBufferPoolPercentage;
+	int m_StreamThreadPriority;
 
 	static CPlaybackOptions *GetThis(HWND hDlg);
 
@@ -46,6 +51,7 @@ public:
 	bool SetPacketBuffering(bool fBuffering);
 	DWORD GetPacketBufferLength() const { return m_PacketBufferLength; }
 	int GetPacketBufferPoolPercentage() const { return m_PacketBufferPoolPercentage; }
+	int GetStreamThreadPriority() const { return m_StreamThreadPriority; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

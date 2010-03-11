@@ -7,7 +7,8 @@
 #include "DirectShowFilter/VideoRenderer.h"
 
 
-class CGeneralOptions : public COptions {
+class CGeneralOptions : public COptions
+{
 public:
 	enum DefaultDriverType {
 		DEFAULT_DRIVER_NONE,
@@ -41,7 +42,7 @@ public:
 	bool GetDescrambleUseSSE2() const { return m_fDescrambleUseSSE2; }
 	bool GetDescrambleCurServiceOnly() const;
 	bool GetEnableEmmProcess() const;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 private:
 	TCHAR m_szDriverDirectory[MAX_PATH];
@@ -57,7 +58,6 @@ private:
 	bool m_fDescrambleUseSSE2;
 	bool m_fDescrambleCurServiceOnly;
 	bool m_fEnableEmmProcess;
-	static CGeneralOptions *GetThis(HWND hDlg);
 	enum {
 		UPDATE_DECODER				= 0x00000001UL,
 		UPDATE_RENDERER				= 0x00000002UL,
@@ -66,6 +66,8 @@ private:
 		UPDATE_DESCRAMBLECURONLY	= 0x00000010UL,
 		UPDATE_ENABLEEMMPROCESS		= 0x00000020UL
 	};
+
+	static CGeneralOptions *GetThis(HWND hDlg);
 };
 
 

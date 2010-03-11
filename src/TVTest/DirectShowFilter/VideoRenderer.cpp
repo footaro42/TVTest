@@ -855,8 +855,10 @@ bool CVideoRenderer_VMR9::SetVisible(bool fVisible)
 
 
 #include <ddraw.h>
+/*
 #define D3D_OVERLOADS
 #include <d3d.h>
+*/
 
 
 class CVideoRenderer_VMR7Renderless :

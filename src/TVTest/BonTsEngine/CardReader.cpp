@@ -198,6 +198,29 @@ static LPCTSTR GetSCardErrorText(LONG Code)
 	return NULL;
 }
 
+static DWORD GetSCardErrorMessage(LONG Code,LPTSTR pszMessage,DWORD MaxLength)
+{
+	LPCTSTR pszText = GetSCardErrorText(Code);
+	DWORD Length = 0;
+	if (pszText!=NULL) {
+		Length = ::StrStr(pszText, TEXT(" ")) - pszText + 1;
+		if (Length > MaxLength)
+			Length = MaxLength;
+		::lstrcpyn(pszMessage, pszText, Length + 1);
+	}
+	Length = ::FormatMessage(
+		FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
+		Code, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+		pszMessage + Length, MaxLength - Length, NULL);
+	if (Length == 0) {
+		if (pszText != NULL)
+			::lstrcpyn(pszMessage, pszText, MaxLength);
+		else
+			pszMessage[0] = '\0';
+	}
+	return Length;
+}
+
 
 CSCardReader::CSCardReader()
 	: m_hBcasCard(NULL)
@@ -247,7 +270,8 @@ CSCardReader::~CSCardReader()
 bool CSCardReader::Open(LPCTSTR pszReader)
 {
 	if (!m_bIsEstablish) {
-		SetError(TEXT("コンテキストを確立できません。"));
+		SetError(TEXT("コンテキストを確立できません。"),
+				 TEXT("Smart Card サービスが有効であるか確認してください。"));
 		return false;
 	}
 
@@ -261,7 +285,9 @@ bool CSCardReader::Open(LPCTSTR pszReader)
 
 		Result=::SCardConnect(m_ScardContext,pszReader,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol);
 		if (Result!=SCARD_S_SUCCESS) {
-			SetError(TEXT("カードリーダに接続できません。"),NULL,GetSCardErrorText(Result));
+			TCHAR szMessage[256];
+			GetSCardErrorMessage(Result,szMessage,sizeof(szMessage)/sizeof(TCHAR));
+			SetError(TEXT("カードリーダに接続できません。"),NULL,szMessage);
 			return false;
 		}
 
@@ -338,7 +364,9 @@ bool CSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData
 	LONG Result=::SCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize);
 
 	if (Result!=SCARD_S_SUCCESS) {
-		SetError(TEXT("コマンド送信エラーです。"),NULL,GetSCardErrorText(Result));
+		TCHAR szMessage[256];
+		GetSCardErrorMessage(Result,szMessage,sizeof(szMessage)/sizeof(TCHAR));
+		SetError(TEXT("コマンド送信エラーです。"),NULL,szMessage);
 		return false;
 	}
 
@@ -494,7 +522,9 @@ bool CDynamicSCardReader::Open(LPCTSTR pszReader)
 
 		Result=pConnect(m_ScardContext,pszReaderName,SCARD_SHARE_SHARED,SCARD_PROTOCOL_T1,&m_hBcasCard,&dwActiveProtocol);
 		if (Result!=SCARD_S_SUCCESS) {
-			SetError(TEXT("カードリーダに接続できません。"),NULL,GetSCardErrorText(Result));
+			TCHAR szMessage[256];
+			GetSCardErrorMessage(Result,szMessage,sizeof(szMessage)/sizeof(TCHAR));
+			SetError(TEXT("カードリーダに接続できません。"),NULL,szMessage);
 			return false;
 		}
 
@@ -579,7 +609,9 @@ bool CDynamicSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pR
 	LONG Result=m_pSCardTransmit(m_hBcasCard,SCARD_PCI_T1,(LPCBYTE)pSendData,SendSize,NULL,(LPBYTE)pRecvData,pRecvSize);
 
 	if (Result!=SCARD_S_SUCCESS) {
-		SetError(TEXT("コマンド送信エラーです。"),NULL,GetSCardErrorText(Result));
+		TCHAR szMessage[256];
+		GetSCardErrorMessage(Result,szMessage,sizeof(szMessage)/sizeof(TCHAR));
+		SetError(TEXT("コマンド送信エラーです。"),NULL,szMessage);
 		return false;
 	}
 

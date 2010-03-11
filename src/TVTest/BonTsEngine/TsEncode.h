@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include <vector>
+
 
 /////////////////////////////////////////////////////////////////////////////
 // ARIB STD-B24 Part1ï∂éöóÒèàóùÉNÉâÉX
@@ -12,8 +14,37 @@
 class CAribString
 {
 public:
+	enum CHAR_SIZE {
+		SIZE_SMALL,		// è¨å^
+		SIZE_MEDIUM,	// íÜå^
+		SIZE_NORMAL,	// ïWèÄ
+		SIZE_MICRO,		// í¥è¨å^
+		SIZE_HIGH_W,	// ècî{
+		SIZE_WIDTH_W,	// â°î{
+		SIZE_W,			// ècâ°î{
+		SIZE_SPECIAL_1,	// ì¡éÍ1
+		SIZE_SPECIAL_2	// ì¡éÍ2
+	};
+
+	struct FormatInfo {
+		DWORD Pos;
+		CHAR_SIZE Size;
+		BYTE CharColorIndex;
+		BYTE BackColorIndex;
+		BYTE RasterColorIndex;
+		bool operator==(const FormatInfo &o) {
+			return Pos == o.Pos
+				&& Size == o.Size
+				&& CharColorIndex == o.CharColorIndex
+				&& BackColorIndex == o.BackColorIndex
+				&& RasterColorIndex == o.RasterColorIndex;
+		}
+		bool operator!=(const FormatInfo &o) { return !(*this == o); }
+	};
+	typedef std::vector<FormatInfo> FormatList;
+
 	static const DWORD AribToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
-	static const DWORD CaptionToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
+	static const DWORD CaptionToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, FormatList *pFormatList = NULL);
 
 private:
 	enum CODE_SET
@@ -34,19 +65,23 @@ private:
 		CODE_JIS_KANJI_PLANE_1,		// JIS compatible Kanji Plane 1
 		CODE_JIS_KANJI_PLANE_2,		// JIS compatible Kanji Plane 2
 		CODE_ADDITIONAL_SYMBOLS,	// Additional symbols
+		CODE_DRCS_0,				// DRCS-0
+		CODE_DRCS_1,				// DRCS-1
+		CODE_DRCS_2,				// DRCS-2
+		CODE_DRCS_3,				// DRCS-3
+		CODE_DRCS_4,				// DRCS-4
+		CODE_DRCS_5,				// DRCS-5
+		CODE_DRCS_6,				// DRCS-6
+		CODE_DRCS_7,				// DRCS-7
+		CODE_DRCS_8,				// DRCS-8
+		CODE_DRCS_9,				// DRCS-9
+		CODE_DRCS_10,				// DRCS-10
+		CODE_DRCS_11,				// DRCS-11
+		CODE_DRCS_12,				// DRCS-12
+		CODE_DRCS_13,				// DRCS-13
+		CODE_DRCS_14,				// DRCS-14
+		CODE_DRCS_15,				// DRCS-15
 		CODE_MACRO					// Macro
-	};
-
-	enum CHAR_SIZE {
-		SIZE_SMALL,		// è¨å^
-		SIZE_MEDIUM,	// íÜå^
-		SIZE_NORMAL,	// ïWèÄ
-		SIZE_MICRO,		// í¥è¨å^
-		SIZE_HIGH_W,	// ècî{
-		SIZE_WIDTH_W,	// â°î{
-		SIZE_W,			// ècâ°î{
-		SIZE_SPECIAL_1,	// ì¡éÍ1
-		SIZE_SPECIAL_2	// ì¡éÍ2
 	};
 
 	CODE_SET m_CodeG[4];
@@ -59,10 +94,16 @@ private:
 	bool m_bIsEscSeqDrcs;
 
 	CHAR_SIZE m_CharSize;
+	BYTE m_CharColorIndex;
+	BYTE m_BackColorIndex;
+	BYTE m_RasterColorIndex;
+	BYTE m_DefPalette;
+	FormatList *m_pFormatList;
+	BYTE m_RPC;
 
 	bool m_bCaption;
 
-	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, const bool bCaption = false);
+	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, const bool bCaption = false, FormatList *pFormatList = NULL);
 	const DWORD ProcessString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
 	inline const int ProcessCharCode(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode, const CODE_SET CodeSet);
 
@@ -86,6 +127,8 @@ private:
 	inline const bool IsSmallCharMode() const {
 		return m_CharSize == SIZE_SMALL || m_CharSize == SIZE_MEDIUM || m_CharSize == SIZE_MICRO;
 	}
+
+	bool SetFormat(DWORD Pos);
 };
 
 

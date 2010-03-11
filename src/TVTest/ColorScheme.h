@@ -7,7 +7,8 @@
 #include "Theme.h"
 
 
-class CColorScheme {
+class CColorScheme
+{
 public:
 	enum {
 		COLOR_STATUSBACK1,
@@ -92,8 +93,25 @@ public:
 		COLOR_PROGRAMGUIDECURCHANNELTEXT,
 		COLOR_PROGRAMGUIDETIMEBACK1,
 		COLOR_PROGRAMGUIDETIMEBACK2,
+		COLOR_PROGRAMGUIDETIMEBACK_0TO2_1,
+		COLOR_PROGRAMGUIDETIMEBACK_0TO2_2,
+		COLOR_PROGRAMGUIDETIMEBACK_3TO5_1,
+		COLOR_PROGRAMGUIDETIMEBACK_3TO5_2,
+		COLOR_PROGRAMGUIDETIMEBACK_6TO8_1,
+		COLOR_PROGRAMGUIDETIMEBACK_6TO8_2,
+		COLOR_PROGRAMGUIDETIMEBACK_9TO11_1,
+		COLOR_PROGRAMGUIDETIMEBACK_9TO11_2,
+		COLOR_PROGRAMGUIDETIMEBACK_12TO14_1,
+		COLOR_PROGRAMGUIDETIMEBACK_12TO14_2,
+		COLOR_PROGRAMGUIDETIMEBACK_15TO17_1,
+		COLOR_PROGRAMGUIDETIMEBACK_15TO17_2,
+		COLOR_PROGRAMGUIDETIMEBACK_18TO20_1,
+		COLOR_PROGRAMGUIDETIMEBACK_18TO20_2,
+		COLOR_PROGRAMGUIDETIMEBACK_21TO23_1,
+		COLOR_PROGRAMGUIDETIMEBACK_21TO23_2,
 		COLOR_PROGRAMGUIDETIMETEXT,
 		COLOR_PROGRAMGUIDETIMELINE,
+		COLOR_PROGRAMGUIDECURTIMELINE,
 		COLOR_PROGRAMGUIDE_CONTENT_NEWS,
 		COLOR_PROGRAMGUIDE_CONTENT_SPORTS,
 		COLOR_PROGRAMGUIDE_CONTENT_INFORMATION,
@@ -136,6 +154,14 @@ public:
 		GRADIENT_PROGRAMGUIDECHANNELBACK,
 		GRADIENT_PROGRAMGUIDECURCHANNELBACK,
 		GRADIENT_PROGRAMGUIDETIMEBACK,
+		GRADIENT_PROGRAMGUIDETIME0TO2BACK,
+		GRADIENT_PROGRAMGUIDETIME3TO5BACK,
+		GRADIENT_PROGRAMGUIDETIME6TO8BACK,
+		GRADIENT_PROGRAMGUIDETIME9TO11BACK,
+		GRADIENT_PROGRAMGUIDETIME12TO14BACK,
+		GRADIENT_PROGRAMGUIDETIME15TO17BACK,
+		GRADIENT_PROGRAMGUIDETIME18TO20BACK,
+		GRADIENT_PROGRAMGUIDETIME21TO23BACK,
 		NUM_GRADIENTS
 	};
 	enum GradientType {
@@ -193,6 +219,7 @@ private:
 	};
 	struct GradientInfo {
 		LPCTSTR pszText;
+		Theme::GradientDirection Direction;
 		int Color1;
 		int Color2;
 	};
@@ -200,6 +227,7 @@ private:
 		LPCTSTR pszText;
 		Theme::BorderType DefaultType;
 	};
+
 	DWORD m_LoadedFlags[(NUM_COLORS+31)/32];
 	void SetLoadedFlag(int Color);
 	static const ColorInfo m_ColorInfoList[NUM_COLORS];
@@ -207,7 +235,8 @@ private:
 	static const BorderInfo m_BorderInfoList[NUM_BORDERS];
 };
 
-class CColorSchemeList {
+class CColorSchemeList
+{
 	int m_NumColorSchemes;
 	CColorScheme **m_ppList;
 
@@ -222,7 +251,8 @@ public:
 	bool SetColorScheme(int Index,const CColorScheme *pColorScheme);
 };
 
-class CColorSchemeOptions : public COptions {
+class CColorSchemeOptions : public COptions
+{
 public:
 	typedef bool (*ApplyFunc)(const CColorScheme *pColorScheme);
 
@@ -235,23 +265,26 @@ private:
 	bool m_fPreview;
 	ApplyFunc m_pApplyFunc;
 	CColorPalette m_ColorPalette;
+
 	bool Apply(const CColorScheme *pColorScheme) const;
 	void GetCurrentSettings(CColorScheme *pColorScheme);
 	static const LPCTSTR m_pszExtension;
-	static CColorSchemeOptions *GetThis(HWND hwnd);
+	static CColorSchemeOptions *GetThis(HWND hDlg);
 
 public:
 	CColorSchemeOptions();
 	~CColorSchemeOptions();
+// COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
+// CColorSchemeOptions
 	bool SetApplyCallback(ApplyFunc pCallback);
 	bool ApplyColorScheme() const;
 	const CColorScheme *GetColorScheme() const { return m_pColorScheme; }
 	COLORREF GetColor(int Type) const;
 	COLORREF GetColor(LPCTSTR pszText) const;
 	static bool GetThemesDirectory(LPTSTR pszDirectory,int MaxLength,bool fCreate=false);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

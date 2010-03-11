@@ -13,7 +13,7 @@
 #include "../DirectShowFilter/AacDecFilter.h"
 #include "../DirectShowFilter/VideoRenderer.h"
 #include "../DirectShowFilter/ImageMixer.h"
-#ifndef TVH264
+#ifndef BONTSENGINE_H264_SUPPORT
 #include "../DirectShowFilter/Mpeg2SequenceFilter.h"
 #else
 #include "../DirectShowFilter/H264ParserFilter.h"
@@ -31,8 +31,7 @@ class CMediaViewer : public CMediaDecoder
 {
 public:
 	enum EVENTID {
-		EID_VIDEO_SIZE_CHANGED,
-		EID_FILTER_GRAPH_FLUSH
+		EID_VIDEO_SIZE_CHANGED	// 映像のサイズが変わった
 	};
 	enum {
 		PID_INVALID=0xFFFF
@@ -120,11 +119,6 @@ public:
 	bool SetVisible(bool fVisible);
 	const void HideCursor(bool bHide);
 	const bool GetCurrentImage(BYTE **ppDib);
-#ifdef USE_GABBER_FILTER
-	bool SetGrabber(bool bGrabber);
-	bool GetGrabber() const { return m_pGrabber!=NULL; }
-	void *DoCapture(DWORD WaitTime);
-#endif
 	bool SetDownMixSurround(bool bDownMix);
 	bool GetDownMixSurround() const;
 	bool SetAudioNormalize(bool bNormalize,float Level=1.0f);
@@ -139,9 +133,7 @@ public:
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
-	//bool SetAudioOnly(bool bOnly);
-	bool CheckHangUp(DWORD TimeOut);
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 	bool SetAdjustSampleTime(bool bAdjust);
 #endif
 #ifdef USE_TBS_FILTER
@@ -175,7 +167,7 @@ protected:
 	// 音声レンダラ
 	IBaseFilter *m_pAudioRenderer;
 
-#ifndef TVH264
+#ifndef BONTSENGINE_H264_SUPPORT
 	// Mpeg2-Sequence
 	IBaseFilter *m_pMpeg2SeqFilter;
 	CMpeg2SequenceFilter *m_pMpeg2SeqClass;
@@ -217,10 +209,6 @@ protected:
 	CAacDecFilter::StreamCallback m_pAudioStreamCallback;
 	void *m_pAudioStreamCallbackParam;
 	CImageMixer *m_pImageMixer;
-#ifdef USE_GABBER_FILTER
-	bool m_bGrabber;
-	class CGrabber *m_pGrabber;
-#endif
 	CTracer *m_pTracer;
 
 #ifdef _DEBUG

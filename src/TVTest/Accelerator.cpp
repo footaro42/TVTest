@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Accelerator.h"
@@ -410,22 +409,24 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 		int NumAccel;
 
 		if (Settings.Read(TEXT("AccelCount"),&NumAccel) && NumAccel>=0) {
+			if (NumAccel>m_pCommandList->NumCommands())
+				NumAccel=m_pCommandList->NumCommands();
 			m_KeyList.clear();
 			for (int i=0;i<NumAccel;i++) {
 				TCHAR szName[64],szCommand[CCommandList::MAX_COMMAND_TEXT];
+				int Command;
 
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
 				if (Settings.Read(szName,szCommand,lengthof(szCommand))
-						&& szCommand[0]!='\0') {
+						&& szCommand[0]!='\0'
+						&& (Command=m_pCommandList->ParseText(szCommand))!=0) {
 					unsigned int Key,Modifiers;
 
 					::wsprintf(szName,TEXT("Accel%d_Key"),i);
 					if (Settings.Read(szName,&Key) && Key!=0) {
 						KeyInfo Info;
 
-						Info.Command=m_pCommandList->ParseText(szCommand);
-						if (Info.Command==0)
-							continue;
+						Info.Command=Command;
 						Info.KeyCode=Key;
 						Modifiers=0;
 						::wsprintf(szName,TEXT("Accel%d_Mod"),i);
@@ -444,6 +445,8 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 		int NumCommands;
 
 		if (Settings.Read(TEXT("NumCommands"),&NumCommands) && NumCommands>=0) {
+			if (NumCommands>lengthof(AppCommandList))
+				NumCommands=lengthof(AppCommandList);
 			m_AppCommandList.clear();
 			for (int i=0;i<NumCommands;i++) {
 				TCHAR szName[64],szCommand[CCommandList::MAX_COMMAND_TEXT];
@@ -462,11 +465,11 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 						AppCommandInfo Info;
 
 						Info.Command=m_pCommandList->ParseText(szCommand);
-						if (Info.Command==0)
-							continue;
-						Info.Type=(MediaKeyType)Type;
-						Info.AppCommand=AppCommand;
-						m_AppCommandList.push_back(Info);
+						if (Info.Command!=0) {
+							Info.Type=(MediaKeyType)Type;
+							Info.AppCommand=AppCommand;
+							m_AppCommandList.push_back(Info);
+						}
 					}
 				}
 			}
@@ -484,10 +487,13 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 	if (m_pCommandList==NULL)
 		return true;
 	if (Settings.Open(pszFileName,TEXT("Accelerator"),CSettings::OPEN_WRITE)) {
+		Settings.Clear();
+#if 1
+		/* デフォルトと同じ場合は保存しない */
 		bool fDefault=false;
-		int i,j;
-
 		if (m_KeyList.size()==lengthof(m_DefaultAccelList)) {
+			int i,j;
+
 			for (i=0;i<lengthof(m_DefaultAccelList);i++) {
 				for (j=0;j<lengthof(m_DefaultAccelList);j++) {
 					if (m_DefaultAccelList[i]==m_KeyList[j])
@@ -499,10 +505,13 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 			if (i==lengthof(m_DefaultAccelList))
 				fDefault=true;
 		}
-		Settings.Clear();
-		if (!fDefault) {
+		if (fDefault) {
+			Settings.Write(TEXT("AccelCount"),-1);
+		} else
+#endif
+		{
 			Settings.Write(TEXT("AccelCount"),(int)m_KeyList.size());
-			for (i=0;i<(int)m_KeyList.size();i++) {
+			for (size_t i=0;i<m_KeyList.size();i++) {
 				TCHAR szName[64];
 
 				::wsprintf(szName,TEXT("Accel%d_Command"),i);
@@ -513,16 +522,18 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 				::wsprintf(szName,TEXT("Accel%d_Mod"),i);
 				Settings.Write(szName,(int)(m_KeyList[i].Modifiers | (m_KeyList[i].fGlobal?0x80:0x00)));
 			}
-		} else
-			Settings.Write(TEXT("AccelCount"),-1);
+		}
 		Settings.Close();
 	}
 
 	if (Settings.Open(pszFileName,TEXT("AppCommand"),CSettings::OPEN_WRITE)) {
+		Settings.Clear();
+#if 1
+		/* デフォルトと同じ場合は保存しない */
 		bool fDefault=false;
-		int i,j;
-
 		if (m_AppCommandList.size()==lengthof(m_DefaultAppCommandList)) {
+			int i,j;
+
 			for (i=0;i<lengthof(m_DefaultAppCommandList);i++) {
 				for (j=0;j<lengthof(m_DefaultAppCommandList);j++) {
 					if (m_DefaultAppCommandList[i]==m_AppCommandList[j])
@@ -534,10 +545,13 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 			if (i==lengthof(m_DefaultAppCommandList))
 				fDefault=true;
 		}
-		Settings.Clear();
-		if (!fDefault) {
+		if (fDefault) {
+			Settings.Write(TEXT("NumCommands"),-1);
+		} else
+#endif
+		{
 			Settings.Write(TEXT("NumCommands"),(int)m_AppCommandList.size());
-			for (i=0;i<(int)m_AppCommandList.size();i++) {
+			for (size_t i=0;i<m_AppCommandList.size();i++) {
 				TCHAR szName[64];
 
 				::wsprintf(szName,TEXT("Button%d_Command"),i);
@@ -548,8 +562,7 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 				::wsprintf(szName,TEXT("Button%d_AppCommand"),i);
 				Settings.Write(szName,m_AppCommandList[i].AppCommand);
 			}
-		} else
-			Settings.Write(TEXT("NumCommands"),-1);
+		}
 		Settings.Close();
 	}
 	return true;
@@ -755,7 +768,7 @@ CAccelerator *CAccelerator::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

@@ -73,7 +73,6 @@ bool CGeneralOptions::Apply(DWORD Flags)
 		if (!pCoreEngine->SetCardReaderType(m_CardReaderType)) {
 			AppMain.AddLog(pCoreEngine->GetLastErrorText());
 			pMainWindow->ShowErrorMessage(pCoreEngine);
-			pCoreEngine->SetCardReaderType(CCoreEngine::CARDREADER_NONE);
 		}
 	}
 
@@ -275,7 +274,7 @@ bool CGeneralOptions::GetEnableEmmProcess() const
 }
 
 
-BOOL CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

@@ -2,6 +2,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "CaptionPanel.h"
+#include "resource.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -52,6 +53,9 @@ CCaptionPanel::CCaptionPanel()
 	, m_pOldEditProc(NULL)
 	, m_fEnable(true)
 	, m_fAutoScroll(true)
+#ifndef TVH264
+	, m_fIgnoreSmall(true)
+#endif
 	, m_Language(0)
 {
 }
@@ -242,6 +246,58 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return 0;
 
+	case WM_COMMAND:
+		{
+			CCaptionPanel *pThis=GetThis(hwnd);
+
+			switch (LOWORD(wParam)) {
+			case CM_CAPTIONPANEL_COPY:
+				{
+					HWND hwndEdit=pThis->m_hwndEdit;
+					DWORD Start,End;
+
+					::SendMessage(hwndEdit,WM_SETREDRAW,FALSE,0);
+					::SendMessage(hwndEdit,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
+					if (Start==End)
+						::SendMessage(hwndEdit,EM_SETSEL,0,-1);
+					::SendMessage(hwndEdit,WM_COPY,0,0);
+					if (Start==End)
+						::SendMessage(hwndEdit,EM_SETSEL,Start,End);
+					::SendMessage(hwndEdit,WM_SETREDRAW,TRUE,0);
+				}
+				break;
+
+			case CM_CAPTIONPANEL_SELECTALL:
+				::SendMessage(pThis->m_hwndEdit,EM_SETSEL,0,-1);
+				break;
+
+			case CM_CAPTIONPANEL_CLEAR:
+				::SetWindowText(pThis->m_hwndEdit,TEXT(""));
+				break;
+
+			case CM_CAPTIONPANEL_ENABLE:
+				pThis->m_Lock.Lock();
+				pThis->m_fEnable=!pThis->m_fEnable;
+				pThis->m_fClearLast=false;
+				pThis->m_fContinue=false;
+				pThis->m_Lock.Unlock();
+				break;
+
+			case CM_CAPTIONPANEL_AUTOSCROLL:
+				pThis->m_fAutoScroll=!pThis->m_fAutoScroll;
+				break;
+
+#ifndef TVH264
+			case CM_CAPTIONPANEL_IGNORESMALL:
+				pThis->m_Lock.Lock();
+				pThis->m_fIgnoreSmall=!pThis->m_fIgnoreSmall;
+				pThis->m_Lock.Unlock();
+				break;
+#endif
+			}
+		}
+		return 0;
+
 	case WM_DESTROY:
 		{
 			CCaptionPanel *pThis=GetThis(hwnd);
@@ -250,6 +306,7 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 			pThis->ClearCaptionList();
 			SubclassWindow(pThis->m_hwndEdit,pThis->m_pOldEditProc);
+			::RemoveProp(pThis->m_hwndEdit,m_pszPropName);
 			pThis->m_hwndEdit=NULL;
 			pThis->m_pOldEditProc=NULL;
 			pThis->OnDestroy();
@@ -269,58 +326,25 @@ LRESULT CALLBACK CCaptionPanel::EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 	switch (uMsg) {
 	case WM_RBUTTONDOWN:
 		{
-			HMENU hmenu=::CreatePopupMenu();
+			HMENU hmenu=::LoadMenu(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDM_CAPTIONPANEL));
 
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("コピー(&C)"));
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("すべて選択(&A)"));
-			::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,3,TEXT("クリア(&C)"));
-			::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED | (pThis->m_fEnable?MFS_CHECKED:MFS_UNCHECKED),4,TEXT("字幕表示有効(&E)"));
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED | (pThis->m_fAutoScroll?MFS_CHECKED:MFS_UNCHECKED),5,TEXT("自動スクロール(&S)"));
+			::CheckMenuItem(hmenu,CM_CAPTIONPANEL_ENABLE,
+							MF_BYCOMMAND | (pThis->m_fEnable?MFS_CHECKED:MFS_UNCHECKED));
+			::CheckMenuItem(hmenu,CM_CAPTIONPANEL_AUTOSCROLL,
+							MF_BYCOMMAND | (pThis->m_fAutoScroll?MFS_CHECKED:MFS_UNCHECKED));
+#ifndef TVH264
+			::CheckMenuItem(hmenu,CM_CAPTIONPANEL_IGNORESMALL,
+							MF_BYCOMMAND | (pThis->m_fIgnoreSmall?MFS_CHECKED:MFS_UNCHECKED));
+#endif
 			POINT pt;
 			::GetCursorPos(&pt);
-			switch (::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,pt.x,pt.y,0,hwnd,NULL)) {
-			case 1:
-				{
-					DWORD Start,End;
-
-					::SendMessage(hwnd,WM_SETREDRAW,FALSE,0);
-					::SendMessage(hwnd,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
-					if (Start==End)
-						::SendMessage(hwnd,EM_SETSEL,0,-1);
-					::SendMessage(hwnd,WM_COPY,0,0);
-					if (Start==End)
-						::SendMessage(hwnd,EM_SETSEL,Start,End);
-					::SendMessage(hwnd,WM_SETREDRAW,TRUE,0);
-				}
-				break;
-			case 2:
-				::SendMessage(hwnd,EM_SETSEL,0,-1);
-				break;
-			case 3:
-				::SetWindowText(hwnd,TEXT(""));
-				break;
-			case 4:
-				pThis->m_Lock.Lock();
-				pThis->m_fEnable=!pThis->m_fEnable;
-				pThis->m_fClearLast=false;
-				pThis->m_fContinue=false;
-				pThis->m_Lock.Unlock();
-				break;
-			case 5:
-				pThis->m_fAutoScroll=!pThis->m_fAutoScroll;
-				break;
-			}
+			::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,pt.x,pt.y,0,pThis->m_hwnd,NULL);
+			::DestroyMenu(hmenu);
 		}
 		return 0;
 
 	case WM_RBUTTONUP:
 		return 0;
-
-	case WM_NCDESTROY:
-		::RemoveProp(hwnd,m_pszPropName);
-		break;
 	}
 	return ::CallWindowProc(pThis->m_pOldEditProc,hwnd,uMsg,wParam,lParam);
 }
@@ -331,7 +355,7 @@ void CCaptionPanel::OnLanguageUpdate(CCaptionDecoder *pDecoder)
 }
 
 
-void CCaptionPanel::OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR pszText)
+void CCaptionPanel::OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR pszText,const CAribString::FormatList *pFormatList)
 {
 	CBlockLock Lock(&m_Lock);
 
@@ -339,33 +363,77 @@ void CCaptionPanel::OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR p
 		int Length=::lstrlen(pszText);
 
 		if (Length>0) {
-			if (Length==2 && pszText[0]=='\r' && pszText[1]=='\n') {
+			int i;
+			for (i=0;i<Length;i++) {
+				if (pszText[i]!='\f')
+					break;
+			}
+			if (i==Length) {
 				if (m_fClearLast || m_fContinue)
 					return;
 				m_fClearLast=true;
+				::PostMessage(m_hwnd,WM_APP,0,(LPARAM)DuplicateString(TEXT("\r\n")));
+				return;
 			} else {
 				m_fClearLast=false;
 			}
 
-			LPTSTR pszBuff=new TCHAR[Length+1];
-			int DstLength=Length;
+			LPTSTR pszBuff=new TCHAR[Length+2];
+			::lstrcpy(pszBuff,pszText);
+			DWORD DstLength=Length;
 
-			if (m_fContinue
-					&& Length>=2 && pszText[0]=='\r' && pszText[1]=='\n') {
-				::lstrcpy(pszBuff,pszText+2);
-				DstLength-=2;
-			} else {
-				::lstrcpy(pszBuff,pszText);
+#ifndef TVH264
+			if (m_fIgnoreSmall) {
+				for (int i=(int)pFormatList->size()-1;i>=0;i--) {
+					if ((*pFormatList)[i].Size==CAribString::SIZE_SMALL) {
+						DWORD Pos=(*pFormatList)[i].Pos;
+						if (Pos<DstLength) {
+							if (i+1<(int)pFormatList->size()) {
+								DWORD NextPos=min(DstLength,(*pFormatList)[i+1].Pos);
+#ifdef _DEBUG
+								TCHAR szTrace[1024];
+								::lstrcpyn(szTrace,&pszBuff[Pos],NextPos-Pos+1);
+								TRACE(TEXT("Caption exclude : %s\n"),szTrace);
+#endif
+								memmove(&pszBuff[Pos],&pszBuff[NextPos],
+										(DstLength-NextPos+1)*sizeof(TCHAR));
+								DstLength-=NextPos-Pos;
+							} else {
+								pszBuff[Pos]='\0';
+								DstLength=Pos;
+							}
+						}
+					}
+				}
+			}
+#endif
+
+			for (DWORD i=0;i<DstLength;i++) {
+				if (pszBuff[i]=='\f') {
+					if (i==0 && !m_fContinue) {
+						memmove(&pszBuff[2],&pszBuff[1],DstLength*sizeof(TCHAR));
+						pszBuff[0]='\r';
+						pszBuff[1]='\n';
+						i++;
+						DstLength++;
+					} else {
+						memmove(&pszBuff[i],&pszBuff[i+1],(DstLength-i)*sizeof(TCHAR));
+						DstLength--;
+					}
+				}
 			}
 			m_fContinue=
 #ifdef UNICODE
-				Length>1 && pszText[Length-1]==L'→';
+				DstLength>1 && pszBuff[DstLength-1]==L'→';
 #else
-				Length>2 && pszText[Length-2]=="→"[0] && pszText[Length-1]=="→"[1];
+				DstLength>2 && pszBuff[DstLength-2]=="→"[0] && pszBuff[DstLength-1]=="→"[1];
 #endif
 			if (m_fContinue)
 				pszBuff[DstLength-(3-sizeof(TCHAR))]='\0';
-			::PostMessage(m_hwnd,WM_APP,0,(LPARAM)pszBuff);
+			if (DstLength>0)
+				::PostMessage(m_hwnd,WM_APP,0,(LPARAM)pszBuff);
+			else
+				delete [] pszBuff;
 		}
 	}
 }

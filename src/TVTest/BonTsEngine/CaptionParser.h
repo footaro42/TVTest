@@ -8,6 +8,7 @@
 
 #include <vector>
 #include "TsMedia.h"
+#include "TsEncode.h"
 
 
 class CCaptionParser : public CPesParser::IPacketHandler
@@ -17,7 +18,7 @@ public:
 	public:
 		virtual ~ICaptionHandler() = 0;
 		virtual void OnLanguageUpdate(CCaptionParser *pParser) {}
-		virtual void OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText) {}
+		virtual void OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText, const CAribString::FormatList *pFormatList) {}
 	};
 
 	CCaptionParser();
@@ -48,7 +49,7 @@ private:
 				&& TCS == Info.TCS
 				&& RollupMode == Info.RollupMode;
 		}
-		bool operator!=(const LanguageInfo &Info) { return !(*this==Info); }
+		bool operator!=(const LanguageInfo &Info) { return !(*this == Info); }
 	};
 	std::vector<LanguageInfo> m_LanguageList;
 	BYTE m_DataGroupVersion;
@@ -61,7 +62,7 @@ private:
 	bool ParseCaptionData(const BYTE *pData, const DWORD DataSize);
 	bool ParseUnitData(const BYTE *pData, DWORD *pDataSize);
 	int GetLanguageIndex(const BYTE LanguageTag) const;
-	void OnCaption(LPCTSTR pszText);
+	void OnCaption(LPCTSTR pszText, const CAribString::FormatList *pFormatList);
 };
 
 

@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "EpgProgramList.h"
-#include "NFile.h"
+#include "HelperClass/NFile.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -511,9 +511,15 @@ bool CEpgProgramList::UpdateProgramList()
 	if (!m_pEpgDll->GetServiceListDB(&pService,&dwServiceCount))
 		return false;
 	for (DWORD i=0;i<dwServiceCount;i++) {
-		if (pService[i].dwServiceType!=0x01 && pService[i].dwServiceType!=0xA5)
-			continue;
-		UpdateService(&pService[i]);
+		if (pService[i].dwServiceType==0x01 || pService[i].dwServiceType==0xA5
+#ifdef TVH264_FOR_1SEG
+				|| pService[i].dwServiceType==0xC0
+#endif
+#ifdef TVTEST_RADIO_SUPPORT
+				|| pService[i].dwServiceType==0x02
+#endif
+				)
+			UpdateService(&pService[i]);
 	}
 	return true;
 }
@@ -532,7 +538,14 @@ bool CEpgProgramList::UpdateProgramList(WORD TSID,WORD ServiceID)
 	if (!m_pEpgDll->GetServiceListDB(&pService,&dwServiceCount))
 		return false;
 	for (DWORD i=0;i<dwServiceCount;i++) {
-		if ((pService[i].dwServiceType==0x01 || pService[i].dwServiceType==0xA5)
+		if ((pService[i].dwServiceType==0x01 || pService[i].dwServiceType==0xA5
+#ifdef TVH264_FOR_1SEG
+				|| pService[i].dwServiceType==0xC0
+#endif
+#ifdef TVTEST_RADIO_SUPPORT
+				|| pService[i].dwServiceType==0x02
+#endif
+				)
 				&& (TSID==0 || (WORD)pService[i].dwTSID==TSID)
 				&& (WORD)pService[i].dwServiceID==ServiceID) {
 			return UpdateService(&pService[i]);
@@ -713,6 +726,8 @@ struct EventInfoHeader {
 	}
 };
 
+#define MAX_CONTENT_NIBBLE_COUNT 7
+
 
 #include <poppack.h>
 
@@ -776,15 +791,16 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 		ServiceInfoHeader ServiceHeader;
 		LPWSTR pszText;
 
-		if (File.Read(&ServiceHeader,sizeof(ServiceInfoHeader))!=sizeof(ServiceInfoHeader))
+		if (File.Read(&ServiceHeader,sizeof(ServiceInfoHeader))!=sizeof(ServiceInfoHeader)
+				|| !ReadString(&File,&pszText) || pszText==NULL)
 			goto OnError;
-		ReadString(&File,&pszText);
 		CServiceInfoData ServiceData(ServiceHeader.OriginalNID,
 									 ServiceHeader.TSID,
 									 ServiceHeader.ServiceID,
 									 ServiceHeader.ServiceType,
 									 pszText);
 		delete [] pszText;
+
 		CEpgServiceInfo ServiceInfo(ServiceData);
 		for (DWORD j=0;j<ServiceHeader.NumEvents;j++) {
 			EventInfoHeader EventHeader;
@@ -804,6 +820,8 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			//EventData.m_fMainComponentFlag=EventHeader.MainComponentFlag!=0;
 			EventData.m_SamplingRate=EventHeader.SamplingRate;
 			if (EventHeader.ContentNibbleListCount>0) {
+				if (EventHeader.ContentNibbleListCount>MAX_CONTENT_NIBBLE_COUNT)
+					goto OnError;
 				for (DWORD k=0;k<EventHeader.ContentNibbleListCount;k++) {
 					CEventInfoData::NibbleData Nibble;
 					if (File.Read(&Nibble,sizeof(Nibble))!=sizeof(Nibble))
@@ -904,6 +922,8 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 					if (!File.Write(&EventHeader,sizeof(EventInfoHeader)))
 						return false;
 					if (EventHeader.ContentNibbleListCount>0) {
+						if (EventHeader.ContentNibbleListCount>MAX_CONTENT_NIBBLE_COUNT)
+							EventHeader.ContentNibbleListCount=MAX_CONTENT_NIBBLE_COUNT;
 						for (DWORD i=0;i<EventHeader.ContentNibbleListCount;i++) {
 							CEventInfoData::NibbleData Nibble=itrEvent->second.m_NibbleList[i];
 							if (!File.Write(&Nibble,sizeof(Nibble)))

@@ -43,10 +43,6 @@ CCoreEngine::CCoreEngine()
 	m_BitRate=0;
 	m_PacketBufferUsedCount=0;
 	m_StreamRemain=0;
-	/*
-	m_pEpgDataInfo=NULL;
-	m_pEpgDataInfoNext=NULL;
-	*/
 	m_TimerResolution=0;
 }
 
@@ -54,10 +50,6 @@ CCoreEngine::CCoreEngine()
 CCoreEngine::~CCoreEngine()
 {
 	Close();
-	/*
-	delete m_pEpgDataInfo;
-	delete m_pEpgDataInfoNext;
-	*/
 	if (m_TimerResolution!=0)
 		::timeEndPeriod(m_TimerResolution);
 }
@@ -265,9 +257,9 @@ bool CCoreEngine::CloseMediaViewer()
 }
 
 
-bool CCoreEngine::OpenCardReader()
+bool CCoreEngine::OpenCardReader(CardReaderType Type,LPCTSTR pszReaderName)
 {
-	if (m_CardReaderType==CARDREADER_SCARD && IsDriverSpecified()) {
+	if (Type==CARDREADER_SCARD && pszReaderName==NULL && IsDriverSpecified()) {
 		// åªç›ÇÃ BonDriver êÍópÇÃ winscard.dll Ç™Ç†ÇÍÇŒÇªÇÍÇóòópÇ∑ÇÈ
 		TCHAR szFileName[MAX_PATH];
 
@@ -282,9 +274,10 @@ bool CCoreEngine::OpenCardReader()
 		}
 	}
 	if (!m_DtvEngine.OpenBcasCard(
-			m_CardReaderType==CARDREADER_SCARD?CCardReader::READER_SCARD:
-			m_CardReaderType==CARDREADER_HDUS?CCardReader::READER_HDUS:
-			CCardReader::READER_NONE)) {
+			Type==CARDREADER_SCARD?CCardReader::READER_SCARD:
+			Type==CARDREADER_HDUS?CCardReader::READER_HDUS:
+			CCardReader::READER_NONE,
+			pszReaderName)) {
 		SetError(m_DtvEngine.GetLastErrorException());
 		return false;
 	}
@@ -295,7 +288,7 @@ bool CCoreEngine::OpenCardReader()
 bool CCoreEngine::OpenBcasCard()
 {
 	if (m_fDescramble) {
-		if (!OpenCardReader())
+		if (!OpenCardReader(m_CardReaderType))
 			return false;
 	}
 	return true;
@@ -352,16 +345,18 @@ bool CCoreEngine::SetDescramble(bool fDescramble)
 }
 
 
-bool CCoreEngine::SetCardReaderType(CardReaderType Type)
+bool CCoreEngine::SetCardReaderType(CardReaderType Type,LPCTSTR pszReaderName)
 {
 	if (Type<CARDREADER_NONE || Type>CARDREADER_LAST)
 		return false;
-	if (m_CardReaderType!=Type) {
+	/*if (m_CardReaderType!=Type)*/ {
 		if (m_DtvEngine.IsEngineBuild()) {
 			if (!SetDescramble(Type!=CARDREADER_NONE))
 				return false;
-			if (!OpenCardReader())
+			if (!OpenCardReader(Type,pszReaderName)) {
+				m_CardReaderType=CARDREADER_NONE;
 				return false;
+			}
 		}
 		m_CardReaderType=Type;
 	}
@@ -486,6 +481,7 @@ bool CCoreEngine::SetDownMixSurround(bool fDownMix)
 }
 
 
+// TODO: ïœâªÇ™Ç†Ç¡ÇΩèÍçá DtvEngine ë§Ç©ÇÁí ímÇ∑ÇÈÇÊÇ§Ç…Ç∑ÇÈ
 DWORD CCoreEngine::UpdateAsyncStatus()
 {
 	DWORD Updated=0;
@@ -600,30 +596,6 @@ int CCoreEngine::GetPacketBufferUsedPercentage()
 }
 
 
-/*
-bool CCoreEngine::UpdateEpgDataInfo()
-{
-	WORD ServiceID;
-
-	SAFE_DELETE(m_pEpgDataInfo);
-	SAFE_DELETE(m_pEpgDataInfoNext);
-	if (!m_DtvEngine.GetServiceID(&ServiceID))
-		return false;
-	m_pEpgDataInfo=m_DtvEngine.GetEpgDataInfo(ServiceID,false);
-	m_pEpgDataInfoNext=m_DtvEngine.GetEpgDataInfo(ServiceID,true);
-	return true;
-}
-
-
-const CEpgDataInfo *CCoreEngine::GetEpgDataInfo(bool fNext) const
-{
-	if (fNext)
-		return m_pEpgDataInfoNext;
-	return m_pEpgDataInfo;
-}
-*/
-
-
 bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool fNext)
 {
 	if (pInfo==NULL)
@@ -686,12 +658,6 @@ void *CCoreEngine::GetCurrentImage()
 {
 	BYTE *pDib;
 
-#if 0
-	if (m_DtvEngine.m_MediaViewer.GetGrabber()) {
-		pDib=static_cast<BYTE*>(m_DtvEngine.m_MediaViewer.DoCapture(1000));
-		return pDib;
-	}
-#endif
 	bool fPause=m_DtvEngine.m_MediaViewer.GetVideoRendererType()==CVideoRenderer::RENDERER_DEFAULT;
 
 	if (fPause)

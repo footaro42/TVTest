@@ -19,6 +19,8 @@
 	SendDlgItemMessage(hwndDlg,ID,LB_DELETESTRING,Index,0)
 #define DlgListBox_GetString(hwndDlg,ID,Index,pszString) \
 	SendDlgItemMessage(hwndDlg,ID,LB_GETTEXT,Index,(LPARAM)(pszString))
+#define DlgListBox_GetStringLength(hwndDlg,ID,Index) \
+	SendDlgItemMessage(hwndDlg,ID,LB_GETTEXTLEN,Index,0)
 #define DlgListBox_GetItemData(hwndDlg,ID,Index) \
 	SendDlgItemMessage(hwndDlg,ID,LB_GETITEMDATA,Index,0)
 #define DlgListBox_SetItemData(hwndDlg,ID,Index,Data) \

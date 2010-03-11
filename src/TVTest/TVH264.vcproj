@@ -17,8 +17,8 @@
 	<Configurations>
 		<Configuration
 			Name="Debug|Win32"
-			OutputDirectory="$(SolutionDir)TVH264\$(ConfigurationName)"
-			IntermediateDirectory="TVH264\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(ProjectName)\$(ConfigurationName)"
+			IntermediateDirectory="$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="2"
 			CharacterSet="1"
@@ -76,6 +76,7 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				LargeAddressAware="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -105,8 +106,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)TVH264\$(ConfigurationName)"
-			IntermediateDirectory="TVH264\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(ProjectName)\$(ConfigurationName)"
+			IntermediateDirectory="$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="0"
 			CharacterSet="1"
@@ -168,6 +169,7 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				LargeAddressAware="0"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
@@ -201,8 +203,8 @@
 		</Configuration>
 		<Configuration
 			Name="Release_PGO|Win32"
-			OutputDirectory="$(SolutionDir)TVH264\$(ConfigurationName)"
-			IntermediateDirectory="TVH264\$(ConfigurationName)"
+			OutputDirectory="$(SolutionDir)$(ProjectName)\$(ConfigurationName)"
+			IntermediateDirectory="$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
 			UseOfMFC="0"
 			CharacterSet="1"
@@ -264,6 +266,7 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				LargeAddressAware="0"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				TargetMachine="1"
@@ -319,11 +322,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\CaptionPanel.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Capture.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\CaptureOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\CardReaderDialog.cpp"
 				>
 			</File>
 			<File
@@ -661,11 +672,19 @@
 				>
 			</File>
 			<File
+				RelativePath=".\CaptionPanel.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Capture.h"
 				>
 			</File>
 			<File
 				RelativePath=".\CaptureOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\CardReaderDialog.h"
 				>
 			</File>
 			<File
@@ -999,6 +1018,14 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\CaptionDecoder.h"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\CaptionParser.h"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\CardReader.h"
 					>
 				</File>
@@ -1109,6 +1136,14 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\BonSrcDecoder.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\CaptionDecoder.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\CaptionParser.cpp"
 					>
 				</File>
 				<File

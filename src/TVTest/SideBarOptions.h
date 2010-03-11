@@ -7,7 +7,8 @@
 #include "SideBar.h"
 
 
-class CSideBarOptions : public COptions {
+class CSideBarOptions : public COptions
+{
 public:
 	enum PlaceType {
 		PLACE_LEFT,
@@ -26,6 +27,7 @@ protected:
 	bool m_fShowToolTips;
 	PlaceType m_Place;
 	HIMAGELIST m_himlIcons;
+
 	void ApplyItemList() const;
 	void SetItemList(HWND hwndList,const int *pList,int NumItems);
 	static CSideBarOptions *GetThis(HWND hDlg);
@@ -33,15 +35,15 @@ protected:
 public:
 	CSideBarOptions(CSideBar *pSideBar);
 	~CSideBarOptions();
-	// COptions
+// COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
-	// CSideBarOptions
+// CSideBarOptions
 	bool ApplySideBarOptions();
 	bool ShowPopup() const { return m_fShowPopup; }
 	PlaceType GetPlace() const { return m_Place; }
 	bool SetPlace(PlaceType Place);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

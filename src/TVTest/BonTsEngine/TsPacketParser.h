@@ -8,7 +8,7 @@
 #include "MediaDecoder.h"
 #include "TsStream.h"
 #include "../EpgDataCap/Epg.h"
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 #include "PATGenerator.h"
 #endif
 
@@ -20,7 +20,7 @@
 // Output	#0	: CTsPacket		TSパケット
 /////////////////////////////////////////////////////////////////////////////
 
-class CTsPacketParser : public CMediaDecoder  
+class CTsPacketParser : public CMediaDecoder
 {
 public:
 	CTsPacketParser(IEventHandler *pEventHandler = NULL);
@@ -42,11 +42,12 @@ public:
 	bool InitializeEpgDataCap(LPCTSTR pszDllFileName);
 	bool UnInitializeEpgDataCap();
 	bool IsEpgDataCapLoaded() const;
-	//CEpgDataInfo *GetEpgDataInfo(WORD wSID,bool bNext);
 	CEpgDataCapDllUtil2 *GetEpgDataCapDllUtil() { return &m_EpgCap; }
 	bool LockEpgDataCap();
 	bool UnlockEpgDataCap();
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
+	bool EnablePATGeneration(bool bEnable);
+	bool IsPATGenerationEnabled() const { return m_bGeneratePAT; }
 	bool SetTransportStreamID(WORD TransportStreamID);
 #endif
 
@@ -68,8 +69,9 @@ private:
 	CEpgDataCapDllUtil2 m_EpgCap;
 	volatile bool m_bLockEpgDataCap;
 
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 	CPATGenerator m_PATGenerator;
+	bool m_bGeneratePAT;
 	CTsPacket m_PATPacket;
 #endif
 };

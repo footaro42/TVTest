@@ -65,6 +65,7 @@ public:
 	int GetCurChannel() const;
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
+	bool SetStreamThreadPriority(int Priority);
 	void SetPurgeStreamOnChannelChange(bool bPurge);
 
 private:
@@ -90,5 +91,6 @@ private:
 	DWORD m_BitRate;
 	DWORD m_StreamRemain;
 
+	int m_StreamThreadPriority;
 	bool m_bPurgeStreamOnChannelChange;
 };

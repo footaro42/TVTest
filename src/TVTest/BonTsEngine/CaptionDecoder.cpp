@@ -157,10 +157,10 @@ void CCaptionDecoder::OnLanguageUpdate(CCaptionParser *pParser)
 }
 
 
-void CCaptionDecoder::OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText)
+void CCaptionDecoder::OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText, const CAribString::FormatList *pFormatList)
 {
 	if (m_pCaptionHandler)
-		m_pCaptionHandler->OnCaption(this, Language, pszText);
+		m_pCaptionHandler->OnCaption(this, Language, pszText, pFormatList);
 }
 
 

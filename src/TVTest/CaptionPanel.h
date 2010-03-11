@@ -17,6 +17,9 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 	WNDPROC m_pOldEditProc;
 	bool m_fEnable;
 	bool m_fAutoScroll;
+#ifndef TVH264
+	bool m_fIgnoreSmall;
+#endif
 	BYTE m_Language;
 	bool m_fClearLast;
 	bool m_fContinue;
@@ -26,7 +29,7 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 
 // CCaptionDecoder::IHandler
 	virtual void OnLanguageUpdate(CCaptionDecoder *pDecoder);
-	virtual void OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR pszText);
+	virtual void OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR pszText,const CAribString::FormatList *pFormatList);
 
 	void ClearCaptionList();
 	void AppendText(LPCTSTR pszText);

@@ -76,6 +76,8 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				StackReserveSize="0"
+				LargeAddressAware="2"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -168,6 +170,8 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				StackReserveSize="0"
+				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
@@ -264,6 +268,8 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
+				StackReserveSize="0"
+				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				TargetMachine="1"
@@ -328,6 +334,10 @@
 			</File>
 			<File
 				RelativePath=".\CaptureOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\CardReaderDialog.cpp"
 				>
 			</File>
 			<File
@@ -670,6 +680,10 @@
 			</File>
 			<File
 				RelativePath=".\CaptureOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\CardReaderDialog.h"
 				>
 			</File>
 			<File

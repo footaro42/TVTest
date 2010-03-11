@@ -33,7 +33,7 @@
 #include <tchar.h>
 #include <commctrl.h>
 #include <shlwapi.h>
-#include <Streams.h>	// DirectShow BaseClasses
+#include <streams.h>	// DirectShow BaseClasses
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
@@ -88,4 +88,14 @@
 	void DebugTrace(LPCTSTR szFormat, ...);
 #else
 	#define TRACE __noop
+#endif
+
+
+// BonTsEngine ‚Ìİ’è
+#ifdef TVH264
+#define BONTSENGINE_1SEG_SUPPORT	// ƒƒ“ƒZƒO‘Î‰
+#define BONTSENGINE_H264_SUPPORT	// H.264 ‘Î‰
+#define BONTSENGINE_RADIO_SUPPORT	// ‰¹º•ú‘—‘Î‰
+#else	// TVH264
+#define BONTSENGINE_MPEG2_SUPPORT	// MPEG-2 ‘Î‰
 #endif

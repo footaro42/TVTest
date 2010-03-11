@@ -7,7 +7,8 @@
 #include "Capture.h"
 
 
-class CCaptureOptions : public COptions {
+class CCaptureOptions : public COptions
+{
 public:
 	enum {
 		SIZE_TYPE_ORIGINAL,
@@ -43,10 +44,13 @@ public:
 		PERCENTAGE_25,
 		PERCENTAGE_LAST=PERCENTAGE_25
 	};
+
 	CCaptureOptions();
 	~CCaptureOptions();
+// COptions
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CCaptureOptions
 	int GetSaveFormat() const { return m_SaveFormat; }
 	bool GetWriteComment() const { return m_fSetComment; }
 	bool SetPresetCaptureSize(int Size);
@@ -61,7 +65,8 @@ public:
 	bool SaveImage(CCaptureImage *pImage);
 	int TranslateCommand(int Command);
 	bool OpenSaveFolder() const;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 private:
 	TCHAR m_szSaveFolder[MAX_PATH];
 	TCHAR m_szFileName[MAX_PATH];
@@ -74,6 +79,7 @@ private:
 	int m_CaptureSize;
 	int m_CapturePercentage;
 	CImageCodec m_ImageCodec;
+
 	static const SIZE m_SizeList[SIZE_LAST+1];
 	struct PercentageType {
 		BYTE Num,Denom;

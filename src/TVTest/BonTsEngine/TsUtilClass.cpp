@@ -191,6 +191,20 @@ DWORD CLocalEvent::Wait(DWORD Timeout)
 	return ::WaitForSingleObject(m_hEvent, Timeout);
 }
 
+DWORD CLocalEvent::SignalAndWait(HANDLE hHandle, DWORD Timeout, bool bAlertable)
+{
+	if (!m_hEvent)
+		return WAIT_FAILED;
+	return ::SignalObjectAndWait(m_hEvent, hHandle, Timeout, bAlertable);
+}
+
+DWORD CLocalEvent::SignalAndWait(CLocalEvent *pEvent, DWORD Timeout)
+{
+	if (!m_hEvent || !pEvent || !pEvent->m_hEvent)
+		return WAIT_FAILED;
+	return ::SignalObjectAndWait(m_hEvent, pEvent->m_hEvent, Timeout, FALSE);
+}
+
 bool CLocalEvent::IsSignaled()
 {
 	if (!m_hEvent)

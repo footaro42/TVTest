@@ -44,6 +44,8 @@ CChannelDisplayMenu::CChannelDisplayMenu(CEpgProgramList *pEpgProgramList)
 	, m_ChannelTextColor(RGB(255,255,255))
 	, m_CurChannelBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,RGB(128,128,128),RGB(96,96,96))
 	, m_CurChannelTextColor(RGB(255,255,255))
+	, m_ClockBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,RGB(16,16,16),RGB(16,16,16))
+	, m_ClockTextColor(RGB(255,255,255))
 	, m_fAutoFontSize(true)
 	, m_hwndTunerScroll(NULL)
 	, m_hwndChannelScroll(NULL)
@@ -338,10 +340,11 @@ void CChannelDisplayMenu::Layout()
 	m_ChannelItemLeft=m_TunerAreaWidth+8;
 	m_ChannelItemWidth=max(rc.right-m_ChannelItemLeft-8,m_ChannelNameWidth+80);
 	m_ChannelItemHeight=m_FontHeight*2;
-	m_VisibleChannelItems=max((rc.bottom-16*2)/m_ChannelItemHeight,1);
+	m_VisibleChannelItems=max((rc.bottom-16*2-m_FontHeight)/m_ChannelItemHeight,1);
 	if (m_VisibleChannelItems>NumChannels)
 		m_VisibleChannelItems=NumChannels;
-	m_ChannelItemTop=max((rc.bottom-m_VisibleChannelItems*m_ChannelItemHeight)/2,0);
+	m_ChannelItemTop=8+m_FontHeight;
+	m_ChannelItemTop+=max((rc.bottom-m_ChannelItemTop-m_VisibleChannelItems*m_ChannelItemHeight)/2,8);
 	if (NumChannels>m_VisibleChannelItems) {
 		SCROLLINFO si;
 
@@ -573,6 +576,32 @@ void CChannelDisplayMenu::SetChannelScrollPos(int Pos,bool fScroll)
 }
 
 
+void CChannelDisplayMenu::DrawClock(HDC hdc) const
+{
+	HFONT hfontOld;
+	SIZE sz;
+	RECT rc;
+	COLORREF OldTextColor;
+	int OldBkMode;
+	TCHAR szText[8];
+
+	hfontOld=SelectFont(hdc,m_Font.GetHandle());
+	GetTextExtentPoint32(hdc,TEXT("88:88"),5,&sz);
+	rc.left=m_ChannelItemLeft;
+	rc.top=8;
+	rc.right=rc.left+sz.cx+8;
+	rc.bottom=rc.top+max(m_FontHeight,sz.cy);
+	Theme::FillGradient(hdc,&rc,&m_ClockBackGradient);
+	OldTextColor=SetTextColor(hdc,m_ClockTextColor);
+	OldBkMode=SetBkMode(hdc,TRANSPARENT);
+	::wsprintf(szText,TEXT("%d:%02d"),m_ClockTime.wHour,m_ClockTime.wMinute);
+	::DrawText(hdc,szText,-1,&rc,DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+	SetTextColor(hdc,OldTextColor);
+	SetBkMode(hdc,OldBkMode);
+	SelectObject(hdc,hfontOld);
+}
+
+
 void CChannelDisplayMenu::GetCloseButtonRect(RECT *pRect) const
 {
 	RECT rc;
@@ -663,6 +692,8 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			pThis->m_CurChannel=-1;
 			pThis->m_LastCursorPos.x=-1;
 			pThis->m_LastCursorPos.y=-1;
+			::SetTimer(hwnd,TIMER_CLOCK,1000,NULL);
+			::GetLocalTime(&pThis->m_ClockTime);
 		}
 		return 0;
 
@@ -748,6 +779,7 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				rc.right=rcClient.right;
 				rc.bottom=rcClient.bottom;
 				Theme::FillGradient(ps.hdc,&rc,&pThis->m_ChannelAreaBackGradient);
+				pThis->DrawClock(ps.hdc);
 				if (pThis->m_CurTuner>=0) {
 					const CTuningSpaceInfo *pTuningSpace=pThis->GetTuningSpaceInfo(pThis->m_CurTuner);
 
@@ -1034,6 +1066,25 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			pThis->m_LastCursorPos=pt;
 		}
 		break;
+
+	case WM_TIMER:
+		if (wParam==TIMER_CLOCK) {
+			CChannelDisplayMenu *pThis=GetThis(hwnd);
+			SYSTEMTIME CurTime;
+
+			::GetLocalTime(&CurTime);
+			if (pThis->m_ClockTime.wHour!=CurTime.wHour
+					|| pThis->m_ClockTime.wMinute!=CurTime.wMinute
+					|| pThis->m_ClockTime.wSecond!=CurTime.wSecond) {
+				HDC hdc;
+
+				pThis->m_ClockTime=CurTime;
+				hdc=GetDC(hwnd);
+				pThis->DrawClock(hdc);
+				ReleaseDC(hwnd,hdc);
+			}
+		}
+		return 0;
 
 	case WM_DESTROY:
 		{

@@ -17,10 +17,7 @@
 #include "MediaBuffer.h"
 #include "MediaGrabber.h"
 #include "TsSelector.h"
-#ifndef TVH264
-#define DTVENGINE_CAPTION_SUPPORT
 #include "CaptionDecoder.h"
-#endif
 
 // Å¶Ç±ÇÃï”ÇÕëSÇ≠ÇÃébíËÇ≈Ç∑
 
@@ -134,9 +131,7 @@ public:
 	CMediaBuffer m_MediaBuffer;
 	CMediaGrabber m_MediaGrabber;
 	CTsSelector m_TsSelector;
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	CCaptionDecoder m_CaptionDecoder;
-#endif
 
 protected:
 	virtual const DWORD OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam);

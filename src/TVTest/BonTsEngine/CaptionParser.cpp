@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include "CaptionParser.h"
-#include "TsEncode.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -222,8 +221,9 @@ bool CCaptionParser::ParseUnitData(const BYTE *pData, DWORD *pDataSize)
 	}
 	if (UnitSize > 0 && m_pHandler) {
 		TCHAR szText[2048];
+		CAribString::FormatList FormatList;
 
-		if (CAribString::CaptionToString(szText, sizeof(szText) / sizeof(TCHAR), &pData[5], UnitSize) > 0) {
+		if (CAribString::CaptionToString(szText, sizeof(szText) / sizeof(TCHAR), &pData[5], UnitSize, &FormatList) > 0) {
 #ifdef TRACE_CAPTION_DATA
 			TCHAR szTrace[4096];
 			int Len = ::wsprintf(szTrace, TEXT("Caption %d : "), m_DataGroupID & 0x0F);
@@ -232,7 +232,7 @@ bool CCaptionParser::ParseUnitData(const BYTE *pData, DWORD *pDataSize)
 			::wsprintf(szTrace + Len, TEXT("\n"));
 			TRACE(szTrace);
 #endif
-			OnCaption(szText);
+			OnCaption(szText, &FormatList);
 		}
 	}
 	*pDataSize = 5 + UnitSize;
@@ -250,13 +250,13 @@ int CCaptionParser::GetLanguageIndex(const BYTE LanguageTag) const
 }
 
 
-void CCaptionParser::OnCaption(LPCTSTR pszText)
+void CCaptionParser::OnCaption(LPCTSTR pszText, const CAribString::FormatList *pFormatList)
 {
 #ifdef TRACE_CAPTION_DATA
 	TRACE(TEXT("Caption %d : %s\n"), m_DataGroupID & 0x0F, pszText);
 #endif
 	if (m_pHandler)
-		m_pHandler->OnCaption(this, (m_DataGroupID & 0x0F) - 1, pszText);
+		m_pHandler->OnCaption(this, (m_DataGroupID & 0x0F) - 1, pszText, pFormatList);
 }
 
 

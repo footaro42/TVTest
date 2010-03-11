@@ -14,7 +14,7 @@ public:
 	public:
 		virtual ~IHandler() = 0;
 		virtual void OnLanguageUpdate(CCaptionDecoder *pDecoder) {}
-		virtual void OnCaption(CCaptionDecoder *pDecoder, BYTE Language, LPCTSTR pszText) {}
+		virtual void OnCaption(CCaptionDecoder *pDecoder, BYTE Language, LPCTSTR pszText, const CAribString::FormatList *pFormatList) {}
 	};
 
 	CCaptionDecoder(IEventHandler *pEventHandler = NULL);
@@ -32,7 +32,7 @@ public:
 protected:
 // CCaptionParser::IHandler
 	virtual void OnLanguageUpdate(CCaptionParser *pParser);
-	virtual void OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText);
+	virtual void OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText, const CAribString::FormatList *pFormatList);
 
 	int GetServiceIndexByID(WORD ServiceID) const;
 	const CCaptionParser *GetCurrentCaptionParser() const;

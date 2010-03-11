@@ -17,31 +17,31 @@ static char THIS_FILE[]=__FILE__;
 
 const SIZE CCaptureOptions::m_SizeList[SIZE_LAST+1] = {
 	// 16:9
-	{1920,	1080},
-	{1440,	810},
-	{1280,	720},
-	{1024,	576},
-	{960,	540},
-	{800,	450},
-	{640,	360},
-	{320,	180},
+	{1920, 1080},
+	{1440,  810},
+	{1280,  720},
+	{1024,  576},
+	{ 960,  540},
+	{ 800,  450},
+	{ 640,  360},
+	{ 320,  180},
 	// 4:3
-	{1440,	1080},
-	{1280,	960},
-	{1024,	768},
-	{800,	600},
-	{720,	540},
-	{640,	480},
-	{320,	240},
+	{1440, 1080},
+	{1280,  960},
+	{1024,  768},
+	{ 800,  600},
+	{ 720,  540},
+	{ 640,  480},
+	{ 320,  240},
 };
 
 
 const CCaptureOptions::PercentageType CCaptureOptions::m_PercentageList[PERCENTAGE_LAST+1] = {
-	{3,	4},	// 75%
-	{2,	3},	// 66%
-	{1,	2},	// 50%
-	{1,	3},	// 33%
-	{1,	4},	// 25%
+	{3, 4},	// 75%
+	{2, 3},	// 66%
+	{1, 2},	// 50%
+	{1, 3},	// 33%
+	{1, 4},	// 25%
 };
 
 
@@ -56,7 +56,7 @@ CCaptureOptions::CCaptureOptions()
 	m_fSetComment=false;
 	m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
 	m_CaptureSize=
-#ifndef TVH264
+#ifndef TVH264_FOR_1SEG
 		SIZE_1920x1080;
 #else
 		SIZE_320x180;
@@ -318,7 +318,7 @@ CCaptureOptions *CCaptureOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

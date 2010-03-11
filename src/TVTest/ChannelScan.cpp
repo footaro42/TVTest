@@ -44,16 +44,16 @@ public:
 
 
 CChannelListSort::CChannelListSort()
+	: m_Type(SORT_CHANNEL)
+	, m_fDescending(false)
 {
-	m_Type=SORT_CHANNEL;
-	m_fDescending=false;
 }
 
 
 CChannelListSort::CChannelListSort(SortType Type,bool fDescending)
+	: m_Type(Type)
+	, m_fDescending(fDescending)
 {
-	m_Type=Type;
-	m_fDescending=fDescending;
 }
 
 
@@ -129,15 +129,15 @@ bool CChannelListSort::UpdateChannelList(HWND hwndList,CChannelList *pList)
 
 
 CChannelScan::CChannelScan(CCoreEngine *pCoreEngine)
+	: m_pCoreEngine(pCoreEngine)
+	, m_pOriginalTuningSpaceList(NULL)
+	, m_fIgnoreSignalLevel(false)	// 信号レベルを無視
+	, m_ScanWait(5000)				// チャンネル切り替え後の待ち時間(ms)
+	, m_RetryCount(4)				// 情報取得の再試行回数
+	, m_RetryInterval(1000)			// 再試行の間隔(ms)
+	, m_hScanDlg(NULL)
+	, m_fChanging(false)
 {
-	m_pCoreEngine=pCoreEngine;
-	m_pOriginalTuningSpaceList=NULL;
-	m_fIgnoreSignalLevel=false;	// 信号レベルを無視
-	m_ScanWait=5000;			// チャンネル切り替え後の待ち時間(ms)
-	m_RetryCount=4;				// 情報取得の再試行回数
-	m_RetryInterval=1000;		// 再試行の間隔(ms)
-	m_hScanDlg=NULL;
-	m_fChanging=false;
 }
 
 
@@ -192,7 +192,7 @@ void CChannelScan::InsertChannelInfo(int Index,const CChannelInfo *pChInfo)
 {
 	HWND hwndList=::GetDlgItem(m_hDlg,IDC_CHANNELSCAN_CHANNELLIST);
 	LV_ITEM lvi;
-	TCHAR szText[16];
+	TCHAR szText[256];
 
 	lvi.mask=LVIF_TEXT | LVIF_PARAM;
 	lvi.iItem=Index;
@@ -206,7 +206,6 @@ void CChannelScan::InsertChannelInfo(int Index,const CChannelInfo *pChInfo)
 	lvi.pszText=szText;
 	ListView_SetItem(hwndList,&lvi);
 	lvi.iSubItem=2;
-	//::wsprintf(szText,TEXT("%d"),pChInfo->GetService());
 	LPCTSTR pszChannelName=m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetChannelName(pChInfo->GetSpace(),pChInfo->GetChannelIndex());
 	::lstrcpy(szText,pszChannelName!=NULL?pszChannelName:TEXT("???"));
 	ListView_SetItem(hwndList,&lvi);
@@ -255,11 +254,11 @@ CChannelInfo *CChannelScan::GetSelectedChannelInfo() const
 
 CChannelScan *CChannelScan::GetThis(HWND hDlg)
 {
-	return static_cast<CChannelScan*>(::GetProp(hDlg,TEXT("This")));
+	return static_cast<CChannelScan*>(GetOptions(hDlg));
 }
 
 
-BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -301,11 +300,6 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 			lvc.cx=40;
 			lvc.pszText=TEXT("番号");
 			ListView_InsertColumn(hwndList,1,&lvc);
-			/*
-			lvc.cx=64;
-			lvc.pszText=TEXT("サービス");
-			ListView_InsertColumn(hwndList,2,&lvc);
-			*/
 			lvc.cx=72;
 			lvc.pszText=TEXT("チャンネル");
 			ListView_InsertColumn(hwndList,2,&lvc);
@@ -319,7 +313,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				//pThis->SetChannelList(hDlg,pThis->m_ScanSpace);
 				SendMessage(hDlg,WM_COMMAND,MAKEWPARAM(IDC_CHANNELSCAN_SPACE,CBN_SELCHANGE),0);
 				/*
-				for (i=0;i<4;i++)
+				for (i=0;i<5;i++)
 					ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
 				*/
 			}
@@ -410,6 +404,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 								ChannelInfo.SetSpace(pThis->m_ScanSpace);
 								pChannelList->AddChannel(ChannelInfo);
 							}
+							pTuningSpaceInfo->SetName(pszName);
 							pThis->m_fUpdated=true;
 							pThis->SetChannelList(pThis->m_ScanSpace);
 							pThis->m_SortColumn=-1;
@@ -706,7 +701,7 @@ BOOL CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 }
 
 
-BOOL CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -834,12 +829,35 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		}
 		::PostMessage(pThis->m_hScanDlg,WM_APP_BEGINSCAN,pThis->m_ScanChannel,0);
 		pDtvEngine->SetChannel(pThis->m_ScanSpace,pThis->m_ScanChannel);
-		if (::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_ScanWait)==WAIT_OBJECT_0)
+		if (::WaitForSingleObject(pThis->m_hCancelEvent,min(pThis->m_ScanWait,2000))==WAIT_OBJECT_0)
 			break;
+		if (pThis->m_ScanWait>2000) {
+			DWORD Wait=pThis->m_ScanWait-2000;
+			while (true) {
+				// 全てのサービスのPMTが来たら待ち時間終了
+				int NumServices=pTsAnalyzer->GetServiceNum();
+				if (NumServices>0) {
+					int i;
+					for (i=0;i<NumServices;i++) {
+						if (!pTsAnalyzer->IsServiceUpdated(i))
+							break;
+					}
+					if (i==NumServices)
+						break;
+				}
+				if (::WaitForSingleObject(pThis->m_hCancelEvent,min(Wait,1000))==WAIT_OBJECT_0)
+					goto End;
+				if (Wait<=1000)
+					break;
+				Wait-=1000;
+			}
+		}
+
 		bool fFound=false;
 		int NumServices;
 		TCHAR szName[32];
-		if (pThis->m_fIgnoreSignalLevel
+		if (pTsAnalyzer->GetViewableServiceNum()>0
+				|| pThis->m_fIgnoreSignalLevel
 				|| pThis->GetSignalLevel()>=SIGNAL_LEVEL_THRESHOLD) {
 			for (int i=0;i<=pThis->m_RetryCount;i++) {
 				if (i>0) {
@@ -876,6 +894,8 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			pThis->m_ScanChannel++;
 			continue;
 		}
+
+		// 見付かったチャンネルを追加する
 		WORD NetworkID=pTsAnalyzer->GetNetworkID();
 		WORD TransportStreamID=pTsAnalyzer->GetTransportStreamID();
 		if (pThis->m_fScanService) {
@@ -883,9 +903,12 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				WORD ServiceID=0;
 				pTsAnalyzer->GetViewableServiceID(i,&ServiceID);
 				int ServiceIndex=pTsAnalyzer->GetServiceIndexByID(ServiceID);
+				int RemoteControlKeyID=pTsAnalyzer->GetRemoteControlKeyID();
+				if (RemoteControlKeyID==0 && ServiceID<1000)
+					RemoteControlKeyID=ServiceID;
 				pTsAnalyzer->GetServiceName(ServiceIndex,szName,lengthof(szName));
 				CChannelInfo ChInfo(pThis->m_ScanSpace,0,pThis->m_ScanChannel,
-					pTsAnalyzer->GetRemoteControlKeyID(),i,szName);
+									RemoteControlKeyID,i,szName);
 				ChInfo.SetNetworkID(NetworkID);
 				ChInfo.SetTransportStreamID(TransportStreamID);
 				ChInfo.SetServiceID(ServiceID);
@@ -932,7 +955,7 @@ float CChannelScan::GetSignalLevel()
 }
 
 
-BOOL CALLBACK CChannelScan::ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CChannelScan::ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

@@ -6,9 +6,6 @@
 #include <Dvdmedia.h>
 #include "MediaViewer.h"
 #include "StdUtil.h"
-#ifdef USE_GRABBER_FILTER
-#include "../Grabber.h"
-#endif
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -51,7 +48,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pszAudioFilterName(NULL)
 	, m_pAudioFilter(NULL)
 
-#ifndef TVH264
+#ifndef BONTSENGINE_H264_SUPPORT
 	, m_pMpeg2SeqFilter(NULL)
 	, m_pMpeg2SeqClass(NULL)
 #else
@@ -89,10 +86,6 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pAudioStreamCallback(NULL)
 	, m_pAudioStreamCallbackParam(NULL)
 	, m_pImageMixer(NULL)
-#ifdef USE_GRABBER_FILTER
-	, m_bGrabber(false)
-	, m_pGrabber(NULL)
-#endif
 {
 	// COMライブラリ初期化
 	//::CoInitialize(NULL);
@@ -327,7 +320,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 				throw CBonException(hr,TEXT("音声出力ピンのIMPEG2PIDMapを取得できません。"));
 		}
 
-#ifndef TVH264
+#ifndef BONTSENGINE_H264_SUPPORT
 		Trace(TEXT("MPEG-2シーケンスフィルタの接続中..."));
 
 		/* CMpeg2SequenceFilter */
@@ -476,7 +469,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			}
 		}
 
-#ifndef TVH264
+#ifndef BONTSENGINE_H264_SUPPORT
 		Trace(TEXT("MPEG-2デコーダの接続中..."));
 
 		/* Mpeg2デコーダー */
@@ -524,7 +517,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		if (::StrCmpNI(m_pszVideoDecoderName, TEXT("CyberLink"), 9) == 0)
 			m_pMpeg2SeqClass->SetFixSquareDisplay(true);
 #endif
-#else	// ndef TVH264
+#else	// ndef BONTSENGINE_H264_SUPPORT
 		Trace(TEXT("H.264デコーダの接続中..."));
 
 		/* H.264デコーダー */
@@ -562,26 +555,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 					TEXT("設定で有効なH.264デコーダが選択されているか確認してください。\nまた、レンダラを変えてみてください。"));
 			}
 		}
-#endif	// TVH264
-
-#ifdef USE_GRABBER_FILTER
-		// グラバをテスト実装したがいまいちうまくいかないので保留
-		if (m_bGrabber) {
-			m_pGrabber=new CGrabber();
-			IBaseFilter *pGrabberFilter;
-
-			Trace(TEXT("グラバフィルタを接続中..."));
-
-			m_pGrabber->Init();
-			pGrabberFilter=m_pGrabber->GetGrabberFilter();
-			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-									pGrabberFilter,L"Grabber",&pOutputVideo);
-			if (FAILED(hr)) {
-				delete m_pGrabber;
-				m_pGrabber=NULL;
-			}
-		}
-#endif
+#endif	// BONTSENGINE_H264_SUPPORT
 
 		Trace(TEXT("映像レンダラの構築中..."));
 
@@ -761,14 +735,6 @@ void CMediaViewer::CloseViewer(void)
 		m_pImageMixer=NULL;
 	}
 
-#ifdef USE_GRABBER_FILTER
-	if (m_pGrabber!=NULL) {
-		m_pFilterGraph->RemoveFilter(m_pGrabber->GetGrabberFilter());
-		delete m_pGrabber;
-		m_pGrabber=NULL;
-	}
-#endif
-
 	if (m_pszVideoDecoderName!=NULL) {
 		delete [] m_pszVideoDecoderName;
 		m_pszVideoDecoderName=NULL;
@@ -781,7 +747,7 @@ void CMediaViewer::CloseViewer(void)
 
 	SAFE_RELEASE(m_pAudioRenderer);
 
-#ifndef TVH264
+#ifndef BONTSENGINE_H264_SUPPORT
 	SAFE_RELEASE(m_pMpeg2SeqFilter);
 	m_pMpeg2SeqClass=NULL;
 #else
@@ -868,13 +834,6 @@ const bool CMediaViewer::Stop(void)
 
 	if (!m_pMediaControl)
 		return false;
-
-	/*
-	// 既にフィルタグラフがデッドロックしている場合、止めると戻ってこないので
-	// 本当はデッドロックしないようにすべきだが...
-	if (CheckHangUp(1000))
-		return false;
-	*/
 
 	if (m_pBonSrcFilterClass)
 		//m_pBonSrcFilterClass->Reset();
@@ -1594,12 +1553,6 @@ const void CMediaViewer::HideCursor(bool bHide)
 
 const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
 {
-	/*
-	CTryBlockLock Lock(&m_CriticalLock);
-	if (!Lock.TryLock(1000))
-		return false;
-	*/
-
 	bool fOK=false;
 
 	if (m_pVideoRenderer) {
@@ -1612,35 +1565,6 @@ const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
 	}
 	return fOK;
 }
-
-
-#ifdef USE_GRABBER_FILTER
-
-bool CMediaViewer::SetGrabber(bool bGrabber)
-{
-	m_bGrabber=bGrabber;
-	return true;
-}
-
-
-void *CMediaViewer::DoCapture(DWORD WaitTime)
-{
-	void *pDib;
-
-	if (m_pGrabber==NULL)
-		return NULL;
-	if (!m_pGrabber->SetCapture(true))
-		return NULL;
-	if (!m_pGrabber->WaitCapture(WaitTime)) {
-		m_pGrabber->SetCapture(false);
-		return NULL;
-	}
-	pDib=m_pGrabber->GetCaptureBitmap();
-	m_pGrabber->SetCapture(false);
-	return pDib;
-}
-
-#endif
 
 
 bool CMediaViewer::SetDownMixSurround(bool bDownMix)
@@ -1771,31 +1695,7 @@ const bool CMediaViewer::ClearOSD()
 }
 
 
-// 使い道ない
-/*
-bool CMediaViewer::SetAudioOnly(bool bOnly)
-{
-#ifndef TVH264
-	if (m_pMpeg2SeqClass==NULL)
-		return false;
-	return m_pMpeg2SeqClass->SetDeliverSamples(!bOnly);
-#else
-	return false;
-#endif
-}
-*/
-
-
-bool CMediaViewer::CheckHangUp(DWORD TimeOut)
-{
-	if (!m_DecoderLock.TryLock(TimeOut))
-		return true;
-	m_DecoderLock.Unlock();
-	return false;
-}
-
-
-#ifdef TVH264
+#ifdef BONTSENGINE_1SEG_SUPPORT
 bool CMediaViewer::SetAdjustSampleTime(bool bAdjust)
 {
 	if (m_pH264ParserClass != NULL) {

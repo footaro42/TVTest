@@ -9,12 +9,12 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	6
-#define VERSION_BUILD	5
+#define VERSION_BUILD	6
 
-#define VERSION_TEXT_A	"0.6.5"
-#define VERSION_TEXT_W	L"0.6.5"
+#define VERSION_TEXT_A	"0.6.6"
+#define VERSION_TEXT_W	L"0.6.6"
 
-#define ABOUT_TEXT	"TVTest ver.0.6.5\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVTest ver.0.6.6\nby HDUSTestの中の人 && HDUSスレの皆さん"
 
 #else
 
@@ -23,12 +23,12 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	4
-#define VERSION_BUILD	0
+#define VERSION_BUILD	1
 
-#define VERSION_TEXT_A	"0.4.0"
-#define VERSION_TEXT_W	L"0.4.0"
+#define VERSION_TEXT_A	"0.4.1"
+#define VERSION_TEXT_W	L"0.4.1"
 
-#define ABOUT_TEXT	"TVH264 ver.0.4.0\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_TEXT	"TVH264 ver.0.4.1\nby HDUSTestの中の人 && HDUSスレの皆さん"
 
 // ワンセグ向け
 #define TVH264_FOR_1SEG
@@ -43,6 +43,10 @@
 #define VERSION_TEXT	VERSION_TEXT_W
 #endif
 
+#ifdef BONTSENGINE_RADIO_SUPPORT
+#define TVTEST_RADIO_SUPPORT
+#endif
+
 
 #ifndef RC_INVOKED
 
@@ -50,6 +54,11 @@
 #include "Util.h"
 
 #define lengthof(a) (sizeof(a)/sizeof(a[0]))
+
+#ifndef CLAMP
+#define CLAMP(val,min,max) \
+	(((val)>(max))?(max):(((val)<(min))?(min):(val)))
+#endif
 
 #ifndef SAFE_DELETE
 //#define SAFE_DELETE(p)		if (p) { delete p; (p)=NULL; }

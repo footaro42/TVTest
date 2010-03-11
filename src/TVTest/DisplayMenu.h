@@ -71,6 +71,8 @@ private:
 	COLORREF m_ChannelTextColor;
 	Theme::GradientInfo m_CurChannelBackGradient;
 	COLORREF m_CurChannelTextColor;
+	Theme::GradientInfo m_ClockBackGradient;
+	COLORREF m_ClockTextColor;
 	DrawUtil::CFont m_Font;
 	bool m_fAutoFontSize;
 	int m_FontHeight;
@@ -91,6 +93,8 @@ private:
 	HWND m_hwndTunerScroll;
 	HWND m_hwndChannelScroll;
 	SYSTEMTIME m_EpgBaseTime;
+	SYSTEMTIME m_ClockTime;
+	enum { TIMER_CLOCK=1 };
 
 	CPointerVector<CTuner> m_TunerList;
 	int m_TotalTuningSpaces;
@@ -123,6 +127,7 @@ private:
 	bool SetCurChannel(int Index);
 	void SetTunerScrollPos(int Pos,bool fScroll);
 	void SetChannelScrollPos(int Pos,bool fScroll);
+	void DrawClock(HDC hdc) const;
 	void GetCloseButtonRect(RECT *pRect) const;
 	bool CloseButtonHitTest(int x,int y) const;
 	void NotifyTunerSelect() const;

@@ -43,8 +43,8 @@ class CChannelScan : public COptions
 	CChannelInfo *GetSelectedChannelInfo() const;
 	float GetSignalLevel();
 	static DWORD WINAPI ScanProc(LPVOID lpParameter);
-	static BOOL CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	static BOOL CALLBACK ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static CChannelScan *GetThis(HWND hDlg);
 
 public:
@@ -57,7 +57,7 @@ public:
 // CChannelScan
 	bool SetTuningSpaceList(const CTuningSpaceList *pTuningSpaceList);
 	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

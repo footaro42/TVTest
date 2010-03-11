@@ -13,7 +13,8 @@
 
 class CProgramGuideServiceInfo;
 
-class CProgramGuideServiceList {
+class CProgramGuideServiceList
+{
 	CProgramGuideServiceInfo **m_ppServiceList;
 	int m_NumServices;
 	int m_ServiceListLength;
@@ -27,7 +28,8 @@ public:
 	void Clear();
 };
 
-class CProgramGuideEventHandler {
+class CProgramGuideEventHandler
+{
 protected:
 	class CProgramGuide *m_pProgramGuide;
 
@@ -44,7 +46,8 @@ public:
 	friend class CProgramGuide;
 };
 
-class CProgramGuideTool {
+class CProgramGuideTool
+{
 public:
 	enum { MAX_NAME=64, MAX_COMMAND=MAX_PATH*2 };
 
@@ -53,7 +56,7 @@ private:
 	TCHAR m_szCommand[MAX_COMMAND];
 	static LPTSTR GetCommandFileName(LPCTSTR *ppszCommand,LPTSTR pszFileName);
 	static CProgramGuideTool *GetThis(HWND hDlg);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 public:
 	CProgramGuideTool();
@@ -67,7 +70,8 @@ public:
 	bool ShowDialog(HWND hwndOwner);
 };
 
-class CProgramGuideToolList {
+class CProgramGuideToolList
+{
 	CProgramGuideTool **m_ppToolList;
 	int m_NumTools;
 	int m_ToolListLength;
@@ -103,6 +107,7 @@ public:
 		COLOR_CURCHANNELNAMETEXT,
 		COLOR_TIMETEXT,
 		COLOR_TIMELINE,
+		COLOR_CURTIMELINE,
 		COLOR_CONTENT_NEWS,
 		COLOR_CONTENT_SPORTS,
 		COLOR_CONTENT_INFORMATION,
@@ -123,6 +128,7 @@ public:
 	};
 	enum { MIN_LINES_PER_HOUR=8, MAX_LINES_PER_HOUR=50 };
 	enum { MIN_ITEM_WIDTH=100, MAX_ITEM_WIDTH=500 };
+	enum { TIME_BAR_BACK_COLORS=8 };
 
 private:
 	bool m_fMaximized;
@@ -177,6 +183,7 @@ private:
 	const CDriverManager *m_pDriverManager;
 	SYSTEMTIME m_stFirstTime;
 	SYSTEMTIME m_stLastTime;
+	SYSTEMTIME m_stCurTime;
 	int m_Day;
 	int m_Hours;
 	struct {
@@ -189,7 +196,8 @@ private:
 	COLORREF m_ColorList[NUM_COLORS];
 	Theme::GradientInfo m_ChannelNameBackGradient;
 	Theme::GradientInfo m_CurChannelNameBackGradient;
-	Theme::GradientInfo m_TimeBarBackGradient;
+	Theme::GradientInfo m_TimeBarMarginGradient;
+	Theme::GradientInfo m_TimeBarBackGradient[TIME_BAR_BACK_COLORS];
 	CProgramGuideToolList m_ToolList;
 	int m_WheelScrollLines;
 
@@ -208,8 +216,9 @@ private:
 	void CalcLayout();
 	void DrawProgramList(int Service,HDC hdc,const RECT *pRect,const RECT *pPaintRect);
 	void DrawServiceName(int Service,HDC hdc,const RECT *pRect);
-	void DrawTimeBar(HDC hdc,const RECT *pRect);
-	void GetProgramGuideRect(RECT *pRect);
+	void DrawTimeBar(HDC hdc,const RECT *pRect,bool fRight);
+	int GetCurTimeLinePos() const;
+	void GetProgramGuideRect(RECT *pRect) const;
 	void Scroll(int XOffset,int YOffset);
 	void SetScrollBar();
 	void SetTitleBar();
@@ -241,9 +250,10 @@ public:
 	int GetItemWidth() const { return m_ItemWidth; }
 	bool SetUIOptions(int LinesPerHour,int ItemWidth);
 	bool SetColor(int Type,COLORREF Color);
-	void SetBackColor(const Theme::GradientInfo *pChannelBackGradient,
-					  const Theme::GradientInfo *pCurChannelBackGradient,
-					  const Theme::GradientInfo *pTimeBarBackGradient);
+	void SetBackColors(const Theme::GradientInfo *pChannelBackGradient,
+					   const Theme::GradientInfo *pCurChannelBackGradient,
+					   const Theme::GradientInfo *pTimeBarMarginGradient,
+					   const Theme::GradientInfo *pTimeBarBackGradient);
 	bool SetFont(const LOGFONT *pFont);
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	bool SetShowToolTip(bool fShow);

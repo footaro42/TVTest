@@ -6,7 +6,8 @@
 #include "EpgProgramList.h"
 
 
-class CCoreEngine : public CBonErrorHandler {
+class CCoreEngine : public CBonErrorHandler
+{
 public:
 	enum DriverType {
 		DRIVER_UNKNOWN,
@@ -53,13 +54,9 @@ private:
 	DWORD m_BitRate;
 	DWORD m_StreamRemain;
 	DWORD m_PacketBufferUsedCount;
-	/*
-	CEpgDataInfo *m_pEpgDataInfo;
-	CEpgDataInfo *m_pEpgDataInfoNext;
-	*/
 	UINT m_TimerResolution;
 
-	bool OpenCardReader();
+	bool OpenCardReader(CardReaderType Type,LPCTSTR pszReaderName=NULL);
 
 public:
 	CCoreEngine();
@@ -93,7 +90,7 @@ public:
 	bool EnablePreview(bool fPreview);
 	bool SetDescramble(bool fDescramble);
 	bool GetDescramble() const { return m_fDescramble; }
-	bool SetCardReaderType(CardReaderType Type);
+	bool SetCardReaderType(CardReaderType Type,LPCTSTR pszReaderName=NULL);
 	CardReaderType GetCardReaderType() const { return m_CardReaderType; }
 	DriverType GetDriverType() const { return m_DriverType; }
 	bool IsUDPDriver() const { return m_DriverType==DRIVER_UDP; }
@@ -148,10 +145,6 @@ public:
 	float GetBitRateFloat() const { return (float)m_BitRate/(float)(1024*1024); }
 	DWORD GetStreamRemain() const { return m_StreamRemain; }
 	int GetPacketBufferUsedPercentage();
-	/*
-	bool UpdateEpgDataInfo();
-	const CEpgDataInfo *GetEpgDataInfo(bool fNext=false) const;
-	*/
 	bool GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID=0xFFFF,bool fNext=false);
 	void *GetCurrentImage();
 	bool SetMinTimerResolution(bool fMin);

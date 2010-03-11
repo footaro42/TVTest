@@ -1,6 +1,9 @@
 #include "stdafx.h"
 #include "TsTable.h"
 #include "TsAnalyzer.h"
+#ifdef TS_ANALYZER_EIT_SUPPORT
+#include "TsEncode.h"
+#endif
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -20,14 +23,7 @@ static char THIS_FILE[]=__FILE__;
 #define STREAM_TYPE_MPEG2	0x02	// MPEG-2
 #define STREAM_TYPE_H264	0x1B	// H.264
 
-#ifndef RECTEST
-#ifndef TVH264
-#define VIEWABLE_STREAM_TYPE	STREAM_TYPE_MPEG2
-#else
-#define VIEWABLE_STREAM_TYPE	STREAM_TYPE_H264
-#define AUDIO_ONLY_STREAM_LISTENER	// 音声のみでも再生可能とする
-#endif
-#endif
+
 
 
 CTsAnalyzer::CTsAnalyzer(IEventHandler *pEventHandler)
@@ -125,19 +121,23 @@ bool CTsAnalyzer::GetServiceID(const int Index, WORD *pServiceID)
 
 	// サービスIDを取得する
 	if (Index < 0) {
-#ifndef TVH264
+#ifndef BONTSENGINE_1SEG_SUPPORT
 		if (m_ServiceList.size() == 0 || !m_ServiceList[0].bIsUpdated)
 			return false;
 		*pServiceID = m_ServiceList[0].ServiceID;
 #else
-		size_t i;
-		for (i = 0; i < m_ServiceList.size(); i++) {
-			if (m_ServiceList[i].PmtPID == 0x1FC8)
-				break;
+		WORD MinPID = 0xFFFF;
+		size_t MinIndex;
+		for (size_t i = 0; i < m_ServiceList.size(); i++) {
+			if (m_ServiceList[i].PmtPID >= 0x1FC8 && m_ServiceList[i].PmtPID <= 0x1FCF
+					&& m_ServiceList[i].PmtPID < MinPID) {
+				MinPID = m_ServiceList[i].PmtPID;
+				MinIndex = i;
+			}
 		}
-		if (i == m_ServiceList.size() || !m_ServiceList[i].bIsUpdated)
+		if (MinPID == 0xFFFF || !m_ServiceList[MinIndex].bIsUpdated)
 			return false;
-		*pServiceID = m_ServiceList[i].ServiceID;
+		*pServiceID = m_ServiceList[MinIndex].ServiceID;
 #endif
 	} else if (Index >= 0 && (size_t)Index < m_ServiceList.size()) {
 		*pServiceID = m_ServiceList[Index].ServiceID;
@@ -170,17 +170,20 @@ bool CTsAnalyzer::IsViewableService(const int Index)
 	if (Index < 0 || (size_t)Index >= m_ServiceList.size())
 		return false;
 
-#ifdef RECTEST
-	return m_ServiceList[Index].VideoStreamType == STREAM_TYPE_MPEG2
-		|| m_ServiceList[Index].VideoStreamType == STREAM_TYPE_H264;
-#else
-	return m_ServiceList[Index].VideoStreamType == VIEWABLE_STREAM_TYPE
-#ifdef AUDIO_ONLY_STREAM_LISTENER
+	return
+#if defined(BONTSENGINE_MPEG2_SUPPORT) && defined(BONTSENGINE_H264_SUPPORT)
+		   m_ServiceList[Index].VideoStreamType == STREAM_TYPE_MPEG2
+		|| m_ServiceList[Index].VideoStreamType == STREAM_TYPE_H264
+#elif defined(BONTSENGINE_MPEG2_SUPPORT)
+		   m_ServiceList[Index].VideoStreamType == STREAM_TYPE_MPEG2
+#elif defined(BONTSENGINE_H264_SUPPORT)
+		   m_ServiceList[Index].VideoStreamType == STREAM_TYPE_H264
+#endif
+#ifdef BONTSENGINE_RADIO_SUPPORT
 		|| (m_ServiceList[Index].VideoStreamType == 0xFF
 			&& m_ServiceList[Index].AudioEsList.size() > 0)
 #endif
 		;
-#endif
 }
 
 
@@ -223,7 +226,7 @@ bool CTsAnalyzer::GetFirstViewableServiceID(WORD *pServiceID)
 	if (pServiceID == NULL)
 		return false;
 
-#ifndef TVH264
+#ifndef BONTSENGINE_1SEG_SUPPORT
 	CBlockLock Lock(&m_DecoderLock);
 
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
@@ -902,8 +905,6 @@ bool CTsAnalyzer::GetEventContentNibble(const int ServiceIndex, EventContentNibb
 	return false;
 }
 
-
-#include "TsEncode.h"
 
 int CTsAnalyzer::GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bUseEventGroup, const bool bNext)
 {

@@ -4,46 +4,37 @@
 #include "AppMain.h"
 #include "AppUtil.h"
 #include "Menu.h"
-#include "ChannelManager.h"
-#include "ChannelScan.h"
 #include "ResidentManager.h"
-#include "DriverManager.h"
-#include "StatusView.h"
-#include "Panel.h"
-#include "PanelForm.h"
 #include "InformationPanel.h"
 #include "ProgramListPanel.h"
 #include "ChannelPanel.h"
 #include "ControlPanel.h"
-#include "ProgramGuide.h"
+#include "CaptionPanel.h"
 #include "Accelerator.h"
 #include "RemoteController.h"
-#include "NetworkRemocon.h"
-#include "DriverOptions.h"
-#include "Record.h"
-#include "RecordOptions.h"
-#include "Capture.h"
-#include "Plugin.h"
 #include "GeneralOptions.h"
 #include "ViewOptions.h"
+#include "OSDOptions.h"
 #include "StatusOptions.h"
 #include "SideBarOptions.h"
 #include "PanelOptions.h"
-#include "OperationOptions.h"
 #include "ColorScheme.h"
-#include "OSDOptions.h"
+#include "OperationOptions.h"
+#include "DriverOptions.h"
 #include "PlaybackOptions.h"
+#include "RecordOptions.h"
 #include "CaptureOptions.h"
+#include "ChannelScan.h"
 #include "EpgOptions.h"
 #include "ProgramGuideOptions.h"
+#include "Plugin.h"
+#include "NetworkRemocon.h"
+#include "Logger.h"
+#include "CommandLine.h"
 #include "InitialSettings.h"
 #include "ChannelHistory.h"
-#include "Settings.h"
-#include "CommandLine.h"
-#include "Logger.h"
 #include "Help.h"
 #include "MessageDialog.h"
-#include "Image.h"
 #include "StreamInfo.h"
 #include "MiscDialog.h"
 #include "DialogUtil.h"
@@ -54,6 +45,7 @@
 #include "DisplayMenu.h"
 #include "Taskbar.h"
 #include "EventInfoPopup.h"
+#include "CardReaderDialog.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -119,10 +111,7 @@ enum {
 	CONTROLPANEL_ITEM_VOLUME,
 	CONTROLPANEL_ITEM_OPTIONS
 };
-#ifdef DTVENGINE_CAPTION_SUPPORT
-#include "CaptionPanel.h"
 static CCaptionPanel CaptionPanel;
-#endif
 
 static CProgramGuide ProgramGuide;
 static bool fShowProgramGuide=false;
@@ -961,7 +950,9 @@ bool CAppMain::OpenBcasCard(bool fRetry)
 {
 	if (!CoreEngine.IsBcasCardOpen()) {
 		if (!CoreEngine.OpenBcasCard()) {
+			Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 			if (fRetry) {
+#if 0
 				TCHAR szText[1024];
 				int Length;
 
@@ -979,13 +970,30 @@ bool CAppMain::OpenBcasCard(bool fRetry)
 							CurReader==CCoreEngine::CARDREADER_SCARD?
 							CCoreEngine::CARDREADER_HDUS:CCoreEngine::CARDREADER_SCARD)
 							&& !CoreEngine.SetCardReaderType(CurReader)) {
-						Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 						MainWindow.ShowErrorMessage(
 							TEXT("利用可能なカードリーダが見付かりませんでした。"));
 					}
 				}
+#else
+				TCHAR szText[1024];
+				int Length;
+				CCardReaderErrorDialog Dialog;
+
+				Length=::wsprintf(szText,TEXT("%s\r\n"),CoreEngine.GetLastErrorText());
+				if (CoreEngine.GetLastErrorSystemMessage()!=NULL)
+					Length+=::wsprintf(szText+Length,TEXT("(%s)\r\n"),CoreEngine.GetLastErrorSystemMessage());
+				::lstrcpy(szText+Length,
+						  TEXT("※もし正常に視聴できるのにこのダイアログが表示される場合、")
+						  TEXT("設定でカードリーダに「なし」を選択してください。"));
+				Dialog.SetMessage(szText);
+				while (Dialog.Show(MainWindow.GetHandle())) {
+					if (CoreEngine.SetCardReaderType(Dialog.GetReaderType(),
+													 Dialog.GetReaderName())
+							|| Dialog.GetReaderType()==CCoreEngine::CARDREADER_NONE)
+						break;
+				}
+#endif
 			} else {
-				Logger.AddLog(TEXT("カードリーダがオープンできません。"));
 				if (!CmdLineParser.m_fSilent)
 					MainWindow.ShowErrorMessage(&CoreEngine);
 			}
@@ -2553,6 +2561,9 @@ bool COptionsControlItem::Rayout(int Width,int Height)
 
 
 
+/*
+	配色を適用する
+*/
 static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 {
 	Theme::GradientInfo Gradient1,Gradient2,Gradient3,Gradient4;
@@ -2650,11 +2661,9 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 		&Gradient2,
 		pColorScheme->GetColor(CColorScheme::COLOR_CONTROLPANELHIGHLIGHTTEXT),
 		pColorScheme->GetColor(CColorScheme::COLOR_CONTROLPANELMARGIN));
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	CaptionPanel.SetColor(
 		pColorScheme->GetColor(CColorScheme::COLOR_CAPTIONPANELBACK),
 		pColorScheme->GetColor(CColorScheme::COLOR_CAPTIONPANELTEXT));
-#endif
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_NOTIFICATIONBARBACK,&Gradient1);
 	NotificationBar.SetColors(
 		&Gradient1,
@@ -2663,12 +2672,13 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 	static const struct {
 		int From,To;
 	} ProgramGuideColorMap[] = {
-		{CColorScheme::COLOR_PROGRAMGUIDEBACK,			CProgramGuide::COLOR_BACK},
-		{CColorScheme::COLOR_PROGRAMGUIDETEXT,			CProgramGuide::COLOR_TEXT},
-		{CColorScheme::COLOR_PROGRAMGUIDECHANNELTEXT,	CProgramGuide::COLOR_CHANNELNAMETEXT},
+		{CColorScheme::COLOR_PROGRAMGUIDEBACK,				CProgramGuide::COLOR_BACK},
+		{CColorScheme::COLOR_PROGRAMGUIDETEXT,				CProgramGuide::COLOR_TEXT},
+		{CColorScheme::COLOR_PROGRAMGUIDECHANNELTEXT,		CProgramGuide::COLOR_CHANNELNAMETEXT},
 		{CColorScheme::COLOR_PROGRAMGUIDECURCHANNELTEXT,	CProgramGuide::COLOR_CURCHANNELNAMETEXT},
-		{CColorScheme::COLOR_PROGRAMGUIDETIMETEXT,		CProgramGuide::COLOR_TIMETEXT},
-		{CColorScheme::COLOR_PROGRAMGUIDETIMELINE,		CProgramGuide::COLOR_TIMELINE},
+		{CColorScheme::COLOR_PROGRAMGUIDETIMETEXT,			CProgramGuide::COLOR_TIMETEXT},
+		{CColorScheme::COLOR_PROGRAMGUIDETIMELINE,			CProgramGuide::COLOR_TIMELINE},
+		{CColorScheme::COLOR_PROGRAMGUIDECURTIMELINE,		CProgramGuide::COLOR_CURTIMELINE},
 	};
 	for (int i=0;i<lengthof(ProgramGuideColorMap);i++)
 		ProgramGuide.SetColor(ProgramGuideColorMap[i].To,
@@ -2678,7 +2688,10 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDECHANNELBACK,&Gradient1);
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDECURCHANNELBACK,&Gradient2);
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIMEBACK,&Gradient3);
-	ProgramGuide.SetBackColor(&Gradient1,&Gradient2,&Gradient3);
+	Theme::GradientInfo TimeGradients[CProgramGuide::TIME_BAR_BACK_COLORS];
+	for (int i=0;i<CProgramGuide::TIME_BAR_BACK_COLORS;i++)
+		pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIME0TO2BACK+i,&TimeGradients[i]);
+	ProgramGuide.SetBackColors(&Gradient1,&Gradient2,&Gradient3,TimeGradients);
 	PluginList.SendColorChangeEvent();
 	return true;
 }
@@ -3121,7 +3134,7 @@ class CMyPanelEventHandler : public CPanelFrameEventHandler {
 	int m_AttachOffset;
 public:
 	CMyPanelEventHandler();
-	// CPanelFrameEventHandler
+// CPanelFrameEventHandler
 	bool OnClose();
 	bool OnMoving(RECT *pRect);
 	bool OnEnterSizeMove();
@@ -3129,7 +3142,7 @@ public:
 	bool OnMouseWheel(WPARAM wParam,LPARAM lParam);
 	void OnVisibleChange(bool fVisible);
 	bool OnFloatingChange(bool fFloating);
-	// CMyPanelEventHandler
+// CMyPanelEventHandler
 	bool OnOwnerMovingOrSizing(const RECT *pOldRect,const RECT *pNewRect);
 	bool IsAttached();
 };
@@ -4656,6 +4669,7 @@ const CMainWindow::ZoomRateInfo CMainWindow::ZoomRateList[] = {
 	{  1,   1},
 	{  3,   2},
 	{  2,   1},
+	{  5,   2},
 	{  3,   1},
 };
 int CMainWindow::m_ThinFrameWidth=2;
@@ -4844,23 +4858,24 @@ void CMainWindow::ShowNotificationBar(LPCTSTR pszText,CNotificationBar::MessageT
 
 void CMainWindow::AdjustWindowSize(int Width,int Height)
 {
-	RECT rcOld,rc;
-
 	if (IsZoomed(m_hwnd))
 		return;
+
+	RECT rcOld,rc;
 	GetPosition(&rcOld);
+
+	HMONITOR hMonitor=::MonitorFromRect(&rcOld,MONITOR_DEFAULTTONEAREST);
+	MONITORINFO mi;
+	mi.cbSize=sizeof(mi);
+	::GetMonitorInfo(hMonitor,&mi);
+
+	if (ViewOptions.GetClientEdge()) {
+		Width+=m_ViewWindow.GetVerticalEdgeWidth()*2;
+		Height+=m_ViewWindow.GetHorizontalEdgeHeight()*2;
+	}
 	m_Splitter.GetScreenPosition(&rc);
 	rc.right=rc.left+Width;
 	rc.bottom=rc.top+Height;
-	if (ViewOptions.GetClientEdge()) {
-#if 0
-		rc.right+=GetSystemMetrics(SM_CXEDGE)*2;
-		rc.bottom+=GetSystemMetrics(SM_CYEDGE)*2;
-#else
-		rc.right+=m_ViewWindow.GetVerticalEdgeWidth()*2;
-		rc.bottom+=m_ViewWindow.GetHorizontalEdgeHeight()*2;
-#endif
-	}
 	if (m_fShowStatusBar)
 		rc.bottom+=StatusView.GetHeight();
 	if (m_fShowTitleBar && m_fCustomTitleBar)
@@ -4877,22 +4892,24 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 	} else {
 		::AdjustWindowRectEx(&rc,GetStyle(),FALSE,GetExStyle());
 	}
+	if (ViewOptions.GetNearCornerResizeOrigin()) {
+		if (abs(rcOld.left-mi.rcWork.left)>abs(rcOld.right-mi.rcWork.right)) {
+			rc.left=rcOld.right-(rc.right-rc.left);
+			rc.right=rcOld.right;
+		}
+		if (abs(rcOld.top-mi.rcWork.top)>abs(rcOld.bottom-mi.rcWork.bottom)) {
+			rc.top=rcOld.bottom-(rc.bottom-rc.top);
+			rc.bottom=rcOld.bottom;
+		}
+	}
 
 	// ウィンドウがモニタの外に出ないようにする
-	HMONITOR hMonitor=::MonitorFromRect(&rcOld,MONITOR_DEFAULTTONULL);
-	if (hMonitor!=NULL) {
-		MONITORINFO mi;
-
-		mi.cbSize=sizeof(mi);
-		if (::GetMonitorInfo(hMonitor,&mi)) {
-			if (rcOld.left>=mi.rcWork.left && rcOld.top>=mi.rcWork.top
-					&& rcOld.right<=mi.rcWork.right && rcOld.bottom<=mi.rcWork.bottom) {
-				if (rc.right>mi.rcWork.right && rc.left>mi.rcWork.left)
-					::OffsetRect(&rc,max(mi.rcWork.right-rc.right,mi.rcWork.left-rc.left),0);
-				if (rc.bottom>mi.rcWork.bottom && rc.top>mi.rcWork.top)
-					::OffsetRect(&rc,0,max(mi.rcWork.bottom-rc.bottom,mi.rcWork.top-rc.top));
-			}
-		}
+	if (rcOld.left>=mi.rcWork.left && rcOld.top>=mi.rcWork.top
+			&& rcOld.right<=mi.rcWork.right && rcOld.bottom<=mi.rcWork.bottom) {
+		if (rc.right>mi.rcWork.right && rc.left>mi.rcWork.left)
+			::OffsetRect(&rc,max(mi.rcWork.right-rc.right,mi.rcWork.left-rc.left),0);
+		if (rc.bottom>mi.rcWork.bottom && rc.top>mi.rcWork.top)
+			::OffsetRect(&rc,0,max(mi.rcWork.bottom-rc.bottom,mi.rcWork.top-rc.top));
 	}
 
 	SetPosition(&rc);
@@ -5235,6 +5252,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_ZOOM_100:
 	case CM_ZOOM_150:
 	case CM_ZOOM_200:
+	case CM_ZOOM_250:
 	case CM_ZOOM_300:
 		{
 			if (m_fFullscreen)
@@ -6024,9 +6042,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_PANEL_PROGRAMLIST:
 	case CM_PANEL_CHANNEL:
 	case CM_PANEL_CONTROL:
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	case CM_PANEL_CAPTION:
-#endif
 		PanelForm.SetCurPageByID(id-CM_PANEL_FIRST);
 		return;
 
@@ -6564,9 +6580,7 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 	} else {
 		ProgramGuide.ClearCurrentService();
 	}
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	CaptionPanel.Clear();
-#endif
 	ChannelHistory.Add(CoreEngine.GetDriverFileName(),
 					   ChannelManager.GetCurrentRealChannelInfo());
 	if (DriverOptions.IsResetChannelChangeErrorCount(CoreEngine.GetDriverFileName()))
@@ -6665,9 +6679,7 @@ void CMainWindow::OnDriverChanged()
 	else
 		ChannelPanel.ClearChannelList();
 	*/
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	CaptionPanel.Clear();
-#endif
 	ProgramGuide.ClearCurrentService();
 	//SetTuningSpaceMenu();
 	SetChannelMenu();
@@ -7076,7 +7088,7 @@ DWORD WINAPI CMainWindow::ExitWatchThread(LPVOID lpParameter)
 {
 	HANDLE hEvent=lpParameter;
 
-	if (::WaitForSingleObject(hEvent,30000)!=WAIT_OBJECT_0) {
+	if (::WaitForSingleObject(hEvent,60000)!=WAIT_OBJECT_0) {
 		Logger.AddLog(TEXT("終了処理がタイムアウトしました。プロセスを強制的に終了させます。"));
 		::ExitProcess(-1);
 	}
@@ -7353,10 +7365,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 	case WM_NCLBUTTONUP:
 	case WM_LBUTTONUP:
-		if (::GetCapture()==hwnd) {
+		if (::GetCapture()==hwnd)
 			::ReleaseCapture();
-			TitleBarUtil.EndDrag();
-		}
+		return 0;
+
+	case WM_CAPTURECHANGED:
+		TitleBarUtil.EndDrag();
 		return 0;
 
 	case WM_MOUSEMOVE:
@@ -8143,8 +8157,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			AppMain.Finalize();
 
 #ifndef _DEBUG
-			::SetEvent(hEvent);
-			if (::WaitForSingleObject(hThread,5000)!=WAIT_OBJECT_0)
+			if (::SignalObjectAndWait(hEvent,hThread,5000,FALSE)!=WAIT_OBJECT_0)
 				::TerminateThread(hThread,-1);
 			::CloseHandle(hThread);
 			::CloseHandle(hEvent);
@@ -8344,7 +8357,7 @@ void CMainWindow::SetChannelMenu()
 			wsprintf(szText,TEXT("%d: %s"),
 				fControlKeyID?pChInfo->GetChannelNo():i+1,pChInfo->GetName());
 			AppendMenu(hmenu,MFT_STRING | MFS_ENABLED
-				| (j!=0 && j%12==0?MF_MENUBREAK:0),CM_CHANNEL_FIRST+i,szText);
+				| (j!=0 && j%16==0?MF_MENUBREAK:0),CM_CHANNEL_FIRST+i,szText);
 			j++;
 		}
 	}
@@ -8395,7 +8408,7 @@ void CMainWindow::SetNetworkRemoconChannelMenu(HMENU hmenu)
 		wsprintf(szText,TEXT("%d: %s"),
 							pPortList->GetChannelNo(i),pPortList->GetName(i));
 		AppendMenu(hmenu,MFT_STRING | MFS_ENABLED
-			| ((i!=0 && i%12==0) || (i==0 && RemoconChList.NumChannels()>0)?
+			| ((i!=0 && i%16==0) || (i==0 && RemoconChList.NumChannels()>0)?
 															MF_MENUBREAK:0),
 												CM_CHANNEL_FIRST+i,szText);
 	}
@@ -9428,9 +9441,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CProgramListPanel::Initialize(hInst);
 	CChannelPanel::Initialize(hInst);
 	CControlPanel::Initialize(hInst);
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	CCaptionPanel::Initialize(hInst);
-#endif
 	CProgramGuide::Initialize(hInst);
 	CCaptureWindow::Initialize(hInst);
 	CPseudoOSD::Initialize(hInst);
@@ -9503,6 +9514,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.SetPacketBufferLength(PlaybackOptions.GetPacketBufferLength());
 	CoreEngine.SetPacketBufferPoolPercentage(PlaybackOptions.GetPacketBufferPoolPercentage());
 	CoreEngine.SetPacketBuffering(PlaybackOptions.GetPacketBuffering());
+	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetStreamThreadPriority(PlaybackOptions.GetStreamThreadPriority());
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(&Logger);
 	CoreEngine.BuildDtvEngine(&DtvEngineHandler);
@@ -9653,10 +9665,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	ControlPanel.Create(PanelForm.GetHandle(),WS_CHILD);
 	PanelForm.AddWindow(&ControlPanel,PANEL_ID_CONTROL,TEXT("操作"));
 
-#ifdef DTVENGINE_CAPTION_SUPPORT
 	CaptionPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
 	PanelForm.AddWindow(&CaptionPanel,PANEL_ID_CAPTION,TEXT("字幕"));
-#endif
 
 	PanelOptions.InitializePanelForm(&PanelForm);
 	PanelFrame.Create(MainWindow.GetHandle(),&MainWindow.GetSplitter(),PANE_ID_PANEL,&PanelForm,TEXT("パネル"));
