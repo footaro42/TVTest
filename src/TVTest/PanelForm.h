@@ -59,6 +59,7 @@ private:
 	HFONT m_hfont;
 	int m_TabHeight;
 	int m_TabWidth;
+	bool m_fFitTabWidth;
 	int m_ClientMargin;
 	int m_CurTab;
 	CEventHandler *m_pEventHandler;
@@ -69,6 +70,7 @@ private:
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool SetCurTab(int Index);
 	void CalcTabSize();
+	int GetRealTabWidth() const;
 	int HitTest(int x,int y) const;
 
 public:

@@ -79,7 +79,7 @@ protected:
 class CPesParser
 {
 public:
-	class IPacketHandler
+	class __declspec(novtable) IPacketHandler
 	{
 	public:
 		virtual void OnPesPacket(const CPesParser *pPesParser, const CPesPacket *pPacket) = 0;
@@ -163,7 +163,7 @@ protected:
 class CAdtsParser : public CPesParser::IPacketHandler
 {
 public:
-	class IFrameHandler
+	class __declspec(novtable) IFrameHandler
 	{
 	public:
 		virtual void OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame *pFrame) = 0;
@@ -274,10 +274,10 @@ protected:
 class CMpeg2Parser : public CPesParser::IPacketHandler
 {
 public:
-	class ISequenceHandler
+	class __declspec(novtable) ISequenceHandler
 	{
 	public:
-		virtual void OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence) {}//= 0;
+		virtual void OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence) = 0;
 	};
 
 	CMpeg2Parser(ISequenceHandler *pSequenceHandler);
@@ -321,6 +321,13 @@ public:
 
 	const WORD GetHorizontalSize() const;
 	const WORD GetVerticalSize() const;
+	const bool GetSAR(WORD *pHorz, WORD *pVert) const;
+	struct TimingInfo {
+		DWORD NumUnitsInTick;
+		DWORD TimeScale;
+		bool bFixedFrameRateFlag;
+	};
+	const bool GetTimingInfo(TimingInfo *pInfo) const;
 
 protected:
 	bool m_bFoundSPS;
@@ -331,14 +338,14 @@ protected:
 		} AUD;
 		// SPS (Sequence Parameter Set)
 		struct {
-			BYTE ProfileIDC;
+			BYTE ProfileIdc;
 			bool bConstraintSet0Flag;
 			bool bConstraintSet1Flag;
 			bool bConstraintSet2Flag;
 			bool bConstraintSet3Flag;
-			BYTE LevelIDC;
-			BYTE SeqParameterSetID;
-			BYTE ChromaFormatIDC;
+			BYTE LevelIdc;
+			BYTE SeqParameterSetId;
+			BYTE ChromaFormatIdc;
 			bool bSeparateColourPlaneFlag;
 			BYTE BitDepthLumaMinus8;
 			BYTE BitDepthChromaMinus8;
@@ -367,9 +374,26 @@ protected:
 			// VUI (Video Usability Information)
 			struct {
 				bool bAspectRatioInfoPresentFlag;
-				BYTE AspectRatioIDC;
+				BYTE AspectRatioIdc;
 				WORD SarWidth;
 				WORD SarHeight;
+				bool bOverscanInfoPresentFlag;
+				bool bOverscanAppropriateFlag;
+				bool bVideoSignalTypePresentFlag;
+				BYTE VideoFormat;
+				bool bVideoFullRangeFlag;
+				bool bColourDescriptionPresentFlag;
+				BYTE ColourPrimaries;
+				BYTE TransferCharacteristics;
+				BYTE MatrixCoefficients;
+				bool bChromaLocInfoPresentFlag;
+				WORD ChromaSampleLocTypeTopField;
+				WORD ChromaSampleLocTypeBottomField;
+				bool bTimingInfoPresentFlag;
+				DWORD NumUnitsInTick;
+				DWORD TimeScale;
+				bool bFixedFrameRateFlag;
+				// ...
 			} VUI;
 			BYTE ChromaArrayType;
 		} SPS;
@@ -384,10 +408,10 @@ protected:
 class CH264Parser : public CPesParser::IPacketHandler
 {
 public:
-	class IAccessUnitHandler
+	class __declspec(novtable) IAccessUnitHandler
 	{
 	public:
-		virtual void OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit) {}//= 0;
+		virtual void OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit) = 0;
 	};
 
 	CH264Parser(IAccessUnitHandler *pAccessUnitHandler);

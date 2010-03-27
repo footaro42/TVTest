@@ -5,16 +5,12 @@
 #pragma once
 
 
-// SSE2ëŒâû
-#define MULTI2_SSE2
-#define MULTI2_SSE2_ICC
+#define MULTI2_USE_INTRINSIC	// ëgÇ›çûÇ›ä÷êîÇóòóp
+#define MULTI2_SSE2				// SSE2ëŒâû
+#define MULTI2_SSE2_ICC			// Intel C++ Compiler ÇóòópÇ∑ÇÈ
 
-#ifdef MULTI2_SSE2
-#ifdef MULTI2_SSE2_ICC
-#include "../ICC/Multi2Decoder/Multi2DecoderSSE2.h"
-#else
+#if defined(MULTI2_SSE2) && !defined(MULTI2_SSE2_ICC)
 #include <emmintrin.h>
-#endif
 #endif
 
 
@@ -34,23 +30,47 @@ public:
 	static bool IsSSE2Available();
 #endif
 
+	class SYSKEY	// System Key(Sk), Expanded Key(Wk) 256bit
+	{
+	public:
+		inline void SetHexData(const BYTE *pHexData);
+		inline void GetHexData(BYTE *pHexData) const;
+
+		union {
+#if !defined(MULTI2_USE_INTRINSIC) || !defined(WIN64)
+			struct {
+				DWORD dwKey1, dwKey2, dwKey3, dwKey4, dwKey5, dwKey6, dwKey7, dwKey8;
+			};
+#else
+			struct {
+				DWORD dwKey2, dwKey1, dwKey4, dwKey3, dwKey6, dwKey5, dwKey8, dwKey7;
+			};
+			unsigned __int64 Data64[4];
+#endif
+			BYTE Data[32];
+		};
+	};
+
 private:
 	class DATKEY	// Data Key(Dk) 64bit
 	{
 	public:
 		inline void SetHexData(const BYTE *pHexData);
 		inline void GetHexData(BYTE *pHexData) const;
-		
-		DWORD dwLeft, dwRight;
-	};
 
-	class SYSKEY	// System Key(Sk), Expanded Key(Wk) 256bit
-	{
-	public:
-		inline void SetHexData(const BYTE *pHexData);
-		inline void GetHexData(BYTE *pHexData) const;
-	
-		DWORD dwKey1, dwKey2, dwKey3, dwKey4, dwKey5, dwKey6, dwKey7, dwKey8;
+		union {
+#if !defined(MULTI2_USE_INTRINSIC) || !defined(WIN64)
+			struct {
+				DWORD dwLeft, dwRight;
+			};
+#else
+			struct {
+				DWORD dwRight, dwLeft;
+			};
+			unsigned __int64 Data64;
+#endif
+			BYTE Data[8];
+		};
 	};
 
 	//static inline void DecryptBlock(DATKEY &Block, const SYSKEY &WorkKey);

@@ -93,7 +93,7 @@ public:
 	public:
 		virtual ~CServiceList() {}
 		void Clear() { m_ServiceList.clear(); }
-		int NumServices() const { return m_ServiceList.size(); }
+		int NumServices() const { return (int)m_ServiceList.size(); }
 		const ServiceInfo *GetServiceInfo(int Index) const {
 			if (Index<0 || Index>(int)m_ServiceList.size())
 				return NULL;

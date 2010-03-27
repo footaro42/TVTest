@@ -153,7 +153,7 @@ bool SetListBoxHExtent(HWND hDlg,int ID)
 	HWND hwnd=GetDlgItem(hDlg,ID);
 	int Count,MaxWidth=0;
 
-	Count=SendMessage(hwnd,LB_GETCOUNT,0,0);
+	Count=(int)SendMessage(hwnd,LB_GETCOUNT,0,0);
 	if (Count>=1) {
 		HFONT hfont,hfontOld;
 		HDC hdc;

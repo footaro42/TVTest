@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
@@ -19,7 +18,7 @@ static char THIS_FILE[]=__FILE__;
 CRecordOptions::CRecordOptions()
 {
 	m_szSaveFolder[0]='\0';
-	::lstrcpy(m_szFileName,TEXT("Record.ts"));
+	::lstrcpy(m_szFileName,TEXT("Record_%date%-%time%.ts"));
 	m_fConfirmChannelChange=true;
 	m_fConfirmExit=true;
 	m_fConfirmStop=false;
@@ -58,6 +57,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	if (pSettings->Read(TEXT("RecordFileName"),szPath,lengthof(szPath))
 			&& szPath[0]!='\0')
 		::lstrcpy(m_szFileName,szPath);
+#if 0
 	// Backward compatibility
 	bool fAddTime;
 	if (pSettings->Read(TEXT("AddRecordTime"),&fAddTime) && fAddTime) {
@@ -69,6 +69,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 			::wsprintf(pszExt,TEXT("%s%s"),szFormat,szExtension);
 		}
 	}
+#endif
 	pSettings->Read(TEXT("ConfirmRecChChange"),&m_fConfirmChannelChange);
 	pSettings->Read(TEXT("ConfrimRecordingExit"),&m_fConfirmExit);
 	pSettings->Read(TEXT("ConfrimRecordStop"),&m_fConfirmStop);
@@ -228,7 +229,7 @@ bool CRecordOptions::ApplyOptions(CRecordManager *pManager)
 	pManager->SetCurServiceOnly(m_fCurServiceOnly);
 	DWORD Stream=CTsSelector::STREAM_ALL;
 	if (!m_fSaveSubtitle)
-		Stream^=CTsSelector::STREAM_SUBTITLE;
+		Stream^=CTsSelector::STREAM_CAPTION;
 	if (!m_fSaveDataCarrousel)
 		Stream^=CTsSelector::STREAM_DATACARROUSEL;
 	pManager->SetSaveStream(Stream);
@@ -244,7 +245,7 @@ CRecordOptions *CRecordOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

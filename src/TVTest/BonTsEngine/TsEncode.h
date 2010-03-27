@@ -43,8 +43,14 @@ public:
 	};
 	typedef std::vector<FormatInfo> FormatList;
 
+	class __declspec(novtable) IDRCSMap {
+	public:
+		virtual ~IDRCSMap() {}
+		virtual LPCTSTR GetString(WORD Code) = 0;
+	};
+
 	static const DWORD AribToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
-	static const DWORD CaptionToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, FormatList *pFormatList = NULL);
+	static const DWORD CaptionToString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, FormatList *pFormatList = NULL, IDRCSMap *pDRCSMap = NULL);
 
 private:
 	enum CODE_SET
@@ -98,12 +104,14 @@ private:
 	BYTE m_BackColorIndex;
 	BYTE m_RasterColorIndex;
 	BYTE m_DefPalette;
-	FormatList *m_pFormatList;
 	BYTE m_RPC;
+	FormatList *m_pFormatList;
+	IDRCSMap *m_pDRCSMap;
 
 	bool m_bCaption;
 
-	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen, const bool bCaption = false, FormatList *pFormatList = NULL);
+	const DWORD AribToStringInternal(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen,
+		const bool bCaption = false, FormatList *pFormatList = NULL, IDRCSMap *pDRCSMap = NULL);
 	const DWORD ProcessString(TCHAR *lpszDst, const DWORD dwDstLen, const BYTE *pSrcData, const DWORD dwSrcLen);
 	inline const int ProcessCharCode(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode, const CODE_SET CodeSet);
 
@@ -114,6 +122,7 @@ private:
 	inline const int PutJisKatakanaChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 	inline const int PutSymbolsChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 	inline const int PutMacroChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
+	inline const int PutDRCSChar(TCHAR *lpszDst, const DWORD dwDstLen, const WORD wCode);
 
 	inline void ProcessEscapeSeq(const BYTE byCode);
 

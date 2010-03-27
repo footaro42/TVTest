@@ -3,6 +3,7 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
+#include "Common.h"
 #include "TsDescrambler.h"
 #include "Multi2Decoder.h"
 
@@ -200,14 +201,14 @@ void CTsDescrambler::Reset(void)
 	m_PidMapManager.UnmapAllTarget();
 
 	// PATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0000U, new CPatTable, OnPatUpdated, this);
+	m_PidMapManager.MapTarget(PID_PAT, new CPatTable, OnPatUpdated, this);
 
 	if (m_bProcessEmm) {
 		// CATテーブルPIDマップ追加
-		m_PidMapManager.MapTarget(0x0001U, new CCatTable, OnCatUpdated, this);
+		m_PidMapManager.MapTarget(PID_CAT, new CCatTable, OnCatUpdated, this);
 
 		// TOTテーブルPIDマップ追加
-		m_PidMapManager.MapTarget(0x0014U, new CTotTable);
+		m_PidMapManager.MapTarget(PID_TOT, new CTotTable);
 	}
 
 	// 統計データ初期化
@@ -270,16 +271,16 @@ const bool CTsDescrambler::EnableEmmProcess(bool bEnable)
 	if (m_bProcessEmm != bEnable) {
 		if (bEnable) {
 			// CATテーブルPIDマップ追加
-			m_PidMapManager.MapTarget(0x0001U, new CCatTable, OnCatUpdated, this);
+			m_PidMapManager.MapTarget(PID_CAT, new CCatTable, OnCatUpdated, this);
 			// TOTテーブルPIDマップ追加
-			m_PidMapManager.MapTarget(0x0014U, new CTotTable);
+			m_PidMapManager.MapTarget(PID_TOT, new CTotTable);
 		} else {
 			if (m_EmmPID < 0x1FFF) {
 				m_PidMapManager.UnmapTarget(m_EmmPID);
 				m_EmmPID = 0xFFFF;
 			}
-			m_PidMapManager.UnmapTarget(0x0001U);
-			m_PidMapManager.UnmapTarget(0x0014U);
+			m_PidMapManager.UnmapTarget(PID_CAT);
+			m_PidMapManager.UnmapTarget(PID_TOT);
 		}
 		m_bProcessEmm = bEnable;
 	}
@@ -393,7 +394,7 @@ int CTsDescrambler::GetServiceIndexByID(WORD ServiceID) const
 	int Index;
 
 	// プログラムIDからサービスインデックスを検索する
-	for (Index = m_ServiceList.size() - 1 ; Index >= 0  ; Index--) {
+	for (Index = (int)m_ServiceList.size() - 1 ; Index >= 0  ; Index--) {
 		if (m_ServiceList[Index].ServiceID == ServiceID)
 			break;
 	}

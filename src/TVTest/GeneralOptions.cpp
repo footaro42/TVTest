@@ -330,8 +330,8 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			if (pThis->m_szMpeg2DecoderName[0]=='\0') {
 				Sel=0;
 			} else {
-				Sel=DlgComboBox_FindStringExact(hDlg,IDC_OPTIONS_DECODER,-1,
-												pThis->m_szMpeg2DecoderName)+1;
+				Sel=(int)DlgComboBox_FindStringExact(hDlg,IDC_OPTIONS_DECODER,-1,
+													 pThis->m_szMpeg2DecoderName)+1;
 			}
 			DlgComboBox_InsertString(hDlg,IDC_OPTIONS_DECODER,0,
 				Count>0?TEXT("デフォルト"):TEXT("<デコーダが見付かりません>"));
@@ -518,7 +518,7 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 								 pThis->m_szDefaultDriverName,lengthof(pThis->m_szDefaultDriverName));
 
 				TCHAR szDecoder[MAX_MPEG2_DECODER_NAME];
-				int Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_DECODER);
+				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_DECODER);
 				if (Sel>0)
 					DlgComboBox_GetLBString(hDlg,IDC_OPTIONS_DECODER,Sel,szDecoder);
 				else

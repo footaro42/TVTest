@@ -203,7 +203,7 @@ static DWORD GetSCardErrorMessage(LONG Code,LPTSTR pszMessage,DWORD MaxLength)
 	LPCTSTR pszText = GetSCardErrorText(Code);
 	DWORD Length = 0;
 	if (pszText!=NULL) {
-		Length = ::StrStr(pszText, TEXT(" ")) - pszText + 1;
+		Length = (DWORD)(::StrStr(pszText, TEXT(" ")) - pszText + 1);
 		if (Length > MaxLength)
 			Length = MaxLength;
 		::lstrcpyn(pszMessage, pszText, Length + 1);
@@ -497,7 +497,7 @@ bool CDynamicSCardReader::Open(LPCTSTR pszReader)
 		p++;
 	}
 	if (pszReaderName!=NULL)
-		::lstrcpyn(szFileName,pszReader,pszReaderName-pszReader);
+		::lstrcpyn(szFileName,pszReader,(int)(pszReaderName-pszReader));
 	else
 		::lstrcpy(szFileName,pszReader);
 	if (m_hLib==NULL) {

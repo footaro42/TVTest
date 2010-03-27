@@ -28,7 +28,7 @@ static __m128i SwapMask;
 
 bool Multi2DecoderSSE2::IsSSE2Available()
 {
-#if 1
+#ifndef WIN64
 	bool b;
 
 	__asm {
@@ -165,7 +165,7 @@ static inline void RoundFuncPi4(DWORD &Left, DWORD &Right, const DWORD dwK4)
 }
 
 
-bool Multi2DecoderSSE2::Decode(BYTE *pData, const DWORD dwSize, const SYSKEY *pWorkKey,
+bool Multi2DecoderSSE2::Decode(BYTE *pData, const DWORD dwSize, const CMulti2Decoder::SYSKEY *pWorkKey,
 	const DWORD InitialCbcLeft, const DWORD InitialCbcRight)
 {
 	DWORD RemainSize = dwSize & 0xFFFFFFE0UL;

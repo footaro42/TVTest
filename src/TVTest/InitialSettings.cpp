@@ -74,7 +74,7 @@ CInitialSettings *CInitialSettings::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -141,7 +141,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 											)) {
 					for (int i=0;i<FilterFinder.GetFilterCount();i++) {
 						if (FilterFinder.GetFilterInfo(i,NULL,szFilterName,lengthof(szFilterName))) {
-							int Index=DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,szFilterName);
+							int Index=(int)DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,szFilterName);
 							if (::lstrcmpi(szFilterName,pThis->m_szMpeg2DecoderName)==0)
 								Sel=Index;
 							Count++;
@@ -295,7 +295,7 @@ BOOL CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				TCHAR szMpeg2Decoder[MAX_DECODER_NAME];
 				CVideoRenderer::RendererType VideoRenderer;
 
-				int SelDecoder=DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER);
+				int SelDecoder=(int)DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER);
 				if (SelDecoder>0) {
 					DlgComboBox_GetLBString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,SelDecoder,szMpeg2Decoder);
 				} else if (DlgComboBox_GetCount(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER)>1) {

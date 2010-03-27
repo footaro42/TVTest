@@ -476,7 +476,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			{
 				CChannelPanel *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pnmtdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
-				int Channel=pnmtdi->lParam/2,Event=pnmtdi->lParam%2;
+				int Channel=(int)(pnmtdi->lParam/2),Event=(int)(pnmtdi->lParam%2);
 
 				if (Channel>=0 && Channel<pThis->m_ChannelList.Length()) {
 					static TCHAR szText[1024];
@@ -707,7 +707,7 @@ int CChannelPanel::HitTest(int x,int y,HitType *pType) const
 void CChannelPanel::SetToolTips()
 {
 	if (m_hwndToolTip!=NULL) {
-		int NumTools=::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
+		int NumTools=(int)::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
 		TOOLINFO ti;
 
 		ti.cbSize=TTTOOLINFOA_V2_SIZE;
@@ -766,7 +766,7 @@ bool CChannelPanel::EventInfoPopupHitTest(int x,int y,LPARAM *pParam)
 
 bool CChannelPanel::GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo)
 {
-	int Channel=Param/2,Event=Param%2;
+	int Channel=(int)(Param/2),Event=(int)(Param%2);
 
 	if (Channel<0 || Channel>=m_ChannelList.Length() || Event<0 && Event>1)
 		return false;
@@ -856,7 +856,13 @@ int CChannelPanel::CChannelEventInfo::FormatEventText(LPTSTR pszText,int MaxLeng
 
 void CChannelPanel::CChannelEventInfo::DrawChannelName(HDC hdc,const RECT *pRect)
 {
-	::DrawText(hdc,m_ChannelInfo.GetName(),-1,const_cast<LPRECT>(pRect),
+	TCHAR szText[MAX_CHANNEL_NAME+16];
+
+	if (m_ChannelInfo.GetChannelNo()!=0)
+		::wsprintf(szText,TEXT("%d: %s"),m_ChannelInfo.GetChannelNo(),m_ChannelInfo.GetName());
+	else
+		::lstrcpy(szText,m_ChannelInfo.GetName());
+	::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
 			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }
 

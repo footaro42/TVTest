@@ -150,7 +150,7 @@ void COperationOptions::InitWheelModeList(HWND hDlg,int ID)
 }
 
 
-BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -186,7 +186,7 @@ BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 				pThis->m_pCommandList->GetCommandName(i,szText,lengthof(szText));
 				for (int j=IDC_OPTIONS_MOUSECOMMAND_FIRST;j<=IDC_OPTIONS_MOUSECOMMAND_LAST;j++) {
-					int Index=DlgComboBox_AddString(hDlg,j,szText);
+					int Index=(int)DlgComboBox_AddString(hDlg,j,szText);
 					DlgComboBox_SetItemData(hDlg,j,Index,Command);
 				}
 				if (Command==pThis->m_LeftDoubleClickCommand)
@@ -227,13 +227,13 @@ BOOL CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DISPLAYDRAGMOVE);
 
 				pThis->m_LeftDoubleClickCommand=
-					DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND,
+					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND,
 						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND));
 				pThis->m_RightClickCommand=
-					DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND,
+					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND,
 						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND));
 				pThis->m_MiddleClickCommand=
-					DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND,
+					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND,
 						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND));
 			}
 			break;

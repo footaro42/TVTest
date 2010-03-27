@@ -346,7 +346,7 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			CPanel *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
 				return 0;
 		}
 		break;
@@ -582,7 +582,7 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			CPanelFrame *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
 				return 0;
 		}
 		break;

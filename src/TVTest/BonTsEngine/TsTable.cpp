@@ -7,7 +7,6 @@
 #include "TsEncode.h"
 #include "TsUtilClass.h"
 
-
 #ifdef _DEBUG
 #undef THIS_FILE
 static char THIS_FILE[]=__FILE__;
@@ -450,7 +449,7 @@ const WORD CPatTable::GetNitPID(const WORD wIndex) const
 const WORD CPatTable::GetNitNum(void) const
 {
 	// NITの数を返す
-	return m_NitPIDArray.size();
+	return (WORD)m_NitPIDArray.size();
 }
 
 const WORD CPatTable::GetPmtPID(const WORD wIndex) const
@@ -468,7 +467,7 @@ const WORD CPatTable::GetProgramID(const WORD wIndex) const
 const WORD CPatTable::GetProgramNum(void) const
 {
 	// PMTの数を返す
-	return m_PmtPIDArray.size();
+	return (WORD)m_PmtPIDArray.size();
 }
 
 const bool CPatTable::IsPmtTablePID(const WORD wPID) const
@@ -716,7 +715,7 @@ const WORD CPmtTable::GetEcmPID(const WORD CASystemID) const
 const WORD CPmtTable::GetEsInfoNum(void) const
 {
 	// ES情報の数を返す
-	return m_EsInfoArray.size();
+	return (WORD)m_EsInfoArray.size();
 }
 
 const BYTE CPmtTable::GetStreamTypeID(const WORD wIndex) const
@@ -829,7 +828,7 @@ void CSdtTable::Reset(void)
 const WORD CSdtTable::GetServiceNum(void) const
 {
 	// サービス数を返す
-	return m_ServiceInfoArray.size();
+	return (WORD)m_ServiceInfoArray.size();
 }
 
 const WORD CSdtTable::GetServiceIndexByID(const WORD wServiceID)
@@ -1078,7 +1077,7 @@ void CHEitTable::Reset(void)
 const DWORD CHEitTable::GetServiceNum(void) const
 {
 	// サービス数を返す
-	return m_EitArray.size();
+	return (DWORD)m_EitArray.size();
 }
 
 const int CHEitTable::GetServiceIndexByID(WORD ServiceID) const
@@ -1200,7 +1199,7 @@ const bool CHEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 		EitInfo.TransportStreamID = TransportStreamID;
 		EitInfo.OriginalNetworkID = OriginalNetworkID;
 		m_EitArray.push_back(EitInfo);
-		Index = m_EitArray.size() - 1;
+		Index = (int)m_EitArray.size() - 1;
 	}
 
 	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];
@@ -1262,7 +1261,7 @@ void CLEitTable::Reset(void)
 const DWORD CLEitTable::GetServiceNum(void) const
 {
 	// サービス数を返す
-	return m_EitArray.size();
+	return (DWORD)m_EitArray.size();
 }
 
 const int CLEitTable::GetServiceIndexByID(WORD ServiceID) const
@@ -1383,7 +1382,7 @@ const bool CLEitTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiS
 		EitInfo.TransportStreamID = TransportStreamID;
 		EitInfo.OriginalNetworkID = OriginalNetworkID;
 		m_EitArray.push_back(EitInfo);
-		Index = m_EitArray.size() - 1;
+		Index = (int)m_EitArray.size() - 1;
 	}
 
 	EventInfo &Info = m_EitArray[Index].EventList[pCurSection->GetSectionNumber()];

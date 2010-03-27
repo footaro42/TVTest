@@ -38,7 +38,7 @@ public:
 	bool HandleMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool OnActivateApp(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	bool IsEnabled() const;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

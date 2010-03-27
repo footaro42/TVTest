@@ -53,7 +53,7 @@ public:
 	bool IsNoSignalLevel(LPCTSTR pszFileName) const;
 	bool IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const;
 	bool IsResetChannelChangeErrorCount(LPCTSTR pszFileName) const;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

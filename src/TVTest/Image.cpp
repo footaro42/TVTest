@@ -10,7 +10,7 @@ SIZE_T CalcDIBInfoSize(const BITMAPINFOHEADER *pbmih)
 
 	Size=sizeof(BITMAPINFOHEADER);
 	if (pbmih->biBitCount<=8)
-		Size+=(1<<pbmih->biBitCount)*sizeof(RGBQUAD);
+		Size+=((SIZE_T)1<<pbmih->biBitCount)*sizeof(RGBQUAD);
 	else if (pbmih->biCompression==BI_BITFIELDS)
 		Size+=3*sizeof(DWORD);
 	return Size;

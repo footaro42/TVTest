@@ -423,7 +423,7 @@ CHDUSController *CHDUSController::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CHDUSController::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CHDUSController::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -620,7 +620,7 @@ BOOL CALLBACK CHDUSController::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (Sel<0)
 					return TRUE;
 				pThis->SetButtonCommand(hwndList,Sel,
-					pThis->m_pCommandList->GetCommandID(DlgComboBox_GetCurSel(hDlg,IDC_HDUSCONTROLLER_COMMAND)-1));
+					pThis->m_pCommandList->GetCommandID((int)DlgComboBox_GetCurSel(hDlg,IDC_HDUSCONTROLLER_COMMAND)-1));
 			}
 			return TRUE;
 

@@ -5,13 +5,15 @@
 #include "Settings.h"
 
 
-class COptionFrame {
+class COptionFrame
+{
 public:
 	virtual ~COptionFrame() {}
 	virtual void OnSettingError(class COptions *pOptions) {}
 };
 
-class COptions {
+class COptions
+{
 	static COptionFrame *m_pFrame;
 	static DWORD m_GeneralUpdateFlags;
 
@@ -26,7 +28,8 @@ protected:
 public:
 	enum {
 		UPDATE_GENERAL_BUILDMEDIAVIEWER	= 0x00000001UL,
-		UPDATE_GENERAL_EVENTINFOFONT	= 0x00000002UL
+		UPDATE_GENERAL_EVENTINFOFONT	= 0x00000002UL,
+		UPDATE_ALL						= 0xFFFFFFFFUL
 	};
 
 	COptions();

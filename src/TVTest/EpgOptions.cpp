@@ -259,7 +259,7 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 	::ReleaseDC(hDlg,hdc);
 }
 
-BOOL CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

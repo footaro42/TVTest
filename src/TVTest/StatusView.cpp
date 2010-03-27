@@ -584,6 +584,15 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		}
 		break;
 
+	case WM_NOTIFY:
+		{
+			CStatusView *pStatus=GetStatusView(hwnd);
+
+			if (pStatus->m_HotItem>=0)
+				return pStatus->m_ItemList[pStatus->m_HotItem]->OnNotifyMessage(reinterpret_cast<LPNMHDR>(lParam));
+		}
+		break;
+
 	case WM_DISPLAYCHANGE:
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);

@@ -5,7 +5,8 @@
 #include "RichEditUtil.h"
 
 
-class CMessageDialog {
+class CMessageDialog
+{
 public:
 	CMessageDialog();
 	~CMessageDialog();
@@ -15,6 +16,7 @@ public:
 		TYPE_ERROR
 	};
 	bool Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTSTR pszTitle=NULL,LPCTSTR pszSystemMessage=NULL,LPCTSTR pszCaption=NULL);
+
 private:
 	CRichEditUtil m_RichEditUtil;
 	LPTSTR m_pszText;
@@ -23,9 +25,10 @@ private:
 	LPTSTR m_pszCaption;
 	MessageType m_MessageType;
 	HWND m_hDlg;
+
 	void LogFontToCharFormat(const LOGFONT *plf,CHARFORMAT *pcf);
 	static CMessageDialog *GetThis(HWND hDlg);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

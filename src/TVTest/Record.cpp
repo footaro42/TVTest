@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
@@ -300,7 +299,7 @@ bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
 	pDtvEngine->SetWriteCurServiceOnly(m_fCurServiceOnly,m_SaveStream);
 	bool fDescrambleCurOnly=pDtvEngine->GetDescrambleCurServiceOnly();
 	pDtvEngine->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
-	pDtvEngine->m_FileWriter.SetBufferSize(m_BufferSize);
+	pDtvEngine->m_FileWriter.SetBufferSize((DWORD)m_BufferSize);
 	if (!m_RecordTask.Start(pDtvEngine,pszFileName)) {
 		pDtvEngine->SetWriteCurServiceOnly(false);
 		pDtvEngine->SetDescrambleCurServiceOnly(fDescrambleCurOnly);
@@ -495,7 +494,7 @@ static BOOL DateTime_SetFiletime(HWND hwndDT,DWORD flag,FILETIME *pFileTime)
 
 #pragma warning(disable: 4700)	// 初期化されていないローカル変数 'ftStop' が使用されます
 
-BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -657,7 +656,7 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			::DlgCheckBox_Check(hDlg,IDC_RECORD_CURSERVICEONLY,
 								pThis->m_fCurServiceOnly);
 			::DlgCheckBox_Check(hDlg,IDC_RECORD_SAVESUBTITLE,
-				(pThis->m_SaveStream&CTsSelector::STREAM_SUBTITLE)!=0);
+				(pThis->m_SaveStream&CTsSelector::STREAM_CAPTION)!=0);
 			::DlgCheckBox_Check(hDlg,IDC_RECORD_SAVEDATACARROUSEL,
 				(pThis->m_SaveStream&CTsSelector::STREAM_DATACARROUSEL)!=0);
 			if (pThis->m_fRecording) {
@@ -922,7 +921,7 @@ BOOL CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					pThis->m_fCurServiceOnly=DlgCheckBox_IsChecked(hDlg,IDC_RECORD_CURSERVICEONLY);
 					pThis->m_SaveStream=CTsSelector::STREAM_ALL;
 					if (!DlgCheckBox_IsChecked(hDlg,IDC_RECORD_SAVESUBTITLE))
-						pThis->m_SaveStream^=CTsSelector::STREAM_SUBTITLE;
+						pThis->m_SaveStream^=CTsSelector::STREAM_CAPTION;
 					if (!DlgCheckBox_IsChecked(hDlg,IDC_RECORD_SAVEDATACARROUSEL))
 						pThis->m_SaveStream^=CTsSelector::STREAM_DATACARROUSEL;
 				}
@@ -982,7 +981,7 @@ bool CRecordManager::RecordDialog(HWND hwndOwner)
 
 #if 0
 
-BOOL CALLBACK CRecordManager::StopTimeDlgProc(HWND hDlg,UINT uMsg,
+INT_PTR CALLBACK CRecordManager::StopTimeDlgProc(HWND hDlg,UINT uMsg,
 												WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {

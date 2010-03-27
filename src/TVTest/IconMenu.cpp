@@ -122,7 +122,7 @@ bool CIconMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 		::DeleteObject(hpen2);
 	}
 
-	::ImageList_Draw(m_hImageList,pdis->itemData,pdis->hDC,x,y,ILD_NORMAL);
+	::ImageList_Draw(m_hImageList,(int)pdis->itemData,pdis->hDC,x,y,ILD_NORMAL);
 
 	return true;
 }

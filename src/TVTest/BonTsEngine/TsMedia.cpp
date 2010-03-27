@@ -856,44 +856,25 @@ const BYTE CMpeg2Sequence::GetFrameRateCode(void) const
 
 const bool CMpeg2Sequence::GetFrameRate(DWORD *pNum, DWORD *pDenom) const
 {
-	if (pNum == NULL || pDenom == NULL)
+	static const struct {
+		WORD Num, Denom;
+	} FrameRateList[] = {
+		{24000, 1001},	// 23.976
+		{   24,    1},	// 24
+		{   25,    1},	// 25
+		{30000, 1001},	// 29.97
+		{   30,    1},	// 30
+		{   50,    1},	// 50
+		{60000, 1001},	// 59.94
+		{   60,    1},	// 60
+	};
+
+	if (m_Header.byFrameRateCode == 0 || m_Header.byFrameRateCode > 8)
 		return false;
-	switch (m_Header.byFrameRateCode) {
-	case 1:	// 23.976
-		*pNum = 24000;
-		*pDenom = 1001;
-		break;
-	case 2:
-		*pNum = 24;
-		*pDenom = 1;
-		break;
-	case 3:
-		*pNum = 25;
-		*pDenom = 1;
-		break;
-	case 4:	// 29.97
-		*pNum = 30000;
-		*pDenom = 1001;
-		break;
-	case 5:
-		*pNum = 30;
-		*pDenom = 1;
-		break;
-	case 6:
-		*pNum = 50;
-		*pDenom = 1;
-		break;
-	case 7:	// 59.94
-		*pNum = 60000;
-		*pDenom = 1001;
-		break;
-	case 8:
-		*pNum = 60;
-		*pDenom = 1;
-		break;
-	default:
-		return false;
-	}
+	if (pNum)
+		*pNum = FrameRateList[m_Header.byFrameRateCode - 1].Num;
+	if (pDenom)
+		*pDenom = FrameRateList[m_Header.byFrameRateCode - 1].Denom;
 	return true;
 }
 
@@ -1114,53 +1095,99 @@ CH264AccessUnit & CH264AccessUnit::operator = (const CH264AccessUnit &Operand)
 	return *this;
 }
 
+static DWORD EBSPToRBSP(BYTE *pData, DWORD DataSize)
+{
+	DWORD j = 0;
+	int Count = 0;
+	for (DWORD i = 0; i < DataSize; i++) {
+		if (Count == 2) {
+			if (pData[i] < 0x03)
+				return (DWORD)-1;
+			if (pData[i] == 0x03) {
+				if (i < DataSize - 1 && pData[i + 1] > 0x03)
+					return (DWORD)-1;
+				if (i == DataSize - 1)
+					break;
+				i++;
+				Count = 0;
+			}
+		}
+		pData[j++] = pData[i];
+		if (pData[i] == 0x00)
+			Count++;
+		else
+			Count = 0;
+	}
+	return j;
+}
+
 const bool CH264AccessUnit::ParseHeader(void)
 {
 	if (m_dwDataSize < 5
 			|| m_pData[0] != 0 || m_pData[1] != 0 || m_pData[2] != 0x01)
 		return false;
 
-	bool bFoundStartCode;
 	DWORD Pos = 3;
-	do {
+	while (true) {
+		DWORD SyncState = 0xFFFFFFFFUL;
+		DWORD NextPos = Pos + 1;
+		bool bFoundStartCode = false;
+		for (; NextPos < m_dwDataSize - 2; NextPos++) {
+			SyncState = (SyncState << 8) | (DWORD)m_pData[NextPos];
+			if ((SyncState & 0x00FFFFFF) == 0x00000001UL) {
+				bFoundStartCode = true;
+				NextPos++;
+				break;
+			}
+		}
+		if (!bFoundStartCode)
+			break;
+
 		const BYTE NALUnitType = m_pData[Pos++] & 0x1F;
+		DWORD NALUnitSize = NextPos - 3 - Pos;
+
+		NALUnitSize = EBSPToRBSP(&m_pData[Pos], NALUnitSize);
+		if (NALUnitSize == (DWORD)-1)
+			break;
 
 		if (NALUnitType == 0x07) {
 			// Sequence parameter set
-			CBitstream Bitstream(&m_pData[Pos], m_dwDataSize - Pos);
+			CBitstream Bitstream(&m_pData[Pos], NALUnitSize);
 
-			m_Header.SPS.ProfileIDC = Bitstream.GetBits(8);
-			m_Header.SPS.bConstraintSet0Flag = Bitstream.GetBits(1) != 0;
-			m_Header.SPS.bConstraintSet1Flag = Bitstream.GetBits(1) != 0;
-			m_Header.SPS.bConstraintSet2Flag = Bitstream.GetBits(1) != 0;
-			m_Header.SPS.bConstraintSet3Flag = Bitstream.GetBits(1) != 0;
+			m_Header.SPS.ProfileIdc = (BYTE)Bitstream.GetBits(8);
+			m_Header.SPS.bConstraintSet0Flag = Bitstream.GetFlag();
+			m_Header.SPS.bConstraintSet1Flag = Bitstream.GetFlag();
+			m_Header.SPS.bConstraintSet2Flag = Bitstream.GetFlag();
+			m_Header.SPS.bConstraintSet3Flag = Bitstream.GetFlag();
 			if (Bitstream.GetBits(4) != 0)	// reserved_zero_4bits
 				return false;
-			m_Header.SPS.LevelIDC = Bitstream.GetBits(8);
-			m_Header.SPS.SeqParameterSetID = Bitstream.GetUE_V();
-			m_Header.SPS.ChromaFormatIDC = 1;
+			m_Header.SPS.LevelIdc = (BYTE)Bitstream.GetBits(8);
+			m_Header.SPS.SeqParameterSetId = Bitstream.GetUE_V();
+			m_Header.SPS.ChromaFormatIdc = 1;
 			m_Header.SPS.bSeparateColourPlaneFlag = false;
 			m_Header.SPS.BitDepthLumaMinus8 = 0;
 			m_Header.SPS.BitDepthChromaMinus8 = 0;
 			m_Header.SPS.bQpprimeYZeroTransformBypassFlag = false;
 			m_Header.SPS.bSeqScalingMatrixPresentFlag = false;
-			if (m_Header.SPS.ProfileIDC == 100
-					|| m_Header.SPS.ProfileIDC == 110
-					|| m_Header.SPS.ProfileIDC == 122
-					|| m_Header.SPS.ProfileIDC == 244
-					|| m_Header.SPS.ProfileIDC == 44) {
+			if (m_Header.SPS.ProfileIdc == 100
+					|| m_Header.SPS.ProfileIdc == 110
+					|| m_Header.SPS.ProfileIdc == 122
+					|| m_Header.SPS.ProfileIdc == 244
+					|| m_Header.SPS.ProfileIdc == 44
+					|| m_Header.SPS.ProfileIdc == 83
+					|| m_Header.SPS.ProfileIdc == 86) {
 				// High profile
-				m_Header.SPS.ChromaFormatIDC = Bitstream.GetUE_V();
-				if (m_Header.SPS.ChromaFormatIDC == 3)	// YUY444
-					m_Header.SPS.bSeparateColourPlaneFlag = Bitstream.GetBits(1) != 0;
+				m_Header.SPS.ChromaFormatIdc = Bitstream.GetUE_V();
+				if (m_Header.SPS.ChromaFormatIdc == 3)	// YUY444
+					m_Header.SPS.bSeparateColourPlaneFlag = Bitstream.GetFlag();
 				m_Header.SPS.BitDepthLumaMinus8 = Bitstream.GetUE_V();
 				m_Header.SPS.BitDepthChromaMinus8 = Bitstream.GetUE_V();
-				m_Header.SPS.bQpprimeYZeroTransformBypassFlag = Bitstream.GetBits(1) != 0;
-				m_Header.SPS.bSeqScalingMatrixPresentFlag = Bitstream.GetBits(1) != 0;
+				m_Header.SPS.bQpprimeYZeroTransformBypassFlag = Bitstream.GetFlag();
+				m_Header.SPS.bSeqScalingMatrixPresentFlag = Bitstream.GetFlag();
 				if (m_Header.SPS.bSeqScalingMatrixPresentFlag) {
-					int Length = m_Header.SPS.ChromaFormatIDC != 3 ? 8 : 12;
+					const int Length = m_Header.SPS.ChromaFormatIdc != 3 ? 8 : 12;
 					for (int i = 0; i < Length; i++) {
-						if (Bitstream.GetBits(1)) {	// seq_scaling_list_present_flag
+						if (Bitstream.GetFlag()) {	// seq_scaling_list_present_flag
 							int LastScale = 8, NextScale = 8;
 							for (int j = 0; j < (i < 6 ? 16 : 64); j++) {
 								if (NextScale != 0) {
@@ -1178,7 +1205,7 @@ const bool CH264AccessUnit::ParseHeader(void)
 			if (m_Header.SPS.PicOrderCntType == 0) {
 				m_Header.SPS.Log2MaxPicOrderCntLsbMinus4 = Bitstream.GetUE_V();
 			} else if (m_Header.SPS.PicOrderCntType == 1) {
-				m_Header.SPS.bDeltaPicOrderAlwaysZeroFlag = Bitstream.GetBits(1) != 0;
+				m_Header.SPS.bDeltaPicOrderAlwaysZeroFlag = Bitstream.GetFlag();
 				m_Header.SPS.OffsetForNonRefPic = Bitstream.GetSE_V();
 				m_Header.SPS.OffsetForTopToBottomField = Bitstream.GetSE_V();
 				m_Header.SPS.NumRefFramesInPicOrderCntCycle = Bitstream.GetUE_V();
@@ -1186,43 +1213,68 @@ const bool CH264AccessUnit::ParseHeader(void)
 					Bitstream.GetSE_V();	// offset_for_ref_frame
 			}
 			m_Header.SPS.NumRefFrames = Bitstream.GetUE_V();
-			m_Header.SPS.bGapsInFrameNumValueAllowedFlag = Bitstream.GetBits(1) != 0;
+			m_Header.SPS.bGapsInFrameNumValueAllowedFlag = Bitstream.GetFlag();
 			m_Header.SPS.PicWidthInMbsMinus1 = Bitstream.GetUE_V();
 			m_Header.SPS.PicHeightInMapUnitsMinus1 = Bitstream.GetUE_V();
-			m_Header.SPS.bFrameMbsOnlyFlag = Bitstream.GetBits(1) != 0;
+			m_Header.SPS.bFrameMbsOnlyFlag = Bitstream.GetFlag();
 			if (!m_Header.SPS.bFrameMbsOnlyFlag)
-				m_Header.SPS.bMbAdaptiveFrameFieldFlag = Bitstream.GetBits(1) != 0;
-			m_Header.SPS.bDirect8x8InferenceFlag = Bitstream.GetBits(1) != 0;
-			m_Header.SPS.bFrameCroppingFlag = Bitstream.GetBits(1) != 0;
+				m_Header.SPS.bMbAdaptiveFrameFieldFlag = Bitstream.GetFlag();
+			m_Header.SPS.bDirect8x8InferenceFlag = Bitstream.GetFlag();
+			m_Header.SPS.bFrameCroppingFlag = Bitstream.GetFlag();
 			if (m_Header.SPS.bFrameCroppingFlag) {
 				m_Header.SPS.FrameCropLeftOffset = Bitstream.GetUE_V();
 				m_Header.SPS.FrameCropRightOffset = Bitstream.GetUE_V();
 				m_Header.SPS.FrameCropTopOffset = Bitstream.GetUE_V();
 				m_Header.SPS.FrameCropBottomOffset = Bitstream.GetUE_V();
 			}
-			m_Header.SPS.bVuiParametersPresentFlag = Bitstream.GetBits(1) != 0;
+			m_Header.SPS.bVuiParametersPresentFlag = Bitstream.GetFlag();
 			if (m_Header.SPS.bVuiParametersPresentFlag) {
-				m_Header.SPS.VUI.bAspectRatioInfoPresentFlag = Bitstream.GetBits(1) != 0;
+				m_Header.SPS.VUI.bAspectRatioInfoPresentFlag = Bitstream.GetFlag();
 				if (m_Header.SPS.VUI.bAspectRatioInfoPresentFlag) {
-					m_Header.SPS.VUI.AspectRatioIDC = Bitstream.GetBits(8);
-					if (m_Header.SPS.VUI.AspectRatioIDC == 255) {
-						m_Header.SPS.VUI.SarWidth = Bitstream.GetBits(16);
-						m_Header.SPS.VUI.SarHeight = Bitstream.GetBits(16);
+					m_Header.SPS.VUI.AspectRatioIdc = (BYTE)Bitstream.GetBits(8);
+					if (m_Header.SPS.VUI.AspectRatioIdc == 255) {
+						m_Header.SPS.VUI.SarWidth = (WORD)Bitstream.GetBits(16);
+						m_Header.SPS.VUI.SarHeight = (WORD)Bitstream.GetBits(16);
 					}
 				}
-				// ˆÈ‰º‚½‚­‚³‚ñ‚ ‚é‚ªÈ—ª
+				m_Header.SPS.VUI.bOverscanInfoPresentFlag = Bitstream.GetFlag();
+				if (m_Header.SPS.VUI.bOverscanInfoPresentFlag)
+					m_Header.SPS.VUI.bOverscanAppropriateFlag = Bitstream.GetFlag();
+				m_Header.SPS.VUI.bVideoSignalTypePresentFlag = Bitstream.GetFlag();
+				if (m_Header.SPS.VUI.bVideoSignalTypePresentFlag) {
+					m_Header.SPS.VUI.VideoFormat = (BYTE)Bitstream.GetBits(3);
+					m_Header.SPS.VUI.bVideoFullRangeFlag = Bitstream.GetFlag();
+					m_Header.SPS.VUI.bColourDescriptionPresentFlag = Bitstream.GetFlag();
+					if (m_Header.SPS.VUI.bColourDescriptionPresentFlag) {
+						m_Header.SPS.VUI.ColourPrimaries = (BYTE)Bitstream.GetBits(8);
+						m_Header.SPS.VUI.TransferCharacteristics = (BYTE)Bitstream.GetBits(8);
+						m_Header.SPS.VUI.MatrixCoefficients = (BYTE)Bitstream.GetBits(8);
+					}
+				}
+				m_Header.SPS.VUI.bChromaLocInfoPresentFlag = Bitstream.GetFlag();
+				if (m_Header.SPS.VUI.bChromaLocInfoPresentFlag) {
+					m_Header.SPS.VUI.ChromaSampleLocTypeTopField = Bitstream.GetUE_V();
+					m_Header.SPS.VUI.ChromaSampleLocTypeBottomField = Bitstream.GetUE_V();
+				}
+				m_Header.SPS.VUI.bTimingInfoPresentFlag = Bitstream.GetFlag();
+				if (m_Header.SPS.VUI.bTimingInfoPresentFlag) {
+					m_Header.SPS.VUI.NumUnitsInTick = Bitstream.GetBits(32);
+					m_Header.SPS.VUI.TimeScale = Bitstream.GetBits(32);
+					m_Header.SPS.VUI.bFixedFrameRateFlag = Bitstream.GetFlag();
+				}
+				// ˆÈ‰º‚Ü‚¾‚Ü‚¾‚ ‚é‚ªÈ—ª
 			}
 			if (m_Header.SPS.bSeparateColourPlaneFlag)
-				m_Header.SPS.ChromaArrayType = m_Header.SPS.ChromaFormatIDC;
+				m_Header.SPS.ChromaArrayType = m_Header.SPS.ChromaFormatIdc;
 			else
 				m_Header.SPS.ChromaArrayType = 0;
 #ifdef STRICT_1SEG
 			// ƒƒ“ƒZƒO‹KŠi‚É‡’v‚µ‚Ä‚¢‚é?
-			if (m_Header.SPS.ProfileIDC != 66
+			if (m_Header.SPS.ProfileIdc != 66
 					|| !m_Header.SPS.bConstraintSet0Flag
 					|| !m_Header.SPS.bConstraintSet1Flag
 					|| !m_Header.SPS.bConstraintSet2Flag
-					|| m_Header.SPS.LevelIDC != 12
+					|| m_Header.SPS.LevelIdc != 12
 					|| m_Header.SPS.SeqParameterSetID > 31
 					|| m_Header.SPS.Log2MaxFrameNumMinus4 > 12
 					|| m_Header.SPS.PicOrderCntType != 2
@@ -1241,29 +1293,30 @@ const bool CH264AccessUnit::ParseHeader(void)
 							|| m_Header.SPS.FrameCropRightOffset != 0
 							|| m_Header.SPS.FrameCropTopOffset != 0
 							|| m_Header.SPS.FrameCropBottomOffset != 6))
-					|| !m_Header.SPS.bVuiParametersPresentFlag) {
+					|| !m_Header.SPS.bVuiParametersPresentFlag
+					|| m_Header.SPS.VUI.bAspectRatioInfoPresentFlag
+					|| m_Header.SPS.VUI.bOverscanInfoPresentFlag
+					|| m_Header.SPS.VUI.bVideoSignalTypePresentFlag
+					|| m_Header.SPS.VUI.bChromaLocInfoPresentFlag
+					|| !m_Header.SPS.VUI.bTimingInfoPresentFlag
+					|| m_Header.SPS.VUI.NumUnitsInTick == 0
+					|| m_Header.SPS.VUI.NumUnitsInTick % 1001 != 0
+					|| (m_Header.SPS.VUI.TimeScale != 24000
+						&& m_Header.SPS.VUI.TimeScale != 30000)) {
 				return false;
 			}
 #endif
 			m_bFoundSPS = true;
-			Pos += (Bitstream.GetPos() + 7) >> 3;
 		} else if (NALUnitType == 0x09) {
 			// Access unit delimiter
 			m_Header.AUD.PrimaryPicType = m_pData[Pos] >> 5;
-			Pos++;
+		} else if (NALUnitType == 0x0A) {
+			// End of sequence
+			break;
 		}
 
-		DWORD SyncState = 0xFFFFFFFFUL;
-		bFoundStartCode = false;
-		for (; Pos < m_dwDataSize - 2; Pos++) {
-			SyncState = (SyncState << 8) | (DWORD)m_pData[Pos];
-			if ((SyncState & 0x00FFFFFF) == 0x00000001UL) {
-				bFoundStartCode = true;
-				Pos++;
-				break;
-			}
-		}
-	} while (bFoundStartCode);
+		Pos = NextPos;
+	}
 
 	return m_bFoundSPS;
 }
@@ -1277,7 +1330,8 @@ void CH264AccessUnit::Reset(void)
 const WORD CH264AccessUnit::GetHorizontalSize() const
 {
 	WORD Width = (m_Header.SPS.PicWidthInMbsMinus1 + 1) * 16;
-	WORD Crop = m_Header.SPS.FrameCropLeftOffset + m_Header.SPS.FrameCropRightOffset;
+	WORD Crop = m_Header.SPS.bFrameCroppingFlag ?
+		m_Header.SPS.FrameCropLeftOffset + m_Header.SPS.FrameCropRightOffset : 0;
 	/*
 	if (m_Header.SPS.ChromaArrayType != 0)
 		Crop *= SubWidthC;
@@ -1288,7 +1342,8 @@ const WORD CH264AccessUnit::GetHorizontalSize() const
 const WORD CH264AccessUnit::GetVerticalSize() const
 {
 	WORD Height = (m_Header.SPS.PicHeightInMapUnitsMinus1 + 1) * 16;
-	WORD Crop = m_Header.SPS.FrameCropTopOffset + m_Header.SPS.FrameCropBottomOffset;
+	WORD Crop = m_Header.SPS.bFrameCroppingFlag ?
+		m_Header.SPS.FrameCropTopOffset + m_Header.SPS.FrameCropBottomOffset : 0;
 	if (!m_Header.SPS.bFrameMbsOnlyFlag)
 		Height *= 2;
 	/*
@@ -1297,7 +1352,67 @@ const WORD CH264AccessUnit::GetVerticalSize() const
 	*/
 	if (m_Header.SPS.bFrameMbsOnlyFlag)
 		Crop *= 2;
+	else
+		Crop *= 4;
 	return Height - Crop;
+}
+
+const bool CH264AccessUnit::GetSAR(WORD *pHorz, WORD *pVert) const
+{
+	static const struct {
+		BYTE Horz, Vert;
+	} SarList[] = {
+		{  0,   0},
+		{  1,   1},
+		{ 12,  11},
+		{ 10,  11},
+		{ 16,  11},
+		{ 40,  33},
+		{ 24,  11},
+		{ 20,  11},
+		{ 32,  11},
+		{ 80,  33},
+		{ 18,  11},
+		{ 15,  11},
+		{ 64,  33},
+		{160,  99},
+		{  4,   3},
+		{  3,   2},
+		{  2,   1},
+	};
+
+	if (!m_Header.SPS.bVuiParametersPresentFlag
+			|| !m_Header.SPS.VUI.bAspectRatioInfoPresentFlag)
+		return false;
+
+	WORD Horz, Vert;
+	if (m_Header.SPS.VUI.AspectRatioIdc <= 16) {
+		Horz = SarList[m_Header.SPS.VUI.AspectRatioIdc].Horz;
+		Vert = SarList[m_Header.SPS.VUI.AspectRatioIdc].Vert;
+	} else if (m_Header.SPS.VUI.AspectRatioIdc == 255) {	// Extended_SAR
+		Horz = m_Header.SPS.VUI.SarWidth;
+		Vert = m_Header.SPS.VUI.SarHeight;
+	} else {
+		return false;
+	}
+	if (pHorz)
+		*pHorz = Horz;
+	if (pVert)
+		*pVert = Vert;
+	return true;
+}
+
+const bool CH264AccessUnit::GetTimingInfo(TimingInfo *pInfo) const
+{
+	if (!m_Header.SPS.bVuiParametersPresentFlag
+			|| !m_Header.SPS.VUI.bTimingInfoPresentFlag)
+		return false;
+	if (pInfo) {
+		pInfo->NumUnitsInTick = m_Header.SPS.VUI.NumUnitsInTick;
+		pInfo->TimeScale = m_Header.SPS.VUI.TimeScale;
+		pInfo->bFixedFrameRateFlag = m_Header.SPS.VUI.bFixedFrameRateFlag;
+	}
+	return true;
 }
 
 

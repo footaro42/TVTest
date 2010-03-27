@@ -79,7 +79,7 @@ public:
 	bool AsyncLoadEpgData(CEpgLoadEventHandler *pEventHandler=NULL);
 	bool IsEpgDataLoading() const;
 	const LOGFONT *GetEventInfoFont() const { return &m_EventInfoFont; }
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

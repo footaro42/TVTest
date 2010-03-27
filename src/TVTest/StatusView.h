@@ -47,6 +47,7 @@ public:
 	virtual void OnVisibleChange(bool fVisible) {}
 	virtual void OnFocus(bool fFocus) {}
 	virtual bool OnMouseHover(int x,int y) { return false; }
+	virtual LRESULT OnNotifyMessage(LPNMHDR pnmh) { return 0; }
 	friend CStatusView;
 };
 

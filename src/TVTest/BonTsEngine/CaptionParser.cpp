@@ -17,6 +17,7 @@ static char THIS_FILE[]=__FILE__;
 CCaptionParser::CCaptionParser()
 	: m_PesParser(this)
 	, m_pHandler(NULL)
+	, m_pDRCSMap(NULL)
 	, m_DataGroupVersion(0xFF)
 {
 }
@@ -44,6 +45,12 @@ bool CCaptionParser::StorePacket(const CTsPacket *pPacket)
 void CCaptionParser::SetCaptionHandler(ICaptionHandler *pHandler)
 {
 	m_pHandler = pHandler;
+}
+
+
+void CCaptionParser::SetDRCSMap(IDRCSMap *pDRCSMap)
+{
+	m_pDRCSMap = pDRCSMap;
 }
 
 
@@ -215,6 +222,12 @@ bool CCaptionParser::ParseUnitData(const BYTE *pData, DWORD *pDataSize)
 	if (5 + UnitSize > *pDataSize)
 		return false;
 	const BYTE DataUnitParameter = pData[1];
+	if ((DataUnitParameter == 0x30 || DataUnitParameter == 0x31) && m_pDRCSMap) {
+		if (!ParseDRCSUnitData(pData + 5, UnitSize))
+			return false;
+		*pDataSize = 5 + UnitSize;
+		return true;
+	}
 	if (DataUnitParameter != 0x20) {
 		*pDataSize = 5 + UnitSize;
 		return true;
@@ -223,7 +236,8 @@ bool CCaptionParser::ParseUnitData(const BYTE *pData, DWORD *pDataSize)
 		TCHAR szText[2048];
 		CAribString::FormatList FormatList;
 
-		if (CAribString::CaptionToString(szText, sizeof(szText) / sizeof(TCHAR), &pData[5], UnitSize, &FormatList) > 0) {
+		if (CAribString::CaptionToString(szText, sizeof(szText) / sizeof(TCHAR), &pData[5], UnitSize,
+										 &FormatList, m_pDRCSMap) > 0) {
 #ifdef TRACE_CAPTION_DATA
 			TCHAR szTrace[4096];
 			int Len = ::wsprintf(szTrace, TEXT("Caption %d : "), m_DataGroupID & 0x0F);
@@ -236,6 +250,102 @@ bool CCaptionParser::ParseUnitData(const BYTE *pData, DWORD *pDataSize)
 		}
 	}
 	*pDataSize = 5 + UnitSize;
+	return true;
+}
+
+
+bool CCaptionParser::ParseDRCSUnitData(const BYTE *pData, const DWORD DataSize)
+{
+	DWORD RemainSize = DataSize;
+
+	if (RemainSize < 1)
+		return false;
+	const int NumberOfCode = pData[0];
+	pData++;
+	RemainSize--;
+
+	for (int i = 0; i < NumberOfCode; i++) {
+		if (RemainSize < 3)
+			return false;
+		const WORD CharacterCode = (pData[0] << 8) | pData[1];
+		const int NumberOfFont = pData[2];
+		pData += 3;
+		RemainSize -= 3;
+
+		for (int j = 0; j < NumberOfFont; j++) {
+			if (RemainSize < 1)
+				return false;
+
+			const BYTE FontId = pData[0] >> 4;
+			const BYTE Mode = pData[0] & 0x0F;
+			pData++;
+			RemainSize--;
+
+			if (Mode <= 0x0001) {
+				if (RemainSize < 3)
+					return false;
+				BYTE Depth = pData[0];
+				const BYTE Width = pData[1];
+				const BYTE Height = pData[2];
+				if (Width == 0 || Height == 0)
+					return false;
+				pData += 3;
+				RemainSize -= 3;
+				BYTE BitsPerPixel;
+				if (Mode == 0x0000) {
+					BitsPerPixel = 1;
+				} else {
+					if (Depth == 0)
+						BitsPerPixel = 1;
+					else if (Depth <= 2)
+						BitsPerPixel = 2;
+					else if (Depth <= 6)
+						BitsPerPixel = 3;
+					else if (Depth <= 14)
+						BitsPerPixel = 4;
+					else if (Depth <= 30)
+						BitsPerPixel = 5;
+					else if (Depth <= 62)
+						BitsPerPixel = 6;
+					else if (Depth <= 126)
+						BitsPerPixel = 7;
+					else if (Depth <= 254)
+						BitsPerPixel = 8;
+					else
+						BitsPerPixel = 9;
+				}
+				const DWORD BitsSize = (Width * Height * BitsPerPixel + 7) >> 3;
+				if (RemainSize < BitsSize)
+					return false;
+				if (j == 0) {
+					DRCSBitmap Bitmap;
+
+					Bitmap.Width = Width;
+					Bitmap.Height = Height;
+					Bitmap.Depth = Depth;
+					Bitmap.BitsPerPixel = BitsPerPixel;
+					Bitmap.pBits = pData;
+					Bitmap.BitsSize = BitsSize;
+					m_pDRCSMap->SetDRCS(CharacterCode, &Bitmap);
+				}
+				pData += BitsSize;
+				RemainSize -= BitsSize;
+			} else {
+				// ジオメトリック(非対応)
+				if (RemainSize < 4)
+					return false;
+				//const BYTE RegionX = pData[0];
+				//const BYTE RegionY = pData[1];
+				const WORD GeometricDataLength = (pData[2] << 8) | pData[3];
+				pData += 4;
+				RemainSize-= 4;
+				if (RemainSize < GeometricDataLength)
+					return false;
+				pData += GeometricDataLength;
+				RemainSize -= GeometricDataLength;
+			}
+		}
+	}
 	return true;
 }
 

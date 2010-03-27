@@ -567,7 +567,7 @@ int CEpgProgramList::NumServices() const
 {
 	CBlockLock Lock(const_cast<CCriticalLock*>(&m_Lock));
 
-	return ServiceMap.size();
+	return (int)ServiceMap.size();
 }
 
 
@@ -722,7 +722,7 @@ struct EventInfoHeader {
 		Reserved[0]=0;
 		Reserved[1]=0;
 		Reserved[2]=0;
-		ContentNibbleListCount=Data.m_NibbleList.size();
+		ContentNibbleListCount=(DWORD)Data.m_NibbleList.size();
 	}
 };
 
@@ -886,7 +886,7 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 
 	::CopyMemory(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type));
 	FileHeader.Version=EPGLISTFILEHEADER_VERSION;
-	FileHeader.NumServices=ServiceMap.size();
+	FileHeader.NumServices=(DWORD)ServiceMap.size();
 
 	if (!File.Write(&FileHeader,sizeof(EpgListFileHeader)))
 		return false;

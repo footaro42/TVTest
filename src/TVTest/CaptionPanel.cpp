@@ -141,6 +141,13 @@ void CCaptionPanel::Clear()
 		m_fClearLast=true;
 		m_fContinue=false;
 	}
+	m_DRCSMap.Reset();
+}
+
+
+bool CCaptionPanel::LoadDRCSMap(LPCTSTR pszFileName)
+{
+	return m_DRCSMap.Load(pszFileName);
 }
 
 
@@ -196,7 +203,9 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			pThis->m_fClearLast=true;
 			pThis->m_fContinue=false;
 
-			GetAppClass().GetCoreEngine()->m_DtvEngine.m_CaptionDecoder.SetCaptionHandler(pThis);
+			CCaptionDecoder *pCaptionDecoder=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_CaptionDecoder;
+			pCaptionDecoder->SetCaptionHandler(pThis);
+			pCaptionDecoder->SetDRCSMap(&pThis->m_DRCSMap);
 		}
 		return 0;
 
@@ -302,7 +311,9 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CCaptionPanel *pThis=GetThis(hwnd);
 
-			GetAppClass().GetCoreEngine()->m_DtvEngine.m_CaptionDecoder.SetCaptionHandler(NULL);
+			CCaptionDecoder *pCaptionDecoder=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_CaptionDecoder;
+			pCaptionDecoder->SetCaptionHandler(NULL);
+			pCaptionDecoder->SetDRCSMap(NULL);
 
 			pThis->ClearCaptionList();
 			SubclassWindow(pThis->m_hwndEdit,pThis->m_pOldEditProc);
@@ -436,4 +447,311 @@ void CCaptionPanel::OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR p
 				delete [] pszBuff;
 		}
 	}
+}
+
+
+
+
+#include "Settings.h"
+#include "BonTsEngine/TsUtilClass.h"	// For MD5
+
+
+CCaptionDRCSMap::CCaptionDRCSMap()
+	: m_pBuffer(NULL)
+	, m_fSaveBMP(false)
+	, m_fSaveRaw(false)
+{
+	GetAppClass().GetAppDirectory(m_szSaveDirectory);
+	::PathAppend(m_szSaveDirectory,TEXT("DRCS"));
+}
+
+
+CCaptionDRCSMap::~CCaptionDRCSMap()
+{
+	delete [] m_pBuffer;
+}
+
+
+void CCaptionDRCSMap::Clear()
+{
+	CBlockLock Lock(&m_Lock);
+
+	m_HashMap.clear();
+	m_CodeMap.clear();
+	if (m_pBuffer!=NULL) {
+		delete [] m_pBuffer;
+		m_pBuffer=NULL;
+	}
+}
+
+
+void CCaptionDRCSMap::Reset()
+{
+	CBlockLock Lock(&m_Lock);
+
+	m_CodeMap.clear();
+}
+
+
+bool CCaptionDRCSMap::Load(LPCTSTR pszFileName)
+{
+	CBlockLock Lock(&m_Lock);
+
+	Clear();
+
+	CSettings Settings;
+	if (Settings.Open(pszFileName,TEXT("Settings"),CSettings::OPEN_READ)) {
+		Settings.Read(TEXT("SaveBMP"),&m_fSaveBMP);
+		Settings.Read(TEXT("SaveRaw"),&m_fSaveRaw);
+		TCHAR szDir[MAX_PATH];
+		if (Settings.Read(TEXT("SaveDirectory"),szDir,MAX_PATH) && szDir[0]!='\0') {
+			if (::PathIsRelative(szDir)) {
+				TCHAR szTmp[MAX_PATH];
+				GetAppClass().GetAppDirectory(szTmp);
+				::PathAppend(szTmp,szDir);
+				::PathCanonicalize(m_szSaveDirectory,szTmp);
+			} else {
+				::lstrcpy(m_szSaveDirectory,szDir);
+			}
+		}
+		Settings.Close();
+	}
+
+	const DWORD BuffLength=32767;
+	LPTSTR pBuffer=new TCHAR[BuffLength];
+	if (pBuffer==NULL)
+		return false;
+	DWORD Length=::GetPrivateProfileSection(TEXT("DRCSMap"),pBuffer,BuffLength,pszFileName);
+	if (Length==0) {
+		delete [] pBuffer;
+		return false;
+	}
+	for (LPTSTR p=pBuffer;*p!='\0';p+=::lstrlen(p)+1) {
+		BYTE Hash[16],v;
+		int i;
+		for (i=0;i<32;i++) {
+			if (p[i]>='0' && p[i]<='9')
+				v=p[i]-'0';
+			else if (p[i]>='A' && p[i]<='F')
+				v=p[i]-'A'+10;
+			else if (p[i]>='a' && p[i]<='f')
+				v=p[i]-'a'+10;
+			else
+				break;
+			v<<=4;
+			i++;
+			if (p[i]>='0' && p[i]<='9')
+				v|=p[i]-'0';
+			else if (p[i]>='A' && p[i]<='F')
+				v|=p[i]-'A'+10;
+			else if (p[i]>='a' && p[i]<='f')
+				v|=p[i]-'a'+10;
+			else
+				break;
+			Hash[i/2]=v;
+		}
+		if (i==32 && p[i]=='=') {
+			::CopyMemory(p,Hash,sizeof(Hash));
+			m_HashMap.insert(std::pair<PBYTE,LPCTSTR>((PBYTE)p,&p[i+1]));
+			/*
+			TRACE(TEXT("DRCS map : %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X = %s\n"),
+				  Hash[0],Hash[1],Hash[2],Hash[3],Hash[4],Hash[5],Hash[6],Hash[7],
+				  Hash[8],Hash[9],Hash[10],Hash[11],Hash[12],Hash[13],Hash[14],Hash[15],
+				  &p[i+1]);
+			*/
+		}
+	}
+	if (m_HashMap.size()==0)
+		delete [] pBuffer;
+	else
+		m_pBuffer=pBuffer;
+	return true;
+}
+
+
+LPCTSTR CCaptionDRCSMap::GetString(WORD Code)
+{
+	CBlockLock Lock(&m_Lock);
+	CodeMap::iterator itr=m_CodeMap.find(Code);
+
+	if (itr!=m_CodeMap.end()) {
+		TRACE(TEXT("DRCS : Code %d %s\n"),Code,itr->second);
+		return itr->second;
+	}
+	return NULL;
+}
+
+
+static void MakeSaveFileName(const BYTE *pMD5,LPTSTR pszFileName,LPCTSTR pszExtension)
+{
+	static const TCHAR Hex[] = TEXT("0123456789ABCDEF");
+	for (int i=0;i<16;i++) {
+		pszFileName[i*2+0]=Hex[pMD5[i]>>4];
+		pszFileName[i*2+1]=Hex[pMD5[i]&0x0F];
+	}
+	::lstrcpy(pszFileName+32,pszExtension);
+}
+
+bool CCaptionDRCSMap::SetDRCS(WORD Code, const CCaptionParser::DRCSBitmap *pBitmap)
+{
+	CBlockLock Lock(&m_Lock);
+	BYTE MD5[16];
+
+	CMD5Calculator::CalcMD5(pBitmap->pBits,pBitmap->BitsSize,MD5);
+	TRACE(TEXT("DRCS : Code %d, %d x %d (%d), MD5 %02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X%02X\n"),
+		  Code,pBitmap->Width,pBitmap->Height,pBitmap->Depth,
+		  MD5[0],MD5[1],MD5[2],MD5[3],MD5[4],MD5[5],MD5[6],MD5[7],
+		  MD5[8],MD5[9],MD5[10],MD5[11],MD5[12],MD5[13],MD5[14],MD5[15]);
+	HashMap::iterator itr=m_HashMap.find(MD5);
+	if (itr!=m_HashMap.end()) {
+		TRACE(TEXT("DRCS assign %d = %s\n"),Code,itr->second);
+		if (!m_CodeMap.insert(std::pair<WORD,LPCTSTR>(Code,itr->second)).second)
+			m_CodeMap[Code]=itr->second;
+	}
+	if (m_fSaveBMP) {
+		TCHAR szFileName[40],szFilePath[MAX_PATH];
+		MakeSaveFileName(MD5,szFileName,TEXT(".bmp"));
+		::PathCombine(szFilePath,m_szSaveDirectory,szFileName);
+		if (!::PathFileExists(szFilePath))
+			SaveBMP(pBitmap,szFilePath);
+	}
+	if (m_fSaveRaw) {
+		TCHAR szFileName[40],szFilePath[MAX_PATH];
+		MakeSaveFileName(MD5,szFileName,TEXT(".drcs"));
+		::PathCombine(szFilePath,m_szSaveDirectory,szFileName);
+		if (!::PathFileExists(szFilePath))
+			SaveRaw(pBitmap,szFilePath);
+	}
+	return true;
+}
+
+
+bool CCaptionDRCSMap::SaveBMP(const CCaptionParser::DRCSBitmap *pBitmap,LPCTSTR pszFileName)
+{
+	HANDLE hFile=::CreateFile(pszFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
+							  CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+	if (hFile==INVALID_HANDLE_VALUE)
+		return false;
+
+	DWORD Write;
+	const int BitCount=pBitmap->BitsPerPixel==1?1:8;
+	const DWORD DIBRowBytes=(pBitmap->Width*BitCount+31)/32*4;
+	const DWORD BitsSize=DIBRowBytes*pBitmap->Height;
+	BITMAPFILEHEADER bmfh;
+	bmfh.bfType=0x4D42;
+	bmfh.bfOffBits=sizeof(BITMAPFILEHEADER)+sizeof(BITMAPINFOHEADER)+(1UL<<BitCount)*(DWORD)sizeof(RGBQUAD);
+	bmfh.bfSize=bmfh.bfOffBits+BitsSize;
+	bmfh.bfReserved1=0;
+	bmfh.bfReserved2=0;
+	if (!::WriteFile(hFile,&bmfh,sizeof(bmfh),&Write,NULL) || Write!=sizeof(bmfh)) {
+		::CloseHandle(hFile);
+		return false;
+	}
+
+	BITMAPINFOHEADER bmih;
+	bmih.biSize=sizeof(BITMAPINFOHEADER);
+	bmih.biWidth=pBitmap->Width;
+	bmih.biHeight=pBitmap->Height;
+	bmih.biPlanes=1;
+	bmih.biBitCount=BitCount;
+	bmih.biCompression=BI_RGB;
+	bmih.biSizeImage=0;
+	bmih.biXPelsPerMeter=0;
+	bmih.biYPelsPerMeter=0;
+	bmih.biClrUsed=0;
+	bmih.biClrImportant=0;
+	if (!::WriteFile(hFile,&bmih,sizeof(bmih),&Write,NULL) || Write!=sizeof(bmih)) {
+		::CloseHandle(hFile);
+		return false;
+	}
+
+	RGBQUAD Colormap[256];
+	for (int i=0;i<1<<BitCount;i++) {
+		BYTE v=(BYTE)(i*255/((1<<BitCount)-1));
+		Colormap[i].rgbBlue=v;
+		Colormap[i].rgbGreen=v;
+		Colormap[i].rgbRed=v;
+		Colormap[i].rgbReserved=0;
+	}
+	DWORD PalSize=(1UL<<BitCount)*(DWORD)sizeof(RGBQUAD);
+	if (!::WriteFile(hFile,Colormap,PalSize,&Write,NULL) || Write!=PalSize) {
+		::CloseHandle(hFile);
+		return false;
+	}
+
+	BYTE *pDIBBits=new BYTE[BitsSize];
+	const BYTE *p=static_cast<const BYTE*>(pBitmap->pBits);
+	BYTE *q=pDIBBits+(pBitmap->Height-1)*DIBRowBytes;
+	int x,y;
+	if (BitCount==1) {
+		BYTE Mask;
+
+		::ZeroMemory(pDIBBits,BitsSize);
+		Mask=0x80;
+		for (y=0;y<pBitmap->Height;y++) {
+			for (x=0;x<pBitmap->Width;x++) {
+				if ((*p&Mask)!=0)
+					q[x>>3]|=0x80>>(x&7);
+				Mask>>=1;
+				if (Mask==0) {
+					Mask=0x80;
+					p++;
+				}
+			}
+			q-=DIBRowBytes;
+		}
+	} else {
+		int Shift;
+		unsigned int Mask,Pixel,Max=pBitmap->Depth+1;
+
+		Shift=16-pBitmap->BitsPerPixel;
+		Mask=(1<<pBitmap->BitsPerPixel)-1;
+		for (y=0;y<pBitmap->Height;y++) {
+			for (x=0;x<pBitmap->Width;x++) {
+				Pixel=*p;
+				if (Shift<8)
+					Pixel=(Pixel<<(8-Shift))|(*p>>Shift);
+				else
+					Pixel>>=Shift-8;
+				Pixel=(Pixel&Mask)*255/Max;
+				q[x]=(BYTE)min(Pixel,255);
+				Shift-=pBitmap->BitsPerPixel;
+				if (Shift<0) {
+					Shift+=16;
+					p++;
+				}
+				if (Shift+pBitmap->BitsPerPixel<=8) {
+					Shift+=8;
+					p++;
+				}
+			}
+			q-=DIBRowBytes;
+		}
+	}
+	if (!::WriteFile(hFile,pDIBBits,BitsSize,&Write,NULL) || Write!=BitsSize) {
+		delete [] pDIBBits;
+		::CloseHandle(hFile);
+		return false;
+	}
+	delete [] pDIBBits;
+
+	::CloseHandle(hFile);
+	return true;
+}
+
+
+bool CCaptionDRCSMap::SaveRaw(const CCaptionParser::DRCSBitmap *pBitmap,LPCTSTR pszFileName)
+{
+	HANDLE hFile=::CreateFile(pszFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
+							  CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+	if (hFile==INVALID_HANDLE_VALUE)
+		return false;
+	DWORD Write;
+	if (!::WriteFile(hFile,pBitmap->pBits,pBitmap->BitsSize,&Write,NULL)
+			|| Write!=pBitmap->BitsSize) {
+		::CloseHandle(hFile);
+		return false;
+	}
+	::CloseHandle(hFile);
+	return true;
 }

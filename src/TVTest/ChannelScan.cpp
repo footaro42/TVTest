@@ -346,7 +346,7 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				bool fBS=false,fCS=false;
 				bool fPresetLoaded=false;
 
-				pThis->m_ScanSpace=::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_SPACE,CB_GETCURSEL,0,0);
+				pThis->m_ScanSpace=(int)::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_SPACE,CB_GETCURSEL,0,0);
 				LPCTSTR pszName=pThis->m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(pThis->m_ScanSpace);
 				if (pszName!=NULL) {
 					fBS=::StrStrI(pszName,TEXT("BS"))!=NULL;
@@ -417,7 +417,7 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 		case IDC_CHANNELSCAN_START:
 			{
-				int Space=::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_SPACE,CB_GETCURSEL,0,0);
+				int Space=(int)::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_SPACE,CB_GETCURSEL,0,0);
 
 				if (Space>=0) {
 					CChannelScan *pThis=GetThis(hDlg);
@@ -433,8 +433,8 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_SCANSERVICE)==BST_CHECKED;
 					pThis->m_fIgnoreSignalLevel=
 						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
-					pThis->m_ScanWait=(DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
-					pThis->m_RetryCount=DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
+					pThis->m_ScanWait=((unsigned int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
+					pThis->m_RetryCount=(int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
 					ListView_DeleteAllItems(hwndList);
 					if (::DialogBoxParam(GetAppClass().GetResourceInstance(),
 							MAKEINTRESOURCE(IDD_CHANNELSCAN),::GetParent(hDlg),
@@ -659,8 +659,8 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					pThis->SetUpdateFlag(UPDATE_PREVIEW);
 				pThis->m_fIgnoreSignalLevel=
 					::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
-				pThis->m_ScanWait=(DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
-				pThis->m_RetryCount=DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
+				pThis->m_ScanWait=((unsigned int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
+				pThis->m_RetryCount=(int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
 			}
 			return TRUE;
 
@@ -758,18 +758,18 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 	case WM_APP_BEGINSCAN:
 		{
 			CChannelScan *pThis=GetThis(hDlg);
-			unsigned int EstimateRemain=(pThis->m_NumChannels-wParam)*pThis->m_ScanWait/1000;
+			unsigned int EstimateRemain=(pThis->m_NumChannels-(int)wParam)*pThis->m_ScanWait/1000;
 			TCHAR szText[64];
 
 			if (pThis->m_fIgnoreSignalLevel)
-				EstimateRemain+=(pThis->m_NumChannels-wParam)*pThis->m_RetryCount*pThis->m_RetryInterval/1000;
+				EstimateRemain+=(pThis->m_NumChannels-(int)wParam)*pThis->m_RetryCount*pThis->m_RetryInterval/1000;
 			::wsprintf(szText,
 				TEXT("チャンネル %d/%d をスキャン中... (残り時間 %d:%02d)"),
 				(int)wParam+1,pThis->m_NumChannels,
 				EstimateRemain/60,EstimateRemain%60);
 			::SetDlgItemText(hDlg,IDC_CHANNELSCAN_INFO,szText);
 			::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_PROGRESS,PBM_SETPOS,wParam,0);
-			GetAppClass().SetProgress(wParam,pThis->m_NumChannels);
+			GetAppClass().SetProgress((int)wParam,pThis->m_NumChannels);
 		}
 		return TRUE;
 

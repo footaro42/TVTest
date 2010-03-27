@@ -115,7 +115,7 @@ static bool SearchReaders(HWND hDlg)
 			for (int i=0;i<pCardReader->NumReaders();i++) {
 				LPCTSTR pszReaderName=pCardReader->EnumReader(i);
 				if (pszReaderName!=NULL) {
-					Index=DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,pszReaderName);
+					Index=(int)DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,pszReaderName);
 					DlgListBox_SetItemData(hDlg,IDC_CARDREADER_READERLIST,Index,(LPARAM)CCoreEngine::CARDREADER_SCARD);
 					fFound=true;
 				}
@@ -127,7 +127,7 @@ static bool SearchReaders(HWND hDlg)
 	pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
 	if (pCardReader!=NULL) {
 		if (pCardReader->Open()) {
-			Index=DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,TEXT("HDUS内蔵カードリーダ"));
+			Index=(int)DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,TEXT("HDUS内蔵カードリーダ"));
 			DlgListBox_SetItemData(hDlg,IDC_CARDREADER_READERLIST,Index,(LPARAM)CCoreEngine::CARDREADER_HDUS);
 			pCardReader->Close();
 			fFound=true;
@@ -207,7 +207,7 @@ INT_PTR CALLBACK CCardReaderErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wPar
 				CCardReaderErrorDialog *pThis=GetThis(hDlg);
 
 				if (DlgRadioButton_IsChecked(hDlg,IDC_CARDREADER_RETRY)) {
-					int Sel=DlgListBox_GetCurSel(hDlg,IDC_CARDREADER_READERLIST);
+					int Sel=(int)DlgListBox_GetCurSel(hDlg,IDC_CARDREADER_READERLIST);
 
 					if (Sel<0) {
 						::MessageBox(hDlg,TEXT("カードリーダを選択してください。"),TEXT("お願い"),MB_OK | MB_ICONINFORMATION);

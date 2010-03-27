@@ -26,6 +26,7 @@
 #define ERR_CAN_NOT_ANALYZ		21 //本当にTSパケット？解析不可能
 #define ERR_NOT_FIRST 			22 //最初のTSパケット未入力
 #define ERR_INVALID_PACKET		23 //本当にTSパケット？パケット飛んで壊れてるかも
+#define ERR_NO_CHAGE			30	//バージョンの変更ないため解析不要
 
 #define NO_ERR_EPG_ALL 100 //EPG情報貯まった BasicとExtend両方
 #define NO_ERR_EPG_BASIC 101 //EPG情報貯まった Basicのみ
@@ -70,5 +71,7 @@ void _SafeReleaseEpgDataInfo(EPG_DATA_INFO* pData);
 void _SafeReleaseServiceInfo(SERVICE_INFO* pData);
 void _SafeReleaseEpgDataInfo2(EPG_DATA_INFO2* pData);
 void _SafeReleaseEpgDataInfo3(EPG_DATA_INFO3* pData);
+BOOL _GetStartEndTime(RESERVE_DATA* pItem, int iDefStartMargine, int iDefEndMargine, __int64* i64Start, __int64* i64End, SYSTEMTIME* StartTime, SYSTEMTIME* EndTime );
+unsigned long Crc32(int n,  BYTE c[]);
 
 #endif

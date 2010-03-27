@@ -35,7 +35,7 @@ void CDirectShowFilterFinder::Clear()
 
 int CDirectShowFilterFinder::GetFilterCount()
 {
-	return m_FilterList.size();
+	return (int)m_FilterList.size();
 }
 
 bool CDirectShowFilterFinder::GetFilterInfo(const int iIndex,CLSID *pidClass,LPWSTR pwszFriendlyName,int iBufLen)
@@ -184,13 +184,10 @@ bool CDirectShowFilterFinder::IgnoreFilterGoToTail(const CLSID idIgnoreClass,boo
 }
 
 
-
-
 CDirectShowFilterFinder::CFilterInfo::CFilterInfo()
 	: m_pwszFriendlyName(NULL)
 {
 }
-
 
 CDirectShowFilterFinder::CFilterInfo::CFilterInfo(const CFilterInfo &Info)
 	: m_pwszFriendlyName(NULL)
@@ -198,12 +195,10 @@ CDirectShowFilterFinder::CFilterInfo::CFilterInfo(const CFilterInfo &Info)
 	*this=Info;
 }
 
-
 CDirectShowFilterFinder::CFilterInfo::~CFilterInfo()
 {
 	delete m_pwszFriendlyName;
 }
-
 
 CDirectShowFilterFinder::CFilterInfo &CDirectShowFilterFinder::CFilterInfo::operator=(const CFilterInfo &Info)
 {
@@ -213,7 +208,6 @@ CDirectShowFilterFinder::CFilterInfo &CDirectShowFilterFinder::CFilterInfo::oper
 	}
 	return *this;
 }
-
 
 void CDirectShowFilterFinder::CFilterInfo::SetFriendlyName(LPCWSTR pwszFriendlyName)
 {
@@ -233,17 +227,14 @@ CDirectShowDeviceEnumerator::CDirectShowDeviceEnumerator()
 {
 }
 
-
 CDirectShowDeviceEnumerator::~CDirectShowDeviceEnumerator()
 {
 }
-
 
 void CDirectShowDeviceEnumerator::Clear()
 {
 	m_DeviceList.clear();
 }
-
 
 bool CDirectShowDeviceEnumerator::EnumDevice(REFCLSID clsidDeviceClass)
 {
@@ -283,7 +274,6 @@ bool CDirectShowDeviceEnumerator::EnumDevice(REFCLSID clsidDeviceClass)
 	pDevEnum->Release();
 	return true;
 }
-
 
 bool CDirectShowDeviceEnumerator::CreateFilter(REFCLSID clsidDeviceClass,LPCWSTR pszFriendlyName,IBaseFilter **ppFilter)
 {
@@ -334,12 +324,10 @@ bool CDirectShowDeviceEnumerator::CreateFilter(REFCLSID clsidDeviceClass,LPCWSTR
 	return SUCCEEDED(hr);
 }
 
-
 int CDirectShowDeviceEnumerator::GetDeviceCount() const
 {
-	return m_DeviceList.size();
+	return (int)m_DeviceList.size();
 }
-
 
 LPCWSTR CDirectShowDeviceEnumerator::GetDeviceFriendlyName(int Index) const
 {
@@ -354,18 +342,15 @@ CDirectShowDeviceEnumerator::CDeviceInfo::CDeviceInfo(LPCWSTR pszFriendlyName)
 	m_pszFriendlyName=StdUtil::strdup(pszFriendlyName);
 }
 
-
 CDirectShowDeviceEnumerator::CDeviceInfo::CDeviceInfo(const CDeviceInfo &Info)
 {
 	m_pszFriendlyName=StdUtil::strdup(Info.m_pszFriendlyName);
 }
 
-
 CDirectShowDeviceEnumerator::CDeviceInfo::~CDeviceInfo()
 {
 	delete [] m_pszFriendlyName;
 }
-
 
 CDirectShowDeviceEnumerator::CDeviceInfo &CDirectShowDeviceEnumerator::CDeviceInfo::operator=(const CDeviceInfo &Info)
 {

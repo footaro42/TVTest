@@ -31,25 +31,22 @@ CBonSrcFilter::~CBonSrcFilter()
 	if(m_pSrcPin)delete m_pSrcPin;
 }
 
-IBaseFilter* WINAPI CBonSrcFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr,CBonSrcFilter **ppBonSrcFilterIf)
+IBaseFilter* WINAPI CBonSrcFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr)
 {
 	// インスタンスを作成する
-	if(ppBonSrcFilterIf) *ppBonSrcFilterIf = NULL;
 	CBonSrcFilter *pNewFilter = new CBonSrcFilter(pUnk, phr);
-	/*
-	if(!pNewFilter){
-		*phr = E_OUTOFMEMORY;
-		return NULL;
-	}
-	*/
-
-	IBaseFilter *pFilter;
-	*phr=pNewFilter->QueryInterface(IID_IBaseFilter,(void**)&pFilter);
 	if (FAILED(*phr)) {
 		delete pNewFilter;
 		return NULL;
 	}
-	if(ppBonSrcFilterIf) *ppBonSrcFilterIf = pNewFilter;
+
+	IBaseFilter *pFilter;
+	*phr = pNewFilter->QueryInterface(IID_IBaseFilter, (void**)&pFilter);
+	if (FAILED(*phr)) {
+		delete pNewFilter;
+		return NULL;
+	}
+
 	return pFilter;
 }
 
@@ -171,26 +168,3 @@ void CBonSrcFilter::SetOutputWhenPaused(bool bOutput)
 	if (m_pSrcPin)
 		m_pSrcPin->SetOutputWhenPaused(bOutput);
 }
-
-
-/*
-// その場しのぎの関数
-bool CBonSrcFilter::CheckHangUp(DWORD TimeOut)
-{
-	// 邪悪なキャスト
-	CRITICAL_SECTION *pCritSec=(CRITICAL_SECTION*)&m_cStateLock;
-	DWORD i;
-
-	for (i=TimeOut;i>0;i--) {
-		if (::TryEnterCriticalSection(pCritSec))
-			break;
-		Sleep(1);
-	}
-	if (i==0) {
-		TRACE(TEXT("Filter graph is hang up.\n"));
-		return true;
-	}
-	::LeaveCriticalSection(pCritSec);
-	return false;
-}
-*/

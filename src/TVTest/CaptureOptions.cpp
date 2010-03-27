@@ -488,12 +488,12 @@ INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				lstrcpy(pThis->m_szSaveFolder,szSaveFolder);
 				lstrcpy(pThis->m_szFileName,szFileName);
 				pThis->SetPresetCaptureSize(
-					DlgComboBox_GetCurSel(hDlg,IDC_CAPTUREOPTIONS_SIZE));
-				pThis->m_SaveFormat=SendDlgItemMessage(hDlg,
+					(int)DlgComboBox_GetCurSel(hDlg,IDC_CAPTUREOPTIONS_SIZE));
+				pThis->m_SaveFormat=(int)SendDlgItemMessage(hDlg,
 							IDC_CAPTUREOPTIONS_FORMAT,CB_GETCURSEL,0,0);
-				pThis->m_JPEGQuality=SendDlgItemMessage(hDlg,
+				pThis->m_JPEGQuality=(int)SendDlgItemMessage(hDlg,
 							IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,TBM_GETPOS,0,0);
-				pThis->m_PNGCompressionLevel=SendDlgItemMessage(hDlg,
+				pThis->m_PNGCompressionLevel=(int)SendDlgItemMessage(hDlg,
 							IDC_CAPTUREOPTIONS_PNGLEVEL_TB,TBM_GETPOS,0,0);
 				pThis->m_fCaptureSaveToFile=IsDlgButtonChecked(hDlg,
 								IDC_CAPTUREOPTIONS_ICONSAVEFILE)==BST_CHECKED;

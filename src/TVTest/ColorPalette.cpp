@@ -194,7 +194,7 @@ void CColorPalette::SetToolTip()
 
 	if (m_hwndToolTip==NULL)
 		return;
-	NumTools=::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
+	NumTools=(int)::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
 	ti.cbSize=TTTOOLINFO_V1_SIZE;
 	ti.uFlags=0;
 	ti.hwnd=m_hwnd;
@@ -366,10 +366,9 @@ LRESULT CALLBACK CColorPalette::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			{
 				CColorPalette *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pttdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
-				int Index;
+				int Index=(int)pttdi->hdr.idFrom;
 				int r,g,b;
 
-				Index=pttdi->hdr.idFrom;
 				pttdi->lpszText=pttdi->szText;
 				pttdi->hinst=NULL;
 				r=pThis->m_pPalette[Index].rgbRed;

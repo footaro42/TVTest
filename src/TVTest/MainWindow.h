@@ -36,7 +36,8 @@ enum {
 };
 
 
-class CFullscreen : public CBasicWindow {
+class CFullscreen : public CBasicWindow
+{
 	CSplitter m_Splitter;
 	CViewWindow m_ViewWindow;
 	CVideoContainerWindow *m_pVideoContainer;
@@ -80,14 +81,11 @@ public:
 	static bool Initialize();
 };
 
-class CMainWindow : public CBasicWindow {
+class CMainWindow : public CBasicWindow
+{
 	enum { UPDATE_TIMER_INTERVAL=500 };
 
 	static const BYTE VolumeNormalizeLevelList[];
-	struct ZoomRateInfo {
-		WORD Num,Denom;
-	};
-	static const ZoomRateInfo ZoomRateList[];
 
 	CSplitter m_Splitter;
 	CVideoContainerWindow m_VideoContainer;
@@ -194,7 +192,6 @@ class CMainWindow : public CBasicWindow {
 	void OnTimer(HWND hwnd,UINT id);
 	void AutoSelectStereoMode();
 	bool OnExecute(LPCTSTR pszCmdLine);
-	void CheckZoomMenu();
 	void ShowChannelOSD();
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);

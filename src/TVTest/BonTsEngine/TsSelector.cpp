@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Common.h"
 #include "TsSelector.h"
 
 #ifdef _DEBUG
@@ -40,9 +41,9 @@ void CTsSelector::Reset(void)
 	m_PidMapManager.UnmapAllTarget();
 
 	// PATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0000U, new CPatTable, OnPatUpdated, this);
+	m_PidMapManager.MapTarget(PID_PAT, new CPatTable, OnPatUpdated, this);
 	// CATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0001U, new CCatTable, OnCatUpdated, this);
+	m_PidMapManager.MapTarget(PID_CAT, new CCatTable, OnCatUpdated, this);
 
 	/*
 	// 統計データ初期化
@@ -94,7 +95,7 @@ const bool CTsSelector::InputMedia(CMediaData *pMediaData, const DWORD dwInputIn
 		if (PID < 0x0030 || IsTargetPID(PID)) {
 			m_OutputPacketCount++;
 			// パケットを下流デコーダにデータを渡す
-			if (PID == 0x0000 && m_TargetPmtPID != 0
+			if (PID == PID_PAT && m_TargetPmtPID != 0
 					&& MakePat(pTsPacket, &m_PatPacket)) {
 				OutputMedia(&m_PatPacket);
 			} else {
@@ -131,7 +132,7 @@ bool CTsSelector::SetTargetServiceID(WORD ServiceID, DWORD Stream)
 		m_TargetStream = Stream;
 		m_PmtPIDList.clear();
 
-		CPatTable *pPatTable = dynamic_cast<CPatTable *>(m_PidMapManager.GetMapTarget(0x0000));
+		CPatTable *pPatTable = dynamic_cast<CPatTable *>(m_PidMapManager.GetMapTarget(PID_PAT));
 		if (pPatTable != NULL) {
 			for (WORD i = 0 ; i < pPatTable->GetProgramNum() ; i++) {
 				WORD PmtPID = pPatTable->GetPmtPID(i);
@@ -192,7 +193,7 @@ int CTsSelector::GetServiceIndexByID(WORD ServiceID) const
 	int Index;
 
 	// プログラムIDからサービスインデックスを検索する
-	for (Index = m_PmtPIDList.size() - 1 ; Index >= 0  ; Index--) {
+	for (Index = (int)m_PmtPIDList.size() - 1 ; Index >= 0  ; Index--) {
 		if (m_PmtPIDList[Index].ServiceID == ServiceID)
 			break;
 	}
@@ -268,7 +269,14 @@ void CALLBACK CTsSelector::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 
 	// ESのPID追加
 	PIDInfo.EsPIDs.clear();
-	static const BYTE StreamTypeList [] = { 0x01, 0x02, 0x06, 0x0D, 0x0F, 0x1B };
+	static const BYTE StreamTypeList [] = {
+		STREAM_TYPE_MPEG1,
+		STREAM_TYPE_MPEG2,
+		STREAM_TYPE_CAPTION,
+		STREAM_TYPE_DATACARROUSEL,
+		STREAM_TYPE_AAC,
+		STREAM_TYPE_H264,
+	};
 	for (WORD i = 0 ; i < pPmtTable->GetEsInfoNum() ; i++) {
 		bool bTarget;
 

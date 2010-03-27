@@ -14,5 +14,9 @@
 
   ・ヘッダ及びサンプルは自由に利用・改変・再配布できます。
   ・ヘッダ及びサンプルの著作権は主張しません。
+  ・Samples\SpectrumAnalyzer にある fft4g.c は大浦拓哉氏に著作権があります。
+    ライセンスも大浦氏の定めたものに従ってください。
+    Copyright Takuya OOURA, 1996-2001
+    http://www.kurims.kyoto-u.ac.jp/~ooura/fft-j.html
 
 

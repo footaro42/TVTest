@@ -8,8 +8,12 @@
 class CPlaybackOptions : public COptions
 {
 	enum {
-		UPDATE_PACKETBUFFERING		= 0x00000001UL,
-		UPDATE_STREAMTHREADPRIORITY	= 0x00000002UL
+		UPDATE_ADJUSTAUDIOSTREAMTIME	= 0x00000001UL,
+		UPDATE_PACKETBUFFERING			= 0x00000002UL,
+		UPDATE_STREAMTHREADPRIORITY		= 0x00000004UL
+#ifdef TVH264
+		, UPDATE_ADJUSTFRAMERATE		= 0x00000008UL
+#endif
 	};
 	enum {
 		MAX_AUDIO_DEVICE_NAME = 128,
@@ -29,6 +33,9 @@ class CPlaybackOptions : public COptions
 	DWORD m_PacketBufferLength;
 	int m_PacketBufferPoolPercentage;
 	int m_StreamThreadPriority;
+#ifdef TVH264
+	bool m_fAdjustFrameRate;
+#endif
 
 	static CPlaybackOptions *GetThis(HWND hDlg);
 

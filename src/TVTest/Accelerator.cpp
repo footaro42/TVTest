@@ -804,7 +804,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 						for (size_t k=0;k<pThis->m_MediaKeyList.size();k++) {
 							if (pThis->m_MediaKeyList[k].Type==pThis->m_AppCommandList[j].Type
 									&& pThis->m_MediaKeyList[k].Command==pThis->m_AppCommandList[j].AppCommand) {
-								AppCommand=k+1;
+								AppCommand=(int)(k+1);
 								break;
 							}
 						}
@@ -873,7 +873,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				ListView_GetItem(hwndList,&lvi);
-				Key=SendDlgItemMessage(hDlg,IDC_ACCELERATOR_KEY,CB_GETCURSEL,0,0);
+				Key=(int)SendDlgItemMessage(hDlg,IDC_ACCELERATOR_KEY,CB_GETCURSEL,0,0);
 				if (Key>0) {
 					BYTE Mod;
 					int i;
@@ -930,7 +930,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				ListView_GetItem(hwndList,&lvi);
-				AppCommand=DlgComboBox_GetCurSel(hDlg,IDC_ACCELERATOR_APPCOMMAND);
+				AppCommand=(int)DlgComboBox_GetCurSel(hDlg,IDC_ACCELERATOR_APPCOMMAND);
 				if (AppCommand>0) {
 					int i;
 
@@ -1036,7 +1036,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 			if (Sel>=0) {
 				CAccelerator *pThis=GetThis(hDlg);
-				int Index=pThis->m_RawInput.KeyDataToIndex(wParam);
+				int Index=pThis->m_RawInput.KeyDataToIndex((int)wParam);
 
 				if (Index>=0) {
 					Index+=1+lengthof(AppCommandList);

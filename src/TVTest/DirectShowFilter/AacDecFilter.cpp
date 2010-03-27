@@ -84,6 +84,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 
 	 // フォーマット構造体確保
 #if 1
+	// 2ch
 	WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(m_MediaType.AllocFormatBuffer(sizeof(WAVEFORMATEX)));
 	if (pWaveInfo == NULL) {
 		*phr = E_OUTOFMEMORY;
@@ -97,6 +98,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
 	pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
 #else
+	// 5.1ch
 	WAVEFORMATEXTENSIBLE *pWaveInfo = reinterpret_cast<WAVEFORMATEXTENSIBLE *>(m_MediaType.AllocFormatBuffer(sizeof(WAVEFORMATEXTENSIBLE)));
 	if (pWaveInfo == NULL) {
 		*phr = E_OUTOFMEMORY;
@@ -125,16 +127,10 @@ CAacDecFilter::~CAacDecFilter(void)
 	//TRACE(TEXT("CAacDecFilter::~CAacDecFilter\n"));
 }
 
-IBaseFilter* WINAPI CAacDecFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CAacDecFilter **ppClassIf)
+IBaseFilter* WINAPI CAacDecFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr)
 {
 	// インスタンスを作成する
 	CAacDecFilter *pNewFilter = new CAacDecFilter(pUnk, phr);
-	/*
-	if (!pNewFilter) {
-		*phr = E_OUTOFMEMORY;
-		goto OnError;
-	}
-	*/
 	if (FAILED(*phr))
 		goto OnError;
 
@@ -142,14 +138,11 @@ IBaseFilter* WINAPI CAacDecFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, 
 	*phr = pNewFilter->QueryInterface(IID_IBaseFilter, (void**)&pFilter);
 	if (FAILED(*phr))
 		goto OnError;
-	if (ppClassIf)
-		*ppClassIf = pNewFilter;
+
 	return pFilter;
 
 OnError:
 	delete pNewFilter;
-	if (ppClassIf)
-		*ppClassIf = NULL;
 	return NULL;
 }
 
@@ -298,54 +291,34 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	if (pOut->GetActualDataLength() == 0)
 		return S_FALSE;
 
-#if 0	// InitializeOutputSample() でやっているので不要
-	// タイムスタンプ設定
-	REFERENCE_TIME StartTime, EndTime;
-
-	// タイムスタンプ設定
-	if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
-		pOut->SetTime(&StartTime, &EndTime);
-	}
-
-	// メディアタイム設定
-	if (pIn->GetMediaTime(&StartTime, &EndTime) == S_OK) {
-		pOut->SetMediaTime(&StartTime, &EndTime);
-	}
-#endif
-
 	if (m_bAdjustStreamTime) {
 		// ストリーム時間を実際のサンプルの長さを元に設定する
-		bool bAdjusted = false;
 		REFERENCE_TIME StartTime, EndTime;
 
-		if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
-			REFERENCE_TIME CurTime;
-
-			if (m_StartTime >= 0)
-				CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
-			if (m_StartTime < 0
-					|| llabs(StartTime - CurTime) <= REFERENCE_TIME_SECOND / 5LL) {
-				DWORD Samples = pOut->GetActualDataLength() / 2;
-				if (m_bDownMixSurround || m_byCurChannelNum == 2)
-					Samples /= 2;
-				else
-					Samples /= 6;
-
-				if (m_StartTime < 0)
+		hr = pIn->GetTime(&StartTime, &EndTime);
+		if (hr == S_OK || hr == VFW_S_NO_STOP_TIME) {
+			if (m_StartTime >= 0) {
+				REFERENCE_TIME CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
+				if (llabs(StartTime - CurTime) > REFERENCE_TIME_SECOND / 5LL) {
+					TRACE(TEXT("Reset audio time\n"));
 					m_StartTime = StartTime;
-				else
-					StartTime = CurTime;
-				m_SampleCount += Samples;
-				EndTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
-				pOut->SetTime(&StartTime, &EndTime);
-
-				bAdjusted = true;
+					m_SampleCount = 0;
+				}
+			} else {
+				m_StartTime = StartTime;
+				m_SampleCount = 0;
 			}
 		}
-		if (!bAdjusted) {
-			TRACE(TEXT("Reset audio time\n"));
-			m_StartTime = -1;
-			m_SampleCount = 0;
+		if (m_StartTime >= 0) {
+			DWORD Samples = pOut->GetActualDataLength() / sizeof(short);
+			if (m_bDownMixSurround || m_byCurChannelNum == 2)
+				Samples /= 2;
+			else
+				Samples /= 6;
+			StartTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
+			m_SampleCount += Samples;
+			EndTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY) - 1;
+			pOut->SetTime(&StartTime, &EndTime);
 		}
 	}
 
@@ -391,6 +364,7 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 	if ((!m_bDownMixSurround && byChannel != m_byCurChannelNum
 								&& (byChannel == 6 || m_byCurChannelNum == 6))
 			|| (m_bDownMixSurround && reinterpret_cast<WAVEFORMATEX*>(m_MediaType.Format())->nChannels > 2)) {
+		// 2ch <-> 5.1ch 切り替え
 		WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(m_MediaType.AllocFormatBuffer(
 			byChannel == 2 ? sizeof(WAVEFORMATEX) : sizeof(WAVEFORMATEXTENSIBLE)));
 		if (pWaveInfo == NULL)
@@ -434,10 +408,8 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 				::ZeroMemory(pOutBuff, dwOffset);
 			}
 		}
-
-		m_StartTime = -1;
-		m_SampleCount = 0;
 	}
+
 	m_byCurChannelNum = byChannel;
 	m_bDualMono = byChannel == 2 && m_AacDecoder.GetChannelConfig() == 0;
 

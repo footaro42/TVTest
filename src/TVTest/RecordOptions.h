@@ -37,7 +37,7 @@ public:
 	bool ConfirmStatusBarStop(HWND hwndOwner) const;
 	bool ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordManager) const;
 	bool ApplyOptions(CRecordManager *pManager);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

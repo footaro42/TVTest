@@ -9,7 +9,8 @@ public:
 	~CBitstream();
 
 	SIZE_T GetPos() const { return m_Pos; }
-	int GetBits(int Bits);
+	DWORD GetBits(int Bits);
+	bool GetFlag();
 	int GetUE_V();
 	int GetSE_V();
 	bool Skip(int Bits);

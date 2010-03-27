@@ -61,7 +61,7 @@ public:
 	int GetLeftDoubleClickCommand() const { return m_LeftDoubleClickCommand; }
 	int GetRightClickCommand() const { return m_RightClickCommand; }
 	int GetMiddleClickCommand() const { return m_MiddleClickCommand; }
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

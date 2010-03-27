@@ -229,6 +229,26 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 		}
 		return 0;
 
+	case WM_LBUTTONDOWN:
+	case WM_LBUTTONUP:
+	case WM_LBUTTONDBLCLK:
+	case WM_RBUTTONDOWN:
+	case WM_RBUTTONUP:
+	case WM_RBUTTONDBLCLK:
+	case WM_MBUTTONDOWN:
+	case WM_MBUTTONUP:
+	case WM_MBUTTONDBLCLK:
+	case WM_MOUSEMOVE:
+		{
+			POINT pt;
+			HWND hwndParent=::GetParent(hwnd);
+
+			pt.x=GET_X_LPARAM(lParam);
+			pt.y=GET_Y_LPARAM(lParam);
+			::MapWindowPoints(hwnd,hwndParent,&pt,1);
+			return ::SendMessage(hwndParent,uMsg,wParam,MAKELPARAM(pt.x,pt.y));
+		}
+
 	case WM_DESTROY:
 		{
 			CNotificationBar *pThis=GetThis(hwnd);

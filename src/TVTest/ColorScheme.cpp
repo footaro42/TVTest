@@ -748,7 +748,7 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 			for (i=0;i<pThis->m_PresetList.NumColorSchemes();i++) {
 				LPCTSTR pszName=pThis->m_PresetList.GetColorScheme(i)->GetName();
 
-				Index=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_ADDSTRING,0,
+				Index=(int)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_ADDSTRING,0,
 									(LPARAM)(pszName!=NULL?pszName:TEXT("")));
 				SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_SETITEMDATA,Index,i);
 			}
@@ -870,7 +870,7 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 						::FillRect(pdis->hDC,&pdis->rcItem,
 									reinterpret_cast<HBRUSH>(COLOR_WINDOW+1));
 					} else {
-						CColorScheme *pColorScheme=pThis->m_PresetList.GetColorScheme(pdis->itemData);
+						CColorScheme *pColorScheme=pThis->m_PresetList.GetColorScheme((int)pdis->itemData);
 						Theme::GradientInfo Gradient;
 
 						pColorScheme->GetGradientInfo(
@@ -972,11 +972,11 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 		switch (LOWORD(wParam)) {
 		case IDC_COLORSCHEME_PRESET:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				int Sel=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETCURSEL,0,0);
+				int Sel=(int)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETCURSEL,0,0);
 
 				if (Sel>=0) {
 					CColorSchemeOptions *pThis=GetThis(hDlg);
-					int Index=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETITEMDATA,Sel,0);
+					int Index=(int)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETITEMDATA,Sel,0);
 					const CColorScheme *pColorScheme=pThis->m_PresetList.GetColorScheme(Index);
 
 					if (pColorScheme!=NULL) {
@@ -1016,10 +1016,10 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 					break;
 				}
 				pszFileName=szName;
-				Index=DlgComboBox_FindStringExact(hDlg,IDC_COLORSCHEME_PRESET,-1,szName);
+				Index=(int)DlgComboBox_FindStringExact(hDlg,IDC_COLORSCHEME_PRESET,-1,szName);
 				if (Index>=0) {
 					pColorScheme=pThis->m_PresetList.GetColorScheme(
-						DlgComboBox_GetItemData(hDlg,IDC_COLORSCHEME_PRESET,Index));
+						(int)DlgComboBox_GetItemData(hDlg,IDC_COLORSCHEME_PRESET,Index));
 					if (pColorScheme==NULL)
 						break;
 					pszFileName=PathFindFileName(pColorScheme->GetFileName());
@@ -1047,7 +1047,7 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 					pColorScheme->SetFileName(szFileName);
 					pColorScheme->SetLoaded();
 					pThis->m_PresetList.Add(pColorScheme);
-					Index=DlgComboBox_AddString(hDlg,IDC_COLORSCHEME_PRESET,szName);
+					Index=(int)DlgComboBox_AddString(hDlg,IDC_COLORSCHEME_PRESET,szName);
 					DlgComboBox_SetItemData(hDlg,IDC_COLORSCHEME_PRESET,Index,pThis->m_PresetList.NumColorSchemes()-1);
 				}
 				MessageBox(hDlg,TEXT("îzêFÇï€ë∂ÇµÇ‹ÇµÇΩÅB"),TEXT("ï€ë∂"),MB_OK | MB_ICONINFORMATION);
@@ -1065,10 +1065,10 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 				GetDlgItemText(hDlg,IDC_COLORSCHEME_PRESET,szName,lengthof(szName));
 				if (szName[0]=='\0')
 					break;
-				Index=SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_FINDSTRINGEXACT,-1,(LPARAM)szName);
+				Index=(int)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_FINDSTRINGEXACT,-1,(LPARAM)szName);
 				if (Index<0
 						|| (pColorScheme=pThis->m_PresetList.GetColorScheme(
-							SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETITEMDATA,Index,0)))==NULL)
+							(int)SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_GETITEMDATA,Index,0)))==NULL)
 					break;
 				GetThemesDirectory(szFileName,lengthof(szFileName));
 				pszFileName=PathFindFileName(pColorScheme->GetFileName());
@@ -1091,7 +1091,7 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 			case LBN_SELCHANGE:
 				{
 					CColorSchemeOptions *pThis=GetThis(hDlg);
-					int SelCount=DlgListBox_GetSelCount(hDlg,IDC_COLORSCHEME_LIST);
+					int SelCount=(int)DlgListBox_GetSelCount(hDlg,IDC_COLORSCHEME_LIST);
 					int i;
 					COLORREF SelColor=CLR_INVALID,Color;
 
@@ -1102,14 +1102,14 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 					if (SelCount==1) {
 						for (i=0;i<CColorScheme::NUM_COLORS;i++) {
 							if (DlgListBox_GetSel(hDlg,IDC_COLORSCHEME_LIST,i)) {
-								SelColor=DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i);
+								SelColor=(COLORREF)DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i);
 								break;
 							}
 						}
 					} else {
 						for (i=0;i<CColorScheme::NUM_COLORS;i++) {
 							if (DlgListBox_GetSel(hDlg,IDC_COLORSCHEME_LIST,i)) {
-								Color=DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i);
+								Color=(COLORREF)DlgListBox_GetItemData(hDlg,IDC_COLORSCHEME_LIST,i);
 								if (SelColor==CLR_INVALID)
 									SelColor=Color;
 								else if (Color!=SelColor)
@@ -1226,7 +1226,7 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 
 				if (Sel>=0) {
 					COLORREF Color=pThis->m_ColorPalette.GetColor(Sel);
-					int TopIndex=DlgListBox_GetTopIndex(hDlg,IDC_COLORSCHEME_LIST);
+					int TopIndex=(int)DlgListBox_GetTopIndex(hDlg,IDC_COLORSCHEME_LIST);
 
 					::SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,WM_SETREDRAW,FALSE,0);
 					for (int i=0;i<CColorScheme::NUM_COLORS;i++) {

@@ -8,7 +8,8 @@
 #include "DrawUtil.h"
 
 
-class CInitialSettings {
+class CInitialSettings
+{
 	enum { MAX_DECODER_NAME=128 };
 	const CDriverManager *m_pDriverManager;
 	TCHAR m_szDriverFileName[MAX_PATH];
@@ -19,8 +20,10 @@ class CInitialSettings {
 	CAeroGlass m_AeroGlass;
 	CGdiPlus m_GdiPlus;
 	CGdiPlus::CImage m_LogoImage;
+
 	static CInitialSettings *GetThis(HWND hDlg);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	CInitialSettings(const CDriverManager *pDriverManager);
 	~CInitialSettings();

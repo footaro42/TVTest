@@ -15,9 +15,7 @@ friend CBonSrcPin;
 public:
 	DECLARE_IUNKNOWN
 
-	CBonSrcFilter(LPUNKNOWN pUnk, HRESULT *phr);
-	virtual ~CBonSrcFilter();
-	static IBaseFilter * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr,CBonSrcFilter **ppBonSrcFilterIf=NULL);
+	static IBaseFilter * WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr);
 
 // CBaseFilter
 #ifdef _DEBUG
@@ -39,9 +37,11 @@ public:
 	void SetVideoPID(WORD PID);
 	void SetAudioPID(WORD PID);
 	void SetOutputWhenPaused(bool bOutput);
-	//bool CheckHangUp(DWORD TimeOut);
 
 protected:
+	CBonSrcFilter(LPUNKNOWN pUnk, HRESULT *phr);
+	virtual ~CBonSrcFilter();
+
 	CBonSrcPin *m_pSrcPin;
 	CCritSec m_cStateLock;
 	bool m_bOutputWhenPaused;

@@ -5,42 +5,50 @@
 #ifndef TVH264
 
 #define APP_NAME_A	"TVTest"
-#define APP_NAME_W	L"TVTest"
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	6
-#define VERSION_BUILD	6
+#define VERSION_BUILD	7
 
-#define VERSION_TEXT_A	"0.6.6"
-#define VERSION_TEXT_W	L"0.6.6"
+#define VERSION_TEXT_A	"0.6.7"
 
-#define ABOUT_TEXT	"TVTest ver.0.6.6\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_VERSION_TEXT	TEXT("TVTest ver.") VERSION_TEXT
 
 #else
 
 #define APP_NAME_A	"TVH264"
-#define APP_NAME_W	L"TVH264"
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	4
-#define VERSION_BUILD	1
+#define VERSION_BUILD	2
 
-#define VERSION_TEXT_A	"0.4.1"
-#define VERSION_TEXT_W	L"0.4.1"
+#define VERSION_TEXT_A	"0.4.2"
 
-#define ABOUT_TEXT	"TVH264 ver.0.4.1\nby HDUSTestの中の人 && HDUSスレの皆さん"
+#define ABOUT_VERSION_TEXT	TEXT("TVH264 ver.") VERSION_TEXT
 
 // ワンセグ向け
+#if !defined(TVH264_FOR_1SEG) && defined(BONTSENGINE_1SEG_SUPPORT)
 #define TVH264_FOR_1SEG
+#endif
 
 #endif	// TVH264
 
+#define LTEXT_(text)	L##text
+#define LTEXT(text)		LTEXT_(text)
+#define APP_NAME_W		LTEXT(APP_NAME_A)
+#define VERSION_TEXT_W	LTEXT(VERSION_TEXT_A)
 #ifndef UNICODE
 #define APP_NAME		APP_NAME_A
 #define VERSION_TEXT	VERSION_TEXT_A
 #else
 #define APP_NAME		APP_NAME_W
 #define VERSION_TEXT	VERSION_TEXT_W
+#endif
+
+#if defined(_M_IX86)
+#define VERSION_PLATFORM	TEXT("x86")
+#elif defined(_M_X64)
+#define VERSION_PLATFORM	TEXT("x64")
 #endif
 
 #ifdef BONTSENGINE_RADIO_SUPPORT

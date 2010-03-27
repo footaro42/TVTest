@@ -64,6 +64,7 @@ CPanelForm::CPanelForm()
 	m_crCurTabBorderColor=GetSysColor(COLOR_3DDKSHADOW);
 	m_TabHeight=/*abs(lf.lfHeight)+*/TAB_MARGIN*2;
 	m_TabWidth=8+TAB_MARGIN*2;
+	m_fFitTabWidth=true;
 	m_ClientMargin=4;
 	m_CurTab=-1;
 	m_pEventHandler=NULL;
@@ -320,6 +321,7 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 			BeginPaint(hwnd,&ps);
 			if (ps.rcPaint.top<pThis->m_TabHeight) {
+				const int TabWidth=pThis->GetRealTabWidth();
 				COLORREF crOldTextColor;
 				int OldBkMode;
 				HFONT hfontOld;
@@ -334,7 +336,7 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 				hbrOld=SelectBrush(ps.hdc,::GetStockObject(NULL_BRUSH));
 				rc.left=0;
 				rc.top=0;
-				rc.right=pThis->m_TabWidth;
+				rc.right=TabWidth;
 				rc.bottom=pThis->m_TabHeight;
 				for (i=0;i<pThis->m_NumWindows;i++) {
 					int Index=pThis->m_TabOrder[i];
@@ -367,11 +369,11 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 					rcText.right=rc.right-TAB_MARGIN;
 					rcText.bottom=rc.bottom-TAB_MARGIN;
 					DrawText(ps.hdc,pWindow->m_pszTitle,-1,&rcText,
-						DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+						DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
 					SelectPen(ps.hdc,hpenOld);
 					DeleteObject(hpen);
 					rc.left=rc.right;
-					rc.right=rc.left+pThis->m_TabWidth;
+					rc.right=rc.left+TabWidth;
 				}
 				SelectBrush(ps.hdc,hbrOld);
 				SelectFont(ps.hdc,hfontOld);
@@ -392,17 +394,14 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 					DeleteObject(hpen);
 				}
 			}
-			if (ps.rcPaint.bottom>pThis->m_TabHeight+pThis->m_ClientMargin) {
-				HBRUSH hbr;
+			if (ps.rcPaint.bottom>pThis->m_TabHeight) {
 				RECT rc;
 
 				rc.left=ps.rcPaint.left;
 				rc.top=max(ps.rcPaint.top,(long)pThis->m_TabHeight);
 				rc.right=ps.rcPaint.right;
 				rc.bottom=ps.rcPaint.bottom;
-				hbr=CreateSolidBrush(pThis->m_crMarginColor);
-				FillRect(ps.hdc,&rc,hbr);
-				DeleteObject(hbr);
+				DrawUtil::Fill(ps.hdc,&rc,pThis->m_crMarginColor);
 			}
 			EndPaint(hwnd,&ps);
 		}
@@ -412,6 +411,11 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 		{
 			CPanelForm *pThis=GetThis(hwnd);
 
+			if (pThis->m_fFitTabWidth) {
+				RECT rc;
+				::SetRect(&rc,0,0,LOWORD(lParam),pThis->m_TabHeight);
+				::InvalidateRect(hwnd,&rc,FALSE);
+			}
 			if (pThis->m_CurTab>=0) {
 				pThis->m_pWindowList[pThis->m_CurTab]->m_pWindow->SetPosition(
 					pThis->m_ClientMargin,pThis->m_TabHeight+pThis->m_ClientMargin,
@@ -476,7 +480,7 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 			CPanelForm *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
 				return 0;
 		}
 		break;
@@ -520,23 +524,41 @@ void CPanelForm::CalcTabSize()
 }
 
 
+int CPanelForm::GetRealTabWidth() const
+{
+	if (m_fFitTabWidth) {
+		int NumVisibleTabs=0;
+		for (int i=0;i<m_NumWindows;i++) {
+			if (m_pWindowList[i]->m_fVisible)
+				NumVisibleTabs++;
+		}
+		RECT rc;
+		GetClientRect(&rc);
+		if (NumVisibleTabs*m_TabWidth>rc.right)
+			return max(rc.right/NumVisibleTabs,16+TAB_MARGIN*2);
+	}
+	return m_TabWidth;
+}
+
+
 int CPanelForm::HitTest(int x,int y) const
 {
 	if (y<0 || y>=m_TabHeight)
 		return -1;
 
+	const int TabWidth=GetRealTabWidth();
 	POINT pt;
 	RECT rc;
 
 	pt.x=x;
 	pt.y=y;
-	::SetRect(&rc,0,0,m_TabWidth,m_TabHeight);
+	::SetRect(&rc,0,0,TabWidth,m_TabHeight);
 	for (int i=0;i<m_NumWindows;i++) {
 		int Index=m_TabOrder[i];
 		if (m_pWindowList[Index]->m_fVisible) {
 			if (::PtInRect(&rc,pt))
 				return Index;
-			::OffsetRect(&rc,m_TabWidth,0);
+			::OffsetRect(&rc,TabWidth,0);
 		}
 	}
 	return -1;

@@ -3,6 +3,7 @@
 #include "../BonTsEngine/MediaData.h"
 #include "../BonTsEngine/TsMedia.h"
 #include "VideoInfo.h"
+#include <queue>
 
 
 #define H264PARSERFILTER_NAME L"H264 Parser Filter"
@@ -16,9 +17,7 @@ class CH264ParserFilter : public CTransformFilter,
 public:
 	DECLARE_IUNKNOWN
 
-	CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr);
-	~CH264ParserFilter(void);
-	static IBaseFilter* WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CH264ParserFilter **ppClassIf);
+	static IBaseFilter* WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr);
 
 // CTransInplaceFilter
 	HRESULT CheckInputType(const CMediaType* mtIn);
@@ -33,8 +32,12 @@ public:
 	typedef void (CALLBACK *VideoInfoCallback)(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	void SetVideoInfoCallback(VideoInfoCallback pCallback, const PVOID pParam = NULL);
 	bool SetAdjustTime(bool bAdjust);
+	bool SetAdjustFrameRate(bool bAdjust);
 
 protected:
+	CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr);
+	~CH264ParserFilter(void);
+
 // CTransformFilter
 	HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);
 	HRESULT Receive(IMediaSample *pSample);
@@ -43,6 +46,8 @@ protected:
 	virtual void OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit);
 
 // CH264ParserFilter
+	void Reset();
+
 	VideoInfoCallback m_pfnVideoInfoCallback;
 	LPVOID m_pCallbackParam;
 
@@ -53,7 +58,18 @@ protected:
 	IMediaSample *m_pOutSample;
 	HRESULT m_DeliverResult;
 	bool m_bAdjustTime;
+	bool m_bAdjustFrameRate;
 	REFERENCE_TIME m_PrevTime;
-	REFERENCE_TIME m_BaseTime;
 	DWORD m_SampleCount;
+	class CMediaDataQueue : public std::queue<CMediaData*> {
+	public:
+		~CMediaDataQueue() { clear(); }
+		void clear() {
+			while (!empty()) {
+				delete front();
+				pop();
+			}
+		}
+	};
+	CMediaDataQueue m_MediaQueue;
 };

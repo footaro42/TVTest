@@ -1,6 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "Logger.h"
 #include "DialogUtil.h"
@@ -221,7 +219,7 @@ CLogger *CLogger::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

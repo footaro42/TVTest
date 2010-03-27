@@ -23,14 +23,14 @@ CBitstream::~CBitstream()
 }
 
 
-int CBitstream::GetBits(int Bits)
+DWORD CBitstream::GetBits(int Bits)
 {
 	if (m_Size<<3<m_Pos+Bits)
-		return -1;
+		return 0;
 
 	const BYTE *p=&m_pBits[m_Pos>>3];
-	int Shift=7-(m_Pos&7);
-	int Value=0;
+	int Shift=(int)(7-(m_Pos&7));
+	DWORD Value=0;
 	for (int i=0;i<Bits;i++) {
 		Value<<=1;
 		Value|=(*p>>Shift)&0x01;
@@ -42,6 +42,12 @@ int CBitstream::GetBits(int Bits)
 	}
 	m_Pos+=Bits;
 	return Value;
+}
+
+
+bool CBitstream::GetFlag()
+{
+	return GetBits(1)!=0;
 }
 
 
@@ -82,7 +88,7 @@ int CBitstream::GetVLCSymbol(int *pInfo)
 {
 	const BYTE *p=&m_pBits[m_Pos>>3];
 	const BYTE *pEnd=m_pBits+m_Size;
-	int Shift=7-(m_Pos&7);
+	int Shift=(int)(7-(m_Pos&7));
 	int BitCount=1;
 	int Length=0;
 

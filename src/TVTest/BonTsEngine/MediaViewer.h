@@ -17,7 +17,9 @@
 #include "../DirectShowFilter/Mpeg2SequenceFilter.h"
 #else
 #include "../DirectShowFilter/H264ParserFilter.h"
-#define USE_TBS_FILTER	// TBSフィルタ有効
+#ifdef BONTSENGINE_1SEG_SUPPORT
+#define MEDIAVIEWER_USE_TBS_FILTER	// TBSフィルタ有効
+#endif
 #endif
 
 
@@ -133,10 +135,11 @@ public:
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
-#ifdef BONTSENGINE_1SEG_SUPPORT
-	bool SetAdjustSampleTime(bool bAdjust);
+#ifdef BONTSENGINE_H264_SUPPORT
+	bool SetAdjustVideoSampleTime(bool bAdjust);
+	bool SetAdjustFrameRate(bool bAdjust);
 #endif
-#ifdef USE_TBS_FILTER
+#ifdef MEDIAVIEWER_USE_TBS_FILTER
 	bool EnableTBSFilter(bool bEnable);
 	bool IsTBSFilterEnabled() const;
 #endif
@@ -154,11 +157,9 @@ protected:
 	// DirectShowフィルタ
 	IBaseFilter *m_pVideoDecoderFilter;
 	// Source
-	IBaseFilter *m_pSrcFilter;
-	CBonSrcFilter *m_pBonSrcFilterClass;
+	CBonSrcFilter *m_pSrcFilter;
 	// AACデコーダ
-	IBaseFilter *m_pAacDecFilter;
-	CAacDecFilter *m_pAacDecClass;
+	CAacDecFilter *m_pAacDecoder;
 	// 音声フィルタ
 	LPWSTR m_pszAudioFilterName;
 	IBaseFilter *m_pAudioFilter;
@@ -169,12 +170,10 @@ protected:
 
 #ifndef BONTSENGINE_H264_SUPPORT
 	// Mpeg2-Sequence
-	IBaseFilter *m_pMpeg2SeqFilter;
-	CMpeg2SequenceFilter *m_pMpeg2SeqClass;
+	CMpeg2SequenceFilter *m_pMpeg2Sequence;
 #else
 	// H.264 parser
-	IBaseFilter *m_pH264ParserFilter;
-	CH264ParserFilter *m_pH264ParserClass;
+	CH264ParserFilter *m_pH264Parser;
 #endif
 
 	LPWSTR m_pszVideoDecoderName;
@@ -206,6 +205,10 @@ protected:
 	bool m_bIgnoreDisplayExtension;
 	bool m_bUseAudioRendererClock;
 	bool m_bAdjustAudioStreamTime;
+#ifdef BONTSENGINE_H264_SUPPORT
+	bool m_bAdjustVideoSampleTime;
+	bool m_bAdjustFrameRate;
+#endif
 	CAacDecFilter::StreamCallback m_pAudioStreamCallback;
 	void *m_pAudioStreamCallbackParam;
 	CImageMixer *m_pImageMixer;

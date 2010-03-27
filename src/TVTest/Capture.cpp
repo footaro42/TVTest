@@ -333,7 +333,7 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 			CCapturePreview *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
 				return 0;
 		}
 		break;
@@ -583,7 +583,7 @@ LRESULT CALLBACK CCaptureWindow::WndProc(HWND hwnd,UINT uMsg,
 			CCaptureWindow *pThis=GetThis(hwnd);
 
 			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
 				return 0;
 		}
 		break;

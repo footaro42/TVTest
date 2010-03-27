@@ -27,8 +27,8 @@ int CBasicDialog::ShowDialog(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate)
 {
 	if (m_hDlg!=NULL)
 		return -1;
-	return ::DialogBoxParam(hinst,pszTemplate,hwndOwner,DialogProc,
-							reinterpret_cast<LPARAM>(this));
+	return (int)::DialogBoxParam(hinst,pszTemplate,hwndOwner,DialogProc,
+								 reinterpret_cast<LPARAM>(this));
 }
 
 

@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Multi2Decoder.h"
 #ifdef MULTI2_SSE2_ICC
+#include "../ICC/Multi2Decoder/Multi2DecoderSSE2.h"
 #pragma comment(lib, "Multi2Decoder.lib")
 #endif
 
@@ -17,90 +18,107 @@ static char THIS_FILE[]=__FILE__;
 
 #define SCRAMBLE_ROUND 4
 
-#define USE_INTRINSIC	// 組み込み関数を展開
 
-#ifdef USE_INTRINSIC
-#pragma intrinsic(_byteswap_ulong, _lrotl)
+#ifdef MULTI2_USE_INTRINSIC
+#pragma intrinsic(_byteswap_ulong, _byteswap_uint64, _lrotl)
 #endif
 
 
 inline void CMulti2Decoder::DATKEY::SetHexData(const BYTE *pHexData)
 {
-#ifndef USE_INTRINSIC
-	BYTE * const pHexThis = reinterpret_cast<BYTE *>(this);
-
 	// バイトオーダー変換
-	pHexThis[ 3] = pHexData[ 0];	pHexThis[ 2] = pHexData[ 1];	pHexThis[ 1] = pHexData[ 2];	pHexThis[ 0] = pHexData[ 3];
-	pHexThis[ 7] = pHexData[ 4];	pHexThis[ 6] = pHexData[ 5];	pHexThis[ 5] = pHexData[ 6];	pHexThis[ 4] = pHexData[ 7];
+#ifndef MULTI2_USE_INTRINSIC
+	Data[3] = pHexData[0];	Data[2] = pHexData[1];	Data[1] = pHexData[2];	Data[0] = pHexData[3];
+	Data[7] = pHexData[4];	Data[6] = pHexData[5];	Data[5] = pHexData[6];	Data[4] = pHexData[7];
 #else
-	dwLeft  = _byteswap_ulong(*(DWORD*)(pHexData + 0));
-	dwRight = _byteswap_ulong(*(DWORD*)(pHexData + 4));
+#ifndef WIN64
+	dwLeft  = _byteswap_ulong(*reinterpret_cast<const DWORD*>(pHexData + 0));
+	dwRight = _byteswap_ulong(*reinterpret_cast<const DWORD*>(pHexData + 4));
+#else
+	Data64 = _byteswap_uint64(*reinterpret_cast<const unsigned __int64*>(pHexData));
+#endif
 #endif
 }
 
 inline void CMulti2Decoder::DATKEY::GetHexData(BYTE *pHexData) const
 {
-#ifndef USE_INTRINSIC
-	const BYTE *pHexThis = reinterpret_cast<const BYTE *>(this);
-
 	// バイトオーダー変換
-	pHexData[ 0] = pHexThis[ 3];	pHexData[ 1] = pHexThis[ 2];	pHexData[ 2] = pHexThis[ 1];	pHexData[ 3] = pHexThis[ 0];
-	pHexData[ 4] = pHexThis[ 7];	pHexData[ 5] = pHexThis[ 6];	pHexData[ 6] = pHexThis[ 5];	pHexData[ 7] = pHexThis[ 4];
+#ifndef MULTI2_USE_INTRINSIC
+	pHexData[0] = Data[3];	pHexData[1] = Data[2];	pHexData[2] = Data[1];	pHexData[3] = Data[0];
+	pHexData[4] = Data[7];	pHexData[5] = Data[6];	pHexData[6] = Data[5];	pHexData[7] = Data[4];
 #else
-	*(DWORD*)(pHexData + 0) = _byteswap_ulong(dwLeft);
-	*(DWORD*)(pHexData + 4) = _byteswap_ulong(dwRight);
+#ifndef WIN64
+	*reinterpret_cast<DWORD*>(pHexData + 0) = _byteswap_ulong(dwLeft);
+	*reinterpret_cast<DWORD*>(pHexData + 4) = _byteswap_ulong(dwRight);
+#else
+	*reinterpret_cast<unsigned __int64*>(pHexData) = _byteswap_uint64(Data64);
+#endif
 #endif
 }
 
 inline void CMulti2Decoder::SYSKEY::SetHexData(const BYTE *pHexData)
 {
-#ifndef USE_INTRINSIC
-	BYTE * const pHexThis = reinterpret_cast<BYTE *>(this);
-
 	// バイトオーダー変換
-	pHexThis[ 3] = pHexData[ 0];	pHexThis[ 2] = pHexData[ 1];	pHexThis[ 1] = pHexData[ 2];	pHexThis[ 0] = pHexData[ 3];
-	pHexThis[ 7] = pHexData[ 4];	pHexThis[ 6] = pHexData[ 5];	pHexThis[ 5] = pHexData[ 6];	pHexThis[ 4] = pHexData[ 7];
-	pHexThis[11] = pHexData[ 8];	pHexThis[10] = pHexData[ 9];	pHexThis[ 9] = pHexData[10];	pHexThis[ 8] = pHexData[11];
-	pHexThis[15] = pHexData[12];	pHexThis[14] = pHexData[13];	pHexThis[13] = pHexData[14];	pHexThis[12] = pHexData[15];
-	pHexThis[19] = pHexData[16];	pHexThis[18] = pHexData[17];	pHexThis[17] = pHexData[18];	pHexThis[16] = pHexData[19];
-	pHexThis[23] = pHexData[20];	pHexThis[22] = pHexData[21];	pHexThis[21] = pHexData[22];	pHexThis[20] = pHexData[23];
-	pHexThis[27] = pHexData[24];	pHexThis[26] = pHexData[25];	pHexThis[25] = pHexData[26];	pHexThis[24] = pHexData[27];
-	pHexThis[31] = pHexData[28];	pHexThis[30] = pHexData[29];	pHexThis[29] = pHexData[30];	pHexThis[28] = pHexData[31];
+#ifndef MULTI2_USE_INTRINSIC
+	Data[ 3] = pHexData[ 0];	Data[ 2] = pHexData[ 1];	Data[ 1] = pHexData[ 2];	Data[ 0] = pHexData[ 3];
+	Data[ 7] = pHexData[ 4];	Data[ 6] = pHexData[ 5];	Data[ 5] = pHexData[ 6];	Data[ 4] = pHexData[ 7];
+	Data[11] = pHexData[ 8];	Data[10] = pHexData[ 9];	Data[ 9] = pHexData[10];	Data[ 8] = pHexData[11];
+	Data[15] = pHexData[12];	Data[14] = pHexData[13];	Data[13] = pHexData[14];	Data[12] = pHexData[15];
+	Data[19] = pHexData[16];	Data[18] = pHexData[17];	Data[17] = pHexData[18];	Data[16] = pHexData[19];
+	Data[23] = pHexData[20];	Data[22] = pHexData[21];	Data[21] = pHexData[22];	Data[20] = pHexData[23];
+	Data[27] = pHexData[24];	Data[26] = pHexData[25];	Data[25] = pHexData[26];	Data[24] = pHexData[27];
+	Data[31] = pHexData[28];	Data[30] = pHexData[29];	Data[29] = pHexData[30];	Data[28] = pHexData[31];
 #else
-	dwKey1 = _byteswap_ulong(*(DWORD*)(pHexData +  0));
-	dwKey2 = _byteswap_ulong(*(DWORD*)(pHexData +  4));
-	dwKey3 = _byteswap_ulong(*(DWORD*)(pHexData +  8));
-	dwKey4 = _byteswap_ulong(*(DWORD*)(pHexData + 12));
-	dwKey5 = _byteswap_ulong(*(DWORD*)(pHexData + 16));
-	dwKey6 = _byteswap_ulong(*(DWORD*)(pHexData + 20));
-	dwKey7 = _byteswap_ulong(*(DWORD*)(pHexData + 24));
-	dwKey8 = _byteswap_ulong(*(DWORD*)(pHexData + 28));
+#ifndef WIN64
+	const DWORD *p = reinterpret_cast<const DWORD*>(pHexData);
+	dwKey1 = _byteswap_ulong(p[0]);
+	dwKey2 = _byteswap_ulong(p[1]);
+	dwKey3 = _byteswap_ulong(p[2]);
+	dwKey4 = _byteswap_ulong(p[3]);
+	dwKey5 = _byteswap_ulong(p[4]);
+	dwKey6 = _byteswap_ulong(p[5]);
+	dwKey7 = _byteswap_ulong(p[6]);
+	dwKey8 = _byteswap_ulong(p[7]);
+#else
+	const unsigned __int64 *p = reinterpret_cast<const unsigned __int64*>(pHexData);
+	Data64[0] = _byteswap_uint64(p[0]);
+	Data64[1] = _byteswap_uint64(p[1]);
+	Data64[2] = _byteswap_uint64(p[2]);
+	Data64[3] = _byteswap_uint64(p[3]);
+#endif
 #endif
 }
 
 inline void CMulti2Decoder::SYSKEY::GetHexData(BYTE *pHexData) const
 {
-#ifndef USE_INTRINSIC
-	const BYTE *pHexThis = reinterpret_cast<const BYTE *>(this);
-
 	// バイトオーダー変換
-	pHexData[ 0] = pHexThis[ 3];	pHexData[ 1] = pHexThis[ 2];	pHexData[ 2] = pHexThis[ 1];	pHexData[ 3] = pHexThis[ 0];
-	pHexData[ 4] = pHexThis[ 7];	pHexData[ 5] = pHexThis[ 6];	pHexData[ 6] = pHexThis[ 5];	pHexData[ 7] = pHexThis[ 4];
-	pHexData[ 8] = pHexThis[11];	pHexData[ 9] = pHexThis[10];	pHexData[10] = pHexThis[ 9];	pHexData[11] = pHexThis[ 8];
-	pHexData[12] = pHexThis[15];	pHexData[13] = pHexThis[14];	pHexData[14] = pHexThis[13];	pHexData[15] = pHexThis[12];
-	pHexData[16] = pHexThis[19];	pHexData[17] = pHexThis[18];	pHexData[18] = pHexThis[17];	pHexData[19] = pHexThis[16];
-	pHexData[20] = pHexThis[23];	pHexData[21] = pHexThis[22];	pHexData[22] = pHexThis[21];	pHexData[23] = pHexThis[20];
-	pHexData[24] = pHexThis[27];	pHexData[25] = pHexThis[26];	pHexData[26] = pHexThis[25];	pHexData[27] = pHexThis[24];
-	pHexData[28] = pHexThis[31];	pHexData[29] = pHexThis[30];	pHexData[30] = pHexThis[29];	pHexData[31] = pHexThis[28];
+#ifndef MULTI2_USE_INTRINSIC
+	pHexData[ 0] = Data[ 3];	pHexData[ 1] = Data[ 2];	pHexData[ 2] = Data[ 1];	pHexData[ 3] = Data[ 0];
+	pHexData[ 4] = Data[ 7];	pHexData[ 5] = Data[ 6];	pHexData[ 6] = Data[ 5];	pHexData[ 7] = Data[ 4];
+	pHexData[ 8] = Data[11];	pHexData[ 9] = Data[10];	pHexData[10] = Data[ 9];	pHexData[11] = Data[ 8];
+	pHexData[12] = Data[15];	pHexData[13] = Data[14];	pHexData[14] = Data[13];	pHexData[15] = Data[12];
+	pHexData[16] = Data[19];	pHexData[17] = Data[18];	pHexData[18] = Data[17];	pHexData[19] = Data[16];
+	pHexData[20] = Data[23];	pHexData[21] = Data[22];	pHexData[22] = Data[21];	pHexData[23] = Data[20];
+	pHexData[24] = Data[27];	pHexData[25] = Data[26];	pHexData[26] = Data[25];	pHexData[27] = Data[24];
+	pHexData[28] = Data[31];	pHexData[29] = Data[30];	pHexData[30] = Data[29];	pHexData[31] = Data[28];
 #else
-	*(DWORD*)(pHexData +  0) = _byteswap_ulong(dwKey1);
-	*(DWORD*)(pHexData +  4) = _byteswap_ulong(dwKey2);
-	*(DWORD*)(pHexData +  8) = _byteswap_ulong(dwKey3);
-	*(DWORD*)(pHexData + 12) = _byteswap_ulong(dwKey4);
-	*(DWORD*)(pHexData + 16) = _byteswap_ulong(dwKey5);
-	*(DWORD*)(pHexData + 20) = _byteswap_ulong(dwKey6);
-	*(DWORD*)(pHexData + 24) = _byteswap_ulong(dwKey7);
-	*(DWORD*)(pHexData + 28) = _byteswap_ulong(dwKey8);
+#ifndef WIN64
+	DWORD *p = reinterpret_cast<DWORD*>(pHexData);
+	p[0] = _byteswap_ulong(dwKey1);
+	p[1] = _byteswap_ulong(dwKey2);
+	p[2] = _byteswap_ulong(dwKey3);
+	p[3] = _byteswap_ulong(dwKey4);
+	p[4] = _byteswap_ulong(dwKey5);
+	p[5] = _byteswap_ulong(dwKey6);
+	p[6] = _byteswap_ulong(dwKey7);
+	p[7] = _byteswap_ulong(dwKey8);
+#else
+	unsigned __int64 *p = reinterpret_cast<unsigned __int64*>(pHexData);
+	p[0] = _byteswap_uint64(Data64[0]);
+	p[1] = _byteswap_uint64(Data64[1]);
+	p[2] = _byteswap_uint64(Data64[2]);
+	p[3] = _byteswap_uint64(Data64[3]);
+#endif
 #endif
 }
 
@@ -197,8 +215,8 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 	}
 
 	// OFBモード
-	//RemainSize=dwSize%sizeof(DATKEY);
-	RemainSize=dwSize&0x00000007UL;
+	//RemainSize = dwSize % sizeof(DATKEY);
+	RemainSize = dwSize & 0x00000007UL;
 	if (RemainSize > 0) {
 		BYTE Remain[sizeof(DATKEY)];
 
@@ -331,7 +349,7 @@ inline void CMulti2Decoder::RoundFuncPi4(DATKEY &Block, const DWORD dwK4)
 
 inline const DWORD CMulti2Decoder::LeftRotate(const DWORD dwValue, const DWORD dwRotate)
 {
-#ifndef USE_INTRINSIC
+#ifndef MULTI2_USE_INTRINSIC
 	// 左ローテート
 	return (dwValue << dwRotate) | (dwValue >> (32UL - dwRotate));
 #else
@@ -396,7 +414,7 @@ public:
 		}
 	}
 	static bool IsSSE2Available() {
-#if 1
+#ifndef WIN64
 		bool b;
 
 		__asm {
@@ -636,7 +654,7 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 
 	// ワークキー選択
 	return Multi2DecoderSSE2::Decode(pData, dwSize,
-		reinterpret_cast<const Multi2DecoderSSE2::SYSKEY*>((byScrCtrl == 3) ? &m_WorkKeyOdd : &m_WorkKeyEven),
+		(byScrCtrl == 3) ? &m_WorkKeyOdd : &m_WorkKeyEven,
 		m_InitialCbc.dwLeft, m_InitialCbc.dwRight);
 }
 

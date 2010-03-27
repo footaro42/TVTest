@@ -156,7 +156,7 @@ bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
 			q=p;
 			while (*p!='\0' && *p!='\r' && *p!='\n' && *p!=',')
 				p++;
-			Length=::MultiByteToWideChar(CP_ACP,0,q,p-q,szChannel,lengthof(szChannel));
+			Length=::MultiByteToWideChar(CP_ACP,0,q,(int)(p-q),szChannel,lengthof(szChannel));
 			Channel=0;
 		}
 		if (NumSpaces>0) {

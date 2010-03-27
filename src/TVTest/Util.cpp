@@ -365,7 +365,7 @@ int CALLBACK BrowseFolderCallback(HWND hwnd,UINT uMsg,LPARAM lpData,
 bool BrowseFolderDialog(HWND hwndOwner,LPTSTR pszDirectory,LPCTSTR pszTitle)
 {
 	BROWSEINFO bi;
-	ITEMIDLIST *pidl;
+	PIDLIST_ABSOLUTE pidl;
 	BOOL fRet;
 
 	bi.hwndOwner=hwndOwner;
@@ -744,7 +744,7 @@ bool CFilePath::GetDirectory(LPTSTR pszDirectory) const
 		pszDirectory[0]='\0';
 		return false;
 	}
-	::lstrcpyn(pszDirectory,m_szPath,pszFileName-m_szPath);
+	::lstrcpyn(pszDirectory,m_szPath,(int)(pszFileName-m_szPath));
 	::PathRemoveBackslash(pszDirectory);
 	return true;
 }

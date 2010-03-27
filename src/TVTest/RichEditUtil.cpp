@@ -186,11 +186,11 @@ LPTSTR CRichEditUtil::GetSelectedText(HWND hwndEdit)
 
 int CRichEditUtil::GetMaxLineWidth(HWND hwndEdit)
 {
-	int NumLines=::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
+	int NumLines=(int)::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
 	int MaxWidth=0;
 
 	for (int i=0;i<NumLines;i++) {
-		int Index=::SendMessage(hwndEdit,EM_LINEINDEX,i,0);
+		int Index=(int)::SendMessage(hwndEdit,EM_LINEINDEX,i,0);
 		POINTL pt;
 		::SendMessage(hwndEdit,EM_POSFROMCHAR,
 					  reinterpret_cast<WPARAM>(&pt),
@@ -204,7 +204,7 @@ int CRichEditUtil::GetMaxLineWidth(HWND hwndEdit)
 
 bool CRichEditUtil::DetectURL(HWND hwndEdit,const CHARFORMAT *pcf,int FirstLine,int LastLine)
 {
-	const int LineCount=::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
+	const int LineCount=(int)::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
 	if (LastLine<0 || LastLine>LineCount)
 		LastLine=LineCount;
 	CHARFORMAT2 cfLink;
@@ -218,18 +218,18 @@ bool CRichEditUtil::DetectURL(HWND hwndEdit,const CHARFORMAT *pcf,int FirstLine,
 	::SendMessage(hwndEdit,WM_SETREDRAW,FALSE,0);
 	::SendMessage(hwndEdit,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&crOld));
 	for (int i=FirstLine;i<LastLine;) {
-		const int LineIndex=::SendMessage(hwndEdit,EM_LINEINDEX,i,0);
+		const int LineIndex=(int)::SendMessage(hwndEdit,EM_LINEINDEX,i,0);
 		TCHAR szText[2048],*p;
 		int TotalLength=0,Length;
 
 		p=szText;
 		while (i<LastLine) {
 #ifdef UNICODE
-			p[0]=lengthof(szText)-2-TotalLength;
+			p[0]=(WORD)(lengthof(szText)-2-TotalLength);
 #else
-			*(WORD*)p=sizeof(szText)-sizeof(WORD)-1-TotalLength;
+			*(WORD*)p=(WORD)(sizeof(szText)-sizeof(WORD)-1-TotalLength);
 #endif
-			Length=::SendMessage(hwndEdit,EM_GETLINE,i,reinterpret_cast<LPARAM>(p));
+			Length=(int)::SendMessage(hwndEdit,EM_GETLINE,i,reinterpret_cast<LPARAM>(p));
 			i++;
 			if (Length<1)
 				break;
@@ -242,7 +242,7 @@ bool CRichEditUtil::DetectURL(HWND hwndEdit,const CHARFORMAT *pcf,int FirstLine,
 			szText[TotalLength]='\0';
 			LPCTSTR q=szText;
 			while (SearchNextURL(&q,&Length)) {
-				cr.cpMin=LineIndex+(q-szText);
+				cr.cpMin=LineIndex+(LONG)(q-szText);
 				cr.cpMax=cr.cpMin+Length;
 				::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
 				::SendMessage(hwndEdit,EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&cfLink));
@@ -296,7 +296,7 @@ bool CRichEditUtil::HandleLinkClick(const ENLINK *penl)
 	TEXTRANGE tr;
 	tr.chrg=penl->chrg;
 	tr.lpstrText=szText;
-	Length=::SendMessage(penl->nmhdr.hwndFrom,EM_GETTEXTRANGE,0,reinterpret_cast<LPARAM>(&tr));
+	Length=(int)::SendMessage(penl->nmhdr.hwndFrom,EM_GETTEXTRANGE,0,reinterpret_cast<LPARAM>(&tr));
 	if (Length<=0)
 		return false;
 

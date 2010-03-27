@@ -46,6 +46,12 @@ INT_PTR CAboutDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 								  IMAGE_BITMAP,reinterpret_cast<LPARAM>(hbm));
 				}
 			}
+
+			::SetDlgItemText(hDlg,IDC_ABOUT_VERSION,ABOUT_VERSION_TEXT
+#ifdef VERSION_PLATFORM
+				TEXT(" (") VERSION_PLATFORM TEXT(")")
+#endif
+			);
 		}
 		return TRUE;
 

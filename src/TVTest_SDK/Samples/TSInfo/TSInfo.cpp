@@ -22,7 +22,7 @@ class CTSInfo : public TVTest::CTVTestPlugin
 	COLORREF m_crTextColor;
 	static LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData);
 	static CTSInfo *GetThis(HWND hDlg);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 public:
 	CTSInfo()
 	{
@@ -117,7 +117,7 @@ CTSInfo *CTSInfo::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CTSInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CTSInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

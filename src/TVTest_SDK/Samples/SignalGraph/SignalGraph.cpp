@@ -167,6 +167,7 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 			PAINTSTRUCT ps;
 			HBRUSH hbr;
 			HPEN hpen,hpenOld;
+			const int ListSize=(int)pThis->m_List.size();
 			int x,y,i;
 
 			::BeginPaint(hwnd,&ps);
@@ -184,12 +185,12 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 			// ビットレートを描く
 			hpen=::CreatePen(PS_SOLID,1,pThis->m_crBitRateColor);
 			::DeleteObject(::SelectObject(ps.hdc,hpen));
-			if (ps.rcPaint.left<(LONG)(WINDOW_WIDTH-pThis->m_List.size())) {
-				x=WINDOW_WIDTH-pThis->m_List.size();
+			if (ps.rcPaint.left<WINDOW_WIDTH-ListSize) {
+				x=WINDOW_WIDTH-ListSize;
 				i=0;
 			} else {
 				x=ps.rcPaint.left;
-				i=ps.rcPaint.left-(WINDOW_WIDTH-pThis->m_List.size());
+				i=ps.rcPaint.left-(WINDOW_WIDTH-ListSize);
 			}
 			for (;x<min(ps.rcPaint.right,WINDOW_WIDTH);x++) {
 				y=min(pThis->m_List[i].BitRate,40*1024*1024)*WINDOW_HEIGHT/(40*1024*1024);
@@ -202,18 +203,18 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 			// 信号レベルを描く
 			hpen=::CreatePen(PS_SOLID,1,pThis->m_crSignalLevelColor);
 			::DeleteObject(::SelectObject(ps.hdc,hpen));
-			if (max(ps.rcPaint.left-1,0)<(LONG)(WINDOW_WIDTH-pThis->m_List.size())) {
-				x=WINDOW_WIDTH-pThis->m_List.size();
+			if (max(ps.rcPaint.left-1,0)<WINDOW_WIDTH-ListSize) {
+				x=WINDOW_WIDTH-ListSize;
 				i=0;
 			} else {
 				x=max(ps.rcPaint.left-1,0);
-				i=x-(WINDOW_WIDTH-pThis->m_List.size());
+				i=x-(WINDOW_WIDTH-ListSize);
 			}
 			for (;x<min(ps.rcPaint.right,WINDOW_WIDTH);x++) {
 				y=min(pThis->m_List[i].SignalLevel,800)*(WINDOW_HEIGHT-1)/800;
 				::MoveToEx(ps.hdc,x,WINDOW_HEIGHT-1-y,NULL);
 				i++;
-				if ((size_t)i<pThis->m_List.size()) {
+				if (i<ListSize) {
 					y=min(pThis->m_List[i].SignalLevel,800)*(WINDOW_HEIGHT-1)/800;
 				}
 				::LineTo(ps.hdc,x+1,WINDOW_HEIGHT-1-y);

@@ -2,6 +2,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Command.h"
+#include "ZoomOptions.h"
 #include "HelperClass/StdUtil.h"
 #include "resource.h"
 
@@ -27,6 +28,11 @@ static const struct {
 	{TEXT("Zoom200"),				CM_ZOOM_200},
 	{TEXT("Zoom250"),				CM_ZOOM_250},
 	{TEXT("Zoom300"),				CM_ZOOM_300},
+	{TEXT("CustomZoom1"),			CM_CUSTOMZOOM_1},
+	{TEXT("CustomZoom2"),			CM_CUSTOMZOOM_2},
+	{TEXT("CustomZoom3"),			CM_CUSTOMZOOM_3},
+	{TEXT("CustomZoom4"),			CM_CUSTOMZOOM_4},
+	{TEXT("CustomZoom5"),			CM_CUSTOMZOOM_5},
 	{TEXT("AspectRatio"),			CM_ASPECTRATIO},
 	{TEXT("AspectDefault"),			CM_ASPECTRATIO_DEFAULT},
 	{TEXT("Aspect16x9"),			CM_ASPECTRATIO_16x9},
@@ -123,6 +129,7 @@ static const struct {
 
 
 CCommandList::CCommandList()
+	: m_pZoomOptions(NULL)
 {
 }
 
@@ -135,7 +142,9 @@ CCommandList::~CCommandList()
 }
 
 
-bool CCommandList::Initialize(const CDriverManager *pDriverManager,const CPluginList *pPluginList)
+bool CCommandList::Initialize(const CDriverManager *pDriverManager,
+							  const CPluginList *pPluginList,
+							  const CZoomOptions *pZoomOptions)
 {
 	m_DriverList.DeleteAll();
 	if (pDriverManager!=NULL) {
@@ -162,6 +171,7 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,const CPlugin
 			}
 		}
 	}
+	m_pZoomOptions=pZoomOptions;
 	return true;
 }
 
@@ -231,9 +241,18 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 		pszName[0]='\0';
 		return 0;
 	}
-	if (Index<lengthof(CommandList))
-		return ::LoadString(GetAppClass().GetResourceInstance(),
-							CommandList[Index].Command,pszName,MaxLength);
+	if (Index<lengthof(CommandList)) {
+		int Length=::LoadString(GetAppClass().GetResourceInstance(),
+								CommandList[Index].Command,pszName,MaxLength);
+		if (m_pZoomOptions!=NULL
+				&& CommandList[Index].Command>=CM_CUSTOMZOOM_FIRST
+				&& CommandList[Index].Command<=CM_CUSTOMZOOM_LAST) {
+			CZoomOptions::ZoomRate Zoom;
+			if (m_pZoomOptions->GetZoomRateByCommand(CommandList[Index].Command,&Zoom))
+				Length+=StdUtil::snprintf(pszName+Length,MaxLength-Length,TEXT(" - %d%%"),Zoom.Rate*100/Zoom.Factor);
+		}
+		return Length;
+	}
 	Base=lengthof(CommandList);
 	if (Index<Base+m_DriverList.Length())
 		return StdUtil::snprintf(pszName,MaxLength,TEXT("ƒhƒ‰ƒCƒo(%s)"),

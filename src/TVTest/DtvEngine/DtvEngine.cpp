@@ -544,8 +544,8 @@ const bool CDtvEngine::SetService(const WORD wService)
 #ifdef BONTSENGINE_1SEG_SUPPORT
 		const BYTE VideoComponentTag = m_TsAnalyzer.GetVideoComponentTag(m_CurServiceIndex);
 		const bool b1Seg = VideoComponentTag >= 0x81 && VideoComponentTag <= 0x8F;
-		m_MediaViewer.SetAdjustSampleTime(b1Seg);
-#ifdef USE_TBS_FILTER
+		//m_MediaViewer.SetAdjustFrameRate(!b1Seg);
+#ifdef MEDIAVIEWER_USE_TBS_FILTER
 		m_MediaViewer.EnableTBSFilter(b1Seg);
 #endif
 #endif

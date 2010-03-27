@@ -21,9 +21,7 @@ class CAacDecFilter :	public CTransformFilter,
 public:
 	DECLARE_IUNKNOWN
 
-	CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr);
-	~CAacDecFilter(void);
-	static IBaseFilter* WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CAacDecFilter **ppClassIf);
+	static IBaseFilter* WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr);
 
 // CTransformFilter
 	HRESULT CheckInputType(const CMediaType* mtIn);
@@ -58,6 +56,9 @@ public:
 	bool SetStreamCallback(StreamCallback pCallback, void *pParam = NULL);
 
 protected:
+	CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr);
+	~CAacDecFilter(void);
+
 	CCritSec m_cStateLock;
 	HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);
 

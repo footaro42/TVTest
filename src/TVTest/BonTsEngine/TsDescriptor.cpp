@@ -6,7 +6,6 @@
 #include "TsEncode.h"
 #include "TsDescriptor.h"
 
-
 #ifdef _DEBUG
 #undef THIS_FILE
 static char THIS_FILE[]=__FILE__;
@@ -1550,7 +1549,7 @@ const WORD CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength)
 		wPos += (pNewDesc->GetLength() + 2U);
 	} while (wPos < wDataLength);
 
-	return m_DescArray.size();
+	return (WORD)m_DescArray.size();
 }
 
 const CBaseDesc * CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength, const BYTE byTag)
@@ -1572,7 +1571,7 @@ void CDescBlock::Reset(void)
 const WORD CDescBlock::GetDescNum(void) const
 {
 	// ‹LqŽq‚Ì”‚ð•Ô‚·
-	return m_DescArray.size();
+	return (WORD)m_DescArray.size();
 }
 
 const CBaseDesc * CDescBlock::GetDescByIndex(const WORD wIndex) const

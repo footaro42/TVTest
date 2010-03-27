@@ -149,7 +149,7 @@ void CPlugin::Free()
 		m_pEventCallback=NULL;
 
 		TVTest::FinalizeFunc pFinalize=
-			static_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
+			reinterpret_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
 		if (pFinalize!=NULL) {
 			// 別スレッドからFinalizeを呼ぶと不正な処理が起こるプラグインがある
 			/*
@@ -280,7 +280,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_MEMORYALLOC:
 		{
 			void *pData=reinterpret_cast<void*>(lParam1);
-			DWORD Size=lParam2;
+			SIZE_T Size=lParam2;
 
 			if (Size>0) {
 				return (LRESULT)realloc(pData,Size);
@@ -288,7 +288,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				free(pData);
 			}
 		}
-		return 0;
+		return (LRESULT)(void*)0;
 
 	case TVTest::MESSAGE_SETEVENTCALLBACK:
 		{
@@ -362,7 +362,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_SETSERVICE:
 		{
 			if (lParam2==0)
-				return GetAppClass().SetServiceByIndex(lParam1);
+				return GetAppClass().SetServiceByIndex((int)lParam1);
 			return GetAppClass().SetServiceByID((WORD)lParam1);
 		}
 
@@ -420,7 +420,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_GETSERVICEINFO:
 		{
-			int Index=lParam1;
+			int Index=(int)lParam1;
 			TVTest::ServiceInfo *pServiceInfo=reinterpret_cast<TVTest::ServiceInfo*>(lParam2);
 
 			if (Index<0 || pServiceInfo==NULL
@@ -443,7 +443,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				int ServiceIndex=pTsAnalyzer->GetServiceIndexByID(ServiceID);
 				for (size_t i=0;i<Info.AudioEsList.size();i++) {
 					pServiceInfo->AudioComponentType[i]=
-						pTsAnalyzer->GetAudioComponentType(ServiceIndex,i);
+						pTsAnalyzer->GetAudioComponentType(ServiceIndex,(int)i);
 				}
 				if (Info.CaptionEsList.size()>0)
 					pServiceInfo->SubtitlePID=Info.CaptionEsList[0].PID;
@@ -457,7 +457,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_GETDRIVERNAME:
 		{
 			LPWSTR pszName=reinterpret_cast<LPWSTR>(lParam1);
-			int MaxLength=lParam2;
+			int MaxLength=(int)lParam2;
 			LPCTSTR pszDriverName=GetAppClass().GetCoreEngine()->GetDriverFileName();
 
 			if (pszName!=NULL && MaxLength>0)
@@ -818,7 +818,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_SETVOLUME:
 		{
 			CMainWindow *pMainWindow=GetAppClass().GetMainWindow();
-			int Volume=lParam1;
+			int Volume=(int)lParam1;
 
 			if (Volume<0)
 				return pMainWindow->SetMute(lParam2!=0);
@@ -1042,7 +1042,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_GETTUNINGSPACEINFO:
 		{
-			int Index=lParam1;
+			int Index=(int)lParam1;
 			TVTest::TuningSpaceInfo *pInfo=reinterpret_cast<TVTest::TuningSpaceInfo*>(lParam2);
 
 			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::TuningSpaceInfo))
@@ -1071,7 +1071,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETAUDIOSTREAM:
 		{
-			int Index=lParam1;
+			int Index=(int)lParam1;
 
 			if (Index<0 || Index>=GetAppClass().GetCoreEngine()->m_DtvEngine.GetAudioStreamNum())
 				return FALSE;
@@ -1739,7 +1739,7 @@ CPluginOptions *CPluginOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

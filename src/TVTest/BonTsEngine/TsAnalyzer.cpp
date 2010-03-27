@@ -1,6 +1,7 @@
 #include "stdafx.h"
-#include "TsTable.h"
+#include "Common.h"
 #include "TsAnalyzer.h"
+#include "TsTable.h"
 #ifdef TS_ANALYZER_EIT_SUPPORT
 #include "TsEncode.h"
 #endif
@@ -11,17 +12,11 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
-#define PID_HEIT	0x0012
-#define PID_LEIT	0x0027
-
 #ifdef _DEBUG
 #define TABLE_DEBUG	true
 #else
 #define TABLE_DEBUG
 #endif
-
-#define STREAM_TYPE_MPEG2	0x02	// MPEG-2
-#define STREAM_TYPE_H264	0x1B	// H.264
 
 
 
@@ -82,10 +77,10 @@ void CTsAnalyzer::Reset()
 	m_TransportStreamID = 0x0000;
 
 	// PATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0000, new CPatTable(TABLE_DEBUG), OnPatUpdated, this);
+	m_PidMapManager.MapTarget(PID_PAT, new CPatTable(TABLE_DEBUG), OnPatUpdated, this);
 
 	// NITテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0010, new CNitTable, OnNitUpdated, this);
+	m_PidMapManager.MapTarget(PID_NIT, new CNitTable, OnNitUpdated, this);
 	::ZeroMemory(&m_NitInfo, sizeof(m_NitInfo));
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
@@ -99,7 +94,7 @@ void CTsAnalyzer::Reset()
 #endif
 
 	// TOTテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0014, new CTotTable);
+	m_PidMapManager.MapTarget(PID_TOT, new CTotTable);
 }
 
 
@@ -155,7 +150,7 @@ int CTsAnalyzer::GetServiceIndexByID(const WORD ServiceID)
 	// プログラムIDからサービスインデックスを検索する
 	for (size_t Index = 0 ; Index < m_ServiceList.size() ; Index++) {
 		if (m_ServiceList[Index].ServiceID == ServiceID)
-			return Index;
+			return (int)Index;
 	}
 
 	// プログラムIDが見つからない
@@ -193,7 +188,7 @@ WORD CTsAnalyzer::GetViewableServiceNum()
 	WORD Count = 0;
 
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		if (IsViewableService(i))
+		if (IsViewableService((int)i))
 			Count++;
 	}
 	return Count;
@@ -209,7 +204,7 @@ bool CTsAnalyzer::GetViewableServiceID(const int Index, WORD *pServiceID)
 
 	int j = 0;
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		if (IsViewableService(i)) {
+		if (IsViewableService((int)i)) {
 			if (j == Index) {
 				*pServiceID = m_ServiceList[i].ServiceID;
 				return true;
@@ -232,7 +227,7 @@ bool CTsAnalyzer::GetFirstViewableServiceID(WORD *pServiceID)
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
 		if (!m_ServiceList[i].bIsUpdated)
 			return false;
-		if (IsViewableService(i)) {
+		if (IsViewableService((int)i)) {
 			*pServiceID = m_ServiceList[i].ServiceID;
 			return true;
 		}
@@ -250,7 +245,7 @@ int CTsAnalyzer::GetViewableServiceIndexByID(const WORD ServiceID)
 
 	int j = 0;
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		if (IsViewableService(i)) {
+		if (IsViewableService((int)i)) {
 			if (m_ServiceList[i].ServiceID == ServiceID)
 				return j;
 			j++;
@@ -591,7 +586,7 @@ bool CTsAnalyzer::GetViewableServiceList(CServiceList *pList)
 
 	pList->m_ServiceList.clear();
 	for (size_t i = 0 ; i < m_ServiceList.size() ; i++) {
-		if (IsViewableService(i))
+		if (IsViewableService((int)i))
 			pList->m_ServiceList.push_back(m_ServiceList[i]);
 	}
 	return true;
@@ -1302,8 +1297,8 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	for (size_t Index = 0; Index < pThis->m_ServiceList.size(); Index++) {
 		// サービスリスト更新
 		pThis->m_ServiceList[Index].bIsUpdated = false;
-		pThis->m_ServiceList[Index].ServiceID = pPatTable->GetProgramID(Index);
-		pThis->m_ServiceList[Index].PmtPID = pPatTable->GetPmtPID(Index);
+		pThis->m_ServiceList[Index].ServiceID = pPatTable->GetProgramID((WORD)Index);
+		pThis->m_ServiceList[Index].PmtPID = pPatTable->GetPmtPID((WORD)Index);
 		pThis->m_ServiceList[Index].VideoStreamType = 0xFF;
 		pThis->m_ServiceList[Index].VideoEs.PID = PID_INVALID;
 		pThis->m_ServiceList[Index].VideoEs.ComponentTag = COMPONENTTAG_INVALID;
@@ -1318,7 +1313,7 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[Index].ServiceType = 0xFF;
 
 		// PMTのPIDをマップ
-		pMapManager->MapTarget(pPatTable->GetPmtPID(Index), new CPmtTable(TABLE_DEBUG), OnPmtUpdated, pParam);
+		pMapManager->MapTarget(pPatTable->GetPmtPID((WORD)Index), new CPmtTable(TABLE_DEBUG), OnPmtUpdated, pParam);
 	}
 
 	// イベントハンドラ呼び出し
@@ -1373,15 +1368,17 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 			}
 			break;
 
-		case 0x06:	// ITU-T Rec.H.222 | ISO/IEC 13818-1
+		case STREAM_TYPE_CAPTION:
+			// ITU-T Rec.H.222 | ISO/IEC 13818-1
 			Info.CaptionEsList.push_back(EsInfo(EsPID, ComponentTag));
 			break;
 
-		case 0x0D:
+		case STREAM_TYPE_DATACARROUSEL:
 			Info.DataCarrouselEsList.push_back(EsInfo(EsPID, ComponentTag));
 			break;
 
-		case 0x0F:	// ISO/IEC 13818-7 Audio (ADTS Transport Syntax)
+		case STREAM_TYPE_AAC:
+			// ISO/IEC 13818-7 Audio (ADTS Transport Syntax)
 			Info.AudioEsList.push_back(EsInfo(EsPID, ComponentTag));
 			break;
 

@@ -509,7 +509,7 @@ void CDriverOptions::InitDlgItem(int Driver)
 			int Sel=0;
 			if (pSettings->GetInitialSpace()>=0
 					&& pSettings->GetInitialChannel()>=0) {
-				int Count=DlgComboBox_GetCount(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
+				int Count=(int)DlgComboBox_GetCount(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
 				for (i=1;i<Count;i++) {
 					LPARAM Data=DlgComboBox_GetItemData(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,i);
 					if (LOWORD(Data)==pSettings->GetInitialSpace()
@@ -589,7 +589,7 @@ void CDriverOptions::AddChannelList(const CChannelList *pChannelList)
 
 		if (!pChannelInfo->IsEnabled())
 			continue;
-		int Index=DlgComboBox_AddString(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,pChannelInfo->GetName());
+		int Index=(int)DlgComboBox_AddString(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,pChannelInfo->GetName());
 		DlgComboBox_SetItemData(m_hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,Index,
 								MAKELONG(pChannelInfo->GetSpace(),pChannelInfo->GetChannelIndex()));
 	}
@@ -598,7 +598,7 @@ void CDriverOptions::AddChannelList(const CChannelList *pChannelList)
 
 CDriverSettings *CDriverOptions::GetCurSelDriverSettings() const
 {
-	int Sel=DlgComboBox_GetCurSel(m_hDlg,IDC_DRIVEROPTIONS_DRIVERLIST);
+	int Sel=(int)DlgComboBox_GetCurSel(m_hDlg,IDC_DRIVEROPTIONS_DRIVERLIST);
 
 	if (Sel<0)
 		return NULL;
@@ -613,7 +613,7 @@ CDriverOptions *CDriverOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
@@ -641,7 +641,7 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				}
 				LPCTSTR pszCurDriverName=GetAppClass().GetCoreEngine()->GetDriverFileName();
 				if (pszCurDriverName[0]!='\0') {
-					CurDriver=DlgComboBox_FindStringExact(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST,
+					CurDriver=(int)DlgComboBox_FindStringExact(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST,
 						-1,::PathFindFileName(pszCurDriverName));
 					if (CurDriver<0)
 						CurDriver=0;
@@ -660,7 +660,7 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
 				CDriverOptions *pThis=GetThis(hDlg);
 
-				pThis->InitDlgItem(DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
+				pThis->InitDlgItem((int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
 			}
 			return TRUE;
 
@@ -669,7 +669,7 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 		case IDC_DRIVEROPTIONS_INITCHANNEL_CUSTOM:
 			{
 				CDriverOptions *pThis=GetThis(hDlg);
-				int Sel=DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST);
+				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST);
 
 				if (Sel>=0) {
 					CDriverSettings *pSettings=reinterpret_cast<CDriverSettings*>(
@@ -690,7 +690,7 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 				DlgComboBox_Clear(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
 				if (pSettings!=NULL) {
-					int Space=DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_SPACE)-1;
+					int Space=(int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_SPACE)-1;
 
 					if (Space<0) {
 						pSettings->SetAllChannels(true);
@@ -700,7 +700,7 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 						pSettings->SetInitialSpace(Space);
 					}
 					pSettings->SetInitialChannel(0);
-					pThis->SetChannelList(DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
+					pThis->SetChannelList((int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
 					DlgComboBox_SetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,0);
 				}
 			}
@@ -712,7 +712,7 @@ BOOL CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
-					int Sel=DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
+					int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
 					int Channel;
 
 					if (Sel>0) {

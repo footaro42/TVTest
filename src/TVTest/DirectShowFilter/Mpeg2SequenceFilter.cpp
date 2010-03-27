@@ -35,25 +35,22 @@ CMpeg2SequenceFilter::~CMpeg2SequenceFilter(void)
 }
 
 
-IBaseFilter* WINAPI CMpeg2SequenceFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr,CMpeg2SequenceFilter **ppClassIf)
+IBaseFilter* WINAPI CMpeg2SequenceFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr)
 {
 	// インスタンスを作成する
-	if(ppClassIf) *ppClassIf = NULL;
 	CMpeg2SequenceFilter *pNewFilter = new CMpeg2SequenceFilter(pUnk, phr);
-	/*
-	if(!pNewFilter) {
-		*phr = E_OUTOFMEMORY;
-		return NULL;
-	}
-	*/
-
-	IBaseFilter *pFilter;
-	*phr=pNewFilter->QueryInterface(IID_IBaseFilter, (void**)&pFilter);
 	if (FAILED(*phr)) {
 		delete pNewFilter;
 		return NULL;
 	}
-	if(ppClassIf) *ppClassIf = pNewFilter;
+
+	IBaseFilter *pFilter;
+	*phr = pNewFilter->QueryInterface(IID_IBaseFilter, (void**)&pFilter);
+	if (FAILED(*phr)) {
+		delete pNewFilter;
+		return NULL;
+	}
+
 	return pFilter;
 }
 

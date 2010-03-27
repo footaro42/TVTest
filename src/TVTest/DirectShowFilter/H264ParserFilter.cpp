@@ -10,17 +10,37 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 /*
-	処理内容はワンセグ仕様(320x240 or 320x180 / 15fps / Progressive)前提なので、
-	それ以外の場合は問題が出ると思います。
+	処理内容はワンセグ仕様前提なので、それ以外の場合は問題が出ると思います。
 */
 
 // REFERENCE_TIMEの一秒
 #define REFERENCE_TIME_SECOND 10000000LL
 
+#ifdef BONTSENGINE_1SEG_SUPPORT
+
 // フレームレート
 #define FRAME_RATE (REFERENCE_TIME_SECOND * 15000 / 1001)
 // フレームの表示時間を算出
 #define FRAME_TIME(time) ((LONGLONG)(time) * REFERENCE_TIME_SECOND * 1001 / 15000)
+// バッファサイズ
+#define BUFFER_SIZE 0x100000L
+
+// 初期値はほとんど何でもいいみたい
+// (ワンセグ用の設定でも BD の m2ts を再生できる)
+#define INITIAL_BITRATE	320000
+#define INITIAL_WIDTH	320
+#define INITIAL_HEIGHT	240
+
+#else
+
+#define FRAME_RATE (REFERENCE_TIME_SECOND * 30000 / 1001)
+#define FRAME_TIME(time) ((LONGLONG)(time) * REFERENCE_TIME_SECOND * 1001 / 30000)
+#define BUFFER_SIZE 0x800000L
+#define INITIAL_BITRATE	32000000;
+#define INITIAL_WIDTH	1920;
+#define INITIAL_HEIGHT	1080;
+
+#endif
 
 inline LONGLONG llabs(LONGLONG val)
 {
@@ -33,7 +53,14 @@ CH264ParserFilter::CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_pfnVideoInfoCallback(NULL)
 	, m_pCallbackParam(NULL)
 	, m_H264Parser(this)
-	, m_bAdjustTime(false)
+	, m_bAdjustTime(
+#ifdef BONTSENGINE_1SEG_SUPPORT
+		true
+#else
+		false
+#endif
+	  )
+	, m_bAdjustFrameRate(true)
 {
 	TRACE(TEXT("CH264ParserFilter::CH264ParserFilter() %p\n"),this);
 
@@ -49,11 +76,11 @@ CH264ParserFilter::CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr)
 		return;
 	}
 	::ZeroMemory(pvih, sizeof(VIDEOINFOHEADER));
-	pvih->dwBitRate = 320000;
+	pvih->dwBitRate = INITIAL_BITRATE;
 	pvih->AvgTimePerFrame = FRAME_TIME(1);
 	pvih->bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	pvih->bmiHeader.biWidth = 320;
-	pvih->bmiHeader.biHeight = 240;
+	pvih->bmiHeader.biWidth = INITIAL_WIDTH;
+	pvih->bmiHeader.biHeight = INITIAL_HEIGHT;
 	pvih->bmiHeader.biCompression = MAKEFOURCC('h','2','6','4');
 
 	*phr = S_OK;
@@ -64,10 +91,9 @@ CH264ParserFilter::~CH264ParserFilter(void)
 	TRACE(TEXT("CH264ParserFilter::~CH264ParserFilter()\n"));
 }
 
-IBaseFilter* WINAPI CH264ParserFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr, CH264ParserFilter **ppClassIf)
+IBaseFilter* WINAPI CH264ParserFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr)
 {
 	// インスタンスを作成する
-	if(ppClassIf) *ppClassIf = NULL;
 	CH264ParserFilter *pNewFilter = new CH264ParserFilter(pUnk, phr);
 	if (FAILED(*phr)) {
 		delete pNewFilter;
@@ -80,7 +106,7 @@ IBaseFilter* WINAPI CH264ParserFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *p
 		delete pNewFilter;
 		return NULL;
 	}
-	if(ppClassIf) *ppClassIf = pNewFilter;
+
 	return pFilter;
 }
 
@@ -120,8 +146,7 @@ HRESULT CH264ParserFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOCATO
 	// バッファは1個あればよい
 	if(!pprop->cBuffers)pprop->cBuffers = 1L;
 
-	// とりあえず1MB確保
-	if(pprop->cbBuffer < 0x100000L)pprop->cbBuffer = 0x100000L;
+	if(pprop->cbBuffer < BUFFER_SIZE)pprop->cbBuffer = BUFFER_SIZE;
 
 	// アロケータプロパティを設定しなおす
 	ALLOCATOR_PROPERTIES Actual;
@@ -151,8 +176,7 @@ HRESULT CH264ParserFilter::StartStreaming(void)
 {
 	CAutoLock AutoLock(m_pLock);
 
-	m_H264Parser.Reset();
-	m_PrevTime = -1;
+	Reset();
 	return S_OK;
 }
 
@@ -172,30 +196,58 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 		return hr;
 	LONG DataSize = pIn->GetActualDataLength();
 
-	// タイムスタンプ設定
-	REFERENCE_TIME StartTime;
-	REFERENCE_TIME EndTime;
-	if (pIn->GetTime(&StartTime, &EndTime) == S_OK) {
-		m_BaseTime = StartTime;
-	} else {
-		m_BaseTime = -1;
-		m_PrevTime = -1;
-	}
-
 	// 出力メディアサンプル設定
 	if (m_bAdjustTime) {
 		m_pOutSample = pOut;
 		pOut->SetActualDataLength(0UL);
 
-		m_SampleCount = 0;
+		// タイムスタンプ取得
+		REFERENCE_TIME StartTime, EndTime;
+		hr = pIn->GetTime(&StartTime, &EndTime);
+		if (hr == S_OK || hr == VFW_S_NO_STOP_TIME) {
+			if (m_bAdjustFrameRate) {
+				if (m_PrevTime >= 0
+						&& (m_PrevTime >= StartTime
+							|| m_PrevTime + REFERENCE_TIME_SECOND * 3 < StartTime)) {
+					TRACE(TEXT("Reset H.264 media queue\n"));
+					m_MediaQueue.clear();
+				} else if (!m_MediaQueue.empty()) {
+					const REFERENCE_TIME Duration = StartTime - m_PrevTime;
+					const int Frames = (int)m_MediaQueue.size();
+					REFERENCE_TIME Start, End;
+					BYTE *pOutData = NULL;
 
-		// タイムスタンプ設定
-		if (m_BaseTime >= 0) {
-			if (m_PrevTime >= 0
-					&& llabs(m_PrevTime - StartTime) <= REFERENCE_TIME_SECOND / 5LL)
-				m_BaseTime = StartTime = m_PrevTime;
-			EndTime = StartTime + FRAME_TIME(1);
-			pOut->SetTime(&StartTime, &EndTime);
+					Start = m_PrevTime;
+					pOut->GetPointer(&pOutData);
+					for (int i = 1; i <= Frames; i++) {
+						CMediaData *pMediaData = m_MediaQueue.front();
+						::CopyMemory(pOutData, pMediaData->GetData(), pMediaData->GetSize());
+						pOut->SetActualDataLength(pMediaData->GetSize());
+						End = m_PrevTime + Duration * i / Frames - 1;
+						pOut->SetTime(&Start, &End);
+						m_DeliverResult = m_pOutput->Deliver(pOut);
+						if (FAILED(m_DeliverResult)) {
+							m_MediaQueue.clear();
+							break;
+						}
+						m_MediaQueue.pop();
+						delete pMediaData;
+						Start = End + 1;
+					}
+					pOut->SetActualDataLength(0);
+				}
+				m_PrevTime = StartTime;
+			} else {
+				if (m_PrevTime < 0
+						|| llabs((m_PrevTime + FRAME_TIME(m_SampleCount)) - StartTime) > REFERENCE_TIME_SECOND / 5LL) {
+#ifdef _DEBUG
+					if (m_PrevTime >= 0)
+						TRACE(TEXT("Reset H.264 sample time\n"));
+#endif
+					m_PrevTime = StartTime;
+					m_SampleCount = 0;
+				}
+			}
 		}
 	} else {
 		BYTE *pOutData = NULL;
@@ -236,6 +288,7 @@ HRESULT CH264ParserFilter::Receive(IMediaSample *pSample)
 			hr = m_pOutput->Deliver(pOutSample);
 		else if (hr == S_FALSE)
 			hr = S_OK;
+		m_bSampleSkipped = FALSE;
 	}
 
 	pOutSample->Release();
@@ -247,8 +300,7 @@ HRESULT CH264ParserFilter::BeginFlush(void)
 {
 	HRESULT hr = S_OK;
 
-	m_H264Parser.Reset();
-	m_PrevTime = -1;
+	Reset();
 	if (m_pOutput)
 		hr = m_pOutput->DeliverBeginFlush();
 	return hr;
@@ -266,8 +318,31 @@ bool CH264ParserFilter::SetAdjustTime(bool bAdjust)
 {
 	CAutoLock Lock(m_pLock);
 
-	m_bAdjustTime = bAdjust;
+	if (m_bAdjustTime != bAdjust) {
+		m_bAdjustTime = bAdjust;
+		Reset();
+	}
 	return true;
+}
+
+bool CH264ParserFilter::SetAdjustFrameRate(bool bAdjust)
+{
+	CAutoLock Lock(m_pLock);
+
+	if (m_bAdjustFrameRate != bAdjust) {
+		m_bAdjustFrameRate = bAdjust;
+		if (m_bAdjustTime)
+			Reset();
+	}
+	return true;
+}
+
+void CH264ParserFilter::Reset()
+{
+	m_H264Parser.Reset();
+	m_PrevTime = -1;
+	m_SampleCount = 0;
+	m_MediaQueue.clear();
 }
 
 void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit)
@@ -276,60 +351,82 @@ void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264Acce
 		/*
 			1フレーム単位でタイムスタンプを設定しないとかくつく
 		*/
-		if (SUCCEEDED(m_DeliverResult)) {
-			if (m_pOutSample->GetActualDataLength() > 0) {
-				m_DeliverResult = m_pOutput->Deliver(m_pOutSample);
-				m_pOutSample->SetActualDataLength(0);
-			}
-
-			BYTE *pOutData = NULL;
-			HRESULT hr = m_pOutSample->GetPointer(&pOutData);
-			if (SUCCEEDED(hr)) {
-				hr = m_pOutSample->SetActualDataLength(pAccessUnit->GetSize());
+		if (m_bAdjustFrameRate && m_PrevTime >= 0) {
+			m_MediaQueue.push(new CMediaData(*pAccessUnit));
+		} else {
+			if (SUCCEEDED(m_DeliverResult)) {
+				BYTE *pOutData = NULL;
+				HRESULT hr = m_pOutSample->GetPointer(&pOutData);
 				if (SUCCEEDED(hr)) {
-					::CopyMemory(pOutData, pAccessUnit->GetData(), pAccessUnit->GetSize());
+					hr = m_pOutSample->SetActualDataLength(pAccessUnit->GetSize());
+					if (SUCCEEDED(hr)) {
+						::CopyMemory(pOutData, pAccessUnit->GetData(), pAccessUnit->GetSize());
+						// タイムスタンプ設定
+						if (m_PrevTime >= 0) {
+							REFERENCE_TIME StartTime = m_PrevTime + FRAME_TIME(m_SampleCount);
+							REFERENCE_TIME EndTime = m_PrevTime + FRAME_TIME(m_SampleCount + 1) - 1;
+							m_pOutSample->SetTime(&StartTime, &EndTime);
+						} else {
+							m_pOutSample->SetTime(NULL, NULL);
+						}
+						m_DeliverResult = m_pOutput->Deliver(m_pOutSample);
+						m_pOutSample->SetActualDataLength(0);
+					}
 				}
 			}
-		}
 
-		m_SampleCount++;
-
-		// タイムスタンプ設定
-		if (m_BaseTime >= 0) {
-			REFERENCE_TIME StartTime = m_BaseTime + FRAME_TIME(m_SampleCount);
-			REFERENCE_TIME EndTime = m_BaseTime + FRAME_TIME(m_SampleCount + 1);
-			m_pOutSample->SetTime(&StartTime, &EndTime);
-			m_PrevTime = EndTime;
+			m_SampleCount++;
 		}
 	}
 
-	// 全然できていません
-	BYTE AspectX,AspectY;
-	WORD OrigWidth,OrigHeight;
-	WORD DisplayWidth,DisplayHeight;
+	WORD OrigWidth, OrigHeight;
+	WORD DisplayWidth, DisplayHeight;
+	BYTE AspectX = 0, AspectY = 0;
 
-	OrigWidth=pAccessUnit->GetHorizontalSize();
-	OrigHeight=pAccessUnit->GetVerticalSize();
+	OrigWidth = pAccessUnit->GetHorizontalSize();
+	OrigHeight = pAccessUnit->GetVerticalSize();
+	DisplayWidth = OrigWidth;
+	DisplayHeight = OrigHeight;
 
-	AspectX = AspectY = 0;
-	if (OrigWidth == 320) {
-		if (OrigHeight == 180) {
+	WORD SarX = 0, SarY = 0;
+	if (pAccessUnit->GetSAR(&SarX, &SarY) && SarX != 0 && SarY != 0) {
+		DWORD Width = OrigWidth * SarX, Height = OrigHeight * SarY;
+
+		// とりあえず 16:9 と 4:3 だけ
+		if (Width * 9 == Height * 16) {
 			AspectX = 16;
 			AspectY = 9;
-		} else if (OrigHeight == 240) {
+		} else if (Width * 3 == Height * 4) {
+			AspectX = 4;
+			AspectY = 3;
+		}
+	} else {
+		if (OrigWidth * 9 == OrigHeight * 16) {
+			AspectX = 16;
+			AspectY = 9;
+		} else if (OrigWidth * 3 == OrigHeight * 4) {
 			AspectX = 4;
 			AspectY = 3;
 		}
 	}
 
-	DisplayWidth = OrigWidth;
-	DisplayHeight = OrigHeight;
-
 	CMpeg2VideoInfo Info(OrigWidth, OrigHeight, DisplayWidth, DisplayHeight, AspectX, AspectY);
+
+	CH264AccessUnit::TimingInfo TimingInfo;
+	if (pAccessUnit->GetTimingInfo(&TimingInfo)) {
+		// 実際のフレームレートではない
+		Info.m_FrameRate.Num = TimingInfo.TimeScale;
+		Info.m_FrameRate.Denom = TimingInfo.NumUnitsInTick;
+	}
 
 	if (Info != m_VideoInfo) {
 		// 映像のサイズ及びフレームレートが変わった
 		m_VideoInfo = Info;
+
+		TRACE(TEXT("H.264 access unit %d x %d [SAR %d:%d (DAR %d:%d)] %lu/%lu\n"),
+			  OrigWidth, OrigHeight, SarX, SarY, AspectX, AspectY,
+			  Info.m_FrameRate.Num, Info.m_FrameRate.Denom);
+
 		// 通知
 		if (m_pfnVideoInfoCallback)
 			m_pfnVideoInfoCallback(&m_VideoInfo, m_pCallbackParam);

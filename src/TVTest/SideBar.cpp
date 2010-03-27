@@ -88,10 +88,14 @@ int CSideBar::GetBarWidth() const
 
 bool CSideBar::SetIconImage(HBITMAP hbm,COLORREF crTransparent)
 {
+	if (hbm==NULL)
+		return false;
 	if (m_hbmIcons!=NULL)
 		::DeleteObject(m_hbmIcons);
 	m_hbmIcons=hbm;
 	m_IconTransparentColor=crTransparent;
+	if (m_hwnd!=NULL)
+		Invalidate();
 	return true;
 }
 
@@ -138,7 +142,7 @@ bool CSideBar::AddItems(const SideBarItem *pItemList,int NumItems)
 		for (int i=0;i<NumItems;i++) {
 			if (pItemList[i].Command!=ITEM_SEPARATOR) {
 				ti.uId=OldSize+i;
-				GetItemRect(OldSize+i,&ti.rect);
+				GetItemRect((int)OldSize+i,&ti.rect);
 				::SendMessage(m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
 			}
 		}
@@ -524,7 +528,7 @@ int CSideBar::HitTest(int x,int y) const
 
 	pt.x=x;
 	pt.y=y;
-	for (size_t i=0;i<m_ItemList.size();i++) {
+	for (int i=0;i<(int)m_ItemList.size();i++) {
 		RECT rc;
 		GetItemRect(i,&rc);
 		if (::PtInRect(&rc,pt))

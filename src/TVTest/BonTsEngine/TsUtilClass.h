@@ -147,6 +147,18 @@ protected:
 class CCrcCalculator
 {
 public:
-	static WORD CalcCrc16(const BYTE *pData, DWORD DataSize, WORD wCurCrc = 0xFFFF);
-	static DWORD CalcCrc32(const BYTE *pData, DWORD DataSize, DWORD dwCurCrc = 0xFFFFFFFFUL);
+	static WORD CalcCrc16(const BYTE *pData, SIZE_T DataSize, WORD wCurCrc = 0xFFFF);
+	static DWORD CalcCrc32(const BYTE *pData, SIZE_T DataSize, DWORD dwCurCrc = 0xFFFFFFFFUL);
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+// MD5ŒvŽZƒNƒ‰ƒX
+/////////////////////////////////////////////////////////////////////////////
+
+class CMD5Calculator
+{
+	static void MD5Transform(DWORD pBuffer[4], const void *pData);
+public:
+	static void CalcMD5(const void *pData, SIZE_T DataSize, BYTE pMD5[16]);
 };

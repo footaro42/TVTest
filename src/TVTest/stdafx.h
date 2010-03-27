@@ -93,9 +93,11 @@
 
 // BonTsEngine ‚Ìİ’è
 #ifdef TVH264
+#ifndef TVH264_FOR_HD
 #define BONTSENGINE_1SEG_SUPPORT	// ƒƒ“ƒZƒO‘Î‰
-#define BONTSENGINE_H264_SUPPORT	// H.264 ‘Î‰
 #define BONTSENGINE_RADIO_SUPPORT	// ‰¹º•ú‘—‘Î‰
+#endif
+#define BONTSENGINE_H264_SUPPORT	// H.264 ‘Î‰
 #else	// TVH264
 #define BONTSENGINE_MPEG2_SUPPORT	// MPEG-2 ‘Î‰
 #endif

@@ -14,8 +14,8 @@ static char THIS_FILE[]=__FILE__;
 
 CDriverChannelInfo::CDriverChannelInfo(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
 	: CChannelInfo(*pChannelInfo)
+	, m_pszDriverName(DuplicateString(pszDriverName))
 {
-	m_pszDriverName=DuplicateString(pszDriverName);
 }
 
 
@@ -28,9 +28,9 @@ CDriverChannelInfo::~CDriverChannelInfo()
 
 
 CChannelHistory::CChannelHistory()
+	: m_MaxChannelHistory(20)
+	, m_MaxChannelHistoryMenu(20)
 {
-	m_MaxChannelHistory=20;
-	m_MaxChannelHistoryMenu=20;
 }
 
 
@@ -42,7 +42,7 @@ CChannelHistory::~CChannelHistory()
 
 int CChannelHistory::NumChannels() const
 {
-	return m_ChannelList.size();
+	return (int)m_ChannelList.size();
 }
 
 

@@ -13,7 +13,6 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
-
 #pragma comment(lib,"quartz.lib")
 
 
@@ -35,10 +34,8 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pMediaControl(NULL)
 
 	, m_pSrcFilter(NULL)
-	, m_pBonSrcFilterClass(NULL)
 
-	, m_pAacDecFilter(NULL)
-	, m_pAacDecClass(NULL)
+	, m_pAacDecoder(NULL)
 
 	, m_pVideoDecoderFilter(NULL)
 
@@ -49,11 +46,9 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pAudioFilter(NULL)
 
 #ifndef BONTSENGINE_H264_SUPPORT
-	, m_pMpeg2SeqFilter(NULL)
-	, m_pMpeg2SeqClass(NULL)
+	, m_pMpeg2Sequence(NULL)
 #else
-	, m_pH264ParserFilter(NULL)
-	, m_pH264ParserClass(NULL)
+	, m_pH264Parser(NULL)
 #endif
 
 	, m_pszVideoDecoderName(NULL)
@@ -83,6 +78,10 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_bIgnoreDisplayExtension(false)
 	, m_bUseAudioRendererClock(true)
 	, m_bAdjustAudioStreamTime(false)
+#ifdef BONTSENGINE_H264_SUPPORT
+	, m_bAdjustVideoSampleTime(true)
+	, m_bAdjustFrameRate(true)
+#endif
 	, m_pAudioStreamCallback(NULL)
 	, m_pAudioStreamCallbackParam(NULL)
 	, m_pImageMixer(NULL)
@@ -110,37 +109,15 @@ void CMediaViewer::Reset(void)
 	CTryBlockLock Lock(&m_DecoderLock);
 	Lock.TryLock(LOCK_TIMEOUT);
 
-	/*
-	bool fResume=false;
-
-	if (m_pMediaControl) {
-		OAFilterState fs;
-
-		if (m_pMediaControl->GetState(1000,&fs)==S_OK && fs==State_Running) {
-			//Stop();
-			fResume=true;
-		}
-	}
-	*/
-
 	Flush();
-	//Stop();
 
 	SetVideoPID(PID_INVALID);
 	SetAudioPID(PID_INVALID);
 
 	/*
-	if (m_pMpeg2SeqClass)
-		m_pMpeg2SeqClass->ResetVideoInfo();
+	if (m_pMpeg2Sequence)
+		m_pMpeg2Sequence->ResetVideoInfo();
 	m_VideoInfo.Reset();
-	*/
-
-	if (m_pAacDecClass)
-		m_pAacDecClass->ResetDecoder();
-
-	/*
-	if (fResume)
-		Play();
 	*/
 }
 
@@ -159,10 +136,10 @@ const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputI
 	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
 	// フィルタグラフに入力
-	if (m_pBonSrcFilterClass
+	if (m_pSrcFilter
 			&& pTsPacket->GetPID() != 0x1FFF
 			&& !pTsPacket->IsScrambled()) {
-		return m_pBonSrcFilterClass->InputMedia(pTsPacket);
+		return m_pSrcFilter->InputMedia(pTsPacket);
 	}
 
 	return false;
@@ -213,16 +190,16 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		/* CBonSrcFilter */
 		{
 			// インスタンス作成
-			m_pSrcFilter = CBonSrcFilter::CreateInstance(NULL, &hr, &m_pBonSrcFilterClass);
-			if (m_pSrcFilter==NULL || hr!=S_OK)
-				throw CBonException(hr,TEXT("ソースフィルタを作成できません。"));
-			m_pBonSrcFilterClass->SetOutputWhenPaused(RendererType==CVideoRenderer::RENDERER_DEFAULT);
+			m_pSrcFilter = static_cast<CBonSrcFilter*>(CBonSrcFilter::CreateInstance(NULL, &hr));
+			if (m_pSrcFilter == NULL || hr != S_OK)
+				throw CBonException(hr, TEXT("ソースフィルタを作成できません。"));
+			m_pSrcFilter->SetOutputWhenPaused(RendererType == CVideoRenderer::RENDERER_DEFAULT);
 			// フィルタグラフに追加
-			hr=m_pFilterGraph->AddFilter(m_pSrcFilter, L"BonSrcFilter");
+			hr = m_pFilterGraph->AddFilter(m_pSrcFilter, L"BonSrcFilter");
 			if (hr != S_OK)
-				throw CBonException(hr,TEXT("ソースフィルタをフィルタグラフに追加できません。"));
+				throw CBonException(hr, TEXT("ソースフィルタをフィルタグラフに追加できません。"));
 			// 出力ピンを取得
-			pOutput = DirectShowUtil::GetFilterPin(m_pSrcFilter,PINDIR_OUTPUT);
+			pOutput = DirectShowUtil::GetFilterPin(m_pSrcFilter, PINDIR_OUTPUT);
 			if (pOutput==NULL)
 				throw CBonException(TEXT("ソースフィルタの出力ピンを取得できません。"));
 		}
@@ -326,13 +303,13 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		/* CMpeg2SequenceFilter */
 		{
 			// インスタンス作成
-			m_pMpeg2SeqFilter = CMpeg2SequenceFilter::CreateInstance(NULL, &hr,&m_pMpeg2SeqClass);
-			if((!m_pMpeg2SeqFilter) || (hr != S_OK))
+			m_pMpeg2Sequence = static_cast<CMpeg2SequenceFilter*>(CMpeg2SequenceFilter::CreateInstance(NULL, &hr));
+			if((!m_pMpeg2Sequence) || (hr != S_OK))
 				throw CBonException(hr,TEXT("MPEG-2シーケンスフィルタを作成できません。"));
-			m_pMpeg2SeqClass->SetRecvCallback(OnMpeg2VideoInfo,this);
+			m_pMpeg2Sequence->SetRecvCallback(OnMpeg2VideoInfo,this);
 			// フィルタの追加と接続
 			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pMpeg2SeqFilter,L"Mpeg2SequenceFilter",&pOutputVideo);
+						m_pMpeg2Sequence,L"Mpeg2SequenceFilter",&pOutputVideo);
 			if (FAILED(hr))
 				throw CBonException(hr,TEXT("MPEG-2シーケンスフィルタをフィルタグラフに追加できません。"));
 		}
@@ -342,17 +319,19 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		/* CH264ParserFilter */
 		{
 			// インスタンス作成
-			m_pH264ParserFilter = CH264ParserFilter::CreateInstance(NULL, &hr,&m_pH264ParserClass);
-			if((!m_pH264ParserFilter) || (hr != S_OK))
+			m_pH264Parser = static_cast<CH264ParserFilter*>(CH264ParserFilter::CreateInstance(NULL, &hr));
+			if((!m_pH264Parser) || (hr != S_OK))
 				throw CBonException(TEXT("H264パーサフィルタを作成できません。"));
-			m_pH264ParserClass->SetVideoInfoCallback(OnMpeg2VideoInfo,this);
+			m_pH264Parser->SetVideoInfoCallback(OnMpeg2VideoInfo,this);
+			m_pH264Parser->SetAdjustTime(m_bAdjustVideoSampleTime);
+			m_pH264Parser->SetAdjustFrameRate(m_bAdjustFrameRate);
 			// フィルタの追加と接続
 			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-					m_pH264ParserFilter,L"H264ParserFilter",&pOutputVideo);
+							m_pH264Parser,L"H264ParserFilter",&pOutputVideo);
 			if (FAILED(hr))
 				throw CBonException(hr,TEXT("H.264パーサフィルタをフィルタグラフに追加できません。"));
 		}
-#endif
+#endif	// BONTSENGINE_H264_SUPPORT
 
 		Trace(TEXT("AACデコーダの接続中..."));
 
@@ -360,19 +339,19 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 		/* CAacDecFilter */
 		{
 			// CAacDecFilterインスタンス作成
-			m_pAacDecFilter=CAacDecFilter::CreateInstance(NULL,&hr,&m_pAacDecClass);
-			if (!m_pAacDecFilter || hr!=S_OK)
+			m_pAacDecoder = static_cast<CAacDecFilter*>(CAacDecFilter::CreateInstance(NULL, &hr));
+			if (!m_pAacDecoder || hr!=S_OK)
 				throw CBonException(hr,TEXT("AACデコーダフィルタを作成できません。"));
 			// フィルタの追加と接続
 			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-								m_pAacDecFilter,L"AacDecFilter",&pOutputAudio);
+								m_pAacDecoder,L"AacDecFilter",&pOutputAudio);
 			if (FAILED(hr))
 				throw CBonException(hr,TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"));
 
-			m_pAacDecClass->SetAdjustStreamTime(m_bAdjustAudioStreamTime);
+			m_pAacDecoder->SetAdjustStreamTime(m_bAdjustAudioStreamTime);
 			if (m_pAudioStreamCallback)
-				m_pAacDecClass->SetStreamCallback(m_pAudioStreamCallback,
-												  m_pAudioStreamCallbackParam);
+				m_pAacDecoder->SetStreamCallback(m_pAudioStreamCallback,
+												 m_pAudioStreamCallbackParam);
 		}
 #else
 		/*
@@ -382,18 +361,17 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 
 		/* CAacParserFilter */
 		{
-			IBaseFilter *m_pAacParserFilter;
-			CAacParserFilter *m_pAacParserClass;
+			CAacParserFilter *m_pAacParser;
 			// CAacParserFilterインスタンス作成
-			m_pAacParserFilter=CAacParserFilter::CreateInstance(NULL,&hr,&m_pAacParserClass);
-			if (!m_pAacParserFilter || hr!=S_OK)
+			m_pAacParser=static_cast<CAacParserFilter*>(CAacParserFilter::CreateInstance(NULL, &hr));
+			if (!m_pAacParser || hr!=S_OK)
 				throw CBonException(hr,TEXT("AACパーサフィルタを作成できません。"));
 			// フィルタの追加と接続
 			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-						m_pAacParserFilter,L"AacParserFilter",&pOutputAudio);
+								m_pAacParser,L"AacParserFilter",&pOutputAudio);
 			if (FAILED(hr))
 				throw CBonException(TEXT("AACパーサフィルタをフィルタグラフに追加できません。"));
-			m_pAacParserFilter->Release();
+			m_pAacParser->Release();
 		}
 
 		/* AACデコーダー */
@@ -408,7 +386,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			WCHAR szAacDecoder[128];
 			CLSID idAac;
 			bool bConnectSuccess=false;
-			IBaseFilter *m_pAacDecFilter=NULL;
+			IBaseFilter *pAacDecFilter=NULL;
 
 			for (int i=0;i<FilterFinder.GetFilterCount();i++){
 				if (FilterFinder.GetFilterInfo(i,&idAac,szAacDecoder,128)) {
@@ -416,7 +394,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 							&& ::lstrcmpi(szAacDecoder,pszAudioDecoder)!=0)
 						continue;
 					hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
-							idAac,szAacDecoder,&m_pAacDecFilter,
+							idAac,szAacDecoder,&pAacDecFilter,
 							&pOutputAudio);
 					if (SUCCEEDED(hr)) {
 						TRACE(TEXT("AAC decoder connected : %s\n"),szAacDecoder);
@@ -427,7 +405,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			}
 			// どれかのフィルタで接続できたか
 			if (bConnectSuccess) {
-				SAFE_RELEASE(m_pAacDecFilter);
+				SAFE_RELEASE(pAacDecFilter);
 				//m_pszAacDecoderName=StdUtil::strdup(szAacDecoder);
 			} else {
 				throw CBonException(TEXT("AACデコーダフィルタをフィルタグラフに追加できません。"),
@@ -515,7 +493,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			…しようと思ったが変になるので保留
 		*/
 		if (::StrCmpNI(m_pszVideoDecoderName, TEXT("CyberLink"), 9) == 0)
-			m_pMpeg2SeqClass->SetFixSquareDisplay(true);
+			m_pMpeg2Sequence->SetFixSquareDisplay(true);
 #endif
 #else	// ndef BONTSENGINE_H264_SUPPORT
 		Trace(TEXT("H.264デコーダの接続中..."));
@@ -742,17 +720,14 @@ void CMediaViewer::CloseViewer(void)
 
 	SAFE_RELEASE(m_pVideoDecoderFilter);
 
-	SAFE_RELEASE(m_pAacDecFilter);
-	m_pAacDecClass=NULL;
+	SAFE_RELEASE(m_pAacDecoder);
 
 	SAFE_RELEASE(m_pAudioRenderer);
 
 #ifndef BONTSENGINE_H264_SUPPORT
-	SAFE_RELEASE(m_pMpeg2SeqFilter);
-	m_pMpeg2SeqClass=NULL;
+	SAFE_RELEASE(m_pMpeg2Sequence);
 #else
-	SAFE_RELEASE(m_pH264ParserFilter);
-	m_pH264ParserClass=NULL;
+	SAFE_RELEASE(m_pH264Parser);
 #endif
 
 	SAFE_RELEASE(m_pMp2DemuxAudioMap);
@@ -760,7 +735,6 @@ void CMediaViewer::CloseViewer(void)
 	SAFE_RELEASE(m_pMp2DemuxFilter);
 
 	SAFE_RELEASE(m_pSrcFilter);
-	m_pBonSrcFilterClass=NULL;
 
 	SAFE_RELEASE(m_pAudioFilter);
 
@@ -835,9 +809,9 @@ const bool CMediaViewer::Stop(void)
 	if (!m_pMediaControl)
 		return false;
 
-	if (m_pBonSrcFilterClass)
-		//m_pBonSrcFilterClass->Reset();
-		m_pBonSrcFilterClass->Flush();
+	if (m_pSrcFilter)
+		//m_pSrcFilter->Reset();
+		m_pSrcFilter->Flush();
 
 	// フィルタグラフを停止する
 	return m_pMediaControl->Stop()==S_OK;
@@ -854,9 +828,9 @@ const bool CMediaViewer::Pause()
 	if (!m_pMediaControl)
 		return false;
 
-	if (m_pBonSrcFilterClass)
-		//m_pBonSrcFilterClass->Reset();
-		m_pBonSrcFilterClass->Flush();
+	if (m_pSrcFilter)
+		//m_pSrcFilter->Reset();
+		m_pSrcFilter->Flush();
 
 	if (m_pMediaControl->Pause()!=S_OK) {
 		int i;
@@ -883,10 +857,10 @@ const bool CMediaViewer::Flush()
 		return false;
 	*/
 
-	if (!m_pBonSrcFilterClass)
+	if (!m_pSrcFilter)
 		return false;
 
-	m_pBonSrcFilterClass->Flush();
+	m_pSrcFilter->Flush();
 	return true;
 }
 
@@ -917,9 +891,9 @@ const bool CMediaViewer::SetVideoPID(const WORD wPID)
 		}
 	}
 
-#ifdef USE_TBS_FILTER
-	if (m_pBonSrcFilterClass!=NULL)
-		m_pBonSrcFilterClass->SetVideoPID(wPID);
+#ifdef MEDIAVIEWER_USE_TBS_FILTER
+	if (m_pSrcFilter!=NULL)
+		m_pSrcFilter->SetVideoPID(wPID);
 #endif
 
 	m_wVideoEsPID = wPID;
@@ -954,9 +928,9 @@ const bool CMediaViewer::SetAudioPID(const WORD wPID)
 		}
 	}
 
-#ifdef USE_TBS_FILTER
-	if (m_pBonSrcFilterClass!=NULL)
-		m_pBonSrcFilterClass->SetAudioPID(wPID);
+#ifdef MEDIAVIEWER_USE_TBS_FILTER
+	if (m_pSrcFilter!=NULL)
+		m_pSrcFilter->SetAudioPID(wPID);
 #endif
 
 	m_wAudioEsPID = wPID;
@@ -1138,8 +1112,8 @@ const bool CMediaViewer::GetVideoSize(WORD *pwWidth,WORD *pwHeight)
 
 	// ビデオのサイズを取得する
 	/*
-	if (m_pMpeg2SeqClass)
-		return m_pMpeg2SeqClass->GetVideoSize(pwWidth,pwHeight);
+	if (m_pMpeg2Sequence)
+		return m_pMpeg2Sequence->GetVideoSize(pwWidth,pwHeight);
 	*/
 	if (m_VideoInfo.m_DisplayWidth > 0 && m_VideoInfo.m_DisplayHeight > 0) {
 		if (pwWidth)
@@ -1157,8 +1131,8 @@ const bool CMediaViewer::GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspe
 
 	// ビデオのアスペクト比を取得する
 	/*
-	if (m_pMpeg2SeqClass)
-		return m_pMpeg2SeqClass->GetAspectRatio(pbyAspectRatioX,pbyAspectRatioY);
+	if (m_pMpeg2Sequence)
+		return m_pMpeg2Sequence->GetAspectRatio(pbyAspectRatioX, pbyAspectRatioY);
 	*/
 	if (m_VideoInfo.m_AspectRatioX > 0 && m_VideoInfo.m_AspectRatioY > 0) {
 		if (pbyAspectRatioX)
@@ -1173,23 +1147,23 @@ const bool CMediaViewer::GetVideoAspectRatio(BYTE *pbyAspectRatioX,BYTE *pbyAspe
 const BYTE CMediaViewer::GetAudioChannelNum()
 {
 	// オーディオの入力チャンネル数を取得する
-	if (m_pAacDecClass)
-		return m_pAacDecClass->GetCurrentChannelNum();
+	if (m_pAacDecoder)
+		return m_pAacDecoder->GetCurrentChannelNum();
 	return 0;
 }
 
 const bool CMediaViewer::SetStereoMode(const int iMode)
 {
 	// ステレオ出力チャンネルの設定
-	if (m_pAacDecClass)
-		return m_pAacDecClass->SetStereoMode(iMode);
+	if (m_pAacDecoder)
+		return m_pAacDecoder->SetStereoMode(iMode);
 	return false;
 }
 
 const int CMediaViewer::GetStereoMode() const
 {
-	if (m_pAacDecClass)
-		return m_pAacDecClass->GetStereoMode();
+	if (m_pAacDecoder)
+		return m_pAacDecoder->GetStereoMode();
 	return CAacDecFilter::STEREOMODE_STEREO;
 }
 
@@ -1434,8 +1408,8 @@ const bool CMediaViewer::GetOriginalVideoSize(WORD *pWidth,WORD *pHeight)
 	CBlockLock Lock(&m_ResizeLock);
 
 	/*
-	if (m_pMpeg2SeqClass)
-		return m_pMpeg2SeqClass->GetOriginalVideoSize(pWidth,pHeight);
+	if (m_pMpeg2Sequence)
+		return m_pMpeg2Sequence->GetOriginalVideoSize(pWidth, pHeight);
 	*/
 	if (m_VideoInfo.m_OrigWidth > 0 && m_VideoInfo.m_OrigHeight > 0) {
 		if (pWidth)
@@ -1569,25 +1543,25 @@ const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
 
 bool CMediaViewer::SetDownMixSurround(bool bDownMix)
 {
-	if (m_pAacDecClass)
-		return m_pAacDecClass->SetDownMixSurround(bDownMix);
+	if (m_pAacDecoder)
+		return m_pAacDecoder->SetDownMixSurround(bDownMix);
 	return false;
 }
 
 
 bool CMediaViewer::GetDownMixSurround() const
 {
-	if (m_pAacDecClass)
-		return m_pAacDecClass->GetDownMixSurround();
+	if (m_pAacDecoder)
+		return m_pAacDecoder->GetDownMixSurround();
 	return false;
 }
 
 
 bool CMediaViewer::SetAudioNormalize(bool bNormalize,float Level)
 {
-	if (m_pAacDecClass==NULL)
+	if (m_pAacDecoder==NULL)
 		return false;
-	return m_pAacDecClass->SetNormalize(bNormalize,Level);
+	return m_pAacDecoder->SetNormalize(bNormalize,Level);
 }
 
 
@@ -1607,9 +1581,9 @@ bool CMediaViewer::SetUseAudioRendererClock(bool bUse)
 bool CMediaViewer::SetAdjustAudioStreamTime(bool bAdjust)
 {
 	m_bAdjustAudioStreamTime = bAdjust;
-	if (m_pAacDecClass == NULL)
+	if (m_pAacDecoder == NULL)
 		return true;
-	return m_pAacDecClass->SetAdjustStreamTime(bAdjust);
+	return m_pAacDecoder->SetAdjustStreamTime(bAdjust);
 }
 
 
@@ -1617,9 +1591,9 @@ bool CMediaViewer::SetAudioStreamCallback(CAacDecFilter::StreamCallback pCallbac
 {
 	m_pAudioStreamCallback=pCallback;
 	m_pAudioStreamCallbackParam=pParam;
-	if (m_pAacDecClass == NULL)
+	if (m_pAacDecoder == NULL)
 		return true;
-	return m_pAacDecClass->SetStreamCallback(pCallback, pParam);
+	return m_pAacDecoder->SetStreamCallback(pCallback, pParam);
 }
 
 
@@ -1695,31 +1669,41 @@ const bool CMediaViewer::ClearOSD()
 }
 
 
-#ifdef BONTSENGINE_1SEG_SUPPORT
-bool CMediaViewer::SetAdjustSampleTime(bool bAdjust)
+#ifdef BONTSENGINE_H264_SUPPORT
+bool CMediaViewer::SetAdjustVideoSampleTime(bool bAdjust)
 {
-	if (m_pH264ParserClass != NULL) {
-		TRACE(TEXT("CMediaViewer::SetAdjustSampleTime(%s)\n"), bAdjust ? TEXT("true") : TEXT("false"));
-		return m_pH264ParserClass->SetAdjustTime(bAdjust);
-	}
-	return false;
+	TRACE(TEXT("CMediaViewer::SetAdjustSampleTime(%s)\n"), bAdjust ? TEXT("true") : TEXT("false"));
+	m_bAdjustVideoSampleTime = bAdjust;
+	if (m_pH264Parser != NULL)
+		return m_pH264Parser->SetAdjustTime(bAdjust);
+	return true;
+}
+
+
+bool CMediaViewer::SetAdjustFrameRate(bool bAdjust)
+{
+	TRACE(TEXT("CMediaViewer::SetAdjustFrameRate(%s)\n"), bAdjust ? TEXT("true") : TEXT("false"));
+	m_bAdjustFrameRate = bAdjust;
+	if (m_pH264Parser != NULL)
+		return m_pH264Parser->SetAdjustFrameRate(bAdjust);
+	return true;
 }
 #endif
 
 
-#ifdef USE_TBS_FILTER
+#ifdef MEDIAVIEWER_USE_TBS_FILTER
 bool CMediaViewer::EnableTBSFilter(bool bEnable)
 {
-	if (m_pBonSrcFilterClass != NULL)
-		return m_pBonSrcFilterClass->EnableSync(bEnable);
+	if (m_pSrcFilter != NULL)
+		return m_pSrcFilter->EnableSync(bEnable);
 	return false;
 }
 
 
 bool CMediaViewer::IsTBSFilterEnabled() const
 {
-	if (m_pBonSrcFilterClass != NULL)
-		return m_pBonSrcFilterClass->IsSyncEnabled();
+	if (m_pSrcFilter != NULL)
+		return m_pSrcFilter->IsSyncEnabled();
 	return false;
 }
 #endif

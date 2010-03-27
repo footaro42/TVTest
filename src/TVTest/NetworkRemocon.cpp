@@ -521,7 +521,7 @@ CNetworkRemoconOptions *CNetworkRemoconOptions::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:

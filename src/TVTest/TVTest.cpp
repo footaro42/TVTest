@@ -46,6 +46,8 @@
 #include "Taskbar.h"
 #include "EventInfoPopup.h"
 #include "CardReaderDialog.h"
+#include "ZoomOptions.h"
+#include "HelperClass/StdUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -120,11 +122,12 @@ static CStreamInfo StreamInfo;
 
 static CChannelMenu ChannelMenu(&EpgProgramList);
 
+static CZoomOptions ZoomOptions(&CommandList);
 static CGeneralOptions GeneralOptions;
 static CViewOptions ViewOptions;
 static COSDOptions OSDOptions;
 static CStatusOptions StatusOptions(&StatusView);
-static CSideBarOptions SideBarOptions(&SideBar);
+static CSideBarOptions SideBarOptions(&SideBar,&ZoomOptions);
 static CPanelOptions PanelOptions(&PanelFrame);
 static CColorSchemeOptions ColorSchemeOptions;
 static COperationOptions OperationOptions;
@@ -1105,6 +1108,7 @@ bool CAppMain::LoadSettings()
 		EpgOptions.Read(&Setting);
 		NetworkRemoconOptions.Read(&Setting);
 		Logger.Read(&Setting);
+		ZoomOptions.Read(&Setting);
 		Setting.Close();
 	}
 	StatusOptions.Load(m_szIniFileName);
@@ -1187,6 +1191,7 @@ bool CAppMain::SaveSettings()
 		EpgOptions.Write(&Setting);
 		NetworkRemoconOptions.Write(&Setting);
 		Logger.Write(&Setting);
+		ZoomOptions.Write(&Setting);
 		Setting.Close();
 	}
 	StatusOptions.Save(m_szIniFileName);
@@ -1876,6 +1881,9 @@ void CAudioChannelStatusItem::OnRButtonDown(int x,int y)
 class CRecordStatusItem : public CStatusItem {
 	COLORREF m_CircleColor;
 	bool m_fRemain;
+	HWND m_hwndToolTip;
+
+	int GetTipText(LPTSTR pszText,int MaxLength);
 
 public:
 	CRecordStatusItem();
@@ -1885,6 +1893,9 @@ public:
 	void DrawPreview(HDC hdc,const RECT *pRect);
 	void OnLButtonDown(int x,int y);
 	void OnRButtonDown(int x,int y);
+	bool OnMouseHover(int x,int y);
+	void OnFocus(bool fFocus);
+	LRESULT OnNotifyMessage(LPNMHDR pnmh);
 // CRecordStatusItem
 	void ShowRemainTime(bool fRemain);
 	void SetCircleColor(COLORREF Color);
@@ -1894,6 +1905,7 @@ CRecordStatusItem::CRecordStatusItem()
 	: CStatusItem(STATUS_ITEM_RECORD,64)
 	, m_fRemain(false)
 	, m_CircleColor(RGB(223,63,0))
+	, m_hwndToolTip(NULL)
 {
 }
 
@@ -1998,6 +2010,104 @@ void CRecordStatusItem::OnRButtonDown(int x,int y)
 	Accelerator.SetMenuAccel(Menu.GetPopupHandle());
 	GetMenuPos(&pt,&Flags);
 	Menu.Popup(MainWindow.GetHandle(),&pt,Flags | TPM_RIGHTBUTTON);
+}
+
+bool CRecordStatusItem::OnMouseHover(int x,int y)
+{
+	if (RecordManager.IsRecording()) {
+		const HWND hwndStatus=m_pStatus->GetHandle();
+
+		if (m_hwndToolTip==NULL) {
+			m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
+				WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+				0,0,0,0,hwndStatus,NULL,hInst,NULL);
+			TOOLINFO ti;
+			ti.cbSize=TTTOOLINFO_V1_SIZE;
+			ti.uFlags=TTF_TRACK | TTF_ABSOLUTE;
+			ti.hwnd=hwndStatus;
+			ti.uId=1;
+			ti.hinst=NULL;
+			ti.lpszText=LPSTR_TEXTCALLBACK;
+			::SetRectEmpty(&ti.rect);
+			::SendMessage(m_hwndToolTip,TTM_ADDTOOL,0,reinterpret_cast<LPARAM>(&ti));
+			::SendMessage(m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,256);
+		}
+
+		TCHAR szText[256];
+		GetTipText(szText,lengthof(szText));
+		TOOLINFO ti;
+		ti.cbSize=TTTOOLINFO_V1_SIZE;
+		ti.uFlags=0;
+		ti.hwnd=hwndStatus;
+		ti.uId=1;
+		ti.hinst=NULL;
+		ti.lpszText=szText;
+		::SendMessage(m_hwndToolTip,TTM_UPDATETIPTEXT,0,reinterpret_cast<LPARAM>(&ti));
+		if (!::IsWindowVisible(m_hwndToolTip))
+			::SendMessage(m_hwndToolTip,TTM_TRACKACTIVATE,TRUE,reinterpret_cast<LPARAM>(&ti));
+		/*else
+			::SendMessage(m_hwndToolTip,TTM_UPDATE,0,0);*/
+	}
+	return true;
+}
+
+int CRecordStatusItem::GetTipText(LPTSTR pszText,int MaxLength)
+{
+	if (RecordManager.IsRecording()) {
+		const CRecordTask *pRecordTask=RecordManager.GetRecordTask();
+
+		unsigned int RecordSec=pRecordTask->GetRecordTime()/1000;
+		unsigned int WroteSize=(unsigned int)(pRecordTask->GetWroteSize()/(1024*1024/100));
+
+		TCHAR szPath[MAX_PATH];
+		::lstrcpy(szPath,pRecordTask->GetFileName());
+		*::PathFindFileName(szPath)='\0';
+		ULARGE_INTEGER DiskFreeSpace;
+		if (!GetDiskFreeSpaceEx(szPath,&DiskFreeSpace,NULL,NULL))
+			DiskFreeSpace.QuadPart=0;
+		unsigned int FreeSpace=(unsigned int)
+					(DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
+
+		return StdUtil::snprintf(pszText,MaxLength,
+								 TEXT("● %d:%02d:%02d\r\nサイズ: %d.%02d MB\r\n空き容量: %d.%02d GB"),
+								 RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
+								 WroteSize/100,WroteSize%100,
+								 FreeSpace/100,FreeSpace%100);
+	}
+	pszText[0]='\0';
+	return 0;
+}
+
+void CRecordStatusItem::OnFocus(bool fFocus)
+{
+	if (!fFocus && m_hwndToolTip!=NULL) {
+		TOOLINFO ti;
+		ti.cbSize=TTTOOLINFO_V1_SIZE;
+		ti.hwnd=m_pStatus->GetHandle();
+		ti.uId=1;
+		::SendMessage(m_hwndToolTip,TTM_TRACKACTIVATE,FALSE,reinterpret_cast<LPARAM>(&ti));
+	}
+}
+
+LRESULT CRecordStatusItem::OnNotifyMessage(LPNMHDR pnmh)
+{
+	if (pnmh->hwndFrom==m_hwndToolTip) {
+		if (pnmh->code==TTN_SHOW) {
+			RECT rc,rcTip;
+			int x,y;
+
+			GetRect(&rc);
+			MapWindowRect(m_pStatus->GetHandle(),NULL,&rc);
+			::GetWindowRect(m_hwndToolTip,&rcTip);
+			x=rc.left+((rc.right-rc.left)-(rcTip.right-rcTip.left))/2;
+			y=rc.top-(rcTip.bottom-rcTip.top);
+			::SendMessage(m_hwndToolTip,TTM_TRACKPOSITION,0,MAKELONG(x,y));
+			::SetWindowPos(m_hwndToolTip,NULL,x,y,0,0,
+						   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+			return TRUE;
+		}
+	}
+	return 0;
 }
 
 void CRecordStatusItem::ShowRemainTime(bool fRemain)
@@ -2759,7 +2869,7 @@ private:
 	void CreatePage(int Page);
 	void SetPage(int Page);
 	static COptionDialog *GetThis(HWND hDlg);
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	// COptionFrame
 	void OnSettingError(COptions *pOptions);
 };
@@ -2868,7 +2978,7 @@ COptionDialog *COptionDialog::GetThis(HWND hDlg)
 }
 
 
-BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	static const int ICON_WIDTH=16,ICON_HEIGHT=16,LIST_MARGIN=1,ICON_TEXT_MARGIN=4;
 
@@ -2950,7 +3060,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				if (hdcMem!=NULL) {
 					HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,pThis->m_hbmIcons));
 					::TransparentBlt(pdis->hDC,rc.left,rc.top,ICON_WIDTH,ICON_HEIGHT,
-									 hdcMem,pdis->itemData*ICON_WIDTH,0,ICON_WIDTH,ICON_HEIGHT,RGB(255,255,255));
+									 hdcMem,(int)pdis->itemData*ICON_WIDTH,0,ICON_WIDTH,ICON_HEIGHT,RGB(255,255,255));
 					::SelectObject(hdcMem,hbmOld);
 					::DeleteDC(hdcMem);
 				}
@@ -2995,7 +3105,7 @@ BOOL CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		case IDC_OPTIONS_LIST:
 			if (HIWORD(wParam)==LBN_SELCHANGE) {
 				COptionDialog *pThis=GetThis(hDlg);
-				int NewPage=SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_GETCURSEL,0,0);
+				int NewPage=(int)SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_GETCURSEL,0,0);
 
 				if (NewPage>=0)
 					pThis->SetPage(NewPage);
@@ -3921,14 +4031,20 @@ class CMyChannelDisplayMenuEventHandler : public CChannelDisplayMenu::CEventHand
 		if (CoreEngine.IsDriverOpen()
 				&& ::lstrcmpi(CoreEngine.GetDriverFileName(),pszDriverFileName)==0) {
 			MainWindow.SendCommand(CM_CHANNELDISPLAYMENU);
-		} else if (AppMain.SetDriver(pszDriverFileName)) {
-			if (TuningSpace!=SPACE_NOTSPECIFIED) {
-				MainWindow.SendCommand(CM_SPACE_FIRST+TuningSpace);
-				if (TuningSpace==SPACE_ALL
-						|| TuningSpace==RestoreChannelInfo.Space)
+		} else {
+			if (RecordManager.IsRecording()) {
+				if (!RecordOptions.ConfirmChannelChange(MainWindow.GetVideoHostWindow()))
+					return;
+			}
+			if (AppMain.SetDriver(pszDriverFileName)) {
+				if (TuningSpace!=SPACE_NOTSPECIFIED) {
+					MainWindow.SendCommand(CM_SPACE_FIRST+TuningSpace);
+					if (TuningSpace==SPACE_ALL
+							|| TuningSpace==RestoreChannelInfo.Space)
+						AppMain.RestoreChannel();
+				} else {
 					AppMain.RestoreChannel();
-			} else {
-				AppMain.RestoreChannel();
+				}
 			}
 			MainWindow.SendCommand(CM_CHANNELDISPLAYMENU);
 		}
@@ -3936,6 +4052,10 @@ class CMyChannelDisplayMenuEventHandler : public CChannelDisplayMenu::CEventHand
 
 	void OnChannelSelect(LPCTSTR pszDriverFileName,const CChannelInfo *pChannelInfo)
 	{
+		if (RecordManager.IsRecording()) {
+			if (!RecordOptions.ConfirmChannelChange(MainWindow.GetVideoHostWindow()))
+				return;
+		}
 		if (AppMain.SetDriver(pszDriverFileName)) {
 			int Space;
 			if (RestoreChannelInfo.fAllChannels)
@@ -4659,19 +4779,6 @@ static CMyCaptureWindowEvent CaptureWindowEventHandler;
 
 
 const BYTE CMainWindow::VolumeNormalizeLevelList[] = {100, 125, 150, 200};
-const CMainWindow::ZoomRateInfo CMainWindow::ZoomRateList[] = {
-	{  1,   5},
-	{  1,   4},
-	{  1,   3},
-	{  1,   2},
-	{  2,   3},
-	{  3,   4},
-	{  1,   1},
-	{  3,   2},
-	{  2,   1},
-	{  5,   2},
-	{  3,   1},
-};
 int CMainWindow::m_ThinFrameWidth=2;
 bool CMainWindow::m_fThinFrameCreate=false;
 
@@ -5254,14 +5361,26 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_ZOOM_200:
 	case CM_ZOOM_250:
 	case CM_ZOOM_300:
+	case CM_CUSTOMZOOM_1:
+	case CM_CUSTOMZOOM_2:
+	case CM_CUSTOMZOOM_3:
+	case CM_CUSTOMZOOM_4:
+	case CM_CUSTOMZOOM_5:
 		{
+			CZoomOptions::ZoomRate Zoom;
+
 			if (m_fFullscreen)
 				SetFullscreen(false);
 			if (IsZoomed(hwnd))
 				::ShowWindow(hwnd,SW_RESTORE);
-			SetZoomRate(ZoomRateList[id-CM_ZOOM_FIRST].Num,
-						ZoomRateList[id-CM_ZOOM_FIRST].Denom);
+			if (ZoomOptions.GetZoomRateByCommand(id,&Zoom))
+				SetZoomRate(Zoom.Rate,Zoom.Factor);
 		}
+		return;
+
+	case CM_ZOOMOPTIONS:
+		if (ZoomOptions.ShowDialog(GetVideoHostWindow()))
+			SideBarOptions.SetSideBarImage();
 		return;
 
 	case CM_ASPECTRATIO:
@@ -5324,7 +5443,6 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 									CM_ASPECTRATIO_FIRST+m_AspectRatioType);
 			*/
 			AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_FIRST+m_AspectRatioType);
-			CheckZoomMenu();
 		}
 		return;
 
@@ -5869,9 +5987,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			::SetCursor(hcurOld);
 			::SetFocus(ChannelDisplayMenu.GetHandle());
 		} else {
-			if (ChannelDisplayMenu.GetHandle()==::GetFocus())
-				::SetFocus(m_hwnd);
+			bool fFocus=ChannelDisplayMenu.GetHandle()==::GetFocus();
 			ChannelDisplayMenu.SetVisible(false);
+			if (fFocus)
+				::SetFocus(m_hwnd);
 		}
 		return;
 
@@ -6215,7 +6334,6 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 										CoreEngine.GetOriginalVideoHeight(),
 										CoreEngine.GetDisplayVideoWidth(),
 										CoreEngine.GetDisplayVideoHeight());
-				CheckZoomMenu();
 			}
 
 			if ((UpdateStatus&(CCoreEngine::STATUS_AUDIOCHANNELS
@@ -6275,7 +6393,6 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 					StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
 					//MainMenu.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,CM_ASPECTRATIO_DEFAULT);
 					AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_DEFAULT);
-					CheckZoomMenu();
 				}
 
 				m_CurEventStereoMode=-1;
@@ -7072,18 +7189,6 @@ bool CMainWindow::CalcZoomRate(int *pNum,int *pDenom)
 }
 
 
-void CMainWindow::CheckZoomMenu()
-{
-	int ZoomNum,ZoomDenom;
-
-	CalcZoomRate(&ZoomNum,&ZoomDenom);
-	for (int i=0;i<lengthof(ZoomRateList);i++) {
-		MainMenu.CheckItem(CM_ZOOM_FIRST+i,
-			ZoomRateList[i].Num*100/ZoomRateList[i].Denom==ZoomNum*100/ZoomDenom);
-	}
-}
-
-
 DWORD WINAPI CMainWindow::ExitWatchThread(LPVOID lpParameter)
 {
 	HANDLE hEvent=lpParameter;
@@ -7196,7 +7301,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			}
 
 			StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
-			pThis->CheckZoomMenu();
 		}
 		return 0;
 
@@ -7475,21 +7579,21 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			if (wParam>=VK_F1 && wParam<=VK_F12) {
 				if (!Accelerator.IsFunctionKeyChannelChange())
 					break;
-				Command=CM_CHANNELNO_FIRST+(wParam-VK_F1);
+				Command=CM_CHANNELNO_FIRST+((int)wParam-VK_F1);
 			} else if (wParam>=VK_NUMPAD0 && wParam<=VK_NUMPAD9) {
 				if (!Accelerator.IsNumPadChannelChange())
 					break;
 				if (wParam==VK_NUMPAD0)
 					Command=CM_CHANNELNO_FIRST+9;
 				else
-					Command=CM_CHANNELNO_FIRST+(wParam-VK_NUMPAD1);
+					Command=CM_CHANNELNO_FIRST+((int)wParam-VK_NUMPAD1);
 			} else if (wParam>='0' && wParam<='9') {
 				if (!Accelerator.IsDigitKeyChannelChange())
 					break;
 				if (wParam=='0')
 					Command=CM_CHANNELNO_FIRST+9;
 				else
-					Command=CM_CHANNELNO_FIRST+(wParam-'1');
+					Command=CM_CHANNELNO_FIRST+((int)wParam-'1');
 			} else if (wParam>=VK_F13 && wParam<=VK_F24
 					&& !HDUSController.IsEnabled()
 					&& (::GetKeyState(VK_SHIFT)<0 || ::GetKeyState(VK_CONTROL)<0)) {
@@ -7609,7 +7713,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			HMENU hmenu=reinterpret_cast<HMENU>(wParam);
 
-			if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_SPACE)) {
+			if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_ZOOM)) {
+				CZoomOptions::ZoomRate Zoom;
+				GetThis(hwnd)->CalcZoomRate(&Zoom.Rate,&Zoom.Factor);
+				ZoomOptions.SetMenu(hmenu,&Zoom);
+				Accelerator.SetMenuAccel(hmenu);
+			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_SPACE)) {
 				GetThis(hwnd)->SetTuningSpaceMenu();
 			} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_PLUGIN)) {
 				PluginList.SetMenu(hmenu);
@@ -9352,9 +9461,9 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			MainWindow.SetMaximizeStatus(true);
 	}
 
-#ifdef TVH264_FOR_1SEG
+//#ifdef TVH264_FOR_1SEG
 	PanelFrame.SetFloating(false);
-#endif
+//#endif
 
 	AppMain.Initialize();
 
@@ -9511,10 +9620,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(GeneralOptions.GetDescrambleCurServiceOnly());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableSSE2(GeneralOptions.GetDescrambleUseSSE2());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableEmmProcess(GeneralOptions.GetEnableEmmProcess());
-	CoreEngine.SetPacketBufferLength(PlaybackOptions.GetPacketBufferLength());
-	CoreEngine.SetPacketBufferPoolPercentage(PlaybackOptions.GetPacketBufferPoolPercentage());
-	CoreEngine.SetPacketBuffering(PlaybackOptions.GetPacketBuffering());
-	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetStreamThreadPriority(PlaybackOptions.GetStreamThreadPriority());
+	PlaybackOptions.Apply(COptions::UPDATE_ALL);
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(&Logger);
 	CoreEngine.BuildDtvEngine(&DtvEngineHandler);
@@ -9559,7 +9665,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetNoMaskSideCut(ViewOptions.GetNoMaskSideCut(),false);
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(ViewOptions.GetIgnoreDisplayExtension());
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(PlaybackOptions.GetUseAudioRendererClock());
-	CoreEngine.m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(PlaybackOptions.GetAdjustAudioStreamTime());
 	CoreEngine.SetDownMixSurround(PlaybackOptions.GetDownMixSurround());
 	if (!CmdLineParser.m_fStandby && !CmdLineParser.m_fNoDirectShow) {
 		MainWindow.BuildMediaViewer();
@@ -9567,6 +9672,17 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	EpgOptions.InitializeEpgDataCap();
 	EpgOptions.AsyncLoadEpgData(&EpgLoadEventHandler);
+
+	{
+		TCHAR szDRCSMapName[MAX_PATH];
+
+		AppMain.GetAppDirectory(szDRCSMapName);
+		::PathAppend(szDRCSMapName,TEXT("DRCSMap.ini"));
+		if (::PathFileExists(szDRCSMapName)) {
+			StatusView.SetSingleText(TEXT("DRCSマップを読み込んでいます..."));
+			CaptionPanel.LoadDRCSMap(szDRCSMapName);
+		}
+	}
 
 	if (CoreEngine.IsDriverLoaded()) {
 		if (CoreEngine.OpenDriver()) {
@@ -9692,7 +9808,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	ApplyEventInfoFont();
 
-	CommandList.Initialize(&DriverManager,&PluginList);
+	CommandList.Initialize(&DriverManager,&PluginList,&ZoomOptions);
 	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
 						   AppMain.GetIniFileName(),&CommandList);
 	HDUSController.Initialize(MainWindow.GetHandle(),
@@ -9776,5 +9892,5 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		Logger.SaveToFile(szFileName,true);
 	}
 
-	return msg.wParam;
+	return (int)msg.wParam;
 }

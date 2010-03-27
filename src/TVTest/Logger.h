@@ -38,7 +38,7 @@ public:
 	bool GetOutputToFile() const { return m_fOutputToFile; }
 	bool SaveToFile(LPCTSTR pszFileName,bool fAppend);
 	void GetDefaultLogFileName(LPTSTR pszFileName) const;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 protected:
 	// CTracer

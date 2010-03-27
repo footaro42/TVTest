@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.9
+	TVTest プラグインヘッダ ver.0.0.9.1
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -20,7 +20,7 @@
 /*
 	TVTest プラグインの概要
 
-	プラグインは32ビット DLL の形式です。拡張子は .tvtp とします。
+	プラグインは32/64ビット DLL の形式です。拡張子は .tvtp とします。
 	プラグインでは、以下の関数をエクスポートします。
 
 	DWORD WINAPI TVTGetVersion()
@@ -86,6 +86,9 @@
 
 /*
 	更新履歴
+
+	ver.0.0.9.1
+	・64ビットで警告が出ないようにした
 
 	ver.0.0.9 (TVTest ver.0.6.2 or later)
 	・MESSAGE_GETSETTING と MESSAGE_GETDRIVERFULLPATHNAME を追加した
@@ -343,7 +346,7 @@ inline DWORD GetBuildVersion(DWORD Version) { return Version&0x00000FFFUL; }
 // 下位12ビットがビルドナンバー
 // GetMajorVersion/GetMinorVersion/GetBuildVersionを使って取得できる
 inline DWORD MsgGetVersion(PluginParam *pParam) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETVERSION,0,0);
+	return (DWORD)(*pParam->Callback)(pParam,MESSAGE_GETVERSION,0,0);
 }
 
 // 指定されたメッセージに対応しているか問い合わせる
@@ -423,7 +426,7 @@ inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel,WORD Service
 // サービスのインデックスが返る。エラー時は-1が返る
 // pNumServices が NULL でない場合は、サービスの数が返される
 inline int MsgGetService(PluginParam *pParam,int *pNumServices=NULL) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETSERVICE,(LPARAM)pNumServices,0);
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETSERVICE,(LPARAM)pNumServices,0);
 }
 
 // サービスを設定する
@@ -436,7 +439,7 @@ inline bool MsgSetService(PluginParam *pParam,int Service,bool fByID=false) {
 // チューニング空間名の長さが返る。Indexが範囲外の場合は0が返る
 // pszNameをNULLで呼べば長さだけを取得できる
 inline int MsgGetTuningSpaceName(PluginParam *pParam,int Index,LPWSTR pszName,int MaxLength) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACENAME,(LPARAM)pszName,MAKELPARAM(Index,min(MaxLength,0xFFFF)));
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACENAME,(LPARAM)pszName,MAKELPARAM(Index,min(MaxLength,0xFFFF)));
 }
 
 // チャンネルの情報を取得する
@@ -478,7 +481,7 @@ inline bool MsgGetServiceInfo(PluginParam *pParam,int Index,ServiceInfo *pInfo) 
 // 取得されるのは、ディレクトリを含まないファイル名のみか、相対パスの場合もあります。
 // フルパスを取得したい場合は MsgGetDriverFullPathName を使用してください。
 inline int MsgGetDriverName(PluginParam *pParam,LPWSTR pszName,int MaxLength) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETDRIVERNAME,(LPARAM)pszName,MaxLength);
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETDRIVERNAME,(LPARAM)pszName,MaxLength);
 }
 
 // BonDriverを設定する
@@ -567,7 +570,7 @@ inline bool MsgModifyRecord(PluginParam *pParam,const RecordInfo *pInfo) {
 
 // 表示倍率を取得する(%単位)
 inline int MsgGetZoom(PluginParam *pParam) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETZOOM,0,0);
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETZOOM,0,0);
 }
 
 // 表示倍率を設定する
@@ -711,7 +714,7 @@ enum {
 
 // ステレオモードを取得する
 inline int MsgGetStereoMode(PluginParam *pParam) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETSTEREOMODE,0,0);
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETSTEREOMODE,0,0);
 }
 
 // ステレオモードを設定する
@@ -837,7 +840,7 @@ inline bool MsgEnablePlugin(PluginParam *pParam,bool fEnable) {
 // pszColor に取得したい色の名前を指定します。
 // 名前は配色設定ファイル(*.httheme)の項目名("StatusBack" など)と同じです。
 inline COLORREF MsgGetColor(PluginParam *pParam,LPCWSTR pszColor) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETCOLOR,(LPARAM)pszColor,0);
+	return (COLORREF)(*pParam->Callback)(pParam,MESSAGE_GETCOLOR,(LPARAM)pszColor,0);
 }
 
 // ARIB文字列のデコード情報
@@ -896,7 +899,7 @@ inline bool MsgQueryEvent(PluginParam *pParam,UINT Event) {
 
 // 現在のチューニング空間及びチューニング空間数を取得する
 inline int MsgGetTuningSpace(PluginParam *pParam,int *pNumSpaces=NULL) {
-	return (*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACE,(LPARAM)pNumSpaces,0);
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACE,(LPARAM)pNumSpaces,0);
 }
 
 // チューニング空間の種類
@@ -935,7 +938,7 @@ inline bool MsgSetNextChannel(PluginParam *pParam,bool fNext=true)
 // 音声ストリームの数は MESSAGE_GETSERVICEINFO で取得できる
 inline int MsgGetAudioStream(PluginParam *pParam)
 {
-	return (*pParam->Callback)(pParam,MESSAGE_GETAUDIOSTREAM,0,0);
+	return (int)(*pParam->Callback)(pParam,MESSAGE_GETAUDIOSTREAM,0,0);
 }
 
 // 音声ストリームを設定する
@@ -1622,15 +1625,15 @@ public:
 		case EVENT_SERVICECHANGE:		return OnServiceChange();
 		case EVENT_DRIVERCHANGE:		return OnDriverChange();
 		case EVENT_SERVICEUPDATE:		return OnServiceUpdate();
-		case EVENT_RECORDSTATUSCHANGE:	return OnRecordStatusChange(lParam1);
+		case EVENT_RECORDSTATUSCHANGE:	return OnRecordStatusChange((int)lParam1);
 		case EVENT_FULLSCREENCHANGE:	return OnFullscreenChange(lParam1!=0);
 		case EVENT_PREVIEWCHANGE:		return OnPreviewChange(lParam1!=0);
-		case EVENT_VOLUMECHANGE:		return OnVolumeChange(lParam1,lParam2!=0);
-		case EVENT_STEREOMODECHANGE:	return OnStereoModeChange(lParam1);
+		case EVENT_VOLUMECHANGE:		return OnVolumeChange((int)lParam1,lParam2!=0);
+		case EVENT_STEREOMODECHANGE:	return OnStereoModeChange((int)lParam1);
 		case EVENT_COLORCHANGE:			return OnColorChange();
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
 		case EVENT_STANDBY:				return OnStandby(lParam1!=0);
-		case EVENT_COMMAND:				return OnCommand(lParam1);
+		case EVENT_COMMAND:				return OnCommand((int)lParam1);
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
 		case EVENT_EXECUTE:				return OnExecute((LPCWSTR)lParam1);
@@ -1638,7 +1641,7 @@ public:
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
 		case EVENT_RESET:				return OnReset();
 		case EVENT_STATUSRESET:			return OnStatusReset();
-		case EVENT_AUDIOSTREAMCHANGE:	return OnAudioStreamChange(lParam1);
+		case EVENT_AUDIOSTREAMCHANGE:	return OnAudioStreamChange((int)lParam1);
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
 		case EVENT_SETTINGSCHANGE:		return OnSettingsChange();

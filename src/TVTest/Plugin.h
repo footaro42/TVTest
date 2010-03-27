@@ -11,7 +11,8 @@
 #include "BonTsEngine/TsUtilClass.h"
 
 
-class CPlugin : public CBonErrorHandler {
+class CPlugin : public CBonErrorHandler
+{
 	//static DWORD m_FinalizeTimeout;
 	HMODULE m_hLib;
 	LPTSTR m_pszFileName;
@@ -95,7 +96,8 @@ public:
 	*/
 };
 
-class CPluginList {
+class CPluginList
+{
 	CPointerVector<CPlugin> m_PluginList;
 	void SortPluginsByName();
 	static int CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,void *pParam);
@@ -133,7 +135,8 @@ public:
 	bool SendSettingsChangeEvent();
 };
 
-class CPluginOptions : public COptions {
+class CPluginOptions : public COptions
+{
 	CPluginList *m_pPluginList;
 	std::vector<LPTSTR> m_EnablePluginList;
 	void ClearList();
@@ -148,7 +151,7 @@ public:
 	bool Save(LPCTSTR pszFileName) const;
 	bool RestorePluginOptions();
 	bool StorePluginOptions();
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

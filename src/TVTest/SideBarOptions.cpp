@@ -12,6 +12,7 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define CUSTOMZOOM_ICON_INDEX 45
 
 
 static const CSideBar::SideBarItem ItemList[] = {
@@ -24,40 +25,47 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_ZOOM_100,				6},
 	{CM_ZOOM_150,				7},
 	{CM_ZOOM_200,				8},
-	{CM_ASPECTRATIO_DEFAULT,	9},
-	{CM_ASPECTRATIO_16x9,		10},
-	{CM_ASPECTRATIO_LETTERBOX,	11},
-	{CM_ASPECTRATIO_SUPERFRAME,	12},
-	{CM_ASPECTRATIO_SIDECUT,	13},
-	{CM_ASPECTRATIO_4x3,		14},
-	{CM_FULLSCREEN,				15},
-	{CM_ALWAYSONTOP,			16},
-	{CM_DISABLEVIEWER,			17},
-	{CM_CAPTURE,				18},
-	{CM_SAVEIMAGE,				19},
-	{CM_COPY,					20},
-	{CM_CAPTUREPREVIEW,			21},
-	{CM_RESET,					22},
-	{CM_RESETVIEWER,			23},
-	{CM_INFORMATION,			24},
-	{CM_PROGRAMGUIDE,			25},
-	{CM_STATUSBAR,				26},
-	{CM_VIDEODECODERPROPERTY,	27},
-	{CM_OPTIONS,				28},
-	{CM_STREAMINFO,				29},
-	{CM_CHANNELDISPLAYMENU,		30},
-	{CM_CHANNELNO_1,			31},
-	{CM_CHANNELNO_2,			32},
-	{CM_CHANNELNO_3,			33},
-	{CM_CHANNELNO_4,			34},
-	{CM_CHANNELNO_5,			35},
-	{CM_CHANNELNO_6,			36},
-	{CM_CHANNELNO_7,			37},
-	{CM_CHANNELNO_8,			38},
-	{CM_CHANNELNO_9,			39},
-	{CM_CHANNELNO_10,			40},
-	{CM_CHANNELNO_11,			41},
-	{CM_CHANNELNO_12,			42},
+	{CM_ZOOM_250,				9},
+	{CM_ZOOM_300,				10},
+	{CM_CUSTOMZOOM_1,			(CUSTOMZOOM_ICON_INDEX+0)},
+	{CM_CUSTOMZOOM_2,			(CUSTOMZOOM_ICON_INDEX+1)},
+	{CM_CUSTOMZOOM_3,			(CUSTOMZOOM_ICON_INDEX+2)},
+	{CM_CUSTOMZOOM_4,			(CUSTOMZOOM_ICON_INDEX+3)},
+	{CM_CUSTOMZOOM_5,			(CUSTOMZOOM_ICON_INDEX+4)},
+	{CM_ASPECTRATIO_DEFAULT,	11},
+	{CM_ASPECTRATIO_16x9,		12},
+	{CM_ASPECTRATIO_LETTERBOX,	13},
+	{CM_ASPECTRATIO_SUPERFRAME,	14},
+	{CM_ASPECTRATIO_SIDECUT,	15},
+	{CM_ASPECTRATIO_4x3,		16},
+	{CM_FULLSCREEN,				17},
+	{CM_ALWAYSONTOP,			18},
+	{CM_DISABLEVIEWER,			19},
+	{CM_CAPTURE,				20},
+	{CM_SAVEIMAGE,				21},
+	{CM_COPY,					22},
+	{CM_CAPTUREPREVIEW,			23},
+	{CM_RESET,					24},
+	{CM_RESETVIEWER,			25},
+	{CM_INFORMATION,			26},
+	{CM_PROGRAMGUIDE,			27},
+	{CM_STATUSBAR,				28},
+	{CM_VIDEODECODERPROPERTY,	29},
+	{CM_OPTIONS,				30},
+	{CM_STREAMINFO,				31},
+	{CM_CHANNELDISPLAYMENU,		32},
+	{CM_CHANNELNO_1,			33},
+	{CM_CHANNELNO_2,			34},
+	{CM_CHANNELNO_3,			35},
+	{CM_CHANNELNO_4,			36},
+	{CM_CHANNELNO_5,			37},
+	{CM_CHANNELNO_6,			38},
+	{CM_CHANNELNO_7,			39},
+	{CM_CHANNELNO_8,			40},
+	{CM_CHANNELNO_9,			41},
+	{CM_CHANNELNO_10,			42},
+	{CM_CHANNELNO_11,			43},
+	{CM_CHANNELNO_12,			44},
 };
 
 static const int DefaultItemList[] = {
@@ -83,8 +91,9 @@ static const int DefaultItemList[] = {
 };
 
 
-CSideBarOptions::CSideBarOptions(CSideBar *pSideBar)
+CSideBarOptions::CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOptions)
 	: m_pSideBar(pSideBar)
+	, m_pZoomOptions(pZoomOptions)
 	, m_fShowPopup(true)
 	, m_fShowToolTips(true)
 	, m_Place(PLACE_LEFT)
@@ -173,13 +182,71 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 }
 
 
+HBITMAP CSideBarOptions::CreateImage()
+{
+	HINSTANCE hinst=GetAppClass().GetResourceInstance();
+	HBITMAP hbm=(HBITMAP)::LoadImage(hinst,MAKEINTRESOURCE(IDB_SIDEBAR),
+									 IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
+
+	if (hbm!=NULL) {
+		// カスタム表示倍率のアイコンを描画する
+		HBITMAP hbmZoom=(HBITMAP)::LoadImage(hinst,MAKEINTRESOURCE(IDB_SIDEBARZOOM),
+											 IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
+
+		if (hbmZoom!=NULL) {
+			HDC hdcDst=::CreateCompatibleDC(NULL);
+			HBITMAP hbmDstOld=static_cast<HBITMAP>(::SelectObject(hdcDst,hbm));
+			HDC hdcSrc=::CreateCompatibleDC(NULL);
+			HBITMAP hbmSrcOld=static_cast<HBITMAP>(::SelectObject(hdcSrc,hbmZoom));
+			for (int i=0;i<=CM_CUSTOMZOOM_LAST-CM_CUSTOMZOOM_FIRST;i++) {
+				CZoomOptions::ZoomRate Zoom;
+				m_pZoomOptions->GetZoomRateByCommand(CM_CUSTOMZOOM_FIRST+i,&Zoom);
+				int Percentage=Zoom.Rate*100/Zoom.Factor;
+				if (Percentage<100) {
+					if (Percentage>=10)
+						::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16,0,4,16,
+								 hdcSrc,(Percentage/10)*4,0,SRCCOPY);
+					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+5,0,4,16,
+							 hdcSrc,(Percentage%10)*4,0,SRCCOPY);
+					// %
+					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+10,0,6,16,
+							 hdcSrc,40,0,SRCCOPY);
+				} else {
+					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16,0,3,16,
+							 hdcSrc,(Percentage/100%10)*3,16,SRCCOPY);
+					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+4,0,3,16,
+							 hdcSrc,(Percentage/10%10)*3,16,SRCCOPY);
+					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+8,0,3,16,
+							 hdcSrc,(Percentage%10)*3,16,SRCCOPY);
+					// %
+					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+12,0,4,16,
+							 hdcSrc,30,16,SRCCOPY);
+				}
+			}
+			::SelectObject(hdcSrc,hbmSrcOld);
+			::DeleteDC(hdcSrc);
+			::DeleteObject(hbmZoom);
+			::SelectObject(hdcDst,hbmDstOld);
+			::DeleteDC(hdcDst);
+		}
+	}
+	return hbm;
+}
+
+
 bool CSideBarOptions::ApplySideBarOptions()
 {
-	m_pSideBar->SetIconImage((HBITMAP)::LoadImage(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_SIDEBAR),IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION),RGB(255,255,255));
+	m_pSideBar->SetIconImage(CreateImage(),RGB(255,255,255));
 	ApplyItemList();
 	m_pSideBar->ShowToolTips(m_fShowToolTips);
 	m_pSideBar->SetVertical(m_Place==PLACE_LEFT || m_Place==PLACE_RIGHT);
 	return true;
+}
+
+
+bool CSideBarOptions::SetSideBarImage()
+{
+	return m_pSideBar->SetIconImage(CreateImage(),RGB(255,255,255));
 }
 
 
@@ -234,7 +301,10 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOW,pThis->m_fShowPopup);
 			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS,pThis->m_fShowToolTips);
 
-			pThis->m_himlIcons=::ImageList_LoadBitmap(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_SIDEBAR),16,1,RGB(255,255,255));
+			HBITMAP hbmIcons=pThis->CreateImage();
+			pThis->m_himlIcons=::ImageList_Create(16,16,ILC_COLOR | ILC_MASK,0,1);
+			::ImageList_AddMasked(pThis->m_himlIcons,hbmIcons,RGB(255,255,255));
+			::DeleteObject(hbmIcons);
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST);
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
@@ -248,7 +318,7 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			lvc.cx=rc.right;
 			lvc.iSubItem=0;
 			ListView_InsertColumn(hwndList,0,&lvc);
-			pThis->SetItemList(hwndList,&pThis->m_ItemList[0],pThis->m_ItemList.size());
+			pThis->SetItemList(hwndList,&pThis->m_ItemList[0],(int)pThis->m_ItemList.size());
 			hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_COMMANDLIST);
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
 			ListView_SetImageList(hwndList,pThis->m_himlIcons,LVSIL_SMALL);
@@ -416,7 +486,7 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				for (i=0;i<Count;i++) {
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
-					pThis->m_ItemList.push_back(lvi.lParam);
+					pThis->m_ItemList.push_back((int)lvi.lParam);
 				}
 				pThis->ApplyItemList();
 			}

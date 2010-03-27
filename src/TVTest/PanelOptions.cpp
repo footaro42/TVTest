@@ -355,7 +355,7 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 
 		case IDC_PANELOPTIONS_TABLIST:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				int Sel=DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST);
+				int Sel=(int)DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST);
 
 				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_LEFT,Sel>0);
 				::EnableDlgItem(hDlg,IDC_PANELOPTIONS_TAB_RIGHT,Sel+1<NUM_PANELS);
@@ -365,7 +365,7 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 		case IDC_PANELOPTIONS_TAB_LEFT:
 		case IDC_PANELOPTIONS_TAB_RIGHT:
 			{
-				int From=DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST),To;
+				int From=(int)DlgListBox_GetCurSel(hDlg,IDC_PANELOPTIONS_TABLIST),To;
 
 				if (LOWORD(wParam)==IDC_PANELOPTIONS_TAB_LEFT)
 					To=From-1;
@@ -423,7 +423,7 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW);
 				pThis->m_Opacity=::GetDlgItemInt(hDlg,IDC_PANELOPTIONS_OPACITY_EDIT,NULL,TRUE);
 				pThis->m_pPanelFrame->SetOpacity(pThis->m_Opacity*255/100);
-				pThis->m_FirstTab=DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
+				pThis->m_FirstTab=(int)DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
 
 				for (int i=0;i<NUM_PANELS;i++) {
 					LPARAM Data=DlgListBox_GetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,i);
@@ -494,7 +494,7 @@ LRESULT CALLBACK CPanelOptions::TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 	case WM_LBUTTONDOWN:
 		{
 			int x=GET_X_LPARAM(lParam);
-			int Count=::SendMessage(hwnd,LB_GETCOUNT,0,0);
+			int Count=(int)::SendMessage(hwnd,LB_GETCOUNT,0,0);
 
 			for (int i=0;i<Count;i++) {
 				RECT rc;

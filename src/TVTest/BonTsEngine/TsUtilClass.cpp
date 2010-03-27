@@ -6,6 +6,12 @@
 #include "TsUtilClass.h"
 #include "StdUtil.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 //////////////////////////////////////////////////////////////////////
 // CDynamicReferenceable クラスの構築/消滅
@@ -326,7 +332,7 @@ void CTracer::TraceV(LPCTSTR pszOutput,va_list Args)
 // CRC計算クラス
 /////////////////////////////////////////////////////////////////////////////
 
-WORD CCrcCalculator::CalcCrc16(const BYTE *pData, DWORD DataSize, WORD wCurCrc)
+WORD CCrcCalculator::CalcCrc16(const BYTE *pData, SIZE_T DataSize, WORD wCurCrc)
 {
 	// CRC16計算(ISO/IEC 13818-1 準拠)
 	static const WORD CrcTable[256] = {
@@ -348,14 +354,14 @@ WORD CCrcCalculator::CalcCrc16(const BYTE *pData, DWORD DataSize, WORD wCurCrc)
 		0x0220U, 0x8225U, 0x822FU, 0x022AU, 0x823BU, 0x023EU, 0x0234U, 0x8231U, 0x8213U, 0x0216U, 0x021CU, 0x8219U, 0x0208U, 0x820DU, 0x8207U, 0x0202U
 	};
 
-	for (DWORD i = 0 ; i < DataSize ; i++) {
+	for (SIZE_T i = 0 ; i < DataSize ; i++) {
 		wCurCrc = (wCurCrc << 8) ^ CrcTable[ (wCurCrc >> 8) ^ pData[i] ];
 	}
 
 	return wCurCrc;
 }
 
-DWORD CCrcCalculator::CalcCrc32(const BYTE *pData, DWORD DataSize, DWORD dwCurCrc)
+DWORD CCrcCalculator::CalcCrc32(const BYTE *pData, SIZE_T DataSize, DWORD dwCurCrc)
 {
 	// CRC32計算(「Mpeg2-TSのストリームからデータ放送情報を抽出するテスト」からコードを流用、計算を分割できるように拡張)
 	static const DWORD CrcTable[256] = {
@@ -377,9 +383,141 @@ DWORD CCrcCalculator::CalcCrc32(const BYTE *pData, DWORD DataSize, DWORD dwCurCr
 		0x89B8FD09UL, 0x8D79E0BEUL, 0x803AC667UL, 0x84FBDBD0UL,	0x9ABC8BD5UL, 0x9E7D9662UL, 0x933EB0BBUL, 0x97FFAD0CUL,	0xAFB010B1UL, 0xAB710D06UL, 0xA6322BDFUL, 0xA2F33668UL,	0xBCB4666DUL, 0xB8757BDAUL, 0xB5365D03UL, 0xB1F740B4UL
 	};
 
-	for (DWORD i = 0 ; i < DataSize ; i++) {
+	for (SIZE_T i = 0 ; i < DataSize ; i++) {
 		dwCurCrc = (dwCurCrc << 8) ^ CrcTable[ (dwCurCrc >> 24) ^ pData[i] ];
 	}
 
 	return dwCurCrc;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// MD5計算クラス
+/////////////////////////////////////////////////////////////////////////////
+
+#define F1(x, y, z) ((z) ^ ((x) & ((y) ^ (z))))
+#define F2(x, y, z) F1(z, x, y)
+#define F3(x, y, z) ((x) ^ (y) ^ (z))
+#define F4(x, y, z) ((y) ^ ((x) | ~(z)))
+
+#define MD5STEP(f, w, x, y, z, data, s) \
+	((w) += f(x, y, z) + (data), (w) = (w) << (s) | (w) >> (32 - (s)), (w) += (x))
+
+void CMD5Calculator::MD5Transform(DWORD pBuffer[4], const void *pData)
+{
+	const DWORD *p = static_cast<const DWORD*>(pData);
+	DWORD a, b, c, d;
+
+	a = pBuffer[0];
+	b = pBuffer[1];
+	c = pBuffer[2];
+	d = pBuffer[3];
+
+	MD5STEP(F1, a, b, c, d, p[ 0] + 0xD76AA478,  7);
+	MD5STEP(F1, d, a, b, c, p[ 1] + 0xE8C7B756, 12);
+	MD5STEP(F1, c, d, a, b, p[ 2] + 0x242070DB, 17);
+	MD5STEP(F1, b, c, d, a, p[ 3] + 0xC1BDCEEE, 22);
+	MD5STEP(F1, a, b, c, d, p[ 4] + 0xF57C0FAF,  7);
+	MD5STEP(F1, d, a, b, c, p[ 5] + 0x4787C62A, 12);
+	MD5STEP(F1, c, d, a, b, p[ 6] + 0xA8304613, 17);
+	MD5STEP(F1, b, c, d, a, p[ 7] + 0xFD469501, 22);
+	MD5STEP(F1, a, b, c, d, p[ 8] + 0x698098D8,  7);
+	MD5STEP(F1, d, a, b, c, p[ 9] + 0x8B44F7AF, 12);
+	MD5STEP(F1, c, d, a, b, p[10] + 0xFFFF5BB1, 17);
+	MD5STEP(F1, b, c, d, a, p[11] + 0x895CD7BE, 22);
+	MD5STEP(F1, a, b, c, d, p[12] + 0x6B901122,  7);
+	MD5STEP(F1, d, a, b, c, p[13] + 0xFD987193, 12);
+	MD5STEP(F1, c, d, a, b, p[14] + 0xA679438E, 17);
+	MD5STEP(F1, b, c, d, a, p[15] + 0x49B40821, 22);
+
+	MD5STEP(F2, a, b, c, d, p[ 1] + 0xF61E2562,  5);
+	MD5STEP(F2, d, a, b, c, p[ 6] + 0xC040B340,  9);
+	MD5STEP(F2, c, d, a, b, p[11] + 0x265E5A51, 14);
+	MD5STEP(F2, b, c, d, a, p[ 0] + 0xE9B6C7AA, 20);
+	MD5STEP(F2, a, b, c, d, p[ 5] + 0xD62F105D,  5);
+	MD5STEP(F2, d, a, b, c, p[10] + 0x02441453,  9);
+	MD5STEP(F2, c, d, a, b, p[15] + 0xD8A1E681, 14);
+	MD5STEP(F2, b, c, d, a, p[ 4] + 0xE7D3FBC8, 20);
+	MD5STEP(F2, a, b, c, d, p[ 9] + 0x21E1CDE6,  5);
+	MD5STEP(F2, d, a, b, c, p[14] + 0xC33707D6,  9);
+	MD5STEP(F2, c, d, a, b, p[ 3] + 0xF4D50D87, 14);
+	MD5STEP(F2, b, c, d, a, p[ 8] + 0x455A14ED, 20);
+	MD5STEP(F2, a, b, c, d, p[13] + 0xA9E3E905,  5);
+	MD5STEP(F2, d, a, b, c, p[ 2] + 0xFCEFA3F8,  9);
+	MD5STEP(F2, c, d, a, b, p[ 7] + 0x676F02D9, 14);
+	MD5STEP(F2, b, c, d, a, p[12] + 0x8D2A4C8A, 20);
+
+	MD5STEP(F3, a, b, c, d, p[ 5] + 0xFFFA3942,  4);
+	MD5STEP(F3, d, a, b, c, p[ 8] + 0x8771F681, 11);
+	MD5STEP(F3, c, d, a, b, p[11] + 0x6D9D6122, 16);
+	MD5STEP(F3, b, c, d, a, p[14] + 0xFDE5380C, 23);
+	MD5STEP(F3, a, b, c, d, p[ 1] + 0xA4BEEA44,  4);
+	MD5STEP(F3, d, a, b, c, p[ 4] + 0x4BDECFA9, 11);
+	MD5STEP(F3, c, d, a, b, p[ 7] + 0xF6BB4B60, 16);
+	MD5STEP(F3, b, c, d, a, p[10] + 0xBEBFBC70, 23);
+	MD5STEP(F3, a, b, c, d, p[13] + 0x289B7EC6,  4);
+	MD5STEP(F3, d, a, b, c, p[ 0] + 0xEAA127FA, 11);
+	MD5STEP(F3, c, d, a, b, p[ 3] + 0xD4EF3085, 16);
+	MD5STEP(F3, b, c, d, a, p[ 6] + 0x04881D05, 23);
+	MD5STEP(F3, a, b, c, d, p[ 9] + 0xD9D4D039,  4);
+	MD5STEP(F3, d, a, b, c, p[12] + 0xE6DB99E5, 11);
+	MD5STEP(F3, c, d, a, b, p[15] + 0x1FA27CF8, 16);
+	MD5STEP(F3, b, c, d, a, p[ 2] + 0xC4AC5665, 23);
+
+	MD5STEP(F4, a, b, c, d, p[ 0] + 0xF4292244,  6);
+	MD5STEP(F4, d, a, b, c, p[ 7] + 0x432AFF97, 10);
+	MD5STEP(F4, c, d, a, b, p[14] + 0xAB9423A7, 15);
+	MD5STEP(F4, b, c, d, a, p[ 5] + 0xFC93A039, 21);
+	MD5STEP(F4, a, b, c, d, p[12] + 0x655B59C3,  6);
+	MD5STEP(F4, d, a, b, c, p[ 3] + 0x8F0CCC92, 10);
+	MD5STEP(F4, c, d, a, b, p[10] + 0xFFEFF47D, 15);
+	MD5STEP(F4, b, c, d, a, p[ 1] + 0x85845DD1, 21);
+	MD5STEP(F4, a, b, c, d, p[ 8] + 0x6FA87E4F,  6);
+	MD5STEP(F4, d, a, b, c, p[15] + 0xFE2CE6E0, 10);
+	MD5STEP(F4, c, d, a, b, p[ 6] + 0xA3014314, 15);
+	MD5STEP(F4, b, c, d, a, p[13] + 0x4E0811A1, 21);
+	MD5STEP(F4, a, b, c, d, p[ 4] + 0xF7537E82,  6);
+	MD5STEP(F4, d, a, b, c, p[11] + 0xBD3AF235, 10);
+	MD5STEP(F4, c, d, a, b, p[ 2] + 0x2AD7D2BB, 15);
+	MD5STEP(F4, b, c, d, a, p[ 9] + 0xEB86D391, 21);
+
+	pBuffer[0] += a;
+	pBuffer[1] += b;
+	pBuffer[2] += c;
+	pBuffer[3] += d;
+}
+
+void CMD5Calculator::CalcMD5(const void *pData, SIZE_T DataSize, BYTE pMD5[16])
+{
+	const BYTE *pSrc = static_cast<const BYTE*>(pData);
+	DWORD *pdwMD5 = reinterpret_cast<DWORD*>(pMD5);
+
+	pdwMD5[0] = 0x67452301UL;
+	pdwMD5[1] = 0xEFCDAB89UL;
+	pdwMD5[2] = 0x98BADCFEUL;
+	pdwMD5[3] = 0x10325476UL;
+
+	while (DataSize >= 64) {
+		MD5Transform(pdwMD5, pSrc);
+		pSrc += 64;
+		DataSize -= 64;
+	}
+
+	SIZE_T PaddingSize;
+	BYTE PaddingData[64], *p;
+
+	PaddingSize = DataSize & 0x3F;
+	::CopyMemory(PaddingData, pSrc, DataSize);
+	p = PaddingData + PaddingSize;
+	*p++ = 0x80;
+	PaddingSize = 64 - 1 - PaddingSize;
+	if (PaddingSize < 8) {
+		::ZeroMemory(p, PaddingSize);
+		MD5Transform(pdwMD5, PaddingData);
+		::ZeroMemory(PaddingData, 56);
+	} else {
+		::ZeroMemory(p, PaddingSize - 8);
+	}
+	((ULONGLONG*)PaddingData)[7] = (ULONGLONG)DataSize << 3;
+	MD5Transform(pdwMD5, PaddingData);
 }

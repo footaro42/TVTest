@@ -5,6 +5,12 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 #define ITEM_MARGIN	2
 #define CHECK_WIDTH	14
@@ -142,7 +148,7 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 
 void CStatusOptions::SetDefaultItemList()
 {
-	static const bool fTVTest=
+	static const bool fHD=
 #ifndef TVH264_FOR_1SEG
 		true;
 #else
@@ -152,14 +158,14 @@ void CStatusOptions::SetDefaultItemList()
 		BYTE ID;
 		bool fVisible;
 	} DefaultItemList[NUM_STATUS_ITEMS] = {
-		{STATUS_ITEM_TUNER,			fTVTest},
+		{STATUS_ITEM_TUNER,			fHD},
 		{STATUS_ITEM_CHANNEL,		true},
 		{STATUS_ITEM_VIDEOSIZE,		true},
 		{STATUS_ITEM_VOLUME,		true},
 		{STATUS_ITEM_AUDIOCHANNEL,	true},
 		{STATUS_ITEM_RECORD,		true},
-		{STATUS_ITEM_CAPTURE,		fTVTest},
-		{STATUS_ITEM_ERROR,			fTVTest},
+		{STATUS_ITEM_CAPTURE,		fHD},
+		{STATUS_ITEM_ERROR,			fHD},
 		{STATUS_ITEM_SIGNALLEVEL,	true},
 		{STATUS_ITEM_CLOCK,			false},
 		{STATUS_ITEM_PROGRAMINFO,	false},
@@ -645,7 +651,7 @@ LRESULT CALLBACK CStatusOptions::ItemListProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				if (TimerID!=pThis->m_DragTimerID) {
 					if (pThis->m_DragTimerID!=0)
 						KillTimer(hwnd,pThis->m_DragTimerID);
-					pThis->m_DragTimerID=SetTimer(hwnd,TimerID,100,NULL);
+					pThis->m_DragTimerID=(UINT)SetTimer(hwnd,TimerID,100,NULL);
 				}
 				SetCursor(LoadCursor(NULL,IDC_NO));
 			}

@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include "Common.h"
 #include "CaptionDecoder.h"
 #include "TsTable.h"
 
@@ -26,7 +27,10 @@ public:
 	void SetCaptionHandler(CCaptionParser::ICaptionHandler *pHandler) {
 		m_CaptionParser.SetCaptionHandler(pHandler);
 	}
-	const CCaptionParser *GetParser() const { return &m_CaptionParser; }
+	void SetDRCSMap(CCaptionParser::IDRCSMap *pDRCSMap) {
+		m_CaptionParser.SetDRCSMap(pDRCSMap);
+	}
+	CCaptionParser *GetParser() { return &m_CaptionParser; }
 };
 
 
@@ -35,6 +39,7 @@ public:
 CCaptionDecoder::CCaptionDecoder(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 1, 1)
 	, m_pCaptionHandler(NULL)
+	, m_pDRCSMap(NULL)
 	, m_TargetServiceID(0)
 	, m_TargetComponentTag(0xFF)
 	, m_TargetEsPID(0)
@@ -60,7 +65,7 @@ void CCaptionDecoder::Reset()
 	m_PidMapManager.UnmapAllTarget();
 
 	// PATテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(0x0000, new CPatTable, OnPatUpdated, this);
+	m_PidMapManager.MapTarget(PID_PAT, new CPatTable, OnPatUpdated, this);
 }
 
 
@@ -87,8 +92,10 @@ bool CCaptionDecoder::SetTargetStream(WORD ServiceID, BYTE ComponentTag)
 	if (m_TargetEsPID != 0) {
 		CCaptionStream *pStream = dynamic_cast<CCaptionStream*>(m_PidMapManager.GetMapTarget(m_TargetEsPID));
 
-		if (pStream != NULL)
+		if (pStream != NULL) {
 			pStream->SetCaptionHandler(NULL);
+			pStream->SetDRCSMap(NULL);
+		}
 		m_TargetEsPID = 0;
 	}
 	const int Index = GetServiceIndexByID(ServiceID);
@@ -107,8 +114,10 @@ bool CCaptionDecoder::SetTargetStream(WORD ServiceID, BYTE ComponentTag)
 		if (m_TargetEsPID != 0) {
 			CCaptionStream *pStream = dynamic_cast<CCaptionStream*>(m_PidMapManager.GetMapTarget(m_TargetEsPID));
 
-			if (pStream != NULL)
+			if (pStream != NULL) {
 				pStream->SetCaptionHandler(this);
+				pStream->SetDRCSMap(m_pDRCSMap);
+			}
 		}
 	}
 	m_TargetServiceID = ServiceID;
@@ -123,6 +132,18 @@ void CCaptionDecoder::SetCaptionHandler(IHandler *pHandler)
 	CBlockLock Lock(&m_DecoderLock);
 
 	m_pCaptionHandler = pHandler;
+}
+
+
+void CCaptionDecoder::SetDRCSMap(IDRCSMap *pDRCSMap)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	m_pDRCSMap = pDRCSMap;
+
+	CCaptionParser *pParser = GetCurrentCaptionParser();
+	if (pParser != NULL)
+		pParser->SetDRCSMap(pDRCSMap);
 }
 
 
@@ -174,10 +195,10 @@ int CCaptionDecoder::GetServiceIndexByID(WORD ServiceID) const
 }
 
 
-const CCaptionParser *CCaptionDecoder::GetCurrentCaptionParser() const
+CCaptionParser *CCaptionDecoder::GetCurrentCaptionParser() const
 {
 	if (m_TargetEsPID != 0) {
-		const CCaptionStream *pStream = dynamic_cast<const CCaptionStream*>(m_PidMapManager.GetMapTarget(m_TargetEsPID));
+		CCaptionStream *pStream = dynamic_cast<CCaptionStream*>(m_PidMapManager.GetMapTarget(m_TargetEsPID));
 
 		if (pStream != NULL)
 			return pStream->GetParser();
@@ -203,10 +224,10 @@ void CALLBACK CCaptionDecoder::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pM
 	pThis->m_ServiceList.resize(pPatTable->GetProgramNum());
 
 	for (size_t i = 0; i < pThis->m_ServiceList.size(); i++) {
-		pThis->m_ServiceList[i].ServiceID = pPatTable->GetProgramID(i);
-		pThis->m_ServiceList[i].PmtPID = pPatTable->GetPmtPID(i);
+		pThis->m_ServiceList[i].ServiceID = pPatTable->GetProgramID((WORD)i);
+		pThis->m_ServiceList[i].PmtPID = pPatTable->GetPmtPID((WORD)i);
 		pThis->m_ServiceList[i].CaptionEsList.clear();
-		pMapManager->MapTarget(pPatTable->GetPmtPID(i), new CPmtTable, OnPmtUpdated, pParam);
+		pMapManager->MapTarget(pPatTable->GetPmtPID((WORD)i), new CPmtTable, OnPmtUpdated, pParam);
 	}
 }
 
@@ -229,7 +250,7 @@ void CALLBACK CCaptionDecoder::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pM
 	for (WORD EsIndex = 0; EsIndex < pPmtTable->GetEsInfoNum(); EsIndex++) {
 		const BYTE StreamType = pPmtTable->GetStreamTypeID(EsIndex);
 
-		if (StreamType == 0x06) {	// ITU-T Rec.H.222 | ISO/IEC 13818-1
+		if (StreamType == STREAM_TYPE_CAPTION) {
 			CaptionEsInfo CaptionInfo;
 
 			CaptionInfo.PID = pPmtTable->GetEsPID(EsIndex);
@@ -250,6 +271,7 @@ void CALLBACK CCaptionDecoder::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pM
 							&& CaptionInfo.ComponentTag == pThis->m_TargetComponentTag))) {
 				TRACE(TEXT("Select caption PID %d\n"), CaptionInfo.PID);
 				pStream->SetCaptionHandler(pThis);
+				pStream->SetDRCSMap(pThis->m_pDRCSMap);
 			}
 			pMapManager->MapTarget(CaptionInfo.PID, pStream);
 		}

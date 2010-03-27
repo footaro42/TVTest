@@ -6,22 +6,37 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
 CPlaybackOptions::CPlaybackOptions()
+	: m_fDownMixSurround(true)
+	, m_fRestoreMute(false)
+	, m_fUseAudioRendererClock(true)
+	, m_fAdjustAudioStreamTime(true)
+	, m_fMinTimerResolution(true)
+	, m_fPacketBuffering(false)
+	, m_PacketBufferLength(40000)
+	, m_PacketBufferPoolPercentage(50)
+	, m_StreamThreadPriority(THREAD_PRIORITY_NORMAL)
+#ifdef TVH264
+	, m_fAdjustFrameRate(
+#ifdef TVH264_FOR_1SEG
+		true
+#else
+		false
+#endif
+		)
+#endif
 {
 	m_szAudioDeviceName[0]='\0';
 	m_szAudioFilterName[0]='\0';
-	m_fDownMixSurround=true;
-	m_fRestoreMute=false;
-	m_fUseAudioRendererClock=true;
-	m_fAdjustAudioStreamTime=false;
-	m_fMinTimerResolution=true;
-	m_fPacketBuffering=false;
-	m_PacketBufferLength=40000;
-	m_PacketBufferPoolPercentage=50;
-	m_StreamThreadPriority=THREAD_PRIORITY_NORMAL;
 }
 
 
@@ -34,6 +49,9 @@ bool CPlaybackOptions::Apply(DWORD Flags)
 {
 	CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
 
+	if ((Flags&UPDATE_ADJUSTAUDIOSTREAMTIME)!=0) {
+		pCoreEngine->m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(m_fAdjustAudioStreamTime);
+	}
 	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
 		if (!m_fPacketBuffering)
 			pCoreEngine->SetPacketBuffering(false);
@@ -45,6 +63,11 @@ bool CPlaybackOptions::Apply(DWORD Flags)
 	if ((Flags&UPDATE_STREAMTHREADPRIORITY)!=0) {
 		pCoreEngine->m_DtvEngine.m_BonSrcDecoder.SetStreamThreadPriority(m_StreamThreadPriority);
 	}
+#ifdef TVH264
+	if ((Flags&UPDATE_ADJUSTFRAMERATE)!=0) {
+		pCoreEngine->m_DtvEngine.m_MediaViewer.SetAdjustVideoSampleTime(m_fAdjustFrameRate);
+	}
+#endif
 	return true;
 }
 
@@ -66,6 +89,9 @@ bool CPlaybackOptions::Read(CSettings *pSettings)
 		m_PacketBufferPoolPercentage=CLAMP(m_PacketBufferPoolPercentage,0,100);
 	if (pSettings->Read(TEXT("StreamThreadPriority"),&m_StreamThreadPriority))
 		m_StreamThreadPriority=CLAMP(m_StreamThreadPriority,THREAD_PRIORITY_NORMAL,THREAD_PRIORITY_HIGHEST);
+#ifdef TVH264
+	pSettings->Read(TEXT("AdjustFrameRate"),&m_fAdjustFrameRate);
+#endif
 	return true;
 }
 
@@ -83,6 +109,9 @@ bool CPlaybackOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
 	pSettings->Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
 	pSettings->Write(TEXT("StreamThreadPriority"),m_StreamThreadPriority);
+#ifdef TVH264
+	pSettings->Write(TEXT("AdjustFrameRate"),m_fAdjustFrameRate);
+#endif
 	return true;
 }
 
@@ -174,6 +203,10 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			for (int i=0;i<lengthof(ThreadPriorityList);i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,ThreadPriorityList[i]);
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,pThis->m_StreamThreadPriority);
+
+#ifdef TVH264
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTFRAMERATE,pThis->m_fAdjustFrameRate);
+#endif
 		}
 		return TRUE;
 
@@ -194,7 +227,7 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				CPlaybackOptions *pThis=GetThis(hDlg);
 
 				TCHAR szAudioDevice[MAX_AUDIO_DEVICE_NAME];
-				int Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIODEVICE);
+				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIODEVICE);
 				if (Sel<=0)
 					szAudioDevice[0]='\0';
 				else
@@ -205,7 +238,7 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				}
 
 				TCHAR szAudioFilter[MAX_AUDIO_FILTER_NAME];
-				Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIOFILTER);
+				Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIOFILTER);
 				if (Sel<=0)
 					szAudioFilter[0]='\0';
 				else
@@ -229,7 +262,7 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME);
 				if (f!=pThis->m_fAdjustAudioStreamTime) {
 					pThis->m_fAdjustAudioStreamTime=f;
-					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(f);
+					pThis->SetUpdateFlag(UPDATE_ADJUSTAUDIOSTREAMTIME);
 				}
 
 				f=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK);
@@ -253,11 +286,19 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				pThis->m_PacketBufferLength=BufferLength;
 				pThis->m_PacketBufferPoolPercentage=PoolPercentage;
 
-				Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY);
+				Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY);
 				if (Sel>=0 && Sel!=pThis->m_StreamThreadPriority) {
 					pThis->m_StreamThreadPriority=Sel;
 					pThis->SetUpdateFlag(UPDATE_STREAMTHREADPRIORITY);
 				}
+
+#ifdef TVH264
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTFRAMERATE);
+				if (f!=pThis->m_fAdjustFrameRate) {
+					pThis->m_fAdjustFrameRate=f;
+					pThis->SetUpdateFlag(UPDATE_ADJUSTFRAMERATE);
+				}
+#endif
 			}
 			break;
 		}

@@ -517,7 +517,7 @@ int CProgramSearch::FormatEventInfoText(const CEventInfoData *pEventInfo,LPTSTR 
 void CProgramSearch::HighlightKeyword()
 {
 	const HWND hwndInfo=::GetDlgItem(m_hDlg,IDC_PROGRAMSEARCH_INFO);
-	const int LineCount=::SendMessage(hwndInfo,EM_GETLINECOUNT,0,0);
+	const int LineCount=(int)::SendMessage(hwndInfo,EM_GETLINECOUNT,0,0);
 	CHARFORMAT2 cfHighlight;
 	CRichEditUtil::CharFormatToCharFormat2(&m_InfoTextFormat,&cfHighlight);
 	cfHighlight.dwMask|=CFM_BOLD | CFM_BACKCOLOR;
@@ -527,18 +527,18 @@ void CProgramSearch::HighlightKeyword()
 
 	::SendMessage(hwndInfo,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&crOld));
 	for (int i=1;i<LineCount;) {
-		const int LineIndex=::SendMessage(hwndInfo,EM_LINEINDEX,i,0);
+		const int LineIndex=(int)::SendMessage(hwndInfo,EM_LINEINDEX,i,0);
 		TCHAR szText[2048],*q;
 		int TotalLength=0,Length;
 
 		q=szText;
 		while (i<LineCount) {
 #ifdef UNICODE
-			q[0]=lengthof(szText)-2-TotalLength;
+			q[0]=(WORD)(lengthof(szText)-2-TotalLength);
 #else
-			*(WORD*)q=sizeof(szText)-sizeof(WORD)-1-TotalLength;
+			*(WORD*)q=(WORD)(sizeof(szText)-sizeof(WORD)-1-TotalLength);
 #endif
-			Length=::SendMessage(hwndInfo,EM_GETLINE,i,reinterpret_cast<LPARAM>(q));
+			Length=(int)::SendMessage(hwndInfo,EM_GETLINE,i,reinterpret_cast<LPARAM>(q));
 			i++;
 			if (Length<1)
 				break;
@@ -575,7 +575,7 @@ void CProgramSearch::HighlightKeyword()
 				if (!fMinus && KeywordLength>0) {
 					LPCTSTR q=szText;
 					while (SearchNextKeyword(&q,szWord,KeywordLength,&Length)) {
-						cr.cpMin=LineIndex+(q-szText);
+						cr.cpMin=LineIndex+(LONG)(q-szText);
 						cr.cpMax=cr.cpMin+Length;
 						::SendMessage(hwndInfo,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
 						::SendMessage(hwndInfo,EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&cfHighlight));

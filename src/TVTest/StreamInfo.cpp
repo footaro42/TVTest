@@ -83,12 +83,12 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				p+=::lstrlen(p);
 				*p++='\r';
 				*p++='\n';
-				::GetDlgItemText(hDlg,IDC_STREAMINFO_NETWORK,p,Length-(p-pszText));
+				::GetDlgItemText(hDlg,IDC_STREAMINFO_NETWORK,p,Length-(int)(p-pszText));
 				p+=::lstrlen(p);
 				*p++='\r';
 				*p++='\n';
 				GetTreeViewText(hwndTree,TreeView_GetChild(hwndTree,TreeView_GetRoot(hwndTree)),true,
-								p,Length-(p-pszText));
+								p,Length-(int)(p-pszText));
 				CopyText(pszText);
 				delete [] pszText;
 			}
@@ -221,21 +221,21 @@ void CStreamInfo::SetService()
 					pServiceInfo->VideoEs.ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			int NumAudioStreams=pServiceInfo->AudioEsList.size();
+			int NumAudioStreams=(int)pServiceInfo->AudioEsList.size();
 			for (j=0;j<NumAudioStreams;j++) {
 				PID=pServiceInfo->AudioEsList[j].PID;
 				::wsprintf(szText,TEXT("âπê∫%d PID %#04x (%d) Component tag %#02x"),
 						   j+1,PID,PID,pServiceInfo->AudioEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			int NumCaptionStreams=pServiceInfo->CaptionEsList.size();
+			int NumCaptionStreams=(int)pServiceInfo->CaptionEsList.size();
 			for (j=0;j<NumCaptionStreams;j++) {
 				PID=pServiceInfo->CaptionEsList[j].PID;
 				::wsprintf(szText,TEXT("éöñã%d PID %#04x (%d) Component tag %#02x"),
 						   j+1,PID,PID,pServiceInfo->CaptionEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
-			int NumDataStreams=pServiceInfo->DataCarrouselEsList.size();
+			int NumDataStreams=(int)pServiceInfo->DataCarrouselEsList.size();
 			for (j=0;j<NumDataStreams;j++) {
 				PID=pServiceInfo->DataCarrouselEsList[j].PID;
 				::wsprintf(szText,TEXT("ÉfÅ[É^%d PID %#04x (%d) Component tag %#02x"),
@@ -330,7 +330,7 @@ int CStreamInfo::GetTreeViewText(HWND hwndTree,HTREEITEM hItem,bool fSiblings,LP
 		tvi.hItem=TreeView_GetNextSibling(hwndTree,tvi.hItem);
 	}
 	*p='\0';
-	return p-pszText;
+	return (int)(p-pszText);
 }
 
 

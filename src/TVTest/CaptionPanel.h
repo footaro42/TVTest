@@ -3,9 +3,43 @@
 
 
 #include <deque>
+#include <map>
 #include "PanelForm.h"
 #include "BonTsEngine/CaptionDecoder.h"
 
+
+class CCaptionDRCSMap : public CCaptionDecoder::IDRCSMap
+{
+	class CHashCmp {
+	public:
+		bool operator()(const PBYTE &Key1,const PBYTE &Key2) const {
+			return memcmp(Key1,Key2,16)<0;
+		}
+	};
+	typedef std::map<PBYTE,LPCTSTR,CHashCmp> HashMap;
+	typedef std::map<WORD,LPCTSTR> CodeMap;
+	HashMap m_HashMap;
+	CodeMap m_CodeMap;
+	LPTSTR m_pBuffer;
+	bool m_fSaveBMP;
+	bool m_fSaveRaw;
+	TCHAR m_szSaveDirectory[MAX_PATH];
+	CCriticalLock m_Lock;
+
+	static bool SaveBMP(const CCaptionParser::DRCSBitmap *pBitmap,LPCTSTR pszFileName);
+	static bool SaveRaw(const CCaptionParser::DRCSBitmap *pBitmap,LPCTSTR pszFileName);
+
+// CCaptionDecoder::IDRCSMap
+	LPCTSTR GetString(WORD Code);
+	bool SetDRCS(WORD Code, const CCaptionParser::DRCSBitmap *pBitmap);
+
+public:
+	CCaptionDRCSMap();
+	~CCaptionDRCSMap();
+	void Clear();
+	void Reset();
+	bool Load(LPCTSTR pszFileName);
+};
 
 class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHandler
 {
@@ -26,6 +60,7 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 	std::deque<LPTSTR> m_CaptionList;
 	enum { MAX_QUEUE_TEXT=10000 };
 	CCriticalLock m_Lock;
+	CCaptionDRCSMap m_DRCSMap;
 
 // CCaptionDecoder::IHandler
 	virtual void OnLanguageUpdate(CCaptionDecoder *pDecoder);
@@ -51,6 +86,7 @@ public:
 	void SetColor(COLORREF BackColor,COLORREF TextColor);
 	bool SetFont(const LOGFONT *pFont);
 	void Clear();
+	bool LoadDRCSMap(LPCTSTR pszFileName);
 
 	static bool Initialize(HINSTANCE hinst);
 };

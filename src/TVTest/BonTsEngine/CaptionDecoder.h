@@ -17,6 +17,8 @@ public:
 		virtual void OnCaption(CCaptionDecoder *pDecoder, BYTE Language, LPCTSTR pszText, const CAribString::FormatList *pFormatList) {}
 	};
 
+	typedef CCaptionParser::IDRCSMap IDRCSMap;
+
 	CCaptionDecoder(IEventHandler *pEventHandler = NULL);
 	virtual ~CCaptionDecoder();
 
@@ -26,6 +28,7 @@ public:
 
 	bool SetTargetStream(WORD ServiceID, BYTE ComponentTag = 0xFF);
 	void SetCaptionHandler(IHandler *pHandler);
+	void SetDRCSMap(IDRCSMap *pDRCSMap);
 	int GetLanguageNum();
 	bool GetLanguageCode(int LanguageTag, char *pCode);
 
@@ -35,7 +38,7 @@ protected:
 	virtual void OnCaption(CCaptionParser *pParser, BYTE Language, LPCTSTR pszText, const CAribString::FormatList *pFormatList);
 
 	int GetServiceIndexByID(WORD ServiceID) const;
-	const CCaptionParser *GetCurrentCaptionParser() const;
+	CCaptionParser *GetCurrentCaptionParser() const;
 
 	CTsPidMapManager m_PidMapManager;
 
@@ -54,6 +57,7 @@ protected:
 	BYTE m_TargetComponentTag;
 	WORD m_TargetEsPID;
 	IHandler *m_pCaptionHandler;
+	IDRCSMap *m_pDRCSMap;
 
 	friend class CCaptionStream;
 

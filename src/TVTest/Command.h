@@ -7,10 +7,15 @@
 #include "Plugin.h"
 
 
-class CCommandList {
+class CZoomOptions;
+
+class CCommandList
+{
 	CPointerVector<TCHAR> m_DriverList;
 	CPointerVector<TCHAR> m_PluginList;
 	CPointerVector<TCHAR> m_PluginCommandList;
+	const CZoomOptions *m_pZoomOptions;
+
 public:
 	enum {
 		MAX_COMMAND_TEXT=MAX_PATH,
@@ -18,7 +23,9 @@ public:
 	};
 	CCommandList();
 	~CCommandList();
-	bool Initialize(const CDriverManager *pDriverManager,const CPluginList *pPluginList);
+	bool Initialize(const CDriverManager *pDriverManager,
+					const CPluginList *pPluginList,
+					const CZoomOptions *pZoomOptions);
 	int NumCommands() const;
 	int GetCommandID(int Index) const;
 	LPCTSTR GetCommandText(int Index) const;

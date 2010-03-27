@@ -2252,7 +2252,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 			CProgramGuide *pThis=GetThis(hwnd);
 			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown(wParam,lParam))
+					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
 				return 0;
 		}
 		break;

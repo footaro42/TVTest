@@ -368,7 +368,7 @@ bool CProgramListPanel::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
 	pServiceInfo=m_pProgramList->GetServiceInfo(TransportStreamID,ServiceID);
 	if (pServiceInfo==NULL)
 		return false;
-	NumEvents=pServiceInfo->m_EventList.EventDataMap.size();
+	NumEvents=(int)pServiceInfo->m_EventList.EventDataMap.size();
 	if (NumEvents==0) {
 		if (m_ItemList.NumItems()>0) {
 			m_ItemList.Clear();
@@ -906,7 +906,7 @@ bool CProgramListPanel::CEventInfoPopupHandler::HitTest(int x,int y,LPARAM *pPar
 
 bool CProgramListPanel::CEventInfoPopupHandler::GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo)
 {
-	const CProgramItemInfo *pItem=m_pPanel->m_ItemList.GetItem(Param);
+	const CProgramItemInfo *pItem=m_pPanel->m_ItemList.GetItem((int)Param);
 	if (pItem==NULL)
 		return false;
 	*ppInfo=&pItem->GetEventInfo();

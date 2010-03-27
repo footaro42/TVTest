@@ -73,7 +73,7 @@ public:
 	bool InitNetworkRemocon(CNetworkRemocon **ppNetworkRemocon,
 		const CCoreEngine *pCoreEngine,CChannelManager *pChannelManager) const;
 	bool FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFileName) const;
-	static BOOL CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

@@ -24,9 +24,7 @@ class CMpeg2SequenceFilter
 public:
 	DECLARE_IUNKNOWN
 
-	CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr);
-	~CMpeg2SequenceFilter(void);
-	static IBaseFilter* WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr,CMpeg2SequenceFilter **ppClassIf);
+	static IBaseFilter* WINAPI CreateInstance(LPUNKNOWN pUnk, HRESULT *phr);
 
 // CTransformFilter
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
@@ -60,6 +58,9 @@ public:
 #endif
 
 protected:
+	CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr);
+	~CMpeg2SequenceFilter(void);
+
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
 	HRESULT Transform(IMediaSample * pIn, IMediaSample *pOut);
 	IMediaSample *m_pOutSample;
