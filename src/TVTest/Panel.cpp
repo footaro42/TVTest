@@ -573,7 +573,8 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		{
 			CPanelFrame *pThis=GetThis(hwnd);
 
-			pThis->m_Panel.SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
+			if (pThis->m_fFloating)
+				pThis->m_Panel.SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
 		}
 		return 0;
 

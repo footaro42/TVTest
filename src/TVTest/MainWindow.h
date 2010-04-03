@@ -138,6 +138,7 @@ class CMainWindow : public CBasicWindow
 	unsigned int m_ProgramListUpdateTimerCount;
 	bool m_fViewerBuildError;
 	int m_CurEventStereoMode;
+	bool m_fAlertedLowFreeSpace;
 
 	class CPreviewManager {
 		bool m_fPreview;
@@ -161,7 +162,8 @@ class CMainWindow : public CBasicWindow
 		TIMER_ID_PROGRAMGUIDEUPDATE,
 		TIMER_ID_CHANNELPANELUPDATE,
 		TIMER_ID_VIDEOSIZECHANGED,
-		TIMER_ID_RESETERRORCOUNT
+		TIMER_ID_RESETERRORCOUNT,
+		TIMER_ID_HIDETOOLTIP
 	};
 	class CTimer {
 		HWND m_hwnd;
@@ -221,7 +223,9 @@ public:
 	int ShowMessage(LPCTSTR pszText,LPCTSTR pszCaption=NULL,UINT Type=MB_OK | MB_ICONEXCLAMATION) const;
 	void ShowErrorMessage(LPCTSTR pszText);
 	void ShowErrorMessage(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
-	void ShowNotificationBar(LPCTSTR pszText,CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO);
+	void ShowNotificationBar(LPCTSTR pszText,
+							 CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO,
+							 DWORD Duration=0);
 	void AdjustWindowSize(int Width,int Height);
 	bool ReadSettings(CSettings *pSettings);
 	bool WriteSettings(CSettings *pSettings);
@@ -257,8 +261,6 @@ public:
 	int CalcZoomRate();
 	bool CalcZoomRate(int *pNum,int *pDenom);
 	bool SetZoomRate(int ZoomNum,int ZoomDenom=100);
-	void SetMaximizeStatus(bool fMaximize) { m_fMaximize=fMaximize; }
-	bool GetMaximizeStatus() const { return m_fMaximize; }
 	void OnChannelListUpdated();
 	void OnChannelChanged(bool fSpaceChanged);
 	void OnDriverChanged();

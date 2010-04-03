@@ -497,6 +497,31 @@ bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard,LPTSTR pszMessage,int Ma
 }
 
 
+bool GetAbsolutePath(LPCTSTR pszFilePath,LPTSTR pszAbsolutePath,int MaxLength)
+{
+	if (pszAbsolutePath==NULL || MaxLength<1)
+		return false;
+	pszAbsolutePath[0]='\0';
+	if (pszFilePath==NULL || pszFilePath[0]=='\0')
+		return false;
+	if (::PathIsRelative(pszFilePath)) {
+		TCHAR szTemp[MAX_PATH],*p;
+
+		::GetModuleFileName(NULL,szTemp,lengthof(szTemp));
+		p=::PathFindFileName(szTemp);
+		if ((p-szTemp)+::lstrlen(pszFilePath)>=MaxLength)
+			return false;
+		::lstrcpy(p,pszFilePath);
+		::PathCanonicalize(pszAbsolutePath,szTemp);
+	} else {
+		if (::lstrlen(pszFilePath)>=MaxLength)
+			return false;
+		::lstrcpy(pszAbsolutePath,pszFilePath);
+	}
+	return true;
+}
+
+
 
 
 CDynamicString::CDynamicString()
@@ -510,6 +535,15 @@ CDynamicString::CDynamicString(const CDynamicString &String)
 {
 	*this=String;
 }
+
+
+#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+CDynamicString::CDynamicString(CDynamicString &&String)
+	: m_pszString(String.m_pszString)
+{
+	String.m_pszString=NULL;
+}
+#endif
 
 
 CDynamicString::CDynamicString(LPCTSTR pszString)
@@ -532,6 +566,19 @@ CDynamicString &CDynamicString::operator=(const CDynamicString &String)
 	}
 	return *this;
 }
+
+
+#ifdef MOVE_ASSIGNMENT_SUPPORTED
+CDynamicString &CDynamicString::operator=(CDynamicString &&String)
+{
+	if (&String!=this) {
+		Clear();
+		m_pszString=String.m_pszString;
+		String.m_pszString=NULL;
+	}
+	return *this;
+}
+#endif
 
 
 CDynamicString &CDynamicString::operator+=(const CDynamicString &String)

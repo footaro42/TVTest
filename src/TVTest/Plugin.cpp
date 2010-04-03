@@ -122,6 +122,7 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 void CPlugin::Free()
 {
 	if (m_hLib!=NULL) {
+		GetAppClass().AddLog(TEXT("%s ÇÃèIóπèàóùÇçsÇ¡ÇƒÇ¢Ç‹Ç∑..."),::PathFindFileName(m_pszFileName));
 		m_GrabberLock.Lock();
 		if (m_fSetGrabber) {
 			for (int i=m_GrabberList.Length()-1;i>=0;i--) {
@@ -169,6 +170,7 @@ void CPlugin::Free()
 		}
 		::FreeLibrary(m_hLib);
 		m_hLib=NULL;
+		GetAppClass().AddLog(TEXT("%s Çâï˙ÇµÇ‹ÇµÇΩÅB"),::PathFindFileName(m_pszFileName));
 	}
 	SAFE_DELETE(m_pszFileName);
 	SAFE_DELETE(m_pszPluginName);
@@ -1660,8 +1662,9 @@ bool CPluginOptions::Load(LPCTSTR pszFileName)
 				TCHAR szName[32],szFileName[MAX_PATH];
 
 				::wsprintf(szName,TEXT("Plugin%d_Name"),i);
-				if (Settings.Read(szName,szFileName,lengthof(szFileName))
-						&& szFileName[0]!='\0') {
+				if (!Settings.Read(szName,szFileName,lengthof(szFileName)))
+					break;
+				if (szFileName[0]!='\0') {
 					bool fEnable;
 
 					::wsprintf(szName,TEXT("Plugin%d_Enable"),i);

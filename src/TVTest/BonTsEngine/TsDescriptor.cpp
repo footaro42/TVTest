@@ -1072,7 +1072,6 @@ const bool CContentDesc::StoreContents(const BYTE *pPayload)
 /////////////////////////////////////////////////////////////////////////////
 // [0xCF] Logo Transmission 記述子抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
-// ※現在のところ使用していないので未テストです。
 
 CLogoTransmissionDesc::CLogoTransmissionDesc()
 	: CBaseDesc()
@@ -1618,22 +1617,22 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 {
 	// タグに対応したインスタンスを生成する
 	switch (byTag) {
-	case CCaMethodDesc::DESC_TAG		: return new CCaMethodDesc;
-	case CServiceDesc::DESC_TAG			: return new CServiceDesc;
-	case CShortEventDesc::DESC_TAG		: return new CShortEventDesc;
-	case CExtendedEventDesc::DESC_TAG	: return new CExtendedEventDesc;
-	case CStreamIdDesc::DESC_TAG		: return new CStreamIdDesc;
-	case CNetworkNameDesc::DESC_TAG		: return new CNetworkNameDesc;
-	case CSystemManageDesc::DESC_TAG	: return new CSystemManageDesc;
-	case CTSInfoDesc::DESC_TAG			: return new CTSInfoDesc;
-	case CComponentDesc::DESC_TAG		: return new CComponentDesc;
-	case CAudioComponentDesc::DESC_TAG	: return new CAudioComponentDesc;
-	case CSeriesDesc::DESC_TAG			: return new CSeriesDesc;
-	case CEventGroupDesc::DESC_TAG		: return new CEventGroupDesc;
-	case CLocalTimeOffsetDesc::DESC_TAG	: return new CLocalTimeOffsetDesc;
+	case CCaMethodDesc::DESC_TAG			: return new CCaMethodDesc;
+	case CServiceDesc::DESC_TAG				: return new CServiceDesc;
+	case CShortEventDesc::DESC_TAG			: return new CShortEventDesc;
+	case CExtendedEventDesc::DESC_TAG		: return new CExtendedEventDesc;
+	case CStreamIdDesc::DESC_TAG			: return new CStreamIdDesc;
+	case CNetworkNameDesc::DESC_TAG			: return new CNetworkNameDesc;
+	case CSystemManageDesc::DESC_TAG		: return new CSystemManageDesc;
+	case CTSInfoDesc::DESC_TAG				: return new CTSInfoDesc;
+	case CComponentDesc::DESC_TAG			: return new CComponentDesc;
+	case CAudioComponentDesc::DESC_TAG		: return new CAudioComponentDesc;
+	case CLogoTransmissionDesc::DESC_TAG	: return new CLogoTransmissionDesc;
+	case CSeriesDesc::DESC_TAG				: return new CSeriesDesc;
+	case CEventGroupDesc::DESC_TAG			: return new CEventGroupDesc;
+	case CLocalTimeOffsetDesc::DESC_TAG		: return new CLocalTimeOffsetDesc;
 	// 今のところ利用していない
 	//case CContentDesc::DESC_TAG			: return new CContentDesc;
-	//case CLogoTransmissionDesc::DESC_TAG	: return new CLogoTransmissionDesc;
-	default								: return new CBaseDesc;
+	default									: return new CBaseDesc;
 	}
 }

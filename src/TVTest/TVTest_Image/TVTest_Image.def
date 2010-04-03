@@ -2,3 +2,5 @@ LIBRARY TVTest_Image
 
 EXPORTS
 	SaveImage
+	LoadAribPngFromMemory
+	LoadAribPngFromFile

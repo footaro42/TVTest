@@ -47,6 +47,8 @@
 #include "EventInfoPopup.h"
 #include "CardReaderDialog.h"
 #include "ZoomOptions.h"
+#include "LogoManager.h"
+#include "ToolTip.h"
 #include "HelperClass/StdUtil.h"
 #include "resource.h"
 
@@ -78,6 +80,7 @@ static CPseudoOSD VolumeOSD;
 static CIconMenu AspectRatioIconMenu;
 static CTaskbarManager TaskbarManager;
 static CChannelDisplayMenu ChannelDisplayMenu(&EpgProgramList);
+static CToolTip NotifyToolTip;
 
 static bool fIncrementUDPPort=true;
 
@@ -87,6 +90,7 @@ static CChannelManager ChannelManager;
 static CNetworkRemocon *pNetworkRemocon=NULL;
 static CResidentManager ResidentManager;
 static CDriverManager DriverManager;
+static CLogoManager LogoManager;
 
 static bool fShowPanelWindow=false;
 static CPanelFrame PanelFrame;
@@ -116,11 +120,12 @@ enum {
 static CCaptionPanel CaptionPanel;
 
 static CProgramGuide ProgramGuide;
+static CProgramGuideFrame ProgramGuideFrame(&ProgramGuide);
 static bool fShowProgramGuide=false;
 
 static CStreamInfo StreamInfo;
 
-static CChannelMenu ChannelMenu(&EpgProgramList);
+static CChannelMenu ChannelMenu(&EpgProgramList,&LogoManager);
 
 static CZoomOptions ZoomOptions(&CommandList);
 static CGeneralOptions GeneralOptions;
@@ -139,7 +144,7 @@ static CRecordOptions RecordOptions;
 static CRecordManager RecordManager;
 static CCaptureOptions CaptureOptions;
 static CChannelScan ChannelScan(&CoreEngine);
-static CEpgOptions EpgOptions(&CoreEngine);
+static CEpgOptions EpgOptions(&CoreEngine,&LogoManager);
 static CProgramGuideOptions ProgramGuideOptions(&ProgramGuide);
 static CPluginList PluginList;
 static CPluginOptions PluginOptions(&PluginList);
@@ -1065,15 +1070,17 @@ bool CAppMain::LoadSettings()
 		if (Setting.Read(TEXT("PanelDockingIndex"),&Value)
 				&& (Value==0 || Value==1))
 			PanelPaneIndex=Value;
-		ProgramGuide.GetPosition(&Left,&Top,&Width,&Height);
+		ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
 		Setting.Read(TEXT("ProgramGuideLeft"),&Left);
 		Setting.Read(TEXT("ProgramGuideTop"),&Top);
 		Setting.Read(TEXT("ProgramGuideWidth"),&Width);
 		Setting.Read(TEXT("ProgramGuideHeight"),&Height);
-		ProgramGuide.SetPosition(Left,Top,Width,Height);
-		ProgramGuide.MoveToMonitorInside();
+		ProgramGuideFrame.SetPosition(Left,Top,Width,Height);
+		ProgramGuideFrame.MoveToMonitorInside();
 		if (Setting.Read(TEXT("ProgramGuideMaximized"),&f) && f)
-			ProgramGuide.SetMaximize(f);
+			ProgramGuideFrame.SetMaximize(f);
+		if (Setting.Read(TEXT("ProgramGuideAlwaysOnTop"),&f))
+			ProgramGuideFrame.SetAlwaysOnTop(f);
 		CaptureWindow.GetPosition(&Left,&Top,&Width,&Height);
 		Setting.Read(TEXT("CapturePreviewLeft"),&Left);
 		Setting.Read(TEXT("CapturePreviewTop"),&Top);
@@ -1157,12 +1164,13 @@ bool CAppMain::SaveSettings()
 		Setting.Write(TEXT("PanelDockingWidth"),PanelFrame.GetDockingWidth());
 		Setting.Write(TEXT("PanelDockingIndex"),PanelPaneIndex);
 		Setting.Write(TEXT("InfoCurTab"),PanelForm.GetCurPageID());
-		ProgramGuide.GetPosition(&Left,&Top,&Width,&Height);
+		ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
 		Setting.Write(TEXT("ProgramGuideLeft"),Left);
 		Setting.Write(TEXT("ProgramGuideTop"),Top);
 		Setting.Write(TEXT("ProgramGuideWidth"),Width);
 		Setting.Write(TEXT("ProgramGuideHeight"),Height);
-		Setting.Write(TEXT("ProgramGuideMaximized"),ProgramGuide.GetMaximizeStatus());
+		Setting.Write(TEXT("ProgramGuideMaximized"),ProgramGuideFrame.GetMaximize());
+		Setting.Write(TEXT("ProgramGuideAlwaysOnTop"),ProgramGuideFrame.GetAlwaysOnTop());
 		CaptureWindow.GetPosition(&Left,&Top,&Width,&Height);
 		Setting.Write(TEXT("CapturePreviewLeft"),Left);
 		Setting.Write(TEXT("CapturePreviewTop"),Top);
@@ -2058,16 +2066,12 @@ int CRecordStatusItem::GetTipText(LPTSTR pszText,int MaxLength)
 
 		unsigned int RecordSec=pRecordTask->GetRecordTime()/1000;
 		unsigned int WroteSize=(unsigned int)(pRecordTask->GetWroteSize()/(1024*1024/100));
-
-		TCHAR szPath[MAX_PATH];
-		::lstrcpy(szPath,pRecordTask->GetFileName());
-		*::PathFindFileName(szPath)='\0';
-		ULARGE_INTEGER DiskFreeSpace;
-		if (!GetDiskFreeSpaceEx(szPath,&DiskFreeSpace,NULL,NULL))
-			DiskFreeSpace.QuadPart=0;
-		unsigned int FreeSpace=(unsigned int)
-					(DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
-
+		LONGLONG DiskFreeSpace=pRecordTask->GetFreeSpace();
+		unsigned int FreeSpace;
+		if (DiskFreeSpace>0)
+			FreeSpace=(unsigned int)(DiskFreeSpace/(ULONGLONG)(1024*1024*1024/100));
+		else
+			FreeSpace=0;
 		return StdUtil::snprintf(pszText,MaxLength,
 								 TEXT("● %d:%02d:%02d\r\nサイズ: %d.%02d MB\r\n空き容量: %d.%02d GB"),
 								 RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
@@ -2778,6 +2782,7 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 	NotificationBar.SetColors(
 		&Gradient1,
 		pColorScheme->GetColor(CColorScheme::COLOR_NOTIFICATIONBARTEXT),
+		pColorScheme->GetColor(CColorScheme::COLOR_NOTIFICATIONBARWARNINGTEXT),
 		pColorScheme->GetColor(CColorScheme::COLOR_NOTIFICATIONBARERRORTEXT));
 	static const struct {
 		int From,To;
@@ -2802,6 +2807,14 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 	for (int i=0;i<CProgramGuide::TIME_BAR_BACK_COLORS;i++)
 		pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIME0TO2BACK+i,&TimeGradients[i]);
 	ProgramGuide.SetBackColors(&Gradient1,&Gradient2,&Gradient3,TimeGradients);
+	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_STATUSBACK,&Gradient1);
+	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_STATUSHIGHLIGHTBACK,&Gradient2);
+	ProgramGuideFrame.SetStatusColor(
+		&Gradient1,
+		pColorScheme->GetColor(CColorScheme::COLOR_STATUSTEXT),
+		&Gradient2,
+		pColorScheme->GetColor(CColorScheme::COLOR_STATUSHIGHLIGHTTEXT));
+	ProgramGuideFrame.SetStatusBorderType(pColorScheme->GetBorderType(CColorScheme::BORDER_PROGRAMGUIDESTATUS));
 	PluginList.SendColorChangeEvent();
 	return true;
 }
@@ -4635,6 +4648,7 @@ public:
 	struct ServiceInfo {
 		WORD ServiceID;
 		TCHAR szServiceName[256];
+		WORD LogoID;
 	};
 	ServiceInfo *m_pServiceList;
 	int m_NumServices;
@@ -4660,6 +4674,7 @@ CServiceUpdateInfo::CServiceUpdateInfo(CDtvEngine *pEngine,CTsAnalyzer *pTsAnaly
 			const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
 			m_pServiceList[i].ServiceID=pServiceInfo->ServiceID;
 			::lstrcpy(m_pServiceList[i].szServiceName,pServiceInfo->szServiceName);
+			m_pServiceList[i].LogoID=pServiceInfo->LogoID;
 		}
 		WORD ServiceID;
 		if (pEngine->GetServiceID(&ServiceID)) {
@@ -4814,10 +4829,11 @@ CMainWindow::CMainWindow()
 	m_WindowPosition.Width=400;
 	m_WindowPosition.Height=320;
 #endif
-	m_WindowPosition.Left=(::GetSystemMetrics(SM_CXSCREEN)-m_WindowPosition.Width)/2;
-	m_WindowPosition.Top=(::GetSystemMetrics(SM_CYSCREEN)-m_WindowPosition.Height)/2;
+	m_WindowPosition.Left=
+		(::GetSystemMetrics(SM_CXSCREEN)-m_WindowPosition.Width)/2;
+	m_WindowPosition.Top=
+		(::GetSystemMetrics(SM_CYSCREEN)-m_WindowPosition.Height)/2;
 	m_fFullscreen=false;
-	m_fMaximize=false;
 	m_fAlwaysOnTop=false;
 	m_fShowStatusBar=true;
 	m_fShowTitleBar=true;
@@ -4846,6 +4862,7 @@ CMainWindow::CMainWindow()
 	m_ProgramListUpdateTimerCount=0;
 	m_fViewerBuildError=false;
 	m_CurEventStereoMode=-1;
+	m_fAlertedLowFreeSpace=false;
 }
 
 
@@ -4862,7 +4879,7 @@ bool CMainWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 
 bool CMainWindow::Show(int CmdShow)
 {
-	return ::ShowWindow(m_hwnd,m_fMaximize?SW_SHOWMAXIMIZED:CmdShow)!=FALSE;
+	return ::ShowWindow(m_hwnd,m_WindowPosition.fMaximized?SW_SHOWMAXIMIZED:CmdShow)!=FALSE;
 }
 
 
@@ -4955,11 +4972,12 @@ void CMainWindow::ShowErrorMessage(const CBonErrorHandler *pErrorHandler,LPCTSTR
 }
 
 
-void CMainWindow::ShowNotificationBar(LPCTSTR pszText,CNotificationBar::MessageType Type)
+void CMainWindow::ShowNotificationBar(LPCTSTR pszText,
+									  CNotificationBar::MessageType Type,DWORD Duration)
 {
 	NotificationBar.SetFont(OSDOptions.GetNotificationBarFont());
-	NotificationBar.SetText(pszText);
-	NotificationBar.Show(OSDOptions.GetNotificationBarDuration());
+	NotificationBar.SetText(pszText,Type);
+	NotificationBar.Show(max((DWORD)OSDOptions.GetNotificationBarDuration(),Duration));
 }
 
 
@@ -5037,7 +5055,7 @@ bool CMainWindow::ReadSettings(CSettings *pSettings)
 	SetPosition(Left,Top,Width,Height);
 	MoveToMonitorInside();
 	if (pSettings->Read(TEXT("WindowMaximize"),&f))
-		SetMaximizeStatus(f);
+		SetMaximize(f);
 	if (pSettings->Read(TEXT("AlwaysOnTop"),&f))
 		SetAlwaysOnTop(f);
 	if (pSettings->Read(TEXT("ShowStatusBar"),&f))
@@ -5064,7 +5082,7 @@ bool CMainWindow::WriteSettings(CSettings *pSettings)
 	pSettings->Write(TEXT("WindowTop"),Top);
 	pSettings->Write(TEXT("WindowWidth"),Width);
 	pSettings->Write(TEXT("WindowHeight"),Height);
-	pSettings->Write(TEXT("WindowMaximize"),m_fMaximize);
+	pSettings->Write(TEXT("WindowMaximize"),m_WindowPosition.fMaximized);
 	pSettings->Write(TEXT("AlwaysOnTop"),m_fAlwaysOnTop);
 	pSettings->Write(TEXT("ShowStatusBar"),m_fShowStatusBar);
 	pSettings->Write(TEXT("ShowTitleBar"),m_fShowTitleBar);
@@ -5264,8 +5282,7 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 
 	StatusView.Create(m_hwnd,
 		//WS_CHILD | (m_fShowStatusBar?WS_VISIBLE:0) | WS_CLIPSIBLINGS,
-		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-		/*WS_EX_STATICEDGE*/0,IDC_STATUS);
+		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,0,IDC_STATUS);
 	StatusView.SetEventHandler(&StatusViewEventHandler);
 	StatusView.AddItem(new CChannelStatusItem);
 	StatusView.AddItem(new CVideoSizeStatusItem);
@@ -5341,6 +5358,8 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 	AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_FIRST+m_AspectRatioType);
 
 	TaskbarManager.Initialize(m_hwnd);
+
+	NotifyToolTip.Initialize(m_hwnd);
 
 	::SetTimer(m_hwnd,TIMER_ID_UPDATE,UPDATE_TIMER_INTERVAL,NULL);
 	return true;
@@ -5810,14 +5829,14 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			HCURSOR hcurOld;
 
 			hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
-			ProgramGuide.Create(NULL,
+			ProgramGuideFrame.Create(NULL,
 				WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
-					WS_THICKFRAME | WS_VSCROLL | WS_HSCROLL | WS_VISIBLE);
+					WS_THICKFRAME | WS_CLIPCHILDREN | WS_VISIBLE);
 			SYSTEMTIME stFirst,stLast;
 			ProgramGuideOptions.GetTimeRange(&stFirst,&stLast);
 			ProgramGuide.SetTimeRange(&stFirst,&stLast);
 			ProgramGuide.SetViewDay(CProgramGuide::DAY_TODAY);
-			ProgramGuide.Update();
+			ProgramGuideFrame.Update();
 			const CTuningSpaceList *pList=ChannelManager.GetTuningSpaceList();
 			int Space;
 			if (!CoreEngine.IsNetworkDriver())
@@ -5829,7 +5848,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			ProgramGuide.UpdateProgramGuide();
 			::SetCursor(hcurOld);
 		} else {
-			ProgramGuide.Destroy();
+			ProgramGuideFrame.Destroy();
 		}
 		MainMenu.CheckItem(CM_PROGRAMGUIDE,fShowProgramGuide);
 		return;
@@ -6450,9 +6469,11 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 					if (RecordManager.IsRecording()) {
 						const CRecordTask *pRecordTask=RecordManager.GetRecordTask();
+						const LONGLONG FreeSpace=pRecordTask->GetFreeSpace();
 
 						InfoPanel.SetRecordStatus(true,pRecordTask->GetFileName(),
-							pRecordTask->GetWroteSize(),pRecordTask->GetRecordTime());
+							pRecordTask->GetWroteSize(),pRecordTask->GetRecordTime(),
+							FreeSpace<0?0:FreeSpace);
 					}
 
 					if (TimerCount%(2000/UPDATE_TIMER_INTERVAL)==0)	// 負荷軽減
@@ -6464,20 +6485,44 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 						ChannelPanel.UpdateChannelList(false);
 				}
 			}
+
+			// 空き容量が少ない場合の注意表示
+			if (RecordOptions.GetAlertLowFreeSpace()
+					&& !m_fAlertedLowFreeSpace
+					&& RecordManager.IsRecording()) {
+				LONGLONG FreeSpace=RecordManager.GetRecordTask()->GetFreeSpace();
+
+				if (FreeSpace>=0
+						&& (ULONGLONG)FreeSpace<=RecordOptions.GetLowFreeSpaceThresholdBytes()) {
+					NotifyToolTip.Show(
+						APP_NAME TEXT("の録画ファイルの保存先の空き容量が少なくなっています。"),
+						TEXT("空き容量が少なくなっています。"),
+						NULL,CToolTip::ICON_WARNING);
+					::SetTimer(m_hwnd,TIMER_ID_HIDETOOLTIP,10000,NULL);
+					ShowNotificationBar(
+						TEXT("録画ファイルの保存先の空き容量が少なくなっています"),
+						CNotificationBar::MESSAGE_WARNING,6000);
+					m_fAlertedLowFreeSpace=true;
+				}
+			}
+
 			TimerCount++;
 		}
 		break;
 
 	case TIMER_ID_OSD:
+		// OSD を消す
 		CoreEngine.m_DtvEngine.m_MediaViewer.ClearOSD();
 		::KillTimer(hwnd,TIMER_ID_OSD);
 		break;
 
 	case TIMER_ID_DISPLAY:
+		// モニタがオフにならないようにする
 		::SetThreadExecutionState(ES_DISPLAY_REQUIRED);
 		break;
 
 	case TIMER_ID_WHEELCHANNELCHANGE:
+		// ホイールでのチャンネル変更
 		{
 			const CChannelInfo *pInfo=ChannelManager.GetChangingChannelInfo();
 
@@ -6496,6 +6541,23 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_PROGRAMLISTUPDATE:
+		// サービスとロゴを関連付ける
+		if (m_ProgramListUpdateTimerCount==0) {
+			CTsAnalyzer *pAnalyzer=&CoreEngine.m_DtvEngine.m_TsAnalyzer;
+			const WORD NetworkID=pAnalyzer->GetNetworkID();
+			if (NetworkID!=0) {
+				CTsAnalyzer::CServiceList ServiceList;
+				if (pAnalyzer->GetServiceList(&ServiceList)) {
+					for (int i=0;i<ServiceList.NumServices();i++) {
+						const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
+						const WORD LogoID=pServiceInfo->LogoID;
+						if (LogoID!=0xFFFF)
+							LogoManager.AssociateLogoID(NetworkID,pServiceInfo->ServiceID,LogoID);
+					}
+				}
+			}
+		}
+
 		// EPG情報の同期
 		if (EpgOptions.IsEpgDataLoading())
 			break;
@@ -6567,6 +6629,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_CHANNELPANELUPDATE:
+		// チャンネルパネルの更新
 		if (EpgOptions.IsEpgDataLoading())
 			break;
 		if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
@@ -6575,6 +6638,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_VIDEOSIZECHANGED:
+		// 映像サイズの変化に合わせる
 		{
 			RECT rc;
 
@@ -6589,10 +6653,18 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_RESETERRORCOUNT:
+		// エラーカウントをリセットする
+		// (既にサービスの情報が取得されている場合のみ)
 		if (CoreEngine.m_DtvEngine.m_TsAnalyzer.GetServiceNum()>0) {
 			SendCommand(CM_RESETERRORCOUNT);
 			m_ResetErrorCountTimer.End();
 		}
+		break;
+
+	case TIMER_ID_HIDETOOLTIP:
+		// ツールチップを非表示にする
+		NotifyToolTip.Hide();
+		::KillTimer(hwnd,TIMER_ID_HIDETOOLTIP);
 		break;
 	}
 }
@@ -6829,6 +6901,7 @@ void CMainWindow::OnRecordingStart()
 	TaskbarManager.SetRecordingStatus(true);
 	SetTitleText(true);
 	m_ResetErrorCountTimer.End();
+	m_fAlertedLowFreeSpace=false;
 }
 
 
@@ -8035,15 +8108,17 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				if (pChInfo!=NULL && !CoreEngine.IsNetworkDriver()) {
 					// チャンネルの情報を更新する
 					// 古いチャンネル設定ファイルにはNIDとTSIDの情報が含まれていないため
-					WORD NetworkID=pInfo->m_NetworkID;
+					const WORD NetworkID=pInfo->m_NetworkID;
 
-					for (i=0;i<pInfo->m_NumServices;i++) {
-						ServiceID=pInfo->m_pServiceList[i].ServiceID;
-						if (ServiceID!=0) {
-							ChannelManager.UpdateStreamInfo(
-								pChInfo->GetSpace(),
-								pChInfo->GetChannelIndex(),i,
-								NetworkID,TransportStreamID,ServiceID);
+					if (NetworkID!=0) {
+						for (i=0;i<pInfo->m_NumServices;i++) {
+							ServiceID=pInfo->m_pServiceList[i].ServiceID;
+							if (ServiceID!=0) {
+								ChannelManager.UpdateStreamInfo(
+									pChInfo->GetSpace(),
+									pChInfo->GetChannelIndex(),i,
+									NetworkID,TransportStreamID,ServiceID);
+							}
 						}
 					}
 				}
@@ -8108,6 +8183,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_APP_EXECUTE:
+		// 複数起動禁止時に複数起動された
+		// (新しく起動されたプロセスから送られてくる)
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 			ATOM atom=(ATOM)wParam;
@@ -8125,6 +8202,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_APP_QUERYPORT:
+		// 使っているポートを返す
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
@@ -8138,13 +8216,19 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_APP_FILEWRITEERROR:
+		// ファイルの書き出しエラー
 		GetThis(hwnd)->ShowErrorMessage(TEXT("ファイルへの書き出しでエラーが発生しました。"));
 		return 0;
 
 	case WM_APP_VIDEOSIZECHANGED:
+		// 映像サイズが変わった
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
+			/*
+				ストリームの映像サイズの変化を検知してから、それが実際に
+				表示されるまでにはタイムラグがあるため、後で調整を行う
+			*/
 			pThis->m_VideoSizeChangedTimerCount=0;
 			::SetTimer(hwnd,TIMER_ID_VIDEOSIZECHANGED,1000,NULL);
 			if (pThis->m_AspectRatioResetTime!=0
@@ -8164,10 +8248,12 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_APP_EMMPROCESSED:
+		// EMM 処理が行われた
 		Logger.AddLog(wParam!=0?TEXT("EMM処理を行いました。"):TEXT("EMM処理でエラーが発生しました。"));
 		return 0;
 
 	case WM_APP_ECMERROR:
+		// ECM 処理のエラーが発生した
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 			LPTSTR pszText=reinterpret_cast<LPTSTR>(lParam);
@@ -8201,6 +8287,8 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 
 			::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 
+			Logger.AddLog(TEXT("ウィンドウを閉じています..."));
+
 			/*
 			StatusView.SetSingleText(TEXT("終了処理を行っています..."));
 			if (!StatusView.GetVisible()) {
@@ -8221,7 +8309,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			//CoreEngine.m_DtvEngine.EnablePreview(false);
 
 			pThis->m_Fullscreen.Destroy();
-			pThis->m_fMaximize=pThis->GetMaximize();
 
 			pThis->ShowFloatingWindows(false);
 		}
@@ -8231,6 +8318,14 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CMainWindow *pThis=GetThis(hwnd);
 
+#ifndef _DEBUG
+			// 終了監視スレッド開始(本当はこういう事はしたくないが…)
+			HANDLE hEvent,hThread;
+			hEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
+			if (hEvent!=NULL)
+				hThread=::CreateThread(NULL,0,ExitWatchThread,hEvent,0,NULL);
+#endif
+
 			pThis->ResetDisplayStatus();
 			SAFE_DELETE(pNetworkRemocon);
 			ResidentManager.Finalize();
@@ -8239,37 +8334,42 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			Accelerator.Finalize();
 			HDUSController.Finalize();
 			TaskbarManager.Finalize();
-			ProgramGuide.Destroy();
+			ProgramGuideFrame.Destroy();
+			NotifyToolTip.Finalize();
 			AppMain.SaveCurrentChannel();
-
-#ifndef _DEBUG
-			// 終了監視スレッド開始(本当はこういう事はしたくないが…)
-			HANDLE hEvent,hThread;
-			hEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-			hThread=::CreateThread(NULL,0,ExitWatchThread,hEvent,0,NULL);
-#endif
 
 			CoreEngine.m_DtvEngine.SetTracer(&Logger);
 			CoreEngine.Close();
 			CoreEngine.m_DtvEngine.SetTracer(NULL);
 			CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(NULL);
 
-			Logger.AddLog(TEXT("プラグインを開放しています..."));
 			PluginOptions.StorePluginOptions();
 			PluginList.FreePlugins();
 
+			// 終了時の負荷で他のプロセスの録画がドロップすることがあるらしい...
 			::SetPriorityClass(::GetCurrentProcess(),BELOW_NORMAL_PRIORITY_CLASS);
 
-			Logger.AddLog(TEXT("EPGデータを保存しています..."));
 			EpgOptions.SaveEpgFile(&EpgProgramList);
+			EpgOptions.SaveLogoFile();
 			EpgOptions.Finalize();
 			AppMain.Finalize();
 
+			{
+				TCHAR szLogoMapName[MAX_PATH];
+				::GetModuleFileName(NULL,szLogoMapName,MAX_PATH);
+				::PathRenameExtension(szLogoMapName,TEXT(".logo.ini"));
+				Logger.AddLog(TEXT("ロゴ設定を保存しています..."));
+				LogoManager.SaveLogoIDMap(szLogoMapName);
+			}
+
 #ifndef _DEBUG
-			if (::SignalObjectAndWait(hEvent,hThread,5000,FALSE)!=WAIT_OBJECT_0)
-				::TerminateThread(hThread,-1);
-			::CloseHandle(hThread);
-			::CloseHandle(hEvent);
+			if (hThread!=NULL) {
+				if (::SignalObjectAndWait(hEvent,hThread,5000,FALSE)!=WAIT_OBJECT_0)
+					::TerminateThread(hThread,-1);
+				::CloseHandle(hThread);
+			}
+			if (hEvent!=NULL)
+				::CloseHandle(hEvent);
 #endif
 
 			pThis->OnDestroy();
@@ -8779,7 +8879,7 @@ void CMainWindow::ShowFloatingWindows(bool fShow)
 			PanelFrame.Update();
 	}
 	if (fShowProgramGuide)
-		ProgramGuide.SetVisible(fShow);
+		ProgramGuideFrame.SetVisible(fShow);
 	if (fShowCaptureWindow)
 		CaptureWindow.SetVisible(fShow);
 	if (StreamInfo.IsCreated())
@@ -9055,7 +9155,7 @@ bool CMainWindow::BeginProgramGuideUpdate(bool fStandby)
 {
 	if (!m_fProgramGuideUpdating) {
 		if (RecordManager.IsRecording()) {
-			if (::MessageBox(ProgramGuide.GetHandle(),
+			if (::MessageBox(ProgramGuideFrame.GetHandle(),
 							 TEXT("録画中です。\n番組表の取得を開始してもいいですか?"),TEXT("確認"),
 							 MB_OKCANCEL | MB_ICONQUESTION | MB_DEFBUTTON2)!=IDOK)
 				return false;
@@ -9458,7 +9558,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			DebugHelper.SetExceptionFilterMode(CDebugHelper::EXCEPTION_FILTER_NONE);
 #endif
 		if (CmdLineParser.m_fMaximize && !CmdLineParser.m_fMinimize)
-			MainWindow.SetMaximizeStatus(true);
+			MainWindow.SetMaximize(true);
 	}
 
 //#ifdef TVH264_FOR_1SEG
@@ -9552,10 +9652,12 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CControlPanel::Initialize(hInst);
 	CCaptionPanel::Initialize(hInst);
 	CProgramGuide::Initialize(hInst);
+	CProgramGuideFrame::Initialize(hInst);
 	CCaptureWindow::Initialize(hInst);
 	CPseudoOSD::Initialize(hInst);
 	CNotificationBar::Initialize(hInst);
 	CEventInfoPopup::Initialize(hInst);
+	CDropDownMenu::Initialize(hInst);
 	CChannelDisplayMenu::Initialize(hInst);
 
 	StreamInfo.SetEventHandler(&StreamInfoEventHandler);
@@ -9621,6 +9723,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableSSE2(GeneralOptions.GetDescrambleUseSSE2());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableEmmProcess(GeneralOptions.GetEnableEmmProcess());
 	PlaybackOptions.Apply(COptions::UPDATE_ALL);
+	CoreEngine.m_DtvEngine.m_LogoDownloader.SetLogoHandler(&LogoManager);
 	CoreEngine.m_DtvEngine.SetTracer(&StatusView);
 	CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(&Logger);
 	CoreEngine.BuildDtvEngine(&DtvEngineHandler);
@@ -9672,6 +9775,19 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 
 	EpgOptions.InitializeEpgDataCap();
 	EpgOptions.AsyncLoadEpgData(&EpgLoadEventHandler);
+
+	EpgOptions.LoadLogoFile();
+
+	{
+		TCHAR szLogoMapName[MAX_PATH];
+
+		::GetModuleFileName(NULL,szLogoMapName,MAX_PATH);
+		::PathRenameExtension(szLogoMapName,TEXT(".logo.ini"));
+		if (::PathFileExists(szLogoMapName)) {
+			StatusView.SetSingleText(TEXT("ロゴ設定を読み込んでいます..."));
+			LogoManager.LoadLogoIDMap(szLogoMapName);
+		}
+	}
 
 	{
 		TCHAR szDRCSMapName[MAX_PATH];
@@ -9748,6 +9864,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	ChannelPanel.SetEpgProgramList(&EpgProgramList);
 	ChannelPanel.SetEventHandler(&ChannelPanelEventHandler);
 	ChannelPanel.SetDetailToolTip(PanelOptions.GetChannelDetailToolTip());
+	ChannelPanel.SetLogoManager(&LogoManager);
 	ChannelPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_VSCROLL);
 	PanelForm.AddWindow(&ChannelPanel,PANEL_ID_CHANNEL,TEXT("チャンネル"));
 
@@ -9803,6 +9920,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	ProgramGuide.SetEpgProgramList(&EpgProgramList);
 	ProgramGuide.SetEventHandler(&ProgramGuideEventHandler);
 	ProgramGuide.SetDriverList(&DriverManager);
+	ProgramGuide.SetLogoManager(&LogoManager);
 
 	CaptureWindow.SetEventHandler(&CaptureWindowEventHandler);
 
@@ -9882,8 +10000,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
-	CoUninitialize();
-
 	Logger.AddLog(TEXT("******** 終了 ********"));
 	if (CmdLineParser.m_fSaveLog && !Logger.GetOutputToFile()) {
 		TCHAR szFileName[MAX_PATH];
@@ -9891,6 +10007,8 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		Logger.GetDefaultLogFileName(szFileName);
 		Logger.SaveToFile(szFileName,true);
 	}
+
+	CoUninitialize();
 
 	return (int)msg.wParam;
 }

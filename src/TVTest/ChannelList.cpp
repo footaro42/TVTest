@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlwapi.h>
 #include <limits.h>
 #include "TVTest.h"
 #include "ChannelList.h"
@@ -635,7 +634,7 @@ CTuningSpaceList &CTuningSpaceList::operator=(const CTuningSpaceList &List)
 CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space)
 {
 	if (Space<0 || Space>=NumSpaces()) {
-		TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() : Out of range %d\n"),Space);
+		//TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() : Out of range %d\n"),Space);
 		return NULL;
 	}
 	return m_TuningSpaceList[Space];
@@ -645,7 +644,7 @@ CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space)
 const CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space) const
 {
 	if (Space<0 || Space>=NumSpaces()) {
-		TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() const : Out of range %d\n"),Space);
+		//TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() const : Out of range %d\n"),Space);
 		return NULL;
 	}
 	return m_TuningSpaceList[Space];
@@ -655,7 +654,7 @@ const CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space) const
 CChannelList *CTuningSpaceList::GetChannelList(int Space)
 {
 	if (Space<0 || Space>=NumSpaces()) {
-		TRACE(TEXT("CTuningSpaceList::GetChannelList() : Out of range %d\n"),Space);
+		//TRACE(TEXT("CTuningSpaceList::GetChannelList() : Out of range %d\n"),Space);
 		return NULL;
 	}
 	return m_TuningSpaceList[Space]->GetChannelList();
@@ -665,7 +664,7 @@ CChannelList *CTuningSpaceList::GetChannelList(int Space)
 const CChannelList *CTuningSpaceList::GetChannelList(int Space) const
 {
 	if (Space<0 || Space>=NumSpaces()) {
-		TRACE(TEXT("CTuningSpaceList::GetChannelList() const : Out of range %d\n"),Space);
+		//TRACE(TEXT("CTuningSpaceList::GetChannelList() const : Out of range %d\n"),Space);
 		return NULL;
 	}
 	return m_TuningSpaceList[Space]->GetChannelList();

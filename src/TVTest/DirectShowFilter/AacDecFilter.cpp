@@ -124,7 +124,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 
 CAacDecFilter::~CAacDecFilter(void)
 {
-	//TRACE(TEXT("CAacDecFilter::~CAacDecFilter\n"));
+	TRACE(TEXT("CAacDecFilter::~CAacDecFilter\n"));
 }
 
 IBaseFilter* WINAPI CAacDecFilter::CreateInstance(LPUNKNOWN pUnk, HRESULT *phr)
@@ -300,6 +300,7 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 			if (m_StartTime >= 0) {
 				REFERENCE_TIME CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
 				if (llabs(StartTime - CurTime) > REFERENCE_TIME_SECOND / 5LL) {
+					// TODO: いきなりリセットしないで徐々に合わせる
 					TRACE(TEXT("Reset audio time\n"));
 					m_StartTime = StartTime;
 					m_SampleCount = 0;

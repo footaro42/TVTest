@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Record.h"
@@ -60,9 +59,9 @@ bool CRecordTime::IsValid() const
 
 
 CRecordTask::CRecordTask()
+	: m_State(STATE_STOP)
+	, m_pDtvEngine(NULL)
 {
-	m_State=STATE_STOP;
-	m_pDtvEngine=NULL;
 }
 
 
@@ -183,6 +182,24 @@ LPCTSTR CRecordTask::GetFileName() const
 	if (m_State==STATE_STOP)
 		return NULL;
 	return m_pDtvEngine->m_FileWriter.GetFileName();
+}
+
+
+LONGLONG CRecordTask::GetFreeSpace() const
+{
+	if (m_State==STATE_STOP)
+		return -1;
+
+	LPCTSTR pszFileName=m_pDtvEngine->m_FileWriter.GetFileName();
+	if (pszFileName==NULL)
+		return -1;
+	TCHAR szPath[MAX_PATH];
+	::lstrcpy(szPath,pszFileName);
+	*::PathFindFileName(szPath)='\0';
+	ULARGE_INTEGER FreeSpace;
+	if (!::GetDiskFreeSpaceEx(szPath,&FreeSpace,NULL,NULL))
+		return -1;
+	return (LONGLONG)FreeSpace.QuadPart;
 }
 
 

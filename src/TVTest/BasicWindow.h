@@ -2,18 +2,21 @@
 #define BASIC_WINDOW_H
 
 
-class CBasicWindow {
+class CBasicWindow
+{
 protected:
 	HWND m_hwnd;
 	struct {
 		int Left,Top;
 		int Width,Height;
+		bool fMaximized;
 	} m_WindowPosition;
 	bool CreateBasicWindow(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID,
 						LPCTSTR pszClassName,LPCTSTR pszText,HINSTANCE hinst);
 	static CBasicWindow *OnCreate(HWND hwnd,LPARAM lParam);
 	void OnDestroy();
 	static CBasicWindow *GetBasicWindow(HWND hwnd);
+
 public:
 	CBasicWindow();
 	virtual ~CBasicWindow();
@@ -29,6 +32,7 @@ public:
 	bool GetScreenPosition(RECT *pPosition) const;
 	virtual void SetVisible(bool fVisible);
 	bool GetVisible() const;
+	bool SetMaximize(bool fMaximize);
 	bool GetMaximize() const;
 	HWND GetHandle() const { return m_hwnd; }
 	bool Invalidate(bool fErase=true);

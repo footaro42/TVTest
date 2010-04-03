@@ -274,17 +274,13 @@ void CInformationPanel::UpdateErrorCount()
 
 
 void CInformationPanel::SetRecordStatus(bool fRecording,LPCTSTR pszFileName,
-								ULONGLONG WroteSize,unsigned int RecordTime)
+			ULONGLONG WroteSize,unsigned int RecordTime,ULONGLONG FreeSpace)
 {
 	m_fRecording=fRecording;
 	if (fRecording) {
 		m_RecordWroteSize=WroteSize;
 		m_RecordTime=RecordTime;
-		TCHAR szPath[MAX_PATH];
-		lstrcpy(szPath,pszFileName);
-		*PathFindFileName(szPath)='\0';
-		if (!GetDiskFreeSpaceEx(szPath,&m_DiskFreeSpace,NULL,NULL))
-			m_DiskFreeSpace.QuadPart=0;
+		m_DiskFreeSpace=FreeSpace;
 	}
 	UpdateItem(ITEM_RECORD);
 }
@@ -452,7 +448,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 						unsigned int Size=(unsigned int)(
 							pThis->m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
 						unsigned int FreeSpace=(unsigned int)(
-							pThis->m_DiskFreeSpace.QuadPart/(ULONGLONG)(1024*1024*1024/100));
+							pThis->m_DiskFreeSpace/(ULONGLONG)(1024*1024*1024/100));
 
 						wsprintf(szText,
 							TEXT("œ %d:%02d:%02d / %d.%02d MB / %d.%02d GB‹ó‚«"),

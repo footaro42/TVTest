@@ -29,4 +29,6 @@ public:
 	LPCTSTR EnumSaveFormat(int Index) const;
 	LPCTSTR GetExtension(int Index) const;
 	int FormatNameToIndex(LPCTSTR pszName) const;
+	HGLOBAL LoadAribPngFromMemory(const void *pData,SIZE_T DataSize);
+	HGLOBAL LoadAribPngFromFile(LPCTSTR pszFileName);
 };

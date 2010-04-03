@@ -50,6 +50,8 @@ public:
 	DWORD GetPauseTime() const;
 	LONGLONG GetWroteSize() const;
 	LPCTSTR GetFileName() const;
+#undef GetFreeSpace
+	LONGLONG GetFreeSpace() const;
 };
 
 class CRecordManager : public CBonErrorHandler {

@@ -493,6 +493,46 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// CDTテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CCdtTable : public CPsiSingleTable
+{
+public:
+	enum { TABLE_ID = 0xC8 };
+
+	CCdtTable();
+	virtual ~CCdtTable();
+
+// CPsiSingleTable
+	virtual void Reset(void);
+
+// CCdtTable
+	// データの種類
+	enum {
+		DATATYPE_LOGO		= 0x01,	// ロゴ
+		DATATYPE_INVALID	= 0xFF	// 無効
+	};
+
+	const WORD GetOriginalNetworkId() const;
+	const BYTE GetDataType() const;
+	const CDescBlock * GetDesc() const;
+	const WORD GetDataModuleSize() const;
+	const BYTE * GetDataModuleByte() const;
+
+protected:
+// CPsiTableBase
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+
+	WORD m_OriginalNetworkId;	// original_network_id
+	BYTE m_DataType;			// data_type
+	CDescBlock m_DescBlock;		// 記述子領域
+	WORD m_DataModuleSize;
+	WORD m_DataModuleOffset;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PCR抽象化クラス
 // 元々Demuxの箇所にあったものだが使ってないようだったので、Table側に移動
 // 現時点で使えるものとは言い難い

@@ -69,6 +69,7 @@ CChannelPanel::CChannelPanel()
 	, m_pEventHandler(NULL)
 	, m_hwndToolTip(NULL)
 	, m_fDetailToolTip(false)
+	, m_pLogoManager(NULL)
 {
 	LOGFONT lf;
 	GetDefaultFont(&lf);
@@ -138,6 +139,13 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 						pEventInfo->SetEventInfo(1,&EventInfo);
 					}
 				}
+			}
+			if (m_pLogoManager!=NULL) {
+				HBITMAP hbmLogo=m_pLogoManager->GetAssociatedLogoBitmap(
+					pEventInfo->GetNetworkID(),pEventInfo->GetServiceID(),
+					CLogoManager::LOGOTYPE_SMALL);
+				if (hbmLogo!=NULL)
+					pEventInfo->SetLogo(hbmLogo);
 			}
 			m_ChannelList.Add(pEventInfo);
 			if (m_hwnd!=NULL) {
@@ -241,6 +249,15 @@ bool CChannelPanel::UpdateChannel(int ChannelIndex,bool fUpdateProgramList)
 					fChanged=pEventInfo->SetEventInfo(0,NULL);
 					if (pEventInfo->SetEventInfo(1,NULL))
 						fChanged=true;
+				}
+				if (pEventInfo->GetLogo()==NULL && m_pLogoManager!=NULL) {
+					HBITMAP hbmLogo=m_pLogoManager->GetAssociatedLogoBitmap(
+						pEventInfo->GetNetworkID(),pEventInfo->GetServiceID(),
+						CLogoManager::LOGOTYPE_SMALL);
+					if (hbmLogo!=NULL) {
+						pEventInfo->SetLogo(hbmLogo);
+						fChanged=true;
+					}
 				}
 				if (m_hwnd!=NULL && fChanged) {
 					RECT rc;
@@ -346,6 +363,12 @@ void CChannelPanel::SetDetailToolTip(bool fDetail)
 			::SendMessage(m_hwndToolTip,TTM_ACTIVATE,!fDetail,0);
 		}
 	}
+}
+
+
+void CChannelPanel::SetLogoManager(CLogoManager *pLogoManager)
+{
+	m_pLogoManager=pLogoManager;
 }
 
 
@@ -798,6 +821,7 @@ bool CChannelPanel::CEventInfoPopupHandler::GetEventInfo(LPARAM Param,const CEve
 CChannelPanel::CChannelEventInfo::CChannelEventInfo(const CChannelInfo *pInfo,int OriginalIndex)
 	: m_ChannelInfo(*pInfo)
 	, m_OriginalChannelIndex(OriginalIndex)
+	, m_hbmLogo(NULL)
 {
 }
 
@@ -857,12 +881,36 @@ int CChannelPanel::CChannelEventInfo::FormatEventText(LPTSTR pszText,int MaxLeng
 void CChannelPanel::CChannelEventInfo::DrawChannelName(HDC hdc,const RECT *pRect)
 {
 	TCHAR szText[MAX_CHANNEL_NAME+16];
+	RECT rc=*pRect;
 
 	if (m_ChannelInfo.GetChannelNo()!=0)
 		::wsprintf(szText,TEXT("%d: %s"),m_ChannelInfo.GetChannelNo(),m_ChannelInfo.GetName());
 	else
 		::lstrcpy(szText,m_ChannelInfo.GetName());
-	::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
+	if (m_hbmLogo!=NULL) {
+		int LogoWidth,LogoHeight;
+		HDC hdcMemory=::CreateCompatibleDC(hdc);
+		HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,m_hbmLogo));
+		int OldStretchMode=::SetStretchBltMode(hdc,STRETCH_HALFTONE);
+		LogoHeight=rc.bottom-rc.top-4;
+		LogoWidth=LogoHeight*16/9;
+		BITMAP bm;
+		::GetObject(m_hbmLogo,sizeof(BITMAP),&bm);
+		/*
+		::StretchBlt(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
+					 LogoWidth,LogoHeight,
+					 hdcMemory,0,0,bm.bmWidth,bm.bmHeight,SRCCOPY);
+		*/
+		BLENDFUNCTION bf={AC_SRC_OVER,0,192,0};
+		::AlphaBlend(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
+					 LogoWidth,LogoHeight,
+					 hdcMemory,0,0,bm.bmWidth,bm.bmHeight,bf);
+		::SetStretchBltMode(hdc,OldStretchMode);
+		::SelectObject(hdcMemory,hbmOld);
+		::DeleteDC(hdcMemory);
+		rc.left+=LogoWidth+3;
+	}
+	::DrawText(hdc,szText,-1,&rc,
 			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }
 

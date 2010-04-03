@@ -45,6 +45,7 @@ public:
 		bool bIsCaService;
 		TCHAR szServiceName[256];
 		BYTE ServiceType;
+		WORD LogoID;
 	};
 
 	CTsAnalyzer(IEventHandler *pEventHandler = NULL);
@@ -86,6 +87,7 @@ public:
 	bool GetPcrTimeStamp(const int Index, ULONGLONG *pTimeStamp);
 	bool GetEcmPID(const int Index, WORD *pEcmPID);
 	int GetServiceName(const int Index, LPTSTR pszName, const int MaxLength);
+	WORD GetLogoID(const int Index);
 
 	class CServiceList {
 	protected:

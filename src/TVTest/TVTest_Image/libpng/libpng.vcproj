@@ -83,12 +83,11 @@
 			/>
 		</Configuration>
 		<Configuration
-			Name="Release|Win32"
-			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
-			IntermediateDirectory="$(ConfigurationName)"
+			Name="Debug|x64"
+			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
+			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="4"
 			CharacterSet="1"
-			WholeProgramOptimization="1"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -104,14 +103,16 @@
 			/>
 			<Tool
 				Name="VCMIDLTool"
+				TargetEnvironment="3"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				Optimization="0"
 				AdditionalIncludeDirectories="..\zlib"
-				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
-				StringPooling="true"
-				RuntimeLibrary="2"
-				BufferSecurityCheck="false"
+				PreprocessorDefinitions="WIN32;WIN64;_DEBUG;_LIB"
+				MinimalRebuild="true"
+				BasicRuntimeChecks="3"
+				RuntimeLibrary="3"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -147,11 +148,12 @@
 			/>
 		</Configuration>
 		<Configuration
-			Name="Debug|x64"
-			OutputDirectory="$(SolutionDir)$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(PlatformName)\$(ConfigurationName)"
+			Name="Release|Win32"
+			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
+			IntermediateDirectory="$(ConfigurationName)"
 			ConfigurationType="4"
 			CharacterSet="1"
+			WholeProgramOptimization="1"
 			>
 			<Tool
 				Name="VCPreBuildEventTool"
@@ -167,16 +169,14 @@
 			/>
 			<Tool
 				Name="VCMIDLTool"
-				TargetEnvironment="3"
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
-				Optimization="0"
 				AdditionalIncludeDirectories="..\zlib"
-				PreprocessorDefinitions="WIN32;WIN64;_DEBUG;_LIB"
-				MinimalRebuild="true"
-				BasicRuntimeChecks="3"
-				RuntimeLibrary="3"
+				PreprocessorDefinitions="WIN32;NDEBUG;_LIB"
+				StringPooling="true"
+				RuntimeLibrary="0"
+				BufferSecurityCheck="false"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="true"
@@ -294,10 +294,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pnggccrd.c"
-				>
-			</File>
-			<File
 				RelativePath=".\pngget.c"
 				>
 			</File>
@@ -338,10 +334,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\pngvcrd.c"
-				>
-			</File>
-			<File
 				RelativePath=".\pngwio.c"
 				>
 			</File>
@@ -378,10 +370,6 @@
 			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
 			>
 		</Filter>
-		<File
-			RelativePath=".\ReadMe.txt"
-			>
-		</File>
 	</Files>
 	<Globals>
 	</Globals>

@@ -8,6 +8,7 @@
 #include "PointerArray.h"
 #include "Theme.h"
 #include "EventInfoPopup.h"
+#include "LogoManager.h"
 
 
 class CChannelPanel : public CPanelForm::CPage
@@ -39,6 +40,7 @@ public:
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	void SetDetailToolTip(bool fDetail);
 	bool GetDetailToolTip() const { return m_fDetailToolTip; }
+	void SetLogoManager(CLogoManager *pLogoManager);
 	static bool Initialize(HINSTANCE hinst);
 
 private:
@@ -63,6 +65,7 @@ private:
 		CChannelInfo m_ChannelInfo;
 		int m_OriginalChannelIndex;
 		CEventInfoData m_EventInfo[2];
+		HBITMAP m_hbmLogo;
 	public:
 		CChannelEventInfo(const CChannelInfo *pChannelInfo,int OriginalIndex);
 		~CChannelEventInfo();
@@ -71,11 +74,14 @@ private:
 		const CEventInfoData &GetEventInfo(int Index) const { return m_EventInfo[Index]; }
 		bool IsEventEnabled(int Index) const;
 		WORD GetTransportStreamID() const { return m_ChannelInfo.GetTransportStreamID(); }
+		WORD GetNetworkID() const { return m_ChannelInfo.GetNetworkID(); }
 		WORD GetServiceID() const { return m_ChannelInfo.GetServiceID(); }
 		int FormatEventText(LPTSTR pszText,int MaxLength,int Index) const;
 		void DrawChannelName(HDC hdc,const RECT *pRect);
 		void DrawEventName(HDC hdc,const RECT *pRect,int Index);
 		int GetOriginalChannelIndex() const { return m_OriginalChannelIndex; }
+		HBITMAP GetLogo() const { return m_hbmLogo; }
+		void SetLogo(HBITMAP hbm) { m_hbmLogo=hbm; }
 	};
 	CPointerVector<CChannelEventInfo> m_ChannelList;
 	int m_CurChannel;
@@ -94,11 +100,13 @@ private:
 	};
 	friend CEventInfoPopupHandler;
 	CEventInfoPopupHandler m_EventInfoPopupHandler;
+	CLogoManager *m_pLogoManager;
 
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
 	static CChannelPanel *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void Draw(HDC hdc,const RECT *prcPaint);
 	void SetScrollPos(int Pos);
 	void SetScrollBar();

@@ -36,6 +36,7 @@ CDtvEngine::CDtvEngine(void)
 	, m_MediaGrabber(this)
 	, m_TsSelector(this)
 	, m_CaptionDecoder(this)
+	, m_LogoDownloader(this)
 	, m_bBuiled(false)
 	, m_bIsFileMode(false)
 	, m_bDescramble(true)
@@ -77,6 +78,8 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 		↓             ↓
 	CMediaViewer  CCaptionDecoder
 		               ↓
+		          CLogoDownloader
+		               ↓
 		          CTsSelector
 		               ↓
 		          CFileWriter
@@ -100,7 +103,8 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 	m_bBuffering=bBuffering;
 	m_MediaTee.SetOutputDecoder(&m_MediaGrabber, 1UL);
 	m_MediaGrabber.SetOutputDecoder(&m_CaptionDecoder);
-	m_CaptionDecoder.SetOutputDecoder(&m_TsSelector);
+	m_CaptionDecoder.SetOutputDecoder(&m_LogoDownloader);
+	m_LogoDownloader.SetOutputDecoder(&m_TsSelector);
 	m_TsSelector.SetOutputDecoder(&m_FileWriter);
 
 	// イベントハンドラ設定

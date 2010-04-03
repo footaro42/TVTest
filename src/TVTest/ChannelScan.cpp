@@ -131,6 +131,7 @@ bool CChannelListSort::UpdateChannelList(HWND hwndList,CChannelList *pList)
 CChannelScan::CChannelScan(CCoreEngine *pCoreEngine)
 	: m_pCoreEngine(pCoreEngine)
 	, m_pOriginalTuningSpaceList(NULL)
+	, m_fScanService(false)
 	, m_fIgnoreSignalLevel(false)	// 信号レベルを無視
 	, m_ScanWait(5000)				// チャンネル切り替え後の待ち時間(ms)
 	, m_RetryCount(4)				// 情報取得の再試行回数
@@ -318,8 +319,7 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				*/
 			}
 
-			::CheckDlgButton(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL,
-							pThis->m_fIgnoreSignalLevel?BST_CHECKED:BST_UNCHECKED);
+			DlgCheckBox_Check(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL,pThis->m_fIgnoreSignalLevel);
 
 			TCHAR szText[8];
 			for (int i=1;i<=10;i++) {
@@ -430,9 +430,9 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					pThis->m_ScanSpace=Space;
 					pThis->m_ScanChannel=0;
 					pThis->m_fScanService=
-						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_SCANSERVICE)==BST_CHECKED;
+						DlgCheckBox_IsChecked(hDlg,IDC_CHANNELSCAN_SCANSERVICE);
 					pThis->m_fIgnoreSignalLevel=
-						::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
+						DlgCheckBox_IsChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL);
 					pThis->m_ScanWait=((unsigned int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
 					pThis->m_RetryCount=(int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
 					ListView_DeleteAllItems(hwndList);
@@ -658,7 +658,7 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (pThis->m_fRestorePreview)
 					pThis->SetUpdateFlag(UPDATE_PREVIEW);
 				pThis->m_fIgnoreSignalLevel=
-					::IsDlgButtonChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL)==BST_CHECKED;
+					DlgCheckBox_IsChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL);
 				pThis->m_ScanWait=((unsigned int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
 				pThis->m_RetryCount=(int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
 			}
@@ -853,6 +853,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			}
 		}
 
+		bool fScanService=pThis->m_fScanService;
 		bool fFound=false;
 		int NumServices;
 		TCHAR szName[32];
@@ -869,21 +870,30 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				if (NumServices>0) {
 					WORD ServiceID;
 
-					if (pThis->m_fScanService) {
+					if (fScanService) {
 						int j;
 
 						for (j=0;j<NumServices;j++) {
 							if (!pTsAnalyzer->GetViewableServiceID(j,&ServiceID)
-									|| pTsAnalyzer->GetServiceName(pTsAnalyzer->GetServiceIndexByID(ServiceID),szName,lengthof(szName))==0)
+									|| pTsAnalyzer->GetServiceName(
+										pTsAnalyzer->GetServiceIndexByID(ServiceID),szName,lengthof(szName))==0)
 								break;
 						}
 						if (j==NumServices)
 							fFound=true;
 					} else {
 						if (pTsAnalyzer->GetFirstViewableServiceID(&ServiceID)
-								&& pTsAnalyzer->GetServiceName(pTsAnalyzer->GetServiceIndexByID(ServiceID),szName,lengthof(szName))>0
-								&& pTsAnalyzer->GetTsName(szName,lengthof(szName))>0)
-							fFound=true;
+								&& pTsAnalyzer->GetServiceName(
+									pTsAnalyzer->GetServiceIndexByID(ServiceID),szName,lengthof(szName))>0) {
+							if (pTsAnalyzer->GetTsName(szName,lengthof(szName))>0) {
+								fFound=true;
+							} else {
+								// BS/CS の場合はサービスの検索を有効にする
+								WORD NetworkID=pTsAnalyzer->GetNetworkID();
+								if (NetworkID==4 || NetworkID==6 || NetworkID==7 || NetworkID==10)
+									fScanService=true;
+							}
+						}
 					}
 					if (fFound)
 						break;
@@ -898,7 +908,7 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		// 見付かったチャンネルを追加する
 		WORD NetworkID=pTsAnalyzer->GetNetworkID();
 		WORD TransportStreamID=pTsAnalyzer->GetTransportStreamID();
-		if (pThis->m_fScanService) {
+		if (fScanService) {
 			for (int i=0;i<NumServices;i++) {
 				WORD ServiceID=0;
 				pTsAnalyzer->GetViewableServiceID(i,&ServiceID);

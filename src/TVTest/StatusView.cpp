@@ -19,13 +19,13 @@ static char THIS_FILE[]=__FILE__;
 
 
 CStatusItem::CStatusItem(int ID,int DefaultWidth)
+	: m_pStatus(NULL)
+	, m_ID(ID)
+	, m_DefaultWidth(DefaultWidth)
+	, m_Width(DefaultWidth)
+	, m_MinWidth(8)
+	, m_fVisible(true)
 {
-	m_pStatus=NULL;
-	m_ID=ID;
-	m_DefaultWidth=DefaultWidth;
-	m_Width=DefaultWidth;
-	m_MinWidth=8;
-	m_fVisible=true;
 }
 
 
@@ -120,10 +120,12 @@ bool CStatusItem::GetMenuPos(POINT *pPos,UINT *pFlags)
 }
 
 
-void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const
+void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText,DWORD Flags) const
 {
+	
 	::DrawText(hdc,pszText,-1,const_cast<LPRECT>(pRect),
-			   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+			   ((Flags&DRAWTEXT_HCENTER)!=0?DT_CENTER:DT_LEFT) |
+			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }
 
 
@@ -238,6 +240,7 @@ CStatusView::CStatusView()
 	m_fTrackMouseEvent=false;
 	m_fOnButtonDown=false;
 	m_pEventHandler=NULL;
+	m_fBufferedPaint=false;
 }
 
 
@@ -364,134 +367,67 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_PAINT:
 		{
-			CStatusView *pStatus=GetStatusView(hwnd);
+			CStatusView *pThis=GetStatusView(hwnd);
 			PAINTSTRUCT ps;
-			RECT rc;
-			HDC hdc;
-			HFONT hfontOld;
-			COLORREF crOldTextColor,crOldBkColor;
-			int OldBkMode;
 
 			::BeginPaint(hwnd,&ps);
-			pStatus->GetClientRect(&rc);
-			rc.left+=STATUS_BORDER;
-			rc.top+=STATUS_BORDER;
-			rc.right-=STATUS_BORDER;
-			rc.bottom-=STATUS_BORDER;
+			if (pThis->m_fBufferedPaint) {
+				HDC hdc=pThis->m_BufferedPaint.Begin(ps.hdc,&ps.rcPaint,true);
 
-			if (!pStatus->m_fSingleMode) {
-				const int Height=rc.bottom-rc.top;
-				int MaxWidth=0;
-				for (int i=0;i<pStatus->m_NumItems;i++) {
-					const CStatusItem *pItem=pStatus->m_ItemList[i];
-					if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
-						MaxWidth=pItem->GetWidth();
+				if (hdc!=NULL) {
+					pThis->Draw(hdc,&ps.rcPaint);
+					pThis->m_BufferedPaint.SetOpaque();
+					pThis->m_BufferedPaint.End();
+				} else {
+					pThis->Draw(ps.hdc,&ps.rcPaint);
 				}
-				if (MaxWidth>pStatus->m_VirtualScreen.GetWidth()
-						|| Height>pStatus->m_VirtualScreen.GetHeight())
-					pStatus->m_VirtualScreen.Create(MaxWidth+STATUS_MARGIN*2,Height);
-				hdc=pStatus->m_VirtualScreen.GetDC();
-				if (hdc==NULL)
-					hdc=ps.hdc;
 			} else {
-				hdc=ps.hdc;
+				pThis->Draw(ps.hdc,&ps.rcPaint);
 			}
-
-			hfontOld=SelectFont(hdc,pStatus->m_hfontStatus);
-			OldBkMode=::SetBkMode(hdc,TRANSPARENT);
-			crOldTextColor=::GetTextColor(hdc);
-			crOldBkColor=::GetBkColor(hdc);
-			if (pStatus->m_fSingleMode) {
-				Theme::FillGradient(hdc,&rc,&pStatus->m_BackGradient);
-				::SetTextColor(hdc,pStatus->m_crTextColor);
-				rc.left+=STATUS_MARGIN;
-				::DrawText(hdc,pStatus->m_pszSingleText,-1,&rc,
-						   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
-			} else {
-				RECT rcItem,rcDraw;
-
-				::SetRect(&rcItem,STATUS_BORDER,STATUS_BORDER,STATUS_BORDER,rc.bottom);
-				for (int i=0;i<pStatus->m_NumItems;i++) {
-					CStatusItem *pItem=pStatus->m_ItemList[i];
-					if (!pItem->GetVisible())
-						continue;
-					rcItem.left=rcItem.right;
-					rcItem.right=rcItem.left+pItem->GetWidth()+STATUS_MARGIN*2;
-					if (rcItem.right<=ps.rcPaint.left
-							|| rcItem.left>=ps.rcPaint.right)
-						continue;
-					bool fHighlight=i==pStatus->m_HotItem;
-					const Theme::GradientInfo *pGradient=
-						fHighlight?&pStatus->m_HighlightBackGradient:&pStatus->m_BackGradient;
-					::SetTextColor(hdc,fHighlight?
-						pStatus->m_crHighlightTextColor:pStatus->m_crTextColor);
-					::SetBkColor(hdc,MixColor(pGradient->Color1,pGradient->Color2,128));
-					rcDraw=rcItem;
-					if (hdc!=ps.hdc)
-						::OffsetRect(&rcDraw,-rcDraw.left,-rcDraw.top);
-					Theme::FillGradient(hdc,&rcDraw,pGradient);
-					rcDraw.left+=STATUS_MARGIN;
-					rcDraw.right-=STATUS_MARGIN;
-					pItem->Draw(hdc,&rcDraw);
-					if (hdc!=ps.hdc)
-						::BitBlt(ps.hdc,rcItem.left,rcItem.top,rcItem.right-rcItem.left,rcItem.bottom-rcItem.top,
-								 hdc,0,0,SRCCOPY);
-				}
-				rcItem.left=rcItem.right;
-				rcItem.right=ps.rcPaint.right;
-				if (rcItem.right>rcItem.left)
-					Theme::FillGradient(ps.hdc,&rcItem,&pStatus->m_BackGradient);
-			}
-			pStatus->GetClientRect(&rc);
-			Theme::DrawBorder(ps.hdc,&rc,pStatus->m_BorderType);
-			::SetBkColor(hdc,crOldBkColor);
-			::SetTextColor(hdc,crOldTextColor);
-			::SetBkMode(hdc,OldBkMode);
-			::SelectObject(hdc,hfontOld);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_MOUSEMOVE:
-		if (GetCapture()==hwnd) {
+		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 			RECT rc;
 
-			pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
-			x-=rc.left;
-			pStatus->m_ItemList[pStatus->m_HotItem]->OnMouseMove(x,y);
-		} else {
-			CStatusView *pStatus=GetStatusView(hwnd);
+			if (GetCapture()==hwnd) {
+				pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
+				x-=rc.left;
+				pStatus->m_ItemList[pStatus->m_HotItem]->OnMouseMove(x,y);
+			} else {
+				CStatusView *pStatus=GetStatusView(hwnd);
 
-			if (pStatus->m_fSingleMode)
-				break;
-
-			int x=GET_X_LPARAM(lParam);
-			int Left,Right;
-			int i;
-
-			Left=STATUS_BORDER;
-			for (i=0;i<pStatus->m_NumItems;i++) {
-				if (!pStatus->m_ItemList[i]->GetVisible())
-					continue;
-				Right=Left+STATUS_MARGIN*2+pStatus->m_ItemList[i]->GetWidth();
-				if (x>=Left && x<Right)
+				if (pStatus->m_fSingleMode)
 					break;
-				Left=Right;
-			}
-			if (i==pStatus->m_NumItems)
-				i=-1;
-			if (i!=pStatus->m_HotItem)
-				pStatus->SetHotItem(i);
-			if (!pStatus->m_fTrackMouseEvent) {
-				TRACKMOUSEEVENT tme;
 
-				tme.cbSize=sizeof(TRACKMOUSEEVENT);
-				tme.dwFlags=TME_LEAVE;
-				tme.hwndTrack=hwnd;
-				if (TrackMouseEvent(&tme))
-					pStatus->m_fTrackMouseEvent=true;
+				POINT pt;
+				pt.x=x;
+				pt.y=y;
+				int i;
+				for (i=0;i<pStatus->m_NumItems;i++) {
+					if (!pStatus->m_ItemList[i]->GetVisible())
+						continue;
+					pStatus->GetItemRect(pStatus->IndexToID(i),&rc);
+					if (::PtInRect(&rc,pt))
+						break;
+				}
+				if (i==pStatus->m_NumItems)
+					i=-1;
+				if (i!=pStatus->m_HotItem)
+					pStatus->SetHotItem(i);
+				if (!pStatus->m_fTrackMouseEvent) {
+					TRACKMOUSEEVENT tme;
+
+					tme.cbSize=sizeof(TRACKMOUSEEVENT);
+					tme.dwFlags=TME_LEAVE;
+					tme.hwndTrack=hwnd;
+					if (TrackMouseEvent(&tme))
+						pStatus->m_fTrackMouseEvent=true;
+				}
 			}
 		}
 		return 0;
@@ -676,6 +612,19 @@ int CStatusView::GetItemHeight() const
 }
 
 
+int CStatusView::GetIntegralWidth() const
+{
+	int Width;
+
+	Width=STATUS_BORDER*2;
+	for (int i=0;i<m_NumItems;i++) {
+		if (m_ItemList[i]->GetVisible())
+			Width+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
+	}
+	return Width;
+}
+
+
 void CStatusView::SetVisible(bool fVisible)
 {
 	int i;
@@ -820,6 +769,13 @@ bool CStatusView::DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,b
 }
 
 
+bool CStatusView::EnableBufferedPaint(bool fEnable)
+{
+	m_fBufferedPaint=fEnable;
+	return true;
+}
+
+
 void CStatusView::OnTrace(LPCTSTR pszOutput)
 {
 	SetSingleText(pszOutput);
@@ -852,4 +808,90 @@ void CStatusView::SetHotItem(int Item)
 		tme.dwHoverTime=HOVER_DEFAULT;
 		::TrackMouseEvent(&tme);
 	}
+}
+
+
+void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
+{
+	RECT rc;
+	HDC hdcDst;
+	HFONT hfontOld;
+	COLORREF crOldTextColor,crOldBkColor;
+	int OldBkMode;
+
+	GetClientRect(&rc);
+	rc.left+=STATUS_BORDER;
+	rc.top+=STATUS_BORDER;
+	rc.right-=STATUS_BORDER;
+	rc.bottom-=STATUS_BORDER;
+
+	if (!m_fSingleMode) {
+		const int Height=rc.bottom-rc.top;
+		int MaxWidth=0;
+		for (int i=0;i<m_NumItems;i++) {
+			const CStatusItem *pItem=m_ItemList[i];
+			if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
+				MaxWidth=pItem->GetWidth();
+		}
+		if (MaxWidth>m_VirtualScreen.GetWidth()
+				|| Height>m_VirtualScreen.GetHeight())
+			m_VirtualScreen.Create(MaxWidth+STATUS_MARGIN*2,Height);
+		hdcDst=m_VirtualScreen.GetDC();
+		if (hdcDst==NULL)
+			hdcDst=hdc;
+	} else {
+		hdcDst=hdc;
+	}
+
+	hfontOld=SelectFont(hdcDst,m_hfontStatus);
+	OldBkMode=::SetBkMode(hdcDst,TRANSPARENT);
+	crOldTextColor=::GetTextColor(hdcDst);
+	crOldBkColor=::GetBkColor(hdcDst);
+	if (m_fSingleMode) {
+		Theme::FillGradient(hdcDst,&rc,&m_BackGradient);
+		::SetTextColor(hdcDst,m_crTextColor);
+		rc.left+=STATUS_MARGIN;
+		::DrawText(hdcDst,m_pszSingleText,-1,&rc,
+				   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+	} else {
+		RECT rcItem,rcDraw;
+
+		::SetRect(&rcItem,STATUS_BORDER,STATUS_BORDER,STATUS_BORDER,rc.bottom);
+		for (int i=0;i<m_NumItems;i++) {
+			CStatusItem *pItem=m_ItemList[i];
+			if (!pItem->GetVisible())
+				continue;
+			rcItem.left=rcItem.right;
+			rcItem.right=rcItem.left+pItem->GetWidth()+STATUS_MARGIN*2;
+			if (rcItem.right<=pPaintRect->left
+					|| rcItem.left>=pPaintRect->right)
+				continue;
+			bool fHighlight=i==m_HotItem;
+			const Theme::GradientInfo *pGradient=
+				fHighlight?&m_HighlightBackGradient:&m_BackGradient;
+			::SetTextColor(hdcDst,fHighlight?
+				m_crHighlightTextColor:m_crTextColor);
+			::SetBkColor(hdcDst,MixColor(pGradient->Color1,pGradient->Color2,128));
+			rcDraw=rcItem;
+			if (hdcDst!=hdc)
+				::OffsetRect(&rcDraw,-rcDraw.left,-rcDraw.top);
+			Theme::FillGradient(hdcDst,&rcDraw,pGradient);
+			rcDraw.left+=STATUS_MARGIN;
+			rcDraw.right-=STATUS_MARGIN;
+			pItem->Draw(hdcDst,&rcDraw);
+			if (hdcDst!=hdc)
+				::BitBlt(hdc,rcItem.left,rcItem.top,rcItem.right-rcItem.left,rcItem.bottom-rcItem.top,
+						 hdcDst,0,0,SRCCOPY);
+		}
+		rcItem.left=rcItem.right;
+		rcItem.right=pPaintRect->right;
+		if (rcItem.right>rcItem.left)
+			Theme::FillGradient(hdc,&rcItem,&m_BackGradient);
+	}
+	GetClientRect(&rc);
+	Theme::DrawBorder(hdc,&rc,m_BorderType);
+	::SetBkColor(hdcDst,crOldBkColor);
+	::SetTextColor(hdcDst,crOldTextColor);
+	::SetBkMode(hdcDst,OldBkMode);
+	::SelectObject(hdcDst,hfontOld);
 }

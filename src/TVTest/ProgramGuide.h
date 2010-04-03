@@ -6,9 +6,11 @@
 #include "EpgProgramList.h"
 #include "ChannelList.h"
 #include "DriverManager.h"
+#include "LogoManager.h"
 #include "Theme.h"
 #include "ProgramSearch.h"
 #include "EventInfoPopup.h"
+#include "StatusView.h"
 
 
 class CProgramGuideServiceInfo;
@@ -88,7 +90,8 @@ public:
 	int NumTools() const { return m_NumTools; }
 };
 
-class CProgramGuide : public CBasicWindow {
+class CProgramGuide : public CBasicWindow
+{
 public:
 	enum {
 		DAY_TODAY,
@@ -129,9 +132,21 @@ public:
 	enum { MIN_LINES_PER_HOUR=8, MAX_LINES_PER_HOUR=50 };
 	enum { MIN_ITEM_WIDTH=100, MAX_ITEM_WIDTH=500 };
 	enum { TIME_BAR_BACK_COLORS=8 };
+	class CFrame {
+		CProgramGuide *m_pProgramGuide;
+	public:
+		CFrame();
+		virtual ~CFrame() = 0;
+		virtual void SetCaption(LPCTSTR pszCaption) {}
+		virtual void OnDateChanged() {}
+		virtual void OnSpaceChanged() {}
+		virtual bool OnCommand(int Command) { return false; }
+		virtual bool SetAlwaysOnTop(bool fTop) { return false; }
+		virtual bool GetAlwaysOnTop() const { return false; }
+		friend CProgramGuide;
+	};
 
 private:
-	bool m_fMaximized;
 	CEpgProgramList *m_pProgramList;
 	CProgramGuideServiceList m_ServiceList;
 	int m_LinesPerHour;
@@ -147,7 +162,6 @@ private:
 	HFONT m_hfontTime;
 	POINT m_ScrollPos;
 	bool m_fDragScroll;
-	HICON m_hSmallIcon;
 	HCURSOR m_hDragCursor1;
 	HCURSOR m_hDragCursor2;
 	struct {
@@ -193,6 +207,8 @@ private:
 	} m_CurItem;
 	bool m_fUpdating;
 	CProgramGuideEventHandler *m_pEventHandler;
+	CFrame *m_pFrame;
+	CLogoManager *m_pLogoManager;
 	COLORREF m_ColorList[NUM_COLORS];
 	Theme::GradientInfo m_ChannelNameBackGradient;
 	Theme::GradientInfo m_CurChannelNameBackGradient;
@@ -217,13 +233,15 @@ private:
 	void DrawProgramList(int Service,HDC hdc,const RECT *pRect,const RECT *pPaintRect);
 	void DrawServiceName(int Service,HDC hdc,const RECT *pRect);
 	void DrawTimeBar(HDC hdc,const RECT *pRect,bool fRight);
+	void Draw(HDC hdc,const RECT *pPaintRect);
 	int GetCurTimeLinePos() const;
 	void GetProgramGuideRect(RECT *pRect) const;
 	void Scroll(int XOffset,int YOffset);
 	void SetScrollBar();
-	void SetTitleBar();
+	void SetCaption();
 	//void SetToolTip();
 	bool HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex);
+
 	static HINSTANCE m_hinst;
 	static CProgramGuide *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -242,8 +260,12 @@ public:
 	bool SetDriverList(const CDriverManager *pDriverManager);
 	void SetCurrentService(WORD TSID,WORD ServiceID);
 	void ClearCurrentService() { SetCurrentService(0,0); }
+	int GetCurrentTuningSpace() const { return m_CurrentTuningSpace; }
+	bool GetTuningSpaceName(int Space,LPTSTR pszName,int MaxName) const;
+	bool EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const;
 	bool SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime);
-	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime);
+	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
+	bool GetCurrentTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
 	bool SetViewDay(int Day);
 	int GetViewDay() const { return m_Day; }
 	int GetLinesPerHour() const { return m_LinesPerHour; }
@@ -259,14 +281,47 @@ public:
 	bool SetShowToolTip(bool fShow);
 	bool GetShowToolTip() const { return m_fShowToolTip; }
 	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
+	bool SetFrame(CFrame *pFrame);
+	bool SetLogoManager(CLogoManager *pLogoManager);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 	int GetWheelScrollLines() const { return m_WheelScrollLines; }
 	void SetWheelScrollLines(int Lines) { m_WheelScrollLines=Lines; }
-	bool GetMaximizeStatus() const { return m_fMaximized; }
-	bool SetMaximize(bool fMaximize);
 	bool GetDragScroll() const { return m_fDragScroll; }
 	bool SetDragScroll(bool fDragScroll);
 	CProgramSearch *GetProgramSearch() { return &m_ProgramSearch; }
+	bool OnClose();
+};
+
+class CProgramGuideFrame : public CBasicWindow, public CProgramGuide::CFrame
+{
+	CProgramGuide *m_pProgramGuide;
+	CStatusView m_StatusView[2];
+	CAeroGlass m_AeroGlass;
+	SIZE m_StatusMargin;
+	bool m_fAlwaysOnTop;
+
+// CProgramGuide::CFrame
+	void SetCaption(LPCTSTR pszCaption);
+	void OnDateChanged();
+	void OnSpaceChanged();
+	bool OnCommand(int Command);
+
+	static HINSTANCE m_hinst;
+	static CProgramGuideFrame *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+public:
+	static bool Initialize(HINSTANCE hinst);
+	CProgramGuideFrame(CProgramGuide *pProgramGuide);
+	~CProgramGuideFrame();
+	CProgramGuide *GetProgramGuide() { return m_pProgramGuide; }
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	void SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
+	void SetStatusBorderType(Theme::BorderType Type);
+// CProgramGuide::CFrame
+	bool SetAlwaysOnTop(bool fTop);
+	bool GetAlwaysOnTop() const { return m_fAlwaysOnTop; }
 };
 
 

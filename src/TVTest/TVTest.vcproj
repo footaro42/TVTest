@@ -460,7 +460,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
+				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\Release\&quot;"
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -557,7 +557,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
+				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\Release\&quot;"
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -743,6 +743,10 @@
 			</File>
 			<File
 				RelativePath=".\Logger.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\LogoManager.cpp"
 				>
 			</File>
 			<File
@@ -938,6 +942,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ToolTip.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\TVTest.cpp"
 				>
 			</File>
@@ -1124,6 +1132,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\LogoManager.h"
+				>
+			</File>
+			<File
 				RelativePath=".\MainWindow.h"
 				>
 			</File>
@@ -1276,6 +1288,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ToolTip.h"
+				>
+			</File>
+			<File
 				RelativePath=".\TVTest.h"
 				>
 			</File>
@@ -1371,6 +1387,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\IBonDriver.h"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\LogoDownloader.h"
 					>
 				</File>
 				<File
@@ -1484,6 +1504,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\FileWriter.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\LogoDownloader.cpp"
 					>
 				</File>
 				<File

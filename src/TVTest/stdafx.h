@@ -32,6 +32,7 @@
 #include <windowsx.h>
 #include <tchar.h>
 #include <commctrl.h>
+#include <shlobj.h>
 #include <shlwapi.h>
 #include <streams.h>	// DirectShow BaseClasses
 

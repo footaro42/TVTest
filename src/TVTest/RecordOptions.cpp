@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "RecordOptions.h"
@@ -16,18 +15,20 @@ static char THIS_FILE[]=__FILE__;
 
 
 CRecordOptions::CRecordOptions()
+	: m_fConfirmChannelChange(true)
+	, m_fConfirmExit(true)
+	, m_fConfirmStop(false)
+	, m_fConfirmStopStatusBarOnly(false)
+	, m_fCurServiceOnly(false)
+	, m_fSaveSubtitle(true)
+	, m_fSaveDataCarrousel(true)
+	, m_fDescrambleCurServiceOnly(false)
+	, m_BufferSize(0x100000)
+	, m_fAlertLowFreeSpace(true)
+	, m_LowFreeSpaceThreshold(2048)
 {
 	m_szSaveFolder[0]='\0';
 	::lstrcpy(m_szFileName,TEXT("Record_%date%-%time%.ts"));
-	m_fConfirmChannelChange=true;
-	m_fConfirmExit=true;
-	m_fConfirmStop=false;
-	m_fConfirmStopStatusBarOnly=false;
-	m_fCurServiceOnly=false;
-	m_fSaveSubtitle=true;
-	m_fSaveDataCarrousel=true;
-	m_fDescrambleCurServiceOnly=false;
-	m_BufferSize=0x100000;
 }
 
 
@@ -79,6 +80,8 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("RecordDataCarrousel"),&m_fSaveDataCarrousel);
 	pSettings->Read(TEXT("RecordDescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
 	pSettings->Read(TEXT("RecordBufferSize"),&m_BufferSize);
+	pSettings->Read(TEXT("AlertLowFreeSpace"),&m_fAlertLowFreeSpace);
+	pSettings->Read(TEXT("LowFreeSpaceThreshold"),&m_LowFreeSpaceThreshold);
 	return true;
 }
 
@@ -87,7 +90,7 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("RecordFolder"),m_szSaveFolder);
 	pSettings->Write(TEXT("RecordFileName"),m_szFileName);
-	pSettings->Write(TEXT("AddRecordTime"),false);	// Backward compatibility
+	//pSettings->Write(TEXT("AddRecordTime"),false);	// Backward compatibility
 	pSettings->Write(TEXT("ConfirmRecChChange"),m_fConfirmChannelChange);
 	pSettings->Write(TEXT("ConfrimRecordingExit"),m_fConfirmExit);
 	pSettings->Write(TEXT("ConfrimRecordStop"),m_fConfirmStop);
@@ -97,6 +100,8 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("RecordDataCarrousel"),m_fSaveDataCarrousel);
 	pSettings->Write(TEXT("RecordDescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	pSettings->Write(TEXT("RecordBufferSize"),m_BufferSize);
+	pSettings->Write(TEXT("AlertLowFreeSpace"),m_fAlertLowFreeSpace);
+	pSettings->Write(TEXT("LowFreeSpaceThreshold"),m_LowFreeSpaceThreshold);
 	return true;
 }
 
@@ -281,17 +286,20 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				pThis->m_fSaveSubtitle?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
 				pThis->m_fSaveDataCarrousel?BST_CHECKED:BST_UNCHECKED);
-			/*
-			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,
-								IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
-						   pThis->m_fCurServiceOnly);
-			*/
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY,
 				pThis->m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,
 							pThis->m_BufferSize/1024,FALSE);
 			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE_UD,
 								 UDM_SETRANGE32,1,0x7FFFFFFF);
+
+			DlgCheckBox_Check(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE,pThis->m_fAlertLowFreeSpace);
+			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,pThis->m_LowFreeSpaceThreshold,FALSE);
+			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_SPIN,
+								 UDM_SETRANGE32,1,0x7FFFFFFF);
+			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_LABEL,
+								IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_UNIT,
+						   pThis->m_fAlertLowFreeSpace);
 		}
 		return TRUE;
 
@@ -338,16 +346,16 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			}
 			return TRUE;
 
-		/*
-		case IDC_RECORDOPTIONS_CURSERVICEONLY:
-			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
-				DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY));
-			return TRUE;
-		*/
-
 		case IDC_RECORDOPTIONS_CONFIRMSTOP:
 			EnableDlgItem(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,
 				DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP));
+			return TRUE;
+
+		case IDC_RECORDOPTIONS_ALERTLOWFREESPACE:
+			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_LABEL,
+								IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_UNIT,
+						   DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE));
+			return TRUE;
 		}
 		return TRUE;
 
@@ -402,23 +410,29 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				}
 				::lstrcpy(pThis->m_szSaveFolder,szSaveFolder);
 				::lstrcpy(pThis->m_szFileName,szFileName);
-				pThis->m_fConfirmChannelChange=::IsDlgButtonChecked(hDlg,
-					IDC_RECORDOPTIONS_CONFIRMCHANNELCHANGE)==BST_CHECKED;
-				pThis->m_fConfirmExit=::IsDlgButtonChecked(hDlg,
-					IDC_RECORDOPTIONS_CONFIRMEXIT)==BST_CHECKED;
-				pThis->m_fConfirmStop=::IsDlgButtonChecked(hDlg,
-					IDC_RECORDOPTIONS_CONFIRMSTOP)==BST_CHECKED;
-				pThis->m_fConfirmStopStatusBarOnly=::IsDlgButtonChecked(hDlg,
-					IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP)==BST_CHECKED;
-				pThis->m_fCurServiceOnly=::IsDlgButtonChecked(hDlg,
-					IDC_RECORDOPTIONS_CURSERVICEONLY)==BST_CHECKED;
+				pThis->m_fConfirmChannelChange=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMCHANNELCHANGE);
+				pThis->m_fConfirmExit=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMEXIT);
+				pThis->m_fConfirmStop=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP);
+				pThis->m_fConfirmStopStatusBarOnly=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP);
+				pThis->m_fCurServiceOnly=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY);
 				pThis->m_fSaveSubtitle=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE);
 				pThis->m_fSaveDataCarrousel=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL);
-				pThis->m_fDescrambleCurServiceOnly=::IsDlgButtonChecked(hDlg,
-					IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY)==BST_CHECKED;
-				pThis->m_BufferSize=::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,NULL,FALSE)*1024;
+				pThis->m_fDescrambleCurServiceOnly=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY);
+				pThis->m_BufferSize=
+					::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,NULL,FALSE)*1024;
+
+				pThis->m_fAlertLowFreeSpace=
+					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE);
+				pThis->m_LowFreeSpaceThreshold=
+					::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,NULL,FALSE);
 			}
 			break;
 		}

@@ -8,9 +8,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	6
-#define VERSION_BUILD	7
+#define VERSION_BUILD	8
 
-#define VERSION_TEXT_A	"0.6.7"
+#define VERSION_TEXT_A	"0.6.8"
 
 #define ABOUT_VERSION_TEXT	TEXT("TVTest ver.") VERSION_TEXT
 
@@ -20,9 +20,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	4
-#define VERSION_BUILD	2
+#define VERSION_BUILD	3
 
-#define VERSION_TEXT_A	"0.4.2"
+#define VERSION_TEXT_A	"0.4.3"
 
 #define ABOUT_VERSION_TEXT	TEXT("TVH264 ver.") VERSION_TEXT
 

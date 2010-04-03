@@ -251,3 +251,25 @@ int CImageCodec::FormatNameToIndex(LPCTSTR pszName) const
 	}
 	return -1;
 }
+
+
+HGLOBAL CImageCodec::LoadAribPngFromMemory(const void *pData,SIZE_T DataSize)
+{
+	if (m_hLib==NULL && !Init())
+		return NULL;
+	LoadAribPngFromMemoryFunc pLoadAribPngFromMemory=reinterpret_cast<LoadAribPngFromMemoryFunc>(::GetProcAddress(m_hLib,"LoadAribPngFromMemory"));
+	if (pLoadAribPngFromMemory==NULL)
+		return NULL;
+	return pLoadAribPngFromMemory(pData,DataSize);
+}
+
+
+HGLOBAL CImageCodec::LoadAribPngFromFile(LPCTSTR pszFileName)
+{
+	if (m_hLib==NULL && !Init())
+		return NULL;
+	LoadAribPngFromFileFunc pLoadAribPngFromFile=reinterpret_cast<LoadAribPngFromFileFunc>(::GetProcAddress(m_hLib,"LoadAribPngFromFile"));
+	if (pLoadAribPngFromFile==NULL)
+		return NULL;
+	return pLoadAribPngFromFile(pszFileName);
+}

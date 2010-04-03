@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.6.7
+    TVTest ver.0.6.8
 
 
 ◆ はじめに
@@ -41,7 +41,7 @@
   ・TVTest_Image.dll      画像保存用 DLL
   ・TVTest_KeyHook.dll    キーフック用 DLL
   ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.6.7_Src.zip  ソースファイル
+  ・TVTest_0.6.8_Src.zip  ソースファイル
   ・TVTest_SDK_100328.zip プラグイン開発用 SDK
   ・Tuner.dll             各チューナー用アイコンの DLL
   ・Tuner.ini             チューナーの表示設定ファイル
@@ -57,10 +57,12 @@
 
   起動すると、本体のあるフォルダに以下のファイルが作成されます。
 
-  ・TVTest.ini     設定ファイル
-  ・TVTest.ch.ini  チャンネル情報(人が見て意味のあるものではありません)
-  ・EpgData        EPG データ(設定により違うフォルダに作成したり、作成しないよ
-                   うにすることも可能です)
+  ・TVTest.ini       設定ファイル
+  ・TVTest.ch.ini    チャンネル情報(人が見て意味のあるものではありません)
+  ・TVTest.logo.ini  局ロゴの情報
+  ・EpgData          EPG データ(*)
+  ・LogoData         局ロゴデータ(*)
+   (*) 設定により違うフォルダに作成したり、作成しないようにすることも可能です。
 
 
 ◆ 導入
@@ -417,7 +419,7 @@
     Independent JPEG Group's JPEG software release 6b
       with x86 SIMD extension for IJG JPEG library version 1.02
   ・このプログラムは libpng を使用しています。
-    libpng 1.2.31  Copyright (c) 1998-2001 Glenn Randers-Pehrson
+    libpng 1.4.1  Copyright (c) 1998-2009 Glenn Randers-Pehrson
   ・このプログラムは zlib を使用しています。
     zlib version 1.2.3  Copyright (C) 1995-2004 Jean-loup Gailly and Mark Adler
   ・BonDriver_UDP.dll は Meru-co 氏作の BonDriver(Meru customize edition) for
@@ -452,6 +454,19 @@
 
 
 ◆ 更新履歴
+
+  ver.0.6.8
+    ・放送局のロゴを取得して利用するようにした(地デジのみ)
+    ・EPG 番組表にツールバーを追加した
+    ・EPG 番組表を常に前面に表示できるようにした
+    ・録画時に空き容量が少なくなった場合に注意表示を行えるようにした
+    ・終了時のログをより細かく出力するようにした
+    ・DRCS のハッシュ値が正常に算出されない不具合を修正
+    ・パネルを右側にドッキングした状態で画面のデザインを変更すると、パネルが変
+      な位置に移動する不具合を修正
+    ・チャンネルのプリセットを更新
+    ・libpng を 1.4.1 に更新
+    ・その他微修正
 
   ver.0.6.7
     ・表示倍率のメニューをカスタマイズできるようにした

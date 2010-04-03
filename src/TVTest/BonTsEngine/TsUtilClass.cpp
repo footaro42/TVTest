@@ -491,6 +491,7 @@ void CMD5Calculator::CalcMD5(const void *pData, SIZE_T DataSize, BYTE pMD5[16])
 {
 	const BYTE *pSrc = static_cast<const BYTE*>(pData);
 	DWORD *pdwMD5 = reinterpret_cast<DWORD*>(pMD5);
+	const ULONGLONG BitsSize = (ULONGLONG)DataSize << 3;
 
 	pdwMD5[0] = 0x67452301UL;
 	pdwMD5[1] = 0xEFCDAB89UL;
@@ -518,6 +519,6 @@ void CMD5Calculator::CalcMD5(const void *pData, SIZE_T DataSize, BYTE pMD5[16])
 	} else {
 		::ZeroMemory(p, PaddingSize - 8);
 	}
-	((ULONGLONG*)PaddingData)[7] = (ULONGLONG)DataSize << 3;
+	((ULONGLONG*)PaddingData)[7] = BitsSize;
 	MD5Transform(pdwMD5, PaddingData);
 }

@@ -11,13 +11,13 @@ class CNotificationBar : public CBasicWindow
 public:
 	enum MessageType {
 		MESSAGE_INFO,
+		MESSAGE_WARNING,
 		MESSAGE_ERROR
 	};
 
 private:
 	Theme::GradientInfo m_BackGradient;
-	COLORREF m_TextColor;
-	COLORREF m_ErrorTextColor;
+	COLORREF m_TextColor[3];
 	HFONT m_hfont;
 	int m_BarHeight;
 	bool m_fAnimate;
@@ -36,7 +36,7 @@ public:
 	bool Hide();
 	bool SetText(LPCTSTR pszText,MessageType Type=MESSAGE_INFO);
 	bool SetColors(const Theme::GradientInfo *pBackGradient,
-				   COLORREF crTextColor,COLORREF crErrorTextColor);
+				   COLORREF crTextColor,COLORREF crWarningTextColor,COLORREF crErrorTextColor);
 	bool SetFont(const LOGFONT *pFont);
 	void SetAnimate(bool fAnimate) { m_fAnimate=fAnimate; }
 	static bool Initialize(HINSTANCE hinst);

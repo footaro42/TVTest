@@ -56,6 +56,7 @@ int CalcFontPointHeight(HDC hdc,const LOGFONT *pFont);
 int GetErrorText(DWORD ErrorCode,LPTSTR pszText,int MaxLength);
 
 bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard=false,LPTSTR pszMessage=NULL,int MaxMessage=0);
+bool GetAbsolutePath(LPCTSTR pszFilePath,LPTSTR pszAbsolutePath,int MaxLength);
 
 class CDynamicString {
 protected:
@@ -63,9 +64,15 @@ protected:
 public:
 	CDynamicString();
 	CDynamicString(const CDynamicString &String);
+#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+	CDynamicString(CDynamicString &&String);
+#endif
 	CDynamicString(LPCTSTR pszString);
 	virtual ~CDynamicString();
 	CDynamicString &operator=(const CDynamicString &String);
+#ifdef MOVE_ASSIGNMENT_SUPPORTED
+	CDynamicString &operator=(CDynamicString &&String);
+#endif
 	CDynamicString &operator+=(const CDynamicString &String);
 	CDynamicString &operator=(LPCTSTR pszString);
 	CDynamicString &operator+=(LPCTSTR pszString);

@@ -571,6 +571,16 @@ int CTsAnalyzer::GetServiceName(const int Index, LPTSTR pszName, const int MaxLe
 }
 
 
+WORD CTsAnalyzer::GetLogoID(const int Index)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (Index >= 0 && (size_t)Index < m_ServiceList.size())
+		return m_ServiceList[Index].LogoID;
+	return 0xFFFF;
+}
+
+
 bool CTsAnalyzer::GetServiceList(CServiceList *pList)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -1311,6 +1321,7 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[Index].bIsCaService = false;
 		pThis->m_ServiceList[Index].szServiceName[0] = '\0';
 		pThis->m_ServiceList[Index].ServiceType = 0xFF;
+		pThis->m_ServiceList[Index].LogoID = 0xFFFF;
 
 		// PMTのPIDをマップ
 		pMapManager->MapTarget(pPatTable->GetPmtPID((WORD)Index), new CPmtTable(TABLE_DEBUG), OnPmtUpdated, pParam);
@@ -1416,7 +1427,7 @@ void CALLBACK CTsAnalyzer::OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	Info.bIsUpdated = true;
 
 	// SDTテーブルを再マップする
-	pMapManager->MapTarget(0x0011, new CSdtTable, OnSdtUpdated, pParam);
+	pMapManager->MapTarget(PID_SDT, new CSdtTable, OnSdtUpdated, pParam);
 
 	// イベントハンドラ呼び出し
 	pThis->CallEventHandler(EVENT_PMT_UPDATED);
@@ -1447,11 +1458,16 @@ void CALLBACK CTsAnalyzer::OnSdtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[ServiceIndex].szServiceName[0] = '\0';
 
 		const CDescBlock *pDescBlock = pSdtTable->GetItemDesc(SdtIndex);
-		const CServiceDesc *pServiceDesc = dynamic_cast<const CServiceDesc *>(pDescBlock->GetDescByTag(CServiceDesc::DESC_TAG));
 
+		const CServiceDesc *pServiceDesc = dynamic_cast<const CServiceDesc *>(pDescBlock->GetDescByTag(CServiceDesc::DESC_TAG));
 		if (pServiceDesc) {
 			pServiceDesc->GetServiceName(pThis->m_ServiceList[ServiceIndex].szServiceName, 256);
 			pThis->m_ServiceList[ServiceIndex].ServiceType = pServiceDesc->GetServiceType();
+		}
+
+		const CLogoTransmissionDesc *pLogoDesc = dynamic_cast<const CLogoTransmissionDesc*>(pDescBlock->GetDescByTag(CLogoTransmissionDesc::DESC_TAG));
+		if (pLogoDesc) {
+			pThis->m_ServiceList[ServiceIndex].LogoID = pLogoDesc->GetLogoID();
 		}
 	}
 

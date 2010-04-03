@@ -12,12 +12,13 @@ static char THIS_FILE[]=__FILE__;
 
 
 CBasicWindow::CBasicWindow()
+	: m_hwnd(NULL)
 {
-	m_hwnd=NULL;
 	m_WindowPosition.Left=0;
 	m_WindowPosition.Top=0;
 	m_WindowPosition.Width=0;
 	m_WindowPosition.Height=0;
+	m_WindowPosition.fMaximized=false;
 }
 
 
@@ -176,9 +177,22 @@ bool CBasicWindow::GetVisible() const
 }
 
 
+bool CBasicWindow::SetMaximize(bool fMaximize)
+{
+	if (m_hwnd!=NULL) {
+		::ShowWindow(m_hwnd,fMaximize?SW_MAXIMIZE:SW_RESTORE);
+	} else {
+		m_WindowPosition.fMaximized=fMaximize;
+	}
+	return true;
+}
+
+
 bool CBasicWindow::GetMaximize() const
 {
-	return m_hwnd!=NULL && ::IsZoomed(m_hwnd);
+	if (m_hwnd!=NULL)
+		return ::IsZoomed(m_hwnd)!=FALSE;
+	return m_WindowPosition.fMaximized;
 }
 
 
@@ -330,6 +344,7 @@ void CBasicWindow::OnDestroy()
 {
 	GetPosition(&m_WindowPosition.Left,&m_WindowPosition.Top,
 				&m_WindowPosition.Width,&m_WindowPosition.Height);
+	m_WindowPosition.fMaximized=::IsZoomed(m_hwnd)!=FALSE;
 	SetWindowLongPtr(m_hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>((LPVOID)NULL));
 	m_hwnd=NULL;
 }

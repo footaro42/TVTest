@@ -699,9 +699,12 @@ void CMediaViewer::CloseViewer(void)
 	*/
 
 	if (m_pFilterGraph) {
+		Trace(TEXT("フィルタグラフを停止しています..."));
 		m_pFilterGraph->Abort();
 		Stop();
 	}
+
+	Trace(TEXT("COMインスタンスを解放しています..."));
 
 	// COMインスタンスを開放する
 	if (m_pVideoRenderer!=NULL) {
@@ -747,11 +750,13 @@ void CMediaViewer::CloseViewer(void)
 	}
 #endif
 
+	if (m_pFilterGraph) {
+		Trace(TEXT("フィルタグラフを解放しています..."));
 #ifdef _DEBUG
-	if (m_pFilterGraph)
 		TRACE(TEXT("FilterGraph RefCount = %d\n"),DirectShowUtil::GetRefCount(m_pFilterGraph));
 #endif
-	SAFE_RELEASE(m_pFilterGraph);
+		SAFE_RELEASE(m_pFilterGraph);
+	}
 
 	if (m_pVideoRenderer!=NULL) {
 		delete m_pVideoRenderer;

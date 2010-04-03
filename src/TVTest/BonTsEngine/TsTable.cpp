@@ -1493,6 +1493,92 @@ const bool CTotTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 
 /////////////////////////////////////////////////////////////////////////////
+// CDTテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CCdtTable::CCdtTable()
+	: CPsiSingleTable()
+{
+	Reset();
+}
+
+CCdtTable::~CCdtTable()
+{
+}
+
+void CCdtTable::Reset(void)
+{
+	CPsiSingleTable::Reset();
+	m_OriginalNetworkId = 0xFFFF;
+	m_DataType = DATATYPE_INVALID;
+	m_DescBlock.Reset();
+	m_DataModuleSize = 0;
+	m_DataModuleOffset = 0;
+}
+
+const WORD CCdtTable::GetOriginalNetworkId() const
+{
+	return m_OriginalNetworkId;
+}
+
+const BYTE CCdtTable::GetDataType() const
+{
+	return m_DataType;
+}
+
+const CDescBlock * CCdtTable::GetDesc(void) const
+{
+	return &m_DescBlock;
+}
+
+const WORD CCdtTable::GetDataModuleSize() const
+{
+	return m_DataModuleSize;
+}
+
+const BYTE * CCdtTable::GetDataModuleByte() const
+{
+	if (m_DataModuleSize == 0 || m_DataModuleOffset == 0)
+		return NULL;
+
+	return m_CurSection.GetPayloadData() + m_DataModuleOffset;
+}
+
+const bool CCdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
+{
+	const WORD DataSize = pCurSection->GetPayloadSize();
+	const BYTE *pHexData = pCurSection->GetPayloadData();
+
+	if (DataSize < 5)
+		return false;
+	if (pCurSection->GetTableID() != TABLE_ID)
+		return false;
+
+	m_OriginalNetworkId = ((WORD)pHexData[0] << 8) | (WORD)pHexData[1];
+	m_DataType = pHexData[2];
+
+	WORD DescLength = (((WORD)pHexData[3] & 0x0F) << 8) | (WORD)pHexData[4];
+	if (DescLength <= DataSize - 5) {
+		if (DescLength > 0)
+			m_DescBlock.ParseBlock(&pHexData[7], DescLength);
+		m_DataModuleSize = DataSize - 5 - DescLength;
+		m_DataModuleOffset = 5 + DescLength;
+	} else {
+		m_DescBlock.Reset();
+		m_DataModuleSize = 0;
+		m_DataModuleOffset = 0;
+	}
+
+#ifdef _DEBUG
+	TRACE(TEXT("CDT : Data ID %04X / Network ID %04X / Data type %02X / Size %lu\n"),
+		  pCurSection->GetTableIdExtension(), m_OriginalNetworkId, m_DataType, m_DataModuleSize);
+#endif
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PCR抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 

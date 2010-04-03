@@ -52,8 +52,9 @@ CNotificationBar::CNotificationBar()
 	m_BackGradient.Direction=Theme::DIRECTION_VERT;
 	m_BackGradient.Color1=RGB(128,128,128);
 	m_BackGradient.Color2=RGB(64,64,64);
-	m_TextColor=RGB(224,224,224);
-	m_ErrorTextColor=RGB(224,64,64);
+	m_TextColor[MESSAGE_INFO]=RGB(224,224,224);
+	m_TextColor[MESSAGE_WARNING]=RGB(255,160,64);
+	m_TextColor[MESSAGE_ERROR]=RGB(224,64,64);
 	NONCLIENTMETRICS ncm;
 #if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
@@ -146,11 +147,12 @@ bool CNotificationBar::SetText(LPCTSTR pszText,MessageType Type)
 
 
 bool CNotificationBar::SetColors(const Theme::GradientInfo *pBackGradient,
-								 COLORREF crTextColor,COLORREF crErrorTextColor)
+	COLORREF crTextColor,COLORREF crWarningTextColor,COLORREF crErrorTextColor)
 {
 	m_BackGradient=*pBackGradient;
-	m_TextColor=crTextColor;
-	m_ErrorTextColor=crErrorTextColor;
+	m_TextColor[MESSAGE_INFO]=crTextColor;
+	m_TextColor[MESSAGE_WARNING]=crWarningTextColor;
+	m_TextColor[MESSAGE_ERROR]=crErrorTextColor;
 	if (m_hwnd!=NULL)
 		Invalidate();
 	return true;
@@ -202,9 +204,7 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 				int OldBkMode;
 				HFONT hfontOld;
 
-				OldTextColor=::SetTextColor(ps.hdc,
-					pThis->m_MessageType==MESSAGE_ERROR?
-								pThis->m_ErrorTextColor:pThis->m_TextColor);
+				OldTextColor=::SetTextColor(ps.hdc,pThis->m_TextColor[pThis->m_MessageType]);
 				OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
 				hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_hfont));
 				rc.left+=BAR_MARGIN;

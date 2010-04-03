@@ -20,7 +20,7 @@ bool SaveBMPFile(const ImageSaveInfo *pInfo)
 	BitsPerPixel=pInfo->pbmi->bmiHeader.biBitCount;
 	InfoBytes=sizeof(BITMAPINFOHEADER);
 	if (BitsPerPixel<=8)
-		InfoBytes+=(1<<BitsPerPixel)*sizeof(RGBQUAD);
+		InfoBytes+=(SIZE_T)(1<<BitsPerPixel)*sizeof(RGBQUAD);
 	else if (pInfo->pbmi->bmiHeader.biCompression==BI_BITFIELDS)
 		InfoBytes+=3*sizeof(DWORD);
 	RowBytes=DIB_ROW_BYTES(Width,BitsPerPixel);
@@ -34,9 +34,9 @@ bool SaveBMPFile(const ImageSaveInfo *pInfo)
 	BITMAPFILEHEADER bmfh;
 
 	bmfh.bfType=0x4D42;
-	bmfh.bfSize=sizeof(BITMAPFILEHEADER)+InfoBytes+BitsBytes;
+	bmfh.bfSize=(DWORD)(sizeof(BITMAPFILEHEADER)+InfoBytes+BitsBytes);
 	bmfh.bfReserved1=bmfh.bfReserved2=0;
-	bmfh.bfOffBits=sizeof(BITMAPFILEHEADER)+InfoBytes;
+	bmfh.bfOffBits=(DWORD)(sizeof(BITMAPFILEHEADER)+InfoBytes);
 	if (!WriteFile(hFile,&bmfh,sizeof(BITMAPFILEHEADER),&dwWrite,NULL)
 										|| dwWrite!=sizeof(BITMAPFILEHEADER)) {
 		CloseHandle(hFile);
@@ -63,7 +63,7 @@ bool SaveBMPFile(const ImageSaveInfo *pInfo)
 		return false;
 	}
 	if (InfoBytes>sizeof(BITMAPINFOHEADER)) {
-		SIZE_T PalBytes=InfoBytes-sizeof(BITMAPINFOHEADER);
+		DWORD PalBytes=(DWORD)(InfoBytes-sizeof(BITMAPINFOHEADER));
 
 		if (!WriteFile(hFile,pInfo->pbmi->bmiColors,PalBytes,
 										&dwWrite,NULL) || dwWrite!=PalBytes) {
@@ -73,7 +73,7 @@ bool SaveBMPFile(const ImageSaveInfo *pInfo)
 	}
 	/* ビットデータを書き込む */
 	if (pInfo->pbmi->bmiHeader.biHeight>0) {
-		if (!WriteFile(hFile,pInfo->pBits,BitsBytes,&dwWrite,NULL)
+		if (!WriteFile(hFile,pInfo->pBits,(DWORD)BitsBytes,&dwWrite,NULL)
 													|| dwWrite!=BitsBytes) {
 			CloseHandle(hFile);
 			return false;
@@ -84,7 +84,7 @@ bool SaveBMPFile(const ImageSaveInfo *pInfo)
 
 		p=static_cast<const BYTE*>(pInfo->pBits)+(Height-1)*RowBytes;
 		for (y=0;y<Height;y++) {
-			if (!WriteFile(hFile,p,RowBytes,&dwWrite,NULL)
+			if (!WriteFile(hFile,p,(DWORD)RowBytes,&dwWrite,NULL)
 													|| dwWrite!=RowBytes) {
 				CloseHandle(hFile);
 				return false;

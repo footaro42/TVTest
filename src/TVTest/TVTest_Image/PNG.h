@@ -3,6 +3,7 @@
 
 
 bool SavePNGFile(const ImageSaveInfo *pInfo);
+HGLOBAL LoadAribPng(const void *pData,SIZE_T DataSize);
 
 
 #endif

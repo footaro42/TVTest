@@ -113,13 +113,17 @@ public:
 		Gdiplus::Bitmap *m_pBitmap;
 	public:
 		CImage();
+		CImage(const CImage &Src);
 		~CImage();
+		CImage &operator=(const CImage &Src);
 		void Free();
 		bool LoadFromFile(LPCWSTR pszFileName);
 		bool LoadFromResource(HINSTANCE hinst,LPCWSTR pszName);
 		bool LoadFromResource(HINSTANCE hinst,LPCTSTR pszName,LPCTSTR pszType);
 		bool Create(int Width,int Height,int BitsPerPixel);
 		bool CreateFromBitmap(HBITMAP hbm,HPALETTE hpal=NULL);
+		bool CreateFromDIB(const BITMAPINFO *pbmi,const void *pBits);
+		bool IsCreated() const;
 		int GetWidth() const;
 		int GetHeight() const;
 		void Clear();

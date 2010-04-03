@@ -18,6 +18,7 @@
 #include "MediaGrabber.h"
 #include "TsSelector.h"
 #include "CaptionDecoder.h"
+#include "LogoDownloader.h"
 
 // Å¶Ç±ÇÃï”ÇÕëSÇ≠ÇÃébíËÇ≈Ç∑
 
@@ -132,6 +133,7 @@ public:
 	CMediaGrabber m_MediaGrabber;
 	CTsSelector m_TsSelector;
 	CCaptionDecoder m_CaptionDecoder;
+	CLogoDownloader m_LogoDownloader;
 
 protected:
 	virtual const DWORD OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam);

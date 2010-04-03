@@ -1,14 +1,17 @@
-#ifndef MENU_H
-#define MENU_H
+#ifndef TVTEST_MENU_H
+#define TVTEST_MENU_H
 
 
 #include "Accelerator.h"
 #include "ChannelList.h"
 #include "EpgProgramList.h"
+#include "PointerArray.h"
+#include "Theme.h"
+#include "LogoManager.h"
 
 
 class CMainMenu
- {
+{
 	HMENU m_hmenu;
 	bool m_fPopup;
 	int m_PopupMenu;
@@ -45,6 +48,7 @@ class CChannelMenu
 {
 	HMENU m_hmenu;
 	CEpgProgramList *m_pProgramList;
+	CLogoManager *m_pLogoManager;
 	const CChannelList *m_pChannelList;
 	int m_CurChannel;
 	HFONT m_hfont;
@@ -52,11 +56,13 @@ class CChannelMenu
 	int m_TextHeight;
 	int m_ChannelNameWidth;
 	int m_EventNameWidth;
-	enum { MENU_MARGIN=2 };
+	int m_LogoWidth;
+	int m_LogoHeight;
+	enum { MENU_MARGIN=2, MENU_LOGO_MARGIN=3 };
 	void CreateFont(HDC hdc);
 
 public:
-	CChannelMenu(CEpgProgramList *pProgramList);
+	CChannelMenu(CEpgProgramList *pProgramList,CLogoManager *pLogoManager);
 	~CChannelMenu();
 	bool Create(const CChannelList *pChannelList,int CurChannel,bool fUpdateProgramList);
 	void Destroy();
@@ -84,6 +90,63 @@ public:
 	bool Popup(HINSTANCE hinst,int ID,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true) {
 		return Popup(hinst,MAKEINTRESOURCE(ID),hwnd,pPos,Flags,fToggle);
 	}
+};
+
+class CDropDownMenu
+{
+	class CItem {
+		int m_Command;
+		LPTSTR m_pszText;
+		int m_Width;
+	public:
+		CItem(int Command,LPCTSTR pszText);
+		~CItem();
+		int GetCommand() const { return m_Command; }
+		LPCTSTR GetText() const { return m_pszText; }
+		bool SetText(LPCTSTR pszText);
+		int GetWidth(HDC hdc);
+		bool IsSeparator() const { return m_Command<0; }
+		void Draw(HDC hdc,const RECT *pRect);
+	};
+	CPointerVector<CItem> m_ItemList;
+	HFONT m_hfont;
+	HWND m_hwnd;
+	HWND m_hwndMessage;
+	RECT m_ItemMargin;
+	RECT m_WindowMargin;
+	COLORREF m_TextColor;
+	COLORREF m_BackColor;
+	COLORREF m_HighlightTextColor;
+	COLORREF m_HighlightBackColor;
+	Theme::BorderType m_BorderType;
+	int m_ItemHeight;
+	int m_HotItem;
+	bool m_fTrackMouseEvent;
+
+	bool GetItemRect(int Index,RECT *pRect) const;
+	int HitTest(int x,int y) const;
+	void UpdateItem(int Index) const;
+	void Draw(HDC hdc,const RECT *pPaintRect);
+
+	static HINSTANCE m_hinst;
+	static CDropDownMenu *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+public:
+	static bool Initialize(HINSTANCE hinst);
+	CDropDownMenu();
+	~CDropDownMenu();
+	void Clear();
+	bool AppendItem(int Command,LPCTSTR pszText);
+	bool InsertItem(int Index,int Command,LPCTSTR pszText);
+	bool AppendSeparator() { return AppendItem(-1,NULL); }
+	bool InsertSeparator(int Index) { return InsertItem(Index,-1,NULL); }
+	bool DeleteItem(int Command);
+	bool SetItemText(int Command,LPCTSTR pszText);
+	int CommandToIndex(int Command) const;
+	bool Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int CurItem=-1,UINT Flags=0);
+	bool Hide();
+	bool GetPosition(RECT *pRect);
 };
 
 

@@ -12,6 +12,8 @@ struct ImageSaveInfo {
 };
 
 typedef BOOL (WINAPI *SaveImageFunc)(const ImageSaveInfo *pInfo);
+typedef HGLOBAL (WINAPI *LoadAribPngFromMemoryFunc)(const void *pData,SIZE_T DataSize);
+typedef HGLOBAL (WINAPI *LoadAribPngFromFileFunc)(LPCTSTR pszFileName);
 
 
 #endif

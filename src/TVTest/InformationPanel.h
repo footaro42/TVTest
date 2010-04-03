@@ -64,7 +64,7 @@ private:
 	bool m_fRecording;
 	ULONGLONG m_RecordWroteSize;
 	unsigned int m_RecordTime;
-	ULARGE_INTEGER m_DiskFreeSpace;
+	ULONGLONG m_DiskFreeSpace;
 	CDynamicString m_ProgramInfo;
 	bool m_fNextProgramInfo;
 
@@ -100,7 +100,8 @@ public:
 	void SetBitRate(float BitRate);
 	void UpdateErrorCount();
 	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
-							ULONGLONG WroteSize=0,unsigned int RecordTime=0);
+						 ULONGLONG WroteSize=0,unsigned int RecordTime=0,
+						 ULONGLONG FreeSpace=0);
 	void SetProgramInfo(LPCTSTR pszInfo);
 	bool GetProgramInfoNext() const { return m_fNextProgramInfo; }
 	bool SetEventHandler(CEventHandler *pHandler);

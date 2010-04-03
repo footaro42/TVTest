@@ -5,10 +5,12 @@
 #include "CoreEngine.h"
 #include "EpgProgramList.h"
 #include "Options.h"
+#include "LogoManager.h"
 #include "EpgDataCap/EpgDataLoader.h"
 
 
-class CEpgOptions : public COptions {
+class CEpgOptions : public COptions
+{
 public:
 	class CEpgLoadEventHandler {
 	public:
@@ -24,7 +26,10 @@ private:
 	bool m_fUpdateWhenStandby;
 	bool m_fUseEpgData;
 	TCHAR m_szEpgDataFolder[MAX_PATH];
+	bool m_fSaveLogoFile;
+	TCHAR m_szLogoFileName[MAX_PATH];
 	CCoreEngine *m_pCoreEngine;
+	CLogoManager *m_pLogoManager;
 	HANDLE m_hLoadThread;
 	CEpgDataLoader *m_pEpgDataLoader;
 
@@ -33,9 +38,10 @@ private:
 		CEpgLoadEventHandler *m_pEventHandler;
 		bool m_fLoading;
 	public:
-		CEpgDataLoaderEventHandler() : m_pPacketParser(NULL), m_pEventHandler(NULL), m_fLoading(false) {}
-		void SetPacketParser(CTsPacketParser *pPacketParser) {
-			m_pPacketParser=pPacketParser;
+		CEpgDataLoaderEventHandler(CTsPacketParser *pPacketParser)
+			: m_pPacketParser(pPacketParser)
+			, m_pEventHandler(NULL)
+			, m_fLoading(false) {
 		}
 		void SetEventHandler(CEpgLoadEventHandler *pHandler) {
 			m_pEventHandler=pHandler;
@@ -64,7 +70,7 @@ private:
 	static CEpgOptions *GetThis(HWND hDlg);
 
 public:
-	CEpgOptions(CCoreEngine *pCoreEngine);
+	CEpgOptions(CCoreEngine *pCoreEngine,CLogoManager *pLogoManager);
 	~CEpgOptions();
 	void Finalize();
 	bool Read(CSettings *pSettings);
@@ -78,6 +84,8 @@ public:
 	bool LoadEpgData();
 	bool AsyncLoadEpgData(CEpgLoadEventHandler *pEventHandler=NULL);
 	bool IsEpgDataLoading() const;
+	bool LoadLogoFile();
+	bool SaveLogoFile();
 	const LOGFONT *GetEventInfoFont() const { return &m_EventInfoFont; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };

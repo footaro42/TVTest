@@ -88,6 +88,7 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 	{HEXRGB(0x222222),	TEXT("NotificationBarBack"),				TEXT("通知バー背景1")},
 	{HEXRGB(0x333333),	TEXT("NotificationBarBack2"),				TEXT("通知バー背景2")},
 	{HEXRGB(0xBBBBBB),	TEXT("NotificationBarText"),				TEXT("通知バー文字")},
+	{HEXRGB(0xFF9F44),	TEXT("NotificationBarWarningText"),			TEXT("通知バー警告文字")},
 	{HEXRGB(0xFF4444),	TEXT("NotificationBarErrorText"),			TEXT("通知バーエラー文字")},
 	{HEXRGB(0x666666),	TEXT("ProgramGuideBack"),					TEXT("EPG番組表背景")},
 	{HEXRGB(0x000000),	TEXT("ProgramGuideText"),					TEXT("EPG番組表文字")},
@@ -199,9 +200,10 @@ const CColorScheme::GradientInfo CColorScheme::m_GradientInfoList[NUM_GRADIENTS]
 };
 
 const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
-	{TEXT("StatusBorder"),		Theme::BORDER_RAISED},
-	{TEXT("TitleBarBorder"),	Theme::BORDER_RAISED},
-	{TEXT("SideBarBorder"),		Theme::BORDER_RAISED},
+	{TEXT("StatusBorder"),				Theme::BORDER_RAISED},
+	{TEXT("TitleBarBorder"),			Theme::BORDER_RAISED},
+	{TEXT("SideBarBorder"),				Theme::BORDER_RAISED},
+	{TEXT("ProgramGuideStatusBorder"),	Theme::BORDER_SUNKEN},
 };
 
 

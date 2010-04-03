@@ -652,9 +652,27 @@ CGdiPlus::CImage::CImage()
 }
 
 
+CGdiPlus::CImage::CImage(const CImage &Src)
+	: m_pBitmap(NULL)
+{
+	*this=Src;
+}
+
+
 CGdiPlus::CImage::~CImage()
 {
 	Free();
+}
+
+
+CGdiPlus::CImage &CGdiPlus::CImage::operator=(const CImage &Src)
+{
+	if (&Src!=this) {
+		Free();
+		if (Src.m_pBitmap!=NULL)
+			m_pBitmap=Src.m_pBitmap->Clone(0,0,Src.m_pBitmap->GetWidth(),Src.m_pBitmap->GetHeight(),Src.m_pBitmap->GetPixelFormat());
+	}
+	return *this;
 }
 
 
@@ -744,6 +762,20 @@ bool CGdiPlus::CImage::CreateFromBitmap(HBITMAP hbm,HPALETTE hpal)
 {
 	Free();
 	m_pBitmap=Gdiplus::Bitmap::FromHBITMAP(hbm,hpal);
+	return m_pBitmap!=NULL;
+}
+
+
+bool CGdiPlus::CImage::CreateFromDIB(const BITMAPINFO *pbmi,const void *pBits)
+{
+	Free();
+	m_pBitmap=new Gdiplus::Bitmap(pbmi,const_cast<void*>(pBits));
+	return m_pBitmap!=NULL;
+}
+
+
+bool CGdiPlus::CImage::IsCreated() const
+{
 	return m_pBitmap!=NULL;
 }
 

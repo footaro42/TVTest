@@ -7,6 +7,7 @@
 #include "PointerArray.h"
 #include "VirtualScreen.h"
 #include "Theme.h"
+#include "Aero.h"
 
 
 class CStatusView;
@@ -21,7 +22,10 @@ protected:
 	bool m_fVisible;
 	bool Update();
 	bool GetMenuPos(POINT *pPos,UINT *pFlags);
-	void DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText) const;
+	enum {
+		DRAWTEXT_HCENTER = 0x00000001UL
+	};
+	void DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText,DWORD Flags=0) const;
 	void DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX=0,int SrcY=0,
 				  int IconWidth=16,int IconHeight=16,bool fEnabled=true) const;
 
@@ -81,8 +85,11 @@ private:
 	bool m_fOnButtonDown;
 	CEventHandler *m_pEventHandler;
 	CVirtualScreen m_VirtualScreen;
+	bool m_fBufferedPaint;
+	CBufferedPaint m_BufferedPaint;
 
 	void SetHotItem(int Item);
+	void Draw(HDC hdc,const RECT *pPaintRect);
 
 	static CStatusView *GetStatusView(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -108,6 +115,7 @@ public:
 	bool GetItemClientRect(int ID,RECT *pRect) const;
 	int GetItemHeight() const;
 	int GetFontHeight() const { return m_FontHeight; }
+	int GetIntegralWidth() const;
 	void SetSingleText(LPCTSTR pszText);
 	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
 				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
@@ -117,6 +125,7 @@ public:
 	bool SetEventHandler(CEventHandler *pEventHandler);
 	bool SetItemOrder(const int *pOrderList);
 	bool DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,bool fHighlight=false) const;
+	bool EnableBufferedPaint(bool fEnable);
 // CTracer
 	void OnTrace(LPCTSTR pszOutput);
 };
