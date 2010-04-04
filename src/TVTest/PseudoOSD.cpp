@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "PseudoOSD.h"
+#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -55,35 +56,26 @@ bool CPseudoOSD::IsPseudoOSD(HWND hwnd)
 
 
 CPseudoOSD::CPseudoOSD()
+	: m_hwnd(NULL)
+	, m_crBackColor(RGB(16,0,16))
+	, m_crTextColor(RGB(0,255,128))
+	, m_pszText(NULL)
+	, m_hbmIcon(NULL)
+	, m_IconWidth(0)
+	, m_IconHeight(0)
+	, m_hbm(NULL)
+	, m_TimerID(0)
 {
-	m_hwnd=NULL;
-	m_crBackColor=RGB(16,0,16);
-	m_crTextColor=RGB(0,255,128);
-#if 1
 	LOGFONT lf;
-	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
+	DrawUtil::GetSystemFont(DrawUtil::FONT_DEFAULT,&lf);
 	lf.lfHeight=32;
 	lf.lfQuality=NONANTIALIASED_QUALITY;
 	m_hFont=::CreateFontIndirect(&lf);
-#else
-	NONCLIENTMETRICS ncm;
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(ncm);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	ncm.lfMessageFont.lfHeight=32;
-	ncm.lfMessageFont.lfQuality=NONANTIALIASED_QUALITY;
-	m_hFont=::CreateFontIndirect(&ncm.lfMessageFont);
-#endif
-	m_pszText=NULL;
-	m_hbm=NULL;
+
 	m_Position.Left=0;
 	m_Position.Top=0;
 	m_Position.Width=0;
 	m_Position.Height=0;
-	m_TimerID=0;
 }
 
 
@@ -92,8 +84,6 @@ CPseudoOSD::~CPseudoOSD()
 	Destroy();
 	::DeleteObject(m_hFont);
 	delete [] m_pszText;
-	if (m_hbm)
-		::DeleteObject(m_hbm);
 }
 
 
@@ -137,7 +127,6 @@ bool CPseudoOSD::Show(DWORD Time,bool fAnimation)
 		m_TimerID&=~TIMER_ID_HIDE;
 	}
 	::ShowWindow(m_hwnd,SW_SHOW);
-	//::SetWindowPos(m_hwnd,HWND_TOP,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE);
 	::BringWindowToTop(m_hwnd);
 	::UpdateWindow(m_hwnd);
 	return true;
@@ -150,10 +139,7 @@ bool CPseudoOSD::Hide()
 		return false;
 	::ShowWindow(m_hwnd,SW_HIDE);
 	SAFE_DELETE_ARRAY(m_pszText);
-	if (m_hbm!=NULL) {
-		::DeleteObject(m_hbm);
-		m_hbm=NULL;
-	}
+	m_hbm=NULL;
 	return true;
 }
 
@@ -166,13 +152,18 @@ bool CPseudoOSD::IsVisible() const
 }
 
 
-bool CPseudoOSD::SetText(LPCTSTR pszText)
+bool CPseudoOSD::SetText(LPCTSTR pszText,HBITMAP hbmIcon,int IconWidth,int IconHeight)
 {
 	ReplaceString(&m_pszText,pszText);
-	if (m_hbm!=NULL) {
-		::DeleteObject(m_hbm);
-		m_hbm=NULL;
+	m_hbmIcon=hbmIcon;
+	if (hbmIcon!=NULL) {
+		m_IconWidth=IconWidth;
+		m_IconHeight=IconHeight;
+	} else {
+		m_IconWidth=0;
+		m_IconHeight=0;
 	}
+	m_hbm=NULL;
 	if (m_hwnd!=NULL)
 		::InvalidateRect(m_hwnd,NULL,TRUE);
 	return true;
@@ -262,22 +253,21 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 }
 
 
-bool CPseudoOSD::SetImage(HBITMAP hbm,int Left,int Top)
+bool CPseudoOSD::SetImage(HBITMAP hbm)
 {
-	if (m_hbm)
-		::DeleteObject(m_hbm);
 	m_hbm=hbm;
 	SAFE_DELETE_ARRAY(m_pszText);
+	m_hbmIcon=NULL;
+	/*
 	if (m_hwnd!=NULL) {
 		BITMAP bm;
 
 		::GetObject(m_hbm,sizeof(BITMAP),&bm);
-		m_Position.Left=Left;
-		m_Position.Top=Top;
 		m_Position.Width=bm.bmWidth;
 		m_Position.Height=bm.bmHeight;
 		::MoveWindow(m_hwnd,Left,Top,bm.bmWidth,bm.bmHeight,TRUE);
 	}
+	*/
 	return true;
 }
 
@@ -307,37 +297,47 @@ LRESULT CALLBACK CPseudoOSD::WndProc(HWND hwnd,UINT uMsg,
 		{
 			CPseudoOSD *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
+			RECT rc;
 
 			::BeginPaint(hwnd,&ps);
+			::GetClientRect(hwnd,&rc);
 			if (pThis->m_pszText!=NULL) {
-				HBRUSH hbr;
 				HFONT hfontOld;
 				COLORREF crOldTextColor;
 				int OldBkMode;
-				RECT rc;
 
-				hbr=CreateSolidBrush(pThis->m_crBackColor);
-				::FillRect(ps.hdc,&ps.rcPaint,hbr);
-				::DeleteObject(hbr);
+				DrawUtil::Fill(ps.hdc,&ps.rcPaint,pThis->m_crBackColor);
+				if (pThis->m_hbmIcon!=NULL) {
+					int IconWidth;
+					if ((pThis->m_TimerID&TIMER_ID_ANIMATION)!=0)
+						IconWidth=pThis->m_IconWidth*(pThis->m_AnimationCount+1)/ANIMATION_FRAMES;
+					else
+						IconWidth=pThis->m_IconWidth;
+					DrawUtil::DrawBitmap(ps.hdc,
+										 0,(rc.bottom-pThis->m_IconHeight)/2,
+										 IconWidth,pThis->m_IconHeight,
+										 pThis->m_hbmIcon);
+					RECT rcIcon={0,(rc.bottom-pThis->m_IconHeight)/2};
+					rcIcon.right=rcIcon.left+IconWidth;
+					rcIcon.bottom=rcIcon.top+pThis->m_IconHeight;
+					DrawUtil::GlossOverlay(ps.hdc,&rcIcon);
+					rc.left+=IconWidth;
+				}
 				hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_hFont));
 				crOldTextColor=::SetTextColor(ps.hdc,pThis->m_crTextColor);
 				OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-				::GetClientRect(hwnd,&rc);
 				::DrawText(ps.hdc,pThis->m_pszText,-1,&rc,
 					DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_NOCLIP);
 				::SetBkMode(ps.hdc,OldBkMode);
 				::SetTextColor(ps.hdc,crOldTextColor);
 				::SelectObject(ps.hdc,hfontOld);
 			} else if (pThis->m_hbm!=NULL) {
-				HDC hdcMem=::CreateCompatibleDC(ps.hdc);
-				HBITMAP hbmOld;
 				BITMAP bm;
-
-				hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,pThis->m_hbm));
 				::GetObject(pThis->m_hbm,sizeof(BITMAP),&bm);
-				::BitBlt(ps.hdc,0,0,bm.bmWidth,bm.bmHeight,hdcMem,0,0,SRCCOPY);
-				::SelectObject(hdcMem,hbmOld);
-				::DeleteDC(hdcMem);
+				RECT rcBitmap={0,0,bm.bmWidth,bm.bmHeight};
+				DrawUtil::DrawBitmap(ps.hdc,0,0,rc.right,rc.bottom,
+									 pThis->m_hbm,&rcBitmap);
+				DrawUtil::GlossOverlay(ps.hdc,&rc);
 			}
 			::EndPaint(hwnd,&ps);
 		}

@@ -152,6 +152,7 @@ private:
 	int m_LinesPerHour;
 	HFONT m_hfont;
 	HFONT m_hfontTitle;
+	HFONT m_hfontTime;
 	int m_FontHeight;
 	int m_LineMargin;
 	int m_ItemWidth;
@@ -159,7 +160,6 @@ private:
 	int m_TextLeftMargin;
 	int m_ServiceNameHeight;
 	int m_TimeBarWidth;
-	HFONT m_hfontTime;
 	POINT m_ScrollPos;
 	bool m_fDragScroll;
 	HCURSOR m_hDragCursor1;

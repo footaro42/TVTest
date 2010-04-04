@@ -15,6 +15,7 @@ static char THIS_FILE[]=__FILE__;
 namespace DrawUtil {
 
 
+// 単色で塗りつぶす
 bool Fill(HDC hdc,const RECT *pRect,COLORREF Color)
 {
 	HBRUSH hbr=::CreateSolidBrush(Color);
@@ -27,7 +28,9 @@ bool Fill(HDC hdc,const RECT *pRect,COLORREF Color)
 }
 
 
-bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction)
+// グラデーションで塗りつぶす
+bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+				  FillDirection Direction)
 {
 	if (pRect->left>pRect->right || pRect->top>pRect->bottom)
 		return false;
@@ -92,7 +95,9 @@ bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,Fill
 }
 
 
-bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction,int GlossRatio1,int GlossRatio2)
+// 光沢のあるグラデーションで塗りつぶす
+bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+						FillDirection Direction,int GlossRatio1,int GlossRatio2)
 {
 	COLORREF crCenter=MixColor(Color1,Color2,128);
 	RECT rc;
@@ -122,6 +127,62 @@ bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color
 }
 
 
+// 光沢を描画する
+bool GlossOverlay(HDC hdc,const RECT *pRect,
+				  int Highlight1,int Highlight2,int Shadow1,int Shadow2)
+{
+	const int Width=pRect->right-pRect->left;
+	const int Height=pRect->bottom-pRect->top;
+	if (Width<=0 || Height<=0)
+		return false;
+
+	BITMAPINFO bmi;
+	::ZeroMemory(&bmi,sizeof(bmi));
+	bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth=Width;
+	bmi.bmiHeader.biHeight=-Height;
+	bmi.bmiHeader.biPlanes=1;
+	bmi.bmiHeader.biBitCount=32;
+	void *pBits;
+	HBITMAP hbm=::CreateDIBSection(NULL,&bmi,DIB_RGB_COLORS,&pBits,NULL,0);
+	if (hbm==NULL)
+		return false;
+
+	const SIZE_T RowBytes=Width*4;
+	const int Center=Height/2;
+	int x,y;
+	BYTE *p=static_cast<BYTE*>(pBits);
+	for (y=0;y<Center;y++) {
+		::FillMemory(p,RowBytes,
+					 (BYTE)(((y*Highlight2)+(Center-1-y)*Highlight1)/(Center-1)));
+		p+=RowBytes;
+	}
+	for (;y<Height;y++) {
+		BYTE Alpha=(BYTE)(((y-Center)*Shadow2+(Height-1-y)*Shadow1)/(Height-Center-1));
+		::ZeroMemory(p,RowBytes);
+		for (x=0;x<Width;x++) {
+			p[x*4+3]=Alpha;
+		}
+		p+=RowBytes;
+	}
+
+	HDC hdcMemory=::CreateCompatibleDC(hdc);
+	if (hdcMemory==NULL) {
+		::DeleteObject(hbm);
+		return false;
+	}
+	HBITMAP hbmOld=SelectBitmap(hdcMemory,hbm);
+	BLENDFUNCTION bf={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
+	::AlphaBlend(hdc,pRect->left,pRect->top,Width,Height,
+				 hdcMemory,0,0,Width,Height,bf);
+	::SelectObject(hdcMemory,hbmOld);
+	::DeleteDC(hdcMemory);
+	::DeleteObject(hbm);
+	return true;
+}
+
+
+// 指定された矩形の周囲を塗りつぶす
 bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr)
 {
 	RECT rc;
@@ -154,6 +215,56 @@ bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const REC
 }
 
 
+// ビットマップを描画する
+bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
+				HBITMAP hbm,const RECT *pSrcRect,BYTE Opacity)
+{
+	if (hdc==NULL || hbm==NULL)
+		return false;
+
+	int SrcX,SrcY,SrcWidth,SrcHeight;
+	if (pSrcRect!=NULL) {
+		SrcX=pSrcRect->left;
+		SrcY=pSrcRect->top;
+		SrcWidth=pSrcRect->right-pSrcRect->left;
+		SrcHeight=pSrcRect->bottom-pSrcRect->top;
+	} else {
+		BITMAP bm;
+		if (::GetObject(hbm,sizeof(BITMAP),&bm)!=sizeof(BITMAP))
+			return false;
+		SrcX=SrcY=0;
+		SrcWidth=bm.bmWidth;
+		SrcHeight=bm.bmHeight;
+	}
+
+	HDC hdcMemory=::CreateCompatibleDC(hdc);
+	if (hdcMemory==NULL)
+		return false;
+	HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,hbm));
+
+	if (Opacity==255) {
+		if (SrcWidth==DstWidth && SrcHeight==DstHeight) {
+			::BitBlt(hdc,DstX,DstY,DstWidth,DstHeight,
+					 hdcMemory,SrcX,SrcY,SRCCOPY);
+		} else {
+			int OldStretchMode=::SetStretchBltMode(hdc,STRETCH_HALFTONE);
+			::StretchBlt(hdc,DstX,DstY,DstWidth,DstHeight,
+						 hdcMemory,SrcX,SrcY,SrcWidth,SrcHeight,SRCCOPY);
+			::SetStretchBltMode(hdc,OldStretchMode);
+		}
+	} else {
+		BLENDFUNCTION bf={AC_SRC_OVER,0,Opacity,0};
+		::AlphaBlend(hdc,DstX,DstY,DstWidth,DstHeight,
+					 hdcMemory,SrcX,SrcY,SrcWidth,SrcHeight,bf);
+	}
+
+	::SelectObject(hdcMemory,hbmOld);
+	::DeleteDC(hdcMemory);
+	return true;
+}
+
+
+// テキストを指定幅で折り返して何行になるか計算する
 int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
 {
 	if (hdc==NULL || pszText==NULL)
@@ -191,6 +302,7 @@ int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
 }
 
 
+// テキストを指定幅で折り返して描画する
 bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight)
 {
 	if (hdc==NULL || pszText==NULL || pRect==NULL)
@@ -228,6 +340,7 @@ bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight)
 }
 
 
+// システムフォントを取得する
 bool GetSystemFont(FontType Type,LOGFONT *pLogFont)
 {
 	if (pLogFont==NULL)

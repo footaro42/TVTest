@@ -10,35 +10,56 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+static bool CompareText(LPCTSTR pszText1,LPCTSTR pszText2)
+{
+	return (pszText1==NULL && pszText2==NULL)
+			|| (pszText1!=NULL && pszText2!=NULL
+				&& ::lstrcmp(pszText1,pszText2)==0);
+}
+
+
 
 
 CServiceInfoData::CServiceInfoData()
+	: m_OriginalNID(0)
+	, m_TSID(0)
+	, m_ServiceID(0)
+	, m_ServiceType(0)
+	, m_pszServiceName(NULL)
 {
-	m_OriginalNID=0;
-	m_TSID=0;
-	m_ServiceID=0;
-	m_ServiceType=0;
-	m_pszServiceName=NULL;
 }
 
 
 CServiceInfoData::CServiceInfoData(const CServiceInfoData &Info)
+	: m_OriginalNID(Info.m_OriginalNID)
+	, m_TSID(Info.m_TSID)
+	, m_ServiceID(Info.m_ServiceID)
+	, m_ServiceType(Info.m_ServiceType)
+	, m_pszServiceName(DuplicateString(Info.m_pszServiceName))
 {
-	m_OriginalNID=Info.m_OriginalNID;
-	m_TSID=Info.m_TSID;
-	m_ServiceID=Info.m_ServiceID;
-	m_ServiceType=Info.m_ServiceType;
-	m_pszServiceName=DuplicateString(Info.m_pszServiceName);
 }
 
 
-CServiceInfoData::CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID,WORD ServiceType,LPCWSTR pszServiceName)
+#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+CServiceInfoData::CServiceInfoData(CServiceInfoData &&Info)
+	: m_OriginalNID(Info.m_OriginalNID)
+	, m_TSID(Info.m_TSID)
+	, m_ServiceID(Info.m_ServiceID)
+	, m_ServiceType(Info.m_ServiceType)
+	, m_pszServiceName(Info.m_pszServiceName)
 {
-	m_OriginalNID=OriginalNID;
-	m_TSID=TSID;
-	m_ServiceID=ServiceID;
-	m_ServiceType=ServiceType;
-	m_pszServiceName=DuplicateString(pszServiceName);
+	Info.m_pszServiceName=NULL;
+}
+#endif
+
+
+CServiceInfoData::CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID,WORD ServiceType,LPCWSTR pszServiceName)
+	: m_OriginalNID(OriginalNID)
+	, m_TSID(TSID)
+	, m_ServiceID(ServiceID)
+	, m_ServiceType(ServiceType)
+	, m_pszServiceName(DuplicateString(pszServiceName))
+{
 }
 
 
@@ -61,15 +82,29 @@ CServiceInfoData &CServiceInfoData::operator=(const CServiceInfoData &Info)
 }
 
 
+#ifdef MOVE_ASSIGNMENT_SUPPORTED
+CServiceInfoData &CServiceInfoData::operator=(CServiceInfoData &&Info)
+{
+	if (&Info!=this) {
+		m_OriginalNID=Info.m_OriginalNID;
+		m_TSID=Info.m_TSID;
+		m_ServiceID=Info.m_ServiceID;
+		m_ServiceType=Info.m_ServiceType;
+		m_pszServiceName=Info.m_pszServiceName;
+		Info.m_pszServiceName=NULL;
+	}
+	return *this;
+}
+#endif
+
+
 bool CServiceInfoData::operator==(const CServiceInfoData &Info) const
 {
 	return m_OriginalNID==Info.m_OriginalNID
 		&& m_TSID==Info.m_TSID
 		&& m_ServiceID==Info.m_ServiceID
 		&& m_ServiceType==Info.m_ServiceType
-		&& ((m_pszServiceName==NULL && Info.m_pszServiceName==NULL)
-			|| (m_pszServiceName!=NULL && Info.m_pszServiceName!=NULL
-				&& ::lstrcmp(m_pszServiceName,Info.m_pszServiceName)==0));
+		&& CompareText(m_pszServiceName,Info.m_pszServiceName);
 }
 
 
@@ -82,37 +117,38 @@ bool CServiceInfoData::SetServiceName(LPCWSTR pszName)
 
 
 CEventInfoData::CEventInfoData()
+	: m_pszEventName(NULL)
+	, m_pszEventText(NULL)
+	, m_pszEventExtText(NULL)
+	, m_pszComponentTypeText(NULL)
+	, m_pszAudioComponentTypeText(NULL)
+	, m_fValidStartTime(false)
 {
-	m_pszEventName=NULL;
-	m_pszEventText=NULL;
-	m_pszEventExtText=NULL;
-	m_pszComponentTypeText=NULL;
-	m_pszAudioComponentTypeText=NULL;
-	m_fValidStartTime=false;
 }
 
 
 CEventInfoData::CEventInfoData(const CEventInfoData &Info)
+	: m_pszEventName(NULL)
+	, m_pszEventText(NULL)
+	, m_pszEventExtText(NULL)
+	, m_pszComponentTypeText(NULL)
+	, m_pszAudioComponentTypeText(NULL)
 {
-	m_OriginalNID=Info.m_OriginalNID;
-	m_TSID=Info.m_TSID;
-	m_ServiceID=Info.m_ServiceID;
-	m_EventID=Info.m_EventID;
-	m_pszEventName=DuplicateString(Info.m_pszEventName);
-	m_pszEventText=DuplicateString(Info.m_pszEventText);
-	m_pszEventExtText=DuplicateString(Info.m_pszEventExtText);
-	m_fValidStartTime=true;
-	m_stStartTime=Info.m_stStartTime;
-	m_DurationSec=Info.m_DurationSec;
-	m_ComponentType=Info.m_ComponentType;
-	m_pszComponentTypeText=DuplicateString(Info.m_pszComponentTypeText);
-	m_AudioComponentType=Info.m_AudioComponentType;
-	m_fESMultiLangFlag=Info.m_fESMultiLangFlag;
-	//m_fMainComponentFlag=Info.m_fMainComponentFlag;
-	m_SamplingRate=Info.m_SamplingRate;
-	m_pszAudioComponentTypeText=DuplicateString(Info.m_pszAudioComponentTypeText);
-	m_NibbleList=Info.m_NibbleList;
+	*this=Info;
 }
+
+
+#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+CEventInfoData::CEventInfoData(CEventInfoData &&Info)
+	: m_pszEventName(NULL)
+	, m_pszEventText(NULL)
+	, m_pszEventExtText(NULL)
+	, m_pszComponentTypeText(NULL)
+	, m_pszAudioComponentTypeText(NULL)
+{
+	*this=std::move<Info>;
+}
+#endif
 
 
 CEventInfoData::~CEventInfoData()
@@ -152,36 +188,60 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 }
 
 
+#ifdef MOVE_ASSIGNMENT_SUPPORTED
+CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info);
+{
+	if (&Info!=this) {
+		m_OriginalNID=Info.m_OriginalNID;
+		m_TSID=Info.m_TSID;
+		m_ServiceID=Info.m_ServiceID;
+		m_EventID=Info.m_EventID;
+		m_pszEventName=Info.m_pszEventName;
+		m_pszEventTextInfo.m_pszEventText;
+		m_pszEventExtText=Info.m_pszEventExtText;
+		m_fValidStartTime=Info.m_fValidStartTime;
+		if (m_fValidStartTime)
+			m_stStartTime=Info.m_stStartTime;
+		m_DurationSec=Info.m_DurationSec;
+		m_ComponentType=Info.m_ComponentType;
+		m_pszComponentTypeText=Info.m_pszComponentTypeText;
+		m_AudioComponentType=Info.m_AudioComponentType;
+		m_fESMultiLangFlag=Info.m_fESMultiLangFlag;
+		//m_fMainComponentFlag=Info.m_fMainComponentFlag;
+		m_SamplingRate=Info.m_SamplingRate;
+		m_pszAudioComponentTypeText=Info.m_pszAudioComponentTypeText;
+		m_NibbleList=Info.m_NibbleList;
+		Info.m_pszEventName=NULL;
+		Info.m_pszEventText=NULL;
+		Info.m_pszEventExtText=NULL;
+		Info.m_pszComponentTypeText=NULL;
+		Info.m_pszAudioComponentTypeText=NULL;
+	}
+	return *this;
+}
+#endif
+
+
 bool CEventInfoData::operator==(const CEventInfoData &Info) const
 {
 	return m_OriginalNID==Info.m_OriginalNID
 		&& m_TSID==Info.m_TSID
 		&& m_ServiceID==Info.m_ServiceID
 		&& m_EventID==Info.m_EventID
-		&& ((m_pszEventName==NULL && Info.m_pszEventName==NULL)
-			|| (m_pszEventName!=NULL && Info.m_pszEventName!=NULL
-				&& ::lstrcmp(m_pszEventName,Info.m_pszEventName)==0))
-		&& ((m_pszEventText==NULL && Info.m_pszEventText==NULL)
-			|| (m_pszEventText!=NULL && Info.m_pszEventText!=NULL
-				&& ::lstrcmp(m_pszEventText,Info.m_pszEventText)==0))
-		&& ((m_pszEventExtText==NULL && Info.m_pszEventExtText==NULL)
-			|| (m_pszEventExtText!=NULL && Info.m_pszEventExtText!=NULL
-				&& ::lstrcmp(m_pszEventExtText,Info.m_pszEventExtText)==0))
+		&& CompareText(m_pszEventName,Info.m_pszEventName)
+		&& CompareText(m_pszEventText,Info.m_pszEventText)
+		&& CompareText(m_pszEventExtText,Info.m_pszEventExtText)
 		&& m_fValidStartTime==Info.m_fValidStartTime
 		&& (!m_fValidStartTime
 			|| ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0)
 		&& m_DurationSec==Info.m_DurationSec
 		&& m_ComponentType==Info.m_ComponentType
-		&& ((m_pszComponentTypeText==NULL && Info.m_pszComponentTypeText==NULL)
-			|| (m_pszComponentTypeText!=NULL && Info.m_pszComponentTypeText!=NULL
-				&& ::lstrcmp(m_pszComponentTypeText,Info.m_pszComponentTypeText)==0))
+		&& CompareText(m_pszComponentTypeText,Info.m_pszComponentTypeText)
 		&& m_AudioComponentType==Info.m_AudioComponentType
 		&& m_fESMultiLangFlag==Info.m_fESMultiLangFlag
 		//&& m_fMainComponentFlag==Info.m_fMainComponentFlag
 		&& m_SamplingRate==Info.m_SamplingRate
-		&& ((m_pszAudioComponentTypeText==NULL && Info.m_pszAudioComponentTypeText==NULL)
-			|| (m_pszAudioComponentTypeText!=NULL && Info.m_pszAudioComponentTypeText!=NULL
-				&& ::lstrcmp(m_pszAudioComponentTypeText,Info.m_pszAudioComponentTypeText)==0))
+		&& CompareText(m_pszAudioComponentTypeText,Info.m_pszAudioComponentTypeText)
 		&& m_NibbleList==Info.m_NibbleList;
 }
 
@@ -317,9 +377,53 @@ const CEventInfoData *CEpgServiceInfo::GetEventInfo(WORD EventID)
 
 
 
-CEpgProgramList::CEpgProgramList()
+class CGlobalLock
 {
-	m_pEpgDll=NULL;
+	HANDLE m_hMutex;
+	CGlobalLock(const CGlobalLock &);
+	CGlobalLock &operator=(const CGlobalLock &);
+
+public:
+	CGlobalLock::CGlobalLock(LPCTSTR pszName)
+	{
+		SECURITY_DESCRIPTOR sd;
+		SECURITY_ATTRIBUTES sa;
+		::ZeroMemory(&sd,sizeof(sd));
+		::InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
+		::SetSecurityDescriptorDacl(&sd,TRUE,NULL,FALSE);
+		::ZeroMemory(&sa,sizeof(sa));
+		sa.nLength=sizeof(sa);
+		sa.lpSecurityDescriptor=&sd;
+		m_hMutex=::CreateMutex(&sa,FALSE,pszName);
+	}
+
+	CGlobalLock::~CGlobalLock()
+	{
+		if (m_hMutex!=NULL)
+			::CloseHandle(m_hMutex);
+	}
+
+	bool Wait(DWORD Timeout=INFINITE)
+	{
+		if (m_hMutex==NULL)
+			return false;
+		return ::WaitForSingleObject(m_hMutex,Timeout)==WAIT_OBJECT_0;
+	}
+
+	void Release()
+	{
+		if (m_hMutex!=NULL)
+			::ReleaseMutex(m_hMutex);
+	}
+};
+
+
+
+
+CEpgProgramList::CEpgProgramList()
+	: m_pEpgDll(NULL)
+{
+	::ZeroMemory(&m_LastWriteTime,sizeof(FILETIME));
 }
 
 
@@ -380,6 +484,7 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 		EventData.SetEventName(pEpgData[j].lpwszEventName);
 		EventData.SetEventText(pEpgData[j].lpwszEventText);
 		EventData.SetEventExtText(pEpgData[j].lpwszEventExtText);
+		EventData.m_fValidStartTime=true;
 		EventData.m_stStartTime=pEpgData[j].stStartTime;
 		EventData.m_stStartTime.wDayOfWeek=CalcDayOfWeek(
 									EventData.m_stStartTime.wYear,
@@ -438,8 +543,8 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 	// 既存のイベントで新しいリストに無いものを追加する
 	ServiceMapKey Key=GenerateServiceMapKey(ServiceData.m_OriginalNID,
 								ServiceData.m_TSID,ServiceData.m_ServiceID);
-	ServiceIterator itrService=ServiceMap.find(Key);
-	if (itrService!=ServiceMap.end()) {
+	ServiceIterator itrService=m_ServiceMap.find(Key);
+	if (itrService!=m_ServiceMap.end()) {
 		CEventInfoList::EventIterator itrEvent;
 #ifdef _DEBUG
 		int NewerCount=0,OlderCount=0,PaddingCount=0;
@@ -492,8 +597,8 @@ bool CEpgProgramList::UpdateService(const SERVICE_INFO *pService)
 #endif
 	}
 
-	if (!ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo)).second)
-		ServiceMap[Key]=ServiceInfo;
+	if (!m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo)).second)
+		m_ServiceMap[Key]=ServiceInfo;
 	return true;
 }
 
@@ -559,7 +664,7 @@ void CEpgProgramList::Clear()
 {
 	CBlockLock Lock(&m_Lock);
 
-	ServiceMap.clear();
+	m_ServiceMap.clear();
 }
 
 
@@ -567,7 +672,7 @@ int CEpgProgramList::NumServices() const
 {
 	CBlockLock Lock(const_cast<CCriticalLock*>(&m_Lock));
 
-	return (int)ServiceMap.size();
+	return (int)m_ServiceMap.size();
 }
 
 
@@ -579,10 +684,10 @@ CEpgServiceInfo *CEpgProgramList::EnumService(int ServiceIndex)
 
 	if (ServiceIndex<0)
 		return NULL;
-	itrService=ServiceMap.begin();
-	for (i=0;i<ServiceIndex && itrService!=ServiceMap.end();i++)
+	itrService=m_ServiceMap.begin();
+	for (i=0;i<ServiceIndex && itrService!=m_ServiceMap.end();i++)
 		itrService++;
-	if (itrService==ServiceMap.end())
+	if (itrService==m_ServiceMap.end())
 		return NULL;
 	return &itrService->second;
 }
@@ -593,8 +698,8 @@ CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD OriginalNID,WORD TSID,WORD
 	CBlockLock Lock(&m_Lock);
 	ServiceIterator itrService;
 
-	itrService=ServiceMap.find(GenerateServiceMapKey(OriginalNID,TSID,ServiceID));
-	if (itrService==ServiceMap.end())
+	itrService=m_ServiceMap.find(GenerateServiceMapKey(OriginalNID,TSID,ServiceID));
+	if (itrService==m_ServiceMap.end())
 		return NULL;
 	return &itrService->second;
 }
@@ -605,7 +710,7 @@ CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD TSID,WORD ServiceID)
 	CBlockLock Lock(&m_Lock);
 	ServiceIterator itrService;
 
-	for (itrService=ServiceMap.begin();itrService!=ServiceMap.end();itrService++) {
+	for (itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
 		if ((TSID==0 || itrService->second.m_ServiceData.m_TSID==TSID)
 				&& itrService->second.m_ServiceData.m_ServiceID==ServiceID)
 			return &itrService->second;
@@ -669,7 +774,6 @@ bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pT
 
 #include <pshpack1.h>
 
-
 struct EpgListFileHeader {
 	char Type[8];
 	DWORD Version;
@@ -726,8 +830,8 @@ struct EventInfoHeader {
 	}
 };
 
+#define MAX_EPG_TEXT_LENGTH 1024
 #define MAX_CONTENT_NIBBLE_COUNT 7
-
 
 #include <poppack.h>
 
@@ -737,7 +841,8 @@ static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 	DWORD Length;
 
 	*ppszString=NULL;
-	if (pFile->Read(&Length,sizeof(DWORD))!=sizeof(DWORD))
+	if (pFile->Read(&Length,sizeof(DWORD))!=sizeof(DWORD)
+			|| Length>MAX_EPG_TEXT_LENGTH)
 		return false;
 	if (Length>0) {
 		*ppszString=new WCHAR[Length+1];
@@ -756,9 +861,11 @@ static bool WriteString(CNFile *pFile,LPCWSTR pszString)
 {
 	DWORD Length;
 
-	if (pszString!=NULL)
+	if (pszString!=NULL) {
 		Length=::lstrlenW(pszString);
-	else
+		if (Length>MAX_EPG_TEXT_LENGTH)
+			Length=MAX_EPG_TEXT_LENGTH;
+	} else
 		Length=0;
 	if (!pFile->Write(&Length,sizeof(DWORD)))
 		return false;
@@ -794,6 +901,11 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 		if (File.Read(&ServiceHeader,sizeof(ServiceInfoHeader))!=sizeof(ServiceInfoHeader)
 				|| !ReadString(&File,&pszText) || pszText==NULL)
 			goto OnError;
+		if (ServiceHeader.NumEvents==0) {
+			delete [] pszText;
+			continue;
+		}
+
 		CServiceInfoData ServiceData(ServiceHeader.OriginalNID,
 									 ServiceHeader.TSID,
 									 ServiceHeader.ServiceID,
@@ -812,6 +924,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			EventData.m_TSID=ServiceHeader.TSID;
 			EventData.m_ServiceID=EventHeader.ServiceID;
 			EventData.m_EventID=EventHeader.EventID;
+			EventData.m_fValidStartTime=true;
 			EventData.m_stStartTime=EventHeader.StartTime;
 			EventData.m_DurationSec=EventHeader.DurationSec;
 			EventData.m_ComponentType=EventHeader.ComponentType;
@@ -831,41 +944,33 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			}
 			if (!ReadString(&File,&pszText))
 				goto OnError;
-			if (pszText!=NULL) {
-				EventData.SetEventName(pszText);
-				delete [] pszText;
-			}
+			if (pszText!=NULL)
+				EventData.m_pszEventName=pszText;
 			if (!ReadString(&File,&pszText))
 				goto OnError;
-			if (pszText!=NULL) {
-				EventData.SetEventText(pszText);
-				delete [] pszText;
-			}
+			if (pszText!=NULL)
+				EventData.m_pszEventText=pszText;
 			if (!ReadString(&File,&pszText))
 				goto OnError;
-			if (pszText!=NULL) {
-				EventData.SetEventExtText(pszText);
-				delete [] pszText;
-			}
+			if (pszText!=NULL)
+				EventData.m_pszEventExtText=pszText;
 			if (!ReadString(&File,&pszText))
 				goto OnError;
-			if (pszText!=NULL) {
-				EventData.SetComponentTypeText(pszText);
-				delete [] pszText;
-			}
+			if (pszText!=NULL)
+				EventData.m_pszComponentTypeText=pszText;
 			if (!ReadString(&File,&pszText))
 				goto OnError;
-			if (pszText!=NULL) {
-				EventData.SetAudioComponentTypeText(pszText);
-				delete [] pszText;
-			}
+			if (pszText!=NULL)
+				EventData.m_pszAudioComponentTypeText=pszText;
 			ServiceInfo.m_EventList.EventDataMap.insert(
 				std::pair<WORD,CEventInfoData>(EventData.m_EventID,EventData));
 		}
 		ServiceMapKey Key=GenerateServiceMapKey(ServiceData.m_OriginalNID,
 								ServiceData.m_TSID,ServiceData.m_ServiceID);
-		ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo));
+		m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,ServiceInfo));
 	}
+
+	File.GetTime(NULL,NULL,&m_LastWriteTime);
 	return true;
 
 OnError:
@@ -877,26 +982,49 @@ OnError:
 bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
+
+	CGlobalLock GlobalLock(TEXT("TVTestEpgDataSaveMutex"));
+	if (!GlobalLock.Wait(10000)) {
+		TRACE(TEXT("CEpgProgramList::SaveToFile() : Timeout\n"));
+		return false;
+	}
+
+	// ファイルが読み込んだ時から更新されている場合読み込み直す
+	// (複数起動して他のプロセスが更新した可能性があるため)
+	if (m_LastWriteTime.dwLowDateTime!=0 || m_LastWriteTime.dwHighDateTime!=0) {
+		WIN32_FIND_DATA fd;
+		HANDLE hFind=::FindFirstFile(pszFileName,&fd);
+		if (hFind!=INVALID_HANDLE_VALUE) {
+			::FindClose(hFind);
+			if (::CompareFileTime(&fd.ftLastWriteTime,&m_LastWriteTime)>0) {
+				TRACE(TEXT("CEpgProgramList::SaveToFile() : Reload\n"));
+				CEpgProgramList List;
+				if (List.LoadFromFile(pszFileName))
+					Merge(&List);
+			}
+		}
+	}
+
 	CNFile File;
 
-	if (!File.Open(pszFileName,CNFile::CNF_WRITE | CNFile::CNF_NEW))
+	if (!File.Open(pszFileName,CNFile::CNF_WRITE | CNFile::CNF_NEW)) {
+		GlobalLock.Release();
 		return false;
+	}
 
 	EpgListFileHeader FileHeader;
 
 	::CopyMemory(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type));
 	FileHeader.Version=EPGLISTFILEHEADER_VERSION;
-	FileHeader.NumServices=(DWORD)ServiceMap.size();
+	FileHeader.NumServices=(DWORD)m_ServiceMap.size();
 
 	if (!File.Write(&FileHeader,sizeof(EpgListFileHeader)))
-		return false;
+		goto OnError;
 
 	SYSTEMTIME stCurrent,st;
 	::GetLocalTime(&stCurrent);
 
-	ServiceIterator itrService;
-
-	for (itrService=ServiceMap.begin();itrService!=ServiceMap.end();itrService++) {
+	for (ServiceIterator itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
 		ServiceInfoHeader ServiceHeader(itrService->second.m_ServiceData);
 		CEventInfoList::EventIterator itrEvent;
 
@@ -908,9 +1036,9 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 				ServiceHeader.NumEvents++;
 		}
 		if (!File.Write(&ServiceHeader,sizeof(ServiceInfoHeader)))
-			return false;
+			goto OnError;
 		if (!WriteString(&File,itrService->second.m_ServiceData.GetServiceName()))
-			return false;
+			goto OnError;
 		if (ServiceHeader.NumEvents>0) {
 			for (itrEvent=itrService->second.m_EventList.EventDataMap.begin();
 					itrEvent!=itrService->second.m_EventList.EventDataMap.end();
@@ -920,14 +1048,14 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 				if (itrEvent->second.GetEndTime(&st)
 						&& CompareSystemTime(&st,&stCurrent)>0) {
 					if (!File.Write(&EventHeader,sizeof(EventInfoHeader)))
-						return false;
+						goto OnError;
 					if (EventHeader.ContentNibbleListCount>0) {
 						if (EventHeader.ContentNibbleListCount>MAX_CONTENT_NIBBLE_COUNT)
 							EventHeader.ContentNibbleListCount=MAX_CONTENT_NIBBLE_COUNT;
 						for (DWORD i=0;i<EventHeader.ContentNibbleListCount;i++) {
 							CEventInfoData::NibbleData Nibble=itrEvent->second.m_NibbleList[i];
 							if (!File.Write(&Nibble,sizeof(Nibble)))
-								return false;
+								goto OnError;
 						}
 					}
 					if (!WriteString(&File,itrEvent->second.GetEventName())
@@ -935,8 +1063,45 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 							|| !WriteString(&File,itrEvent->second.GetEventExtText())
 							|| !WriteString(&File,itrEvent->second.GetComponentTypeText())
 							|| !WriteString(&File,itrEvent->second.GetAudioComponentTypeText()))
-						return false;
+						goto OnError;
 				}
+			}
+		}
+	}
+	File.Close();
+	GlobalLock.Release();
+	return true;
+
+OnError:
+	File.Close();
+	::DeleteFile(pszFileName);
+	GlobalLock.Release();
+	return false;
+}
+
+
+bool CEpgProgramList::Merge(CEpgProgramList *pSrcList)
+{
+	ServiceIterator itrSrcService;
+
+	for (itrSrcService=pSrcList->m_ServiceMap.begin();
+			itrSrcService!=pSrcList->m_ServiceMap.end();itrSrcService++) {
+		CEpgServiceInfo &SrcServiceInfo=itrSrcService->second;
+		ServiceMapKey Key=GenerateServiceMapKey(
+			SrcServiceInfo.m_ServiceData.m_OriginalNID,
+			SrcServiceInfo.m_ServiceData.m_TSID,
+			SrcServiceInfo.m_ServiceData.m_ServiceID);
+		ServiceIterator itrDstService=m_ServiceMap.find(Key);
+		if (itrDstService==m_ServiceMap.end()) {
+			m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo>(Key,SrcServiceInfo));
+		} else {
+			CEventInfoList::EventIterator itrEvent;
+
+			for (itrEvent=SrcServiceInfo.m_EventList.EventDataMap.begin();
+					itrEvent!=SrcServiceInfo.m_EventList.EventDataMap.end();
+					itrEvent++) {
+				itrDstService->second.m_EventList.EventDataMap.insert(
+					std::pair<WORD,CEventInfoData>(itrEvent->first,itrEvent->second));
 			}
 		}
 	}

@@ -268,6 +268,14 @@ const bool CNFile::SetPos(const ULONGLONG llPos)
 }
 
 
+bool CNFile::GetTime(FILETIME *pCreationTime, FILETIME *pLastAccessTime, FILETIME *pLastWriteTime) const
+{
+	if (m_hFile == INVALID_HANDLE_VALUE)
+		return false;
+	return ::GetFileTime(m_hFile, pCreationTime, pLastAccessTime, pLastWriteTime) != FALSE;
+}
+
+
 LPCTSTR CNFile::GetFileName() const
 {
 	return m_pszFileName;

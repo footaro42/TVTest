@@ -1566,8 +1566,9 @@ void CChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		::wsprintf(szText,TEXT("%d: %s"),pInfo->GetChannelNo(),pInfo->GetName());
 	} else if ((pInfo=ChannelManager.GetCurrentChannelInfo())!=NULL) {
 		::wsprintf(szText,TEXT("%d: %s"),pInfo->GetChannelNo(),pInfo->GetName());
-	} else
+	} else {
 		::lstrcpy(szText,TEXT("<ƒ`ƒƒƒ“ƒlƒ‹>"));
+	}
 	DrawText(hdc,pRect,szText);
 }
 
@@ -6798,10 +6799,30 @@ void CMainWindow::ShowChannelOSD()
 		if (pInfo->GetChannelNo()!=0)
 			Length=wsprintf(szText,TEXT("%d "),pInfo->GetChannelNo());
 		wsprintf(szText+Length,TEXT("%s"),pInfo->GetName());
+		HBITMAP hbmLogo=LogoManager.GetAssociatedLogoBitmap(
+			pInfo->GetNetworkID(),pInfo->GetServiceID(),CLogoManager::LOGOTYPE_BIG);
+		int LogoWidth,LogoHeight;
+		if (hbmLogo!=NULL) {
+#ifndef TVH264_FOR_1SEG
+			LogoHeight=36;
+#else
+			LogoHeight=18;
+#endif
+			LogoWidth=LogoHeight*16/9;
+		} else {
+			LogoWidth=LogoHeight=0;
+		}
 		if (!OSDOptions.GetPseudoOSD()
 				&& CoreEngine.m_DtvEngine.m_MediaViewer.IsDrawTextSupported()) {
-			RECT rc;
+			if (hbmLogo!=NULL) {
+				ChannelOSD.Create(m_VideoContainer.GetHandle());
+				ChannelOSD.SetImage(hbmLogo);
+				ChannelOSD.SetPosition(8,24,LogoWidth,LogoHeight);
+				ChannelOSD.Show(OSDOptions.GetFadeTime(),
+								!m_fWheelChannelChanging && !ChannelOSD.IsVisible());
+			}
 
+			RECT rc;
 			if (CoreEngine.m_DtvEngine.m_MediaViewer.GetSourceRect(&rc)) {
 				LOGFONT lf;
 				HFONT hfont;
@@ -6813,6 +6834,11 @@ void CMainWindow::ShowChannelOSD()
 				hfont=CreateFontIndirect(&lf);
 				rc.left+=16;
 				rc.top+=48;
+				if (hbmLogo!=NULL) {
+					int Zoom=CalcZoomRate();
+					if (Zoom>0)
+						rc.left+=LogoWidth*100/Zoom;
+				}
 				if (CoreEngine.m_DtvEngine.m_MediaViewer.DrawText(szText,
 						rc.left,rc.top,hfont,
 						OSDOptions.GetTextColor(),OSDOptions.GetOpacity())) {
@@ -6822,20 +6848,21 @@ void CMainWindow::ShowChannelOSD()
 				DeleteObject(hfont);
 			}
 		} else {
-			SIZE sz;
-			COLORREF cr;
-
-			ChannelOSD.Create(m_VideoContainer.GetHandle());
-			ChannelOSD.SetTextHeight(
+			const int TextHeight=
 #ifndef TVH264_FOR_1SEG
 				32
 #else
 				20
 #endif
-				);
-			ChannelOSD.SetText(szText);
+				;
+			SIZE sz;
+			COLORREF cr;
+
+			ChannelOSD.Create(m_VideoContainer.GetHandle());
+			ChannelOSD.SetTextHeight(TextHeight);
+			ChannelOSD.SetText(szText,hbmLogo,LogoWidth,LogoHeight);
 			ChannelOSD.CalcTextSize(&sz);
-			ChannelOSD.SetPosition(8,24,sz.cx+8,sz.cy+8);
+			ChannelOSD.SetPosition(8,24,sz.cx+8+LogoWidth,max(sz.cy+8,LogoHeight));
 			if (m_fWheelChannelChanging)
 				cr=MixColor(OSDOptions.GetTextColor(),RGB(0,0,0),160);
 			else

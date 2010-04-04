@@ -303,17 +303,9 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 		HBITMAP hbmLogo=m_pLogoManager->GetAssociatedLogoBitmap(
 			pChInfo->GetNetworkID(),pChInfo->GetServiceID(),CLogoManager::LOGOTYPE_SMALL);
 		if (hbmLogo!=NULL) {
-			HDC hdcMemory=::CreateCompatibleDC(pdis->hDC);
-			HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,hbmLogo));
-			int OldStretchMode=::SetStretchBltMode(pdis->hDC,STRETCH_HALFTONE);
-			BITMAP bm;
-			::GetObject(hbmLogo,sizeof(BITMAP),&bm);
-			::StretchBlt(pdis->hDC,rc.left,rc.top+(rc.bottom-rc.top-m_LogoHeight)/2,
-						 m_LogoWidth,m_LogoHeight,
-						 hdcMemory,0,0,bm.bmWidth,bm.bmHeight,SRCCOPY);
-			::SetStretchBltMode(pdis->hDC,OldStretchMode);
-			::SelectObject(hdcMemory,hbmOld);
-			::DeleteDC(hdcMemory);
+			DrawUtil::DrawBitmap(pdis->hDC,
+								 rc.left,rc.top+(rc.bottom-rc.top-m_LogoHeight)/2,
+								 m_LogoWidth,m_LogoHeight,hbmLogo);
 		}
 		rc.left+=m_LogoWidth+MENU_LOGO_MARGIN;
 		rc.right=rc.left+m_ChannelNameWidth;

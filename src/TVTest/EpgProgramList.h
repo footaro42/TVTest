@@ -17,9 +17,15 @@ public:
 	WORD m_ServiceType;
 	CServiceInfoData();
 	CServiceInfoData(const CServiceInfoData &Info);
+#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+	CServiceInfoData(CServiceInfoData &&Info);
+#endif
 	CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID,WORD ServiceType,LPCWSTR pszServiceName);
 	~CServiceInfoData();
 	CServiceInfoData &operator=(const CServiceInfoData &Info);
+#ifdef MOVE_ASSIGNMENT_SUPPORTED
+	CServiceInfoData &operator=(CServiceInfoData &&Info);
+#endif
 	bool operator==(const CServiceInfoData &Info) const;
 	bool operator!=(const CServiceInfoData &Info) const { return !(*this==Info); }
 	LPCWSTR GetServiceName() const { return m_pszServiceName; }
@@ -32,6 +38,7 @@ class CEventInfoData {
 	LPWSTR m_pszEventExtText;
 	LPWSTR m_pszComponentTypeText;
 	LPWSTR m_pszAudioComponentTypeText;
+	friend class CEpgProgramList;
 public:
 	struct NibbleData {
 		BYTE m_ContentNibbleLv1;	//content_nibble_level_1
@@ -84,8 +91,14 @@ public:
 	std::vector<NibbleData> m_NibbleList;
 	CEventInfoData();
 	CEventInfoData(const CEventInfoData &Info);
+#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+	CEventInfoData(CEventInfoData &&Info);
+#endif
 	~CEventInfoData();
 	CEventInfoData &operator=(const CEventInfoData &Info);
+#ifdef MOVE_ASSIGNMENT_SUPPORTED
+	CEventInfoData &operator=(CEventInfoData &&Info);
+#endif
 	bool operator==(const CEventInfoData &Info) const;
 	bool operator!=(const CEventInfoData &Info) const { return !(*this==Info); }
 	LPCWSTR GetEventName() const { return m_pszEventName; }
@@ -128,13 +141,16 @@ public:
 class CEpgProgramList {
 	CEpgDataCapDllUtil2 *m_pEpgDll;
 	typedef ULONGLONG ServiceMapKey;
-	typedef std::map<ServiceMapKey,CEpgServiceInfo>::iterator ServiceIterator;
-	std::map<ServiceMapKey,CEpgServiceInfo> ServiceMap;
+	typedef std::map<ServiceMapKey,CEpgServiceInfo> ServiceMap;
+	typedef ServiceMap::iterator ServiceIterator;
+	ServiceMap m_ServiceMap;
 	CCriticalLock m_Lock;
+	FILETIME m_LastWriteTime;
 	ServiceMapKey GenerateServiceMapKey(WORD OriginalNID,WORD TSID,WORD ServiceID) const {
 		return ((ULONGLONG)OriginalNID<<32) | ((ULONGLONG)TSID<<16) | (ULONGLONG)ServiceID;
 	}
 	bool UpdateService(const SERVICE_INFO *pService);
+	bool Merge(CEpgProgramList *pSrcList);
 public:
 	CEpgProgramList();
 	~CEpgProgramList();

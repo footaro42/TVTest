@@ -13,6 +13,10 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
+
 
 #define PROGRAM_GUIDE_WINDOW_CLASS			APP_NAME TEXT(" Program Guide")
 #define PROGRAM_GUIDE_FRAME_WINDOW_CLASS	APP_NAME TEXT(" Program Guide Frame")
@@ -843,41 +847,43 @@ bool CProgramGuide::Initialize(HINSTANCE hinst)
 
 
 CProgramGuide::CProgramGuide()
-	: m_hfont(NULL)
+	: m_pProgramList(NULL)
+	, m_LinesPerHour(12)
+	, m_hfont(NULL)
 	, m_hfontTitle(NULL)
 	, m_hfontTime(NULL)
+	, m_LineMargin(1)
+	, m_ItemWidth(140)
+	, m_ItemMargin(4)
+	, m_TextLeftMargin(8)
+	, m_fDragScroll(false)
 	, m_hDragCursor1(NULL)
 	, m_hDragCursor2(NULL)
 	//, m_hwndToolTip(NULL)
 	, m_EventInfoPopupManager(&m_EventInfoPopup)
 	, m_EventInfoPopupHandler(this)
 	, m_fShowToolTip(true)
-	, m_ProgramSearchEventHandler(this)
+	, m_CurrentTuningSpace(-2)
+	, m_CurrentTransportStreamID(0)
+	, m_CurrentServiceID(0)
+	, m_pDriverManager(NULL)
+	, m_fUpdating(false)
 	, m_pEventHandler(NULL)
 	, m_pFrame(NULL)
 	, m_pLogoManager(NULL)
+	, m_WheelScrollLines(0)
+	, m_ProgramSearchEventHandler(this)
 {
 	LOGFONT lf;
-	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
+	DrawUtil::GetSystemFont(DrawUtil::FONT_DEFAULT,&lf);
 	SetFont(&lf);
 	m_WindowPosition.Left=0;
 	m_WindowPosition.Top=0;
 	m_WindowPosition.Width=640;
 	m_WindowPosition.Height=480;
-	m_pProgramList=NULL;
-	m_LinesPerHour=12;
-	m_LineMargin=1;
-	m_ItemWidth=140;
-	m_ItemMargin=4;
-	m_TextLeftMargin=8;
 	m_ScrollPos.x=0;
 	m_ScrollPos.y=0;
-	m_fDragScroll=false;
-	m_CurrentTuningSpace=-2;
-	m_CurrentTransportStreamID=0;
-	m_CurrentServiceID=0;
 	m_szDriverFileName[0]='\0';
-	m_pDriverManager=NULL;
 	m_ColorList[COLOR_BACK]=::GetSysColor(COLOR_WINDOW);
 	m_ColorList[COLOR_TEXT]=::GetSysColor(COLOR_WINDOWTEXT);
 	m_ColorList[COLOR_CHANNELNAMETEXT]=::GetSysColor(COLOR_WINDOWTEXT);
@@ -911,8 +917,6 @@ CProgramGuide::CProgramGuide()
 		m_TimeBarBackGradient[i].Color1=m_TimeBarMarginGradient.Color1;
 		m_TimeBarBackGradient[i].Color2=m_TimeBarMarginGradient.Color2;
 	}
-	m_fUpdating=false;
-	m_WheelScrollLines=0;
 	m_EventInfoPopup.SetEventHandler(&m_EventInfoPopupHandler);
 }
 
@@ -1146,31 +1150,18 @@ void CProgramGuide::DrawServiceName(int Service,HDC hdc,const RECT *pRect)
 	rc.left+=4;
 	rc.right-=4;
 
-	if (pServiceInfo->GetLogo()!=NULL) {
-		HBITMAP hbmLogo=pServiceInfo->GetLogo();
-		HDC hdcMemory=::CreateCompatibleDC(hdc);
-		HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,hbmLogo));
-		int OldStretchMode=::SetStretchBltMode(hdc,STRETCH_HALFTONE);
-		const int LogoWidth=24,LogoHeight=14;
-		BITMAP bm;
-		::GetObject(hbmLogo,sizeof(BITMAP),&bm);
-		/*
-		::StretchBlt(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
-					 LogoWidth,LogoHeight,
-					 hdcMemory,0,0,bm.bmWidth,bm.bmHeight,SRCCOPY);
-		*/
-		BLENDFUNCTION bf={AC_SRC_OVER,0,192,0};
-		::AlphaBlend(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
-					 LogoWidth,LogoHeight,
-					 hdcMemory,0,0,bm.bmWidth,bm.bmHeight,bf);
-		::SetStretchBltMode(hdc,OldStretchMode);
-		::SelectObject(hdcMemory,hbmOld);
-		::DeleteDC(hdcMemory);
+	HBITMAP hbmLogo=pServiceInfo->GetLogo();
+	if (hbmLogo!=NULL) {
+		int LogoWidth,LogoHeight;
+		LogoHeight=min(rc.bottom-rc.top-4,14);
+		LogoWidth=LogoHeight*16/9;
+		DrawUtil::DrawBitmap(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
+							 LogoWidth,LogoHeight,hbmLogo,NULL,192);
 		rc.left+=LogoWidth+4;
 	}
 
 	::DrawText(hdc,pServiceInfo->GetServiceName(),-1,&rc,
-			   (pServiceInfo->GetLogo()!=NULL?DT_LEFT:DT_CENTER) |
+			   (hbmLogo!=NULL?DT_LEFT:DT_CENTER) |
 			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 	::SetTextColor(hdc,crOldTextColor);
 	::SelectObject(hdc,hfontOld);
@@ -2081,8 +2072,8 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		}
 		return 0;
 
-	case WM_MOUSEWHEEL:
 	case WM_VSCROLL:
+	case WM_MOUSEWHEEL:
 		{
 			CProgramGuide *pThis=GetThis(hwnd);
 			int Pos;
@@ -2129,6 +2120,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		return 0;
 
 	case WM_HSCROLL:
+	case WM_MOUSEHWHEEL:
 		{
 			CProgramGuide *pThis=GetThis(hwnd);
 			int Pos;
@@ -2139,15 +2131,19 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			Pos=pThis->m_ScrollPos.x;
 			pThis->GetProgramGuideRect(&rc);
 			Page=rc.right-rc.left;
-			switch (LOWORD(wParam)) {
-			case SB_LINEUP:		Pos-=pThis->m_FontHeight;	break;
-			case SB_LINEDOWN:	Pos+=pThis->m_FontHeight;	break;
-			case SB_PAGEUP:		Pos-=Page;					break;
-			case SB_PAGEDOWN:	Pos+=Page;					break;
-			case SB_THUMBTRACK:	Pos=HIWORD(wParam);			break;
-			case SB_TOP:		Pos=0;						break;
-			case SB_BOTTOM:		Pos=max(TotalWidth-Page,0);	break;
-			default:	return 0;
+			if (uMsg==WM_HSCROLL) {
+				switch (LOWORD(wParam)) {
+				case SB_LINELEFT:	Pos-=pThis->m_FontHeight;	break;
+				case SB_LINERIGHT:	Pos+=pThis->m_FontHeight;	break;
+				case SB_PAGELEFT:	Pos-=Page;					break;
+				case SB_PAGERIGHT:	Pos+=Page;					break;
+				case SB_THUMBTRACK:	Pos=HIWORD(wParam);			break;
+				case SB_LEFT:		Pos=0;						break;
+				case SB_RIGHT:		Pos=max(TotalWidth-Page,0);	break;
+				default:	return 0;
+				}
+			} else {
+				Pos+=GET_WHEEL_DELTA_WPARAM(wParam)*pThis->m_FontHeight/WHEEL_DELTA;
 			}
 			if (Pos<0)
 				Pos=0;
@@ -2164,7 +2160,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			POINT pt;
 			RECT rc;
 
-			//::SetFocus(hwnd);
+			::SetFocus(hwnd);
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
 			::GetClientRect(hwnd,&rc);
@@ -2226,7 +2222,7 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			pt.y=GET_Y_LPARAM(lParam);
 			pThis->m_CurItem.fValid=
 				pThis->HitTest(pt.x,pt.y,&pThis->m_CurItem.Service,&pThis->m_CurItem.Program);
-			//::SetFocus(hwnd);
+			::SetFocus(hwnd);
 			hmenu=::LoadMenu(m_hinst,MAKEINTRESOURCE(IDM_PROGRAMGUIDE));
 			hmenuPopup=::GetSubMenu(hmenu,0);
 			::CheckMenuRadioItem(hmenu,CM_PROGRAMGUIDE_TODAY,
@@ -3245,6 +3241,16 @@ LRESULT CALLBACK CProgramGuideFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,L
 			}
 			int y=pThis->m_StatusView[0].GetHeight()+pThis->m_StatusMargin.cy;
 			pThis->m_pProgramGuide->SetPosition(0,y,Width,Height-y);
+		}
+		return 0;
+
+	case WM_KEYDOWN:
+	case WM_MOUSEWHEEL:
+	case WM_MOUSEHWHEEL:
+		{
+			CProgramGuideFrame *pThis=GetThis(hwnd);
+
+			pThis->m_pProgramGuide->SendMessage(uMsg,wParam,lParam);
 		}
 		return 0;
 

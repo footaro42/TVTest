@@ -4,15 +4,25 @@
 
 namespace DrawUtil {
 
+// ìhÇËÇ¬Ç‘ÇµÇÃï˚å¸
 enum FillDirection {
-	DIRECTION_HORZ,
-	DIRECTION_VERT
+	DIRECTION_HORZ,	// êÖïΩï˚å¸
+	DIRECTION_VERT	// êÇíºï˚å¸
 };
 
 bool Fill(HDC hdc,const RECT *pRect,COLORREF Color);
-bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction=DIRECTION_HORZ);
-bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,FillDirection Direction=DIRECTION_HORZ,int GlossRatio1=96,int GlossRatio2=48);
+bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+				  FillDirection Direction=DIRECTION_HORZ);
+bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+						FillDirection Direction=DIRECTION_HORZ,
+						int GlossRatio1=96,int GlossRatio2=48);
+bool GlossOverlay(HDC hdc,const RECT *pRect,
+				  int Highlight1=192,int Highlight2=32,
+				  int Shadow1=32,int Shadow2=0);
 bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr);
+
+bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
+				HBITMAP hbm,const RECT *pSrcRect=NULL,BYTE Opacity=255);
 
 int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width);
 bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight);
@@ -94,7 +104,6 @@ public:
 	void DrawLine(int x1,int y1,int x2,int y2);
 	void DrawText(LPCTSTR pszText,int Length,RECT *pRect,UINT Format);
 };
-
 
 }	// namespace DrawUtil
 
