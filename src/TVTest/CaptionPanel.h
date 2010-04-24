@@ -51,7 +51,7 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 	WNDPROC m_pOldEditProc;
 	bool m_fEnable;
 	bool m_fAutoScroll;
-#ifndef TVH264
+#ifndef TVH264_FOR_1SEG
 	bool m_fIgnoreSmall;
 #endif
 	BYTE m_Language;

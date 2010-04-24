@@ -205,49 +205,30 @@ bool CStatusView::Initialize(HINSTANCE hinst)
 
 
 CStatusView::CStatusView()
+	: m_Font(/*DrawUtil::FONT_STATUS*/DrawUtil::FONT_DEFAULT)
+	, m_FontHeight(m_Font.GetHeight(false))
+	, m_BackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+					 RGB(128,192,160),RGB(128,192,160))
+	, m_crTextColor(RGB(64,96,80))
+	, m_HighlightBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+							  RGB(64,96,80),RGB(64,96,80))
+	, m_crHighlightTextColor(RGB(128,192,160))
+	, m_BorderType(Theme::BORDER_RAISED)
+	, m_NumItems(0)
+	, m_fSingleMode(false)
+	, m_pszSingleText(NULL)
+	, m_HotItem(-1)
+	, m_fTrackMouseEvent(false)
+	, m_fOnButtonDown(false)
+	, m_pEventHandler(NULL)
+	, m_fBufferedPaint(false)
 {
-#if 0
-	LOGFONT lf;
-	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
-	m_hfontStatus=::CreateFontIndirect(&lf);
-	m_FontHeight=abs(lf.lfHeight);
-#else
-	NONCLIENTMETRICS ncm;
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(ncm);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	m_hfontStatus=::CreateFontIndirect(&ncm.lfStatusFont);
-	m_FontHeight=abs(ncm.lfStatusFont.lfHeight);
-#endif
-	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_BackGradient.Direction=Theme::DIRECTION_VERT;
-	m_BackGradient.Color1=RGB(128,192,160);
-	m_BackGradient.Color2=RGB(128,192,160);
-	m_crTextColor=RGB(64,96,80);
-	m_HighlightBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_HighlightBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_HighlightBackGradient.Color1=RGB(64,96,80);
-	m_HighlightBackGradient.Color2=RGB(64,96,80);
-	m_crHighlightTextColor=RGB(128,192,160);
-	m_BorderType=Theme::BORDER_RAISED;
-	m_NumItems=0;
-	m_fSingleMode=false;
-	m_pszSingleText=NULL;
-	m_HotItem=-1;
-	m_fTrackMouseEvent=false;
-	m_fOnButtonDown=false;
-	m_pEventHandler=NULL;
-	m_fBufferedPaint=false;
 }
 
 
 CStatusView::~CStatusView()
 {
 	Destroy();
-	DeleteObject(m_hfontStatus);
 	m_ItemList.DeleteAll();
 	delete [] m_pszSingleText;
 }
@@ -339,27 +320,14 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			LPCREATESTRUCT pcs=reinterpret_cast<LPCREATESTRUCT>(lParam);
 			CStatusView *pStatus=static_cast<CStatusView*>(OnCreate(hwnd,lParam));
-			/*
-			HDC hdc;
-			HFONT hfontOld;
-			TEXTMETRIC tm;
-
-			hdc=GetDC(hwnd);
-			hfontOld=(HFONT)SelectObject(hdc,pStatus->m_hfontStatus);
-			GetTextMetrics(hdc,&tm);
-			pThis->m_FontHeight=tm.tmHeight;
-			SelectObject(hdc,hfontOld);
-			ReleaseDC(hwnd,hdc);
-			*/
-
 			RECT rc;
 
 			rc.left=0;
 			rc.top=0;
 			rc.right=0;
 			rc.bottom=pStatus->m_FontHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
-			AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
-			MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
+			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
+			::MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
 			pStatus->m_HotItem=-1;
 			pStatus->m_fTrackMouseEvent=false;
 		}
@@ -679,29 +647,28 @@ void CStatusView::SetBorderType(Theme::BorderType Type)
 }
 
 
-bool CStatusView::SetFont(HFONT hfont)
+bool CStatusView::SetFont(const LOGFONT *pFont)
 {
-	DeleteObject(m_hfontStatus);
-	m_hfontStatus=hfont;
+	if (!m_Font.Create(pFont))
+		return false;
+	m_FontHeight=m_Font.GetHeight(false);
 	if (m_hwnd!=NULL) {
-		HDC hdc;
-		HFONT hfontOld;
-		TEXTMETRIC tm;
 		RECT rc;
 
-		hdc=GetDC(m_hwnd);
-		hfontOld=SelectFont(hdc,m_hfontStatus);
-		GetTextMetrics(hdc,&tm);
-		SelectFont(hdc,hfontOld);
-		ReleaseDC(m_hwnd,hdc);
 		GetClientRect(&rc);
-		rc.bottom=tm.tmHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
-		AdjustWindowRectEx(&rc,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
-		SetWindowPos(m_hwnd,NULL,0,0,rc.right-rc.left,rc.bottom-rc.top,
-			SWP_NOZORDER | SWP_NOMOVE);
-		InvalidateRect(m_hwnd,NULL,TRUE);
+		rc.bottom=m_FontHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
+		::AdjustWindowRectEx(&rc,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
+		::SetWindowPos(m_hwnd,NULL,0,0,rc.right-rc.left,rc.bottom-rc.top,
+					   SWP_NOZORDER | SWP_NOMOVE);
+		Invalidate();
 	}
 	return true;
+}
+
+
+bool CStatusView::GetFont(LOGFONT *pFont) const
+{
+	return m_Font.GetLogFont(pFont);
 }
 
 
@@ -755,7 +722,7 @@ bool CStatusView::DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,b
 	const Theme::GradientInfo *pGradient=
 		fHighlight?&m_HighlightBackGradient:&m_BackGradient;
 
-	hfontOld=SelectFont(hdc,m_hfontStatus);
+	hfontOld=SelectFont(hdc,m_Font.GetHandle());
 	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 	crOldTextColor=::SetTextColor(hdc,fHighlight?m_crHighlightTextColor:m_crTextColor);
 	crOldBkColor=::SetBkColor(hdc,MixColor(pGradient->Color1,pGradient->Color2,128));
@@ -843,7 +810,7 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 		hdcDst=hdc;
 	}
 
-	hfontOld=SelectFont(hdcDst,m_hfontStatus);
+	hfontOld=SelectFont(hdcDst,m_Font.GetHandle());
 	OldBkMode=::SetBkMode(hdcDst,TRANSPARENT);
 	crOldTextColor=::GetTextColor(hdcDst);
 	crOldBkColor=::GetBkColor(hdcDst);

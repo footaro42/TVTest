@@ -1,4 +1,10 @@
 #include "stdafx.h"
+#if _WIN32_WINNT<0x0600 || _WINVER<0x0600
+#undef _WIN32_WINNT
+#undef _WINVER
+#define _WIN32_WINNT	0x0600
+#define _WINVER			0x0600
+#endif
 #include <dwmapi.h>
 #include <uxtheme.h>
 #include "Aero.h"
@@ -10,9 +16,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-template<typename T> void GetAddress(T &func,HMODULE lib,const char *symbol)
+template<typename T> bool ProcAddress(T &func,HMODULE lib,const char *symbol)
 {
-	func=reinterpret_cast<T>(::GetProcAddress(lib,symbol));
+	return (func=reinterpret_cast<T>(::GetProcAddress(lib,symbol)))!=NULL;
 }
 
 
@@ -52,11 +58,8 @@ bool CAeroGlass::IsEnabled()
 	if (!LoadDwmLib())
 		return false;
 
-	/*
-	DwmIsCompositionEnabledFunc pIsCompositionEnabled=reinterpret_cast<DwmIsCompositionEnabledFunc>(::GetProcAddress(m_hDwmLib,"DwmIsCompositionEnabled"));
-	*/
 	DwmIsCompositionEnabledFunc pIsCompositionEnabled;
-	GetAddress(pIsCompositionEnabled,m_hDwmLib,"DwmIsCompositionEnabled");
+	ProcAddress(pIsCompositionEnabled,m_hDwmLib,"DwmIsCompositionEnabled");
 	BOOL fEnabled;
 	return pIsCompositionEnabled!=NULL
 		&& pIsCompositionEnabled(&fEnabled)==S_OK && fEnabled;
@@ -69,9 +72,8 @@ bool CAeroGlass::ApplyAeroGlass(HWND hwnd,const RECT *pRect)
 	if (!IsEnabled())
 		return false;
 
-	DwmExtendFrameIntoClientAreaFunc pExtendFrame=reinterpret_cast<DwmExtendFrameIntoClientAreaFunc>(::GetProcAddress(m_hDwmLib,"DwmExtendFrameIntoClientArea"));
-
-	if (pExtendFrame==NULL)
+	DwmExtendFrameIntoClientAreaFunc pExtendFrame;
+	if (!ProcAddress(pExtendFrame,m_hDwmLib,"DwmExtendFrameIntoClientArea"))
 		return false;
 
 	MARGINS Margins;
@@ -90,8 +92,8 @@ bool CAeroGlass::EnableNcRendering(HWND hwnd,bool fEnable)
 	if (!LoadDwmLib())
 		return false;
 
-	DwmSetWindowAttributeFunc pSetWindowAttribute=reinterpret_cast<DwmSetWindowAttributeFunc>(::GetProcAddress(m_hDwmLib,"DwmSetWindowAttribute"));
-	if (pSetWindowAttribute==NULL)
+	DwmSetWindowAttributeFunc pSetWindowAttribute;
+	if (!ProcAddress(pSetWindowAttribute,m_hDwmLib,"DwmSetWindowAttribute"))
 		return false;
 
 	DWMNCRENDERINGPOLICY ncrp=fEnable?DWMNCRP_USEWINDOWSTYLE:DWMNCRP_DISABLED;
@@ -127,9 +129,10 @@ HDC CBufferedPaint::Begin(HDC hdc,const RECT *pRect,bool fErase)
 	if (m_hThemeLib==NULL || m_hPaintBuffer!=NULL)
 		return NULL;
 
-	BeginBufferedPaintFunc pBeginBufferedPaint=reinterpret_cast<BeginBufferedPaintFunc>(::GetProcAddress(m_hThemeLib,"BeginBufferedPaint"));
-	if (pBeginBufferedPaint==NULL)
+	BeginBufferedPaintFunc pBeginBufferedPaint;
+	if (!ProcAddress(pBeginBufferedPaint,m_hThemeLib,"BeginBufferedPaint"))
 		return NULL;
+
 	BP_PAINTPARAMS Params={sizeof(BP_PAINTPARAMS),0,NULL,NULL};
 	if (fErase)
 		Params.dwFlags|=BPPF_ERASE;
@@ -144,8 +147,8 @@ HDC CBufferedPaint::Begin(HDC hdc,const RECT *pRect,bool fErase)
 void CBufferedPaint::End()
 {
 	if (m_hPaintBuffer!=NULL) {
-		EndBufferedPaintFunc pEndBufferedPaint=reinterpret_cast<EndBufferedPaintFunc>(::GetProcAddress(m_hThemeLib,"EndBufferedPaint"));
-		if (pEndBufferedPaint!=NULL) {
+		EndBufferedPaintFunc pEndBufferedPaint;
+		if (ProcAddress(pEndBufferedPaint,m_hThemeLib,"EndBufferedPaint")) {
 			pEndBufferedPaint(m_hPaintBuffer,TRUE);
 			m_hPaintBuffer=NULL;
 		}
@@ -157,8 +160,8 @@ bool CBufferedPaint::Clear(const RECT *pRect)
 {
 	if (m_hPaintBuffer==NULL)
 		return false;
-	BufferedPaintClearFunc pBufferedPaintClear=reinterpret_cast<BufferedPaintClearFunc>(::GetProcAddress(m_hThemeLib,"BufferedPaintClear"));
-	if (pBufferedPaintClear==NULL)
+	BufferedPaintClearFunc pBufferedPaintClear;
+	if (!ProcAddress(pBufferedPaintClear,m_hThemeLib,"BufferedPaintClear"))
 		return false;
 	return pBufferedPaintClear(m_hPaintBuffer,pRect)==S_OK;
 }
@@ -168,8 +171,8 @@ bool CBufferedPaint::SetAlpha(BYTE Alpha)
 {
 	if (m_hPaintBuffer==NULL)
 		return false;
-	BufferedPaintSetAlphaFunc pBufferedPaintSetAlpha=reinterpret_cast<BufferedPaintSetAlphaFunc>(::GetProcAddress(m_hThemeLib,"BufferedPaintSetAlpha"));
-	if (pBufferedPaintSetAlpha==NULL)
+	BufferedPaintSetAlphaFunc pBufferedPaintSetAlpha;
+	if (!ProcAddress(pBufferedPaintSetAlpha,m_hThemeLib,"BufferedPaintSetAlpha"))
 		return false;
 	return pBufferedPaintSetAlpha(m_hPaintBuffer,NULL,Alpha)==S_OK;
 }

@@ -29,6 +29,8 @@ public:
 		STREAM_ALL				= 0xFFFFFFFFUL
 	};
 	bool SetTargetServiceID(WORD ServiceID=0, DWORD Stream=STREAM_ALL);
+	WORD GetTargetServiceID() const { return m_TargetServiceID; }
+	DWORD GetTargetStream() const { return m_TargetStream; }
 	ULONGLONG GetInputPacketCount() const;
 	ULONGLONG GetOutputPacketCount() const;
 

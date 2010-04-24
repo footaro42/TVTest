@@ -6,6 +6,7 @@
 
 
 #include <windows.h>
+#include <tchar.h>
 #include <deque>
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT	// クラスとして実装
 #include "TVTestPlugin.h"
@@ -17,8 +18,6 @@
 // ウィンドウのクライアント領域の大きさ
 #define WINDOW_WIDTH	300
 #define WINDOW_HEIGHT	200
-
-
 
 
 // プラグインクラス
@@ -34,9 +33,11 @@ class CSignalGraph : public TVTest::CTVTestPlugin
 	COLORREF m_crSignalLevelColor;
 	COLORREF m_crBitRateColor;
 	COLORREF m_crGridColor;
+
 	static LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData);
 	static CSignalGraph *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 public:
 	CSignalGraph();
 	virtual bool GetPluginInfo(TVTest::PluginInfo *pInfo);
@@ -46,58 +47,30 @@ public:
 
 
 CSignalGraph::CSignalGraph()
+	: m_hwnd(NULL)
+	, m_crBackColor(RGB(0,0,0))
+	, m_crSignalLevelColor(RGB(0,255,0))
+	, m_crBitRateColor(RGB(0,0,255))
+	, m_crGridColor(RGB(128,128,128))
 {
-	m_hwnd=NULL;
-	m_crBackColor=RGB(0,0,0);
-	m_crSignalLevelColor=RGB(0,255,0);
-	m_crBitRateColor=RGB(0,0,255);
-	m_crGridColor=RGB(128,128,128);
 }
 
 
+// プラグインの情報を返す
 bool CSignalGraph::GetPluginInfo(TVTest::PluginInfo *pInfo)
 {
-	// プラグインの情報を返す
 	pInfo->Type           = TVTest::PLUGIN_TYPE_NORMAL;
 	pInfo->Flags          = 0;
 	pInfo->pszPluginName  = L"Signal Graph";
 	pInfo->pszCopyright   = L"Public Domain";
-	pInfo->pszDescription = L"信号レベルとビットレートをグラフ表示する";
+	pInfo->pszDescription = L"信号レベルとビットレートをグラフ表示します。";
 	return true;
 }
 
 
+// 初期化処理
 bool CSignalGraph::Initialize()
 {
-	// 初期化処理
-
-	WNDCLASS wc;
-
-	wc.style=0;
-	wc.lpfnWndProc=WndProc;
-	wc.cbClsExtra=0;
-	wc.cbWndExtra=0;
-	wc.hInstance=g_hinstDLL;
-	wc.hIcon=NULL;
-	wc.hCursor=LoadCursor(NULL,IDC_ARROW);
-	wc.hbrBackground=NULL;
-	wc.lpszMenuName=NULL;
-	wc.lpszClassName=SIGNAL_GRAPH_WINDOW_CLASS;
-	if (::RegisterClass(&wc)==0)
-		return false;
-
-	RECT rc;
-
-	::SetRect(&rc,0,0,WINDOW_WIDTH,WINDOW_HEIGHT);
-	::AdjustWindowRectEx(&rc,WS_POPUP | WS_CAPTION | WS_SYSMENU,
-						 FALSE,WS_EX_TOOLWINDOW);
-	if (::CreateWindowEx(WS_EX_TOOLWINDOW,SIGNAL_GRAPH_WINDOW_CLASS,
-							TEXT("Signal Graph"),
-							WS_POPUP | WS_CAPTION | WS_SYSMENU,
-							0,0,rc.right-rc.left,rc.bottom-rc.top,
-							m_pApp->GetAppWindow(),NULL,g_hinstDLL,this)==NULL)
-		return false;
-
 	// イベントコールバック関数を登録
 	m_pApp->SetEventCallback(EventCallback,this);
 
@@ -105,11 +78,12 @@ bool CSignalGraph::Initialize()
 }
 
 
+// 終了処理
 bool CSignalGraph::Finalize()
 {
-	// 終了処理
-
-	::DestroyWindow(m_hwnd);
+	// ウィンドウの破棄
+	if (m_hwnd!=NULL)
+		::DestroyWindow(m_hwnd);
 
 	return true;
 }
@@ -124,7 +98,47 @@ LRESULT CALLBACK CSignalGraph::EventCallback(UINT Event,LPARAM lParam1,LPARAM lP
 	switch (Event) {
 	case TVTest::EVENT_PLUGINENABLE:
 		// プラグインの有効状態が変化した
-		::ShowWindow(pThis->m_hwnd,lParam1!=0?SW_SHOW:SW_HIDE);
+		{
+			bool fEnable=lParam1!=0;
+
+			if (fEnable) {
+				// ウィンドウクラスの登録
+				static bool fInitialized=false;
+				if (!fInitialized) {
+					WNDCLASS wc;
+
+					wc.style=0;
+					wc.lpfnWndProc=WndProc;
+					wc.cbClsExtra=0;
+					wc.cbWndExtra=0;
+					wc.hInstance=g_hinstDLL;
+					wc.hIcon=NULL;
+					wc.hCursor=::LoadCursor(NULL,IDC_ARROW);
+					wc.hbrBackground=NULL;
+					wc.lpszMenuName=NULL;
+					wc.lpszClassName=SIGNAL_GRAPH_WINDOW_CLASS;
+					if (::RegisterClass(&wc)==0)
+						return FALSE;
+					fInitialized=true;
+				}
+
+				if (pThis->m_hwnd==NULL) {
+					// ウィンドウの作成
+					RECT rc={0,0,WINDOW_WIDTH,WINDOW_HEIGHT};
+					::AdjustWindowRectEx(&rc,WS_POPUP | WS_CAPTION | WS_SYSMENU,
+										 FALSE,WS_EX_TOOLWINDOW);
+					if (::CreateWindowEx(WS_EX_TOOLWINDOW,SIGNAL_GRAPH_WINDOW_CLASS,
+										 TEXT("Signal Graph"),
+										 WS_POPUP | WS_CAPTION | WS_SYSMENU,
+										 0,0,rc.right-rc.left,rc.bottom-rc.top,
+										 pThis->m_pApp->GetAppWindow(),
+										 NULL,g_hinstDLL,pThis)==NULL)
+						return FALSE;
+				}
+			}
+
+			::ShowWindow(pThis->m_hwnd,fEnable?SW_SHOW:SW_HIDE);
+		}
 		return TRUE;
 
 	case TVTest::EVENT_STANDBY:
@@ -139,12 +153,14 @@ LRESULT CALLBACK CSignalGraph::EventCallback(UINT Event,LPARAM lParam1,LPARAM lP
 }
 
 
+// ウィンドウハンドルからthisを取得する
 CSignalGraph *CSignalGraph::GetThis(HWND hwnd)
 {
 	return reinterpret_cast<CSignalGraph*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
 }
 
 
+// ウィンドウプロシージャ
 LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
@@ -156,10 +172,10 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 			::SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(pThis));
 			pThis->m_hwnd=hwnd;
 
-			// 表示更新用タイマの設定
+			// 更新用タイマの設定
 			::SetTimer(hwnd,1,1000,NULL);
 		}
-		return TRUE;
+		return 0;
 
 	case WM_PAINT:
 		{
@@ -175,6 +191,7 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 			::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			::DeleteObject(hbr);
 			hpenOld=static_cast<HPEN>(::GetCurrentObject(ps.hdc,OBJ_PEN));
+
 			// グリッドを描く
 			hpen=::CreatePen(PS_SOLID,1,pThis->m_crGridColor);
 			::SelectObject(ps.hdc,hpen);
@@ -182,6 +199,7 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 				::MoveToEx(ps.hdc,ps.rcPaint.left,y,NULL);
 				::LineTo(ps.hdc,ps.rcPaint.right,y);
 			}
+
 			// ビットレートを描く
 			hpen=::CreatePen(PS_SOLID,1,pThis->m_crBitRateColor);
 			::DeleteObject(::SelectObject(ps.hdc,hpen));
@@ -200,6 +218,7 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 				}
 				i++;
 			}
+
 			// 信号レベルを描く
 			hpen=::CreatePen(PS_SOLID,1,pThis->m_crSignalLevelColor);
 			::DeleteObject(::SelectObject(ps.hdc,hpen));
@@ -270,6 +289,7 @@ LRESULT CALLBACK CSignalGraph::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 
 
 
+// プラグインクラスのインスタンスを生成する
 TVTest::CTVTestPlugin *CreatePluginClass()
 {
 	return new CSignalGraph;

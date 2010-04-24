@@ -324,7 +324,7 @@ bool CProgramListPanel::UpdateProgramList(WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_pProgramList==NULL)
 		return false;
-	m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID);
+	m_pProgramList->UpdateService(TransportStreamID,ServiceID);
 	if (m_hwnd!=NULL) {
 		if (UpdateListInfo(TransportStreamID,ServiceID)) {
 			CalcDimentions();
@@ -575,7 +575,7 @@ void CProgramListPanel::CalcFontHeight()
 		return;
 	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
 	::GetTextMetrics(hdc,&tm);
-	//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	//m_FontHeight=tm.tmHeight-tm.tmInternalLeading;
 	m_FontHeight=tm.tmHeight;
 	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);

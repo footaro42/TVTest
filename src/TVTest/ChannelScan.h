@@ -57,6 +57,7 @@ public:
 // CChannelScan
 	bool SetTuningSpaceList(const CTuningSpaceList *pTuningSpaceList);
 	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
+	bool IsScanning() const { return m_hScanThread!=NULL; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

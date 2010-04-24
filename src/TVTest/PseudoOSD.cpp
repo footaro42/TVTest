@@ -64,6 +64,7 @@ CPseudoOSD::CPseudoOSD()
 	, m_IconWidth(0)
 	, m_IconHeight(0)
 	, m_hbm(NULL)
+	, m_ImageEffect(0)
 	, m_TimerID(0)
 {
 	LOGFONT lf;
@@ -152,20 +153,21 @@ bool CPseudoOSD::IsVisible() const
 }
 
 
-bool CPseudoOSD::SetText(LPCTSTR pszText,HBITMAP hbmIcon,int IconWidth,int IconHeight)
+bool CPseudoOSD::SetText(LPCTSTR pszText,HBITMAP hbmIcon,int IconWidth,int IconHeight,unsigned int ImageEffect)
 {
 	ReplaceString(&m_pszText,pszText);
 	m_hbmIcon=hbmIcon;
 	if (hbmIcon!=NULL) {
 		m_IconWidth=IconWidth;
 		m_IconHeight=IconHeight;
+		m_ImageEffect=ImageEffect;
 	} else {
 		m_IconWidth=0;
 		m_IconHeight=0;
 	}
 	m_hbm=NULL;
 	if (m_hwnd!=NULL)
-		::InvalidateRect(m_hwnd,NULL,TRUE);
+		::RedrawWindow(m_hwnd,NULL,NULL,RDW_INVALIDATE | RDW_UPDATENOW);
 	return true;
 }
 
@@ -253,22 +255,33 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 }
 
 
-bool CPseudoOSD::SetImage(HBITMAP hbm)
+bool CPseudoOSD::SetImage(HBITMAP hbm,unsigned int ImageEffect)
 {
 	m_hbm=hbm;
 	SAFE_DELETE_ARRAY(m_pszText);
 	m_hbmIcon=NULL;
-	/*
+	m_ImageEffect=ImageEffect;
 	if (m_hwnd!=NULL) {
+		/*
 		BITMAP bm;
 
 		::GetObject(m_hbm,sizeof(BITMAP),&bm);
 		m_Position.Width=bm.bmWidth;
 		m_Position.Height=bm.bmHeight;
 		::MoveWindow(m_hwnd,Left,Top,bm.bmWidth,bm.bmHeight,TRUE);
+		*/
+		::RedrawWindow(m_hwnd,NULL,NULL,RDW_INVALIDATE | RDW_UPDATENOW);
 	}
-	*/
 	return true;
+}
+
+
+void CPseudoOSD::DrawImageEffect(HDC hdc,const RECT *pRect) const
+{
+	if ((m_ImageEffect&IMAGEEFFECT_GLOSS)!=0)
+		DrawUtil::GlossOverlay(hdc,pRect);
+	if ((m_ImageEffect&IMAGEEFFECT_DARK)!=0)
+		DrawUtil::ColorOverlay(hdc,pRect,RGB(0,0,0),64);
 }
 
 
@@ -320,7 +333,7 @@ LRESULT CALLBACK CPseudoOSD::WndProc(HWND hwnd,UINT uMsg,
 					RECT rcIcon={0,(rc.bottom-pThis->m_IconHeight)/2};
 					rcIcon.right=rcIcon.left+IconWidth;
 					rcIcon.bottom=rcIcon.top+pThis->m_IconHeight;
-					DrawUtil::GlossOverlay(ps.hdc,&rcIcon);
+					pThis->DrawImageEffect(ps.hdc,&rcIcon);
 					rc.left+=IconWidth;
 				}
 				hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_hFont));
@@ -337,7 +350,7 @@ LRESULT CALLBACK CPseudoOSD::WndProc(HWND hwnd,UINT uMsg,
 				RECT rcBitmap={0,0,bm.bmWidth,bm.bmHeight};
 				DrawUtil::DrawBitmap(ps.hdc,0,0,rc.right,rc.bottom,
 									 pThis->m_hbm,&rcBitmap);
-				DrawUtil::GlossOverlay(ps.hdc,&rc);
+				pThis->DrawImageEffect(ps.hdc,&rc);
 			}
 			::EndPaint(hwnd,&ps);
 		}

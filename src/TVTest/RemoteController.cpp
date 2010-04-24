@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "RemoteController.h"
 #include "TVTest_KeyHook/TVTest_KeyHook.h"
 #include "Command.h"

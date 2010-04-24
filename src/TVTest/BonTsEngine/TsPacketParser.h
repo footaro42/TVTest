@@ -7,7 +7,6 @@
 
 #include "MediaDecoder.h"
 #include "TsStream.h"
-#include "../EpgDataCap/Epg.h"
 #ifdef BONTSENGINE_1SEG_SUPPORT
 #include "PATGenerator.h"
 #endif
@@ -39,12 +38,6 @@ public:
 	void ResetErrorPacketCount(void);
 
 	// Append by HDUSTestÇÃíÜÇÃêl
-	bool InitializeEpgDataCap(LPCTSTR pszDllFileName);
-	bool UnInitializeEpgDataCap();
-	bool IsEpgDataCapLoaded() const;
-	CEpgDataCapDllUtil2 *GetEpgDataCapDllUtil() { return &m_EpgCap; }
-	bool LockEpgDataCap();
-	bool UnlockEpgDataCap();
 #ifdef BONTSENGINE_1SEG_SUPPORT
 	bool EnablePATGeneration(bool bEnable);
 	bool IsPATGenerationEnabled() const { return m_bGeneratePAT; }
@@ -64,10 +57,6 @@ private:
 	ULONGLONG m_ErrorPacketCount;
 	ULONGLONG m_ContinuityErrorPacketCount;
 	BYTE m_abyContCounter[0x1FFF];
-
-	// Append by HDUSTestÇÃíÜÇÃêl
-	CEpgDataCapDllUtil2 m_EpgCap;
-	volatile bool m_bLockEpgDataCap;
 
 #ifdef BONTSENGINE_1SEG_SUPPORT
 	CPATGenerator m_PATGenerator;

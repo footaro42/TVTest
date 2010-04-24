@@ -90,6 +90,7 @@ public:
 	int NumPluginCommands() const;
 	bool GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const;
 	bool NotifyCommand(LPCWSTR pszCommand);
+	bool IsDisableOnStart() const;
 	/*
 	static bool SetFinalizeTimeout(DWORD Timeout);
 	static DWORD GetFinalizeTimeout() { return m_FinalizeTimeout; }
@@ -133,6 +134,9 @@ public:
 	bool SendStatusResetEvent();
 	bool SendAudioStreamChangeEvent(int Stream);
 	bool SendSettingsChangeEvent();
+	bool SendCloseEvent();
+	bool SendStartRecordEvent(const class CRecordManager *pRecordManager,LPTSTR pszFileName,int MaxFileName);
+	bool SendRelayRecordEvent(LPCTSTR pszFileName);
 };
 
 class CPluginOptions : public COptions

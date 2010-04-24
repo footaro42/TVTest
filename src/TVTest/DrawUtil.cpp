@@ -182,6 +182,49 @@ bool GlossOverlay(HDC hdc,const RECT *pRect,
 }
 
 
+// 単色を合成する
+bool ColorOverlay(HDC hdc,const RECT *pRect,COLORREF Color,BYTE Opacity)
+{
+	const int Width=pRect->right-pRect->left;
+	const int Height=pRect->bottom-pRect->top;
+	if (Width<=0 || Height<=0)
+		return false;
+
+	BITMAPINFO bmi;
+	::ZeroMemory(&bmi,sizeof(bmi));
+	bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth=Width;
+	bmi.bmiHeader.biHeight=-Height;
+	bmi.bmiHeader.biPlanes=1;
+	bmi.bmiHeader.biBitCount=32;
+	void *pBits;
+	HBITMAP hbm=::CreateDIBSection(NULL,&bmi,DIB_RGB_COLORS,&pBits,NULL,0);
+	if (hbm==NULL)
+		return false;
+
+	const DWORD Pixel=0xFF000000|((DWORD)GetRValue(Color)<<16)|((DWORD)GetGValue(Color)<<8)|(DWORD)GetBValue(Color);
+	DWORD *p=static_cast<DWORD*>(pBits);
+	DWORD *pEnd=p+Width*Height;
+	do {
+		*p++=Pixel;
+	} while (p<pEnd);
+
+	HDC hdcMemory=::CreateCompatibleDC(hdc);
+	if (hdcMemory==NULL) {
+		::DeleteObject(hbm);
+		return false;
+	}
+	HBITMAP hbmOld=SelectBitmap(hdcMemory,hbm);
+	BLENDFUNCTION bf={AC_SRC_OVER,0,Opacity,0};
+	::AlphaBlend(hdc,pRect->left,pRect->top,Width,Height,
+				 hdcMemory,0,0,Width,Height,bf);
+	::SelectObject(hdcMemory,hbmOld);
+	::DeleteDC(hdcMemory);
+	::DeleteObject(hbm);
+	return true;
+}
+
+
 // 指定された矩形の周囲を塗りつぶす
 bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr)
 {
@@ -361,6 +404,7 @@ bool GetSystemFont(FontType Type,LOGFONT *pLogFont)
 		case FONT_MENU:			plf=&ncm.lfMenuFont;		break;
 		case FONT_CAPTION:		plf=&ncm.lfCaptionFont;		break;
 		case FONT_SMALLCAPTION:	plf=&ncm.lfSmCaptionFont;	break;
+		case FONT_STATUS:		plf=&ncm.lfStatusFont;		break;
 		default:
 			return false;
 		}
@@ -464,6 +508,36 @@ bool CFont::GetLogFont(LOGFONT *pLogFont) const
 	if (m_hfont==NULL || pLogFont==NULL)
 		return false;
 	return ::GetObject(m_hfont,sizeof(LOGFONT),pLogFont)==sizeof(LOGFONT);
+}
+
+int CFont::GetHeight(bool fCell) const
+{
+	if (m_hfont==NULL)
+		return 0;
+
+	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+	if (hdc==NULL) {
+		LOGFONT lf;
+		if (!GetLogFont(&lf))
+			return 0;
+		return abs(lf.lfHeight);
+	}
+	int Height=GetHeight(hdc,fCell);
+	::DeleteDC(hdc);
+	return Height;
+}
+
+int CFont::GetHeight(HDC hdc,bool fCell) const
+{
+	if (hdc==NULL)
+		return 0;
+	HGDIOBJ hOldFont=::SelectObject(hdc,m_hfont);
+	TEXTMETRIC tm;
+	::GetTextMetrics(hdc,&tm);
+	::SelectObject(hdc,hOldFont);
+	if (!fCell)
+		tm.tmHeight-=tm.tmInternalLeading;
+	return tm.tmHeight;
 }
 
 

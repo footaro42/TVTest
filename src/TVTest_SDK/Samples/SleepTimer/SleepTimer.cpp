@@ -13,7 +13,6 @@
 #include "TVTestPlugin.h"
 #include "resource.h"
 
-
 #pragma comment(lib,"comctl32.lib")
 #pragma comment(lib,"shlwapi.lib")
 
@@ -47,6 +46,7 @@ class CSleepTimer : public TVTest::CTVTestPlugin
 	bool m_fEnabled;					// プラグインが有効か?
 	int m_ConfirmTimeout;				// 確認のタイムアウト時間(秒単位)
 	int m_ConfirmTimerCount;			// 確認のタイマー
+
 	bool InitializePlugin();
 	static LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData);
 	static CSleepTimer *GetThis(HWND hwnd);
@@ -54,6 +54,7 @@ class CSleepTimer : public TVTest::CTVTestPlugin
 	static INT_PTR CALLBACK SettingsDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static INT_PTR CALLBACK ConfirmDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool DoSleep();
+
 public:
 	CSleepTimer();
 	virtual bool GetPluginInfo(TVTest::PluginInfo *pInfo);
@@ -81,10 +82,10 @@ bool CSleepTimer::GetPluginInfo(TVTest::PluginInfo *pInfo)
 {
 	// プラグインの情報を返す
 	pInfo->Type           = TVTest::PLUGIN_TYPE_NORMAL;
-	pInfo->Flags          = TVTest::PLUGIN_FLAG_HASSETTINGS;
-	pInfo->pszPluginName  = L"Sleep Timer";
+	pInfo->Flags          = TVTest::PLUGIN_FLAG_HASSETTINGS | TVTest::PLUGIN_FLAG_DISABLEONSTART;
+	pInfo->pszPluginName  = L"スリープタイマー";
 	pInfo->pszCopyright   = L"Public Domain";
-	pInfo->pszDescription = L"指定時間後にスリープする";
+	pInfo->pszDescription = L"指定時間後に終了させます。";
 	return true;
 }
 
@@ -133,8 +134,7 @@ bool CSleepTimer::InitializePlugin()
 
 	// ウィンドウの作成
 	m_hwnd=::CreateWindowEx(0,SLEEPTIMER_WINDOW_CLASS,NULL,WS_POPUP,
-							0,0,0,0,
-							m_pApp->GetAppWindow(),NULL,g_hinstDLL,this);
+							0,0,0,0,HWND_MESSAGE,NULL,g_hinstDLL,this);
 	if (m_hwnd==NULL)
 		return false;
 
@@ -434,6 +434,7 @@ INT_PTR CALLBACK CSleepTimer::ConfirmDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 
 
 
+// プラグインクラスのインスタンスを生成する
 TVTest::CTVTestPlugin *CreatePluginClass()
 {
 	return new CSleepTimer;

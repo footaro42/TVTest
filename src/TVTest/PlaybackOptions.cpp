@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "PlaybackOptions.h"
 #include "DirectShowFilter/DirectShowUtil.h"
 #include "DialogUtil.h"
@@ -19,7 +20,7 @@ CPlaybackOptions::CPlaybackOptions()
 	: m_fDownMixSurround(true)
 	, m_fRestoreMute(false)
 	, m_fUseAudioRendererClock(true)
-	, m_fAdjustAudioStreamTime(true)
+	, m_fAdjustAudioStreamTime(false)
 	, m_fMinTimerResolution(true)
 	, m_fPacketBuffering(false)
 	, m_PacketBufferLength(40000)

@@ -18,9 +18,9 @@ public:
 	~CChannelPanel();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool SetEpgProgramList(CEpgProgramList *pList);
-	bool SetChannelList(const CChannelList *pChannelList);
-	bool UpdateChannelList(bool fUpdateProgramList);
-	bool UpdateChannel(int ChannelIndex,bool fUpdateProgramList);
+	bool SetChannelList(const CChannelList *pChannelList,bool fSetEvent=true);
+	bool UpdateChannelList();
+	bool UpdateChannel(int ChannelIndex);
 	void ClearChannelList() { SetChannelList(NULL); }
 	bool IsChannelListEmpty() const;
 	bool SetCurrentChannel(int CurChannel);
@@ -41,6 +41,7 @@ public:
 	void SetDetailToolTip(bool fDetail);
 	bool GetDetailToolTip() const { return m_fDetailToolTip; }
 	void SetLogoManager(CLogoManager *pLogoManager);
+	bool QueryUpdate() const;
 	static bool Initialize(HINSTANCE hinst);
 
 private:
@@ -101,6 +102,7 @@ private:
 	friend CEventInfoPopupHandler;
 	CEventInfoPopupHandler m_EventInfoPopupHandler;
 	CLogoManager *m_pLogoManager;
+	SYSTEMTIME m_UpdatedTime;
 
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;

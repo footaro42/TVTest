@@ -149,7 +149,7 @@ CChannelMenu::~CChannelMenu()
 }
 
 
-bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,bool fUpdateProgramList)
+bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel)
 {
 	FILETIME ft;
 	SYSTEMTIME st;
@@ -194,19 +194,11 @@ bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,bool f
 			mii.fState|=MFS_CHECKED;
 		mii.dwItemData=reinterpret_cast<ULONG_PTR>((LPVOID)NULL);
 		if (pChInfo->GetServiceID()!=0) {
-			WORD TransportStreamID=pChInfo->GetTransportStreamID();
-			WORD ServiceID=pChInfo->GetServiceID();
-			bool fOK=false;
 			CEventInfoData EventInfo;
 
-			if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
-				fOK=true;
-			} else if (fUpdateProgramList) {
-				if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
-						&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo))
-					fOK=true;
-			}
-			if (fOK) {
+			if (m_pProgramList->GetEventInfo(pChInfo->GetTransportStreamID(),
+											 pChInfo->GetServiceID(),
+											 &st,&EventInfo)) {
 				if (EventInfo.GetEventName()!=NULL) {
 					SYSTEMTIME stStart,stEnd;
 
@@ -357,7 +349,7 @@ void CChannelMenu::CreateFont(HDC hdc)
 
 		hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
 		::GetTextMetrics(hdc,&tm);
-		m_TextHeight=tm.tmHeight;//+tm.tmInternalLeading;
+		m_TextHeight=tm.tmHeight/*-tm.tmInternalLeading*/;
 		::SelectObject(hdc,hfontOld);
 	} else {
 		m_TextHeight=abs(ncm.lfMenuFont.lfHeight);
@@ -637,7 +629,7 @@ bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int C
 	}
 	TEXTMETRIC tm;
 	::GetTextMetrics(hdc,&tm);
-	m_ItemHeight=tm.tmHeight+//tm.tmInternalLeading+
+	m_ItemHeight=tm.tmHeight/*-tm.tmInternalLeading*/+
 		m_ItemMargin.top+m_ItemMargin.bottom;
 	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(hwnd,hdc);
@@ -805,8 +797,9 @@ LRESULT CALLBACK CDropDownMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			CDropDownMenu *pThis=GetThis(hwnd);
 
 			if (pThis->m_HotItem>=0) {
-				::SendMessage(pThis->m_hwndMessage,WM_COMMAND,pThis->m_ItemList[pThis->m_HotItem]->GetCommand(),0);
 				::DestroyWindow(hwnd);
+				::SendMessage(pThis->m_hwndMessage,WM_COMMAND,
+							  pThis->m_ItemList[pThis->m_HotItem]->GetCommand(),0);
 			}
 		}
 		return 0;

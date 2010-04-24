@@ -52,13 +52,14 @@ protected:
 // PSIシングルテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class CPsiSingleTable :	public CTsPidMapTarget,
-						public CPsiSectionParser::IPsiSectionHandler
+class ABSTRACT_CLASS_DECL CPsiSingleTable
+	: public CTsPidMapTarget
+	, public CPsiSectionParser::IPsiSectionHandler
 {
 public:
 	CPsiSingleTable(const bool bTargetSectionExt = true);
 	CPsiSingleTable(const CPsiSingleTable &Operand);
-	virtual ~CPsiSingleTable();
+	virtual ~CPsiSingleTable() = 0;
 
 	CPsiSingleTable & operator = (const CPsiSingleTable &Operand);
 
@@ -77,9 +78,52 @@ protected:
 	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection);
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
 
+	bool m_bTableUpdated;
+
 private:
 	CPsiSectionParser m_PsiSectionParser;
+};
+
+/////////////////////////////////////////////////////////////////////////////
+// ストリーム型テーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class ABSTRACT_CLASS_DECL CPsiStreamTable
+	: public CTsPidMapTarget
+	, public CPsiSectionParser::IPsiSectionHandler
+{
+public:
+	class ABSTRACT_CLASS_DECL ISectionHandler {
+	public:
+		virtual ~ISectionHandler() = 0;
+		virtual void OnReset(CPsiStreamTable *pTable) {}
+		virtual void OnSection(CPsiStreamTable *pTable, const CPsiSection *pSection) {}
+	};
+
+	CPsiStreamTable(ISectionHandler *pHandler = NULL, const bool bTargetSectionExt = true, const bool bIgnoreSectionNumber = false);
+	CPsiStreamTable(const CPsiStreamTable &Operand);
+	virtual ~CPsiStreamTable() = 0;
+
+	CPsiStreamTable & operator = (const CPsiStreamTable &Operand);
+
+// CTsPidMapTarget
+	virtual const bool StorePacket(const CTsPacket *pPacket);
+	virtual void OnPidUnmapped(const WORD wPID);
+
+// CPsiStreamTable
+	virtual void Reset(void);
+
+	const DWORD GetCrcErrorCount(void) const;
+
+protected:
+	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection);
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection);
+
 	bool m_bTableUpdated;
+
+private:
+	CPsiSectionParser m_PsiSectionParser;
+	ISectionHandler *m_pSectionHandler;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -145,6 +189,7 @@ private:
 	CPsiSectionParser m_PsiSectionParser;
 };
 */
+
 
 /////////////////////////////////////////////////////////////////////////////
 // PATテーブル抽象化クラス
@@ -355,35 +400,35 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
-// H-EIT[p/f]テーブル抽象化クラス
+// EIT[p/f]テーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class CHEitTable : public CPsiSingleTable
+class CEitPfTable : public CPsiStreamTable
 {
 public:
-	CHEitTable();
-	CHEitTable(const CHEitTable &Operand);
+	CEitPfTable();
+	CEitPfTable(const CEitPfTable &Operand);
 
-	CHEitTable & operator = (const CHEitTable &Operand);
+	CEitPfTable & operator = (const CEitPfTable &Operand);
 
 // CPsiSingleTable
 	virtual void Reset(void);
 
-// CHEitTable
+// CEitPfTable
 	const DWORD GetServiceNum(void) const;
 	const int GetServiceIndexByID(WORD ServiceID) const;
 	const WORD GetServiceID(DWORD Index) const;
 	const WORD GetTransportStreamID(DWORD Index) const;
 	const WORD GetOriginalNetworkID(DWORD Index) const;
-	const WORD GetEventID(DWORD Index,DWORD EventIndex) const;
-	const SYSTEMTIME *GetStartTime(DWORD Index,DWORD EventIndex) const;
-	const DWORD GetDuration(DWORD Index,DWORD EventIndex) const;
-	const BYTE GetRunningStatus(DWORD Index,DWORD EventIndex) const;
-	const bool GetFreeCaMode(DWORD Index,DWORD EventIndex) const;
-	const CDescBlock * GetItemDesc(DWORD Index,DWORD EventIndex) const;
+	const WORD GetEventID(DWORD Index, DWORD EventIndex) const;
+	const SYSTEMTIME *GetStartTime(DWORD Index, DWORD EventIndex) const;
+	const DWORD GetDuration(DWORD Index, DWORD EventIndex) const;
+	const BYTE GetRunningStatus(DWORD Index, DWORD EventIndex) const;
+	const bool GetFreeCaMode(DWORD Index, DWORD EventIndex) const;
+	const CDescBlock * GetItemDesc(DWORD Index, DWORD EventIndex) const;
 
 protected:
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection);
 
 	struct EventInfo {
 		bool bEnable;
@@ -397,68 +442,14 @@ protected:
 		EventInfo() : bEnable(false) {}
 	};
 
-	struct HEitInfo {
+	struct ServiceInfo {
 		WORD ServiceID;
 		WORD TransportStreamID;
 		WORD OriginalNetworkID;
 		EventInfo EventList[2];
 	};
 
-	vector<HEitInfo> m_EitArray;
-};
-
-
-/////////////////////////////////////////////////////////////////////////////
-// L-EIT[p/f]テーブル抽象化クラス
-/////////////////////////////////////////////////////////////////////////////
-
-class CLEitTable : public CPsiSingleTable
-{
-public:
-	CLEitTable();
-	CLEitTable(const CLEitTable &Operand);
-
-	CLEitTable & operator = (const CLEitTable &Operand);
-
-// CPsiSingleTable
-	virtual void Reset(void);
-
-// CLEitTable
-	const DWORD GetServiceNum(void) const;
-	const int GetServiceIndexByID(WORD ServiceID) const;
-	const WORD GetServiceID(DWORD Index) const;
-	const WORD GetTransportStreamID(DWORD Index) const;
-	const WORD GetOriginalNetworkID(DWORD Index) const;
-	const WORD GetEventID(DWORD Index,DWORD EventIndex) const;
-	const SYSTEMTIME *GetStartTime(DWORD Index,DWORD EventIndex) const;
-	const DWORD GetDuration(DWORD Index,DWORD EventIndex) const;
-	const BYTE GetRunningStatus(DWORD Index,DWORD EventIndex) const;
-	const bool GetFreeCaMode(DWORD Index,DWORD EventIndex) const;
-	const CDescBlock * GetItemDesc(DWORD Index,DWORD EventIndex) const;
-
-protected:
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
-
-	struct EventInfo {
-		bool bEnable;
-		WORD EventID;
-		bool bValidStartTime;
-		SYSTEMTIME StartTime;
-		DWORD Duration;
-		BYTE RunningStatus;
-		bool FreeCaMode;
-		CDescBlock DescBlock;
-		EventInfo() : bEnable(false) {}
-	};
-
-	struct LEitInfo {
-		WORD ServiceID;
-		WORD TransportStreamID;
-		WORD OriginalNetworkID;
-		EventInfo EventList[2];
-	};
-
-	vector<LEitInfo> m_EitArray;
+	vector<ServiceInfo> m_ServiceList;
 };
 
 
@@ -483,7 +474,6 @@ public:
 	const CDescBlock * GetTotDesc(void) const;
 
 protected:
-// CPsiTableBase
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
 
 	bool m_bValidDateTime;
@@ -496,15 +486,15 @@ protected:
 // CDTテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class CCdtTable : public CPsiSingleTable
+class CCdtTable : public CPsiStreamTable
 {
 public:
 	enum { TABLE_ID = 0xC8 };
 
-	CCdtTable();
+	CCdtTable(ISectionHandler *pHandler = NULL);
 	virtual ~CCdtTable();
 
-// CPsiSingleTable
+// CPsiStreamTable
 	virtual void Reset(void);
 
 // CCdtTable
@@ -521,14 +511,12 @@ public:
 	const BYTE * GetDataModuleByte() const;
 
 protected:
-// CPsiTableBase
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection);
 
 	WORD m_OriginalNetworkId;	// original_network_id
 	BYTE m_DataType;			// data_type
 	CDescBlock m_DescBlock;		// 記述子領域
-	WORD m_DataModuleSize;
-	WORD m_DataModuleOffset;
+	CMediaData m_ModuleData;
 };
 
 

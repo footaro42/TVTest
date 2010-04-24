@@ -162,7 +162,7 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 	if (!Settings.Open(pszFileName,TEXT("SideBar"),CSettings::OPEN_WRITE))
 		return false;
 
-	Settings.Clear();
+	//Settings.Clear();
 	Settings.Write(TEXT("ShowPopup"),m_fShowPopup);
 	Settings.Write(TEXT("ShowToolTips"),m_fShowToolTips);
 	Settings.Write(TEXT("Place"),(int)m_Place);

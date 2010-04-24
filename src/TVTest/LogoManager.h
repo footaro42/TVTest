@@ -48,7 +48,7 @@ class CLogoManager : public CLogoDownloader::ILogoHandler
 	TCHAR m_szLogoDirectory[MAX_PATH];
 	bool m_fSaveLogo;
 	bool m_fSaveBmp;
-	LogoMap m_LogoList;
+	LogoMap m_LogoMap;
 	LogoIDMap m_LogoIDMap;
 	CImageCodec m_ImageCodec;
 	CCriticalLock m_Lock;
@@ -74,12 +74,14 @@ public:
 	bool SaveLogoFile(LPCTSTR pszFileName);
 	bool LoadLogoFile(LPCTSTR pszFileName);
 	bool IsLogoDataUpdated() const { return m_fUpdated; }
-	bool SaveLogoIDMap(LPCTSTR pszFileName) const;
+	bool SaveLogoIDMap(LPCTSTR pszFileName);
 	bool LoadLogoIDMap(LPCTSTR pszFileName);
 	HBITMAP GetLogoBitmap(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
 	HBITMAP GetAssociatedLogoBitmap(WORD NetworkID,WORD ServiceID,BYTE LogoType);
 	const CGdiPlus::CImage *GetLogoImage(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
 	const CGdiPlus::CImage *GetAssociatedLogoImage(WORD NetworkID,WORD ServiceID,BYTE LogoType);
+	bool IsLogoAvailable(WORD NetworkID,WORD ServiceID,BYTE LogoType);
+	DWORD GetAvailableLogoType(WORD NetworkID,WORD ServiceID);
 
 	enum {
 		LOGOTYPE_SMALL	=0xFF,	// éÊìæÇ≈Ç´ÇÈíÜÇ©ÇÁè¨Ç≥Ç¢Ç‡ÇÃóDêÊ

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "MainWindow.h"
 #include "ViewOptions.h"
 #include "AppMain.h"
 #include "DialogUtil.h"

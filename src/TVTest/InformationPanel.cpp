@@ -68,7 +68,6 @@ CInformationPanel::CInformationPanel()
 	, m_hwndProgramInfoNext(NULL)
 	, m_hbrBack(NULL)
 	, m_hbrProgramInfoBack(NULL)
-	, m_hFont(NULL)
 	, m_pEventHandler(NULL)
 {
 	m_crBackColor=RGB(0,0,0);
@@ -95,8 +94,6 @@ CInformationPanel::CInformationPanel()
 
 CInformationPanel::~CInformationPanel()
 {
-	if (m_hFont!=NULL)
-		::DeleteObject(m_hFont);
 }
 
 
@@ -169,16 +166,11 @@ void CInformationPanel::SetProgramInfoColor(COLORREF crBackColor,COLORREF crText
 
 bool CInformationPanel::SetFont(const LOGFONT *pFont)
 {
-	HFONT hfont=::CreateFontIndirect(pFont);
-
-	if (hfont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	if (m_hFont!=NULL)
-		::DeleteObject(m_hFont);
-	m_hFont=hfont;
 	if (m_hwnd!=NULL) {
 		CalcFontHeight();
-		SetWindowFont(m_hwndProgramInfo,m_hFont,TRUE);
+		SetWindowFont(m_hwndProgramInfo,m_Font.GetHandle(),TRUE);
 		RECT rc;
 		GetClientRect(&rc);
 		SendMessage(WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
@@ -317,13 +309,16 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CInformationPanel *pThis=static_cast<CInformationPanel*>(OnCreate(hwnd,lParam));
 
-			if (pThis->m_hFont==NULL)
-				pThis->m_hFont=CreateDefaultFont();
+			if (!pThis->m_Font.IsCreated()) {
+				LOGFONT lf;
+				GetDefaultFont(&lf);
+				pThis->m_Font.Create(&lf);
+			}
 			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
 				pThis->m_ProgramInfo.GetSafe(),
 				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFO,m_hinst,NULL);
-			SetWindowFont(pThis->m_hwndProgramInfo,pThis->m_hFont,FALSE);
+			SetWindowFont(pThis->m_hwndProgramInfo,pThis->m_Font.GetHandle(),FALSE);
 			::SetProp(pThis->m_hwndProgramInfo,APP_NAME TEXT("This"),pThis);
 			pThis->m_pOldProgramInfoProc=SubclassWindow(pThis->m_hwndProgramInfo,ProgramInfoHookProc);
 			pThis->m_hwndProgramInfoPrev=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
@@ -371,7 +366,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			TCHAR szText[256];
 
 			BeginPaint(hwnd,&ps);
-			hfontOld=static_cast<HFONT>(SelectObject(ps.hdc,pThis->m_hFont));
+			hfontOld=static_cast<HFONT>(SelectObject(ps.hdc,pThis->m_Font.GetHandle()));
 			FillRect(ps.hdc,&ps.rcPaint,pThis->m_hbrBack);
 			crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTextColor);
 			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
@@ -779,17 +774,12 @@ bool CInformationPanel::IsItemVisible(int Item) const
 void CInformationPanel::CalcFontHeight()
 {
 	HDC hdc;
-	HFONT hfontOld;
-	TEXTMETRIC tm;
 
 	hdc=::GetDC(m_hwnd);
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hFont));
-	::GetTextMetrics(hdc,&tm);
-	// tmInternalLeadingÇë´Ç∑Ç∆ÉÅÉCÉäÉIÇ≈ñ≠Ç…çsä‘Ç™ãÛÇ≠
-	//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
-	m_FontHeight=tm.tmHeight;
-	::SelectObject(hdc,hfontOld);
-	::ReleaseDC(m_hwnd,hdc);
+	if (hdc!=NULL) {
+		m_FontHeight=m_Font.GetHeight(hdc);
+		::ReleaseDC(m_hwnd,hdc);
+	}
 }
 
 

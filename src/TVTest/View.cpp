@@ -23,6 +23,7 @@ HINSTANCE CVideoContainerWindow::m_hinst=NULL;
 
 CVideoContainerWindow::CVideoContainerWindow()
 	: m_pDtvEngine(NULL)
+	, m_pDisplayBase(NULL)
 {
 }
 
@@ -100,6 +101,8 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 			CVideoContainerWindow *pThis=GetThis(hwnd);
 
 			pThis->m_pDtvEngine->SetViewSize(LOWORD(lParam),HIWORD(lParam));
+			if (pThis->m_pDisplayBase!=NULL)
+				pThis->m_pDisplayBase->AdjustPosition();
 		}
 		return 0;
 
@@ -150,6 +153,12 @@ bool CVideoContainerWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int
 		return false;
 	}
 	return true;
+}
+
+
+void CVideoContainerWindow::SetDisplayBase(CDisplayBase *pDisplayBase)
+{
+	m_pDisplayBase=pDisplayBase;
 }
 
 
@@ -404,4 +413,192 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+}
+
+
+
+
+CDisplayView::CDisplayView()
+	: m_pDisplayBase(NULL)
+{
+}
+
+
+CDisplayView::~CDisplayView()
+{
+}
+
+
+void CDisplayView::SetVisible(bool fVisible)
+{
+	if (m_pDisplayBase!=NULL)
+		m_pDisplayBase->SetVisible(fVisible);
+}
+
+
+void CDisplayView::SetDisplayVisible(bool fVisible)
+{
+	/*if (GetVisible()!=fVisible)*/ {
+		if (OnVisibleChange(fVisible)) {
+			CBasicWindow::SetVisible(fVisible);
+		}
+	}
+}
+
+
+bool CDisplayView::OnVisibleChange(bool fVisible)
+{
+	return true;
+}
+
+
+bool CDisplayView::GetCloseButtonRect(RECT *pRect) const
+{
+	RECT rc;
+
+	if (!GetClientRect(&rc))
+		return false;
+	pRect->right=rc.right-1;
+	pRect->left=pRect->right-14;
+	pRect->top=1;
+	pRect->bottom=pRect->top+14;
+	return true;
+}
+
+
+bool CDisplayView::CloseButtonHitTest(int x,int y) const
+{
+	RECT rc;
+	POINT pt;
+
+	if (!GetCloseButtonRect(&rc))
+		return false;
+	pt.x=x;
+	pt.y=y;
+	return ::PtInRect(&rc,pt)!=FALSE;
+}
+
+
+void CDisplayView::DrawCloseButton(HDC hdc) const
+{
+	RECT rc;
+
+	if (GetCloseButtonRect(&rc))
+		::DrawFrameControl(hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
+}
+
+
+
+
+CDisplayBase::CDisplayBase()
+	: m_pParentWindow(NULL)
+	, m_pDisplayView(NULL)
+	, m_pEventHandler(NULL)
+	, m_fVisible(false)
+{
+}
+
+
+CDisplayBase::~CDisplayBase()
+{
+}
+
+
+void CDisplayBase::SetEventHandler(CEventHandler *pHandler)
+{
+	m_pEventHandler=pHandler;
+}
+
+
+void CDisplayBase::SetParent(CBasicWindow *pWindow)
+{
+	m_pParentWindow=pWindow;
+}
+
+
+void CDisplayBase::SetDisplayView(CDisplayView *pView)
+{
+	if (m_pDisplayView==pView)
+		return;
+	if (m_pDisplayView!=NULL) {
+		SetVisible(false);
+		m_pDisplayView->m_pDisplayBase=NULL;
+	}
+	m_pDisplayView=pView;
+	if (pView!=NULL)
+		pView->m_pDisplayBase=this;
+	m_fVisible=false;
+}
+
+
+bool CDisplayBase::SetVisible(bool fVisible)
+{
+	if (m_pDisplayView==NULL)
+		return false;
+	if (m_fVisible==fVisible)
+		return true;
+	if (m_pEventHandler!=NULL && !m_pEventHandler->OnVisibleChange(fVisible))
+		return false;
+	if (fVisible) {
+		if (m_pParentWindow!=NULL) {
+			RECT rc;
+			m_pParentWindow->GetClientRect(&rc);
+			m_pDisplayView->SetPosition(&rc);
+		}
+		m_pDisplayView->SetDisplayVisible(true);
+		::BringWindowToTop(m_pDisplayView->GetHandle());
+		m_pDisplayView->Update();
+		::SetFocus(m_pDisplayView->GetHandle());
+	} else {
+		bool fFocus=m_pDisplayView->GetHandle()==::GetFocus();
+		m_pDisplayView->SetDisplayVisible(false);
+		if (fFocus && m_pParentWindow!=NULL)
+			::SetFocus(m_pParentWindow->GetHandle());
+	}
+	m_fVisible=fVisible;
+	return true;
+}
+
+
+bool CDisplayBase::IsVisible() const
+{
+	return m_pDisplayView!=NULL && m_fVisible;
+}
+
+
+void CDisplayBase::AdjustPosition()
+{
+	if (m_pParentWindow!=NULL && m_pDisplayView!=NULL && m_fVisible) {
+		RECT rc;
+		m_pParentWindow->GetClientRect(&rc);
+		m_pDisplayView->SetPosition(&rc);
+	}
+}
+
+
+void CDisplayBase::SetPosition(int Left,int Top,int Width,int Height)
+{
+	if (m_pDisplayView!=NULL)
+		m_pDisplayView->SetPosition(Left,Top,Width,Height);
+}
+
+
+void CDisplayBase::SetPosition(const RECT *pRect)
+{
+	if (m_pDisplayView!=NULL)
+		m_pDisplayView->SetPosition(pRect);
+}
+
+
+void CDisplayBase::SetFocus()
+{
+	if (m_pDisplayView!=NULL && m_pDisplayView->GetVisible())
+		::SetFocus(m_pDisplayView->GetHandle());
+}
+
+
+
+
+CDisplayBase::CEventHandler::~CEventHandler()
+{
 }

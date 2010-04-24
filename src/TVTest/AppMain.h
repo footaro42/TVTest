@@ -3,23 +3,27 @@
 
 
 #include "CoreEngine.h"
-#include "MainWindow.h"
 #include "ChannelManager.h"
 #include "Record.h"
 #include "DriverManager.h"
 
 
+class CMainWindow;
+class CLogoManager;
+
 class CAppMain
 {
+	bool m_fSilent;
 	TCHAR m_szIniFileName[MAX_PATH];
 	TCHAR m_szDefaultChannelFileName[MAX_PATH];
 	TCHAR m_szChannelSettingFileName[MAX_PATH];
 	bool m_fFirstExecute;
-	bool m_fChannelScanning;
+
 	bool SetService(int Service);
 	bool GenerateRecordFileName(LPTSTR pszFileName,int MaxFileName) const;
 
 public:
+	CAppMain();
 	bool Initialize();
 	bool Finalize();
 	HINSTANCE GetInstance() const;
@@ -27,8 +31,10 @@ public:
 	bool GetAppDirectory(LPTSTR pszDirectory) const;
 	bool GetDriverDirectory(LPTSTR pszDirectory) const;
 	LPCTSTR GetIniFileName() const { return m_szIniFileName; }
-	bool AddLog(LPCTSTR pszText, ...);
+	void AddLog(LPCTSTR pszText, ...);
 	void OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
+	void SetSilent(bool fSilent) { m_fSilent=fSilent; }
+	bool IsSilent() const { return m_fSilent; }
 	bool LoadSettings();
 	bool SaveSettings();
 	bool SaveCurrentChannel();
@@ -49,16 +55,19 @@ public:
 	bool ShowHelpContent(int ID);
 	bool StartRecord(LPCTSTR pszFileName=NULL,
 					 const CRecordManager::TimeSpecInfo *pStartTime=NULL,
-					 const CRecordManager::TimeSpecInfo *pStopTime=NULL);
+					 const CRecordManager::TimeSpecInfo *pStopTime=NULL,
+					 CRecordManager::RecordClient Client=CRecordManager::CLIENT_USER,
+					 bool fTimeShift=false);
 	bool ModifyRecord(LPCTSTR pszFileName=NULL,
 					  const CRecordManager::TimeSpecInfo *pStartTime=NULL,
-					  const CRecordManager::TimeSpecInfo *pStopTime=NULL);
+					  const CRecordManager::TimeSpecInfo *pStopTime=NULL,
+					  CRecordManager::RecordClient Client=CRecordManager::CLIENT_USER);
 	bool StartReservedRecord();
 	bool CancelReservedRecord();
 	bool StopRecord();
-	void BeginChannelScan();
-	void EndChannelScan();
-	bool IsChannelScanning() const { return m_fChannelScanning; }
+	bool RelayRecord(LPCTSTR pszFileName);
+	LPCTSTR GetDefaultRecordFolder() const;
+	bool IsChannelScanning() const;
 	bool IsDriverNoSignalLevel(LPCTSTR pszFileName) const;
 	void SetProgress(int Pos,int Max);
 	void EndProgress();
@@ -69,6 +78,7 @@ public:
 	const CChannelManager *GetChannelManager() const;
 	const CRecordManager *GetRecordManager() const;
 	const CDriverManager *GetDriverManager() const;
+	CLogoManager *GetLogoManager() const;
 };
 
 

@@ -71,9 +71,26 @@ const bool CNFile::Open(LPCTSTR lpszName, const BYTE bFlags)
 	else
 		dwCreate = OPEN_EXISTING;
 
+	// 長いパス対応
+	LPTSTR pszPath = NULL;
+	const int PathLength = ::lstrlen(lpszName);
+	if (PathLength >= MAX_PATH) {
+		if (lpszName[0] == '\\' && lpszName[1] == '\\') {
+			pszPath = new TCHAR[6 + PathLength + 1];
+			::lstrcpy(pszPath, TEXT("\\\\?\\UNC"));
+			::lstrcat(pszPath, &lpszName[1]);
+		} else {
+			pszPath = new TCHAR[4 + PathLength + 1];
+			::lstrcpy(pszPath, TEXT("\\\\?\\"));
+			::lstrcat(pszPath, lpszName);
+		}
+	}
+
 	// ファイルオープン
-	m_hFile = ::CreateFile(lpszName, dwAccess, dwShare, NULL, dwCreate,
+	m_hFile = ::CreateFile(pszPath ? pszPath : lpszName,
+						   dwAccess, dwShare, NULL, dwCreate,
 						   FILE_ATTRIBUTE_NORMAL, NULL);
+	delete [] pszPath;
 	if (m_hFile == INVALID_HANDLE_VALUE) {
 		m_LastError = ::GetLastError();
 		return false;

@@ -151,6 +151,16 @@ public:
 	static DWORD CalcCrc32(const BYTE *pData, SIZE_T DataSize, DWORD dwCurCrc = 0xFFFFFFFFUL);
 };
 
+class CCrc32
+{
+	DWORD m_Crc;
+public:
+	CCrc32();
+	DWORD GetCrc() const;
+	void Calc(const void *pData, SIZE_T DataSize);
+	void Reset();
+};
+
 
 /////////////////////////////////////////////////////////////////////////////
 // MD5ŒvŽZƒNƒ‰ƒX

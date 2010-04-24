@@ -27,7 +27,6 @@ CTsPacketParser::CTsPacketParser(IEventHandler *pEventHandler)
 	, m_OutputPacketCount(0)
 	, m_ErrorPacketCount(0)
 	, m_ContinuityErrorPacketCount(0)
-	, m_bLockEpgDataCap(false)
 #ifdef BONTSENGINE_1SEG_SUPPORT
 	, m_bGeneratePAT(true)
 #endif
@@ -38,7 +37,6 @@ CTsPacketParser::CTsPacketParser(IEventHandler *pEventHandler)
 
 CTsPacketParser::~CTsPacketParser()
 {
-	m_EpgCap.UnInitialize();
 }
 
 void CTsPacketParser::Reset(void)
@@ -192,11 +190,6 @@ bool inline CTsPacketParser::ParsePacket(void)
 			// 次のデコーダにデータを渡す
 			WORD PID;
 			if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
-				if (!m_bLockEpgDataCap
-						&& (PID == 0x0000 || PID == 0x0010 || PID == 0x0011 || PID == 0x0012
-						|| PID == 0x0014 || PID==0x0026 || PID==0x0027)) {
-					m_EpgCap.AddTSPacket(m_TsPacket.GetData(), m_TsPacket.GetSize());
-				}
 				// 出力カウントインクリメント
 				m_OutputPacketCount++;
 
@@ -217,43 +210,6 @@ bool inline CTsPacketParser::ParsePacket(void)
 	m_TsPacket.ClearSize();
 
 	return bOK;
-}
-
-
-bool CTsPacketParser::InitializeEpgDataCap(LPCTSTR pszDllFileName)
-{
-	return m_EpgCap.Initialize(pszDllFileName, FALSE) == NO_ERR;
-}
-
-
-bool CTsPacketParser::UnInitializeEpgDataCap()
-{
-	m_EpgCap.UnInitialize();
-	return true;
-}
-
-
-bool CTsPacketParser::IsEpgDataCapLoaded() const
-{
-	return m_EpgCap.IsLoaded();
-}
-
-
-bool CTsPacketParser::LockEpgDataCap()
-{
-	CBlockLock Lock(&m_DecoderLock);
-
-	m_bLockEpgDataCap = true;
-	return true;
-}
-
-
-bool CTsPacketParser::UnlockEpgDataCap()
-{
-	CBlockLock Lock(&m_DecoderLock);
-
-	m_bLockEpgDataCap = false;
-	return true;
 }
 
 

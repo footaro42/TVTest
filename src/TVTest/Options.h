@@ -5,7 +5,7 @@
 #include "Settings.h"
 
 
-class COptionFrame
+class ABSTRACT_DECL COptionFrame
 {
 public:
 	virtual ~COptionFrame() {}

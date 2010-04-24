@@ -12,11 +12,13 @@
 #include "TsDescrambler.h"
 #include "MediaViewer.h"
 #include "MediaTee.h"
-#include "FileWriter.h"
+//#include "FileWriter.h"
+#include "BufferedFileWriter.h"
 //#include "FileReader.h"
 #include "MediaBuffer.h"
 #include "MediaGrabber.h"
 #include "TsSelector.h"
+#include "EventManager.h"
 #include "CaptionDecoder.h"
 #include "LogoDownloader.h"
 
@@ -35,7 +37,7 @@ public:
 		SERVICE_INVALID	= 0xFFFF
 	};
 
-	class __declspec(novtable) CEventHandler {
+	class ABSTRACT_CLASS_DECL CEventHandler {
 		friend CDtvEngine;
 	public:
 		virtual ~CEventHandler() = 0 {}
@@ -44,7 +46,8 @@ public:
 		virtual void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer, bool bStreamChanged) {}
 		virtual void OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer) {}
 		//virtual void OnPcrTimeStampUpdated(CProgManager *pProgManager) {}
-		virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
+		//virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
+		virtual void OnFileWriteError(CBufferedFileWriter *pFileWriter) {}
 		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
 		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
 		virtual void OnEcmError(LPCTSTR pszText) {}
@@ -54,7 +57,9 @@ public:
 	~CDtvEngine(void);
 
 	const bool BuildEngine(CEventHandler *pEventHandler,
-						   bool bDescramble = true, bool bBuffering = false);
+						   bool bDescramble = true,
+						   bool bBuffering = false,
+						   bool bEventManager = true);
 	const bool IsEngineBuild() const { return m_bBuiled; };
 	const bool IsBuildComplete() const;
 	const bool CloseEngine(void);
@@ -113,7 +118,8 @@ public:
 	bool SetDescrambleService(WORD ServiceID);
 	bool SetDescrambleCurServiceOnly(bool bOnly);
 	bool GetDescrambleCurServiceOnly() const { return m_bDescrambleCurServiceOnly; }
-	bool SetWriteService(WORD ServiceID, DWORD Stream=CTsSelector::STREAM_ALL);
+	bool SetWriteStream(WORD ServiceID, DWORD Stream=CTsSelector::STREAM_ALL);
+	bool GetWriteStream(WORD *pServiceID, DWORD *pStream = NULL);
 	bool SetWriteCurServiceOnly(bool bOnly, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
 // CBonBaseClass
@@ -127,11 +133,13 @@ public:
 	CTsDescrambler m_TsDescrambler;			// TSデスクランブラー
 	CMediaViewer m_MediaViewer;				// メディアビューアー
 	CMediaTee m_MediaTee;					// メディアティー
-	CFileWriter m_FileWriter;				// ファイルライター
+	//CFileWriter m_FileWriter;				// ファイルライター
+	CBufferedFileWriter m_FileWriter;
 	//CFileReader m_FileReader;				// ファイルリーダー
 	CMediaBuffer m_MediaBuffer;
 	CMediaGrabber m_MediaGrabber;
 	CTsSelector m_TsSelector;
+	CEventManager m_EventManager;
 	CCaptionDecoder m_CaptionDecoder;
 	CLogoDownloader m_LogoDownloader;
 

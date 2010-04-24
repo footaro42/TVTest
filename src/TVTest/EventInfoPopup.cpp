@@ -13,12 +13,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define EVENT_INFO_POPUP_CLASS APP_NAME TEXT(" Event Info")
 
 
-
-
-//const LPCTSTR CEventInfoPopup::m_pszPropName=TEXT("EventInfoPopup");
+const LPCTSTR CEventInfoPopup::m_pszWindowClass=APP_NAME TEXT(" Event Info");
 HINSTANCE CEventInfoPopup::m_hinst=NULL;
 
 
@@ -36,7 +33,7 @@ bool CEventInfoPopup::Initialize(HINSTANCE hinst)
 		wc.hCursor=::LoadCursor(NULL,IDC_ARROW);
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
-		wc.lpszClassName=EVENT_INFO_POPUP_CLASS;
+		wc.lpszClassName=m_pszWindowClass;
 		if (RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
@@ -76,7 +73,7 @@ CEventInfoPopup::~CEventInfoPopup()
 
 bool CEventInfoPopup::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
-	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,EVENT_INFO_POPUP_CLASS,NULL,m_hinst);
+	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,m_pszWindowClass,NULL,m_hinst);
 }
 
 
@@ -88,7 +85,7 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 	m_EventInfo=*pEventInfo;
 
 	TCHAR szText[2048];
-	LPCTSTR pszVideo,pszAudio;
+	LPCTSTR pszVideo=TEXT("?"),pszAudio=TEXT("?");
 
 	static const struct {
 		BYTE ComponentType;
@@ -110,7 +107,6 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		{0xD3,TEXT("240p(16:9)")},
 		{0xD4,TEXT("240p(>16:9)")},
 	};
-	pszVideo=TEXT("?");
 	for (int i=0;i<lengthof(VideoComponentTypeList);i++) {
 		if (VideoComponentTypeList[i].ComponentType==m_EventInfo.m_ComponentType) {
 			pszVideo=VideoComponentTypeList[i].pszText;
@@ -118,50 +114,60 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		}
 	}
 
-	static const struct {
-		BYTE ComponentType;
-		LPCTSTR pszText;
-	} AudioComponentTypeList[] = {
-		{0x01,TEXT("Mono")},
-		{0x02,TEXT("Dual mono")},
-		{0x03,TEXT("Stereo")},
-		{0x07,TEXT("3+1")},
-		{0x08,TEXT("3+2")},
-		{0x09,TEXT("5.1ch")},
-	};
-	if (m_EventInfo.m_AudioComponentType==0x02
-			&& m_EventInfo.m_fESMultiLangFlag) {
-		pszAudio=TEXT("Mono 2カ国語");
-	} else {
-		pszAudio=TEXT("?");
-		for (int i=0;i<lengthof(AudioComponentTypeList);i++) {
-			if (AudioComponentTypeList[i].ComponentType==m_EventInfo.m_AudioComponentType) {
-				pszAudio=AudioComponentTypeList[i].pszText;
+	TCHAR szAudioComponent[64];
+	szAudioComponent[0]='\0';
+	if (m_EventInfo.m_AudioList.size()>0) {
+		static const struct {
+			BYTE ComponentType;
+			LPCTSTR pszText;
+		} AudioComponentTypeList[] = {
+			{0x01,TEXT("Mono")},
+			{0x02,TEXT("Dual mono")},
+			{0x03,TEXT("Stereo")},
+			{0x07,TEXT("3+1")},
+			{0x08,TEXT("3+2")},
+			{0x09,TEXT("5.1ch")},
+		};
+
+		// TODO:複数音声対応
+		const CEventInfoData::AudioInfo *pAudioInfo=&m_EventInfo.m_AudioList[0];
+		for (size_t i=0;i<m_EventInfo.m_AudioList.size();i++) {
+			if (m_EventInfo.m_AudioList[i].fMainComponentFlag) {
+				pAudioInfo=&m_EventInfo.m_AudioList[i];
 				break;
 			}
 		}
-	}
 
-	TCHAR szAudioComponent[64];
-	LPCTSTR p=m_EventInfo.GetAudioComponentTypeText();
-	if (p!=NULL && *p!='\0') {
-		szAudioComponent[0]=' ';
-		szAudioComponent[1]='(';
-		size_t i;
-		for (i=2;*p!='\0' && i<lengthof(szAudioComponent)-2;i++) {
-			if (*p=='\r' || *p=='\n') {
-				szAudioComponent[i]='/';
-				p++;
-				if (*p=='\n')
-					p++;
-			} else {
-				szAudioComponent[i]=*p++;
+		if (pAudioInfo->ComponentType==0x02
+				&& pAudioInfo->fESMultiLingualFlag) {
+			pszAudio=TEXT("Mono 2カ国語");
+		} else {
+			for (int i=0;i<lengthof(AudioComponentTypeList);i++) {
+				if (AudioComponentTypeList[i].ComponentType==pAudioInfo->ComponentType) {
+					pszAudio=AudioComponentTypeList[i].pszText;
+					break;
+				}
 			}
 		}
-		szAudioComponent[i]=')';
-		szAudioComponent[i+1]='\0';
-	} else {
-		szAudioComponent[0]='\0';
+
+		LPCTSTR p=pAudioInfo->szText;
+		if (*p!='\0') {
+			szAudioComponent[0]=' ';
+			szAudioComponent[1]='(';
+			size_t i;
+			for (i=2;*p!='\0' && i<lengthof(szAudioComponent)-2;i++) {
+				if (*p=='\r' || *p=='\n') {
+					szAudioComponent[i]='/';
+					p++;
+					if (*p=='\n')
+						p++;
+				} else {
+					szAudioComponent[i]=*p++;
+				}
+			}
+			szAudioComponent[i]=')';
+			szAudioComponent[i+1]='\0';
+		}
 	}
 
 	::wnsprintf(szText,lengthof(szText)-1,
@@ -213,7 +219,7 @@ void CEventInfoPopup::CalcTitleHeight()
 		return;
 	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_TitleFont.GetHandle()));
 	::GetTextMetrics(hdc,&tm);
-	//FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	//FontHeight=tm.tmHeight-tm.tmInternalLeading;
 	FontHeight=tm.tmHeight;
 	m_TitleLineHeight=FontHeight+m_TitleLineMargin;
 	GetClientRect(&rc);
@@ -531,52 +537,6 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 }
 
 
-/*
-LRESULT CALLBACK CEventInfoPopup::EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	CEventInfoPopup *pThis=(CEventInfoPopup*)::GetProp(hwnd,m_pszPropName);
-
-	if (pThis==NULL)
-		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
-	switch (uMsg) {
-	case WM_RBUTTONDOWN:
-		{
-			HMENU hmenu=::CreatePopupMenu();
-
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("コピー(&C)"));
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("すべて選択(&A)"));
-			POINT pt;
-			::GetCursorPos(&pt);
-			int Command=::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,pt.x,pt.y,0,hwnd,NULL);
-			if (Command==1) {
-				DWORD Start,End;
-
-				::SendMessage(hwnd,WM_SETREDRAW,FALSE,0);
-				::SendMessage(hwnd,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
-				if (Start==End)
-					::SendMessage(hwnd,EM_SETSEL,0,-1);
-				::SendMessage(hwnd,WM_COPY,0,0);
-				if (Start==End)
-					::SendMessage(hwnd,EM_SETSEL,Start,End);
-				::SendMessage(hwnd,WM_SETREDRAW,TRUE,0);
-			} else if (Command==2) {
-				::SendMessage(hwnd,EM_SETSEL,0,-1);
-			}
-		}
-		return 0;
-
-	case WM_RBUTTONUP:
-		return 0;
-
-	case WM_NCDESTROY:
-		::RemoveProp(hwnd,m_pszPropName);
-		break;
-	}
-	return ::CallWindowProc(pThis->m_pOldEditProc,hwnd,uMsg,wParam,lParam);
-}
-*/
-
-
 void CEventInfoPopup::GetCloseButtonRect(RECT *pRect) const
 {
 	RECT rc;
@@ -612,6 +572,7 @@ const LPCTSTR CEventInfoPopupManager::m_pszPropName=TEXT("EventInfoPopup");
 
 CEventInfoPopupManager::CEventInfoPopupManager(CEventInfoPopup *pPopup)
 	: m_pPopup(pPopup)
+	, m_fEnable(true)
 	, m_hwnd(NULL)
 	, m_pOldWndProc(NULL)
 	, m_pEventHandler(NULL)
@@ -651,6 +612,33 @@ void CEventInfoPopupManager::Finalize()
 		::RemoveProp(m_hwnd,m_pszPropName);
 		m_hwnd=NULL;
 	}
+}
+
+
+bool CEventInfoPopupManager::SetEnable(bool fEnable)
+{
+	m_fEnable=fEnable;
+	if (!fEnable)
+		m_pPopup->Hide();
+	return true;
+}
+
+
+bool CEventInfoPopupManager::Popup(int x,int y)
+{
+	if (m_pEventHandler==NULL)
+		return false;
+	m_HitTestParam=-1;
+	if (m_pEventHandler->HitTest(x,y,&m_HitTestParam)) {
+		const CEventInfoData *pEventInfo;
+
+		if (m_pEventHandler->GetEventInfo(m_HitTestParam,&pEventInfo)
+				&& m_pEventHandler->OnShow(pEventInfo)) {
+			m_pPopup->Show(pEventInfo);
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -723,7 +711,7 @@ LRESULT CALLBACK CEventInfoPopupManager::HookWndProc(HWND hwnd,UINT uMsg,WPARAM 
 		break;
 
 	case WM_MOUSEHOVER:
-		if (pThis->m_pEventHandler!=NULL
+		if (pThis->m_pEventHandler!=NULL && pThis->m_fEnable
 				&& ::GetActiveWindow()==::GetForegroundWindow()) {
 			bool fHit=false;
 			pThis->m_HitTestParam=-1;

@@ -391,6 +391,27 @@ DWORD CCrcCalculator::CalcCrc32(const BYTE *pData, SIZE_T DataSize, DWORD dwCurC
 }
 
 
+CCrc32::CCrc32()
+	: m_Crc(0xFFFFFFFFUL)
+{
+}
+
+DWORD CCrc32::GetCrc() const
+{
+	return m_Crc;
+}
+
+void CCrc32::Calc(const void *pData, SIZE_T DataSize)
+{
+	m_Crc = CCrcCalculator::CalcCrc32(static_cast<const BYTE*>(pData), DataSize, m_Crc);
+}
+
+void CCrc32::Reset()
+{
+	m_Crc = 0xFFFFFFFFUL;
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // MD5ŒvŽZƒNƒ‰ƒX
 /////////////////////////////////////////////////////////////////////////////

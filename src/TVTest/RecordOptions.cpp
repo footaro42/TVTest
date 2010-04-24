@@ -12,6 +12,15 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+// 書き出しバッファサイズの制限(バイト単位)
+#define MIN_BUFFER_SIZE	1024
+#define MAX_BUFFER_SIZE	(32*1024*1024)
+
+// さかのぼり録画バッファサイズの制限(MiB単位)
+#define MIN_TIMESHIFT_BUFFER_SIZE	1
+#define MAX_TIMESHIFT_BUFFER_SIZE	1024
+
+
 
 
 CRecordOptions::CRecordOptions()
@@ -23,9 +32,11 @@ CRecordOptions::CRecordOptions()
 	, m_fSaveSubtitle(true)
 	, m_fSaveDataCarrousel(true)
 	, m_fDescrambleCurServiceOnly(false)
-	, m_BufferSize(0x100000)
 	, m_fAlertLowFreeSpace(true)
 	, m_LowFreeSpaceThreshold(2048)
+	, m_BufferSize(0x100000)
+	, m_TimeShiftBufferSize(32)
+	, m_fEnableTimeShiftRecording(false)
 {
 	m_szSaveFolder[0]='\0';
 	::lstrcpy(m_szFileName,TEXT("Record_%date%-%time%.ts"));
@@ -37,9 +48,32 @@ CRecordOptions::~CRecordOptions()
 }
 
 
+bool CRecordOptions::Apply(DWORD Flags)
+{
+	CDtvEngine &DtvEngine=GetAppClass().GetCoreEngine()->m_DtvEngine;
+
+	if ((Flags&UPDATE_RECORDSTREAM)!=0
+			&& !GetAppClass().GetRecordManager()->IsRecording()) {
+		DWORD Stream=CTsSelector::STREAM_ALL;
+		if (!m_fSaveSubtitle)
+			Stream^=CTsSelector::STREAM_CAPTION;
+		if (!m_fSaveDataCarrousel)
+			Stream^=CTsSelector::STREAM_DATACARROUSEL;
+		DtvEngine.SetWriteCurServiceOnly(m_fCurServiceOnly,Stream);
+		DtvEngine.m_FileWriter.ClearQueue();
+	}
+	if ((Flags&UPDATE_TIMESHIFTBUFFER)!=0)
+		DtvEngine.m_FileWriter.SetQueueSize(0x100000,m_TimeShiftBufferSize);
+	if ((Flags&UPDATE_ENABLETIMESHIFT)!=0)
+		DtvEngine.m_FileWriter.EnableQueueing(m_fEnableTimeShiftRecording);
+	return true;
+}
+
+
 bool CRecordOptions::Read(CSettings *pSettings)
 {
 	TCHAR szPath[MAX_PATH];
+	unsigned int Value;
 
 	// Backward compatibility
 	if (pSettings->Read(TEXT("RecordFile"),szPath,lengthof(szPath))
@@ -79,9 +113,13 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("RecordSubtitle"),&m_fSaveSubtitle);
 	pSettings->Read(TEXT("RecordDataCarrousel"),&m_fSaveDataCarrousel);
 	pSettings->Read(TEXT("RecordDescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
-	pSettings->Read(TEXT("RecordBufferSize"),&m_BufferSize);
+	if (pSettings->Read(TEXT("RecordBufferSize"),&Value))
+		m_BufferSize=CLAMP(Value,MIN_BUFFER_SIZE,MAX_BUFFER_SIZE);
 	pSettings->Read(TEXT("AlertLowFreeSpace"),&m_fAlertLowFreeSpace);
 	pSettings->Read(TEXT("LowFreeSpaceThreshold"),&m_LowFreeSpaceThreshold);
+	if (pSettings->Read(TEXT("TimeShiftRecBufferSize"),&Value))
+		m_TimeShiftBufferSize=CLAMP(Value,MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
+	pSettings->Read(TEXT("TimeShiftRecording"),&m_fEnableTimeShiftRecording);
 	return true;
 }
 
@@ -90,7 +128,6 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("RecordFolder"),m_szSaveFolder);
 	pSettings->Write(TEXT("RecordFileName"),m_szFileName);
-	//pSettings->Write(TEXT("AddRecordTime"),false);	// Backward compatibility
 	pSettings->Write(TEXT("ConfirmRecChChange"),m_fConfirmChannelChange);
 	pSettings->Write(TEXT("ConfrimRecordingExit"),m_fConfirmExit);
 	pSettings->Write(TEXT("ConfrimRecordStop"),m_fConfirmStop);
@@ -102,6 +139,8 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("RecordBufferSize"),m_BufferSize);
 	pSettings->Write(TEXT("AlertLowFreeSpace"),m_fAlertLowFreeSpace);
 	pSettings->Write(TEXT("LowFreeSpaceThreshold"),m_LowFreeSpaceThreshold);
+	pSettings->Write(TEXT("TimeShiftRecBufferSize"),m_TimeShiftBufferSize);
+	pSettings->Write(TEXT("TimeShiftRecording"),m_fEnableTimeShiftRecording);
 	return true;
 }
 
@@ -229,6 +268,17 @@ bool CRecordOptions::ConfirmExit(HWND hwndOwner,const CRecordManager *pRecordMan
 }
 
 
+bool CRecordOptions::EnableTimeShiftRecording(bool fEnable)
+{
+	if (m_fEnableTimeShiftRecording!=fEnable) {
+		if (!GetAppClass().GetCoreEngine()->m_DtvEngine.m_FileWriter.EnableQueueing(fEnable))
+			return false;
+		m_fEnableTimeShiftRecording=fEnable;
+	}
+	return true;
+}
+
+
 bool CRecordOptions::ApplyOptions(CRecordManager *pManager)
 {
 	pManager->SetCurServiceOnly(m_fCurServiceOnly);
@@ -290,16 +340,20 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				pThis->m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,
 							pThis->m_BufferSize/1024,FALSE);
-			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE_UD,
-								 UDM_SETRANGE32,1,0x7FFFFFFF);
+			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE_UD,
+							   MIN_BUFFER_SIZE/1024,MAX_BUFFER_SIZE/1024);
 
 			DlgCheckBox_Check(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE,pThis->m_fAlertLowFreeSpace);
 			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,pThis->m_LowFreeSpaceThreshold,FALSE);
-			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_SPIN,
-								 UDM_SETRANGE32,1,0x7FFFFFFF);
+			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_SPIN,
+							   1,0x7FFFFFFF);
 			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_LABEL,
 								IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_UNIT,
 						   pThis->m_fAlertLowFreeSpace);
+
+			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE,pThis->m_TimeShiftBufferSize,FALSE);
+			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE_SPIN,
+							   MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
 		}
 		return TRUE;
 
@@ -418,21 +472,43 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP);
 				pThis->m_fConfirmStopStatusBarOnly=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP);
-				pThis->m_fCurServiceOnly=
-					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY);
-				pThis->m_fSaveSubtitle=
-					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE);
-				pThis->m_fSaveDataCarrousel=
-					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL);
+
+				bool fOptionChanged=false;
+				bool f=DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY);
+				if (pThis->m_fCurServiceOnly!=f) {
+					pThis->m_fCurServiceOnly=f;
+					fOptionChanged=true;
+				}
+				f=DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE);
+				if (pThis->m_fSaveSubtitle!=f) {
+					pThis->m_fSaveSubtitle=f;
+					fOptionChanged=true;
+				}
+				f=DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL);
+				if (pThis->m_fSaveDataCarrousel!=f) {
+					pThis->m_fSaveDataCarrousel=f;
+					fOptionChanged=true;
+				}
+				if (fOptionChanged)
+					pThis->SetUpdateFlag(UPDATE_RECORDSTREAM);
+
 				pThis->m_fDescrambleCurServiceOnly=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY);
-				pThis->m_BufferSize=
+				unsigned int BufferSize=
 					::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,NULL,FALSE)*1024;
+				pThis->m_BufferSize=CLAMP(BufferSize,MIN_BUFFER_SIZE,MAX_BUFFER_SIZE);
 
 				pThis->m_fAlertLowFreeSpace=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE);
 				pThis->m_LowFreeSpaceThreshold=
 					::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,NULL,FALSE);
+
+				BufferSize=::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE,NULL,FALSE);
+				BufferSize=CLAMP(BufferSize,MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
+				if (BufferSize!=pThis->m_TimeShiftBufferSize) {
+					pThis->m_TimeShiftBufferSize=BufferSize;
+					pThis->SetUpdateFlag(UPDATE_TIMESHIFTBUFFER);
+				}
 			}
 			break;
 		}

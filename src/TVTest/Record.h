@@ -50,6 +50,7 @@ public:
 	DWORD GetPauseTime() const;
 	LONGLONG GetWroteSize() const;
 	LPCTSTR GetFileName() const;
+	bool RelayFile(LPCTSTR pszFileName);
 #undef GetFreeSpace
 	LONGLONG GetFreeSpace() const;
 };
@@ -67,6 +68,11 @@ public:
 			FILETIME DateTime;
 			ULONGLONG Duration;
 		} Time;
+	};
+	enum RecordClient {
+		CLIENT_USER,
+		CLIENT_COMMANDLINE,
+		CLIENT_PLUGIN
 	};
 	/*
 	enum FileExistsOperation {
@@ -93,6 +99,7 @@ private:
 	CRecordTime m_ReserveTime;
 	TimeSpecInfo m_StartTimeSpec;
 	TimeSpecInfo m_StopTimeSpec;
+	RecordClient m_Client;
 	CRecordTask m_RecordTask;
 	CDtvEngine *m_pDtvEngine;
 	//FileExistsOperation m_ExistsOperation;
@@ -102,7 +109,6 @@ private:
 	SIZE_T m_BufferSize;
 	static CRecordManager *GetThis(HWND hDlg);
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	//static INT_PTR CALLBACK StopTimeDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	int FormatFileName(LPTSTR pszFileName,int MaxFileName,const EventInfo *pEventInfo,LPCTSTR pszFormat) const;
 	static int MapFileNameCopy(LPWSTR pszFileName,int MaxFileName,LPCWSTR pszText);
 
@@ -117,14 +123,18 @@ public:
 	*/
 	bool GetStartTime(FILETIME *pTime) const;
 	bool GetReserveTime(FILETIME *pTime) const;
+	bool GetReservedStartTime(FILETIME *pTime) const;
 	bool SetStartTimeSpec(const TimeSpecInfo *pInfo);
 	bool GetStartTimeSpec(TimeSpecInfo *pInfo) const;
 	bool SetStopTimeSpec(const TimeSpecInfo *pInfo);
 	bool GetStopTimeSpec(TimeSpecInfo *pInfo) const;
 	bool IsStopTimeSpecified() const;
-	bool StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName);
+	RecordClient GetClient() const { return m_Client; }
+	void SetClient(RecordClient Client) { m_Client=Client; }
+	bool StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName,bool fTimeShift=false);
 	void StopRecord();
 	bool PauseRecord();
+	bool RelayFile(LPCTSTR pszFileName);
 	bool IsRecording() const { return m_fRecording; }
 	bool IsPaused() const;
 	bool IsReserved() const { return m_fReserved; }
@@ -136,7 +146,6 @@ public:
 	bool QueryStart(int Offset=0) const;
 	bool QueryStop(int Offset=0) const;
 	bool RecordDialog(HWND hwndOwner);
-	//bool ChangeStopTimeDialog(HWND hwndOwner);
 	bool GenerateFileName(LPTSTR pszFileName,int MaxLength,const EventInfo *pEventInfo,LPCTSTR pszFormat=NULL) const;
 	//bool DoFileExistsOperation(HWND hwndOwner,LPTSTR pszFileName);
 	bool SetCurServiceOnly(bool fOnly);

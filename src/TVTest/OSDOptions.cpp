@@ -16,19 +16,21 @@ static char THIS_FILE[]=__FILE__;
 
 
 COSDOptions::COSDOptions()
-{
-	m_fShowOSD=true;
-	m_fPseudoOSD=false;
-	m_TextColor=RGB(0,255,0);
-	m_Opacity=80;
-	m_FadeTime=3000;
-	m_fEnableNotificationBar=true;
-	m_NotificationBarDuration=3000;
-	m_NotificationBarFlags=NOTIFY_EVENTNAME
+	: m_fShowOSD(true)
+	, m_fPseudoOSD(false)
+	, m_TextColor(RGB(0,255,0))
+	, m_Opacity(80)
+	, m_FadeTime(3000)
+	, m_ChannelChangeType(CHANNELCHANGE_LOGOANDTEXT)
+
+	, m_fEnableNotificationBar(true)
+	, m_NotificationBarDuration(3000)
+	, m_NotificationBarFlags(NOTIFY_EVENTNAME
 #ifndef TVH264_FOR_1SEG
 		 | NOTIFY_ECMERROR
 #endif
-		;
+		)
+{
 	NONCLIENTMETRICS ncm;
 #if WINVER<0x0600
 	ncm.cbSize=sizeof(ncm);
@@ -56,11 +58,17 @@ COSDOptions::~COSDOptions()
 
 bool COSDOptions::Read(CSettings *pSettings)
 {
+	int Value;
+
 	pSettings->Read(TEXT("UseOSD"),&m_fShowOSD);
 	pSettings->Read(TEXT("PseudoOSD"),&m_fPseudoOSD);
 	pSettings->ReadColor(TEXT("OSDTextColor"),&m_TextColor);
 	pSettings->Read(TEXT("OSDOpacity"),&m_Opacity);
 	pSettings->Read(TEXT("OSDFadeTime"),&m_FadeTime);
+	if (pSettings->Read(TEXT("ChannelOSDType"),&Value)
+			&& Value>=CHANNELCHANGE_FIRST && Value<=CHANNELCHANGE_LAST)
+		m_ChannelChangeType=(ChannelChangeType)Value;
+
 	pSettings->Read(TEXT("EnableNotificationBar"),&m_fEnableNotificationBar);
 	pSettings->Read(TEXT("NotificationBarDuration"),&m_NotificationBarDuration);
 	bool f;
@@ -70,7 +78,6 @@ bool COSDOptions::Read(CSettings *pSettings)
 		EnableNotify(NOTIFY_ECMERROR,f);
 	// Font
 	TCHAR szFont[LF_FACESIZE];
-	int Value;
 	if (pSettings->Read(TEXT("NotificationBarFontName"),szFont,LF_FACESIZE)
 			&& szFont[0]!='\0') {
 		lstrcpy(m_NotificationBarFont.lfFaceName,szFont);
@@ -106,6 +113,8 @@ bool COSDOptions::Write(CSettings *pSettings) const
 	pSettings->WriteColor(TEXT("OSDTextColor"),m_TextColor);
 	pSettings->Write(TEXT("OSDOpacity"),m_Opacity);
 	pSettings->Write(TEXT("OSDFadeTime"),m_FadeTime);
+	pSettings->Write(TEXT("ChannelOSDType"),(int)m_ChannelChangeType);
+
 	pSettings->Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
 	pSettings->Write(TEXT("NotificationBarDuration"),m_NotificationBarDuration);
 	pSettings->Write(TEXT("NotifyEventName"),(m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
@@ -163,13 +172,20 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 		{
 			COSDOptions *pThis=static_cast<COSDOptions*>(OnInitDialog(hDlg,lParam));
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEOSD,pThis->m_fShowOSD);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_PSEUDOOSD,pThis->m_fPseudoOSD);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOWOSD,pThis->m_fShowOSD);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_PSEUDOOSD,pThis->m_fPseudoOSD);
 			pThis->m_CurTextColor=pThis->m_TextColor;
-			::SetDlgItemInt(hDlg,IDC_OPTIONS_OSDFADETIME,pThis->m_FadeTime/1000,TRUE);
-			::SendDlgItemMessage(hDlg,IDC_OPTIONS_OSDFADETIME_UD,UDM_SETRANGE,0,
-													MAKELPARAM(UD_MAXVAL,1));
-			EnableDlgItems(hDlg,IDC_OPTIONS_OSD_FIRST,IDC_OPTIONS_OSD_LAST,pThis->m_fShowOSD);
+			::SetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,pThis->m_FadeTime/1000,TRUE);
+			DlgUpDown_SetRange(hDlg,IDC_OSDOPTIONS_FADETIME_UD,1,UD_MAXVAL);
+			static const LPCTSTR ChannelChangeModeText[] = {
+				TEXT("ƒƒS‚Æƒ`ƒƒƒ“ƒlƒ‹–¼"),
+				TEXT("ƒ`ƒƒƒ“ƒlƒ‹–¼‚Ì‚Ý"),
+				TEXT("ƒƒS‚Ì‚Ý"),
+			};
+			SetComboBoxList(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE,
+							ChannelChangeModeText,lengthof(ChannelChangeModeText));
+			DlgComboBox_SetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE,(int)pThis->m_ChannelChangeType);
+			EnableDlgItems(hDlg,IDC_OSDOPTIONS_FIRST,IDC_OSDOPTIONS_LAST,pThis->m_fShowOSD);
 
 			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_ENABLE,pThis->m_fEnableNotificationBar);
 			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME,(pThis->m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
@@ -200,17 +216,17 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
-		case IDC_OPTIONS_USEOSD:
-			EnableDlgItems(hDlg,IDC_OPTIONS_OSD_FIRST,IDC_OPTIONS_OSD_LAST,
-						   DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEOSD));
+		case IDC_OSDOPTIONS_SHOWOSD:
+			EnableDlgItemsSyncCheckBox(hDlg,IDC_OSDOPTIONS_FIRST,IDC_OSDOPTIONS_LAST,
+									   IDC_OSDOPTIONS_SHOWOSD);
 			return TRUE;
 
-		case IDC_OPTIONS_OSDTEXTCOLOR:
+		case IDC_OSDOPTIONS_TEXTCOLOR:
 			{
 				COSDOptions *pThis=GetThis(hDlg);
 
 				if (ChooseColorDialog(hDlg,&pThis->m_CurTextColor))
-					InvalidateDlgItem(hDlg,IDC_OPTIONS_OSDTEXTCOLOR);
+					InvalidateDlgItem(hDlg,IDC_OSDOPTIONS_TEXTCOLOR);
 			}
 			return TRUE;
 
@@ -245,10 +261,11 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			{
 				COSDOptions *pThis=GetThis(hDlg);
 
-				pThis->m_fShowOSD=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEOSD);
-				pThis->m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PSEUDOOSD);
+				pThis->m_fShowOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOWOSD);
+				pThis->m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_PSEUDOOSD);
 				pThis->m_TextColor=pThis->m_CurTextColor;
-				pThis->m_FadeTime=::GetDlgItemInt(hDlg,IDC_OPTIONS_OSDFADETIME,NULL,FALSE)*1000;
+				pThis->m_FadeTime=::GetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,NULL,FALSE)*1000;
+				pThis->m_ChannelChangeType=(ChannelChangeType)DlgComboBox_GetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE);
 
 				pThis->m_fEnableNotificationBar=
 					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE);

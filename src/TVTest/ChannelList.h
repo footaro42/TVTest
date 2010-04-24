@@ -23,6 +23,7 @@ class CChannelInfo {
 public:
 	CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);
 	CChannelInfo(const CChannelInfo &Info);
+	virtual ~CChannelInfo() {}
 	CChannelInfo &operator=(const CChannelInfo &Info);
 	int GetSpace() const { return m_Space; }
 	bool SetSpace(int Space);
@@ -57,6 +58,7 @@ public:
 	int NumEnableChannels() const;
 	bool AddChannel(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);
 	bool AddChannel(const CChannelInfo &Info);
+	bool AddChannel(CChannelInfo *pInfo);
 	CChannelInfo *GetChannelInfo(int Index);
 	const CChannelInfo *GetChannelInfo(int Index) const;
 	int GetSpace(int Index) const;

@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.9.1
+	TVTest プラグインヘッダ ver.0.0.10
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -8,9 +8,6 @@
 	特にコンパイラに依存する記述はないはずなので、Borland などでも大丈夫です。
 	また、ヘッダを移植すれば C++ 以外の言語でプラグインを作成することも可能な
 	はずです(凄く面倒なので誰もやらないと思いますが)。
-
-	プラグインの仕様はまだ暫定ですので、今後変更される可能性があります(できるだ
-	け互換性は維持したいと思っていますが)。
 
 	実際にプラグインを作成する場合、このヘッダだけを見ても恐らく意味不明だと思
 	いますので、サンプルを参考にしてください。
@@ -60,7 +57,7 @@
 			pInfo->Type           = TVTest::PLUGIN_TYPE_NORMAL;
 			pInfo->Flags          = 0;
 			pInfo->pszPluginName  = L"サンプル";
-			pInfo->pszCopyright   = L"Copyright(c) 2008 Taro Yamada";
+			pInfo->pszCopyright   = L"Copyright(c) 2010 Taro Yamada";
 			pInfo->pszDescription = L"何もしないプラグイン";
 			return true;	// false を返すとプラグインのロードが失敗になる
 		}
@@ -86,6 +83,19 @@
 
 /*
 	更新履歴
+
+	ver.0.0.10 (TVTest ver.0.7.0 or later)
+	・以下のメッセージを追加した
+	  ・MESSAGE_GETLOGO
+	  ・MESSAGE_GETAVAILABLELOGOTYPE
+	  ・MESSAGE_RELAYRECORD
+	  ・MESSAGE_SILENTMODE
+	・以下のイベントを追加した
+	  ・EVENT_CLOSE
+	  ・EVENT_STARTRECORD
+	  ・EVENT_RELAYRECORD
+	・プラグインのフラグに PLUGIN_FLAG_DISABLEONSTART を追加した
+	・RecordStatusInfo 構造体に pszFileName と MaxFileName メンバを追加した
 
 	ver.0.0.9.1
 	・64ビットで警告が出ないようにした
@@ -155,18 +165,10 @@ namespace TVTest {
 
 
 // プラグインのバージョン
-#define TVTEST_PLUGIN_VERSION_0_0_0	0x00000000UL
-#define TVTEST_PLUGIN_VERSION_0_0_1	0x00000001UL
-#define TVTEST_PLUGIN_VERSION_0_0_2	0x00000002UL
-#define TVTEST_PLUGIN_VERSION_0_0_3	0x00000003UL
-#define TVTEST_PLUGIN_VERSION_0_0_4	0x00000004UL
-#define TVTEST_PLUGIN_VERSION_0_0_5	0x00000005UL
-#define TVTEST_PLUGIN_VERSION_0_0_6	0x00000006UL
-#define TVTEST_PLUGIN_VERSION_0_0_7	0x00000007UL
-#define TVTEST_PLUGIN_VERSION_0_0_8	0x00000008UL
-#define TVTEST_PLUGIN_VERSION_0_0_9	0x00000009UL
+#define TVTEST_PLUGIN_VERSION_(major,minor,rev) \
+	(((major)<<24) | ((minor)<<12) | (rev))
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_0_0_9
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_(0,0,10)
 #endif
 
 // エクスポート関数定義用
@@ -186,6 +188,9 @@ enum {
 	PLUGIN_FLAG_HASSETTINGS		=0x00000001UL,	// 設定ダイアログがある
 	PLUGIN_FLAG_ENABLEDEFAULT	=0x00000002UL	// デフォルトで有効
 												// 特別な理由が無い限り使わない
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+	,PLUGIN_FLAG_DISABLEONSTART	=0x00000004UL	// 起動時は必ず無効
+#endif
 };
 
 // プラグインの情報
@@ -262,38 +267,44 @@ enum {
 	MESSAGE_GETCOLOR,				// 色の設定を取得
 	MESSAGE_DECODEARIBSTRING,		// ARIB文字列のデコード
 	MESSAGE_GETCURRENTPROGRAMINFO,	// 現在の番組の情報を取得
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
 	MESSAGE_QUERYEVENT,				// イベントに対応しているか取得
 	MESSAGE_GETTUNINGSPACE,			// 現在のチューニング空間を取得
 	MESSAGE_GETTUNINGSPACEINFO,		// チューニング空間の情報を取得
 	MESSAGE_SETNEXTCHANNEL,			// チャンネルを次に設定する
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 	MESSAGE_GETAUDIOSTREAM,			// 音声ストリームを取得
 	MESSAGE_SETAUDIOSTREAM,			// 音声ストリームを設定
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 	MESSAGE_ISPLUGINENABLED,		// プラグインの有効状態を取得
 	MESSAGE_REGISTERCOMMAND,		// コマンドの登録
 	MESSAGE_ADDLOG,					// ログを記録
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 	MESSAGE_RESETSTATUS,			// ステータスを初期化
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,6)
 	MESSAGE_SETAUDIOCALLBACK,		// 音声のコールバック関数を設定
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,7)
 	MESSAGE_DOCOMMAND,				// コマンドの実行
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,8)
 	MESSAGE_GETBCASINFO,			// B-CAS カードの情報を取得
 	MESSAGE_SENDBCASCOMMAND,		// B-CAS カードにコマンドを送信
 	MESSAGE_GETHOSTINFO,			// ホストプログラムの情報を取得
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
 	MESSAGE_GETSETTING,				// 設定の取得
 	MESSAGE_GETDRIVERFULLPATHNAME,	// BonDriverのフルパスを取得
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+	MESSAGE_GETLOGO,				// ロゴの取得
+	MESSAGE_GETAVAILABLELOGOTYPE,	// 利用可能なロゴの取得
+	MESSAGE_RELAYRECORD,			// 録画ファイルの切り替え
+	MESSAGE_SILENTMODE,				// サイレントモードの取得/設定
 #endif
 	MESSAGE_TRAILER
 };
@@ -316,20 +327,25 @@ enum {
 	EVENT_VOLUMECHANGE,			// 音量が変化した
 	EVENT_STEREOMODECHANGE,		// ステレオモードが変化した
 	EVENT_COLORCHANGE,			// 色の設定が変化した
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 	EVENT_STANDBY,				// 待機状態が変化した
 	EVENT_COMMAND,				// コマンドが選択された
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,4)
 	EVENT_EXECUTE,				// 複数起動禁止時に複数起動された
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 	EVENT_RESET,				// リセットされた
 	EVENT_STATUSRESET,			// ステータスがリセットされた
 	EVENT_AUDIOSTREAMCHANGE,	// 音声ストリームが変更された
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
 	EVENT_SETTINGSCHANGE,		// 設定が変更された
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+	EVENT_CLOSE,				// TVTestのウィンドウが閉じられる
+	EVENT_STARTRECORD,			// 録画が開始される
+	EVENT_RELAYRECORD,			// 録画ファイルが切り替えられた
 #endif
 	EVENT_TRAILER
 };
@@ -374,7 +390,7 @@ inline void MsgMemoryFree(PluginParam *pParam,void *pData) {
 }
 
 // イベントハンドル用コールバックの設定
-// pClientDataはコールバックの呼び出し時に渡される
+// pClientData はコールバックの呼び出し時に渡されます。
 inline bool MsgSetEventCallback(PluginParam *pParam,EventCallbackFunc Callback,void *pClientData=NULL) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETEVENTCALLBACK,(LPARAM)Callback,(LPARAM)pClientData)!=0;
 }
@@ -390,7 +406,7 @@ struct ChannelInfo {
 	WCHAR szNetworkName[32];			// ネットワーク名
 	WCHAR szTransportStreamName[32];	// トランスポートストリーム名
 	WCHAR szChannelName[64];			// チャンネル名
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
 	int PhysicalChannel;				// 物理チャンネル番号(場合によっては信用できない)
 										// 不明の場合は0
 	WORD ServiceIndex;					// サービスのインデックス
@@ -401,18 +417,18 @@ struct ChannelInfo {
 #endif
 };
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
 enum { CHANNELINFO_SIZE_V1=TVTEST_OFFSETOF(ChannelInfo,PhysicalChannel) };
 #endif
 
 // 現在のチャンネルの情報を取得する
-// 事前に ChannelInfo の Size メンバを設定しておく
+// 事前に ChannelInfo の Size メンバを設定しておきます。
 inline bool MsgGetCurrentChannelInfo(PluginParam *pParam,ChannelInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCURRENTCHANNELINFO,(LPARAM)pInfo,0)!=0;
 }
 
 // チャンネルを設定する
-#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_8
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_(0,0,8)
 inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETCHANNEL,Space,Channel)!=0;
 }
@@ -423,8 +439,8 @@ inline bool MsgSetChannel(PluginParam *pParam,int Space,int Channel,WORD Service
 #endif
 
 // 現在のサービス及びサービス数を取得する
-// サービスのインデックスが返る。エラー時は-1が返る
-// pNumServices が NULL でない場合は、サービスの数が返される
+// サービスのインデックスが返る。エラー時は-1が返ります。
+// pNumServices が NULL でない場合は、サービスの数が返されます。
 inline int MsgGetService(PluginParam *pParam,int *pNumServices=NULL) {
 	return (int)(*pParam->Callback)(pParam,MESSAGE_GETSERVICE,(LPARAM)pNumServices,0);
 }
@@ -436,16 +452,17 @@ inline bool MsgSetService(PluginParam *pParam,int Service,bool fByID=false) {
 }
 
 // チューニング空間名を取得する
-// チューニング空間名の長さが返る。Indexが範囲外の場合は0が返る
-// pszNameをNULLで呼べば長さだけを取得できる
+// チューニング空間名の長さが返ります。Indexが範囲外の場合は0が返ります。
+// pszNameをNULLで呼べば長さだけを取得できます。
 inline int MsgGetTuningSpaceName(PluginParam *pParam,int Index,LPWSTR pszName,int MaxLength) {
 	return (int)(*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACENAME,(LPARAM)pszName,MAKELPARAM(Index,min(MaxLength,0xFFFF)));
 }
 
 // チャンネルの情報を取得する
-// 事前に ChannelInfo の Size メンバを設定しておく
-// szNetworkName,szTransportStreamName は MESSAGE_GETCURRENTCHANNEL でしか取得できない
-// NetworkID,TransportStreamID は取得できたりできなかったり(取得できなかった場合は0)
+// 事前に ChannelInfo の Size メンバを設定しておきます。
+// szNetworkName,szTransportStreamName は MESSAGE_GETCURRENTCHANNEL でしか取得できません。
+// NetworkID,TransportStreamID はチャンネルスキャンしていないと取得できません。
+// 取得できなかった場合は0になります。
 inline bool MsgGetChannelInfo(PluginParam *pParam,int Space,int Index,ChannelInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCHANNELINFO,(LPARAM)pInfo,MAKELPARAM(Space,Index))!=0;
 }
@@ -458,19 +475,19 @@ struct ServiceInfo {
 	int NumAudioPIDs;			// 音声PIDの数
 	WORD AudioPID[4];			// 音声ストリームのPID
 	WCHAR szServiceName[32];	// サービス名
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 	BYTE AudioComponentType[4];	// 音声コンポーネントタイプ
 	WORD SubtitlePID;			// 字幕ストリームのPID(無い場合は0)
 	WORD Reserved;				// 予約
 #endif
 };
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 enum { SERVICEINFO_SIZE_V1=TVTEST_OFFSETOF(ServiceInfo,AudioComponentType) };
 #endif
 
 // サービスの情報を取得する
-// 事前にServiceInfoのSizeメンバを設定しておく
+// 事前にServiceInfoのSizeメンバを設定しておきます。
 inline bool MsgGetServiceInfo(PluginParam *pParam,int Index,ServiceInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETSERVICEINFO,Index,(LPARAM)pInfo)!=0;
 }
@@ -492,10 +509,10 @@ inline bool MsgSetDriverName(PluginParam *pParam,LPCWSTR pszName) {
 
 // 録画情報のマスク
 enum {
-	RECORD_MASK_FLAGS		=0x00000001UL,
-	RECORD_MASK_FILENAME	=0x00000002UL,
-	RECORD_MASK_STARTTIME	=0x00000004UL,
-	RECORD_MASK_STOPTIME	=0x00000008UL
+	RECORD_MASK_FLAGS		=0x00000001UL,	// Flags が有効
+	RECORD_MASK_FILENAME	=0x00000002UL,	// pszFileName が有効
+	RECORD_MASK_STARTTIME	=0x00000004UL,	// StartTime が有効
+	RECORD_MASK_STOPTIME	=0x00000008UL	// StopTime が有効
 };
 
 // 録画フラグ
@@ -523,6 +540,7 @@ struct RecordInfo {
 	DWORD Mask;				// マスク(RECORD_MASK_???)
 	DWORD Flags;			// フラグ(RECORD_FLAG_???)
 	LPWSTR pszFileName;		// ファイル名(NULLでデフォルト)
+							// %～% で囲まれた置換キーワードを使用できます
 	int MaxFileName;		// ファイル名の最大長(MESSAGE_GETRECORDのみで使用)
 	FILETIME ReserveTime;	// 録画予約された時刻(MESSAGE_GETRECORDのみで使用)
 	DWORD StartTimeSpec;	// 録画開始時間の指定方法(RECORD_START_???)
@@ -542,7 +560,7 @@ struct RecordInfo {
 };
 
 // 録画を開始する
-// pInfo が NULL で即時録画開始
+// pInfo が NULL で即時録画開始します。
 inline bool MsgStartRecord(PluginParam *pParam,const RecordInfo *pInfo=NULL) {
 	return (*pParam->Callback)(pParam,MESSAGE_STARTRECORD,(LPARAM)pInfo,0)!=0;
 }
@@ -558,6 +576,7 @@ inline bool MsgPauseRecord(PluginParam *pParam,bool fPause=true) {
 }
 
 // 録画設定を取得する
+// 事前に RecordInfo の Size メンバを設定しておきます。
 inline bool MsgGetRecord(PluginParam *pParam,RecordInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETRECORD,(LPARAM)pInfo,0)!=0;
 }
@@ -624,18 +643,18 @@ struct StatusInfo {
 	DWORD ErrorPacketCount;				// エラーパケット数
 										// DropPacketCount も含まれる
 	DWORD ScramblePacketCount;			// 復号漏れパケット数
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 	DWORD DropPacketCount;				// ドロップパケット数
 	DWORD BcasCardStatus;				// B-CAS カードの状態(BCAS_STATUS_???)
 #endif
 };
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 enum { STATUSINFO_SIZE_V1=TVTEST_OFFSETOF(StatusInfo,DropPacketCount) };
 #endif
 
 // ステータスを取得する
-// 事前にStatusInfoのSizeメンバを設定しておく
+// 事前にStatusInfoのSizeメンバを設定しておきます。
 inline bool MsgGetStatus(PluginParam *pParam,StatusInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETSTATUS,(LPARAM)pInfo,0)!=0;
 }
@@ -651,20 +670,30 @@ enum {
 struct RecordStatusInfo {
 	DWORD Size;				// 構造体のサイズ
 	DWORD Status;			// 状態(RECORD_STATUS_???)
-	FILETIME StartTime;		// 録画開始時間(ローカル時間)
+	FILETIME StartTime;		// 録画開始時刻(ローカル時刻)
 	DWORD RecordTime;		// 録画時間(ms) 一時停止中を含まない
 	DWORD PauseTime;		// 一時停止時間(ms)
 	DWORD StopTimeSpec;		// 録画停止時間の指定方法(RECORD_STOP_???)
 	union {
-		FILETIME Time;		// 録画停止時間(StopTimeSpec==RECORD_STOP_TIME)
-							// ローカル時間
-		ULONGLONG Duration;	// 録画停止時間(StopTimeSpec==RECORD_STOP_DURATION)
-							// 開始時間(StartTime)からのミリ秒
+		FILETIME Time;		// 録画停止予定時刻(StopTimeSpec==RECORD_STOP_TIME)
+							// (ローカル時刻)
+		ULONGLONG Duration;	// 録画停止までの時間(StopTimeSpec==RECORD_STOP_DURATION)
+							// 開始時刻(StartTime)からミリ秒単位
 	} StopTime;
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+	LPWSTR pszFileName;		// ファイルパス
+	int MaxFileName;		// ファイルパスの最大長
+	RecordStatusInfo() : pszFileName(NULL), MaxFileName(0) {}
+#endif
 };
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+enum { RECORDSTATUSINFO_SIZE_V1=TVTEST_OFFSETOF(RecordStatusInfo,pszFileName) };
+#endif
+
 // 録画ステータスを取得する
-// 事前にRecordStatusInfoのSizeメンバを設定しておく
+// 事前に RecordStatusInfo の Size メンバを設定しておきます。
+// ファイル名を取得する場合は pszFileName と MaxFileName メンバを設定しておきます。
 inline bool MsgGetRecordStatus(PluginParam *pParam,RecordStatusInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETRECORDSTATUS,(LPARAM)pInfo,0)!=0;
 }
@@ -680,7 +709,7 @@ struct VideoInfo {
 };
 
 // 映像の情報を取得する
-// 事前にVideoInfoのSizeメンバを設定しておく
+// 事前にVideoInfoのSizeメンバを設定しておきます。
 inline bool MsgGetVideoInfo(PluginParam *pParam,VideoInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETVIDEOINFO,(LPARAM)pInfo,0)!=0;
 }
@@ -776,7 +805,7 @@ inline bool MsgSaveImage(PluginParam *pParam) {
 }
 
 // リセットを行う
-#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_(0,0,9)
 inline bool MsgReset(PluginParam *pParam) {
 	return (*pParam->Callback)(pParam,MESSAGE_RESET,0,0)!=0;
 }
@@ -820,7 +849,7 @@ struct StreamCallbackInfo {
 
 // ストリームコールバックを設定する
 // ストリームコールバック関数で処理が遅延すると全体が遅延するので、
-// 時間が掛かる処理は別スレッドで行うなどしてください
+// 時間が掛かる処理は別スレッドで行うなどしてください。
 inline bool MsgSetStreamCallback(PluginParam *pParam,DWORD Flags,
 					StreamCallbackFunc Callback,void *pClientData=NULL) {
 	StreamCallbackInfo Info;
@@ -890,7 +919,7 @@ inline bool MsgGetCurrentProgramInfo(PluginParam *pParam,ProgramInfo *pInfo,bool
 	return (*pParam->Callback)(pParam,MESSAGE_GETCURRENTPROGRAMINFO,(LPARAM)pInfo,fNext)!=0;
 }
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
 
 // 指定されたイベントに対応しているか取得する
 inline bool MsgQueryEvent(PluginParam *pParam,UINT Event) {
@@ -919,7 +948,7 @@ struct TuningSpaceInfo {
 };
 
 // チューニング空間の情報を取得する
-// 事前に TuningSpaceInfo の Size メンバを設定しておく
+// 事前に TuningSpaceInfo の Size メンバを設定しておきます。
 inline bool MsgGetTuningSpaceInfo(PluginParam *pParam,int Index,TuningSpaceInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACENAME,Index,(LPARAM)pInfo)!=0;
 }
@@ -930,12 +959,12 @@ inline bool MsgSetNextChannel(PluginParam *pParam,bool fNext=true)
 	return (*pParam->Callback)(pParam,MESSAGE_SETNEXTCHANNEL,fNext,0)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 
 // 現在の音声ストリームを取得する
-// 音声ストリームの数は MESSAGE_GETSERVICEINFO で取得できる
+// 音声ストリームの数は MESSAGE_GETSERVICEINFO で取得できます。
 inline int MsgGetAudioStream(PluginParam *pParam)
 {
 	return (int)(*pParam->Callback)(pParam,MESSAGE_GETAUDIOSTREAM,0,0);
@@ -947,9 +976,9 @@ inline bool MsgSetAudioStream(PluginParam *pParam,int Index)
 	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOSTREAM,Index,0)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 
 // プラグインの有効状態を取得する
 inline bool MsgIsPluginEnabled(PluginParam *pParam)
@@ -994,9 +1023,9 @@ inline bool MsgAddLog(PluginParam *pParam,LPCWSTR pszText)
 	return (*pParam->Callback)(pParam,MESSAGE_ADDLOG,(LPARAM)pszText,0)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 
 // ステータス(MESSAGE_GETSTATUS で取得できる内容)をリセットする
 // リセットが行われると EVENT_STATUSRESET が送られます。
@@ -1005,16 +1034,16 @@ inline bool MsgResetStatus(PluginParam *pParam)
 	return (*pParam->Callback)(pParam,MESSAGE_RESETSTATUS,0,0)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,6)
 
 // 音声サンプルのコールバック関数
 // 48kHz / 16ビット固定
-// pData の先には Samples * Channels 分のデータが入っている
+// pData の先には Samples * Channels 分のデータが入っています。
 // 今のところ、5.1chをダウンミックスする設定になっている場合
-// ダウンミックスされたデータが渡されるが、そのうち仕様を変えるかも知れない
-// 戻り値は今のところ常に0を返す
+// ダウンミックスされたデータが渡されますが、そのうち仕様を変えるかも知れません。
+// 戻り値は今のところ常に0を返します。
 typedef LRESULT (CALLBACK *AudioCallbackFunc)(short *pData,DWORD Samples,int Channels,void *pClientData);
 
 // 音声のサンプルを取得するコールバック関数を設定する
@@ -1024,9 +1053,9 @@ inline bool MsgSetAudioCallback(PluginParam *pParam,AudioCallbackFunc pCallback,
 	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOCALLBACK,(LPARAM)pCallback,(LPARAM)pClientData)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,6)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,7)
 
 // コマンドを実行する
 // 文字列を指定してコマンドを実行します。
@@ -1037,9 +1066,9 @@ inline bool MsgDoCommand(PluginParam *pParam,LPCWSTR pszCommand)
 	return (*pParam->Callback)(pParam,MESSAGE_DOCOMMAND,(LPARAM)pszCommand,0)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,7)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,8)
 
 // B-CAS の情報
 struct BCasInfo {
@@ -1107,6 +1136,7 @@ struct HostInfo {
 	} Version;
 	LPCWSTR pszVersionText;			// バージョン文字列 ("1.2.0" など)
 	DWORD SupportedPluginVersion;	// 対応しているプラグインのバージョン
+									// TVTEST_PLUGIN_VERSION_(?,?,?)
 };
 
 // ホストプログラムの情報を取得する
@@ -1116,9 +1146,9 @@ inline bool MsgGetHostInfo(PluginParam *pParam,HostInfo *pInfo)
 	return (*pParam->Callback)(pParam,MESSAGE_GETHOSTINFO,(LPARAM)pInfo,0)!=0;
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,8)
 
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
 
 // 設定の情報
 struct SettingInfo {
@@ -1149,6 +1179,7 @@ enum SettingType {
 	設定名                内容                                型
 	DriverDirectory       BonDriver の検索ディレクトリ        文字列
 	IniFilePath           Ini ファイルのパス                  文字列
+	RecordFolder          録画時の保存先フォルダ              文字列
 */
 
 // 設定を取得する
@@ -1193,7 +1224,7 @@ inline bool MsgGetSetting(PluginParam *pParam,LPCWSTR pszName,unsigned int *pVal
 /*
 	// 例
 	WCHAR szIniPath[MAX_PATH];
-	if (MsgGetSetting(pParam, L"IniFilePath", szIniPath, MAX_PATH)>0) {
+	if (MsgGetSetting(pParam, L"IniFilePath", szIniPath, MAX_PATH) > 0) {
 		// 呼び出しが成功した場合は、szIniPath に Ini ファイルのパスが格納されています
 	}
 */
@@ -1217,7 +1248,98 @@ inline int MsgGetDriverFullPathName(PluginParam *pParam,LPWSTR pszPath,int MaxLe
 	return (int)(*pParam->Callback)(pParam,MESSAGE_GETDRIVERFULLPATHNAME,(LPARAM)pszPath,MaxLength);
 }
 
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+
+// ロゴの画像を取得する
+// LogoTypeは0から5までで指定します。以下のサイズのロゴが取得されます。
+// 0 = 48x24 / 1 = 36x24 / 2 = 48x27 / 3 = 72x36 / 4 = 54x36 / 5 = 64x36
+// いずれのロゴも16:9で表示すると本来の比率になります。
+// 画像が取得できた場合はビットマップ(DIBセクション)のハンドルが返ります。
+// 画像が取得できない場合はNULLが返ります。
+// ビットマップは不要になった時にDeleteObject()で破棄してください。
+inline HBITMAP MsgGetLogo(PluginParam *pParam,WORD NetworkID,WORD ServiceID,BYTE LogoType)
+{
+	return (HBITMAP)(*pParam->Callback)(pParam,MESSAGE_GETLOGO,MAKELONG(NetworkID,ServiceID),LogoType);
+}
+
+// 利用可能なロゴの種類を取得する
+// 利用可能なロゴを表すフラグが返ります。
+// 下位から1ビットごとにLogoTypeの0から5までを表し、ビットが1であればその種類のロゴが利用できます。
+/*
+	// 例
+	if (MsgGetAvailableLogoType(pParam, NetworkID, ServiceID) & 1) {
+		// タイプ0のロゴが利用できる
+	}
+*/
+inline UINT MsgGetAvailableLogoType(PluginParam *pParam,WORD NetworkID,WORD ServiceID)
+{
+	return (UINT)(*pParam->Callback)(pParam,MESSAGE_GETAVAILABLELOGOTYPE,MAKELONG(NetworkID,ServiceID),0);
+}
+
+// 録画ファイルを切り替える
+// 現在録画中のファイルを閉じて、指定されたパスにファイルを作成して続きを録画するようにします。
+// 新しいファイルが開けなかった場合は、今までのファイルで録画が継続されます。
+inline bool MsgRelayRecord(PluginParam *pParam,LPCWSTR pszFileName)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_RELAYRECORD,(LPARAM)pszFileName,0)!=0;
+}
+
+// サイレントモードの取得
+// サイレントモードであるか取得します。
+// サイレントモードではエラー時などにダイアログが出なくなります。
+// コマンドラインで /silent を指定するか、MsgSetSilentMode で設定すればサイレントモードになります。
+inline bool MsgGetSilentMode(PluginParam *pParam)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_SILENTMODE,0,0)!=0;
+}
+
+// サイレントモードの設定
+// サイレントモードの有効/無効を設定します。
+inline bool MsgSetSilentMode(PluginParam *pParam,bool fSilent)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_SILENTMODE,1,(LPARAM)fSilent)!=0;
+}
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+
+
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+
+// 録画のクライアント
+enum {
+	RECORD_CLIENT_USER,			// ユーザーの操作
+	RECORD_CLIENT_COMMANDLINE,	// コマンドラインでの指定
+	RECORD_CLIENT_PLUGIN		// プラグインからの指定
+};
+
+// 録画開始情報で変更した項目
+enum {
+	STARTRECORD_MODIFIED_FILENAME	=0x00000001UL	// ファイル名
+};
+
+// 録画開始情報
+struct StartRecordInfo {
+	DWORD Size;				// 構造体のサイズ
+	DWORD Flags;			// フラグ(現在未使用)
+	DWORD Modified;			// 変更した項目(STARTRECORD_MODIFIED_???)
+	DWORD Client;			// 録画のクライアント(RECORD_CLIENT_???)
+	LPWSTR pszFileName;		// ファイル名
+	int MaxFileName;		// ファイル名の最大長
+	DWORD StartTimeSpec;	// 開始時間の指定方法(RECORD_START_???)
+	FILETIME StartTime;		// 指定された開始時刻(ローカル時刻)
+							// StartTimeSpec!=RECORD_START_NOTSPECIFIED の場合のみ有効
+	DWORD StopTimeSpec;		// 停止時間の指定方法(RECORD_STOP_???)
+	union {
+		FILETIME Time;		// 停止時刻(StopTimeSpec==RECORD_STOP_TIME)
+							// ローカル時刻
+		ULONGLONG Duration;	// 録画停止までの時間(StopTimeSpec==RECORD_STOP_DURATION)
+							// 開始時刻からのミリ秒
+	} StopTime;
+};
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
 
 
 /*
@@ -1260,7 +1382,7 @@ public:
 		pInfo->Size=sizeof(ChannelInfo);
 		return MsgGetCurrentChannelInfo(m_pParam,pInfo);
 	}
-#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_8
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_(0,0,8)
 	bool SetChannel(int Space,int Channel) {
 		return MsgSetChannel(m_pParam,Space,Channel);
 	}
@@ -1330,7 +1452,14 @@ public:
 		return MsgGetStatus(m_pParam,pInfo);
 	}
 	bool GetRecordStatus(RecordStatusInfo *pInfo) {
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_(0,0,10)
 		pInfo->Size=sizeof(RecordStatusInfo);
+#else
+		if (pInfo->pszFileName!=NULL)
+			pInfo->Size=sizeof(RecordStatusInfo);
+		else
+			pInfo->Size=RECORDSTATUSINFO_SIZE_V1;
+#endif
 		return MsgGetRecordStatus(m_pParam,pInfo);
 	}
 	bool GetVideoInfo(VideoInfo *pInfo) {
@@ -1385,7 +1514,7 @@ public:
 	bool SaveImage() {
 		return MsgSaveImage(m_pParam);
 	}
-#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION<TVTEST_PLUGIN_VERSION_(0,0,9)
 	bool Reset() {
 		return MsgReset(m_pParam);
 	}
@@ -1414,7 +1543,7 @@ public:
 		pInfo->Size=sizeof(ProgramInfo);
 		return MsgGetCurrentProgramInfo(m_pParam,pInfo,fNext);
 	}
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_1
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
 	bool QueryEvent(UINT Event) {
 		return MsgQueryEvent(m_pParam,Event);
 	}
@@ -1429,7 +1558,7 @@ public:
 		return MsgSetNextChannel(m_pParam,fNext);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_2
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,2)
 	int GetAudioStream() {
 		return MsgGetAudioStream(m_pParam);
 	}
@@ -1437,7 +1566,7 @@ public:
 		return MsgSetAudioStream(m_pParam,Index);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 	bool IsPluginEnabled() {
 		return MsgIsPluginEnabled(m_pParam);
 	}
@@ -1451,22 +1580,22 @@ public:
 		return MsgAddLog(m_pParam,pszText);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 	bool ResetStatus() {
 		return MsgResetStatus(m_pParam);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_6
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,6)
 	bool SetAudioCallback(AudioCallbackFunc pCallback,void *pClientData=NULL) {
 		return MsgSetAudioCallback(m_pParam,pCallback,pClientData);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_7
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,7)
 	bool DoCommand(LPCWSTR pszCommand) {
 		return MsgDoCommand(m_pParam,pszCommand);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_8
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,8)
 	bool GetBCasInfo(BCasInfo *pInfo) {
 		pInfo->Size=sizeof(BCasInfo);
 		return MsgGetBCasInfo(m_pParam,pInfo);
@@ -1482,7 +1611,7 @@ public:
 		return MsgGetHostInfo(m_pParam,pInfo);
 	}
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
 	bool GetSetting(SettingInfo *pInfo) {
 		return MsgGetSetting(m_pParam,pInfo);
 	}
@@ -1497,6 +1626,23 @@ public:
 	}
 	int GetDriverFullPathName(LPWSTR pszPath,int MaxLength) {
 		return MsgGetDriverFullPathName(m_pParam,pszPath,MaxLength);
+	}
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+	HBITMAP GetLogo(WORD NetworkID,WORD ServiceID,BYTE LogoType) {
+		return MsgGetLogo(m_pParam,NetworkID,ServiceID,LogoType);
+	}
+	UINT GetAvailableLogoType(WORD NetworkID,WORD ServiceID) {
+		return MsgGetAvailableLogoType(m_pParam,NetworkID,ServiceID);
+	}
+	bool RelayRecord(LPCWSTR pszFileName) {
+		return MsgRelayRecord(m_pParam,pszFileName);
+	}
+	bool GetSilentMode() {
+		return MsgGetSilentMode(m_pParam);
+	}
+	bool SetSilentMode(bool fSilent) {
+		return MsgSetSilentMode(m_pParam,fSilent);
 	}
 #endif
 };
@@ -1592,17 +1738,17 @@ protected:
 	virtual bool OnStereoModeChange(int StereoMode) { return false; }
 	// 色の設定が変化した
 	virtual bool OnColorChange() { return false; }
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 	// 待機状態が変化した
 	virtual bool OnStandby(bool fStandby) { return false; }
 	// コマンドが選択された
 	virtual bool OnCommand(int ID) { return false; }
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,4)
 	// 複数起動禁止時に複数起動された
 	virtual bool OnExecute(LPCWSTR pszCommandLine) { return false; }
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 	// リセットされた
 	virtual bool OnReset() { return false; }
 	// ステータス(MESSAGE_GETSTUATUSで取得できる内容)がリセットされた
@@ -1610,9 +1756,17 @@ protected:
 	// 音声ストリームが変更された
 	virtual bool OnAudioStreamChange(int Stream) { return false; }
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
 	// 設定が変更された
 	virtual bool OnSettingsChange() { return false; }
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+	// TVTestのウィンドウが閉じられる
+	virtual bool OnClose() { return false; }
+	// 録画が開始される
+	virtual bool OnStartRecord(StartRecordInfo *pInfo) { return false; }
+	// 録画ファイルの切り替えが行われた
+	virtual bool OnRelayRecord(LPCWSTR pszFileName) { return false; }
 #endif
 public:
 	virtual ~CTVTestEventHandler() {}
@@ -1631,20 +1785,25 @@ public:
 		case EVENT_VOLUMECHANGE:		return OnVolumeChange((int)lParam1,lParam2!=0);
 		case EVENT_STEREOMODECHANGE:	return OnStereoModeChange((int)lParam1);
 		case EVENT_COLORCHANGE:			return OnColorChange();
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_3
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,3)
 		case EVENT_STANDBY:				return OnStandby(lParam1!=0);
 		case EVENT_COMMAND:				return OnCommand((int)lParam1);
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_4
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,4)
 		case EVENT_EXECUTE:				return OnExecute((LPCWSTR)lParam1);
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_5
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,5)
 		case EVENT_RESET:				return OnReset();
 		case EVENT_STATUSRESET:			return OnStatusReset();
 		case EVENT_AUDIOSTREAMCHANGE:	return OnAudioStreamChange((int)lParam1);
 #endif
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_0_0_9
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,9)
 		case EVENT_SETTINGSCHANGE:		return OnSettingsChange();
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
+		case EVENT_CLOSE:				return OnClose();
+		case EVENT_STARTRECORD:			return OnStartRecord((StartRecordInfo*)lParam1);
+		case EVENT_RELAYRECORD:			return OnRelayRecord((LPCWSTR)lParam1);
 #endif
 		}
 		return 0;
@@ -1677,6 +1836,7 @@ public:
 		...
 	};
 
+	// クラスのインスタンスを生成する
 	TVTest::CTVTestPlugin *CreatePluginClass()
 	{
 		return new CMyPluginClass;

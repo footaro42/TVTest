@@ -68,7 +68,7 @@ const DWORD CFileReader::ReadSync(const DWORD dwReadSize)
 	if(!dwReqSize)return 0UL;
 
 	// バッファ確保
-	m_ReadBuffer.SetSize(dwReadSize);
+	m_ReadBuffer.SetSize(dwReqSize);
 
 	// ファイル読み込み
 	if(m_InFile.Read(m_ReadBuffer.GetData(), dwReqSize) != dwReqSize)return 0UL;

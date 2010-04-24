@@ -55,6 +55,7 @@ private:
 	DWORD m_StreamRemain;
 	DWORD m_PacketBufferUsedCount;
 	UINT m_TimerResolution;
+	bool m_fNoEpg;
 
 	bool OpenCardReader(CardReaderType Type,LPCTSTR pszReaderName=NULL);
 
@@ -148,6 +149,7 @@ public:
 	bool GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID=0xFFFF,bool fNext=false);
 	void *GetCurrentImage();
 	bool SetMinTimerResolution(bool fMin);
+	bool SetNoEpg(bool fNoEpg) { m_fNoEpg=fNoEpg; return true; }
 //private:
 	CDtvEngine m_DtvEngine;
 };

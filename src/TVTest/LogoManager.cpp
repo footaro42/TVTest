@@ -52,6 +52,18 @@ struct LogoImageHeader {
 #include <poppack.h>
 
 
+static int CompareLogoVersion(WORD Version1,WORD Version2)
+{
+	if (Version1==Version2)
+		return 0;
+	if ((Version1<=2047 && Version2<=2047) || (Version1>=2048 && Version2>=2048))
+		return Version1<Version2?-1:1;
+	if (Version1<=2047)
+		return 1;
+	return -1;
+}
+
+
 
 
 CLogoManager::CLogoManager()
@@ -72,9 +84,9 @@ CLogoManager::~CLogoManager()
 
 void CLogoManager::Clear()
 {
-	for (LogoMap::iterator itr=m_LogoList.begin();itr!=m_LogoList.end();itr++)
+	for (LogoMap::iterator itr=m_LogoMap.begin();itr!=m_LogoMap.end();itr++)
 		delete itr->second;
-	m_LogoList.clear();
+	m_LogoMap.clear();
 }
 
 
@@ -107,6 +119,8 @@ bool CLogoManager::SetSaveLogoBmp(bool fSave)
 
 bool CLogoManager::AssociateLogoID(WORD NetworkID,WORD ServiceID,WORD LogoID)
 {
+	CBlockLock Lock(&m_Lock);
+
 	m_LogoIDMap[GetIDMapKey(NetworkID,ServiceID)]=LogoID;
 	return true;
 }
@@ -116,7 +130,7 @@ bool CLogoManager::SaveLogoFile(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
 
-	if (m_LogoList.empty())
+	if (m_LogoMap.empty())
 		return false;
 
 	// ファイルが読み込んだ時から更新されている場合読み込み直す
@@ -144,12 +158,12 @@ bool CLogoManager::SaveLogoFile(LPCTSTR pszFileName)
 	LogoFileHeader FileHeader;
 	::CopyMemory(FileHeader.Type,LOGOFILEHEADER_TYPE,8);
 	FileHeader.Version=LOGOFILEHEADER_VERSION;
-	FileHeader.NumImages=(DWORD)m_LogoList.size();
+	FileHeader.NumImages=(DWORD)m_LogoMap.size();
 	if (!::WriteFile(hFile,&FileHeader,sizeof(FileHeader),&Write,NULL)
 			|| Write!=sizeof(FileHeader))
 		goto OnError;
 
-	for (LogoMap::const_iterator itr=m_LogoList.begin();itr!=m_LogoList.end();itr++) {
+	for (LogoMap::const_iterator itr=m_LogoMap.begin();itr!=m_LogoMap.end();itr++) {
 		LogoImageHeader ImageHeader;
 
 		ImageHeader.OriginalNetworkID=itr->second->GetOriginalNetworkID();
@@ -240,17 +254,17 @@ bool CLogoManager::LoadLogoFile(LPCTSTR pszFileName)
 		Data.pData=pBuffer;
 
 		ULONGLONG Key=GetMapKey(Data.OriginalNetworkID,Data.LogoID,Data.LogoType);
-		LogoMap::iterator itr=m_LogoList.find(Key);
+		LogoMap::iterator itr=m_LogoMap.find(Key);
 		CLogoData *pLogoData;
-		if (itr!=m_LogoList.end()) {
-			if (itr->second->GetLogoVersion()<Data.LogoVersion) {
+		if (itr!=m_LogoMap.end()) {
+			if (CompareLogoVersion(itr->second->GetLogoVersion(),Data.LogoVersion)<0) {
 				delete itr->second;
 				pLogoData=new CLogoData(&Data);
-				m_LogoList[Key]=pLogoData;
+				m_LogoMap[Key]=pLogoData;
 			}
 		} else {
 			pLogoData=new CLogoData(&Data);
-			m_LogoList.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
+			m_LogoMap.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
 		}
 	}
 	delete [] pBuffer;
@@ -260,8 +274,10 @@ bool CLogoManager::LoadLogoFile(LPCTSTR pszFileName)
 }
 
 
-bool CLogoManager::SaveLogoIDMap(LPCTSTR pszFileName) const
+bool CLogoManager::SaveLogoIDMap(LPCTSTR pszFileName)
 {
+	CBlockLock Lock(&m_Lock);
+
 	for (LogoIDMap::const_iterator itr=m_LogoIDMap.begin();itr!=m_LogoIDMap.end();itr++) {
 		TCHAR szKey[16],szText[16];
 
@@ -275,6 +291,8 @@ bool CLogoManager::SaveLogoIDMap(LPCTSTR pszFileName) const
 
 bool CLogoManager::LoadLogoIDMap(LPCTSTR pszFileName)
 {
+	CBlockLock Lock(&m_Lock);
+
 	m_LogoIDMap.clear();
 
 	LPTSTR pszSection=new TCHAR[32767];
@@ -315,20 +333,20 @@ HBITMAP CLogoManager::GetLogoBitmap(WORD OriginalNetworkID,WORD LogoID,BYTE Logo
 		const BYTE *pPriority=LogoType==LOGOTYPE_SMALL?SmallLogoPriority:BigLogoPriority;
 		for (BYTE i=0;i<=5;i++) {
 			Key=GetMapKey(OriginalNetworkID,LogoID,pPriority[i]);
-			itr=m_LogoList.find(Key);
-			if (itr!=m_LogoList.end())
+			itr=m_LogoMap.find(Key);
+			if (itr!=m_LogoMap.end())
 				break;
 		}
-		if (itr==m_LogoList.end())
+		if (itr==m_LogoMap.end())
 			LogoType=pPriority[0];
 	} else {
 		Key=GetMapKey(OriginalNetworkID,LogoID,LogoType);
-		itr=m_LogoList.find(Key);
+		itr=m_LogoMap.find(Key);
 	}
-	if (itr==m_LogoList.end()) {
+	if (itr==m_LogoMap.end()) {
 		CLogoData *pLogoData=LoadLogoData(OriginalNetworkID,LogoID,LogoType);
 		if (pLogoData!=NULL) {
-			m_LogoList.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
+			m_LogoMap.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
 			m_fUpdated=true;
 			return pLogoData->GetBitmap(&m_ImageCodec);
 		}
@@ -352,8 +370,8 @@ const CGdiPlus::CImage *CLogoManager::GetLogoImage(WORD OriginalNetworkID,WORD L
 {
 	CBlockLock Lock(&m_Lock);
 	ULONGLONG Key=GetMapKey(OriginalNetworkID,LogoID,LogoType);
-	LogoMap::iterator itr=m_LogoList.find(Key);
-	if (itr==m_LogoList.end())
+	LogoMap::iterator itr=m_LogoMap.find(Key);
+	if (itr==m_LogoMap.end())
 		return NULL;
 	return itr->second->GetImage(&m_ImageCodec);
 }
@@ -369,27 +387,64 @@ const CGdiPlus::CImage *CLogoManager::GetAssociatedLogoImage(WORD NetworkID,WORD
 }
 
 
-void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
+bool CLogoManager::IsLogoAvailable(WORD NetworkID,WORD ServiceID,BYTE LogoType)
+{
+	CBlockLock Lock(&m_Lock);
+	LogoMap::iterator itr=m_LogoMap.find(GetMapKey(NetworkID,ServiceID,LogoType));
+	return itr!=m_LogoMap.end();
+}
+
+
+DWORD CLogoManager::GetAvailableLogoType(WORD NetworkID,WORD ServiceID)
 {
 	CBlockLock Lock(&m_Lock);
 
+	LogoIDMap::const_iterator itrID=m_LogoIDMap.find(GetIDMapKey(NetworkID,ServiceID));
+	if (itrID==m_LogoIDMap.end())
+		return 0;
+	const WORD LogoID=itrID->second;
+	DWORD Flags=0;
+	for (BYTE i=0;i<=5;i++) {
+		LogoMap::const_iterator itrLogo=m_LogoMap.find(GetMapKey(NetworkID,LogoID,i));
+		if (itrLogo!=m_LogoMap.end())
+			Flags|=1<<i;
+	}
+	return Flags;
+}
+
+
+void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
+{
+	// 透明なロゴは除外
+	if (pData->DataSize<=93)
+		return;
+
+	CBlockLock Lock(&m_Lock);
+
 	ULONGLONG Key=GetMapKey(pData->OriginalNetworkID,pData->LogoID,pData->LogoType);
-	LogoMap::iterator itr=m_LogoList.find(Key);
+	LogoMap::iterator itr=m_LogoMap.find(Key);
 	CLogoData *pLogoData;
-	if (itr!=m_LogoList.end()) {
+	if (itr!=m_LogoMap.end()) {
 		// バージョンが新しい場合のみ更新
-		if (itr->second->GetLogoVersion()<pData->LogoVersion) {
+		if (CompareLogoVersion(itr->second->GetLogoVersion(),pData->LogoVersion)<0) {
 			delete itr->second;
 			pLogoData=new CLogoData(pData);
-			m_LogoList[Key]=pLogoData;
+			m_LogoMap[Key]=pLogoData;
 			m_fUpdated=true;
 		} else {
 			return;
 		}
 	} else {
 		pLogoData=new CLogoData(pData);
-		m_LogoList.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
+		m_LogoMap.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
 		m_fUpdated=true;
+	}
+
+	if (pData->ServiceList.size()>0) {
+		for (size_t i=0;i<pData->ServiceList.size();i++) {
+			const CLogoDownloader::LogoService &Service=pData->ServiceList[i];
+			m_LogoIDMap[GetIDMapKey(Service.OriginalNetworkID,Service.ServiceID)]=pData->LogoID;
+		}
 	}
 
 	if (m_fSaveLogo || m_fSaveBmp) {

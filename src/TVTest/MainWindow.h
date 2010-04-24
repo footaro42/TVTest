@@ -17,7 +17,7 @@
 
 #define MAIN_TITLE_TEXT APP_NAME
 
-#define WM_APP_SERVICEUPDATE	WM_APP
+#define WM_APP_SERVICEUPDATE	(WM_APP+0)
 #define WM_APP_CHANNELCHANGE	(WM_APP+1)
 #define WM_APP_IMAGESAVE		(WM_APP+2)
 #define WM_APP_TRAYICON			(WM_APP+3)
@@ -27,7 +27,7 @@
 #define WM_APP_VIDEOSIZECHANGED	(WM_APP+7)
 #define WM_APP_EMMPROCESSED		(WM_APP+8)
 #define WM_APP_ECMERROR			(WM_APP+9)
-#define WM_APP_EPGFILELOADED	(WM_APP+10)
+#define WM_APP_EPGLOADED		(WM_APP+10)
 #define WM_APP_TVTESTACTIVE		(WM_APP+11)
 
 enum {
@@ -42,10 +42,10 @@ class CFullscreen : public CBasicWindow
 	CViewWindow m_ViewWindow;
 	CVideoContainerWindow *m_pVideoContainer;
 	CViewWindow *m_pViewWindow;
+	CDisplayBase *m_pDisplayBase;
 	CTitleBar m_TitleBar;
 	CPanel m_Panel;
 	class CPanelEventHandler : public CPanel::CEventHandler {
-	public:
 		bool OnClose();
 	};
 	CPanelEventHandler m_PanelEventHandler;
@@ -72,7 +72,10 @@ class CFullscreen : public CBasicWindow
 public:
 	CFullscreen();
 	~CFullscreen();
-	bool Create(HWND hwndOwner,CVideoContainerWindow *pVideoContainer,CViewWindow *pViewWindow);
+	bool Create(HWND hwndOwner,
+				CVideoContainerWindow *pVideoContainer,
+				CViewWindow *pViewWindow,
+				CDisplayBase *pDisplayBase);
 	void ShowPanel(bool fShow);
 	bool IsPanelVisible() const { return m_fShowPanel; }
 	void OnRButtonDown();
@@ -90,6 +93,7 @@ class CMainWindow : public CBasicWindow
 	CSplitter m_Splitter;
 	CVideoContainerWindow m_VideoContainer;
 	CViewWindow m_ViewWindow;
+	CDisplayBase m_DisplayBase;
 	CTitleBar m_TitleBar;
 	bool m_fFullscreen;
 	CFullscreen m_Fullscreen;
@@ -145,10 +149,10 @@ class CMainWindow : public CBasicWindow
 		CVideoContainerWindow *m_pVideoContainer;
 	public:
 		CPreviewManager(CVideoContainerWindow *pVideoContainer);
-		bool EnablePreview(bool fEnable);
+		bool EnablePreview(bool fEnable,bool fHideVideoContainer);
 		bool IsPreviewEnabled() const { return m_fPreview; }
 		bool BuildMediaViewer();
-		bool CloseMediaViewer();
+		bool CloseMediaViewer(bool fHideVideoContainer);
 	};
 	CPreviewManager m_PreviewManager;
 
@@ -160,7 +164,6 @@ class CMainWindow : public CBasicWindow
 		TIMER_ID_WHEELCHANNELCHANGE_DONE,
 		TIMER_ID_PROGRAMLISTUPDATE,
 		TIMER_ID_PROGRAMGUIDEUPDATE,
-		TIMER_ID_CHANNELPANELUPDATE,
 		TIMER_ID_VIDEOSIZECHANGED,
 		TIMER_ID_RESETERRORCOUNT,
 		TIMER_ID_HIDETOOLTIP
@@ -186,8 +189,16 @@ class CMainWindow : public CBasicWindow
 		}
 		bool IsEnabled() const { return m_hwnd!=NULL; }
 	};
-	CTimer m_ChannelPanelTimer;
 	CTimer m_ResetErrorCountTimer;
+
+	class CDisplayBaseEventHandler : public CDisplayBase::CEventHandler {
+		CMainWindow *m_pMainWindow;
+		bool OnVisibleChange(bool fVisible);
+	public:
+		CDisplayBaseEventHandler(CMainWindow *pMainWindow);
+	};
+	CDisplayBaseEventHandler m_DisplayBaseEventHandler;
+	friend CDisplayBaseEventHandler;
 
 	bool OnCreate(const CREATESTRUCT *pcs);
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
@@ -281,7 +292,6 @@ public:
 	void EndProgramGuideUpdate(bool fRelease=true);
 	void BeginProgramListUpdateTimer();
 	void UpdatePanel();
-	void BeginChannelPanelUpdateTimer();
 	bool SetLogo(LPCTSTR pszFileName);
 	bool SetViewWindowEdge(bool fEdge);
 	bool GetRecordingStopOnEventEnd() const { return m_fRecordingStopOnEventEnd; }

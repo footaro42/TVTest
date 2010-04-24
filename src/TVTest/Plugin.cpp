@@ -1,10 +1,12 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "Plugin.h"
 #include "Image.h"
 #include "DialogUtil.h"
-#include "TsEncode.h"
+#include "LogoManager.h"
+#include "BonTsEngine/TsEncode.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -241,6 +243,12 @@ bool CPlugin::NotifyCommand(LPCWSTR pszCommand)
 }
 
 
+bool CPlugin::IsDisableOnStart() const
+{
+	return (m_Flags&TVTest::PLUGIN_FLAG_DISABLEONSTART)!=0;
+}
+
+
 /*
 bool CPlugin::SetFinalizeTimeout(DWORD Timeout)
 {
@@ -339,7 +347,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			CAppMain &AppMain=GetAppClass();
 
 			AppMain.OpenTuner();
-			if (pThis->m_Version<TVTEST_PLUGIN_VERSION_0_0_8) {
+			if (pThis->m_Version<TVTEST_PLUGIN_VERSION_(0,0,8)) {
 				return AppMain.SetChannel((int)lParam1,(int)lParam2);
 			} else {
 				int Channel=(SHORT)LOWORD(lParam2);
@@ -483,7 +491,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			CRecordManager::TimeSpecInfo StartTime,StopTime;
 
 			if (pInfo==NULL)
-				return App.StartRecord();
+				return App.StartRecord(NULL,NULL,NULL,CRecordManager::CLIENT_PLUGIN);
 			if (pInfo->Size!=sizeof(TVTest::RecordInfo))
 				return FALSE;
 			StartTime.Type=CRecordManager::TIME_NOTSPECIFIED;
@@ -523,7 +531,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			return App.StartRecord(
 				(pInfo->Mask&TVTest::RECORD_MASK_FILENAME)!=0?
 													pInfo->pszFileName:NULL,
-				&StartTime,&StopTime);
+				&StartTime,&StopTime,
+				CRecordManager::CLIENT_PLUGIN);
 		}
 
 	case TVTest::MESSAGE_STOPRECORD:
@@ -649,7 +658,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			return App.ModifyRecord(
 				(pInfo->Mask&TVTest::RECORD_MASK_FILENAME)!=0?pInfo->pszFileName:NULL,
 				(pInfo->Mask&TVTest::RECORD_MASK_STARTTIME)!=0?&StartTime:NULL,
-				(pInfo->Mask&TVTest::RECORD_MASK_STOPTIME)!=0?&StopTime:NULL);
+				(pInfo->Mask&TVTest::RECORD_MASK_STOPTIME)!=0?&StopTime:NULL,
+				CRecordManager::CLIENT_PLUGIN);
 
 		}
 
@@ -763,7 +773,9 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			TVTest::RecordStatusInfo *pInfo=reinterpret_cast<TVTest::RecordStatusInfo*>(lParam1);
 			const CRecordManager *pRecordManager=GetAppClass().GetRecordManager();
 
-			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::RecordStatusInfo))
+			if (pInfo==NULL
+					|| (pInfo->Size!=sizeof(TVTest::RecordStatusInfo)
+						&& pInfo->Size!=TVTest::RECORDSTATUSINFO_SIZE_V1))
 				return FALSE;
 			pInfo->Status=pRecordManager->IsRecording()?
 				(pRecordManager->IsPaused()?TVTest::RECORD_STATUS_PAUSED:
@@ -783,6 +795,17 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			}
 			pInfo->RecordTime=pRecordManager->GetRecordTime();
 			pInfo->PauseTime=pRecordManager->GetPauseTime();
+			if (pInfo->Size>TVTest::RECORDSTATUSINFO_SIZE_V1) {
+				if (pInfo->pszFileName!=NULL && pInfo->MaxFileName>0) {
+					if (pRecordManager->IsRecording()) {
+						::lstrcpyn(pInfo->pszFileName,
+								   pRecordManager->GetRecordTask()->GetFileName(),
+								   pInfo->MaxFileName);
+					} else {
+						pInfo->pszFileName[0]='\0';
+					}
+				}
+			}
 		}
 		return TRUE;
 
@@ -1248,6 +1271,14 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 					::lstrcpyn(pSetting->Value.pszString,pszPath,pSetting->ValueSize);
 				else
 					pSetting->ValueSize=(::lstrlen(pszPath)+1)*sizeof(WCHAR);
+			} else if (::lstrcmpi(pSetting->pszName,TEXT("RecordFolder"))==0) {
+				if (pSetting->Type!=TVTest::SETTING_TYPE_STRING)
+					return FALSE;
+				LPCTSTR pszFolder=GetAppClass().GetDefaultRecordFolder();
+				if (pSetting->Value.pszString!=NULL)
+					::lstrcpyn(pSetting->Value.pszString,pszFolder,pSetting->ValueSize);
+				else
+					pSetting->ValueSize=(::lstrlen(pszFolder)+1)*sizeof(WCHAR);
 			} else {
 				return FALSE;
 			}
@@ -1269,6 +1300,44 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				::lstrcpyn(pszPath,szFileName,MaxLength);
 			return ::lstrlen(szFileName);
 		}
+
+	case TVTest::MESSAGE_GETLOGO:
+		{
+			const WORD NetworkID=LOWORD(lParam1),ServiceID=HIWORD(lParam1);
+			const BYTE LogoType=(BYTE)(lParam2&0xFF);
+			CLogoManager *pLogoManager=GetAppClass().GetLogoManager();
+			HBITMAP hbm=pLogoManager->GetAssociatedLogoBitmap(NetworkID,ServiceID,LogoType);
+			if (hbm!=NULL) {
+				return reinterpret_cast<LRESULT>(::CopyImage(hbm,IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION));
+			}
+		}
+		return reinterpret_cast<LRESULT>((HBITMAP)NULL);
+
+	case TVTest::MESSAGE_GETAVAILABLELOGOTYPE:
+		{
+			const WORD NetworkID=LOWORD(lParam1),ServiceID=HIWORD(lParam1);
+			CLogoManager *pLogoManager=GetAppClass().GetLogoManager();
+
+			return pLogoManager->GetAvailableLogoType(NetworkID,ServiceID);
+		}
+
+	case TVTest::MESSAGE_RELAYRECORD:
+		{
+			LPCWSTR pszFileName=reinterpret_cast<LPCWSTR>(lParam1);
+
+			return GetAppClass().RelayRecord(pszFileName);
+		}
+
+	case TVTest::MESSAGE_SILENTMODE:
+		{
+			if (lParam1==0) {
+				return GetAppClass().IsSilent();
+			} else if (lParam1==1) {
+				GetAppClass().SetSilent(lParam2!=0);
+				return TRUE;
+			}
+		}
+		return FALSE;
 	}
 	return 0;
 }
@@ -1615,6 +1684,61 @@ bool CPluginList::SendSettingsChangeEvent()
 }
 
 
+bool CPluginList::SendCloseEvent()
+{
+	return SendEvent(TVTest::EVENT_CLOSE);
+}
+
+
+bool CPluginList::SendStartRecordEvent(const CRecordManager *pRecordManager,LPTSTR pszFileName,int MaxFileName)
+{
+	TVTest::StartRecordInfo Info;
+
+	Info.Size=sizeof(TVTest::StartRecordInfo);
+	Info.Flags=0;
+	Info.Modified=0;
+	Info.Client=(DWORD)pRecordManager->GetClient();
+	Info.pszFileName=pszFileName;
+	Info.MaxFileName=MaxFileName;
+	CRecordManager::TimeSpecInfo TimeSpec;
+	pRecordManager->GetStartTimeSpec(&TimeSpec);
+	switch (TimeSpec.Type) {
+	case CRecordManager::TIME_NOTSPECIFIED:
+		Info.StartTimeSpec=TVTest::RECORD_START_NOTSPECIFIED;
+		break;
+	case CRecordManager::TIME_DATETIME:
+		Info.StartTimeSpec=TVTest::RECORD_START_TIME;
+		break;
+	case CRecordManager::TIME_DURATION:
+		Info.StartTimeSpec=TVTest::RECORD_START_DELAY;
+		break;
+	}
+	if (TimeSpec.Type!=CRecordManager::TIME_NOTSPECIFIED)
+		pRecordManager->GetReservedStartTime(&Info.StartTime);
+	pRecordManager->GetStopTimeSpec(&TimeSpec);
+	switch (TimeSpec.Type) {
+	case CRecordManager::TIME_NOTSPECIFIED:
+		Info.StopTimeSpec=TVTest::RECORD_STOP_NOTSPECIFIED;
+		break;
+	case CRecordManager::TIME_DATETIME:
+		Info.StopTimeSpec=TVTest::RECORD_STOP_TIME;
+		Info.StopTime.Time=TimeSpec.Time.DateTime;
+		break;
+	case CRecordManager::TIME_DURATION:
+		Info.StopTimeSpec=TVTest::RECORD_STOP_DURATION;
+		Info.StopTime.Duration=TimeSpec.Time.Duration;
+		break;
+	}
+	return SendEvent(TVTest::EVENT_STARTRECORD,reinterpret_cast<LPARAM>(&Info));
+}
+
+
+bool CPluginList::SendRelayRecordEvent(LPCTSTR pszFileName)
+{
+	return SendEvent(TVTest::EVENT_RELAYRECORD,reinterpret_cast<LPARAM>(pszFileName));
+}
+
+
 
 
 CPluginOptions::CPluginOptions(CPluginList *pPluginList)
@@ -1705,7 +1829,8 @@ bool CPluginOptions::RestorePluginOptions()
 		for (int j=0;j<m_pPluginList->NumPlugins();j++) {
 			CPlugin *pPlugin=m_pPluginList->GetPlugin(j);
 
-			if (::lstrcmpi(m_EnablePluginList[i],::PathFindFileName(pPlugin->GetFileName()))==0)
+			if (!pPlugin->IsDisableOnStart()
+					&& ::lstrcmpi(m_EnablePluginList[i],::PathFindFileName(pPlugin->GetFileName()))==0)
 				pPlugin->Enable(true);
 		}
 	}

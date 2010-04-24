@@ -163,14 +163,20 @@ int CChannelList::NumEnableChannels() const
 
 bool CChannelList::AddChannel(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName)
 {
-	CChannelInfo Info(Space,Channel,Index,No,Service,pszName);
-
-	return AddChannel(Info);
+	return AddChannel(new CChannelInfo(Space,Channel,Index,No,Service,pszName));
 }
 
 
 bool CChannelList::AddChannel(const CChannelInfo &Info)
 {
+	return AddChannel(new CChannelInfo(Info));
+}
+
+
+bool CChannelList::AddChannel(CChannelInfo *pInfo)
+{
+	if (pInfo==NULL)
+		return false;
 	if (m_NumChannels==m_ListLength) {
 		if (m_ListLength==0)
 			m_ListLength=16;
@@ -179,7 +185,7 @@ bool CChannelList::AddChannel(const CChannelInfo &Info)
 		m_ppList=static_cast<CChannelInfo**>(realloc(m_ppList,
 										m_ListLength*sizeof(CChannelInfo*)));
 	}
-	m_ppList[m_NumChannels++]=new CChannelInfo(Info);
+	m_ppList[m_NumChannels++]=pInfo;
 	return true;
 }
 
@@ -572,8 +578,7 @@ bool CTuningSpaceInfo::SetName(LPCTSTR pszName)
 	// BonDriverから取得できないので苦肉の策
 	m_Space=SPACE_UNKNOWN;
 	if (pszName!=NULL) {
-		if (::StrStr(pszName,TEXT("地デジ"))!=NULL
-				|| ::StrStr(pszName,TEXT("地上"))!=NULL
+		if (::StrStr(pszName,TEXT("地"))!=NULL
 				|| ::StrStrI(pszName,TEXT("VHF"))!=NULL
 				|| ::StrStrI(pszName,TEXT("UHF"))!=NULL
 				|| ::StrStrI(pszName,TEXT("CATV"))!=NULL) {

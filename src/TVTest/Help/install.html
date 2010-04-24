@@ -10,14 +10,28 @@
 
 <h3>必要なランタイム</h3>
 <p>
-実行には Visual C++ 2005 SP1 のランタイムが必要ですので、もしお使いのシステムに入っていない場合は別途入手してインストールしてください。<br>
+実行には Visual C++ 2005 SP1 のランタイムが必要ですので、もしお使いのシステムに入っていない場合は事前にインストールしてください。<br>
 以下のページからダウンロードできます。<br>
-<a href="http://www.microsoft.com/downloads/details.aspx?displaylang=ja&FamilyID=200b2fd9-ae1a-4a14-984d-389c36f85647">Microsoft Visual C++ 2005 SP1 再頒布可能パッケージ (x86)</a><br>
+<a href="http://www.microsoft.com/downloads/details.aspx?familyid=766a6af7-ec73-40ff-b072-9112bab119c2&displaylang=ja">Microsoft Visual C++ 2005 Service Pack 1 再頒布可能パッケージ ATL のセキュリティ更新プログラム</a><br>
+(タイトルが紛らわしいですが、これが現時点での最新のランタイムです)<br>
+インストールするランタイムは<strong>TVTest が x86 版か x64 版か</strong>に合わせてください。<br>
+TVTest が x86 版の場合は vcredist_x86.exe を、x64 版の場合は vcredist_x64.exe をダウンロードしてください。
 </p>
+
+<h3>その他必要なもの</h3>
 <p>
-EpgDataCap_Bon に含まれる EpgDataCap2.dll があれば、番組情報を表示できます。<br>
-EpgDataCap_Bon は <a href="http://2sen.dip.jp/cgi-bin/friioup/upload.cgi">Friio関係ファイル置き場</a> でダウンロードできます。
+TVTest で視聴を行うには別途 MPEG-2 のデコーダが必要です。<br>
+もしお使いの環境に入っていない場合は、インストールしておく必要があります。<br>
+(Vista/7 では Microsoft のデコーダがデフォルトで入っています)<br>
+以下のデコーダで動作が確認されています。
 </p>
+<ul>
+	<li>MPV Decoder Filter / MPC - MPEG-2 Video Decoder / Mpeg2Dec Filter</li>
+	<li>ATI MPEG Video Decoder</li>
+	<li>Microsoft MPEG-2 Video Decoder</li>
+	<li>CyberLink Video/SP Decoder</li>
+	<li>ffdshow Video Decoder</li>
+</ul>
 
 <h3>単体で視聴する</h3>
 <p>
@@ -40,8 +54,8 @@ BonDriver_UDP.dll は、TVTest に同梱されています。</br>
 初回起動時に<a href="initialsettings.html">初期設定ダイアログ</a>が表示されますので、各項目を設定してください。<br>
 TVTest を起動したら、チャンネルスキャンを実行して視聴可能なチャンネルを検索します(チャンネルスキャンを行わなくても使用することは可能です)。<br>
 初回起動時にチャンネルスキャンを行うかどうかを尋ねられますので、そこで [はい] を選択するか、右クリックメニューから [<a href="options.html">設定</a>] を選択して設定ダイアログを表示させ、左のリストから [<a href="options/channelscan.html">チャンネルスキャン</a>] を選択します。<br>
-[スキャン開始] ボタンを押すとチャンネルスキャンが始まります。チャンネルスキャンには数分掛かります。<br>
-深夜などで停波している局は検索できませんので注意してください。<br>
+[スキャン開始] ボタンを押すとチャンネルスキャンが始まります。スキャンには数分掛かります。<br>
+深夜などで停波している局は検出できませんので注意してください。<br>
 使用しているチューナーが複数のチューニング空間に対応している場合は、チューニング空間ごとにスキャンを行う必要があります。<br>
 </p>
 

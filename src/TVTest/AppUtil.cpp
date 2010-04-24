@@ -3,6 +3,7 @@
 #include "TVTest.h"
 #include "AppUtil.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE

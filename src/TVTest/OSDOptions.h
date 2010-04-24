@@ -7,12 +7,23 @@
 
 class COSDOptions : public COptions
 {
+public:
+	enum ChannelChangeType {
+		CHANNELCHANGE_LOGOANDTEXT,
+		CHANNELCHANGE_TEXTONLY,
+		CHANNELCHANGE_LOGOONLY,
+		CHANNELCHANGE_FIRST	=CHANNELCHANGE_LOGOANDTEXT,
+		CHANNELCHANGE_LAST	=CHANNELCHANGE_LOGOONLY
+	};
+
+private:
 	bool m_fShowOSD;
 	bool m_fPseudoOSD;
 	COLORREF m_TextColor;
 	COLORREF m_CurTextColor;
 	int m_Opacity;
 	int m_FadeTime;
+	ChannelChangeType m_ChannelChangeType;
 
 	bool m_fEnableNotificationBar;
 	int m_NotificationBarDuration;
@@ -44,6 +55,7 @@ public:
 	COLORREF GetTextColor() const { return m_TextColor; }
 	int GetOpacity() const { return m_Opacity; }
 	int GetFadeTime() const { return m_FadeTime; }
+	ChannelChangeType GetChannelChangeType() const { return m_ChannelChangeType; }
 	bool IsNotificationBarEnabled() const { return m_fEnableNotificationBar; }
 	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
 	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }

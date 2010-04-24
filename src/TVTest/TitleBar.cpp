@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "TitleBar.h"
@@ -55,36 +54,24 @@ bool CTitleBar::Initialize(HINSTANCE hinst)
 
 
 CTitleBar::CTitleBar()
+	: m_Font(DrawUtil::FONT_CAPTION)
+	, m_FontHeight(m_Font.GetHeight(false))
+	, m_BackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+					 RGB(128,192,160),RGB(128,192,160))
+	, m_crTextColor(RGB(64,96,80))
+	, m_HighlightBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+							  RGB(64,96,80),RGB(64,96,80))
+	, m_crHighlightTextColor(RGB(128,192,160))
+	, m_BorderType(Theme::BORDER_RAISED)
+	, m_hbmIcons(NULL)
+	, m_hwndToolTip(NULL)
+	, m_pszLabel(NULL)
+	, m_hIcon(NULL)
+	, m_HotItem(-1)
+	, m_fTrackMouseEvent(false)
+	, m_fMaximized(false)
+	, m_pEventHandler(NULL)
 {
-	NONCLIENTMETRICS ncm;
-
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(NONCLIENTMETRICS);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	m_hfont=CreateFontIndirect(&ncm.lfCaptionFont);
-	m_FontHeight=abs(ncm.lfCaptionFont.lfHeight);
-	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_BackGradient.Direction=Theme::DIRECTION_VERT;
-	m_BackGradient.Color1=RGB(128,192,160);
-	m_BackGradient.Color2=RGB(128,192,160);
-	m_crTextColor=RGB(64,96,80);
-	m_HighlightBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_HighlightBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_HighlightBackGradient.Color1=RGB(64,96,80);
-	m_HighlightBackGradient.Color2=RGB(64,96,80);
-	m_crHighlightTextColor=RGB(128,192,160);
-	m_BorderType=Theme::BORDER_RAISED;
-	m_hbmIcons=NULL;
-	m_hwndToolTip=NULL;
-	m_pszLabel=NULL;
-	m_hIcon=NULL;
-	m_HotItem=-1;
-	m_fTrackMouseEvent=false;
-	m_fMaximized=false;
-	m_pEventHandler=NULL;
 }
 
 
@@ -132,7 +119,7 @@ bool CTitleBar::SetMaximizeMode(bool fMaximize)
 }
 
 
-bool CTitleBar::SetEventHandler(CTitleBarEventHandler *pHandler)
+bool CTitleBar::SetEventHandler(CEventHandler *pHandler)
 {
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pTitleBar=NULL;
@@ -165,22 +152,13 @@ void CTitleBar::SetBorderType(Theme::BorderType Type)
 }
 
 
-/*
 bool CTitleBar::SetFont(const LOGFONT *pFont)
 {
-	if (pFont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	HFONT hfont=::CreateFontIndirect(pFont);
-	if (hfont==NULL)
-		return false;
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	m_hfont=hfont;
-
-
+	m_FontHeight=m_Font.GetHeight(false);
 	return true;
 }
-*/
 
 
 void CTitleBar::SetIcon(HICON hIcon)
@@ -257,7 +235,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			RECT rc,rcDraw;
 
 			::BeginPaint(hwnd,&ps);
-			hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
+			hfontOld=SelectFont(ps.hdc,pThis->m_Font.GetHandle());
 			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
 			crOldTextColor=::GetTextColor(ps.hdc);
 			crOldBkColor=::GetBkColor(ps.hdc);
@@ -591,12 +569,12 @@ void CTitleBar::SetToolTip()
 
 
 
-CTitleBarEventHandler::CTitleBarEventHandler()
+CTitleBar::CEventHandler::CEventHandler()
+	: m_pTitleBar(NULL)
 {
-	m_pTitleBar=NULL;
 }
 
 
-CTitleBarEventHandler::~CTitleBarEventHandler()
+CTitleBar::CEventHandler::~CEventHandler()
 {
 }

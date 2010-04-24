@@ -2,7 +2,7 @@
 #define PROGRAM_GUIDE_H
 
 
-#include "BasicWindow.h"
+#include "View.h"
 #include "EpgProgramList.h"
 #include "ChannelList.h"
 #include "DriverManager.h"
@@ -13,6 +13,7 @@
 #include "StatusView.h"
 
 
+class CProgramGuideItem;
 class CProgramGuideServiceInfo;
 
 class CProgramGuideServiceList
@@ -26,26 +27,10 @@ public:
 	~CProgramGuideServiceList();
 	int NumServices() const { return m_NumServices; }
 	CProgramGuideServiceInfo *GetItem(int Index);
+	CProgramGuideServiceInfo *FindItem(WORD TransportStreamID,WORD ServiceID);
+	CProgramGuideItem *FindEvent(WORD TransportStreamID,WORD ServiceID,WORD EventID);
 	bool Add(CProgramGuideServiceInfo *pInfo);
 	void Clear();
-};
-
-class CProgramGuideEventHandler
-{
-protected:
-	class CProgramGuide *m_pProgramGuide;
-
-public:
-	CProgramGuideEventHandler();
-	virtual ~CProgramGuideEventHandler();
-	virtual bool OnClose() { return true; }
-	virtual void OnDestroy() {}
-	virtual void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo) {}
-	virtual bool OnBeginUpdate() { return true; }
-	virtual void OnEndUpdate() {}
-	virtual bool OnRefresh() { return true; }
-	virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
-	friend class CProgramGuide;
 };
 
 class CProgramGuideTool
@@ -56,7 +41,9 @@ public:
 private:
 	TCHAR m_szName[MAX_NAME];
 	TCHAR m_szCommand[MAX_COMMAND];
-	static LPTSTR GetCommandFileName(LPCTSTR *ppszCommand,LPTSTR pszFileName);
+	HICON m_hIcon;
+
+	static bool GetCommandFileName(LPCTSTR *ppszCommand,LPTSTR pszFileName,int MaxFileName);
 	static CProgramGuideTool *GetThis(HWND hDlg);
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
@@ -68,7 +55,9 @@ public:
 	CProgramGuideTool &operator=(const CProgramGuideTool &Tool);
 	LPCTSTR GetName() const { return m_szName; }
 	LPCTSTR GetCommand() const { return m_szCommand; }
-	bool Execute(const CProgramGuideServiceInfo *pServiceInfo,int Program);
+	bool GetPath(LPTSTR pszPath,int MaxLength) const;
+	HICON GetIcon();
+	bool Execute(const CProgramGuideServiceInfo *pServiceInfo,int Program,HWND hwnd);
 	bool ShowDialog(HWND hwndOwner);
 };
 
@@ -129,10 +118,12 @@ public:
 		COLOR_LAST=COLOR_CONTENT_LAST,
 		NUM_COLORS=COLOR_LAST+1
 	};
-	enum { MIN_LINES_PER_HOUR=8, MAX_LINES_PER_HOUR=50 };
+	enum { MIN_LINES_PER_HOUR=8, MAX_LINES_PER_HOUR=60 };
 	enum { MIN_ITEM_WIDTH=100, MAX_ITEM_WIDTH=500 };
 	enum { TIME_BAR_BACK_COLORS=8 };
-	class CFrame {
+
+	class ABSTRACT_DECL CFrame {
+	protected:
 		CProgramGuide *m_pProgramGuide;
 	public:
 		CFrame();
@@ -140,10 +131,26 @@ public:
 		virtual void SetCaption(LPCTSTR pszCaption) {}
 		virtual void OnDateChanged() {}
 		virtual void OnSpaceChanged() {}
-		virtual bool OnCommand(int Command) { return false; }
 		virtual bool SetAlwaysOnTop(bool fTop) { return false; }
 		virtual bool GetAlwaysOnTop() const { return false; }
-		friend CProgramGuide;
+		friend class CProgramGuide;
+	};
+
+	class ABSTRACT_DECL CEventHandler
+	{
+	protected:
+		class CProgramGuide *m_pProgramGuide;
+	public:
+		CEventHandler();
+		virtual ~CEventHandler();
+		virtual bool OnClose() { return true; }
+		virtual void OnDestroy() {}
+		virtual void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo) {}
+		virtual bool OnBeginUpdate() { return true; }
+		virtual void OnEndUpdate() {}
+		virtual bool OnRefresh() { return true; }
+		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
+		friend class CProgramGuide;
 	};
 
 private:
@@ -175,8 +182,6 @@ private:
 								 , public CEventInfoPopup::CEventHandler
 	{
 		CProgramGuide *m_pProgramGuide;
-	public:
-		CEventInfoPopupHandler(CProgramGuide *pProgramGuide);
 	// CEventInfoPopupManager::CEventHandler
 		bool HitTest(int x,int y,LPARAM *pParam);
 		bool GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
@@ -184,6 +189,8 @@ private:
 	// CEventInfoPopup::CEventHandler
 		bool OnMenuPopup(HMENU hmenu);
 		void OnMenuSelected(int Command);
+	public:
+		CEventInfoPopupHandler(CProgramGuide *pProgramGuide);
 	};
 	friend CEventInfoPopupHandler;
 	CEventInfoPopupHandler m_EventInfoPopupHandler;
@@ -191,8 +198,18 @@ private:
 	CChannelList m_ChannelList;
 	CTuningSpaceList m_TuningSpaceList;
 	int m_CurrentTuningSpace;
-	WORD m_CurrentTransportStreamID;
-	WORD m_CurrentServiceID;
+	struct ServiceInfo {
+		WORD NetworkID;
+		WORD TransportStreamID;
+		WORD ServiceID;
+		ServiceInfo() : NetworkID(0), TransportStreamID(0), ServiceID(0) {}
+		void Clear() {
+			NetworkID=0;
+			TransportStreamID=0;
+			ServiceID=0;
+		}
+	};
+	ServiceInfo m_CurrentChannel;
 	TCHAR m_szDriverFileName[MAX_PATH];
 	const CDriverManager *m_pDriverManager;
 	SYSTEMTIME m_stFirstTime;
@@ -206,7 +223,7 @@ private:
 		int Program;
 	} m_CurItem;
 	bool m_fUpdating;
-	CProgramGuideEventHandler *m_pEventHandler;
+	CEventHandler *m_pEventHandler;
 	CFrame *m_pFrame;
 	CLogoManager *m_pLogoManager;
 	COLORREF m_ColorList[NUM_COLORS];
@@ -224,10 +241,10 @@ private:
 		CProgramSearchEventHandler(CProgramGuide *pProgramGuide);
 		bool Search(LPCTSTR pszKeyword);
 	};
-	friend class CProgramSearchEventHandler;
+	friend CProgramSearchEventHandler;
 	CProgramSearchEventHandler m_ProgramSearchEventHandler;
 
-	bool UpdateList();
+	bool UpdateList(bool fUpdateList=false);
 	bool SetTuningSpace(int Space);
 	void CalcLayout();
 	void DrawProgramList(int Service,HDC hdc,const RECT *pRect,const RECT *pPaintRect);
@@ -242,6 +259,7 @@ private:
 	//void SetToolTip();
 	bool HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex);
 
+	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
 	static CProgramGuide *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -253,13 +271,13 @@ public:
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void Clear();
-	bool UpdateProgramGuide();
+	bool UpdateProgramGuide(bool fUpdateList=false);
 	bool SetTuningSpaceList(LPCTSTR pszDriverFileName,const CTuningSpaceList *pList,int Space);
 	const CChannelList *GetChannelList() const { return &m_ChannelList; }
 	bool UpdateChannelList();
 	bool SetDriverList(const CDriverManager *pDriverManager);
-	void SetCurrentService(WORD TSID,WORD ServiceID);
-	void ClearCurrentService() { SetCurrentService(0,0); }
+	void SetCurrentService(WORD NetworkID,WORD TSID,WORD ServiceID);
+	void ClearCurrentService() { SetCurrentService(0,0,0); }
 	int GetCurrentTuningSpace() const { return m_CurrentTuningSpace; }
 	bool GetTuningSpaceName(int Space,LPTSTR pszName,int MaxName) const;
 	bool EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const;
@@ -280,7 +298,7 @@ public:
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	bool SetShowToolTip(bool fShow);
 	bool GetShowToolTip() const { return m_fShowToolTip; }
-	bool SetEventHandler(CProgramGuideEventHandler *pEventHandler);
+	bool SetEventHandler(CEventHandler *pEventHandler);
 	bool SetFrame(CFrame *pFrame);
 	bool SetLogoManager(CLogoManager *pLogoManager);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
@@ -304,8 +322,8 @@ class CProgramGuideFrame : public CBasicWindow, public CProgramGuide::CFrame
 	void SetCaption(LPCTSTR pszCaption);
 	void OnDateChanged();
 	void OnSpaceChanged();
-	bool OnCommand(int Command);
 
+	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
 	static CProgramGuideFrame *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -322,6 +340,52 @@ public:
 // CProgramGuide::CFrame
 	bool SetAlwaysOnTop(bool fTop);
 	bool GetAlwaysOnTop() const { return m_fAlwaysOnTop; }
+};
+
+class CProgramGuideDisplay : public CDisplayView, public CProgramGuide::CFrame
+{
+public:
+	class ABSTRACT_DECL CEventHandler {
+	protected:
+		class CProgramGuideDisplay *m_pProgramGuideDisplay;
+	public:
+		CEventHandler();
+		virtual ~CEventHandler() = 0;
+		virtual bool OnHide() { return true; }
+		virtual bool SetAlwaysOnTop(bool fTop) = 0;
+		virtual bool GetAlwaysOnTop() const = 0;
+		virtual void OnRButtonDown(int x,int y) {}
+		virtual void OnLButtonDoubleClick(int x,int y) {}
+		friend class CProgramGuideDisplay;
+	};
+
+	static bool Initialize(HINSTANCE hinst);
+	CProgramGuideDisplay(CProgramGuide *pProgramGuide);
+	~CProgramGuideDisplay();
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	void SetEventHandler(CEventHandler *pHandler);
+	void SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
+						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
+	void SetStatusBorderType(Theme::BorderType Type);
+
+private:
+	CProgramGuide *m_pProgramGuide;
+	CEventHandler *m_pEventHandler;
+	CStatusView m_StatusView[2];
+	SIZE m_StatusMargin;
+
+// CDisplayView
+	bool OnVisibleChange(bool fVisible);
+// CProgramGuide::CFrame
+	void OnDateChanged();
+	void OnSpaceChanged();
+	bool SetAlwaysOnTop(bool fTop);
+	bool GetAlwaysOnTop() const;
+
+	static const LPCTSTR m_pszWindowClass;
+	static HINSTANCE m_hinst;
+	static CProgramGuideDisplay *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

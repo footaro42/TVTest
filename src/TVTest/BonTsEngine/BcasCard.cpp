@@ -13,6 +13,10 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define CARD_NOT_OPEN_ERROR_TEXT	TEXT("カードリーダが開かれていません。")
+#define BAD_ARGUMENT_ERROR_TEXT		TEXT("引数が不正です。")
+
+
 
 
 CBcasCard::CBcasCard()
@@ -57,17 +61,28 @@ const bool CBcasCard::OpenCard(CCardReader::ReaderType ReaderType, LPCTSTR lpszR
 		SetError(ERR_CARDOPENERROR, TEXT("カードリーダのタイプが無効です。"));
 		return false;
 	}
-	if (!m_pCardReader->Open(lpszReader)) {
-		SetError(m_pCardReader->GetLastErrorException());
-		SetErrorCode(ERR_CARDOPENERROR);
-		delete m_pCardReader;
-		m_pCardReader=NULL;
-		return false;
+
+	bool bSuccess = false;
+
+	if (lpszReader || m_pCardReader->NumReaders() <= 1) {
+		// 指定されたリーダーを開く
+		if (OpenAndInitialize(lpszReader))
+			bSuccess = true;
+	} else {
+		// 利用可能なリーダーを探して開く
+		LPCTSTR pszReaderName;
+
+		for (int i = 0; (pszReaderName = m_pCardReader->EnumReader(i)) != NULL; i++) {
+			if (OpenAndInitialize(pszReaderName)) {
+				bSuccess = true;
+				break;
+			}
+		}
 	}
 
-	// カード初期化(失敗したらリトライしてみる)
-	if (!InitialSetting() && !InitialSetting()) {
-		CloseCard();
+	if (!bSuccess) {
+		delete m_pCardReader;
+		m_pCardReader = NULL;
 		return false;
 	}
 
@@ -83,21 +98,21 @@ void CBcasCard::CloseCard(void)
 	if (m_pCardReader) {
 		m_pCardReader->Close();
 		delete m_pCardReader;
-		m_pCardReader=NULL;
+		m_pCardReader = NULL;
 	}
 }
 
 
 const bool CBcasCard::ReOpenCard()
 {
-	if (m_pCardReader==NULL) {
-		SetError(ERR_CARDNOTOPEN,NULL);
+	if (m_pCardReader == NULL) {
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return false;
 	}
 
-	CCardReader::ReaderType Type=m_pCardReader->GetReaderType();
-	LPTSTR pszReaderName=StdUtil::strdup(m_pCardReader->GetReaderName());
-	bool bResult=OpenCard(Type,pszReaderName);
+	CCardReader::ReaderType Type = m_pCardReader->GetReaderType();
+	LPTSTR pszReaderName = StdUtil::strdup(m_pCardReader->GetReaderName());
+	bool bResult=OpenCard(Type, pszReaderName);
 	delete [] pszReaderName;
 	return bResult;
 }
@@ -105,7 +120,7 @@ const bool CBcasCard::ReOpenCard()
 
 const bool CBcasCard::IsCardOpen() const
 {
-	return m_pCardReader!=NULL;
+	return m_pCardReader != NULL;
 }
 
 
@@ -125,12 +140,30 @@ LPCTSTR CBcasCard::GetCardReaderName() const
 }
 
 
+const bool CBcasCard::OpenAndInitialize(LPCTSTR pszReader)
+{
+	if (!m_pCardReader->Open(pszReader)) {
+		SetError(m_pCardReader->GetLastErrorException());
+		SetErrorCode(ERR_CARDOPENERROR);
+		return false;
+	}
+
+	// カード初期化(失敗したらリトライしてみる)
+	if (!InitialSetting() && !InitialSetting()) {
+		m_pCardReader->Close();
+		return false;
+	}
+
+	return true;
+}
+
+
 const bool CBcasCard::InitialSetting(void)
 {
 	// 「Initial Setting Conditions Command」を処理する
 	/*
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return false;
 	}
 	*/
@@ -166,9 +199,9 @@ const bool CBcasCard::InitialSetting(void)
 	dwRecvSize=sizeof(RecvData);
 	if (m_pCardReader->Transmit(CardIDInfoCmd, sizeof(CardIDInfoCmd), RecvData, &dwRecvSize)
 			&& dwRecvSize >= 17) {
-		m_BcasCardInfo.CardManufacturerID=RecvData[7];
-		m_BcasCardInfo.CardVersion=RecvData[8];
-		m_BcasCardInfo.CheckCode=(RecvData[15]<<8)|RecvData[16];
+		m_BcasCardInfo.CardManufacturerID = RecvData[7];
+		m_BcasCardInfo.CardVersion = RecvData[8];
+		m_BcasCardInfo.CheckCode = ((WORD)RecvData[15] << 8) | (WORD)RecvData[16];
 	}
 
 	// ECMステータス初期化
@@ -181,12 +214,12 @@ const bool CBcasCard::InitialSetting(void)
 const bool CBcasCard::GetBcasCardInfo(BcasCardInfo *pInfo)
 {
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return false;
 	}
 
 	if (pInfo == NULL) {
-		SetError(ERR_BADARGUMENT, NULL);
+		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return false;
 	}
 
@@ -201,12 +234,12 @@ const bool CBcasCard::GetBcasCardInfo(BcasCardInfo *pInfo)
 const bool CBcasCard::GetCASystemID(WORD *pID)
 {
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return false;
 	}
 
 	if (pID == NULL) {
-		SetError(ERR_BADARGUMENT, NULL);
+		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return false;
 	}
 
@@ -222,7 +255,7 @@ const BYTE * CBcasCard::GetBcasCardID(void)
 {
 	// Card ID を返す
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return NULL;
 	}
 
@@ -235,7 +268,7 @@ const BYTE * CBcasCard::GetBcasCardID(void)
 const BYTE CBcasCard::GetCardType(void)
 {
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return CARDTYPE_INVALID;
 	}
 
@@ -253,7 +286,7 @@ const BYTE * CBcasCard::GetInitialCbc(void)
 {
 	// Descrambler CBC Initial Value を返す
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return NULL;
 	}
 
@@ -267,7 +300,7 @@ const BYTE * CBcasCard::GetSystemKey(void)
 {
 	// Descrambling System Key を返す
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, NULL);
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return NULL;
 	}
 
@@ -283,13 +316,13 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 {
 	// 「ECM Receive Command」を処理する
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, TEXT(""));
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return NULL;
 	}
 
 	// ECMサイズをチェック
 	if (!pEcmData || (dwEcmSize < 30UL) || (dwEcmSize > 256UL)) {
-		SetError(ERR_BADARGUMENT, TEXT(""));
+		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return NULL;
 	}
 
@@ -358,12 +391,12 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 const bool CBcasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize)
 {
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, TEXT(""));
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return false;
 	}
 
 	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > 262UL) {
-		SetError(ERR_BADARGUMENT, TEXT(""));
+		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return false;
 	}
 
@@ -405,13 +438,13 @@ const bool CBcasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize
 const bool CBcasCard::SendCommand(const BYTE *pSendData, const DWORD SendSize, BYTE *pReceiveData, DWORD *pReceiveSize)
 {
 	if (!m_pCardReader) {
-		SetError(ERR_CARDNOTOPEN, TEXT(""));
+		SetError(ERR_CARDNOTOPEN, CARD_NOT_OPEN_ERROR_TEXT);
 		return false;
 	}
 
 	if (pSendData == NULL || SendSize == 0
 			|| pReceiveData == NULL || pReceiveSize == NULL) {
-		SetError(ERR_BADARGUMENT, TEXT(""));
+		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return false;
 	}
 

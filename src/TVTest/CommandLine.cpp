@@ -2,6 +2,12 @@
 #include "TVTest.h"
 #include "CommandLine.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -14,6 +20,12 @@ public:
 	~CArgsParser();
 	bool IsSwitch() const;
 	bool IsOption(LPCWSTR pszOption) const;
+	bool GetOption(LPCWSTR pszOption,bool *pValue);
+	bool GetOption(LPCWSTR pszOption,CDynamicString *pValue);
+	bool GetOption(LPCWSTR pszOption,LPTSTR pszValue,int MaxLength);
+	bool GetOption(LPCWSTR pszOption,int *pValue);
+	bool GetOption(LPCWSTR pszOption,DWORD *pValue);
+	bool GetDurationOption(LPCWSTR pszOption,DWORD *pValue);
 	bool IsEnd() const { return m_CurPos>=m_Args; }
 	bool Next();
 	LPCWSTR GetText() const;
@@ -53,6 +65,66 @@ bool CArgsParser::IsOption(LPCWSTR pszOption) const
 	if (IsEnd())
 		return false;
 	return ::lstrcmpi(m_ppszArgList[m_CurPos]+1,pszOption)==0;
+}
+
+
+bool CArgsParser::GetOption(LPCWSTR pszOption,bool *pValue)
+{
+	if (IsOption(pszOption)) {
+		*pValue=true;
+		return true;
+	}
+	return false;
+}
+
+
+bool CArgsParser::GetOption(LPCWSTR pszOption,CDynamicString *pValue)
+{
+	if (IsOption(pszOption)) {
+		if (Next())
+			return pValue->Set(GetText());
+	}
+	return false;
+}
+
+
+bool CArgsParser::GetOption(LPCWSTR pszOption,LPTSTR pszValue,int MaxLength)
+{
+	if (IsOption(pszOption)) {
+		if (Next())
+			return GetText(pszValue,MaxLength);
+	}
+	return false;
+}
+
+
+bool CArgsParser::GetOption(LPCWSTR pszOption,int *pValue)
+{
+	if (IsOption(pszOption)) {
+		if (Next())
+			return GetValue(pValue);
+	}
+	return false;
+}
+
+
+bool CArgsParser::GetOption(LPCWSTR pszOption,DWORD *pValue)
+{
+	if (IsOption(pszOption)) {
+		if (Next())
+			return GetValue(pValue);
+	}
+	return false;
+}
+
+
+bool CArgsParser::GetDurationOption(LPCWSTR pszOption,DWORD *pValue)
+{
+	if (IsOption(pszOption)) {
+		if (Next())
+			return GetDurationValue(pValue);
+	}
+	return false;
 }
 
 
@@ -135,40 +207,37 @@ bool CArgsParser::GetDurationValue(DWORD *pValue) const
 
 
 CCommandLineParser::CCommandLineParser()
+	: m_fNoDescramble(false)
+	, m_fUseNetworkRemocon(false)
+	, m_UDPPort(1234)
+	, m_Channel(0)
+	, m_ControllerChannel(0)
+	, m_TuningSpace(-1)
+	, m_ServiceID(0)
+	, m_NetworkID(0)
+	, m_TransportStreamID(0)
+	, m_fRecord(false)
+	, m_fRecordStop(false)
+	, m_RecordDelay(0)
+	, m_RecordDuration(0)
+	, m_fRecordCurServiceOnly(false)
+	, m_fExitOnRecordEnd(false)
+	, m_fFullscreen(false)
+	, m_fMinimize(false)
+	, m_fMaximize(false)
+	, m_fNoDriver(false)
+	, m_fStandby(false)
+	, m_fNoView(false)
+	, m_fNoDirectShow(false)
+	, m_fSilent(false)
+	, m_fNoPlugin(false)
+	, m_fSingleTask(false)
+	, m_fInitialSettings(false)
+	, m_fSaveLog(false)
+	, m_fRecordOnly(false)
+	, m_fNoEpg(false)
+	, m_TvRockDID(0)
 {
-	m_szIniFileName[0]='\0';
-	m_szDriverName[0]='\0';
-	m_fNoDescramble=false;
-	m_fUseNetworkRemocon=false;
-	m_UDPPort=1234;
-	m_Channel=0;
-	m_ControllerChannel=0;
-	m_TuningSpace=-1;
-	m_ServiceID=0;
-	m_NetworkID=0;
-	m_TransportStreamID=0;
-	m_fRecord=false;
-	m_RecordDelay=0;
-	m_RecordDuration=0;
-	m_szRecordFileName[0]='\0';
-	m_fRecordCurServiceOnly=false;
-	m_fExitOnRecordEnd=false;
-	m_fRecordStop=false;
-	m_fFullscreen=false;
-	m_fMinimize=false;
-	m_fMaximize=false;
-	m_fNoDriver=false;
-	m_fStandby;
-	m_fNoView=false;
-	m_fNoDirectShow=false;
-	m_fSilent=false;
-	m_fNoPlugin=false;
-	m_szPluginsDirectory[0]='\0';
-	m_fSingleTask=false;
-	m_fInitialSettings=false;
-	m_fSaveLog=false;
-	m_fRecordOnly=false;
-	m_TvRockDID=0;
 }
 
 
@@ -178,7 +247,7 @@ CCommandLineParser::CCommandLineParser()
 	/ch				チャンネル (e.g. /ch 13)
 	/chspace		チューニング空間 (e.g. /chspace 1)
 	/d				ドライバの指定 (e.g. /d BonDriver.dll)
-	/f				フルスクリーン
+	/f /fullscreen	フルスクリーン
 	/ini			INIファイル名
 	/init			初期設定ダイアログを表示する
 	/log			終了時にログを保存する
@@ -188,6 +257,7 @@ CCommandLineParser::CCommandLineParser()
 	/nid			ネットワークID
 	/nodriver		BonDriverを読み込まない
 	/nodshow		DirectShowの初期化をしない
+	/noepg			EPG 情報の取得を行わない
 	/noplugin		プラグインを読み込まない
 	/noview			プレビュー無効
 	/nr				ネットワークリモコンを使用する
@@ -217,102 +287,63 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 		return;
 	do {
 		if (Args.IsSwitch()) {
-			if (Args.IsOption(TEXT("ch"))) {
-				if (Args.Next())
-					Args.GetValue(&m_Channel);
-			} else if (Args.IsOption(TEXT("chspace"))) {
-				if (Args.Next())
-					Args.GetValue(&m_TuningSpace);
-			} else if (Args.IsOption(TEXT("d"))) {
-				if (Args.Next())
-					Args.GetText(m_szDriverName,MAX_PATH);
-			} else if (Args.IsOption(TEXT("fullscreen"))
-					|| Args.IsOption(TEXT("f"))) {
-				m_fFullscreen=true;
-			} else if (Args.IsOption(TEXT("ini"))) {
-				if (Args.Next())
-					Args.GetText(m_szIniFileName,MAX_PATH);
-			} else if (Args.IsOption(TEXT("init"))) {
-				m_fInitialSettings=true;
-			} else if (Args.IsOption(TEXT("log"))) {
-				m_fSaveLog=true;
-			} else if (Args.IsOption(TEXT("min"))) {
-				m_fMinimize=true;
-			} else if (Args.IsOption(TEXT("max"))) {
-				m_fMaximize=true;
-			} else if (Args.IsOption(TEXT("nd"))) {
-				m_fNoDescramble=true;
-			} else if (Args.IsOption(TEXT("nid"))) {
-				if (Args.Next())
-					Args.GetValue(&m_NetworkID);
-			} else if (Args.IsOption(TEXT("nodriver"))) {
-				m_fNoDriver=true;
-			} else if (Args.IsOption(TEXT("nodshow"))) {
-				m_fNoDirectShow=true;
-			} else if (Args.IsOption(TEXT("noplugin"))) {
-				m_fNoPlugin=true;
-			} else if (Args.IsOption(TEXT("noview"))) {
-				m_fNoView=true;
-			} else if (Args.IsOption(TEXT("nr"))) {
-				m_fUseNetworkRemocon=true;
-			} else if (Args.IsOption(TEXT("p"))
-					|| Args.IsOption(TEXT("port"))) {
-				if (Args.Next())
-					Args.GetValue(&m_UDPPort);
-			} else if (Args.IsOption(TEXT("plugin-"))) {
-				if (Args.Next()) {
-					TCHAR szPlugin[MAX_PATH];
-					if (Args.GetText(szPlugin,MAX_PATH))
-						m_NoLoadPlugins.push_back(CDynamicString(szPlugin));
-				}
-			} else if (Args.IsOption(TEXT("plugindir"))
-					|| Args.IsOption(TEXT("pluginsdir"))) {
-				if (Args.Next())
-					Args.GetText(m_szPluginsDirectory,MAX_PATH);
-			} else if (Args.IsOption(TEXT("rec"))) {
-				m_fRecord=true;
-			} else if (Args.IsOption(TEXT("reccurservice"))) {
-				m_fRecordCurServiceOnly=true;
-			} else if (Args.IsOption(TEXT("recdelay"))) {
-				if (Args.Next())
-					Args.GetDurationValue(&m_RecordDelay);
-			} else if (Args.IsOption(TEXT("recduration"))) {
-				if (Args.Next())
-					Args.GetDurationValue(&m_RecordDuration);
-			} else if (Args.IsOption(TEXT("recexit"))) {
-				m_fExitOnRecordEnd=true;
-			} else if (Args.IsOption(TEXT("recfile"))) {
-				if (Args.Next())
-					Args.GetText(m_szRecordFileName,MAX_PATH);
-			} else if (Args.IsOption(TEXT("reconly"))) {
-				m_fRecordOnly=true;
-			} else if (Args.IsOption(TEXT("recstop"))) {
-				m_fRecordStop=true;
-			} else if (Args.IsOption(TEXT("rch"))) {
-				if (Args.Next())
-					Args.GetValue(&m_ControllerChannel);
-			} else if (Args.IsOption(TEXT("s"))) {
-				m_fSingleTask=true;
-			} else if (Args.IsOption(TEXT("sid"))) {
-				if (Args.Next())
-					Args.GetValue(&m_ServiceID);
-			} else if (Args.IsOption(TEXT("silent"))) {
-				m_fSilent=true;
-			} else if (Args.IsOption(TEXT("standby"))) {
-				m_fStandby=true;
-			} else if (Args.IsOption(TEXT("tsid"))) {
-				if (Args.Next())
-					Args.GetValue(&m_TransportStreamID);
-			} else if (Args.IsOption(TEXT("did"))) {
-				if (Args.Next()) {
-					int DID;
+			if (!Args.GetOption(TEXT("ch"),&m_Channel)
+					&& !Args.GetOption(TEXT("chspace"),&m_TuningSpace)
+					&& !Args.GetOption(TEXT("d"),&m_DriverName)
+					&& !Args.GetOption(TEXT("f"),&m_fFullscreen)
+					&& !Args.GetOption(TEXT("fullscreen"),&m_fFullscreen)
+					&& !Args.GetOption(TEXT("ini"),&m_IniFileName)
+					&& !Args.GetOption(TEXT("init"),&m_fInitialSettings)
+					&& !Args.GetOption(TEXT("log"),&m_fSaveLog)
+					&& !Args.GetOption(TEXT("max"),&m_fMaximize)
+					&& !Args.GetOption(TEXT("min"),&m_fMinimize)
+					&& !Args.GetOption(TEXT("nd"),&m_fNoDescramble)
+					&& !Args.GetOption(TEXT("nodriver"),&m_fNoDriver)
+					&& !Args.GetOption(TEXT("nodshow"),&m_fNoDirectShow)
+					&& !Args.GetOption(TEXT("noepg"),&m_fNoEpg)
+					&& !Args.GetOption(TEXT("noplugin"),&m_fNoPlugin)
+					&& !Args.GetOption(TEXT("noview"),&m_fNoView)
+					&& !Args.GetOption(TEXT("nr"),&m_fUseNetworkRemocon)
+					&& !Args.GetOption(TEXT("nid"),&m_NetworkID)
+					&& !Args.GetOption(TEXT("p"),&m_UDPPort)
+					&& !Args.GetOption(TEXT("port"),&m_UDPPort)
+					&& !Args.GetOption(TEXT("plugindir"),&m_PluginsDirectory)
+					&& !Args.GetOption(TEXT("pluginsdir"),&m_PluginsDirectory)
+					&& !Args.GetOption(TEXT("rec"),&m_fRecord)
+					&& !Args.GetOption(TEXT("reccurservice"),&m_fRecordCurServiceOnly)
+					&& !Args.GetDurationOption(TEXT("recdelay"),&m_RecordDelay)
+					&& !Args.GetDurationOption(TEXT("recduration"),&m_RecordDuration)
+					&& !Args.GetOption(TEXT("recexit"),&m_fExitOnRecordEnd)
+					&& !Args.GetOption(TEXT("recfile"),&m_RecordFileName)
+					&& !Args.GetOption(TEXT("reconly"),&m_fRecordOnly)
+					&& !Args.GetOption(TEXT("recstop"),&m_fRecordStop)
+					&& !Args.GetOption(TEXT("rch"),&m_ControllerChannel)
+					&& !Args.GetOption(TEXT("s"),&m_fSingleTask)
+					&& !Args.GetOption(TEXT("sid"),&m_ServiceID)
+					&& !Args.GetOption(TEXT("silent"),&m_fSilent)
+					&& !Args.GetOption(TEXT("standby"),&m_fStandby)
+					&& !Args.GetOption(TEXT("tsid"),&m_TransportStreamID)) {
+				if (Args.IsOption(TEXT("plugin-"))) {
+					if (Args.Next()) {
+						TCHAR szPlugin[MAX_PATH];
+						if (Args.GetText(szPlugin,MAX_PATH))
+							m_NoLoadPlugins.push_back(CDynamicString(szPlugin));
+					}
+				} else if (Args.IsOption(TEXT("did"))) {
+					if (Args.Next()) {
+						const TCHAR DID=Args.GetText()[0];
 
-					Args.GetValue(&DID);
-					if (DID>='A' && DID<='Z')
-						m_TvRockDID=DID-'A';
-					else if (DID>='a' && DID<='z')
-						m_TvRockDID=DID='a';
+						if (DID>='A' && DID<='Z')
+							m_TvRockDID=DID-'A';
+						else if (DID>='a' && DID<='z')
+							m_TvRockDID=DID-'a';
+					}
 				}
+#ifdef _DEBUG
+				else {
+					TRACE(TEXT("Unknown command line option %s\n"),Args.GetText());
+				}
+#endif
 			}
 		} else {
 			// なぜかudp://@:1234のようにポートを指定できると思っている人が多いので、対応しておく

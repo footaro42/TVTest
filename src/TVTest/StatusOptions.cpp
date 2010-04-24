@@ -22,11 +22,11 @@ static char THIS_FILE[]=__FILE__;
 
 
 CStatusOptions::CStatusOptions(CStatusView *pStatusView)
+	: m_pStatusView(pStatusView)
+	, m_fShowTOTTime(false)
 {
-	m_pStatusView=pStatusView;
 	SetDefaultItemList();
-	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_lfItemFont);
-	m_fShowTOTTime=false;
+	m_pStatusView->GetFont(&m_lfItemFont);
 }
 
 
@@ -362,7 +362,7 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					int OldHeight=pThis->m_pStatusView->GetHeight(),NewHeight;
 
 					pThis->m_lfItemFont=lfCurFont;
-					pThis->m_pStatusView->SetFont(CreateFontIndirect(&lfCurFont));
+					pThis->m_pStatusView->SetFont(&lfCurFont);
 					NewHeight=pThis->m_pStatusView->GetHeight();
 					if (NewHeight!=OldHeight) {
 						HWND hwnd=GetParent(pThis->m_pStatusView->GetHandle());
@@ -721,6 +721,6 @@ bool CStatusOptions::ApplyItemList()
 bool CStatusOptions::ApplyOptions()
 {
 	ApplyItemList();
-	m_pStatusView->SetFont(CreateFontIndirect(&m_lfItemFont));
+	m_pStatusView->SetFont(&m_lfItemFont);
 	return true;
 }

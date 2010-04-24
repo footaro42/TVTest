@@ -288,11 +288,11 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			if (hr != S_OK)
 				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerの音声出力ピンを作成できません。"));
 			// 映像出力ピンのIMPEG2PIDMapインタフェースのクエリー
-			hr=pOutputVideo->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxVideoMap);
+			hr=pOutputVideo->QueryInterface(__uuidof(IMPEG2PIDMap),(void**)&m_pMp2DemuxVideoMap);
 			if (hr != S_OK)
 				throw CBonException(hr,TEXT("映像出力ピンのIMPEG2PIDMapを取得できません。"));
 			// 音声出力ピンのIMPEG2PIDMapインタフェースのクエリ
-			hr=pOutputAudio->QueryInterface(IID_IMPEG2PIDMap,(void**)&m_pMp2DemuxAudioMap);
+			hr=pOutputAudio->QueryInterface(__uuidof(IMPEG2PIDMap),(void**)&m_pMp2DemuxAudioMap);
 			if (hr != S_OK)
 				throw CBonException(hr,TEXT("音声出力ピンのIMPEG2PIDMapを取得できません。"));
 		}

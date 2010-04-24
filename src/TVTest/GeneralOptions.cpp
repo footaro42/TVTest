@@ -3,6 +3,7 @@
 #include "BonTsEngine/Multi2Decoder.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "GeneralOptions.h"
 #include "DialogUtil.h"
 #include "MessageDialog.h"

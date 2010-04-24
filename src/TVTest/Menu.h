@@ -64,7 +64,7 @@ class CChannelMenu
 public:
 	CChannelMenu(CEpgProgramList *pProgramList,CLogoManager *pLogoManager);
 	~CChannelMenu();
-	bool Create(const CChannelList *pChannelList,int CurChannel,bool fUpdateProgramList);
+	bool Create(const CChannelList *pChannelList,int CurChannel);
 	void Destroy();
 	bool Popup(UINT Flags,int x,int y,HWND hwnd);
 	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);

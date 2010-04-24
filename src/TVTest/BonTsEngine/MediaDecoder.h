@@ -5,6 +5,7 @@
 #pragma once
 
 
+#include "Common.h"
 #include "BonBaseClass.h"
 #include "MediaData.h"
 #include "TsUtilClass.h"
@@ -14,10 +15,10 @@
 // メディアデコーダ基底クラス
 //////////////////////////////////////////////////////////////////////
 
-class __declspec(novtable) CMediaDecoder : public CBonBaseClass
+class ABSTRACT_CLASS_DECL CMediaDecoder : public CBonBaseClass
 {
 public:
-	class IEventHandler
+	class ABSTRACT_CLASS_DECL IEventHandler
 	{
 	public:
 		virtual const DWORD OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEventID, PVOID pParam) = 0;

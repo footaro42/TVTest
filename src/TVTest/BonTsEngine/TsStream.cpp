@@ -76,7 +76,8 @@ DWORD CTsPacket::ParsePacket(BYTE *pContinuityCounter)
 
 	if (m_Header.byAdaptationFieldCtrl & 0x02) {
 		// アダプテーションフィールドあり
-		if (m_AdaptationField.byAdaptationFieldLength = m_pData[4]) {								// +4
+		m_AdaptationField.byAdaptationFieldLength = m_pData[4];							// +4
+		if (m_AdaptationField.byAdaptationFieldLength > 0) {
 			// フィールド長以降あり
 			m_AdaptationField.bDiscontinuityIndicator	= (m_pData[5] & 0x80U) != 0;	// +5 bit7
 			m_AdaptationField.bRamdomAccessIndicator	= (m_pData[5] & 0x40U) != 0;	// +5 bit6
@@ -87,9 +88,9 @@ DWORD CTsPacket::ParsePacket(BYTE *pContinuityCounter)
 			m_AdaptationField.bTransportPrivateDataFlag	= (m_pData[5] & 0x02U) != 0;	// +5 bit1
 			m_AdaptationField.bAdaptationFieldExtFlag	= (m_pData[5] & 0x01U) != 0;	// +5 bit0
 
-			if (m_pData[4] > 1U) {
+			if (m_AdaptationField.byAdaptationFieldLength > 1U) {
 				m_AdaptationField.pOptionData			= &m_pData[6];
-				m_AdaptationField.byOptionSize			= m_pData[4] - 1U;
+				m_AdaptationField.byOptionSize			= m_AdaptationField.byAdaptationFieldLength - 1U;
 			}
 		}
 	}
@@ -264,7 +265,7 @@ const bool CPsiSection::operator == (const CPsiSection &Operand) const
 #endif
 }
 
-const bool CPsiSection::ParseHeader(const bool bIsExtended)
+const bool CPsiSection::ParseHeader(const bool bIsExtended, const bool bIgnoreSectionNumber)
 {
 	const DWORD dwHeaderSize = (bIsExtended)? 8UL : 3UL;
 
@@ -300,7 +301,8 @@ const bool CPsiSection::ParseHeader(const bool bIsExtended)
 			return false;								// 目的のヘッダではない
 		else if((m_pData[5] & 0xC0U) != 0xC0U)
 			return false;								// 固定ビット異常
-		else if(m_Header.bySectionNumber > m_Header.byLastSectionNumber)
+		else if(!bIgnoreSectionNumber
+				&& m_Header.bySectionNumber > m_Header.byLastSectionNumber)
 			return false;	// セクション番号異常
 		else if(m_Header.wSectionLength < 9U)
 			return false;								// セクション長異常
@@ -510,10 +512,12 @@ const WORD CTsPidMapManager::GetMapCount(void) const
 // PSIセクション抽出クラス
 /////////////////////////////////////////////////////////////////////////////
 
-CPsiSectionParser::CPsiSectionParser(IPsiSectionHandler *pPsiSectionHandler, const bool bTargetExt)
+CPsiSectionParser::CPsiSectionParser(IPsiSectionHandler *pPsiSectionHandler,
+									 const bool bTargetExt, const bool bIgnoreSectionNumber)
 	: m_pPsiSectionHandler(pPsiSectionHandler)
 	, m_PsiSection(0x10002UL)		// PSIセクション最大サイズのバッファ確保
 	, m_bTargetExt(bTargetExt)
+	, m_bIgnoreSectionNumber(bIgnoreSectionNumber)
 	, m_bIsStoring(false)
 	, m_dwCrcErrorCount(0UL)
 {
@@ -562,7 +566,8 @@ void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 			bySize = byUnitStartPos - byPos;
 			if (m_bIsStoring) {
 				StorePayload(&pData[byPos], &bySize);
-			} else if (StoreHeader(&pData[byPos], &bySize)) {
+			} else if (m_PsiSection.GetSize() > 0
+					&& StoreHeader(&pData[byPos], &bySize)) {
 				byPos += bySize;
 				bySize = byUnitStartPos - byPos;
 				StorePayload(&pData[byPos], &bySize);
@@ -570,8 +575,8 @@ void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 		}
 
 		// ユニット開始位置から新規セクションのストアを開始する
+		m_PsiSection.Reset();
 		m_bIsStoring = false;
-		m_PsiSection.ClearSize();
 
 		byPos = byUnitStartPos;
 		while (byPos < byPayloadSize) {
@@ -593,7 +598,8 @@ void CPsiSectionParser::StorePacket(const CTsPacket *pPacket)
 		byPos = 0U;
 		bySize = byPayloadSize;
 		if (!m_bIsStoring) {
-			if (!StoreHeader(&pData[byPos], &bySize))
+			if (m_PsiSection.GetSize() == 0
+					|| !StoreHeader(&pData[byPos], &bySize))
 				return;
 			byPos += bySize;
 			bySize = byPayloadSize - byPos;
@@ -631,7 +637,7 @@ const bool CPsiSectionParser::StoreHeader(const BYTE *pPayload, BYTE *pbyRemain)
 	if (*pbyRemain >= byHeaderRemain) {
 		// ヘッダストア完了、ヘッダを解析してペイロードのストアを開始する
 		m_PsiSection.AddData(pPayload, byHeaderRemain);
-		if (m_PsiSection.ParseHeader(m_bTargetExt)) {
+		if (m_PsiSection.ParseHeader(m_bTargetExt, m_bIgnoreSectionNumber)) {
 			// ヘッダフォーマットOK、ヘッダのみのCRCを計算する
 			m_wStoreSize = m_PsiSection.GetSectionLength() + 3U;
 			m_dwStoreCrc = CCrcCalculator::CalcCrc32(m_PsiSection.GetData(), byHeaderSize);
@@ -642,6 +648,7 @@ const bool CPsiSectionParser::StoreHeader(const BYTE *pPayload, BYTE *pbyRemain)
 			// ヘッダエラー
 			m_PsiSection.Reset();
 			*pbyRemain = byHeaderRemain;
+			TRACE(TEXT("PSI header format error\n"));
 			return false;
 		}
 	} else {

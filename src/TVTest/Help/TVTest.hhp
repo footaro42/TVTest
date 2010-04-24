@@ -48,8 +48,9 @@ options\sidebar.html
 options\view.html
 options\record.html
 hint.html
-appendix\tips.html
 appendix\channelfile.html
+appendix\logo.html
+appendix\tips.html
 
 [ALIAS]
 HELP_ID_OPTIONS_ACCELERATOR=options\accelerator.html

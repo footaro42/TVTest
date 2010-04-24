@@ -19,7 +19,8 @@ class CTsAnalyzer : public CMediaDecoder
 public:
 	enum {
 		PID_INVALID = 0xFFFF,
-		COMPONENTTAG_INVALID = 0xFF
+		COMPONENTTAG_INVALID = 0xFF,
+		LOGOID_INVALID = 0xFFFF
 	};
 
 	struct EsInfo {
@@ -47,6 +48,8 @@ public:
 		BYTE ServiceType;
 		WORD LogoID;
 	};
+
+	typedef std::vector<ServiceInfo> ServiceList;
 
 	CTsAnalyzer(IEventHandler *pEventHandler = NULL);
 	virtual ~CTsAnalyzer();
@@ -89,23 +92,8 @@ public:
 	int GetServiceName(const int Index, LPTSTR pszName, const int MaxLength);
 	WORD GetLogoID(const int Index);
 
-	class CServiceList {
-	protected:
-		std::vector<ServiceInfo> m_ServiceList;
-	public:
-		virtual ~CServiceList() {}
-		void Clear() { m_ServiceList.clear(); }
-		int NumServices() const { return (int)m_ServiceList.size(); }
-		const ServiceInfo *GetServiceInfo(int Index) const {
-			if (Index<0 || Index>(int)m_ServiceList.size())
-				return NULL;
-			return &m_ServiceList[Index];
-		}
-		friend class CTsAnalyzer;
-	};
-
-	bool GetServiceList(CServiceList *pList);
-	bool GetViewableServiceList(CServiceList *pList);
+	bool GetServiceList(ServiceList *pList);
+	bool GetViewableServiceList(ServiceList *pList);
 
 	WORD GetTransportStreamID() const;
 	WORD GetNetworkID() const;
@@ -183,6 +171,28 @@ public:
 
 	bool GetTotTime(SYSTEMTIME *pTime);
 
+	struct SatelliteDeliverySystemInfo {
+		WORD TransportStreamID;
+		DWORD Frequency;
+		WORD OrbitalPosition;
+		bool bWestEastFlag;
+		BYTE Polarization;
+		BYTE Modulation;
+		DWORD SymbolRate;
+		BYTE FECInner;
+	};
+	struct TerrestrialDeliverySystemInfo {
+		WORD TransportStreamID;
+		WORD AreaCode;
+		BYTE GuardInterval;
+		BYTE TransmissionMode;
+		std::vector<WORD> Frequency;
+	};
+	typedef std::vector<SatelliteDeliverySystemInfo> SatelliteDeliverySystemList;
+	typedef std::vector<TerrestrialDeliverySystemInfo> TerrestrialDeliverySystemList;
+	bool GetSatelliteDeliverySystemList(SatelliteDeliverySystemList *pList);
+	bool GetTerrestrialDeliverySystemList(TerrestrialDeliverySystemList *pList);
+
 	enum EventType {
 		EVENT_PAT_UPDATED,
 		EVENT_PMT_UPDATED,
@@ -216,7 +226,7 @@ protected:
 
 	CTsPidMapManager m_PidMapManager;
 
-	std::vector<ServiceInfo> m_ServiceList;
+	ServiceList m_ServiceList;
 	WORD m_TransportStreamID;
 
 	struct NitInfo {

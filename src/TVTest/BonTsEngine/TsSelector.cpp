@@ -54,7 +54,7 @@ void CTsSelector::Reset(void)
 	// 対象サービス初期化
 	m_TargetServiceID = 0;
 	m_TargetPmtPID = 0;
-	m_TargetStream = STREAM_ALL;
+	//m_TargetStream = STREAM_ALL;
 
 	m_PmtPIDList.clear();
 	m_EmmPIDList.clear();

@@ -1,6 +1,6 @@
 ﻿
-Microsoft Visual Studio Solution File, Format Version 9.00
-# Visual Studio 2005
+Microsoft Visual Studio Solution File, Format Version 10.00
+# Visual Studio 2008
 Project("{EAF909A5-FA59-4C3D-9431-0FCC20D5BCF9}") = "Multi2Decoder", "Multi2Decoder\Multi2Decoder.icproj", "{E62C21A8-8D0B-43F6-8D81-E93AEC7788BF}"
 EndProject
 Global

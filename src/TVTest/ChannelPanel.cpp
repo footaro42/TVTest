@@ -76,6 +76,8 @@ CChannelPanel::CChannelPanel()
 	m_hfont=::CreateFontIndirect(&lf);
 	lf.lfWeight=FW_BOLD;
 	m_hfontChannel=::CreateFontIndirect(&lf);
+
+	::ZeroMemory(&m_UpdatedTime,sizeof(SYSTEMTIME));
 }
 
 
@@ -101,7 +103,7 @@ bool CChannelPanel::SetEpgProgramList(CEpgProgramList *pList)
 }
 
 
-bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
+bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEvent)
 {
 	m_ChannelList.DeleteAll();
 	m_ScrollPos=0;
@@ -118,20 +120,12 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 
 			CChannelEventInfo *pEventInfo=new CChannelEventInfo(pChInfo,i);
 
-			if (m_pProgramList!=NULL) {
+			if (fSetEvent && m_pProgramList!=NULL) {
 				const WORD TransportStreamID=pChInfo->GetTransportStreamID();
 				const WORD ServiceID=pChInfo->GetServiceID();
 				CEventInfoData EventInfo;
-				bool fOK=false;
 
 				if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&stCurrent,&EventInfo)) {
-					fOK=true;
-				} else {
-					if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
-							&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&stCurrent,&EventInfo))
-						fOK=true;
-				}
-				if (fOK) {
 					pEventInfo->SetEventInfo(0,&EventInfo);
 					SYSTEMTIME st;
 					EventInfo.GetEndTime(&st);
@@ -148,6 +142,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 					pEventInfo->SetLogo(hbmLogo);
 			}
 			m_ChannelList.Add(pEventInfo);
+			/*
 			if (m_hwnd!=NULL) {
 				RECT rc;
 
@@ -155,38 +150,34 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList)
 				::InvalidateRect(m_hwnd,&rc,TRUE);
 				Update();
 			}
+			*/
 		}
 	}
 	if (m_hwnd!=NULL) {
 		SetScrollBar();
 		SetToolTips();
+		Invalidate();
+		Update();
 	}
 	return true;
 }
 
 
-bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
+bool CChannelPanel::UpdateChannelList()
 {
 	if (m_pProgramList!=NULL && m_ChannelList.Length()>0) {
 		SYSTEMTIME stCurrent;
 		bool fChanged=false;
 
-		::GetLocalTime(&stCurrent);
+		::GetSystemTime(&m_UpdatedTime);
+		::SystemTimeToTzSpecificLocalTime(NULL,&m_UpdatedTime,&stCurrent);
 		for (int i=0;i<m_ChannelList.Length();i++) {
 			CChannelEventInfo *pEventInfo=m_ChannelList[i];
 			const WORD TransportStreamID=pEventInfo->GetTransportStreamID();
 			const WORD ServiceID=pEventInfo->GetServiceID();
 			CEventInfoData EventInfo;
-			bool fOK=false;
 
 			if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&stCurrent,&EventInfo)) {
-				fOK=true;
-			} else if (fUpdateProgramList) {
-				if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
-						&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&stCurrent,&EventInfo))
-					fOK=true;
-			}
-			if (fOK) {
 				if (pEventInfo->SetEventInfo(0,&EventInfo))
 					fChanged=true;
 				SYSTEMTIME st;
@@ -214,7 +205,7 @@ bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
 }
 
 
-bool CChannelPanel::UpdateChannel(int ChannelIndex,bool fUpdateProgramList)
+bool CChannelPanel::UpdateChannel(int ChannelIndex)
 {
 	if (m_pProgramList!=NULL) {
 		for (int i=0;i<m_ChannelList.Length();i++) {
@@ -225,17 +216,10 @@ bool CChannelPanel::UpdateChannel(int ChannelIndex,bool fUpdateProgramList)
 				const WORD TransportStreamID=pEventInfo->GetTransportStreamID();
 				const WORD ServiceID=pEventInfo->GetServiceID();
 				CEventInfoData EventInfo;
-				bool fOK=false,fChanged;
+				bool fChanged;
 
 				::GetLocalTime(&st);
 				if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
-					fOK=true;
-				} else if (fUpdateProgramList) {
-					if (m_pProgramList->UpdateProgramList(TransportStreamID,ServiceID)
-							&& m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo))
-						fOK=true;
-				}
-				if (fOK) {
 					fChanged=pEventInfo->SetEventInfo(0,&EventInfo);
 					EventInfo.GetEndTime(&st);
 					if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
@@ -369,6 +353,19 @@ void CChannelPanel::SetDetailToolTip(bool fDetail)
 void CChannelPanel::SetLogoManager(CLogoManager *pLogoManager)
 {
 	m_pLogoManager=pLogoManager;
+}
+
+
+bool CChannelPanel::QueryUpdate() const
+{
+	SYSTEMTIME st;
+
+	::GetSystemTime(&st);
+	return m_UpdatedTime.wMinute!=st.wMinute
+		|| m_UpdatedTime.wHour!=st.wHour
+		|| m_UpdatedTime.wDay!=st.wDay
+		|| m_UpdatedTime.wMonth!=st.wMonth
+		|| m_UpdatedTime.wYear!=st.wYear;
 }
 
 
@@ -674,8 +671,7 @@ void CChannelPanel::CalcItemHeight()
 		return;
 	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
 	::GetTextMetrics(hdc,&tm);
-	// tmInternalLeadingÇë´Ç∑Ç∆ÉÅÉCÉäÉIÇ≈ñ≠Ç…çsä‘Ç™ãÛÇ≠
-	//m_FontHeight=tm.tmHeight+tm.tmInternalLeading;
+	//m_FontHeight=tm.tmHeight-tm.tmInternalLeading;
 	m_FontHeight=tm.tmHeight;
 	m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
 	::SelectObject(hdc,hfontOld);

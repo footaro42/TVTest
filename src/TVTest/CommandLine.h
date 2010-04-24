@@ -11,8 +11,8 @@ public:
 	void Parse(LPCWSTR pszCmdLine);
 	bool IsChannelSpecified() const;
 //private:
-	TCHAR m_szIniFileName[MAX_PATH];
-	TCHAR m_szDriverName[MAX_PATH];
+	CDynamicString m_IniFileName;
+	CDynamicString m_DriverName;
 	bool m_fNoDescramble;
 	bool m_fUseNetworkRemocon;
 	DWORD m_UDPPort;
@@ -26,7 +26,7 @@ public:
 	bool m_fRecordStop;
 	DWORD m_RecordDelay;
 	DWORD m_RecordDuration;
-	TCHAR m_szRecordFileName[MAX_PATH];
+	CDynamicString m_RecordFileName;
 	bool m_fRecordCurServiceOnly;
 	bool m_fExitOnRecordEnd;
 	bool m_fFullscreen;
@@ -39,11 +39,12 @@ public:
 	bool m_fSilent;
 	bool m_fNoPlugin;
 	std::vector<CDynamicString> m_NoLoadPlugins;
-	TCHAR m_szPluginsDirectory[MAX_PATH];
+	CDynamicString m_PluginsDirectory;
 	bool m_fSingleTask;
 	bool m_fInitialSettings;
 	bool m_fSaveLog;
 	bool m_fRecordOnly;
+	bool m_fNoEpg;
 	int m_TvRockDID;
 };
 

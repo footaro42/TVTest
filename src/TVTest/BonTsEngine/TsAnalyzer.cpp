@@ -85,11 +85,11 @@ void CTsAnalyzer::Reset()
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
 	// H-EITテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(PID_HEIT, new CHEitTable);
+	m_PidMapManager.MapTarget(PID_HEIT, new CEitPfTable);
 
 #ifdef TS_ANALYZER_L_EIT_SUPPORT
 	// L-EITテーブルPIDマップ追加
-	m_PidMapManager.MapTarget(PID_LEIT, new CLEitTable);
+	m_PidMapManager.MapTarget(PID_LEIT, new CEitPfTable);
 #endif
 #endif
 
@@ -581,23 +581,29 @@ WORD CTsAnalyzer::GetLogoID(const int Index)
 }
 
 
-bool CTsAnalyzer::GetServiceList(CServiceList *pList)
+bool CTsAnalyzer::GetServiceList(ServiceList *pList)
 {
+	if (!pList)
+		return false;
+
 	CBlockLock Lock(&m_DecoderLock);
 
-	pList->m_ServiceList = m_ServiceList;
+	*pList = m_ServiceList;
 	return true;
 }
 
 
-bool CTsAnalyzer::GetViewableServiceList(CServiceList *pList)
+bool CTsAnalyzer::GetViewableServiceList(ServiceList *pList)
 {
+	if (!pList)
+		return false;
+
 	CBlockLock Lock(&m_DecoderLock);
 
-	pList->m_ServiceList.clear();
+	pList->clear();
 	for (size_t i = 0 ; i < m_ServiceList.size() ; i++) {
 		if (IsViewableService((int)i))
-			pList->m_ServiceList.push_back(m_ServiceList[i]);
+			pList->push_back(m_ServiceList[i]);
 	}
 	return true;
 }
@@ -655,7 +661,7 @@ WORD CTsAnalyzer::GetEventID(const int ServiceIndex, const bool fNext)
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable=dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
+		const CEitPfTable *pEitTable=dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -665,13 +671,13 @@ WORD CTsAnalyzer::GetEventID(const int ServiceIndex, const bool fNext)
 		}
 
 #ifdef TS_ANALYZER_L_EIT_SUPPORT
-		const CLEitTable *pLEitTable=dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
+		pEitTable=dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
-		if (pLEitTable) {
-			int Index=pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+		if (pEitTable) {
+			int Index=pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
 
 			if (Index>=0)
-				return pLEitTable->GetEventID(Index,fNext?1:0);
+				return pEitTable->GetEventID(Index,fNext?1:0);
 		}
 #endif
 	}
@@ -687,7 +693,7 @@ bool CTsAnalyzer::GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemT
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
+		const CEitPfTable *pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -702,13 +708,13 @@ bool CTsAnalyzer::GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemT
 		}
 
 #ifdef TS_ANALYZER_L_EIT_SUPPORT
-		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
+		pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
-		if (pLEitTable) {
-			int Index = pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
 
 			if (Index >= 0) {
-				const SYSTEMTIME *pStartTime = pLEitTable->GetStartTime(Index, bNext ? 1 : 0);
+				const SYSTEMTIME *pStartTime = pEitTable->GetStartTime(Index, bNext ? 1 : 0);
 				if (pStartTime) {
 					*pSystemTime = *pStartTime;
 					return true;
@@ -726,7 +732,7 @@ DWORD CTsAnalyzer::GetEventDuration(const int ServiceIndex, const bool bNext)
 	CBlockLock Lock(&m_DecoderLock);
 
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
+		const CEitPfTable *pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -736,13 +742,13 @@ DWORD CTsAnalyzer::GetEventDuration(const int ServiceIndex, const bool bNext)
 		}
 
 #ifdef TS_ANALYZER_L_EIT_SUPPORT
-		const CLEitTable *pLEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
+		pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
-		if (pLEitTable) {
-			int Index = pLEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+		if (pEitTable) {
+			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
 
 			if (Index >= 0)
-				return pLEitTable->GetDuration(Index, bNext ? 1 : 0);
+				return pEitTable->GetDuration(Index, bNext ? 1 : 0);
 		}
 #endif
 	}
@@ -928,7 +934,7 @@ int CTsAnalyzer::GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, in
 			return 0;
 
 		// イベント共有の参照先から情報を取得する
-#if 0
+#if 1
 		const CEventGroupDesc *pEventGroup = dynamic_cast<const CEventGroupDesc*>(pDescBlock->GetDescByTag(CEventGroupDesc::DESC_TAG));
 		if (pEventGroup == NULL
 				|| pEventGroup->GetGroupType() != CEventGroupDesc::GROUPTYPE_COMMON
@@ -944,7 +950,7 @@ int CTsAnalyzer::GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, in
 					&& EventInfo.EventID == EventID)
 				return 0;
 		}
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
+		const CEitPfTable *pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 		for (i = 0; i < pEventGroup->GetEventNum(); i++) {
 			CEventGroupDesc::EventInfo EventInfo;
 			if (pEventGroup->GetEventInfo(i, &EventInfo)) {
@@ -966,6 +972,7 @@ int CTsAnalyzer::GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, in
 			参照元なのに自己のService_idとevent_idが記述してあったりするので(なぜ?)
 			取りあえず先頭サービスが参照先になっている場合のみ想定する
 		*/
+		// 追記: 単にイベント記述子の解析が変だったみたい
 		WORD ServiceID;
 		if (!GetFirstViewableServiceID(&ServiceID)
 				|| ServiceID == m_ServiceList[ServiceIndex].ServiceID)
@@ -1170,7 +1177,7 @@ bool CTsAnalyzer::GetEventInfo(const int ServiceIndex, EventInfo *pInfo, const b
 const CDescBlock *CTsAnalyzer::GetHEitItemDesc(const int ServiceIndex, const bool bNext) const
 {
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CHEitTable *pEitTable = dynamic_cast<const CHEitTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
+		const CEitPfTable *pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -1187,7 +1194,7 @@ const CDescBlock *CTsAnalyzer::GetHEitItemDesc(const int ServiceIndex, const boo
 const CDescBlock *CTsAnalyzer::GetLEitItemDesc(const int ServiceIndex, const bool bNext) const
 {
 	if (ServiceIndex >= 0 && (size_t)ServiceIndex < m_ServiceList.size()) {
-		const CLEitTable *pEitTable = dynamic_cast<const CLEitTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
+		const CEitPfTable *pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
 
 		if (pEitTable) {
 			int Index = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
@@ -1225,15 +1232,90 @@ const CAudioComponentDesc *CTsAnalyzer::GetAudioComponentDescByComponentTag(cons
 
 bool CTsAnalyzer::GetTotTime(SYSTEMTIME *pTime)
 {
-	CBlockLock Lock(&m_DecoderLock);
-
 	if (pTime == NULL)
 		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
 
 	const CTotTable *pTotTable = dynamic_cast<const CTotTable*>(m_PidMapManager.GetMapTarget(0x0014));
 	if (pTotTable)
 		return pTotTable->GetDateTime(pTime);
 	return false;
+}
+
+
+bool CTsAnalyzer::GetSatelliteDeliverySystemList(SatelliteDeliverySystemList *pList)
+{
+	if (pList == NULL)
+		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	pList->clear();
+
+	const CNitTable *pNitTable = dynamic_cast<const CNitTable*>(m_PidMapManager.GetMapTarget(PID_NIT));
+	if (pNitTable == NULL)
+		return false;
+
+	for (WORD i = 0; i < pNitTable->GetTransportStreamNum(); i++) {
+		const CDescBlock *pDescBlock = pNitTable->GetItemDesc(i);
+		if (pDescBlock) {
+			const CSatelliteDeliverySystemDesc *pSatelliteDesc =
+				dynamic_cast<const CSatelliteDeliverySystemDesc *>(pDescBlock->GetDescByTag(CSatelliteDeliverySystemDesc::DESC_TAG));
+			if (pSatelliteDesc) {
+				SatelliteDeliverySystemInfo Info;
+
+				Info.TransportStreamID = pNitTable->GetTransportStreamID(i);
+				Info.Frequency = pSatelliteDesc->GetFrequency();
+				Info.OrbitalPosition = pSatelliteDesc->GetOrbitalPosition();
+				Info.bWestEastFlag = pSatelliteDesc->GetWestEastFlag();
+				Info.Polarization = pSatelliteDesc->GetPolarization();
+				Info.Modulation = pSatelliteDesc->GetModulation();
+				Info.SymbolRate = pSatelliteDesc->GetSymbolRate();
+				Info.FECInner = pSatelliteDesc->GetFECInner();
+				pList->push_back(Info);
+			}
+		}
+	}
+
+	return pList->size() > 0;
+}
+
+
+bool CTsAnalyzer::GetTerrestrialDeliverySystemList(TerrestrialDeliverySystemList *pList)
+{
+	if (pList == NULL)
+		return false;
+
+	CBlockLock Lock(&m_DecoderLock);
+
+	pList->clear();
+
+	const CNitTable *pNitTable = dynamic_cast<const CNitTable*>(m_PidMapManager.GetMapTarget(PID_NIT));
+	if (pNitTable == NULL)
+		return false;
+
+	for (WORD i = 0; i < pNitTable->GetTransportStreamNum(); i++) {
+		const CDescBlock *pDescBlock = pNitTable->GetItemDesc(i);
+		if (pDescBlock) {
+			const CTerrestrialDeliverySystemDesc *pTerrestrialDesc =
+				dynamic_cast<const CTerrestrialDeliverySystemDesc *>(pDescBlock->GetDescByTag(CTerrestrialDeliverySystemDesc::DESC_TAG));
+			if (pTerrestrialDesc) {
+				TerrestrialDeliverySystemInfo Info;
+
+				Info.TransportStreamID = pNitTable->GetTransportStreamID(i);
+				Info.AreaCode = pTerrestrialDesc->GetAreaCode();
+				Info.GuardInterval = pTerrestrialDesc->GetGuardInterval();
+				Info.TransmissionMode = pTerrestrialDesc->GetTransmissionMode();
+				Info.Frequency.resize(pTerrestrialDesc->GetFrequencyNum());
+				for (int j = 0; j < (int)Info.Frequency.size(); j++)
+					Info.Frequency[j] = pTerrestrialDesc->GetFrequency(j);
+				pList->push_back(Info);
+			}
+		}
+	}
+
+	return pList->size() > 0;
 }
 
 
@@ -1309,7 +1391,7 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[Index].bIsUpdated = false;
 		pThis->m_ServiceList[Index].ServiceID = pPatTable->GetProgramID((WORD)Index);
 		pThis->m_ServiceList[Index].PmtPID = pPatTable->GetPmtPID((WORD)Index);
-		pThis->m_ServiceList[Index].VideoStreamType = 0xFF;
+		pThis->m_ServiceList[Index].VideoStreamType = STREAM_TYPE_INVALID;
 		pThis->m_ServiceList[Index].VideoEs.PID = PID_INVALID;
 		pThis->m_ServiceList[Index].VideoEs.ComponentTag = COMPONENTTAG_INVALID;
 		pThis->m_ServiceList[Index].AudioEsList.clear();
@@ -1320,8 +1402,8 @@ void CALLBACK CTsAnalyzer::OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 		pThis->m_ServiceList[Index].RunningStatus = 0xFF;
 		pThis->m_ServiceList[Index].bIsCaService = false;
 		pThis->m_ServiceList[Index].szServiceName[0] = '\0';
-		pThis->m_ServiceList[Index].ServiceType = 0xFF;
-		pThis->m_ServiceList[Index].LogoID = 0xFFFF;
+		pThis->m_ServiceList[Index].ServiceType = SERVICE_TYPE_INVALID;
+		pThis->m_ServiceList[Index].LogoID = LOGOID_INVALID;
 
 		// PMTのPIDをマップ
 		pMapManager->MapTarget(pPatTable->GetPmtPID((WORD)Index), new CPmtTable(TABLE_DEBUG), OnPmtUpdated, pParam);
@@ -1490,12 +1572,14 @@ void CALLBACK CTsAnalyzer::OnNitUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	const CDescBlock *pDescBlock;
 	pDescBlock = pNitTable->GetNetworkDesc();
 	if (pDescBlock) {
-		const CNetworkNameDesc *pNetworkDesc = dynamic_cast<const CNetworkNameDesc *>(pDescBlock->GetDescByTag(CNetworkNameDesc::DESC_TAG));
+		const CNetworkNameDesc *pNetworkDesc =
+			dynamic_cast<const CNetworkNameDesc *>(pDescBlock->GetDescByTag(CNetworkNameDesc::DESC_TAG));
 		if(pNetworkDesc) {
 			pNetworkDesc->GetNetworkName(pThis->m_NitInfo.szNetworkName,
 										 sizeof(pThis->m_NitInfo.szNetworkName) / sizeof(TCHAR));
 		}
-		const CSystemManageDesc *pSysManageDesc = dynamic_cast<const CSystemManageDesc *>(pDescBlock->GetDescByTag(CSystemManageDesc::DESC_TAG));
+		const CSystemManageDesc *pSysManageDesc =
+			dynamic_cast<const CSystemManageDesc *>(pDescBlock->GetDescByTag(CSystemManageDesc::DESC_TAG));
 		if (pSysManageDesc) {
 			pThis->m_NitInfo.BroadcastingID = pSysManageDesc->GetBroadcastingID();
 		}
@@ -1503,11 +1587,33 @@ void CALLBACK CTsAnalyzer::OnNitUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 
 	pDescBlock = pNitTable->GetItemDesc(0);
 	if (pDescBlock) {
-		const CTSInfoDesc *pTsInfoDesc = dynamic_cast<const CTSInfoDesc *>(pDescBlock->GetDescByTag(CTSInfoDesc::DESC_TAG));
+		const CTSInfoDesc *pTsInfoDesc =
+			dynamic_cast<const CTSInfoDesc *>(pDescBlock->GetDescByTag(CTSInfoDesc::DESC_TAG));
 		if (pTsInfoDesc) {
 			pTsInfoDesc->GetTSName(pThis->m_NitInfo.szTSName,
 								   sizeof(pThis->m_NitInfo.szTSName) / sizeof(TCHAR));
 			pThis->m_NitInfo.RemoteControlKeyID = pTsInfoDesc->GetRemoteControlKeyID();
+		}
+	}
+
+	for (WORD i = 0; i < pNitTable->GetTransportStreamNum(); i++) {
+		pDescBlock = pNitTable->GetItemDesc(i);
+		if (pDescBlock) {
+			const CServiceListDesc *pServiceListDesc =
+				dynamic_cast<const CServiceListDesc*>(pDescBlock->GetDescByTag(CServiceListDesc::DESC_TAG));
+			if (pServiceListDesc) {
+				for (int j = 0; j < pServiceListDesc->GetServiceNum(); j++) {
+					CServiceListDesc::ServiceInfo Info;
+					if (pServiceListDesc->GetServiceInfo(j, &Info)) {
+						int Index = pThis->GetServiceIndexByID(Info.ServiceID);
+						if (Index >= 0) {
+							ServiceInfo &Service = pThis->m_ServiceList[Index];
+							if (Service.ServiceType == SERVICE_TYPE_INVALID)
+								Service.ServiceType = Info.ServiceType;
+						}
+					}
+				}
+			}
 		}
 	}
 

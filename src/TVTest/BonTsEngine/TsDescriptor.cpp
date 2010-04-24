@@ -3,8 +3,9 @@
 //////////////////////////////////////////////////////////////////////
 
 #include "stdafx.h"
-#include "TsEncode.h"
+#include "Common.h"
 #include "TsDescriptor.h"
+#include "TsEncode.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -263,6 +264,7 @@ const bool CServiceDesc::StoreContents(const BYTE *pPayload)
 
 	// Provider Name
 	Length = pPayload[Pos++];
+	m_szProviderName[0] = '\0';
 	if (Length > 0) {
 		if (Pos + Length >= m_byDescLen)
 			return false;
@@ -272,6 +274,7 @@ const bool CServiceDesc::StoreContents(const BYTE *pPayload)
 
 	// Service Name
 	Length = pPayload[Pos++];
+	m_szServiceName[0] = '\0';
 	if (Length > 0) {
 		if (Pos + Length > m_byDescLen)
 			return false;
@@ -364,6 +367,7 @@ const bool CShortEventDesc::StoreContents(const BYTE *pPayload)
 
 	// Event Name
 	Length = pPayload[Pos++];
+	m_szEventName[0] = '\0';
 	if (Length > 0) {
 		if (Pos + Length >= m_byDescLen)
 			return false;
@@ -373,6 +377,7 @@ const bool CShortEventDesc::StoreContents(const BYTE *pPayload)
 
 	// Event Description
 	Length = pPayload[Pos++];
+	m_szEventDesc[0] = '\0';
 	if (Length > 0) {
 		if (Pos + Length > m_byDescLen)
 			return false;
@@ -473,23 +478,23 @@ const bool CExtendedEventDesc::StoreContents(const BYTE *pPayload)
 	while (Pos < 5 + ItemLength) {
 		ItemInfo Item;
 
-		const int DescriptionLength = pPayload[Pos];
-		if (Pos + 1 + DescriptionLength > (int)m_byDescLen)
+		const int DescriptionLength = pPayload[Pos++];
+		if (Pos + DescriptionLength >= (int)m_byDescLen)
 			break;
 		Item.szDescription[0] = '\0';
 		if (DescriptionLength > 0)
-			CAribString::AribToString(Item.szDescription, MAX_DESCRIPTION, &pPayload[Pos + 1], DescriptionLength);
-		Pos += 1 + DescriptionLength;
+			CAribString::AribToString(Item.szDescription, MAX_DESCRIPTION, &pPayload[Pos], DescriptionLength);
+		Pos += DescriptionLength;
 
-		const BYTE ItemLength = pPayload[Pos];
-		if (Pos + 1 + (int)ItemLength > (int)m_byDescLen)
+		const BYTE ItemLength = pPayload[Pos++];
+		if (Pos + (int)ItemLength > (int)m_byDescLen)
 			break;
 		Item.ItemLength = min(ItemLength, 220);
-		::CopyMemory(Item.ItemChar, &pPayload[Pos + 1], Item.ItemLength);
+		::CopyMemory(Item.ItemChar, &pPayload[Pos], Item.ItemLength);
 
 		m_ItemList.push_back(Item);
 
-		Pos += 1 + ItemLength;
+		Pos += ItemLength;
 	}
 	return true;
 }
@@ -606,7 +611,310 @@ const bool CNetworkNameDesc::StoreContents(const BYTE *pPayload)
 	if (m_byDescTag != DESC_TAG)
 		return false;
 
+	m_szNetworkName[0] = '\0';
 	CAribString::AribToString(m_szNetworkName, sizeof(m_szNetworkName) / sizeof(TCHAR), &pPayload[0], m_byDescLen);
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x41] Service List 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CServiceListDesc::CServiceListDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CServiceListDesc::CServiceListDesc(const CServiceListDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CServiceListDesc & CServiceListDesc::operator = (const CServiceListDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CServiceListDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CServiceListDesc *pSrcDesc = dynamic_cast<const CServiceListDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_ServiceList = pSrcDesc->m_ServiceList;
+	}
+}
+
+void CServiceListDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+	m_ServiceList.clear();
+}
+
+const int CServiceListDesc::GetServiceNum() const
+{
+	return (int)m_ServiceList.size();
+}
+
+const int CServiceListDesc::GetServiceIndexByID(const WORD ServiceID) const
+{
+	for (size_t i = 0; i < m_ServiceList.size(); i++) {
+		if (m_ServiceList[i].ServiceID == ServiceID)
+			return (int)i;
+	}
+	return -1;
+}
+
+const BYTE CServiceListDesc::GetServiceTypeByID(const WORD ServiceID) const
+{
+	int Index = GetServiceIndexByID(ServiceID);
+	if (Index >= 0)
+		return m_ServiceList[Index].ServiceType;
+	return SERVICE_TYPE_INVALID;
+}
+
+const bool CServiceListDesc::GetServiceInfo(const int Index, ServiceInfo *pInfo) const
+{
+	if (!pInfo || Index < 0 || (size_t)Index >= m_ServiceList.size())
+		return false;
+
+	*pInfo = m_ServiceList[Index];
+
+	return true;
+}
+
+const bool CServiceListDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG)
+		return false;
+
+	const int NumServices = m_byDescLen / 3;
+
+	m_ServiceList.resize(NumServices);
+
+	int Pos = 0;
+	for (int i = 0; i < NumServices; i++) {
+		m_ServiceList[i].ServiceID = ((WORD)pPayload[Pos + 0] << 8) | (WORD)pPayload[Pos + 1];
+		m_ServiceList[i].ServiceType = pPayload[Pos + 2];
+
+		Pos += 3;
+	}
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x43] Satellite Delivery System 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CSatelliteDeliverySystemDesc::CSatelliteDeliverySystemDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CSatelliteDeliverySystemDesc::CSatelliteDeliverySystemDesc(const CSatelliteDeliverySystemDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CSatelliteDeliverySystemDesc & CSatelliteDeliverySystemDesc::operator = (const CSatelliteDeliverySystemDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CSatelliteDeliverySystemDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CSatelliteDeliverySystemDesc *pSrcDesc = dynamic_cast<const CSatelliteDeliverySystemDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_Frequency = pSrcDesc->m_Frequency;
+		m_OrbitalPosition = pSrcDesc->m_OrbitalPosition;
+		m_bWestEastFlag = pSrcDesc->m_bWestEastFlag;
+		m_Polarization = pSrcDesc->m_Polarization;
+		m_Modulation = pSrcDesc->m_Modulation;
+		m_SymbolRate = pSrcDesc->m_SymbolRate;
+		m_FECInner = pSrcDesc->m_FECInner;
+	}
+}
+
+void CSatelliteDeliverySystemDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_Frequency = 0;
+	m_OrbitalPosition = 0;
+	m_bWestEastFlag = false;
+	m_Polarization = 0xFF;
+	m_Modulation = 0;
+	m_SymbolRate = 0;
+	m_FECInner = 0;
+}
+
+const DWORD CSatelliteDeliverySystemDesc::GetFrequency() const
+{
+	return m_Frequency;
+}
+
+const WORD CSatelliteDeliverySystemDesc::GetOrbitalPosition() const
+{
+	return m_OrbitalPosition;
+}
+
+const bool CSatelliteDeliverySystemDesc::GetWestEastFlag() const
+{
+	return m_bWestEastFlag;
+}
+
+const BYTE CSatelliteDeliverySystemDesc::GetPolarization() const
+{
+	return m_Polarization;
+}
+
+const BYTE CSatelliteDeliverySystemDesc::GetModulation() const
+{
+	return m_Modulation;
+}
+
+const DWORD CSatelliteDeliverySystemDesc::GetSymbolRate() const
+{
+	return m_SymbolRate;
+}
+
+const BYTE CSatelliteDeliverySystemDesc::GetFECInner() const
+{
+	return m_FECInner;
+}
+
+static const DWORD GetBCD(const BYTE *pData, const int Length)
+{
+	DWORD Value = 0;
+	for (int i = 0; i < Length; i++) {
+		Value *= 10;
+		if (i % 2 == 0)
+			Value += pData[i / 2] >> 4;
+		else
+			Value += pData[i / 2] & 0x0F;
+	}
+	return Value;
+}
+
+const bool CSatelliteDeliverySystemDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen != 11)
+		return false;
+
+	m_Frequency = GetBCD(&pPayload[0], 8);
+	m_OrbitalPosition = (WORD)GetBCD(&pPayload[4], 4);
+	m_bWestEastFlag = (pPayload[6] & 0x80) != 0;
+	m_Polarization = (pPayload[6] >> 5) & 0x03;
+	m_Modulation = pPayload[6] & 0x1F;
+	m_SymbolRate = GetBCD(&pPayload[7], 7);
+	m_FECInner = pPayload[10] & 0x0F;
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0xFA] Terrestrial Delivery System 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CTerrestrialDeliverySystemDesc::CTerrestrialDeliverySystemDesc()
+	: CBaseDesc()
+{
+	Reset();
+}
+
+CTerrestrialDeliverySystemDesc::CTerrestrialDeliverySystemDesc(const CTerrestrialDeliverySystemDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CTerrestrialDeliverySystemDesc & CTerrestrialDeliverySystemDesc::operator = (const CTerrestrialDeliverySystemDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CTerrestrialDeliverySystemDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CTerrestrialDeliverySystemDesc *pSrcDesc = dynamic_cast<const CTerrestrialDeliverySystemDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_AreaCode = pSrcDesc->m_AreaCode;
+		m_GuardInterval = pSrcDesc->m_GuardInterval;
+		m_TransmissionMode = pSrcDesc->m_TransmissionMode;
+		m_Frequency = pSrcDesc->m_Frequency;
+	}
+}
+
+void CTerrestrialDeliverySystemDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_AreaCode = 0;
+	m_GuardInterval = 0xFF;
+	m_TransmissionMode = 0xFF;
+	m_Frequency.clear();
+}
+
+const WORD CTerrestrialDeliverySystemDesc::GetAreaCode() const
+{
+	return m_AreaCode;
+}
+
+const BYTE CTerrestrialDeliverySystemDesc::GetGuardInterval() const
+{
+	return m_GuardInterval;
+}
+
+const BYTE CTerrestrialDeliverySystemDesc::GetTransmissionMode() const
+{
+	return m_TransmissionMode;
+}
+
+const int CTerrestrialDeliverySystemDesc::GetFrequencyNum() const
+{
+	return (int)m_Frequency.size();
+}
+
+const WORD CTerrestrialDeliverySystemDesc::GetFrequency(const int Index) const
+{
+	if (Index < 0 || (size_t)Index >= m_Frequency.size())
+		return 0;
+	return m_Frequency[Index];
+}
+
+const bool CTerrestrialDeliverySystemDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 4)
+		return false;
+
+	m_AreaCode = ((WORD)pPayload[0] << 4) | ((WORD)pPayload[1] >> 4);
+	m_GuardInterval = (pPayload[1] & 0x0C) >> 2;
+	m_TransmissionMode = pPayload[1] & 0x03;
+	const int FrequencyNum = (m_byDescLen - 2) / 2;
+	m_Frequency.resize(FrequencyNum);
+	int Pos = 2;
+	for (int i = 0; i < FrequencyNum; i++) {
+		m_Frequency[i] = ((WORD)pPayload[Pos + 0] << 8) | (WORD)pPayload[Pos + 1];
+		Pos += 2;
+	}
 
 	return true;
 }
@@ -747,6 +1055,7 @@ const bool CTSInfoDesc::StoreContents(const BYTE *pPayload)
 	if (2 + Length > m_byDescLen)
 		return false;
 
+	m_szTSName[0] = '\0';
 	CAribString::AribToString(m_szTSName, sizeof(m_szTSName) / sizeof(TCHAR), &pPayload[2], Length);
 
 	return true;
@@ -839,10 +1148,9 @@ const bool CComponentDesc::StoreContents(const BYTE *pPayload)
 	m_ComponentType = pPayload[1];
 	m_ComponentTag = pPayload[2];
 	m_LanguageCode = (pPayload[3] << 16) | (pPayload[4] << 8) | pPayload[5];
+	m_szText[0]='\0';
 	if (m_byDescLen > 6)
 		CAribString::AribToString(m_szText, sizeof(m_szText) / sizeof(TCHAR), &pPayload[6], min(m_byDescLen - 6, 16));
-	else
-		m_szText[0]='\0';
 	return true;
 }
 
@@ -990,10 +1298,9 @@ const bool CAudioComponentDesc::StoreContents(const BYTE *pPayload)
 		m_LanguageCode2 = (pPayload[Pos] << 16) | (pPayload[Pos + 1] << 8) | pPayload[Pos + 2];
 		Pos += 3;
 	}
+	m_szText[0]='\0';
 	if (Pos < m_byDescLen)
 		CAribString::AribToString(m_szText, sizeof(m_szText) / sizeof(TCHAR), &pPayload[Pos], min(m_byDescLen - Pos, 33));
-	else
-		m_szText[0]='\0';
 	return true;
 }
 
@@ -1001,7 +1308,6 @@ const bool CAudioComponentDesc::StoreContents(const BYTE *pPayload)
 /////////////////////////////////////////////////////////////////////////////
 // [0x54] Content 記述子抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
-// ※現在のところ使用していないので未テストです。
 
 CContentDesc::CContentDesc()
 	: CBaseDesc()
@@ -1360,7 +1666,7 @@ bool CEventGroupDesc::GetEventInfo(int Index, EventInfo *pInfo) const
 
 const bool CEventGroupDesc::StoreContents(const BYTE *pPayload)
 {
-	if (m_byDescTag != DESC_TAG || m_byDescLen < 7)
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 1)
 		return false;
 
 	m_GroupType = pPayload[0] >> 4;
@@ -1546,7 +1852,7 @@ const WORD CDescBlock::ParseBlock(const BYTE *pHexData, const WORD wDataLength)
 
 		// 位置更新
 		wPos += (pNewDesc->GetLength() + 2U);
-	} while (wPos < wDataLength);
+	} while (wPos + 2 <= wDataLength);
 
 	return (WORD)m_DescArray.size();
 }
@@ -1617,22 +1923,24 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 {
 	// タグに対応したインスタンスを生成する
 	switch (byTag) {
-	case CCaMethodDesc::DESC_TAG			: return new CCaMethodDesc;
-	case CServiceDesc::DESC_TAG				: return new CServiceDesc;
-	case CShortEventDesc::DESC_TAG			: return new CShortEventDesc;
-	case CExtendedEventDesc::DESC_TAG		: return new CExtendedEventDesc;
-	case CStreamIdDesc::DESC_TAG			: return new CStreamIdDesc;
-	case CNetworkNameDesc::DESC_TAG			: return new CNetworkNameDesc;
-	case CSystemManageDesc::DESC_TAG		: return new CSystemManageDesc;
-	case CTSInfoDesc::DESC_TAG				: return new CTSInfoDesc;
-	case CComponentDesc::DESC_TAG			: return new CComponentDesc;
-	case CAudioComponentDesc::DESC_TAG		: return new CAudioComponentDesc;
-	case CLogoTransmissionDesc::DESC_TAG	: return new CLogoTransmissionDesc;
-	case CSeriesDesc::DESC_TAG				: return new CSeriesDesc;
-	case CEventGroupDesc::DESC_TAG			: return new CEventGroupDesc;
-	case CLocalTimeOffsetDesc::DESC_TAG		: return new CLocalTimeOffsetDesc;
-	// 今のところ利用していない
-	//case CContentDesc::DESC_TAG			: return new CContentDesc;
-	default									: return new CBaseDesc;
+	case CCaMethodDesc::DESC_TAG					: return new CCaMethodDesc;
+	case CServiceDesc::DESC_TAG						: return new CServiceDesc;
+	case CShortEventDesc::DESC_TAG					: return new CShortEventDesc;
+	case CExtendedEventDesc::DESC_TAG				: return new CExtendedEventDesc;
+	case CStreamIdDesc::DESC_TAG					: return new CStreamIdDesc;
+	case CNetworkNameDesc::DESC_TAG					: return new CNetworkNameDesc;
+	case CServiceListDesc::DESC_TAG					: return new CServiceListDesc;
+	case CSatelliteDeliverySystemDesc::DESC_TAG		: return new CSatelliteDeliverySystemDesc;
+	case CTerrestrialDeliverySystemDesc::DESC_TAG	: return new CTerrestrialDeliverySystemDesc;
+	case CSystemManageDesc::DESC_TAG				: return new CSystemManageDesc;
+	case CTSInfoDesc::DESC_TAG						: return new CTSInfoDesc;
+	case CComponentDesc::DESC_TAG					: return new CComponentDesc;
+	case CAudioComponentDesc::DESC_TAG				: return new CAudioComponentDesc;
+	case CContentDesc::DESC_TAG						: return new CContentDesc;
+	case CLogoTransmissionDesc::DESC_TAG			: return new CLogoTransmissionDesc;
+	case CSeriesDesc::DESC_TAG						: return new CSeriesDesc;
+	case CEventGroupDesc::DESC_TAG					: return new CEventGroupDesc;
+	case CLocalTimeOffsetDesc::DESC_TAG				: return new CLocalTimeOffsetDesc;
+	default											: return new CBaseDesc;
 	}
 }

@@ -19,6 +19,7 @@ bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color
 bool GlossOverlay(HDC hdc,const RECT *pRect,
 				  int Highlight1=192,int Highlight2=32,
 				  int Shadow1=32,int Shadow2=0);
+bool ColorOverlay(HDC hdc,const RECT *pRect,COLORREF Color,BYTE Opacity=128);
 bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const RECT *pPaintRect,HBRUSH hbr);
 
 bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
@@ -32,7 +33,8 @@ enum FontType {
 	FONT_MESSAGE,
 	FONT_MENU,
 	FONT_CAPTION,
-	FONT_SMALLCAPTION
+	FONT_SMALLCAPTION,
+	FONT_STATUS
 };
 
 bool GetSystemFont(FontType Type,LOGFONT *pLogFont);
@@ -54,6 +56,8 @@ public:
 	void Destroy();
 	bool GetLogFont(LOGFONT *pLogFont) const;
 	HFONT GetHandle() const { return m_hfont; }
+	int GetHeight(bool fCell=true) const;
+	int GetHeight(HDC hdc,bool fCell=true) const;
 };
 
 class CDeviceContext {

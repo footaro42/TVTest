@@ -5,7 +5,6 @@
 #include "stdafx.h"
 #include "DtvEngine.h"
 
-
 #ifdef _DEBUG
 #undef THIS_FILE
 static char THIS_FILE[]=__FILE__;
@@ -35,6 +34,7 @@ CDtvEngine::CDtvEngine(void)
 	, m_MediaBuffer(this)
 	, m_MediaGrabber(this)
 	, m_TsSelector(this)
+	, m_EventManager(this)
 	, m_CaptionDecoder(this)
 	, m_LogoDownloader(this)
 	, m_bBuiled(false)
@@ -55,7 +55,7 @@ CDtvEngine::~CDtvEngine(void)
 
 
 const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
-								   bool bDescramble, bool bBuffering)
+								   bool bDescramble, bool bBuffering, bool bEventManager)
 {
 	// 完全に暫定
 	if (m_bBuiled)
@@ -66,7 +66,7 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 
 	CBonSrcDecoder
 		↓
-	CTsPacketParser → EpgDataCap2.dll
+	CTsPacketParser
 		↓
 	CTsAnalyzer
 		↓
@@ -74,11 +74,13 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 		↓
 	CMediaTee─────┐
 		↓             ↓
-	CMediaBuffer  CMediaGrabber → プラグイン
+	CMediaBuffer  CEventManager
 		↓             ↓
 	CMediaViewer  CCaptionDecoder
 		               ↓
 		          CLogoDownloader
+		               ↓
+		          CMediaGrabber → プラグイン
 		               ↓
 		          CTsSelector
 		               ↓
@@ -101,10 +103,15 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 		m_MediaTee.SetOutputDecoder(&m_MediaViewer, 0);
 	}
 	m_bBuffering=bBuffering;
-	m_MediaTee.SetOutputDecoder(&m_MediaGrabber, 1UL);
-	m_MediaGrabber.SetOutputDecoder(&m_CaptionDecoder);
+	if (bEventManager) {
+		m_MediaTee.SetOutputDecoder(&m_EventManager, 1UL);
+		m_EventManager.SetOutputDecoder(&m_CaptionDecoder);
+	} else {
+		m_MediaTee.SetOutputDecoder(&m_CaptionDecoder, 1UL);
+	}
 	m_CaptionDecoder.SetOutputDecoder(&m_LogoDownloader);
-	m_LogoDownloader.SetOutputDecoder(&m_TsSelector);
+	m_LogoDownloader.SetOutputDecoder(&m_MediaGrabber);
+	m_MediaGrabber.SetOutputDecoder(&m_TsSelector);
 	m_TsSelector.SetOutputDecoder(&m_FileWriter);
 
 	// イベントハンドラ設定
@@ -561,7 +568,7 @@ const bool CDtvEngine::SetService(const WORD wService)
 			SetDescrambleService(wServiceID);
 
 		if (m_bWriteCurServiceOnly)
-			SetWriteService(wServiceID, m_WriteStream);
+			SetWriteStream(wServiceID, m_WriteStream);
 
 		m_CaptionDecoder.SetTargetStream(wServiceID);
 
@@ -746,7 +753,7 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 		}
 	}*/ else if (pDecoder == &m_FileWriter) {
 		switch (dwEventID) {
-		case CFileWriter::EID_WRITE_ERROR:
+		case CBufferedFileWriter::EID_WRITE_ERROR:
 			// 書き込みエラーが発生した
 			if (m_pEventHandler)
 				m_pEventHandler->OnFileWriteError(&m_FileWriter);
@@ -921,9 +928,19 @@ bool CDtvEngine::SetDescrambleCurServiceOnly(bool bOnly)
 }
 
 
-bool CDtvEngine::SetWriteService(WORD ServiceID, DWORD Stream)
+bool CDtvEngine::SetWriteStream(WORD ServiceID, DWORD Stream)
 {
 	return m_TsSelector.SetTargetServiceID(ServiceID, Stream);
+}
+
+
+bool CDtvEngine::GetWriteStream(WORD *pServiceID, DWORD *pStream)
+{
+	if (pServiceID)
+		*pServiceID = m_TsSelector.GetTargetServiceID();
+	if (pStream)
+		*pStream = m_TsSelector.GetTargetStream();
+	return true;
 }
 
 
@@ -936,9 +953,9 @@ bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly, DWORD Stream)
 			WORD ServiceID = 0;
 
 			GetServiceID(&ServiceID);
-			SetWriteService(ServiceID, Stream);
+			SetWriteStream(ServiceID, Stream);
 		} else {
-			SetWriteService(0, Stream);
+			SetWriteStream(0, Stream);
 		}
 	}
 	return true;

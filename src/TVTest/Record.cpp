@@ -76,7 +76,7 @@ bool CRecordTask::Start(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
 	if (m_State!=STATE_STOP)
 		return false;
 	if (!pDtvEngine->m_FileWriter.OpenFile(pszFileName,
-												CNCachedFile::CNF_SHAREREAD))
+										   CNCachedFile::CNF_SHAREREAD))
 		return false;
 	m_State=STATE_RECORDING;
 	m_pDtvEngine=pDtvEngine;
@@ -92,8 +92,7 @@ bool CRecordTask::Stop()
 		m_pDtvEngine->m_FileWriter.CloseFile();
 		m_State=STATE_STOP;
 		m_pDtvEngine=NULL;
-	} else
-		return false;
+	}
 	return true;
 }
 
@@ -105,6 +104,7 @@ bool CRecordTask::Pause()
 		m_State=STATE_PAUSE;
 		m_PauseStartTime=::GetTickCount();
 	} else if (m_State==STATE_PAUSE) {
+		m_pDtvEngine->m_FileWriter.ClearQueue();
 		m_pDtvEngine->m_FileWriter.Resume();
 		m_State=STATE_RECORDING;
 		m_TotalPauseTime+=DiffTime(m_PauseStartTime,::GetTickCount());
@@ -185,6 +185,14 @@ LPCTSTR CRecordTask::GetFileName() const
 }
 
 
+bool CRecordTask::RelayFile(LPCTSTR pszFileName)
+{
+	if (m_State==STATE_STOP)
+		return false;
+	return m_pDtvEngine->m_FileWriter.RelayFile(pszFileName,CNCachedFile::CNF_SHAREREAD);
+}
+
+
 LONGLONG CRecordTask::GetFreeSpace() const
 {
 	if (m_State==STATE_STOP)
@@ -206,18 +214,19 @@ LONGLONG CRecordTask::GetFreeSpace() const
 
 
 CRecordManager::CRecordManager()
+	: m_fRecording(false)
+	, m_fReserved(false)
+	, m_pszFileName(NULL)
+	, m_Client(CLIENT_USER)
+	, m_pDtvEngine(NULL)
+	//, m_ExistsOperation(EXISTS_CONFIRM)
+	, m_fCurServiceOnly(false)
+	, m_SaveStream(CTsSelector::STREAM_ALL)
+	, m_fDescrambleCurServiceOnly(false)
+	, m_BufferSize(0x100000)
 {
-	m_fRecording=false;
-	m_fReserved=false;
-	m_pszFileName=NULL;
 	m_StartTimeSpec.Type=TIME_NOTSPECIFIED;
 	m_StopTimeSpec.Type=TIME_NOTSPECIFIED;
-	m_pDtvEngine=NULL;
-	//m_ExistsOperation=EXISTS_CONFIRM;
-	m_fCurServiceOnly=false;
-	m_SaveStream=CTsSelector::STREAM_ALL;
-	m_fDescrambleCurServiceOnly=false;
-	m_BufferSize=0x100000;
 }
 
 
@@ -260,6 +269,22 @@ bool CRecordManager::GetReserveTime(FILETIME *pTime) const
 	if (!m_fReserved)
 		return false;
 	return m_ReserveTime.GetTime(pTime);
+}
+
+
+bool CRecordManager::GetReservedStartTime(FILETIME *pTime) const
+{
+	if (!m_fReserved)
+		return false;
+	if (m_StartTimeSpec.Type==TIME_DATETIME) {
+		*pTime=m_StartTimeSpec.Time.DateTime;
+	} else if (m_StartTimeSpec.Type==TIME_DURATION) {
+		if (!m_ReserveTime.GetTime(pTime))
+			return false;
+		*pTime+=m_StartTimeSpec.Time.Duration*FILETIME_MILLISECOND;
+	} else
+		return false;
+	return true;
 }
 
 
@@ -309,16 +334,21 @@ bool CRecordManager::IsStopTimeSpecified() const
 }
 
 
-bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName)
+bool CRecordManager::StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName,bool fTimeShift)
 {
 	if (m_fRecording)
 		return false;
+	bool fOldWriteCurOnly=pDtvEngine->GetWriteCurServiceOnly();
+	DWORD OldWriteStream;
+	pDtvEngine->GetWriteStream(NULL,&OldWriteStream);
 	pDtvEngine->SetWriteCurServiceOnly(m_fCurServiceOnly,m_SaveStream);
 	bool fDescrambleCurOnly=pDtvEngine->GetDescrambleCurServiceOnly();
 	pDtvEngine->SetDescrambleCurServiceOnly(m_fDescrambleCurServiceOnly);
 	pDtvEngine->m_FileWriter.SetBufferSize((DWORD)m_BufferSize);
+	if (!fTimeShift)
+		pDtvEngine->m_FileWriter.ClearQueue();
 	if (!m_RecordTask.Start(pDtvEngine,pszFileName)) {
-		pDtvEngine->SetWriteCurServiceOnly(false);
+		pDtvEngine->SetWriteCurServiceOnly(fOldWriteCurOnly,OldWriteStream);
 		pDtvEngine->SetDescrambleCurServiceOnly(fDescrambleCurOnly);
 		SetError(pDtvEngine->m_FileWriter.GetLastErrorException());
 		return false;
@@ -350,6 +380,19 @@ bool CRecordManager::PauseRecord()
 	if (!m_fRecording)
 		return false;
 	return m_RecordTask.Pause();
+}
+
+
+bool CRecordManager::RelayFile(LPCTSTR pszFileName)
+{
+	if (!m_fRecording)
+		return false;
+	if (!m_RecordTask.RelayFile(pszFileName)) {
+		SetError(m_pDtvEngine->m_FileWriter.GetLastErrorException());
+		return false;
+	}
+	ClearError();
+	return true;
 }
 
 

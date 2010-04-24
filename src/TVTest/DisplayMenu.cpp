@@ -4,6 +4,12 @@
 #include "AppMain.h"
 #include "Settings.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -53,6 +59,7 @@ CChannelDisplayMenu::CChannelDisplayMenu(CEpgProgramList *pEpgProgramList)
 	, m_CurTuner(-1)
 	, m_CurChannel(-1)
 	, m_pEpgProgramList(pEpgProgramList)
+	, m_pLogoManager(NULL)
 	, m_pEventHandler(NULL)
 {
 	m_ChannelBackGradient[0].Type=Theme::GRADIENT_NORMAL;
@@ -135,8 +142,18 @@ bool CChannelDisplayMenu::SetDriverManager(CDriverManager *pDriverManager)
 }
 
 
+void CChannelDisplayMenu::SetLogoManager(CLogoManager *pLogoManager)
+{
+	m_pLogoManager=pLogoManager;
+}
+
+
 void CChannelDisplayMenu::SetEventHandler(CEventHandler *pEventHandler)
 {
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pChannelDisplayMenu=NULL;
+	if (pEventHandler!=NULL)
+		pEventHandler->m_pChannelDisplayMenu=this;
 	m_pEventHandler=pEventHandler;
 }
 
@@ -281,7 +298,7 @@ void CChannelDisplayMenu::Layout()
 	HFONT hfontOld=SelectFont(hdc,m_Font.GetHandle());
 	TEXTMETRIC tm;
 	::GetTextMetrics(hdc,&tm);
-	m_FontHeight=tm.tmHeight/*+tm.tmInternalLeading*/;
+	m_FontHeight=tm.tmHeight/*-tm.tmInternalLeading*/;
 
 	m_TunerItemWidth=m_FontHeight*10;
 	m_TunerItemHeight=max(32,m_FontHeight)+8;
@@ -377,6 +394,20 @@ const CTuningSpaceInfo *CChannelDisplayMenu::GetTuningSpaceInfo(int Index) const
 	int TunerIndex=0;
 	for (int i=0;i<m_TunerList.Length();i++) {
 		const CTuner *pTuner=m_TunerList[i];
+
+		if (Index>=TunerIndex && Index<TunerIndex+pTuner->NumSpaces())
+			return pTuner->GetTuningSpaceInfo(Index-TunerIndex);
+		TunerIndex+=pTuner->NumSpaces();
+	}
+	return NULL;
+}
+
+
+CTuningSpaceInfo *CChannelDisplayMenu::GetTuningSpaceInfo(int Index)
+{
+	int TunerIndex=0;
+	for (int i=0;i<m_TunerList.Length();i++) {
+		CTuner *pTuner=m_TunerList[i];
 
 		if (Index>=TunerIndex && Index<TunerIndex+pTuner->NumSpaces())
 			return pTuner->GetTuningSpaceInfo(Index-TunerIndex);
@@ -483,8 +514,56 @@ bool CChannelDisplayMenu::SetCurTuner(int Index,bool fUpdate)
 		::GetLocalTime(&m_EpgBaseTime);
 		m_EpgBaseTime.wSecond=0;
 		m_EpgBaseTime.wMilliseconds=0;
+		UpdateChannelInfo(Index);
 		Layout();
 		Invalidate();
+	}
+	return true;
+}
+
+
+bool CChannelDisplayMenu::UpdateChannelInfo(int Index)
+{
+	CTuningSpaceInfo *pTuningSpace=GetTuningSpaceInfo(Index);
+
+	if (pTuningSpace==NULL)
+		return false;
+	CChannelList *pChannelList=pTuningSpace->GetChannelList();
+	for (int i=0;i<pChannelList->NumChannels();i++) {
+		CTuner::CChannel *pChannel=static_cast<CTuner::CChannel*>(pChannelList->GetChannelInfo(i));
+
+		CEventInfoData EventInfo;
+		if (m_pEpgProgramList->GetEventInfo(
+				pChannel->GetTransportStreamID(),
+				pChannel->GetServiceID(),
+				&m_EpgBaseTime,&EventInfo)) {
+			pChannel->SetEvent(0,&EventInfo);
+			SYSTEMTIME st;
+			if (EventInfo.m_fValidStartTime
+					&& EventInfo.m_DurationSec>0
+					&& EventInfo.GetEndTime(&st)
+					&& m_pEpgProgramList->GetEventInfo(
+						pChannel->GetTransportStreamID(),
+						pChannel->GetServiceID(),
+						&st,&EventInfo)) {
+				pChannel->SetEvent(1,&EventInfo);
+			} else {
+				pChannel->SetEvent(1,NULL);
+			}
+		} else {
+			pChannel->SetEvent(0,NULL);
+			pChannel->SetEvent(1,NULL);
+		}
+		if (m_pLogoManager!=NULL) {
+			HBITMAP hbmLogo=m_pLogoManager->GetAssociatedLogoBitmap(
+				pChannel->GetNetworkID(),pChannel->GetServiceID(),CLogoManager::LOGOTYPE_SMALL);
+			if (hbmLogo!=NULL)
+				pChannel->SetSmallLogo(hbmLogo);
+			hbmLogo=m_pLogoManager->GetAssociatedLogoBitmap(
+				pChannel->GetNetworkID(),pChannel->GetServiceID(),CLogoManager::LOGOTYPE_BIG);
+			if (hbmLogo!=NULL)
+				pChannel->SetBigLogo(hbmLogo);
+		}
 	}
 	return true;
 }
@@ -576,6 +655,158 @@ void CChannelDisplayMenu::SetChannelScrollPos(int Pos,bool fScroll)
 }
 
 
+void CChannelDisplayMenu::Draw(HDC hdc,const RECT *pPaintRect)
+{
+	RECT rcClient,rc;
+	HFONT hfontOld;
+	COLORREF OldTextColor;
+	int OldBkMode;
+	TCHAR szText[1024];
+
+	::GetClientRect(m_hwnd,&rcClient);
+	hfontOld=SelectFont(hdc,m_Font.GetHandle());
+	OldTextColor=::GetTextColor(hdc);
+	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+	if (pPaintRect->left<m_TunerAreaWidth) {
+		rc.left=rcClient.left;
+		rc.top=rcClient.top;
+		rc.right=m_TunerAreaWidth;
+		rc.bottom=rcClient.bottom;
+		Theme::FillGradient(hdc,&rc,&m_TunerAreaBackGradient);
+		int TunerIndex=0;
+		for (int i=0;i<m_TunerList.Length();i++) {
+			const CTuner *pTuner=m_TunerList[i];
+
+			for (int j=0;j<pTuner->NumSpaces();j++) {
+				if (TunerIndex>=m_TunerScrollPos
+						&& TunerIndex<m_TunerScrollPos+m_VisibleTunerItems) {
+					const CTuningSpaceInfo *pTuningSpace=pTuner->GetTuningSpaceInfo(j);
+					const Theme::GradientInfo *pGradient;
+					COLORREF TextColor;
+					if (TunerIndex==m_CurTuner) {
+						pGradient=&m_CurTunerBackGradient;
+						TextColor=m_CurTunerTextColor;
+					} else {
+						pGradient=&m_TunerBackGradient;
+						TextColor=m_TunerTextColor;
+					}
+					GetTunerItemRect(TunerIndex,&rc);
+					Theme::FillGradient(hdc,&rc,pGradient);
+					if (pTuner->GetIcon()!=NULL)
+						::DrawIconEx(hdc,
+									 rc.left+8,
+									 rc.top+((rc.bottom-rc.top)-32)/2,
+									 pTuner->GetIcon(),
+									 32,32,0,NULL,DI_NORMAL);
+					::SetTextColor(hdc,TextColor);
+					if (pTuner->GetDisplayName()!=NULL) {
+						::lstrcpyn(szText,pTuner->GetDisplayName(),lengthof(szText));
+					} else {
+						LPCTSTR pszDriver=pTuner->GetDriverFileName();
+						if (::StrCmpNI(pszDriver,TEXT("BonDriver_"),10)==0)
+							pszDriver+=10;
+						::lstrcpy(szText,pszDriver);
+						::PathRemoveExtension(szText);
+					}
+					if (pTuner->NumSpaces()>1) {
+						if (pTuningSpace->GetName()!=NULL)
+							::wsprintf(szText+::lstrlen(szText),TEXT(" [%s]"),pTuningSpace->GetName());
+						else
+							::wsprintf(szText+::lstrlen(szText),TEXT(" [%d]"),j+1);
+					}
+					::DrawText(hdc,szText,-1,&rc,
+						DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+				}
+				TunerIndex++;
+			}
+		}
+	}
+	if (pPaintRect->right>m_TunerAreaWidth) {
+		rc.left=m_TunerAreaWidth;
+		rc.top=rcClient.top;
+		rc.right=rcClient.right;
+		rc.bottom=rcClient.bottom;
+		Theme::FillGradient(hdc,&rc,&m_ChannelAreaBackGradient);
+		DrawClock(hdc);
+		if (m_CurTuner>=0) {
+			const CTuningSpaceInfo *pTuningSpace=GetTuningSpaceInfo(m_CurTuner);
+
+			if (pTuningSpace!=NULL) {
+				const CChannelList *pChannelList=pTuningSpace->GetChannelList();
+				for (int i=m_ChannelScrollPos;i<pChannelList->NumChannels() && i<m_ChannelScrollPos+m_VisibleChannelItems;i++) {
+					const CTuner::CChannel *pChannel=static_cast<const CTuner::CChannel*>(pChannelList->GetChannelInfo(i));
+					const Theme::GradientInfo *pGradient;
+					COLORREF TextColor;
+					if (i==m_CurChannel) {
+						pGradient=&m_CurChannelBackGradient;
+						TextColor=m_CurChannelTextColor;
+					} else {
+						pGradient=&m_ChannelBackGradient[i%2];
+						TextColor=m_ChannelTextColor;
+					}
+					RECT rcItem;
+					GetChannelItemRect(i,&rcItem);
+					Theme::FillGradient(hdc,&rcItem,pGradient);
+					::SetTextColor(hdc,TextColor);
+					rc=rcItem;
+					rc.right=rc.left+m_ChannelNameWidth;
+					rc.left+=8;
+					if (pChannel->HasLogo()) {
+						int LogoWidth,LogoHeight;
+						LogoHeight=min(m_FontHeight-4,36);
+						LogoWidth=LogoHeight*16/9;
+						HBITMAP hbmLogo=LogoHeight<=14 || pChannel->GetBigLogo()==NULL?
+							pChannel->GetSmallLogo():pChannel->GetBigLogo();
+						DrawUtil::DrawBitmap(hdc,rc.left,rc.top+(m_FontHeight-LogoHeight)/2,
+											 LogoWidth,LogoHeight,hbmLogo,NULL,224);
+						rc.top+=m_FontHeight;
+					}
+					::DrawText(hdc,pChannel->GetName(),-1,&rc,
+						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+					rc=rcItem;
+					rc.left+=m_ChannelNameWidth;
+					rc.bottom=(rc.top+rc.bottom)/2;
+					const CEventInfoData *pEventInfo=pChannel->GetEvent(0);
+					if (pEventInfo!=NULL) {
+						int Length=0;
+						if (pEventInfo->m_fValidStartTime)
+							Length+=::wsprintf(szText,TEXT("%02d:%02d "),
+								pEventInfo->m_stStartTime.wHour,
+								pEventInfo->m_stStartTime.wMinute);
+						if (pEventInfo->GetEventName()!=NULL)
+							Length+=::wsprintf(szText+Length,TEXT("%s"),
+											   pEventInfo->GetEventName());
+						if (Length>0)
+							::DrawText(hdc,szText,Length,&rc,
+								DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+						pEventInfo=pChannel->GetEvent(1);
+						if (pEventInfo!=NULL) {
+							rc.top=rc.bottom;
+							rc.bottom=rcItem.bottom;
+							Length=0;
+							if (pEventInfo->m_fValidStartTime)
+								Length+=::wsprintf(szText,TEXT("%02d:%02d "),
+									pEventInfo->m_stStartTime.wHour,
+									pEventInfo->m_stStartTime.wMinute);
+							if (pEventInfo->GetEventName()!=NULL)
+								Length+=::wsprintf(szText+Length,TEXT("%s"),
+												   pEventInfo->GetEventName());
+							if (Length>0)
+								::DrawText(hdc,szText,Length,&rc,
+									DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+						}
+					}
+				}
+			}
+		}
+	}
+	::SelectObject(hdc,hfontOld);
+	::SetTextColor(hdc,OldTextColor);
+	::SetBkMode(hdc,OldBkMode);
+	DrawCloseButton(hdc);
+}
+
+
 void CChannelDisplayMenu::DrawClock(HDC hdc) const
 {
 	HFONT hfontOld;
@@ -599,30 +830,6 @@ void CChannelDisplayMenu::DrawClock(HDC hdc) const
 	SetTextColor(hdc,OldTextColor);
 	SetBkMode(hdc,OldBkMode);
 	SelectObject(hdc,hfontOld);
-}
-
-
-void CChannelDisplayMenu::GetCloseButtonRect(RECT *pRect) const
-{
-	RECT rc;
-
-	GetClientRect(&rc);
-	pRect->right=rc.right-1;
-	pRect->left=pRect->right-14;
-	pRect->top=1;
-	pRect->bottom=pRect->top+14;
-}
-
-
-bool CChannelDisplayMenu::CloseButtonHitTest(int x,int y) const
-{
-	RECT rc;
-	POINT pt;
-
-	GetCloseButtonRect(&rc);
-	pt.x=x;
-	pt.y=y;
-	return ::PtInRect(&rc,pt)!=FALSE;
 }
 
 
@@ -709,152 +916,9 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			RECT rcClient,rc;
-			HFONT hfontOld;
-			COLORREF OldTextColor;
-			int OldBkMode;
-			TCHAR szText[1024];
 
 			::BeginPaint(hwnd,&ps);
-			::GetClientRect(hwnd,&rcClient);
-			hfontOld=SelectFont(ps.hdc,pThis->m_Font.GetHandle());
-			OldTextColor=::GetTextColor(ps.hdc);
-			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-			if (ps.rcPaint.left<pThis->m_TunerAreaWidth) {
-				rc.left=rcClient.left;
-				rc.top=rcClient.top;
-				rc.right=pThis->m_TunerAreaWidth;
-				rc.bottom=rcClient.bottom;
-				Theme::FillGradient(ps.hdc,&rc,&pThis->m_TunerAreaBackGradient);
-				int TunerIndex=0;
-				for (int i=0;i<pThis->m_TunerList.Length();i++) {
-					const CTuner *pTuner=pThis->m_TunerList[i];
-
-					for (int j=0;j<pTuner->NumSpaces();j++) {
-						if (TunerIndex>=pThis->m_TunerScrollPos
-								&& TunerIndex<pThis->m_TunerScrollPos+pThis->m_VisibleTunerItems) {
-							const CTuningSpaceInfo *pTuningSpace=pTuner->GetTuningSpaceInfo(j);
-							const Theme::GradientInfo *pGradient;
-							COLORREF TextColor;
-							if (TunerIndex==pThis->m_CurTuner) {
-								pGradient=&pThis->m_CurTunerBackGradient;
-								TextColor=pThis->m_CurTunerTextColor;
-							} else {
-								pGradient=&pThis->m_TunerBackGradient;
-								TextColor=pThis->m_TunerTextColor;
-							}
-							pThis->GetTunerItemRect(TunerIndex,&rc);
-							Theme::FillGradient(ps.hdc,&rc,pGradient);
-							if (pTuner->GetIcon()!=NULL)
-								::DrawIconEx(ps.hdc,
-											 rc.left+8,
-											 rc.top+((rc.bottom-rc.top)-32)/2,
-											 pTuner->GetIcon(),
-											 32,32,0,NULL,DI_NORMAL);
-							::SetTextColor(ps.hdc,TextColor);
-							if (pTuner->GetDisplayName()!=NULL) {
-								::lstrcpyn(szText,pTuner->GetDisplayName(),lengthof(szText));
-							} else {
-								LPCTSTR pszDriver=pTuner->GetDriverFileName();
-								if (::StrCmpNI(pszDriver,TEXT("BonDriver_"),10)==0)
-									pszDriver+=10;
-								::lstrcpy(szText,pszDriver);
-								::PathRemoveExtension(szText);
-							}
-							if (pTuner->NumSpaces()>1) {
-								if (pTuningSpace->GetName()!=NULL)
-									::wsprintf(szText+::lstrlen(szText),TEXT(" [%s]"),pTuningSpace->GetName());
-								else
-									::wsprintf(szText+::lstrlen(szText),TEXT(" [%d]"),j+1);
-							}
-							::DrawText(ps.hdc,szText,-1,&rc,DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-						}
-						TunerIndex++;
-					}
-				}
-			}
-			if (ps.rcPaint.right>pThis->m_TunerAreaWidth) {
-				rc.left=pThis->m_TunerAreaWidth;
-				rc.top=rcClient.top;
-				rc.right=rcClient.right;
-				rc.bottom=rcClient.bottom;
-				Theme::FillGradient(ps.hdc,&rc,&pThis->m_ChannelAreaBackGradient);
-				pThis->DrawClock(ps.hdc);
-				if (pThis->m_CurTuner>=0) {
-					const CTuningSpaceInfo *pTuningSpace=pThis->GetTuningSpaceInfo(pThis->m_CurTuner);
-
-					if (pTuningSpace!=NULL) {
-						const CChannelList *pChannelList=pTuningSpace->GetChannelList();
-						for (int i=pThis->m_ChannelScrollPos;i<pChannelList->NumChannels() && i<pThis->m_ChannelScrollPos+pThis->m_VisibleChannelItems;i++) {
-							const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(i);
-							const Theme::GradientInfo *pGradient;
-							COLORREF TextColor;
-							if (i==pThis->m_CurChannel) {
-								pGradient=&pThis->m_CurChannelBackGradient;
-								TextColor=pThis->m_CurChannelTextColor;
-							} else {
-								pGradient=&pThis->m_ChannelBackGradient[i%2];
-								TextColor=pThis->m_ChannelTextColor;
-							}
-							RECT rcItem;
-							pThis->GetChannelItemRect(i,&rcItem);
-							Theme::FillGradient(ps.hdc,&rcItem,pGradient);
-							::SetTextColor(ps.hdc,TextColor);
-							rc=rcItem;
-							rc.right=rc.left+pThis->m_ChannelNameWidth;
-							rc.left+=8;
-							::DrawText(ps.hdc,pChannelInfo->GetName(),-1,&rc,
-								DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-							rc=rcItem;
-							rc.left+=pThis->m_ChannelNameWidth;
-							rc.bottom=(rc.top+rc.bottom)/2;
-							CEventInfoData EventInfo;
-							if (pThis->m_pEpgProgramList->GetEventInfo(
-									pChannelInfo->GetTransportStreamID(),
-									pChannelInfo->GetServiceID(),
-									&pThis->m_EpgBaseTime,&EventInfo)) {
-								int Length=0;
-								if (EventInfo.m_fValidStartTime)
-									Length+=::wsprintf(szText,TEXT("%02d:%02d "),
-										EventInfo.m_stStartTime.wHour,
-										EventInfo.m_stStartTime.wMinute);
-								if (EventInfo.GetEventName()!=NULL)
-									Length+=::wsprintf(szText+Length,TEXT("%s"),
-													   EventInfo.GetEventName());
-								if (Length>0)
-									::DrawText(ps.hdc,szText,Length,&rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-								SYSTEMTIME st;
-								if (EventInfo.m_fValidStartTime
-										&& EventInfo.m_DurationSec>0
-										&& EventInfo.GetEndTime(&st)
-										&& pThis->m_pEpgProgramList->GetEventInfo(
-											pChannelInfo->GetTransportStreamID(),
-											pChannelInfo->GetServiceID(),
-											&st,&EventInfo)) {
-									rc.top=rc.bottom;
-									rc.bottom=rcItem.bottom;
-									Length=0;
-									if (EventInfo.m_fValidStartTime)
-										Length+=::wsprintf(szText,TEXT("%02d:%02d "),
-											EventInfo.m_stStartTime.wHour,
-											EventInfo.m_stStartTime.wMinute);
-									if (EventInfo.GetEventName()!=NULL)
-										Length+=::wsprintf(szText+Length,TEXT("%s"),
-														   EventInfo.GetEventName());
-									if (Length>0)
-										::DrawText(ps.hdc,szText,Length,&rc,
-											DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-								}
-							}
-						}
-					}
-				}
-			}
-			::SelectObject(ps.hdc,hfontOld);
-			::SetTextColor(ps.hdc,OldTextColor);
-			::SetBkMode(ps.hdc,OldBkMode);
-			pThis->GetCloseButtonRect(&rc);
-			::DrawFrameControl(ps.hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
+			pThis->Draw(ps.hdc,&ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -942,6 +1006,15 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			if (pThis->m_pEventHandler!=NULL)
 				pThis->m_pEventHandler->OnRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
+		}
+		return 0;
+
+	case WM_LBUTTONDBLCLK:
+		{
+			CChannelDisplayMenu *pThis=GetThis(hwnd);
+
+			if (pThis->m_pEventHandler!=NULL)
+				pThis->m_pEventHandler->OnLButtonDoubleClick(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		}
 		return 0;
 
@@ -1074,8 +1147,7 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			::GetLocalTime(&CurTime);
 			if (pThis->m_ClockTime.wHour!=CurTime.wHour
-					|| pThis->m_ClockTime.wMinute!=CurTime.wMinute
-					|| pThis->m_ClockTime.wSecond!=CurTime.wSecond) {
+					|| pThis->m_ClockTime.wMinute!=CurTime.wMinute) {
 				HDC hdc;
 
 				pThis->m_ClockTime=CurTime;
@@ -1132,7 +1204,7 @@ CChannelDisplayMenu::CTuner::CTuner(const CDriverInfo *pDriverInfo)
 					const CChannelInfo *pChannelInfo=pSrcChannelList->GetChannelInfo(j);
 
 					if (pChannelInfo->IsEnabled()) {
-						pTuningSpace->GetChannelList()->AddChannel(*pChannelInfo);
+						pTuningSpace->GetChannelList()->AddChannel(new CChannel(*pChannelInfo));
 					}
 				}
 			}
@@ -1184,6 +1256,12 @@ int CChannelDisplayMenu::CTuner::NumSpaces() const
 }
 
 
+CTuningSpaceInfo *CChannelDisplayMenu::CTuner::GetTuningSpaceInfo(int Index)
+{
+	return m_TuningSpaceList.Get(Index);
+}
+
+
 const CTuningSpaceInfo *CChannelDisplayMenu::CTuner::GetTuningSpaceInfo(int Index) const
 {
 	return m_TuningSpaceList.Get(Index);
@@ -1200,11 +1278,23 @@ void CChannelDisplayMenu::CTuner::SetIcon(HICON hico)
 
 
 
-CChannelDisplayMenu::CEventHandler::CEventHandler()
+bool CChannelDisplayMenu::CTuner::CChannel::SetEvent(int Index,const CEventInfoData *pEvent)
 {
+	if (Index<0 || Index>1)
+		return false;
+	if (pEvent!=NULL)
+		m_Event[Index]=*pEvent;
+	else
+		m_Event[Index].SetEventName(NULL);
+	return true;
 }
 
 
-CChannelDisplayMenu::CEventHandler::~CEventHandler()
+const CEventInfoData *CChannelDisplayMenu::CTuner::CChannel::GetEvent(int Index) const
 {
+	if (Index<0 || Index>1)
+		return NULL;
+	if (m_Event[Index].GetEventName()==NULL)
+		return NULL;
+	return &m_Event[Index];
 }

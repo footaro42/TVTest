@@ -12,7 +12,7 @@
 class CEventInfoPopup : protected CBasicWindow
 {
 public:
-	class __declspec(novtable) CEventHandler
+	class ABSTRACT_DECL CEventHandler
 	{
 	protected:
 		CEventInfoPopup *m_pPopup;
@@ -59,7 +59,7 @@ private:
 	int m_ButtonMargin;
 	CEventHandler *m_pEventHandler;
 
-	//static const LPCTSTR m_pszPropName;
+	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
 
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID);
@@ -73,7 +73,7 @@ private:
 class CEventInfoPopupManager
 {
 public:
-	class __declspec(novtable) CEventHandler
+	class ABSTRACT_DECL CEventHandler
 	{
 	protected:
 		CEventInfoPopup *m_pPopup;
@@ -90,10 +90,14 @@ public:
 	~CEventInfoPopupManager();
 	bool Initialize(HWND hwnd,CEventHandler *pEventHandler);
 	void Finalize();
+	bool SetEnable(bool fEnable);
+	bool GetEnable() const { return m_fEnable; }
+	bool Popup(int x,int y);
 
 private:
 	static const LPCTSTR m_pszPropName;
 	CEventInfoPopup *m_pPopup;
+	bool m_fEnable;
 	HWND m_hwnd;
 	WNDPROC m_pOldWndProc;
 	CEventHandler *m_pEventHandler;

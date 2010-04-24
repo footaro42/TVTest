@@ -7,24 +7,20 @@
 #define APP_NAME_A	"TVTest"
 
 #define VERSION_MAJOR	0
-#define VERSION_MINOR	6
-#define VERSION_BUILD	9
+#define VERSION_MINOR	7
+#define VERSION_BUILD	0
 
-#define VERSION_TEXT_A	"0.6.9"
-
-#define ABOUT_VERSION_TEXT	TEXT("TVTest ver.") VERSION_TEXT
+#define VERSION_TEXT_A	"0.7.0"
 
 #else
 
 #define APP_NAME_A	"TVH264"
 
 #define VERSION_MAJOR	0
-#define VERSION_MINOR	4
-#define VERSION_BUILD	3
+#define VERSION_MINOR	5
+#define VERSION_BUILD	0
 
-#define VERSION_TEXT_A	"0.4.3"
-
-#define ABOUT_VERSION_TEXT	TEXT("TVH264 ver.") VERSION_TEXT
+#define VERSION_TEXT_A	"0.5.0"
 
 // ÉèÉìÉZÉOå¸ÇØ
 #if !defined(TVH264_FOR_1SEG) && defined(BONTSENGINE_1SEG_SUPPORT)
@@ -51,6 +47,8 @@
 #define VERSION_PLATFORM	TEXT("x64")
 #endif
 
+#define ABOUT_VERSION_TEXT	APP_NAME TEXT(" ver.") VERSION_TEXT
+
 #ifdef BONTSENGINE_RADIO_SUPPORT
 #define TVTEST_RADIO_SUPPORT
 #endif
@@ -71,10 +69,12 @@
 #ifndef SAFE_DELETE
 //#define SAFE_DELETE(p)		if (p) { delete p; (p)=NULL; }
 //#define SAFE_DELETE_ARRAY(p)	if (p) { delete [] p; (p)=NULL; }
-// delete NULL Ç≈Ç‡Ç¢Ç¢ÇÃÇ≈...
+// delete NULL Ç≈Ç‡Ç¢Ç¢ÇÃÇ≈
 #define SAFE_DELETE(p)			((void)(delete p,(p)=NULL))
 #define SAFE_DELETE_ARRAY(p)	((void)(delete [] p,(p)=NULL))
 #endif
+
+#define ABSTRACT_DECL __declspec(novtable)
 
 #ifndef TVH264
 #define CHANNEL_FILE_EXTENSION	TEXT(".ch2")

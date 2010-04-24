@@ -508,7 +508,7 @@ void CPanelForm::CalcTabSize()
 	hdc=::GetDC(m_hwnd);
 	hfontOld=SelectFont(hdc,m_hfont);
 	::GetTextMetrics(hdc,&tm);
-	m_TabHeight=(tm.tmHeight+tm.tmInternalLeading)+TAB_MARGIN*2;
+	m_TabHeight=(tm.tmHeight/*-tm.tmInternalLeading*/)+TAB_MARGIN*2;
 	MaxWidth=0;
 	for (int i=0;i<m_NumWindows;i++) {
 		if (m_pWindowList[i]->m_fVisible) {

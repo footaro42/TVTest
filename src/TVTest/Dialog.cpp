@@ -61,8 +61,10 @@ INT_PTR CALLBACK CBasicDialog::DialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 	} else {
 		pThis=GetThis(hDlg);
 		if (uMsg==WM_NCDESTROY) {
-			pThis->DlgProc(hDlg,uMsg,wParam,lParam);
-			pThis->m_hDlg=NULL;
+			if (pThis!=NULL) {
+				pThis->DlgProc(hDlg,uMsg,wParam,lParam);
+				pThis->m_hDlg=NULL;
+			}
 			::RemoveProp(hDlg,TEXT("This"));
 			return TRUE;
 		}
@@ -81,12 +83,12 @@ bool CBasicDialog::IsCreated() const
 
 bool CBasicDialog::Destroy()
 {
-	if (m_hDlg==NULL)
-		return false;
-	if (m_fModeless)
-		return ::DestroyWindow(m_hDlg)!=FALSE;
-	::SendMessage(m_hDlg,WM_CLOSE,0,0);
-	return true;
+	if (m_hDlg!=NULL) {
+		if (m_fModeless)
+			return ::DestroyWindow(m_hDlg)!=FALSE;
+		::SendMessage(m_hDlg,WM_CLOSE,0,0);
+	}
+	return m_hDlg==NULL;
 }
 
 

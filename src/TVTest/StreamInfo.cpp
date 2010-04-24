@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "StreamInfo.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -141,14 +142,87 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 }
 
 
+static LPCTSTR GetStreamTypeText(BYTE StreamType)
+{
+	switch (StreamType) {
+	case STREAM_TYPE_MPEG1:	return TEXT("MPEG-1");
+	case STREAM_TYPE_MPEG2:	return TEXT("MPEG-2");
+	case STREAM_TYPE_AAC:	return TEXT("AAC");
+	case STREAM_TYPE_H264:	return TEXT("H.264");
+	}
+	return TEXT("Unknown");
+}
+
+static LPCTSTR GetAreaText(WORD AreaCode)
+{
+	switch (AreaCode) {
+	// 広域符号
+	case 0x5A5:	return TEXT("関東広域圏");
+	case 0x72A:	return TEXT("中京広域圏");
+	case 0x8D5:	return TEXT("近畿広域圏");
+	case 0x699:	return TEXT("鳥取・島根圏");
+	case 0x553:	return TEXT("岡山・香川圏");
+	// 県域符号
+	case 0x16B:	return TEXT("北海道");
+	case 0x467:	return TEXT("青森");
+	case 0x5D4:	return TEXT("岩手");
+	case 0x758:	return TEXT("宮城");
+	case 0xAC6:	return TEXT("秋田");
+	case 0xE4C:	return TEXT("山形");
+	case 0x1AE:	return TEXT("福島");
+	case 0xC69:	return TEXT("茨城");
+	case 0xE38:	return TEXT("栃木");
+	case 0x98B:	return TEXT("群馬");
+	case 0x64B:	return TEXT("埼玉");
+	case 0x1C7:	return TEXT("千葉");
+	case 0xAAC:	return TEXT("東京");
+	case 0x56C:	return TEXT("神奈川");
+	case 0x4CE:	return TEXT("新潟");
+	case 0x539:	return TEXT("富山");
+	case 0x6A6:	return TEXT("石川");
+	case 0x92D:	return TEXT("福井");
+	case 0xD4A:	return TEXT("山梨");
+	case 0x9D2:	return TEXT("長野");
+	case 0xA65:	return TEXT("岐阜");
+	case 0xA5A:	return TEXT("静岡");
+	case 0x966:	return TEXT("愛知");
+	case 0x2DC:	return TEXT("三重");
+	case 0xCE4:	return TEXT("滋賀");
+	case 0x59A:	return TEXT("京都");
+	case 0xCB2:	return TEXT("大阪");
+	case 0x674:	return TEXT("兵庫");
+	case 0xA93:	return TEXT("奈良");
+	case 0x396:	return TEXT("和歌山");
+	case 0xD23:	return TEXT("鳥取");
+	case 0x31B:	return TEXT("島根");
+	case 0x2B5:	return TEXT("岡山");
+	case 0xB31:	return TEXT("広島");
+	case 0xB98:	return TEXT("山口");
+	case 0xE62:	return TEXT("徳島");
+	case 0x9B4:	return TEXT("香川");
+	case 0x19D:	return TEXT("愛媛");
+	case 0x2E3:	return TEXT("高知");
+	case 0x62D:	return TEXT("福岡");
+	case 0x959:	return TEXT("佐賀");
+	case 0xA2B:	return TEXT("長崎");
+	case 0x8A7:	return TEXT("熊本");
+	case 0xC8D:	return TEXT("大分");
+	case 0xD1C:	return TEXT("宮崎");
+	case 0xD45:	return TEXT("鹿児島");
+	case 0x372:	return TEXT("沖縄");
+	}
+	return TEXT("?");
+}
+
 void CStreamInfo::SetService()
 {
 	CTsAnalyzer *pAnalyzer = &GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsAnalyzer;
-	TCHAR szText[256];
+	TCHAR szText[1024];
+	int Length;
 
 	WORD TSID=pAnalyzer->GetTransportStreamID();
 	if (TSID!=0) {
-		::wsprintf(szText,TEXT("TSID 0x%04x (%d)"),TSID,TSID);
+		::wsprintf(szText,TEXT("TSID %#04x (%d)"),TSID,TSID);
 		TCHAR szTsName[64];
 		if (pAnalyzer->GetTsName(szTsName,lengthof(szTsName))>0) {
 			::wsprintf(szText+::lstrlen(szText),TEXT(" %s"),szTsName);
@@ -160,17 +234,17 @@ void CStreamInfo::SetService()
 
 	WORD NID=pAnalyzer->GetNetworkID();
 	if (NID!=0) {
-		::wsprintf(szText,TEXT("NID 0x%04x (%d)"),NID,NID);
+		Length=::wsprintf(szText,TEXT("NID %#04x (%d)"),NID,NID);
 		TCHAR szName[64];
 		if (pAnalyzer->GetNetworkName(szName,lengthof(szName))>0) {
-			::wsprintf(szText+::lstrlen(szText),TEXT(" %s"),szName);
+			::wsprintf(szText+Length,TEXT(" %s"),szName);
 		}
 	} else {
 		szText[0]='\0';
 	}
 	::SetDlgItemText(m_hDlg,IDC_STREAMINFO_NETWORK,szText);
 
-	CTsAnalyzer::CServiceList ServiceList;
+	CTsAnalyzer::ServiceList ServiceList;
 	pAnalyzer->GetServiceList(&ServiceList);
 
 	HWND hwndTree=::GetDlgItem(m_hDlg,IDC_STREAMINFO_SERVICE);
@@ -178,33 +252,32 @@ void CStreamInfo::SetService()
 	HTREEITEM hItem;
 
 	TreeView_DeleteAllItems(hwndTree);
+
 	tvis.hParent=TVI_ROOT;
 	tvis.hInsertAfter=TVI_LAST;
 	tvis.item.mask=TVIF_STATE | TVIF_TEXT | TVIF_CHILDREN;
 	tvis.item.state=TVIS_EXPANDED;
 	tvis.item.stateMask=(UINT)-1;
 	tvis.item.pszText=TEXT("サービス");
-	tvis.item.cChildren=ServiceList.NumServices()>0?1:0;
+	tvis.item.cChildren=ServiceList.size()>0?1:0;
 	hItem=TreeView_InsertItem(hwndTree,&tvis);
 	if (hItem!=NULL) {
 		int i,j;
 
-		for (i=0;i<ServiceList.NumServices();i++) {
-			const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
-			TCHAR szServiceName[64];
+		for (i=0;i<(int)ServiceList.size();i++) {
+			const CTsAnalyzer::ServiceInfo *pServiceInfo=&ServiceList[i];
 			WORD ServiceID,PID;
 
 			tvis.hParent=hItem;
 			tvis.item.state=0;
 			tvis.item.cChildren=1;
+			Length=::wsprintf(szText,TEXT("サービス%d"),i+1);
 			if (pServiceInfo->szServiceName[0]!='\0')
-				::lstrcpyn(szServiceName,pServiceInfo->szServiceName,lengthof(szServiceName));
-			else
-				::lstrcpy(szServiceName,TEXT("???"));
+				Length+=::wsprintf(szText+Length,TEXT(" (%s)"),pServiceInfo->szServiceName);
 			ServiceID=pServiceInfo->ServiceID;
-			::wsprintf(szText,TEXT("サービス%d (%s) SID 0x%04x (%d)"),i+1,szServiceName,ServiceID,ServiceID);
+			Length+=::wsprintf(szText+Length,TEXT(" SID %#04x (%d)"),ServiceID,ServiceID);
 			if (pServiceInfo->ServiceType!=0xFF) {
-				::wsprintf(szText+::lstrlen(szText),TEXT(" Type %#02x"),pServiceInfo->ServiceType);
+				::wsprintf(szText+Length,TEXT(" Type %#02x"),pServiceInfo->ServiceType);
 			}
 			tvis.item.pszText=szText;
 			tvis.hParent=TreeView_InsertItem(hwndTree,&tvis);
@@ -216,8 +289,7 @@ void CStreamInfo::SetService()
 			if (PID!=CTsAnalyzer::PID_INVALID) {
 				BYTE StreamType=pServiceInfo->VideoStreamType;
 				::wsprintf(szText,TEXT("映像 PID %#04x (%d) Type %#02x (%s) / Component tag %#02x"),
-					PID,PID,StreamType,
-					StreamType==0x02?TEXT("MPEG-2"):StreamType==0x1B?TEXT("H.264"):TEXT("Unknown"),
+					PID,PID,StreamType,GetStreamTypeText(StreamType),
 					pServiceInfo->VideoEs.ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
@@ -263,13 +335,13 @@ void CStreamInfo::SetService()
 		tvis.item.state=TVIS_EXPANDED;
 		tvis.item.stateMask=(UINT)-1;
 		tvis.item.pszText=TEXT("チャンネルファイル用フォーマット");
-		tvis.item.cChildren=ServiceList.NumServices()>0?1:0;;
+		tvis.item.cChildren=ServiceList.size()>0?1:0;;
 		hItem=TreeView_InsertItem(hwndTree,&tvis);
 		if (hItem!=NULL) {
 			const int RemoteControlKeyID=pAnalyzer->GetRemoteControlKeyID();
 
-			for (int i=0;i<ServiceList.NumServices();i++) {
-				const CTsAnalyzer::ServiceInfo *pServiceInfo=ServiceList.GetServiceInfo(i);
+			for (int i=0;i<(int)ServiceList.size();i++) {
+				const CTsAnalyzer::ServiceInfo *pServiceInfo=&ServiceList[i];
 
 				tvis.hParent=hItem;
 				tvis.item.state=0;
@@ -286,6 +358,75 @@ void CStreamInfo::SetService()
 						   pServiceInfo->ServiceID,NID,TSID);
 				tvis.item.pszText=szText;
 				TreeView_InsertItem(hwndTree,&tvis);
+			}
+		}
+	}
+
+	CTsAnalyzer::TerrestrialDeliverySystemList TerrestrialList;
+	if (pAnalyzer->GetTerrestrialDeliverySystemList(&TerrestrialList)) {
+		tvis.hParent=TVI_ROOT;
+		tvis.hInsertAfter=TVI_LAST;
+		tvis.item.mask=TVIF_STATE | TVIF_TEXT | TVIF_CHILDREN;
+		tvis.item.state=TVIS_EXPANDED;
+		tvis.item.stateMask=(UINT)-1;
+		tvis.item.pszText=TEXT("地上分配システム");
+		tvis.item.cChildren=TerrestrialList.size()>0?1:0;
+		hItem=TreeView_InsertItem(hwndTree,&tvis);
+		if (hItem!=NULL) {
+			for (int i=0;i<(int)TerrestrialList.size();i++) {
+				const CTsAnalyzer::TerrestrialDeliverySystemInfo &Info=TerrestrialList[i];
+
+				tvis.hParent=hItem;
+				tvis.item.state=0;
+				tvis.item.cChildren=1;
+				::wsprintf(szText,
+						   TEXT("TSID %#04x (%d) / エリア %s / ガードインターバル %s / 伝送モード %s"),
+						   Info.TransportStreamID,
+						   Info.TransportStreamID,
+						   GetAreaText(Info.AreaCode),
+						   Info.GuardInterval==0?TEXT("1/32"):
+						   Info.GuardInterval==1?TEXT("1/16"):
+						   Info.GuardInterval==2?TEXT("1/8"):
+						   Info.GuardInterval==3?TEXT("1/4"):TEXT("?"),
+						   Info.TransmissionMode==0?TEXT("Mode1"):
+						   Info.TransmissionMode==1?TEXT("Mode2"):
+						   Info.TransmissionMode==2?TEXT("Mode3"):TEXT("?"));
+				tvis.item.pszText=szText;
+				tvis.hParent=TreeView_InsertItem(hwndTree,&tvis);
+				tvis.item.cChildren=0;
+				for (size_t j=0;j<TerrestrialList[i].Frequency.size();j++) {
+					::wsprintf(szText,TEXT("周波数%d %d MHz"),
+							   (int)j+1,TerrestrialList[i].Frequency[j]/7);
+					TreeView_InsertItem(hwndTree,&tvis);
+				}
+			}
+		}
+	} else {
+		CTsAnalyzer::SatelliteDeliverySystemList SatelliteList;
+		if (pAnalyzer->GetSatelliteDeliverySystemList(&SatelliteList)) {
+			tvis.hParent=TVI_ROOT;
+			tvis.hInsertAfter=TVI_LAST;
+			tvis.item.mask=TVIF_STATE | TVIF_TEXT | TVIF_CHILDREN;
+			tvis.item.state=0;
+			tvis.item.stateMask=(UINT)-1;
+			tvis.item.pszText=TEXT("衛星分配システム");
+			tvis.item.cChildren=SatelliteList.size()>0?1:0;
+			hItem=TreeView_InsertItem(hwndTree,&tvis);
+			if (hItem!=NULL) {
+				for (int i=0;i<(int)SatelliteList.size();i++) {
+				const CTsAnalyzer::SatelliteDeliverySystemInfo &Info=SatelliteList[i];
+
+					tvis.hParent=hItem;
+					tvis.item.state=0;
+					tvis.item.cChildren=0;
+					::wsprintf(szText,TEXT("TSID %#04x (%d) / 周波数 %ld.%05ld GHz"),
+							   Info.TransportStreamID,
+							   Info.TransportStreamID,
+							   Info.Frequency/100000,
+							   Info.Frequency%100000);
+					tvis.item.pszText=szText;
+					TreeView_InsertItem(hwndTree,&tvis);
+				}
 			}
 		}
 	}

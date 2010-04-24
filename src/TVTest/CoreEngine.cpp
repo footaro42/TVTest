@@ -12,38 +12,39 @@ static char THIS_FILE[]=__FILE__;
 
 
 CCoreEngine::CCoreEngine()
+	: m_fFileMode(false)
+	, m_hDriverLib(NULL)
+	, m_DriverType(DRIVER_UNKNOWN)
+	, m_fDescramble(true)
+	, m_CardReaderType(CARDREADER_SCARD)
+	, m_fPacketBuffering(false)
+	, m_PacketBufferLength(m_DtvEngine.m_MediaBuffer.GetBufferLength())
+	, m_PacketBufferPoolPercentage(m_DtvEngine.m_MediaBuffer.GetPoolPercentage())
+	, m_OriginalVideoWidth(0)
+	, m_OriginalVideoHeight(0)
+	, m_DisplayVideoWidth(0)
+	, m_DisplayVideoHeight(0)
+	, m_NumAudioChannels(CMediaViewer::AUDIO_CHANNEL_INVALID)
+	, m_NumAudioStreams(0)
+	, m_AudioComponentType(0)
+	, m_fMute(false)
+	, m_Volume(50)
+	, m_VolumeNormalizeLevel(100)
+	, m_StereoMode(0)
+	, m_fDownMixSurround(true)
+	, m_EventID(0)
+	, m_ErrorPacketCount(0)
+	, m_ContinuityErrorPacketCount(0)
+	, m_ScramblePacketCount(0)
+	, m_SignalLevel(0.0)
+	, m_BitRate(0)
+	, m_PacketBufferUsedCount(0)
+	, m_StreamRemain(0)
+	, m_TimerResolution(0)
+	, m_fNoEpg(false)
 {
-	m_fFileMode=false;
 	m_szDriverDirectory[0]='\0';
 	m_szDriverFileName[0]='\0';
-	m_hDriverLib=NULL;
-	m_DriverType=DRIVER_UNKNOWN;
-	m_fDescramble=true;
-	m_CardReaderType=CARDREADER_SCARD;
-	m_fPacketBuffering=false;
-	m_PacketBufferLength=m_DtvEngine.m_MediaBuffer.GetBufferLength();
-	m_PacketBufferPoolPercentage=m_DtvEngine.m_MediaBuffer.GetPoolPercentage();
-	m_OriginalVideoWidth=0;
-	m_OriginalVideoHeight=0;
-	m_DisplayVideoWidth=0;
-	m_DisplayVideoHeight=0;
-	m_NumAudioChannels=CMediaViewer::AUDIO_CHANNEL_INVALID;
-	m_NumAudioStreams=0;
-	m_AudioComponentType=0;
-	m_fMute=false;
-	m_Volume=50;
-	m_VolumeNormalizeLevel=100;
-	m_StereoMode=0;
-	m_fDownMixSurround=true;
-	m_EventID=0;
-	m_ErrorPacketCount=0;
-	m_ContinuityErrorPacketCount=0;
-	m_ScramblePacketCount=0;
-	m_SignalLevel=0.0;
-	m_BitRate=0;
-	m_PacketBufferUsedCount=0;
-	m_StreamRemain=0;
-	m_TimerResolution=0;
 }
 
 
@@ -68,7 +69,7 @@ bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 {
 	if (!m_DtvEngine.BuildEngine(pEventHandler,
 			m_fDescramble?m_CardReaderType!=CARDREADER_NONE:false,
-			true/*m_fPacketBuffering*/)) {
+			true/*m_fPacketBuffering*/,!m_fNoEpg)) {
 		return false;
 	}
 	return true;
@@ -628,14 +629,15 @@ bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool 
 		pInfo->m_stStartTime=EventInfo.StartTime;
 	pInfo->m_DurationSec=EventInfo.Duration;
 	pInfo->m_ComponentType=EventInfo.Video.ComponentType;
-	if (EventInfo.Audio.size()>0) {
-		pInfo->m_AudioComponentType=EventInfo.Audio[0].ComponentType;
-		pInfo->m_fESMultiLangFlag=EventInfo.Audio[0].bESMultiLingualFlag;
-		pInfo->m_SamplingRate=EventInfo.Audio[0].SamplingRate;
-	} else {
-		pInfo->m_AudioComponentType=0;
-		pInfo->m_fESMultiLangFlag=false;
-		pInfo->m_SamplingRate=0;
+	pInfo->m_AudioList.resize(EventInfo.Audio.size());
+	for (size_t i=0;i<EventInfo.Audio.size();i++) {
+		pInfo->m_AudioList[i].ComponentType=EventInfo.Audio[i].ComponentType;
+		pInfo->m_AudioList[i].fESMultiLingualFlag=EventInfo.Audio[i].bESMultiLingualFlag;
+		pInfo->m_AudioList[i].fMainComponentFlag=EventInfo.Audio[i].bMainComponentFlag;
+		pInfo->m_AudioList[i].SamplingRate=EventInfo.Audio[i].SamplingRate;
+		pInfo->m_AudioList[i].LanguageCode=EventInfo.Audio[i].LanguageCode;
+		pInfo->m_AudioList[i].LanguageCode2=EventInfo.Audio[i].LanguageCode2;
+		::lstrcpyn(pInfo->m_AudioList[i].szText,EventInfo.Audio[i].szText,CEventInfoData::AudioInfo::MAX_TEXT);
 	}
 	pInfo->SetEventName(szEventName[0]!='\0'?szEventName:NULL);
 	pInfo->SetEventText(szEventText[0]!='\0'?szEventText:NULL);

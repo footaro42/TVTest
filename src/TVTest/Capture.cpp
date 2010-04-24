@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "Capture.h"
 #include "Image.h"
 #include "DrawUtil.h"

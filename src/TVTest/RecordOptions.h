@@ -8,7 +8,6 @@
 
 class CRecordOptions : public COptions
 {
-private:
 	TCHAR m_szSaveFolder[MAX_PATH];
 	TCHAR m_szFileName[MAX_PATH];
 	bool m_fConfirmChannelChange;
@@ -19,19 +18,30 @@ private:
 	bool m_fSaveSubtitle;
 	bool m_fSaveDataCarrousel;
 	bool m_fDescrambleCurServiceOnly;
-	unsigned int m_BufferSize;
 	bool m_fAlertLowFreeSpace;
 	unsigned int m_LowFreeSpaceThreshold;
+	unsigned int m_BufferSize;
+	unsigned int m_TimeShiftBufferSize;
+	bool m_fEnableTimeShiftRecording;
+
 	static CRecordOptions *GetThis(HWND hDlg);
 
 public:
+	enum {
+		UPDATE_RECORDSTREAM		=0x00000001UL,
+		UPDATE_TIMESHIFTBUFFER	=0x00000002UL,
+		UPDATE_ENABLETIMESHIFT	=0x00000004UL
+	};
+
 	CRecordOptions();
 	~CRecordOptions();
 // COptions
+	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
 // CRecordOptions
 	bool SetSaveFolder(LPCTSTR pszFolder);
+	LPCTSTR GetSaveFolder() const { return m_szSaveFolder; }
 	bool GetFilePath(LPTSTR pszFileName,int MaxLength) const;
 	bool GenerateFilePath(LPTSTR pszFileName,int MaxLength,LPCTSTR *ppszErrorMessage=NULL) const;
 	bool ConfirmChannelChange(HWND hwndOwner) const;
@@ -44,6 +54,8 @@ public:
 	ULONGLONG GetLowFreeSpaceThresholdBytes() const {
 		return (ULONGLONG)m_LowFreeSpaceThreshold*(1024*1024);
 	}
+	bool IsTimeShiftRecordingEnabled() const { return m_fEnableTimeShiftRecording; }
+	bool EnableTimeShiftRecording(bool fEnable);
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

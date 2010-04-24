@@ -6,23 +6,8 @@
 
 
 #include <Vector>
+#include "Common.h"
 #include "MediaData.h"
-
-
-using std::vector;
-
-
-// ISO 639 language code
-#define LANGUAGE_CODE_JPN	0x6A706EUL	// 日本語
-#define LANGUAGE_CODE_ENG	0x656E67UL	// 英語
-#define LANGUAGE_CODE_DEU	0x646575UL	// ドイツ語
-#define LANGUAGE_CODE_FRA	0x667261UL	// フランス語
-#define LANGUAGE_CODE_ITA	0x697461UL	// イタリア語
-#define LANGUAGE_CODE_RUS	0x727573UL	// ロシア語
-#define LANGUAGE_CODE_ZHO	0x7A686FUL	// 中国語
-#define LANGUAGE_CODE_KOR	0x6B6F72UL	// 韓国語
-#define LANGUAGE_CODE_SPA	0x737061UL	// スペイン語
-#define LANGUAGE_CODE_ETC	0x657463UL	// その他
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -235,13 +220,121 @@ public:
 	virtual void CopyDesc(const CBaseDesc *pOperand);
 	virtual void Reset(void);
 
-// CServiceDesc
+// CNetworkNameDesc
 	const DWORD GetNetworkName(LPTSTR pszName, int MaxLength) const;
 
 protected:
 	virtual const bool StoreContents(const BYTE *pPayload);
 
 	TCHAR m_szNetworkName[32];
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x41] Service List 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CServiceListDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0x41U};
+
+	CServiceListDesc();
+	CServiceListDesc(const CServiceListDesc &Operand);
+	CServiceListDesc & operator = (const CServiceListDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CServiceListDesc
+	struct ServiceInfo {
+		WORD ServiceID;
+		BYTE ServiceType;
+	};
+
+	const int GetServiceNum() const;
+	const int GetServiceIndexByID(const WORD ServiceID) const;
+	const BYTE GetServiceTypeByID(const WORD ServiceID) const;
+	const bool GetServiceInfo(const int Index, ServiceInfo *pInfo) const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	std::vector<ServiceInfo> m_ServiceList;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0x43] Satellite Delivery System 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CSatelliteDeliverySystemDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0x43U};
+
+	CSatelliteDeliverySystemDesc();
+	CSatelliteDeliverySystemDesc(const CSatelliteDeliverySystemDesc &Operand);
+	CSatelliteDeliverySystemDesc & operator = (const CSatelliteDeliverySystemDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CSatelliteDeliverySystemDesc
+	const DWORD GetFrequency() const;
+	const WORD GetOrbitalPosition() const;
+	const bool GetWestEastFlag() const;
+	const BYTE GetPolarization() const;
+	const BYTE GetModulation() const;
+	const DWORD GetSymbolRate() const;
+	const BYTE GetFECInner() const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	DWORD m_Frequency;
+	WORD m_OrbitalPosition;
+	bool m_bWestEastFlag;
+	BYTE m_Polarization;
+	BYTE m_Modulation;
+	DWORD m_SymbolRate;
+	BYTE m_FECInner;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
+// [0xFA] Terrestrial Delivery System 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CTerrestrialDeliverySystemDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0xFAU};
+
+	CTerrestrialDeliverySystemDesc();
+	CTerrestrialDeliverySystemDesc(const CTerrestrialDeliverySystemDesc &Operand);
+	CTerrestrialDeliverySystemDesc & operator = (const CTerrestrialDeliverySystemDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CTerrestrialDeliverySystemDesc
+	const WORD GetAreaCode() const;
+	const BYTE GetGuardInterval() const;
+	const BYTE GetTransmissionMode() const;
+	const int GetFrequencyNum() const;
+	const WORD GetFrequency(const int Index) const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	WORD m_AreaCode;
+	BYTE m_GuardInterval;
+	BYTE m_TransmissionMode;
+	std::vector<WORD> m_Frequency;
 };
 
 
@@ -643,5 +736,5 @@ protected:
 	CBaseDesc * ParseDesc(const BYTE *pHexData, const WORD wDataLength);
 	static CBaseDesc * CreateDescInstance(const BYTE byTag);
 
-	vector<CBaseDesc *> m_DescArray;
+	std::vector<CBaseDesc *> m_DescArray;
 };

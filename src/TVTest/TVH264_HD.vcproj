@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="shift_jis"?>
 <VisualStudioProject
 	ProjectType="Visual C++"
-	Version="8.00"
+	Version="9.00"
 	Name="TVH264_HD"
 	ProjectGUID="{85EBF9AB-7849-4D39-8A50-70BF637A32A5}"
 	RootNamespace="TVH264_HD"
 	Keyword="MFCProj"
+	TargetFrameworkVersion="131072"
 	>
 	<Platforms>
 		<Platform
@@ -81,6 +82,8 @@
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				LargeAddressAware="0"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -100,9 +103,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -171,6 +171,8 @@
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				LargeAddressAware="0"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -190,9 +192,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -269,6 +268,8 @@
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
 				LinkTimeCodeGeneration="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -288,9 +289,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -367,6 +365,8 @@
 				EnableCOMDATFolding="2"
 				OptimizeForWindows98="1"
 				LinkTimeCodeGeneration="1"
+				RandomizedBaseAddress="1"
+				DataExecutionPrevention="0"
 				TargetMachine="17"
 			/>
 			<Tool
@@ -386,201 +386,6 @@
 			/>
 			<Tool
 				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
-			Name="Release_PGO|Win32"
-			OutputDirectory="$(SolutionDir)$(ProjectName)\$(ConfigurationName)"
-			IntermediateDirectory="$(ProjectName)\$(ConfigurationName)"
-			ConfigurationType="1"
-			UseOfMFC="0"
-			CharacterSet="1"
-			WholeProgramOptimization="2"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-				PreprocessorDefinitions="NDEBUG"
-				MkTypLibCompatible="false"
-				ValidateParameters="false"
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="3"
-				InlineFunctionExpansion="2"
-				EnableIntrinsicFunctions="true"
-				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
-				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;TVH264;TVH264_FOR_HD"
-				StringPooling="true"
-				MinimalRebuild="false"
-				RuntimeLibrary="0"
-				BufferSecurityCheck="false"
-				EnableEnhancedInstructionSet="0"
-				UsePrecompiledHeader="0"
-				WarningLevel="3"
-				Detect64BitPortabilityProblems="false"
-				DebugInformationFormat="3"
-				CompileAs="0"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="NDEBUG;TVH264;TVH264_FOR_HD"
-				Culture="1041"
-				AdditionalIncludeDirectories="$(IntDir);Resource"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
-				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\Release\&quot;"
-				DelayLoadDLLs="gdiplus.dll"
-				GenerateDebugInformation="true"
-				SubSystem="2"
-				LargeAddressAware="0"
-				OptimizeReferences="2"
-				EnableCOMDATFolding="2"
-				TargetMachine="1"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
-			/>
-			<Tool
-				Name="VCPostBuildEventTool"
-			/>
-		</Configuration>
-		<Configuration
-			Name="Release_PGO|x64"
-			OutputDirectory="$(SolutionDir)$(ProjectName)\$(PlatformName)\$(ConfigurationName)"
-			IntermediateDirectory="$(ProjectName)\$(PlatformName)\$(ConfigurationName)"
-			ConfigurationType="1"
-			UseOfMFC="0"
-			CharacterSet="1"
-			WholeProgramOptimization="2"
-			>
-			<Tool
-				Name="VCPreBuildEventTool"
-			/>
-			<Tool
-				Name="VCCustomBuildTool"
-			/>
-			<Tool
-				Name="VCXMLDataGeneratorTool"
-			/>
-			<Tool
-				Name="VCWebServiceProxyGeneratorTool"
-			/>
-			<Tool
-				Name="VCMIDLTool"
-				PreprocessorDefinitions="NDEBUG"
-				MkTypLibCompatible="false"
-				TargetEnvironment="3"
-			/>
-			<Tool
-				Name="VCCLCompilerTool"
-				Optimization="3"
-				InlineFunctionExpansion="2"
-				EnableIntrinsicFunctions="true"
-				FavorSizeOrSpeed="1"
-				AdditionalIncludeDirectories=".\;.\BonTsEngine;.\HelperClass;.\DirectShowFilter;.\DtvEngine;.\EpgDataCap"
-				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;TVH264;TVH264_FOR_HD"
-				StringPooling="true"
-				MinimalRebuild="false"
-				RuntimeLibrary="0"
-				BufferSecurityCheck="false"
-				EnableEnhancedInstructionSet="0"
-				UsePrecompiledHeader="0"
-				WarningLevel="3"
-				Detect64BitPortabilityProblems="false"
-				DebugInformationFormat="3"
-				CompileAs="0"
-			/>
-			<Tool
-				Name="VCManagedResourceCompilerTool"
-			/>
-			<Tool
-				Name="VCResourceCompilerTool"
-				PreprocessorDefinitions="NDEBUG;TVH264;TVH264_FOR_HD"
-				Culture="1041"
-				AdditionalIncludeDirectories="$(IntDir);Resource"
-			/>
-			<Tool
-				Name="VCPreLinkEventTool"
-			/>
-			<Tool
-				Name="VCLinkerTool"
-				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
-				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\Release\&quot;"
-				DelayLoadDLLs="gdiplus.dll"
-				GenerateDebugInformation="true"
-				SubSystem="2"
-				LargeAddressAware="0"
-				OptimizeReferences="2"
-				EnableCOMDATFolding="2"
-				TargetMachine="17"
-			/>
-			<Tool
-				Name="VCALinkTool"
-			/>
-			<Tool
-				Name="VCManifestTool"
-			/>
-			<Tool
-				Name="VCXDCMakeTool"
-			/>
-			<Tool
-				Name="VCBscMakeTool"
-			/>
-			<Tool
-				Name="VCFxCopTool"
-			/>
-			<Tool
-				Name="VCAppVerifierTool"
-			/>
-			<Tool
-				Name="VCWebDeploymentTool"
 			/>
 			<Tool
 				Name="VCPostBuildEventTool"
@@ -697,6 +502,10 @@
 			</File>
 			<File
 				RelativePath=".\DriverOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\EpgDataLoader.cpp"
 				>
 			</File>
 			<File
@@ -902,22 +711,6 @@
 						UsePrecompiledHeader="1"
 					/>
 				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_PGO|Win32"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release_PGO|x64"
-					>
-					<Tool
-						Name="VCCLCompilerTool"
-						UsePrecompiledHeader="1"
-					/>
-				</FileConfiguration>
 			</File>
 			<File
 				RelativePath=".\StreamInfo.cpp"
@@ -1083,6 +876,10 @@
 			</File>
 			<File
 				RelativePath=".\DriverOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\EpgDataLoader.h"
 				>
 			</File>
 			<File
@@ -1356,6 +1153,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\BufferedFileWriter.h"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\CaptionDecoder.h"
 					>
 				</File>
@@ -1369,6 +1170,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\Common.h"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\EventManager.h"
 					>
 				</File>
 				<File
@@ -1436,6 +1241,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\TsDownload.h"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\TsEncode.h"
 					>
 				</File>
@@ -1485,6 +1294,10 @@
 					>
 				</File>
 				<File
+					RelativePath=".\BonTsEngine\BufferedFileWriter.cpp"
+					>
+				</File>
+				<File
 					RelativePath=".\BonTsEngine\CaptionDecoder.cpp"
 					>
 				</File>
@@ -1494,6 +1307,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\CardReader.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\EventManager.cpp"
 					>
 				</File>
 				<File
@@ -1539,72 +1356,6 @@
 				<File
 					RelativePath=".\BonTsEngine\Multi2Decoder.cpp"
 					>
-					<FileConfiguration
-						Name="Debug|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							InlineFunctionExpansion="0"
-							EnableIntrinsicFunctions="false"
-							FavorSizeOrSpeed="0"
-							BasicRuntimeChecks="0"
-							DebugInformationFormat="3"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Debug|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="0"
-							InlineFunctionExpansion="0"
-							EnableIntrinsicFunctions="false"
-							FavorSizeOrSpeed="0"
-							BasicRuntimeChecks="0"
-							DebugInformationFormat="3"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="3"
-							EnableIntrinsicFunctions="true"
-							AssemblerOutput="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="3"
-							EnableIntrinsicFunctions="true"
-							AssemblerOutput="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release_PGO|Win32"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="3"
-							EnableIntrinsicFunctions="true"
-							AssemblerOutput="0"
-						/>
-					</FileConfiguration>
-					<FileConfiguration
-						Name="Release_PGO|x64"
-						>
-						<Tool
-							Name="VCCLCompilerTool"
-							Optimization="3"
-							EnableIntrinsicFunctions="true"
-							AssemblerOutput="0"
-						/>
-					</FileConfiguration>
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\PATGenerator.cpp"
@@ -1620,6 +1371,10 @@
 				</File>
 				<File
 					RelativePath=".\BonTsEngine\TsDescriptor.cpp"
+					>
+				</File>
+				<File
+					RelativePath=".\BonTsEngine\TsDownload.cpp"
 					>
 				</File>
 				<File
@@ -1804,54 +1559,6 @@
 				</File>
 				<File
 					RelativePath=".\HelperClass\StdUtil.cpp"
-					>
-				</File>
-			</Filter>
-		</Filter>
-		<Filter
-			Name="EpgDataCap"
-			>
-			<Filter
-				Name="Header Files"
-				>
-				<File
-					RelativePath=".\EpgDataCap\Epg.h"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\EpgBonCommonDef.h"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\EpgDataCap2.h"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\EpgDataCapDllUtil2.h"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\EpgDataLoader.h"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\StructDef.h"
-					>
-				</File>
-			</Filter>
-			<Filter
-				Name="Source Files"
-				>
-				<File
-					RelativePath=".\EpgDataCap\Epg.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\EpgDataCapDllUtil2.cpp"
-					>
-				</File>
-				<File
-					RelativePath=".\EpgDataCap\EpgDataLoader.cpp"
 					>
 				</File>
 			</Filter>

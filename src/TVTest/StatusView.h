@@ -7,12 +7,14 @@
 #include "PointerArray.h"
 #include "VirtualScreen.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 #include "Aero.h"
 
 
 class CStatusView;
 
-class __declspec(novtable) CStatusItem {
+class ABSTRACT_DECL CStatusItem
+{
 protected:
 	CStatusView *m_pStatus;
 	int m_ID;
@@ -55,9 +57,10 @@ public:
 	friend CStatusView;
 };
 
-class CStatusView : public CBasicWindow, public CTracer {
+class CStatusView : public CBasicWindow, public CTracer
+{
 public:
-	class CEventHandler {
+	class ABSTRACT_DECL CEventHandler {
 	protected:
 		CStatusView *m_pStatusView;
 	public:
@@ -69,7 +72,7 @@ public:
 
 private:
 	static HINSTANCE m_hinst;
-	HFONT m_hfontStatus;
+	DrawUtil::CFont m_Font;
 	int m_FontHeight;
 	Theme::GradientInfo m_BackGradient;
 	COLORREF m_crTextColor;
@@ -120,7 +123,8 @@ public:
 	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
 				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
 	void SetBorderType(Theme::BorderType Type);
-	bool SetFont(HFONT hfont);
+	bool SetFont(const LOGFONT *pFont);
+	bool GetFont(LOGFONT *pFont) const;
 	int GetCurItem() const;
 	bool SetEventHandler(CEventHandler *pEventHandler);
 	bool SetItemOrder(const int *pOrderList);

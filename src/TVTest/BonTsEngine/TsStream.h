@@ -5,6 +5,7 @@
 #pragma once
 
 
+#include "Common.h"
 #include "MediaData.h"
 
 
@@ -84,8 +85,9 @@ public:
 
 	CPsiSection & operator = (const CPsiSection &Operand);
 	const bool operator == (const CPsiSection &Operand) const;
+	const bool operator != (const CPsiSection &Operand) const { return !(*this == Operand); }
 
-	const bool ParseHeader(const bool bIsExtended = true);
+	const bool ParseHeader(const bool bIsExtended = true, const bool bIgnoreSectionNumber = false);
 	void Reset(void);
 
 	BYTE * GetPayloadData(void) const;
@@ -121,7 +123,7 @@ protected:
 // TS PIDマップ対象クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class CTsPidMapTarget
+class ABSTRACT_CLASS_DECL CTsPidMapTarget
 {
 public:
 	virtual const bool StorePacket(const CTsPacket *pPacket) = 0;
@@ -172,13 +174,13 @@ protected:
 class CPsiSectionParser
 {
 public:
-	class IPsiSectionHandler
+	class ABSTRACT_CLASS_DECL IPsiSectionHandler
 	{
 	public:
 		virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection) = 0;
 	};
 
-	CPsiSectionParser(IPsiSectionHandler *pSectionHandler, const bool bTargetExt = true);
+	CPsiSectionParser(IPsiSectionHandler *pSectionHandler, const bool bTargetExt = true, const bool bIgnoreSectionNumber = false);
 	CPsiSectionParser(const CPsiSectionParser &Operand);
 	CPsiSectionParser & operator = (const CPsiSectionParser &Operand);
 
@@ -194,6 +196,7 @@ private:
 	IPsiSectionHandler *m_pPsiSectionHandler;
 	CPsiSection m_PsiSection;
 	bool m_bTargetExt;
+	bool m_bIgnoreSectionNumber;
 
 	bool m_bIsStoring;
 	DWORD m_dwStoreCrc;

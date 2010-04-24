@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "ChannelScan.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -16,7 +17,7 @@ static char THIS_FILE[]=__FILE__;
 #define SIGNAL_LEVEL_THRESHOLD	7.0f
 
 // スキャンスレッドから送られるメッセージ
-#define WM_APP_BEGINSCAN	WM_APP
+#define WM_APP_BEGINSCAN	(WM_APP+0)
 #define WM_APP_CHANNELFOUND	(WM_APP+1)
 #define WM_APP_ENDSCAN		(WM_APP+2)
 
@@ -719,7 +720,7 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 								 pThis->m_ScanChannel,0);
 			pThis->m_fOK=false;
 			pThis->m_hCancelEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-			GetAppClass().BeginChannelScan();
+			//GetAppClass().BeginChannelScan();
 			pThis->m_hScanThread=::CreateThread(NULL,0,ScanProc,pThis,0,NULL);
 			pThis->m_fScaned=true;
 			::SetTimer(hDlg,1,500,NULL);
@@ -750,7 +751,7 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			TCHAR szText[64];
 
 			::wsprintf(szText,TEXT("%d.%02d dB / %d.%02d Mbps"),
-							Level/100,abs(Level)%100,BitRate/100,BitRate%100);
+					   Level/100,abs(Level)%100,BitRate/100,BitRate%100);
 			::SetDlgItemText(hDlg,IDC_CHANNELSCAN_LEVEL,szText);
 		}
 		return TRUE;
@@ -788,7 +789,7 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			CChannelScan *pThis=GetThis(hDlg);
 
 			::WaitForSingleObject(pThis->m_hScanThread,INFINITE);
-			GetAppClass().EndChannelScan();
+			//GetAppClass().EndChannelScan();
 			GetAppClass().EndProgress();
 			::EndDialog(hDlg,wParam!=0 || pThis->m_fOK?IDOK:IDCANCEL);
 		}
@@ -984,11 +985,11 @@ INT_PTR CALLBACK CChannelScan::ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wPa
 			}
 			if (pChInfo->GetChannelNo()>0)
 				::SetDlgItemInt(hDlg,IDC_CHANNELPROP_CONTROLKEY,pChInfo->GetChannelNo(),TRUE);
-			::wsprintf(szText,TEXT("%d (0x%04x)"),
-				pChInfo->GetTransportStreamID(),pChInfo->GetTransportStreamID());
+			::wsprintf(szText,TEXT("%d (%#04x)"),
+					   pChInfo->GetTransportStreamID(),pChInfo->GetTransportStreamID());
 			::SetDlgItemText(hDlg,IDC_CHANNELPROP_TSID,szText);
-			::wsprintf(szText,TEXT("%d (0x%04x)"),
-						pChInfo->GetServiceID(),pChInfo->GetServiceID());
+			::wsprintf(szText,TEXT("%d (%#04x)"),
+					   pChInfo->GetServiceID(),pChInfo->GetServiceID());
 			::SetDlgItemText(hDlg,IDC_CHANNELPROP_SERVICEID,szText);
 			::SetDlgItemInt(hDlg,IDC_CHANNELPROP_TUNINGSPACE,pChInfo->GetSpace(),TRUE);
 			::SetDlgItemInt(hDlg,IDC_CHANNELPROP_CHANNELINDEX,pChInfo->GetChannelIndex(),TRUE);

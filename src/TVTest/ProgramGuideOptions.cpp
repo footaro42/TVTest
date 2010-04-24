@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "ProgramGuideOptions.h"
-#include "Settings.h"
 #include "DialogUtil.h"
 #include "resource.h"
 
@@ -15,12 +14,13 @@ static char THIS_FILE[]=__FILE__;
 
 
 CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
+	: m_pProgramGuide(pProgramGuide)
+	, m_fOnScreen(false)
+	, m_ViewHours(26)
+	, m_ItemWidth(pProgramGuide->GetItemWidth())
+	, m_LinesPerHour(pProgramGuide->GetLinesPerHour())
+	, m_WheelScrollLines(pProgramGuide->GetWheelScrollLines())
 {
-	m_pProgramGuide=pProgramGuide;
-	m_ViewHours=26;
-	m_ItemWidth=m_pProgramGuide->GetItemWidth();
-	m_LinesPerHour=m_pProgramGuide->GetLinesPerHour();
-	m_WheelScrollLines=m_pProgramGuide->GetWheelScrollLines();
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
 }
 
@@ -37,6 +37,7 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 	if (Settings.Open(pszFileName,TEXT("ProgramGuide"),CSettings::OPEN_READ)) {
 		int Value;
 
+		Settings.Read(TEXT("OnScreen"),&m_fOnScreen);
 		if (Settings.Read(TEXT("ViewHours"),&Value)
 				&& Value>=MIN_VIEW_HOURS && Value<=MAX_VIEW_HOURS)
 			m_ViewHours=Value;
@@ -160,6 +161,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 	CSettings Settings;
 
 	if (Settings.Open(pszFileName,TEXT("ProgramGuide"),CSettings::OPEN_WRITE)) {
+		Settings.Write(TEXT("OnScreen"),m_fOnScreen);
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
 		Settings.Write(TEXT("ItemWidth"),m_ItemWidth);
 		Settings.Write(TEXT("LinesPerHour"),m_LinesPerHour);
@@ -263,6 +265,7 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 		{
 			CProgramGuideOptions *pThis=static_cast<CProgramGuideOptions*>(OnInitDialog(hDlg,lParam));
 
+			DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN,pThis->m_fOnScreen);
 			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,pThis->m_ViewHours,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS_UD,
 								 UDM_SETRANGE32,MIN_VIEW_HOURS,MAX_VIEW_HOURS);
@@ -281,9 +284,13 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 
 			CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
 			HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
+			HIMAGELIST himl=::ImageList_Create(
+				::GetSystemMetrics(SM_CXSMICON),::GetSystemMetrics(SM_CYSMICON),
+				ILC_COLOR32 | ILC_MASK,1,4);
 			RECT rc;
 			LV_COLUMN lvc;
 
+			ListView_SetImageList(hwndList,himl,LVSIL_SMALL);
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
@@ -307,6 +314,11 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 					lvi.iSubItem=0;
 					lvi.pszText=const_cast<LPTSTR>(pTool->GetName());
 					lvi.lParam=reinterpret_cast<LPARAM>(pTool);
+					if (pTool->GetIcon()!=NULL) {
+						lvi.iImage=::ImageList_AddIcon(himl,pTool->GetIcon());
+						if (lvi.iImage>=0)
+							lvi.mask|=LVIF_IMAGE;
+					}
 					ListView_InsertItem(hwndList,&lvi);
 					lvi.mask=LVIF_TEXT;
 					lvi.iSubItem=1;
@@ -346,6 +358,11 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 					lvi.stateMask=lvi.state;
 					lvi.pszText=const_cast<LPTSTR>(pTool->GetName());
 					lvi.lParam=reinterpret_cast<LPARAM>(pTool);
+					if (pTool->GetIcon()!=NULL) {
+						lvi.iImage=::ImageList_AddIcon(ListView_GetImageList(hwndList,LVSIL_SMALL),pTool->GetIcon());
+						if (lvi.iImage>=0)
+							lvi.mask|=LVIF_IMAGE;
+					}
 					ListView_InsertItem(hwndList,&lvi);
 					lvi.mask=LVIF_TEXT;
 					lvi.iSubItem=1;
@@ -373,6 +390,11 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 				if (pTool->ShowDialog(hDlg)) {
 					lvi.mask=LVIF_TEXT;
 					lvi.pszText=const_cast<LPTSTR>(pTool->GetName());
+					if (pTool->GetIcon()!=NULL) {
+						lvi.iImage=::ImageList_AddIcon(ListView_GetImageList(hwndList,LVSIL_SMALL),pTool->GetIcon());
+						if (lvi.iImage>=0)
+							lvi.mask|=LVIF_IMAGE;
+					}
 					ListView_SetItem(hwndList,&lvi);
 					lvi.iSubItem=1;
 					lvi.pszText=const_cast<LPTSTR>(pTool->GetCommand());
@@ -501,6 +523,7 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 				CProgramGuideOptions *pThis=GetThis(hDlg);
 				int Value;
 
+				pThis->m_fOnScreen=DlgCheckBox_IsChecked(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN);
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,NULL,TRUE);
 				Value=LimitRange(Value,(int)MIN_VIEW_HOURS,(int)MAX_VIEW_HOURS);
 				if (pThis->m_ViewHours!=Value) {

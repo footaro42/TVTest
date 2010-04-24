@@ -27,6 +27,12 @@ public:
 		ERR_EMMERROR		= 0x0000000AUL	// EMMèàóùÉGÉâÅ[
 	};
 
+	enum {
+		CARDTYPE_PREPAID	= 0x00,
+		CARDTYPE_STANDARD	= 0x01,
+		CARDTYPE_INVALID	= 0xFF
+	};
+
 	struct BcasCardInfo
 	{
 		WORD CASystemID;				// CA_system_id
@@ -46,7 +52,7 @@ public:
 	const DWORD GetCardReaderNum(void) const;
 	LPCTSTR EnumCardReader(const DWORD dwIndex) const;
 
-	const bool OpenCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD ,LPCTSTR lpszReader = NULL);
+	const bool OpenCard(CCardReader::ReaderType ReaderType = CCardReader::READER_SCARD, LPCTSTR lpszReader = NULL);
 	void CloseCard(void);
 	const bool ReOpenCard();
 	const bool IsCardOpen() const;
@@ -56,11 +62,6 @@ public:
 	const bool GetBcasCardInfo(BcasCardInfo *pInfo);
 	const bool GetCASystemID(WORD *pID);
 	const BYTE * GetBcasCardID(void);
-	enum {
-		CARDTYPE_PREPAID	= 0x00,
-		CARDTYPE_STANDARD	= 0x01,
-		CARDTYPE_INVALID	= 0xFF
-	};
 	const BYTE GetCardType(void);
 	const BYTE GetMessagePartitionLength(void);
 	const BYTE * GetInitialCbc(void);
@@ -73,6 +74,7 @@ public:
 	const BYTE GetCardVersion() const;
 
 protected:
+	const bool OpenAndInitialize(LPCTSTR pszReader);
 	const bool InitialSetting(void);
 
 	CCardReader *m_pCardReader;

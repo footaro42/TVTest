@@ -4,12 +4,13 @@
 
 #include "PanelForm.h"
 #include "Settings.h"
+#include "DrawUtil.h"
 
 
 class CInformationPanel : public CPanelForm::CPage
 {
 public:
-	class CEventHandler {
+	class ABSTRACT_DECL CEventHandler {
 	public:
 		virtual ~CEventHandler() {}
 		virtual bool OnProgramInfoUpdate(bool fNext) { return false; }
@@ -42,7 +43,7 @@ private:
 	COLORREF m_crProgramInfoTextColor;
 	HBRUSH m_hbrBack;
 	HBRUSH m_hbrProgramInfoBack;
-	HFONT m_hFont;
+	DrawUtil::CFont m_Font;
 	int m_FontHeight;
 	int m_LineMargin;
 	unsigned int m_ItemVisibility;

@@ -2,24 +2,29 @@
 #define EPG_DATA_LOADER_H
 
 
-#include "EpgDataCapDllUtil2.h"
+#include "BonTsEngine/EventManager.h"
 
 
-class CEpgDataLoader {
+// EpgDataCap_BonのEPGデータを読み込むクラス
+class CEpgDataLoader
+{
 public:
-	class CEventHandler {
+	class ABSTRACT_DECL CEventHandler {
 	public:
-		virtual ~CEventHandler() {}
+		virtual ~CEventHandler() = 0;
 		virtual void OnStart() {}
-		virtual void OnEnd(bool fSuccess) {}
+		virtual void OnEnd(bool fSuccess,CEventManager *pEventManager) {}
 	};
-	CEpgDataLoader(CEpgDataCapDllUtil2 *pEpgDataCap);
+	CEpgDataLoader();
 	~CEpgDataLoader();
-	bool Load(LPCTSTR pszFolder);
+	bool Load(LPCTSTR pszFolder,HANDLE hAbortEvent=NULL);
 	bool LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler=NULL);
+	bool Abort(DWORD Timeout=10000);
+
 private:
-	CEpgDataCapDllUtil2 *m_pEpgDataCap;
+	CEventManager m_EventManager;
 	HANDLE m_hThread;
+	HANDLE m_hAbortEvent;
 	LPTSTR m_pszFolder;
 	CEventHandler *m_pEventHandler;
 	bool LoadFromFile(LPCTSTR pszFileName);

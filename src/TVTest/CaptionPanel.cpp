@@ -163,15 +163,24 @@ void CCaptionPanel::ClearCaptionList()
 
 void CCaptionPanel::AppendText(LPCTSTR pszText)
 {
+	bool fScroll=false;
 	DWORD SelStart,SelEnd;
 
+	if (m_fAutoScroll) {
+		SCROLLINFO si;
+		si.cbSize=sizeof(si);
+		si.fMask=SIF_RANGE | SIF_PAGE | SIF_POS;
+		::GetScrollInfo(m_hwndEdit,SB_VERT,&si);
+		if (si.nPos>=si.nMax-(int)si.nPage)
+			fScroll=true;
+	}
 	::SendMessage(m_hwndEdit,EM_GETSEL,
 				  reinterpret_cast<WPARAM>(&SelStart),
 				  reinterpret_cast<LPARAM>(&SelEnd));
 	::SendMessage(m_hwndEdit,EM_SETSEL,::GetWindowTextLength(m_hwndEdit),-1);
 	::SendMessage(m_hwndEdit,EM_REPLACESEL,FALSE,reinterpret_cast<LPARAM>(pszText));
 	::SendMessage(m_hwndEdit,EM_SETSEL,SelStart,SelEnd);
-	if (m_fAutoScroll)
+	if (fScroll)
 		::SendMessage(m_hwndEdit,WM_VSCROLL,MAKEWPARAM(SB_BOTTOM,0),0);
 }
 
@@ -296,7 +305,7 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				pThis->m_fAutoScroll=!pThis->m_fAutoScroll;
 				break;
 
-#ifndef TVH264
+#ifndef TVH264_FOR_1SEG
 			case CM_CAPTIONPANEL_IGNORESMALL:
 				pThis->m_Lock.Lock();
 				pThis->m_fIgnoreSmall=!pThis->m_fIgnoreSmall;

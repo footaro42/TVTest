@@ -8,6 +8,7 @@
 #include <windows.h>
 #include <windowsx.h>
 #include <shlwapi.h>
+#include <tchar.h>
 #include <math.h>
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT	// クラスとして実装
 #include "TVTestPlugin.h"
@@ -266,9 +267,9 @@ CEqualizer::CEqualizer()
 }
 
 
+// プラグインの情報を返す
 bool CEqualizer::GetPluginInfo(TVTest::PluginInfo *pInfo)
 {
-	// プラグインの情報を返す
 	pInfo->Type           = TVTest::PLUGIN_TYPE_NORMAL;
 	pInfo->Flags          = 0;
 	pInfo->pszPluginName  = L"Equalizer";
@@ -278,10 +279,9 @@ bool CEqualizer::GetPluginInfo(TVTest::PluginInfo *pInfo)
 }
 
 
+// 初期化処理
 bool CEqualizer::Initialize()
 {
-	// 初期化処理
-
 	// INIファイル名の取得
 	::GetModuleFileName(g_hinstDLL,m_szIniFileName,MAX_PATH);
 	::PathRenameExtension(m_szIniFileName,TEXT(".ini"));
@@ -320,10 +320,9 @@ bool CEqualizer::Initialize()
 }
 
 
+// 終了処理
 bool CEqualizer::Finalize()
 {
-	// 終了処理
-
 	// ウィンドウの破棄
 	if (m_hwnd!=NULL)
 		::DestroyWindow(m_hwnd);
@@ -395,9 +394,9 @@ bool CEqualizer::WritePreset(LPCTSTR pszSection,LPCTSTR pszKeyName,const Equaliz
 }
 
 
+// 設定読み込み
 void CEqualizer::LoadSettings()
 {
-	// 設定読み込み
 	if (!m_fSettingsLoaded) {
 		m_WindowPosition.x=::GetPrivateProfileInt(TEXT("Settings"),
 						TEXT("WindowLeft"),m_WindowPosition.x,m_szIniFileName);
@@ -427,9 +426,9 @@ BOOL WritePrivateProfileInt(LPCTSTR pszAppName,LPCTSTR pszKeyName,int Value,LPCT
 	return WritePrivateProfileString(pszAppName,pszKeyName,szValue,pszFileName);
 }
 
+// 設定保存
 void CEqualizer::SaveSettings() const
 {
-	// 設定保存
 	::WritePrivateProfileInt(TEXT("Settings"),TEXT("Enable"),m_fEnable,m_szIniFileName);
 	::WritePrivateProfileInt(TEXT("Settings"),TEXT("WindowLeft"),m_WindowPosition.x,m_szIniFileName);
 	::WritePrivateProfileInt(TEXT("Settings"),TEXT("WindowTop"),m_WindowPosition.y,m_szIniFileName);
@@ -444,9 +443,9 @@ void CEqualizer::SaveSettings() const
 }
 
 
+// イコライザのOn/Off切り替え
 void CEqualizer::EnableEqualizer(bool fEnable)
 {
-	// イコライザのOn/Off切り替え
 	if (m_fEnable!=fEnable) {
 		if (fEnable) {
 			m_BandPass.Reset();
@@ -464,27 +463,27 @@ void CEqualizer::EnableEqualizer(bool fEnable)
 }
 
 
+// イコライザの設定を初期化
 void CEqualizer::ResetSettings()
 {
-	// イコライザの設定を初期化
 	m_CurSettings.PreAmplifier=0;
 	for (int i=0;i<NUM_FREQUENCY;i++)
 		m_CurSettings.Frequency[i]=0;
 }
 
 
+// イコライザの設定を適用
 void CEqualizer::ApplySettings()
 {
-	// イコライザの設定を適用
 	m_BandPass.SetPreAmplifier((double)(m_CurSettings.PreAmplifier+10)*0.1);
 	for (int i=0;i<NUM_FREQUENCY;i++)
 		m_BandPass.SetVolume(i,(double)(m_CurSettings.Frequency[i]+10)*0.1);
 }
 
 
+// スライダの矩形を取得
 void CEqualizer::GetSliderRect(int Index,RECT *pRect,bool fBar) const
 {
-	// スライダの矩形を取得
 	int x;
 
 	if (Index<0)
@@ -504,9 +503,9 @@ void CEqualizer::GetSliderRect(int Index,RECT *pRect,bool fBar) const
 }
 
 
+// カーソル位置からスライダの位置を求める
 int CEqualizer::MapSliderPos(int y) const
 {
-	// カーソル位置からスライダの位置を求める
 	y-=WINDOW_MARGIN+2;
 	if (y<0)
 		y=0;
@@ -516,16 +515,16 @@ int CEqualizer::MapSliderPos(int y) const
 }
 
 
+// スライダの位置から描画位置を求める
 int CEqualizer::CalcSliderPos(int Pos) const
 {
-	// スライダの位置から描画位置を求める
 	return WINDOW_MARGIN+SLIDER_HEIGHT-2-(Pos+10)*(SLIDER_HEIGHT-4)/20;
 }
 
 
+// ボタンの位置を取得
 void CEqualizer::GetButtonRect(int Button,RECT *pRect) const
 {
-	// ボタンの位置を取得
 	pRect->left=WINDOW_MARGIN+(BUTTON_WIDTH+BUTTON_MARGIN)*Button;
 	pRect->right=pRect->left+BUTTON_WIDTH;
 	pRect->top=WINDOW_MARGIN+SLIDER_HEIGHT+SLIDER_TEXT_MARGIN+TEXT_HEIGHT+SLIDER_BUTTON_MARGIN;
@@ -533,17 +532,17 @@ void CEqualizer::GetButtonRect(int Button,RECT *pRect) const
 }
 
 
+// 配色を取得
 void CEqualizer::GetColor()
 {
-	// 配色を取得
 	m_crBackColor=m_pApp->GetColor(L"PanelBack");
 	m_crTextColor=m_pApp->GetColor(L"PanelText");
 }
 
 
+// ボタンが押された
 void CEqualizer::OnButtonPush(int Button)
 {
-	// ボタンが押された
 	switch (Button) {
 	case BUTTON_ENABLE:
 		// On/Off切り替え
@@ -664,8 +663,7 @@ LRESULT CALLBACK CEqualizer::EventCallback(UINT Event,LPARAM lParam1,LPARAM lPar
 		if (pThis->m_hwnd!=NULL) {
 			// 新しい配色を適用する
 			pThis->GetColor();
-			::InvalidateRect(pThis->m_hwnd,NULL,TRUE);
-			::UpdateWindow(pThis->m_hwnd);
+			::RedrawWindow(pThis->m_hwnd,NULL,NULL,RDW_INVALIDATE | RDW_UPDATENOW);
 		}
 		return TRUE;
 	}
@@ -685,9 +683,9 @@ LRESULT CALLBACK CEqualizer::AudioCallback(short *pData,DWORD Samples,int Channe
 }
 
 
+// ウィンドウハンドルからthisポインタを取得する
 CEqualizer *CEqualizer::GetThis(HWND hwnd)
 {
-	// ウィンドウハンドルからthisポインタを取得する
 	return reinterpret_cast<CEqualizer*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
 }
 
@@ -715,7 +713,7 @@ LRESULT CALLBACK CEqualizer::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 			if (!pThis->m_fEnable && !pThis->m_fExecuted)
 				pThis->EnableEqualizer(true);
 		}
-		return TRUE;
+		return 0;
 
 	case WM_PAINT:
 		{
@@ -950,8 +948,8 @@ LRESULT CALLBACK CEqualizer::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 
 
 
+// プラグインクラスのインスタンスを生成する
 TVTest::CTVTestPlugin *CreatePluginClass()
 {
-	// インスタンス生成
 	return new CEqualizer;
 }

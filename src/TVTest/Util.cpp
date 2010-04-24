@@ -372,7 +372,7 @@ bool BrowseFolderDialog(HWND hwndOwner,LPTSTR pszDirectory,LPCTSTR pszTitle)
 	bi.pidlRoot=NULL;
 	bi.pszDisplayName=pszDirectory;
 	bi.lpszTitle=pszTitle;
-	bi.ulFlags=BIF_RETURNONLYFSDIRS;
+	bi.ulFlags=BIF_RETURNONLYFSDIRS | BIF_NEWDIALOGSTYLE;
 	bi.lpfn=BrowseFolderCallback;
 	bi.lParam=(LPARAM)pszDirectory;
 	pidl=SHBrowseForFolder(&bi);

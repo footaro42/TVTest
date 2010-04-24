@@ -5,6 +5,12 @@
 #include "StdUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -52,11 +58,11 @@ int CLogItem::Format(char *pszText,int MaxLength) const
 
 
 CLogger::CLogger()
+	: m_NumLogItems(0)
+	, m_ppList(NULL)
+	, m_ListLength(0)
+	, m_fOutputToFile(false)
 {
-	m_NumLogItems=0;
-	m_ppList=NULL;
-	m_ListLength=0;
-	m_fOutputToFile=false;
 }
 
 
@@ -240,6 +246,7 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			ListView_InsertColumn(hwndList,1,&lvc);
 			lvi.mask=LVIF_TEXT;
 			pThis->m_Lock.Lock();
+			ListView_SetItemCount(hwndList,pThis->m_NumLogItems);
 			for (i=0;i<pThis->m_NumLogItems;i++) {
 				SYSTEMTIME st;
 				int Length;

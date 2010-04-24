@@ -9,6 +9,7 @@
 class CProgramGuideOptions : public COptions
 {
 	CProgramGuide *m_pProgramGuide;
+	bool m_fOnScreen;
 	enum { MIN_VIEW_HOURS=1, MAX_VIEW_HOURS=24*7 };
 	int m_ViewHours;
 	int m_ItemWidth;
@@ -29,6 +30,7 @@ public:
 	bool Save(LPCTSTR pszFileName) const;
 // CProgramGuideOptions
 	bool GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast);
+	bool GetOnScreen() const { return m_fOnScreen; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
