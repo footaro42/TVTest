@@ -2,7 +2,6 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "ProgramGuide.h"
-#include "DrawUtil.h"
 #include "DialogUtil.h"
 #include "Help/HelpID.h"
 #include "resource.h"
@@ -905,9 +904,6 @@ bool CProgramGuide::Initialize(HINSTANCE hinst)
 CProgramGuide::CProgramGuide()
 	: m_pProgramList(NULL)
 	, m_LinesPerHour(12)
-	, m_hfont(NULL)
-	, m_hfontTitle(NULL)
-	, m_hfontTime(NULL)
 	, m_LineMargin(1)
 	, m_ItemWidth(140)
 	, m_ItemMargin(4)
@@ -915,7 +911,6 @@ CProgramGuide::CProgramGuide()
 	, m_fDragScroll(false)
 	, m_hDragCursor1(NULL)
 	, m_hDragCursor2(NULL)
-	//, m_hwndToolTip(NULL)
 	, m_EventInfoPopupManager(&m_EventInfoPopup)
 	, m_EventInfoPopupHandler(this)
 	, m_fShowToolTip(true)
@@ -977,12 +972,6 @@ CProgramGuide::CProgramGuide()
 
 CProgramGuide::~CProgramGuide()
 {
-	if (m_hfont)
-		::DeleteObject(m_hfont);
-	if (m_hfontTitle)
-		::DeleteObject(m_hfontTitle);
-	if (m_hfontTime)
-		::DeleteObject(m_hfontTime);
 }
 
 
@@ -1018,7 +1007,6 @@ bool CProgramGuide::UpdateProgramGuide(bool fUpdateList)
 		if (UpdateList(fUpdateList)) {
 			CalcLayout();
 			SetScrollBar();
-			//SetToolTip();
 			::GetLocalTime(&m_stCurTime);
 			Invalidate();
 		}
@@ -1092,7 +1080,8 @@ void CProgramGuide::CalcLayout()
 	hfontOld=static_cast<HFONT>(GetCurrentObject(hdc,OBJ_FONT));
 	for (int i=0;i<m_ServiceList.NumServices();i++) {
 		m_ServiceList.GetItem(i)->CalcLayout(hdc,&stFirst,&stLast,
-			m_LinesPerHour,m_hfontTitle,m_ItemWidth,m_hfont,m_ItemWidth-m_TextLeftMargin);
+			m_LinesPerHour,m_TitleFont.GetHandle(),m_ItemWidth,
+			m_Font.GetHandle(),m_ItemWidth-m_TextLeftMargin);
 	}
 	SelectFont(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);
@@ -1166,13 +1155,13 @@ void CProgramGuide::DrawProgramList(int Service,HDC hdc,const RECT *pRect,const 
 			}
 			rc=rcItem;
 			rc.bottom=min(rc.bottom,rc.top+pItem->GetTitleLines()*LineHeight);
-			SelectFont(hdc,m_hfontTitle);
+			DrawUtil::SelectObject(hdc,m_TitleFont);
 			pItem->DrawTitle(hdc,&rc,LineHeight);
 			if (rc.bottom<rcItem.bottom) {
 				rc.left+=m_TextLeftMargin;
 				rc.top=rc.bottom;
 				rc.bottom=rcItem.bottom;
-				SelectFont(hdc,m_hfont);
+				DrawUtil::SelectObject(hdc,m_Font);
 				pItem->DrawText(hdc,&rc,LineHeight);
 			}
 		}
@@ -1213,7 +1202,7 @@ void CProgramGuide::DrawServiceName(int Service,HDC hdc,const RECT *pRect)
 	rc.left=rc.right-1;
 	Theme::FillGradient(hdc,&rc,&Border);
 
-	HFONT hfontOld=SelectFont(hdc,m_hfontTitle);
+	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_TitleFont);
 	COLORREF crOldTextColor=::SetTextColor(hdc,
 		m_ColorList[fCur?COLOR_CURCHANNELNAMETEXT:COLOR_CHANNELNAMETEXT]);
 	rc=*pRect;
@@ -1247,7 +1236,7 @@ void CProgramGuide::DrawTimeBar(HDC hdc,const RECT *pRect,bool fRight)
 	HPEN hpen,hpenOld;
 	RECT rc;
 
-	hfontOld=SelectFont(hdc,m_hfontTime);
+	hfontOld=DrawUtil::SelectObject(hdc,m_TimeFont);
 	crOldTextColor=::SetTextColor(hdc,m_ColorList[COLOR_TIMETEXT]);
 	hpen=::CreatePen(PS_SOLID,0,m_ColorList[COLOR_TIMETEXT]);
 	hpenOld=SelectPen(hdc,hpen);
@@ -1577,10 +1566,6 @@ void CProgramGuide::Scroll(int XScroll,int YScroll)
 		Invalidate();
 	}
 	m_ScrollPos=Pos;
-	/*
-	if (XScroll!=0)
-		SetToolTip();
-	*/
 }
 
 
@@ -1836,7 +1821,6 @@ bool CProgramGuide::SetUIOptions(int LinesPerHour,int ItemWidth)
 			m_ScrollPos.y=0;
 			CalcLayout();
 			SetScrollBar();
-			//SetToolTip();
 			Invalidate();
 		}
 	}
@@ -1872,19 +1856,17 @@ bool CProgramGuide::SetFont(const LOGFONT *pFont)
 {
 	LOGFONT lf;
 
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	if (m_hfontTitle!=NULL)
-		::DeleteObject(m_hfontTitle);
-	if (m_hfontTime!=NULL)
-		::DeleteObject(m_hfontTime);
-	m_hfont=::CreateFontIndirect(pFont);
+	if (!m_Font.Create(pFont))
+		return false;
 	lf=*pFont;
 	lf.lfWeight=FW_BOLD;
-	m_hfontTitle=::CreateFontIndirect(&lf);
+	m_TitleFont.Create(&lf);
+	lf.lfWeight=FW_NORMAL;
+	lf.lfEscapement=lf.lfOrientation=2700;
+	m_TimeFont.Create(&lf);
 	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
 	if (hdc!=NULL) {
-		HFONT hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
+		HFONT hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 		TEXTMETRIC tm;
 		::GetTextMetrics(hdc,&tm);
 		::SelectObject(hdc,hfontOld);
@@ -1896,15 +1878,11 @@ bool CProgramGuide::SetFont(const LOGFONT *pFont)
 	}
 	m_ServiceNameHeight=m_FontHeight+8;
 	m_TimeBarWidth=m_FontHeight+8;
-	lf.lfWeight=FW_NORMAL;
-	lf.lfEscapement=lf.lfOrientation=2700;
-	m_hfontTime=::CreateFontIndirect(&lf);
 	if (m_hwnd!=NULL) {
 		m_ScrollPos.x=0;
 		m_ScrollPos.y=0;
 		CalcLayout();
 		SetScrollBar();
-		//SetToolTip();
 		Invalidate();
 	}
 	return true;
@@ -1922,10 +1900,6 @@ bool CProgramGuide::SetShowToolTip(bool fShow)
 	if (m_fShowToolTip!=fShow) {
 		m_fShowToolTip=fShow;
 		m_EventInfoPopupManager.SetEnable(fShow);
-		/*
-		if (m_hwndToolTip!=NULL)
-			::SendMessage(m_hwndToolTip,TTM_ACTIVATE,fShow,0);
-		*/
 	}
 	return true;
 }
@@ -1987,46 +1961,6 @@ bool CProgramGuide::OnClose()
 	}
 	return true;
 }
-
-
-/*
-void CProgramGuide::SetToolTip()
-{
-	if (m_hwndToolTip!=NULL) {
-		int NumTools=::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
-		int Columns=m_ServiceList.NumServices();
-		TOOLINFO ti;
-
-		ti.cbSize=TTTOOLINFOA_V2_SIZE;
-		ti.hwnd=m_hwnd;
-		if (NumTools<Columns) {
-			ti.uFlags=TTF_SUBCLASS;
-			ti.hinst=NULL;
-			ti.lpszText=LPSTR_TEXTCALLBACK;
-			::SetRect(&ti.rect,0,0,0,0);
-			for (int i=NumTools;i<Columns;i++) {
-				ti.uId=i;
-				ti.lParam=i;
-				::SendMessage(m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
-			}
-		} else if (NumTools>Columns) {
-			for (int i=Columns;i<NumTools;i++) {
-				ti.uId=i;
-				::SendMessage(m_hwndToolTip,TTM_DELTOOL,0,(LPARAM)&ti);
-			}
-		}
-		GetProgramGuideRect(&ti.rect);
-		ti.rect.left=-m_ScrollPos.x+m_ItemMargin;
-		ti.uId=0;
-		for (int i=0;i<Columns;i++) {
-			ti.rect.right=ti.rect.left+m_ItemWidth;
-			::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,(LPARAM)&ti);
-			ti.uId++;
-			ti.rect.left=ti.rect.right+m_ItemMargin;
-		}
-	}
-}
-*/
 
 
 bool CProgramGuide::HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex)
@@ -2095,15 +2029,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 				pThis->m_hDragCursor1=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB1));
 			if (pThis->m_hDragCursor2==NULL)
 				pThis->m_hDragCursor2=::LoadCursor(m_hinst,MAKEINTRESOURCE(IDC_GRAB2));
-
-			/*
-			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_TRANSPARENT,TOOLTIPS_CLASS,NULL,
-				WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,0,0,0,0,
-				hwnd,NULL,m_hinst,NULL);
-			::SendMessage(pThis->m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,320);
-			::SendMessage(pThis->m_hwndToolTip,TTM_SETDELAYTIME,TTDT_AUTOPOP,30000);
-			::SendMessage(pThis->m_hwndToolTip,TTM_ACTIVATE,pThis->m_fShowToolTip,0);
-			*/
 			pThis->m_EventInfoPopupManager.Initialize(hwnd,&pThis->m_EventInfoPopupHandler);
 			::GetLocalTime(&pThis->m_stCurTime);
 			::SetTimer(hwnd,TIMER_ID_UPDATECURTIME,1000,NULL);
@@ -2568,7 +2493,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 						pThis->m_ScrollPos.y=0;
 						pThis->SetScrollBar();
 						pThis->SetCaption();
-						//pThis->SetToolTip();
 						::GetLocalTime(&pThis->m_stCurTime);
 						pThis->Invalidate();
 						::SetCursor(hcurOld);
@@ -2706,7 +2630,6 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			pThis->m_ProgramSearch.Destroy();
 			if (pThis->m_pEventHandler!=NULL)
 				pThis->m_pEventHandler->OnDestroy();
-			//pThis->m_hwndToolTip=NULL;
 			pThis->OnDestroy();
 		}
 		return 0;
@@ -3066,6 +2989,8 @@ CProgramGuideFrame::CProgramGuideFrame(CProgramGuide *pProgramGuide)
 	: m_pProgramGuide(pProgramGuide)
 	, m_fAlwaysOnTop(false)
 {
+	m_WindowPosition.Width=640;
+	m_WindowPosition.Height=480;
 	m_StatusMargin.cx=6;
 	m_StatusMargin.cy=5;
 	m_StatusView[0].AddItem(new CProgramGuideTunerStatusItem(m_pProgramGuide));
@@ -3416,6 +3341,8 @@ LRESULT CALLBACK CProgramGuideDisplay::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam
 
 			if (pThis->CloseButtonHitTest(x,y))
 				pThis->SetVisible(false);
+			else
+				::SetFocus(hwnd);
 		}
 		return 0;
 

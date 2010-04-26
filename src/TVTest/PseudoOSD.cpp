@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "PseudoOSD.h"
-#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -10,11 +9,12 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+// タイマーの識別子
 #define TIMER_ID_HIDE		1
 #define TIMER_ID_ANIMATION	2
 
-#define ANIMATION_FRAMES	4
-#define ANIMATION_INTERVAL	50
+#define ANIMATION_FRAMES	4	// アニメーションの段階数
+#define ANIMATION_INTERVAL	50	// アニメーションの間隔
 
 
 
@@ -59,7 +59,6 @@ CPseudoOSD::CPseudoOSD()
 	: m_hwnd(NULL)
 	, m_crBackColor(RGB(16,0,16))
 	, m_crTextColor(RGB(0,255,128))
-	, m_pszText(NULL)
 	, m_hbmIcon(NULL)
 	, m_IconWidth(0)
 	, m_IconHeight(0)
@@ -71,7 +70,7 @@ CPseudoOSD::CPseudoOSD()
 	DrawUtil::GetSystemFont(DrawUtil::FONT_DEFAULT,&lf);
 	lf.lfHeight=32;
 	lf.lfQuality=NONANTIALIASED_QUALITY;
-	m_hFont=::CreateFontIndirect(&lf);
+	m_Font.Create(&lf);
 
 	m_Position.Left=0;
 	m_Position.Top=0;
@@ -83,8 +82,6 @@ CPseudoOSD::CPseudoOSD()
 CPseudoOSD::~CPseudoOSD()
 {
 	Destroy();
-	::DeleteObject(m_hFont);
-	delete [] m_pszText;
 }
 
 
@@ -139,7 +136,7 @@ bool CPseudoOSD::Hide()
 	if (m_hwnd==NULL)
 		return false;
 	::ShowWindow(m_hwnd,SW_HIDE);
-	SAFE_DELETE_ARRAY(m_pszText);
+	m_Text.Clear();
 	m_hbm=NULL;
 	return true;
 }
@@ -155,7 +152,7 @@ bool CPseudoOSD::IsVisible() const
 
 bool CPseudoOSD::SetText(LPCTSTR pszText,HBITMAP hbmIcon,int IconWidth,int IconHeight,unsigned int ImageEffect)
 {
-	ReplaceString(&m_pszText,pszText);
+	m_Text.Set(pszText);
 	m_hbmIcon=hbmIcon;
 	if (hbmIcon!=NULL) {
 		m_IconWidth=IconWidth;
@@ -210,16 +207,11 @@ void CPseudoOSD::SetTextColor(COLORREF crText)
 bool CPseudoOSD::SetTextHeight(int Height)
 {
 	LOGFONT lf;
-	HFONT hfont;
 
-	::GetObject(m_hFont,sizeof(LOGFONT),&lf);
-	lf.lfHeight=Height;
-	hfont=::CreateFontIndirect(&lf);
-	if (hfont==NULL)
+	if (!m_Font.GetLogFont(&lf))
 		return false;
-	DeleteObject(m_hFont);
-	m_hFont=hfont;
-	return true;
+	lf.lfHeight=-Height;
+	return m_Font.Create(&lf);
 }
 
 
@@ -229,7 +221,7 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 	HFONT hfontOld;
 	bool fResult;
 
-	if (m_pszText==NULL) {
+	if (m_Text.IsEmpty()) {
 		pSize->cx=0;
 		pSize->cy=0;
 		return true;
@@ -238,10 +230,9 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 		hdc=::GetDC(m_hwnd);
 	else
 		hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hFont));
-	//fResult=::GetTextExtentPoint32(hdc,m_pszText,lstrlen(m_pszText),pSize)!=0;
+	hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	RECT rc={0,0,0,0};
-	fResult=::DrawText(hdc,m_pszText,-1,&rc,DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX)!=0;
+	fResult=::DrawText(hdc,m_Text.Get(),-1,&rc,DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX)!=0;
 	if (fResult) {
 		pSize->cx=rc.right-rc.left;
 		pSize->cy=rc.bottom-rc.top;
@@ -258,7 +249,7 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 bool CPseudoOSD::SetImage(HBITMAP hbm,unsigned int ImageEffect)
 {
 	m_hbm=hbm;
-	SAFE_DELETE_ARRAY(m_pszText);
+	m_Text.Clear();
 	m_hbmIcon=NULL;
 	m_ImageEffect=ImageEffect;
 	if (m_hwnd!=NULL) {
@@ -314,7 +305,7 @@ LRESULT CALLBACK CPseudoOSD::WndProc(HWND hwnd,UINT uMsg,
 
 			::BeginPaint(hwnd,&ps);
 			::GetClientRect(hwnd,&rc);
-			if (pThis->m_pszText!=NULL) {
+			if (!pThis->m_Text.IsEmpty()) {
 				HFONT hfontOld;
 				COLORREF crOldTextColor;
 				int OldBkMode;
@@ -336,10 +327,10 @@ LRESULT CALLBACK CPseudoOSD::WndProc(HWND hwnd,UINT uMsg,
 					pThis->DrawImageEffect(ps.hdc,&rcIcon);
 					rc.left+=IconWidth;
 				}
-				hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_hFont));
+				hfontOld=DrawUtil::SelectObject(ps.hdc,pThis->m_Font);
 				crOldTextColor=::SetTextColor(ps.hdc,pThis->m_crTextColor);
 				OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-				::DrawText(ps.hdc,pThis->m_pszText,-1,&rc,
+				::DrawText(ps.hdc,pThis->m_Text.Get(),-1,&rc,
 					DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_NOCLIP);
 				::SetBkMode(ps.hdc,OldBkMode);
 				::SetTextColor(ps.hdc,crOldTextColor);

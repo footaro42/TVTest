@@ -217,7 +217,7 @@ void CEventInfoPopup::CalcTitleHeight()
 	hdc=::GetDC(m_hwnd);
 	if (hdc==NULL)
 		return;
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_TitleFont.GetHandle()));
+	hfontOld=DrawUtil::SelectObject(hdc,m_TitleFont);
 	::GetTextMetrics(hdc,&tm);
 	//FontHeight=tm.tmHeight-tm.tmInternalLeading;
 	FontHeight=tm.tmHeight;
@@ -323,7 +323,7 @@ bool CEventInfoPopup::SetFont(const LOGFONT *pFont)
 		::MoveWindow(m_hwndEdit,0,m_TitleHeight,rc.right,max(rc.bottom-m_TitleHeight,0),TRUE);
 		Invalidate();
 
-		::SendMessage(m_hwndEdit,WM_SETFONT,reinterpret_cast<WPARAM>(m_Font.GetHandle()),TRUE);
+		SetWindowFont(m_hwndEdit,m_Font.GetHandle(),TRUE);
 	}
 	return true;
 }
@@ -368,7 +368,7 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 			pThis->m_hwndEdit=::CreateWindowEx(0,TEXT("RichEdit20W"),TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | ES_NOHIDESEL,0,0,0,0,
 				hwnd,(HMENU)1,m_hinst,NULL);
-			::SendMessage(pThis->m_hwndEdit,WM_SETFONT,reinterpret_cast<WPARAM>(pThis->m_Font.GetHandle()),FALSE);
+			SetWindowFont(pThis->m_hwndEdit,pThis->m_Font.GetHandle(),FALSE);
 			::SendMessage(pThis->m_hwndEdit,EM_SETEVENTMASK,0,ENM_MOUSEEVENTS | ENM_LINK);
 			::SendMessage(pThis->m_hwndEdit,EM_SETBKGNDCOLOR,0,pThis->m_BackColor);
 		}
@@ -399,7 +399,7 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 			::GetClientRect(hwnd,&rc);
 			rc.bottom=pThis->m_TitleHeight;
 			Theme::FillGradient(ps.hdc,&rc,&pThis->m_TitleBackGradient);
-			hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_TitleFont.GetHandle()));
+			hfontOld=DrawUtil::SelectObject(ps.hdc,pThis->m_TitleFont);
 			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
 			OldTextColor=::SetTextColor(ps.hdc,pThis->m_TitleTextColor);
 			if (pThis->m_EventInfo.m_fValidStartTime) {
@@ -605,6 +605,7 @@ bool CEventInfoPopupManager::Initialize(HWND hwnd,CEventHandler *pEventHandler)
 void CEventInfoPopupManager::Finalize()
 {
 	if (m_hwnd!=NULL) {
+		m_pPopup->Hide();
 		if (m_pOldWndProc!=NULL) {
 			::SetWindowLongPtr(m_hwnd,GWLP_WNDPROC,(LONG_PTR)m_pOldWndProc);
 			m_pOldWndProc=NULL;
@@ -644,7 +645,7 @@ bool CEventInfoPopupManager::Popup(int x,int y)
 
 LRESULT CALLBACK CEventInfoPopupManager::HookWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	CEventInfoPopupManager *pThis=(CEventInfoPopupManager*)::GetProp(hwnd,m_pszPropName);
+	CEventInfoPopupManager *pThis=static_cast<CEventInfoPopupManager*>(::GetProp(hwnd,m_pszPropName));
 
 	if (pThis==NULL)
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
@@ -728,6 +729,11 @@ LRESULT CALLBACK CEventInfoPopupManager::HookWndProc(HWND hwnd,UINT uMsg,WPARAM 
 				pThis->m_pPopup->Hide();
 		}
 		pThis->m_fTrackMouseEvent=false;
+		return 0;
+
+	case WM_SHOWWINDOW:
+		if (!wParam)
+			pThis->m_pPopup->Hide();
 		return 0;
 
 	case WM_DESTROY:

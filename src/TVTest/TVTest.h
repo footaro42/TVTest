@@ -8,9 +8,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	7
-#define VERSION_BUILD	0
+#define VERSION_BUILD	2
 
-#define VERSION_TEXT_A	"0.7.0"
+#define VERSION_TEXT_A	"0.7.2"
 
 #else
 
@@ -74,7 +74,8 @@
 #define SAFE_DELETE_ARRAY(p)	((void)(delete [] p,(p)=NULL))
 #endif
 
-#define ABSTRACT_DECL __declspec(novtable)
+#define ABSTRACT_DECL			__declspec(novtable)
+#define ABSTRACT_CLASS(name)	ABSTRACT_DECL name abstract
 
 #ifndef TVH264
 #define CHANNEL_FILE_EXTENSION	TEXT(".ch2")

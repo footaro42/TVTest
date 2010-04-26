@@ -722,7 +722,7 @@ bool CStatusView::DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,b
 	const Theme::GradientInfo *pGradient=
 		fHighlight?&m_HighlightBackGradient:&m_BackGradient;
 
-	hfontOld=SelectFont(hdc,m_Font.GetHandle());
+	hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 	crOldTextColor=::SetTextColor(hdc,fHighlight?m_crHighlightTextColor:m_crTextColor);
 	crOldBkColor=::SetBkColor(hdc,MixColor(pGradient->Color1,pGradient->Color2,128));
@@ -810,7 +810,7 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 		hdcDst=hdc;
 	}
 
-	hfontOld=SelectFont(hdcDst,m_Font.GetHandle());
+	hfontOld=DrawUtil::SelectObject(hdcDst,m_Font);
 	OldBkMode=::SetBkMode(hdcDst,TRANSPARENT);
 	crOldTextColor=::GetTextColor(hdcDst);
 	crOldBkColor=::GetBkColor(hdcDst);

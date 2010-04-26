@@ -8,6 +8,7 @@
 #include "DriverManager.h"
 #include "LogoManager.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 #include "ProgramSearch.h"
 #include "EventInfoPopup.h"
 #include "StatusView.h"
@@ -157,9 +158,9 @@ private:
 	CEpgProgramList *m_pProgramList;
 	CProgramGuideServiceList m_ServiceList;
 	int m_LinesPerHour;
-	HFONT m_hfont;
-	HFONT m_hfontTitle;
-	HFONT m_hfontTime;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_TitleFont;
+	DrawUtil::CFont m_TimeFont;
 	int m_FontHeight;
 	int m_LineMargin;
 	int m_ItemWidth;
@@ -175,7 +176,6 @@ private:
 		POINT StartCursorPos;
 		POINT StartScrollPos;
 	} m_DragInfo;
-	//HWND m_hwndToolTip;
 	CEventInfoPopup m_EventInfoPopup;
 	CEventInfoPopupManager m_EventInfoPopupManager;
 	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
@@ -256,7 +256,6 @@ private:
 	void Scroll(int XOffset,int YOffset);
 	void SetScrollBar();
 	void SetCaption();
-	//void SetToolTip();
 	bool HitTest(int x,int y,int *pServiceIndex,int *pProgramIndex);
 
 	static const LPCTSTR m_pszWindowClass;

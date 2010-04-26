@@ -366,7 +366,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			TCHAR szText[256];
 
 			BeginPaint(hwnd,&ps);
-			hfontOld=static_cast<HFONT>(SelectObject(ps.hdc,pThis->m_Font.GetHandle()));
+			hfontOld=DrawUtil::SelectObject(ps.hdc,pThis->m_Font);
 			FillRect(ps.hdc,&ps.rcPaint,pThis->m_hbrBack);
 			crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTextColor);
 			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);

@@ -119,12 +119,19 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 		{
 			POINT pt;
 
+			if (uMsg==WM_LBUTTONDOWN || uMsg==WM_RBUTTONDOWN || uMsg==WM_MBUTTONDOWN)
+				::SetFocus(hwnd);
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
 			::MapWindowPoints(hwnd,::GetParent(hwnd),&pt,1);
-			return ::SendMessage(::GetParent(hwnd),uMsg,wParam,
-														MAKELPARAM(pt.x,pt.y));
+			return ::SendMessage(::GetParent(hwnd),uMsg,wParam,MAKELONG(pt.x,pt.y));
 		}
+
+	case WM_KEYDOWN:
+	case WM_KEYUP:
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+		return ::SendMessage(::GetParent(hwnd),uMsg,wParam,lParam);
 
 	case WM_DESTROY:
 		{
@@ -384,9 +391,20 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 				pt.x=GET_X_LPARAM(lParam);
 				pt.y=GET_Y_LPARAM(lParam);
 				::MapWindowPoints(hwnd,pThis->m_hwndMessage,&pt,1);
-				return ::SendMessage(pThis->m_hwndMessage,uMsg,wParam,
-														MAKELPARAM(pt.x,pt.y));
+				return ::SendMessage(pThis->m_hwndMessage,uMsg,wParam,MAKELONG(pt.x,pt.y));
 			}
+		}
+		break;
+
+	case WM_KEYDOWN:
+	case WM_KEYUP:
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+		{
+			CViewWindow *pThis=GetThis(hwnd);
+
+			if (pThis->m_hwndMessage!=NULL)
+				return ::SendMessage(pThis->m_hwndMessage,uMsg,wParam,lParam);
 		}
 		break;
 
@@ -537,6 +555,7 @@ bool CDisplayBase::SetVisible(bool fVisible)
 		return false;
 	if (m_fVisible==fVisible)
 		return true;
+	bool fFocus=!fVisible && m_pDisplayView->GetHandle()==::GetFocus();
 	if (m_pEventHandler!=NULL && !m_pEventHandler->OnVisibleChange(fVisible))
 		return false;
 	if (fVisible) {
@@ -550,12 +569,11 @@ bool CDisplayBase::SetVisible(bool fVisible)
 		m_pDisplayView->Update();
 		::SetFocus(m_pDisplayView->GetHandle());
 	} else {
-		bool fFocus=m_pDisplayView->GetHandle()==::GetFocus();
 		m_pDisplayView->SetDisplayVisible(false);
-		if (fFocus && m_pParentWindow!=NULL)
-			::SetFocus(m_pParentWindow->GetHandle());
 	}
 	m_fVisible=fVisible;
+	if (fFocus && m_pParentWindow!=NULL)
+		::SetFocus(m_pParentWindow->GetHandle());
 	return true;
 }
 

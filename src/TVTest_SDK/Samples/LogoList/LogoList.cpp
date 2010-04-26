@@ -18,6 +18,9 @@
 #define ITEM_MARGIN	4	// アイテムの余白の大きさ
 #define LOGO_MARGIN	4	// ロゴの間の余白の大きさ
 
+// 更新用タイマーの識別子
+#define TIMER_UPDATELOGO	1
+
 // ロゴの大きさ
 static const struct {
 	int Width, Height;
@@ -58,6 +61,7 @@ class CLogoList : public TVTest::CTVTestPlugin
 
 	bool Enable(bool fEnable);
 	void GetServiceList();
+	bool UpdateLogo();
 	void ClearServiceList();
 	void GetColors();
 
@@ -148,7 +152,7 @@ LRESULT CALLBACK CLogoList::EventCallback(UINT Event,LPARAM lParam1,LPARAM lPara
 bool CLogoList::Enable(bool fEnable)
 {
 	if (fEnable) {
-		static bool fInitialized=false;
+		static bool fInitialized = false;
 
 		if (!fInitialized) {
 			// ウィンドウクラスの登録
@@ -231,18 +235,43 @@ void CLogoList::GetServiceList()
 		}
 	}
 
-	// 各サービスのロゴを取得する
+	// ロゴを取得する
+	UpdateLogo();
+}
+
+
+// ロゴの更新
+bool CLogoList::UpdateLogo()
+{
+	bool fUpdated = false;
+
 	for (size_t i = 0; i < m_ServiceList.size(); i++) {
-		pServiceInfo = m_ServiceList[i];
-		UINT AvailableType =
-			m_pApp->GetAvailableLogoType(pServiceInfo->m_NetworkID, pServiceInfo->m_ServiceID);
+		CServiceInfo *pServiceInfo = m_ServiceList[i];
+
+		UINT ExistsType = 0;
 		for (BYTE j = 0; j < 6; j++) {
-			if ((AvailableType & (1 << j)) != 0) {
-				pServiceInfo->m_hbmLogo[j] =
-					m_pApp->GetLogo(pServiceInfo->m_NetworkID, pServiceInfo->m_ServiceID, j);
+			if (pServiceInfo->m_hbmLogo[j] != NULL)
+				ExistsType |= 1U << j;
+		}
+		if ((ExistsType & 0x3F) != 0x3F) {
+			// まだ取得していないロゴがある
+			UINT AvailableType =
+				m_pApp->GetAvailableLogoType(pServiceInfo->m_NetworkID, pServiceInfo->m_ServiceID);
+			if (AvailableType != ExistsType) {
+				// 新しくロゴが取得されたので更新する
+				for (BYTE j = 0; j < 6; j++) {
+					if (pServiceInfo->m_hbmLogo[j] == NULL
+							&& (AvailableType & (1U << j)) != 0) {
+						pServiceInfo->m_hbmLogo[j] =
+							m_pApp->GetLogo(pServiceInfo->m_NetworkID, pServiceInfo->m_ServiceID, j);
+						if (pServiceInfo->m_hbmLogo[j] != NULL)
+							fUpdated = true;
+					}
+				}
 			}
 		}
 	}
+	return fUpdated;
 }
 
 
@@ -300,6 +329,9 @@ LRESULT CALLBACK CLogoList::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 			for (size_t i = 0; i < pThis->m_ServiceList.size(); i++)
 				::SendMessage(pThis->m_hwndList, LB_ADDSTRING, 0, reinterpret_cast<LPARAM>(pThis->m_ServiceList[i]));
+
+			// 更新用タイマー設定
+			::SetTimer(hwnd, TIMER_UPDATELOGO, 60 * 1000, NULL);
 		}
 		return 0;
 
@@ -312,6 +344,7 @@ LRESULT CALLBACK CLogoList::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		return 0;
 
 	case WM_DRAWITEM:
+		// ロゴのリストのアイテムを描画
 		{
 			CLogoList *pThis = GetThis(hwnd);
 			LPDRAWITEMSTRUCT pdis = reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
@@ -348,7 +381,7 @@ LRESULT CALLBACK CLogoList::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 				if (pService->m_hbmLogo[i] != NULL) {
 					::SelectObject(hdcMemory, pService->m_hbmLogo[i]);
 					::BitBlt(pdis->hDC,
-							 x, pdis->rcItem.top + ((pdis->rcItem.bottom - pdis->rcItem.top) - LogoSizeList[i].Height) / 2,
+							 x, rc.top + ((rc.bottom - rc.top) - LogoSizeList[i].Height) / 2,
 							 LogoSizeList[i].Width, LogoSizeList[i].Height,
 							 hdcMemory, 0, 0, SRCCOPY);
 				}
@@ -359,6 +392,16 @@ LRESULT CALLBACK CLogoList::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			::DeleteDC(hdcMemory);
 		}
 		return TRUE;
+
+	case WM_TIMER:
+		// ロゴの更新
+		if (wParam == TIMER_UPDATELOGO) {
+			CLogoList *pThis = GetThis(hwnd);
+
+			if (pThis->UpdateLogo())
+				::RedrawWindow(pThis->m_hwndList, NULL, NULL, RDW_INVALIDATE | RDW_UPDATENOW);
+		}
+		return 0;
 
 	case WM_SYSCOMMAND:
 		if ((wParam & 0xFFF0) == SC_CLOSE) {
@@ -373,8 +416,9 @@ LRESULT CALLBACK CLogoList::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 	case WM_NCDESTROY:
 		{
 			CLogoList *pThis = GetThis(hwnd);
-			RECT rc;
 
+			// ウィンドウ位置の記憶
+			RECT rc;
 			::GetWindowRect(hwnd, &rc);
 			pThis->m_WindowPosition.Left = rc.left;
 			pThis->m_WindowPosition.Top = rc.top;

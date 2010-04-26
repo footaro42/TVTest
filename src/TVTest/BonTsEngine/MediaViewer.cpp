@@ -431,7 +431,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 							continue;
 						hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 								idAudioFilter,szAudioFilter,&m_pAudioFilter,
-								&pOutputAudio);
+								&pOutputAudio,NULL,true);
 						if (SUCCEEDED(hr)) {
 							TRACE(TEXT("âπê∫ÉtÉBÉãÉ^ê⁄ë± : %s\n"),szAudioFilter);
 							bConnectSuccess=true;

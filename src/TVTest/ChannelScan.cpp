@@ -835,16 +835,18 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		if (pThis->m_ScanWait>2000) {
 			DWORD Wait=pThis->m_ScanWait-2000;
 			while (true) {
-				// 全てのサービスのPMTが来たら待ち時間終了
-				int NumServices=pTsAnalyzer->GetServiceNum();
-				if (NumServices>0) {
-					int i;
-					for (i=0;i<NumServices;i++) {
-						if (!pTsAnalyzer->IsServiceUpdated(i))
+				if (pTsAnalyzer->GetNetworkID()!=0) {
+					// 全てのサービスのPMTが来たら待ち時間終了
+					int NumServices=pTsAnalyzer->GetServiceNum();
+					if (NumServices>0) {
+						int i;
+						for (i=0;i<NumServices;i++) {
+							if (!pTsAnalyzer->IsServiceUpdated(i))
+								break;
+						}
+						if (i==NumServices)
 							break;
 					}
-					if (i==NumServices)
-						break;
 				}
 				if (::WaitForSingleObject(pThis->m_hCancelEvent,min(Wait,1000))==WAIT_OBJECT_0)
 					goto End;
@@ -867,6 +869,8 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 						goto End;
 					pThis->GetSignalLevel();
 				}
+				if (pTsAnalyzer->GetNetworkID()==0)
+					continue;
 				NumServices=pTsAnalyzer->GetViewableServiceNum();
 				if (NumServices>0) {
 					WORD ServiceID;

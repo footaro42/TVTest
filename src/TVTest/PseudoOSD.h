@@ -2,13 +2,16 @@
 #define PSEUDO_OSD_H
 
 
+#include "DrawUtil.h"
+
+
 class CPseudoOSD
 {
 	HWND m_hwnd;
 	COLORREF m_crBackColor;
 	COLORREF m_crTextColor;
-	HFONT m_hFont;
-	LPTSTR m_pszText;
+	DrawUtil::CFont m_Font;
+	CDynamicString m_Text;
 	HBITMAP m_hbmIcon;
 	int m_IconWidth;
 	int m_IconHeight;

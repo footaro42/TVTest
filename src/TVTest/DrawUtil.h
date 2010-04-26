@@ -60,6 +60,10 @@ public:
 	int GetHeight(HDC hdc,bool fCell=true) const;
 };
 
+inline HFONT SelectObject(HDC hdc,const CFont &Font) {
+	return static_cast<HFONT>(::SelectObject(hdc,Font.GetHandle()));
+}
+
 class CDeviceContext {
 	enum {
 		FLAG_DCFROMHWND		=0x00000001UL,

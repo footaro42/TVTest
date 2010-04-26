@@ -372,7 +372,7 @@ bool CAppMain::Initialize()
 	bool fExists=::PathFileExists(m_szIniFileName)!=FALSE;
 	m_fFirstExecute=!fExists && CmdLineParser.m_IniFileName.IsEmpty();
 	if (fExists) {
-		Logger.AddLog(TEXT("設定を読み込んでいます..."));
+		AddLog(TEXT("設定を読み込んでいます..."));
 		LoadSettings();
 	}
 	return true;
@@ -381,7 +381,7 @@ bool CAppMain::Initialize()
 
 bool CAppMain::Finalize()
 {
-	Logger.AddLog(TEXT("設定を保存しています..."));
+	AddLog(TEXT("設定を保存しています..."));
 	SaveSettings();
 	SaveChannelSettings();
 	return true;
@@ -578,31 +578,6 @@ bool CAppMain::InitializeChannel()
 		RestoreChannelInfo.Channel=-1;
 		RestoreChannelInfo.ServiceID=-1;
 		RestoreChannelInfo.fAllChannels=false;
-#if 0
-		CSettings Setting;
-
-		if (Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_READ)) {
-			TCHAR szDriverName[MAX_PATH],szName[32+MAX_PATH];
-
-			::lstrcpy(szDriverName,::PathFindFileName(CoreEngine.GetDriverFileName()));
-			*::PathFindExtension(szDriverName)='\0';
-			::wsprintf(szName,TEXT("Space_%s"),szDriverName);
-			Setting.Read(szName,&RestoreChannelInfo.Space);
-			::wsprintf(szName,TEXT("ChannelIndex_%s"),szDriverName);
-			Setting.Read(szName,&RestoreChannelInfo.Channel);
-			/*
-			::wsprintf(szName,TEXT("Service_%s"),szDriverName);
-			Setting.Read(szName,&RestoreChannelInfo.Service);
-			*/
-			::wsprintf(szName,TEXT("ServiceID_%s"),szDriverName);
-			Setting.Read(szName,&RestoreChannelInfo.ServiceID);
-			::wsprintf(szName,TEXT("Flags_%s"),szDriverName);
-			unsigned int Flags;
-			if (Setting.Read(szName,&Flags))
-				RestoreChannelInfo.fAllChannels=(Flags&1)!=0;
-			Setting.Close();
-		}
-#endif
 	}
 
 	ChannelManager.SetUseDriverChannelList(fNetworkDriver);
@@ -1144,11 +1119,45 @@ bool CAppMain::LoadSettings()
 
 bool CAppMain::SaveSettings()
 {
+#ifdef UNICODE
+	if (!::PathFileExists(m_szIniFileName)) {
+		AddLog(TEXT("設定ファイルを作成します。\"%s\""),m_szIniFileName);
+		HANDLE hFile=::CreateFile(m_szIniFileName,GENERIC_WRITE,0,NULL,
+								  CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
+		if (hFile==INVALID_HANDLE_VALUE) {
+			TCHAR szMessage[256+MAX_PATH];
+			::wsprintf(szMessage,
+					   TEXT("設定ファイル \"%s\" が作成できません。(エラーコード %#lx)"),
+					   m_szIniFileName,::GetLastError());
+			AddLog(szMessage);
+			if (!m_fSilent)
+				MainWindow.ShowErrorMessage(szMessage);
+		} else {
+			// Unicode(UTF-16)のiniファイルになるようにBOMを書き出す
+			DWORD Write;
+			::WriteFile(hFile,"\xFF\xFE",2,&Write,NULL);
+			::FlushFileBuffers(hFile);
+			::CloseHandle(hFile);
+		}
+	}
+#endif
+
 	CSettings Setting;
 
 	if (Setting.Open(m_szIniFileName,TEXT("Settings"),CSettings::OPEN_WRITE)) {
 		int Left,Top,Width,Height;
 
+		if (!Setting.Write(TEXT("Version"),VERSION_TEXT)) {
+			TCHAR szMessage[256+MAX_PATH];
+			::wsprintf(szMessage,
+					   TEXT("設定ファイル \"%s\" に書き込みできません。(エラーコード %#lx)"),
+					   m_szIniFileName,::GetLastError());
+			AddLog(szMessage);
+			/*
+			if (!m_fSilent)
+				MainWindow.ShowErrorMessage(szMessage);
+			*/
+		}
 		Setting.Write(TEXT("Volume"),CoreEngine.GetVolume());
 		Setting.Write(TEXT("VolumeNormalizeLevel"),CoreEngine.GetVolumeNormalizeLevel());
 		Setting.Write(TEXT("ShowInfoWindow"),fShowPanelWindow);
@@ -1230,35 +1239,6 @@ bool CAppMain::SaveCurrentChannel()
 {
 	if (*CoreEngine.GetDriverFileName()!='\0') {
 		const CChannelInfo *pInfo=ChannelManager.GetCurrentRealChannelInfo();
-#if 0
-		int Space,Channel,ServiceID;
-		CSettings Setting;
-
-		if (pInfo!=NULL) {
-			Space=pInfo->GetSpace();
-			Channel=pInfo->GetChannelIndex();
-			ServiceID=pInfo->GetServiceID();
-		} else {
-			Space=-1;
-			Channel=-1;
-			ServiceID=0;
-		}
-		if (Setting.Open(m_szIniFileName,TEXT("LastChannel"),CSettings::OPEN_WRITE)) {
-			TCHAR szDriverName[MAX_PATH],szName[32+MAX_PATH];
-
-			::lstrcpy(szDriverName,::PathFindFileName(CoreEngine.GetDriverFileName()));
-			*::PathFindExtension(szDriverName)='\0';
-			::wsprintf(szName,TEXT("Space_%s"),szDriverName);
-			Setting.Write(szName,Space);
-			::wsprintf(szName,TEXT("ChannelIndex_%s"),szDriverName);
-			Setting.Write(szName,Channel);
-			::wsprintf(szName,TEXT("ServiceID_%s"),szDriverName);
-			Setting.Write(szName,ServiceID);
-			::wsprintf(szName,TEXT("Flags_%s"),szDriverName);
-			Setting.Write(szName,ChannelManager.GetCurrentSpace()==CChannelManager::SPACE_ALL?1U:0U);
-			Setting.Close();
-		}
-#else
 		CDriverOptions::ChannelInfo ChInfo;
 
 		if (pInfo!=NULL) {
@@ -1272,7 +1252,6 @@ bool CAppMain::SaveCurrentChannel()
 		}
 		ChInfo.fAllChannels=ChannelManager.GetCurrentSpace()==CChannelManager::SPACE_ALL;
 		DriverOptions.SetLastChannel(CoreEngine.GetDriverFileName(),&ChInfo);
-#endif
 	}
 	return true;
 }
@@ -2048,7 +2027,6 @@ void CRecordStatusItem::OnRButtonDown(int x,int y)
 	Menu.CheckItem(CM_RECORDEVENT,MainWindow.GetRecordingStopOnEventEnd());
 	Menu.EnableItem(CM_RECORD_PAUSE,RecordManager.IsRecording());
 	Menu.CheckItem(CM_RECORD_PAUSE,RecordManager.IsPaused());
-	//Menu.EnableItem(CM_RECORDSTOPTIME,RecordManager.IsRecording());
 	bool fTimeShift=RecordOptions.IsTimeShiftRecordingEnabled();
 	Menu.EnableItem(CM_TIMESHIFTRECORDING,fTimeShift && !RecordManager.IsRecording());
 	Menu.CheckItem(CM_ENABLETIMESHIFTRECORDING,fTimeShift);
@@ -2056,7 +2034,6 @@ void CRecordStatusItem::OnRButtonDown(int x,int y)
 		RecordManager.IsRecording() && RecordManager.IsStopTimeSpecified());
 	Menu.CheckItem(CM_SHOWRECORDREMAINTIME,m_fRemain);
 	Menu.CheckItem(CM_EXITONRECORDINGSTOP,MainWindow.GetExitOnRecordingStop());
-	//Menu.CheckItem(CM_DISABLEVIEWER,!MainWindow.IsPreview());
 	Accelerator.SetMenuAccel(Menu.GetPopupHandle());
 	GetMenuPos(&pt,&Flags);
 	Menu.Popup(MainWindow.GetHandle(),&pt,Flags | TPM_RIGHTBUTTON);
@@ -3753,9 +3730,10 @@ class CMyProgramGuideDisplayEventHandler : public CProgramGuideDisplay::CEventHa
 // CProgramGuideDisplay::CEventHandler
 	bool OnHide()
 	{
-		if (ProgramGuideDisplay.IsCreated())
-			MainWindow.SendCommand(CM_PROGRAMGUIDE);
-		return false;
+		m_pProgramGuideDisplay->Destroy();
+		fShowProgramGuide=false;
+		MainMenu.CheckItem(CM_PROGRAMGUIDE,fShowProgramGuide);
+		return true;
 	}
 
 	bool SetAlwaysOnTop(bool fTop)
@@ -5913,7 +5891,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			ChannelPanel.ClearChannelList();
 		}
 		if (!PanelFrame.GetFloating()) {
-			int Width=PanelFrame.GetDockingWidth()+m_Splitter.GetBarWidth();
+			// パネルの幅に合わせてウィンドウサイズを拡縮
+			const int Width=PanelFrame.GetDockingWidth()+m_Splitter.GetBarWidth();
 			RECT rc;
 
 			GetPosition(&rc);
@@ -5929,6 +5908,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 					rc.right-=Width;
 			}
 			SetPosition(&rc);
+			if (!fShowPanelWindow)
+				::SetFocus(hwnd);
 		}
 		if (fShowPanelWindow)
 			UpdatePanel();
@@ -5938,10 +5919,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_PROGRAMGUIDE:
 		fShowProgramGuide=!fShowProgramGuide;
 		if (fShowProgramGuide) {
-			bool fOnScreen=m_fFullscreen || ProgramGuideOptions.GetOnScreen();
-			HCURSOR hcurOld;
+			const bool fOnScreen=ProgramGuideOptions.GetOnScreen()
+				|| (m_fFullscreen && ::GetSystemMetrics(SM_CMONITORS)==1);
 
-			hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
+			HCURSOR hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 			if (fOnScreen) {
 				ProgramGuideDisplay.SetEventHandler(&ProgramGuideDisplayEventHandler);
 				ProgramGuideDisplay.Create(m_DisplayBase.GetParent()->GetHandle(),
@@ -5973,7 +5954,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			if (ProgramGuideFrame.IsCreated()) {
 				ProgramGuideFrame.Destroy();
 			} else {
-				ProgramGuideDisplay.Destroy();
+				m_DisplayBase.SetVisible(false);
 			}
 		}
 		MainMenu.CheckItem(CM_PROGRAMGUIDE,fShowProgramGuide);
@@ -6742,10 +6723,12 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 						break;
 				}
 			}
-			if (i==pList->NumChannels())
+			if (i==pList->NumChannels()) {
 				ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
-			else
+			} else {
+				// TODO: 現在の取得状況に応じて待ち時間を変える
 				AppMain.SetChannel(ChannelManager.GetCurrentSpace(),i);
+			}
 		}
 		break;
 
@@ -8512,7 +8495,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			TaskbarManager.Finalize();
 			ProgramGuideFrame.Destroy();
 			NotifyToolTip.Finalize();
-			AppMain.SaveCurrentChannel();
 
 			CoreEngine.m_DtvEngine.SetTracer(&Logger);
 			CoreEngine.Close();
@@ -8529,7 +8511,6 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 				EpgOptions.SaveEpgFile(&EpgProgramList);
 			EpgOptions.SaveLogoFile();
 			EpgOptions.Finalize();
-			AppMain.Finalize();
 
 			{
 				TCHAR szLogoMapName[MAX_PATH];
@@ -8548,6 +8529,11 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 			if (hEvent!=NULL)
 				::CloseHandle(hEvent);
 #endif
+
+			// Finalize()ではエラー時にダイアログを出すことがあるので、
+			// 終了監視の外に出す必要がある
+			AppMain.SaveCurrentChannel();
+			AppMain.Finalize();
 
 			pThis->OnDestroy();
 			::PostQuitMessage(0);
@@ -9349,10 +9335,10 @@ bool CMainWindow::BeginProgramGuideUpdate(bool fStandby)
 		const CChannelList *pList=ChannelManager.GetCurrentRealChannelList();
 		if (pList==NULL)
 			return false;
+		const CChannelInfo *pChInfo;
 		int i;
 		for (i=0;i<pList->NumChannels();i++) {
-			const CChannelInfo *pChInfo=pList->GetChannelInfo(i);
-
+			pChInfo=pList->GetChannelInfo(i);
 			if (pChInfo->IsEnabled())
 				break;
 		}
@@ -9370,7 +9356,9 @@ bool CMainWindow::BeginProgramGuideUpdate(bool fStandby)
 			EnablePreview(false);
 		}
 		AppMain.SetChannel(ChannelManager.GetCurrentSpace(),i);
-		::SetTimer(m_hwnd,TIMER_ID_PROGRAMGUIDEUPDATE,m_fStandby?60000:30000,NULL);
+		::SetTimer(m_hwnd,TIMER_ID_PROGRAMGUIDEUPDATE,
+				   pChInfo->GetNetworkID()>=6 && pChInfo->GetNetworkID()<=10?
+				   (m_fStandby?120000:60000):(m_fStandby?90000:40000),NULL);
 	}
 	return true;
 }
@@ -9687,7 +9675,7 @@ static bool IsNoAcceleratorMessage(const MSG *pmsg)
 {
 	HWND hwnd=::GetFocus();
 
-	if (hwnd!=NULL) {
+	if (hwnd!=NULL && ::IsWindowVisible(hwnd)) {
 		if (hwnd==ChannelDisplayMenu.GetHandle()) {
 			return ChannelDisplayMenu.IsMessageNeed(pmsg);
 		} else {
@@ -9720,20 +9708,9 @@ static bool IsNoAcceleratorMessage(const MSG *pmsg)
 static CDebugHelper DebugHelper;
 #endif
 
-int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
-												LPTSTR pszCmdLine,int nCmdShow)
+static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 {
-#ifdef _DEBUG
-	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF/* | _CRTDBG_CHECK_ALWAYS_DF*/);
-#else
-	DebugHelper.SetExceptionFilterMode(CDebugHelper::EXCEPTION_FILTER_DIALOG);
-#endif
-
-	Logger.AddLog(TEXT("******** 起動 ********"));
-
 	hInst=hInstance;
-
-	CoInitializeEx(NULL,COINIT_APARTMENTTHREADED | COINIT_SPEED_OVER_MEMORY);
 
 	// コマンドラインの解析
 	if (pszCmdLine[0]!='\0') {
@@ -9763,6 +9740,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	// 複数起動のチェック
 	if (Mutex.AlreadyExists()
 			&& (GeneralOptions.GetKeepSingleTask() || CmdLineParser.m_fSingleTask)) {
+		Logger.AddLog(TEXT("複数起動が禁止されています。"));
 		CTVTestWindowFinder Finder;
 		HWND hwnd=Finder.FindCommandLineTarget();
 		if (::IsWindow(hwnd)) {
@@ -9773,17 +9751,22 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 			else
 				atom=0;
 			// ATOM だと256文字までしか渡せないので、WM_COPYDATA 辺りの方がいいかも
+			/*
+			DWORD_PTR Result;
+			::SendMessageTimeout(hwnd,WM_APP_EXECUTE,(WPARAM)atom,0,
+								 SMTO_NORMAL,10000,&Result);
+			*/
 			::PostMessage(hwnd,WM_APP_EXECUTE,(WPARAM)atom,0);
-			return FALSE;
+			return 0;
 		} else if (!CmdLineParser.m_fSingleTask) {
 			// 固まった場合でも WinMain は抜けるのでこれは無意味...
 			if (!AppMain.IsSilent())
 				MessageBox(NULL,
-					APP_NAME TEXT(" は既に起動しています。\r\n")
-					TEXT("ウィンドウが見当たらない場合はタスクマネージャに隠れていますので\r\n")
+					APP_NAME TEXT(" は既に起動しています。\n")
+					TEXT("ウィンドウが見当たらない場合はタスクマネージャに隠れていますので\n")
 					TEXT("強制終了させてください。"),MAIN_TITLE_TEXT,
-												MB_OK | MB_ICONEXCLAMATION);
-			return FALSE;
+					MB_OK | MB_ICONEXCLAMATION);
+			return 0;
 		}
 	}
 
@@ -9809,7 +9792,7 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		CInitialSettings InitialSettings(&DriverManager);
 
 		if (!InitialSettings.ShowDialog(NULL))
-			return FALSE;
+			return 0;
 		InitialSettings.GetDriverFileName(szDriverFileName,lengthof(szDriverFileName));
 		GeneralOptions.SetDefaultDriverName(szDriverFileName);
 		GeneralOptions.SetMpeg2DecoderName(InitialSettings.GetMpeg2DecoderName());
@@ -9854,10 +9837,10 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	StreamInfo.SetEventHandler(&StreamInfoEventHandler);
 
 	if (!MainWindow.Create(NULL,WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN)) {
+		Logger.AddLog(TEXT("ウィンドウが作成できません。"));
 		if (!AppMain.IsSilent())
-			MessageBox(NULL,TEXT("ウィンドウが作成できません。"),NULL,
-														MB_OK | MB_ICONSTOP);
-		return FALSE;
+			MessageBox(NULL,TEXT("ウィンドウが作成できません。"),NULL,MB_OK | MB_ICONSTOP);
+		return 0;
 	}
 	if (nCmdShow==SW_SHOWMINIMIZED || nCmdShow==SW_MINIMIZE)
 		CmdLineParser.m_fMinimize=true;
@@ -10104,10 +10087,6 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 	}
 
 	if (!CmdLineParser.m_fNoEpg) {
-		/*
-		if (EpgOptions.LoadEpgFile(&EpgProgramList))
-			Logger.AddLog(TEXT("EPGデータを \"%s\" から読み込みました"),EpgOptions.GetEpgFileName());
-		*/
 		EpgOptions.AsyncLoadEpgFile(&EpgProgramList,&EpgLoadEventHandler);
 	}
 
@@ -10196,6 +10175,27 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		}
 	}
 
+	return (int)msg.wParam;
+}
+
+
+int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
+												LPTSTR pszCmdLine,int nCmdShow)
+{
+#ifdef _DEBUG
+	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF/* | _CRTDBG_CHECK_ALWAYS_DF*/);
+#else
+	DebugHelper.SetExceptionFilterMode(CDebugHelper::EXCEPTION_FILTER_DIALOG);
+#endif
+
+	Logger.AddLog(TEXT("******** 起動 ********"));
+
+	CoInitializeEx(NULL,COINIT_APARTMENTTHREADED | COINIT_SPEED_OVER_MEMORY);
+
+	const int Result=ApplicationMain(hInstance,pszCmdLine,nCmdShow);
+
+	CoUninitialize();
+
 	Logger.AddLog(TEXT("******** 終了 ********"));
 	if (CmdLineParser.m_fSaveLog && !Logger.GetOutputToFile()) {
 		TCHAR szFileName[MAX_PATH];
@@ -10204,7 +10204,5 @@ int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 		Logger.SaveToFile(szFileName,true);
 	}
 
-	CoUninitialize();
-
-	return (int)msg.wParam;
+	return Result;
 }
