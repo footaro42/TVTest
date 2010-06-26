@@ -177,6 +177,7 @@ HRESULT CH264ParserFilter::StartStreaming(void)
 	CAutoLock AutoLock(m_pLock);
 
 	Reset();
+	m_VideoInfo.Reset();
 	return S_OK;
 }
 
@@ -260,9 +261,7 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	}
 	m_DeliverResult = S_OK;
 
-	m_ParserLock.Lock();
 	m_H264Parser.StoreEs(pInData, DataSize);
-	m_ParserLock.Unlock();
 
 	if (pOut->GetActualDataLength() == 0)
 		return S_FALSE;
@@ -301,6 +300,7 @@ HRESULT CH264ParserFilter::BeginFlush(void)
 	HRESULT hr = S_OK;
 
 	Reset();
+	m_VideoInfo.Reset();
 	if (m_pOutput)
 		hr = m_pOutput->DeliverBeginFlush();
 	return hr;
@@ -312,6 +312,24 @@ void CH264ParserFilter::SetVideoInfoCallback(VideoInfoCallback pCallback, const 
 
 	m_pfnVideoInfoCallback = pCallback;
 	m_pCallbackParam = pParam;
+}
+
+bool CH264ParserFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
+{
+	if (!pInfo)
+		return false;
+
+	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
+
+	*pInfo = m_VideoInfo;
+	return true;
+}
+
+void CH264ParserFilter::ResetVideoInfo()
+{
+	CAutoLock Lock(&m_VideoInfoLock);
+
+	m_VideoInfo.Reset();
 }
 
 bool CH264ParserFilter::SetAdjustTime(bool bAdjust)
@@ -421,7 +439,9 @@ void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264Acce
 
 	if (Info != m_VideoInfo) {
 		// 映像のサイズ及びフレームレートが変わった
+		m_VideoInfoLock.Lock();
 		m_VideoInfo = Info;
+		m_VideoInfoLock.Unlock();
 
 		TRACE(TEXT("H.264 access unit %d x %d [SAR %d:%d (DAR %d:%d)] %lu/%lu\n"),
 			  OrigWidth, OrigHeight, SarX, SarY, AspectX, AspectY,

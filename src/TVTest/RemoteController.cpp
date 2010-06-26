@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "RemoteController.h"
 #include "TVTest_KeyHook/TVTest_KeyHook.h"
 #include "Command.h"
@@ -685,7 +684,7 @@ INT_PTR CALLBACK CHDUSController::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 						|| fActiveOnly!=pThis->m_fActiveOnly) {
 					SAFE_DELETE(pThis->m_pRemoteController);
 					if (fUse) {
-						pThis->m_pRemoteController=new CRemoteController(GetAppClass().GetMainWindow()->GetHandle());
+						pThis->m_pRemoteController=new CRemoteController(GetAppClass().GetUICore()->GetMainWindow());
 						pThis->m_pRemoteController->BeginHook(fActiveOnly);
 						pThis->m_hAccel=::LoadAccelerators(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDA_ACCEL));
 					} else {

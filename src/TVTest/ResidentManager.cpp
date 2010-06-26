@@ -2,7 +2,6 @@
 #include "TVTest.h"
 #include "ResidentManager.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -17,6 +16,7 @@ static char THIS_FILE[]=__FILE__;
 CResidentManager::CResidentManager()
 {
 	m_hwnd=NULL;
+	m_TrayIconMessage=0;
 	m_fResident=false;
 	m_fMinimizeToTray=true;
 	m_Status=0;
@@ -32,9 +32,10 @@ CResidentManager::~CResidentManager()
 }
 
 
-bool CResidentManager::Initialize(HWND hwnd)
+bool CResidentManager::Initialize(HWND hwnd,UINT Message)
 {
 	m_hwnd=hwnd;
+	m_TrayIconMessage=Message;
 	if (IsTrayIconVisible()) {
 		if (!AddTrayIcon())
 			return false;
@@ -98,7 +99,7 @@ bool CResidentManager::AddTrayIcon()
 	nid.hWnd=m_hwnd;
 	nid.uID=1;
 	nid.uFlags=NIF_MESSAGE | NIF_ICON | NIF_TIP;
-	nid.uCallbackMessage=WM_APP_TRAYICON;
+	nid.uCallbackMessage=m_TrayIconMessage;
 	nid.hIcon=LoadIcon(GetAppClass().GetResourceInstance(),
 		MAKEINTRESOURCE((m_Status&STATUS_RECORDING)!=0?IDI_TRAY_RECORDING:IDI_TRAY));
 	lstrcpy(nid.szTip,m_pszTipText?m_pszTipText:APP_NAME);

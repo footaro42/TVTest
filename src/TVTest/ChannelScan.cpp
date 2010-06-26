@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "ChannelScan.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -158,7 +157,7 @@ bool CChannelScan::Apply(DWORD Flags)
 
 	if ((Flags&UPDATE_PREVIEW)!=0) {
 		if (m_fRestorePreview)
-			AppMain.GetMainWindow()->EnablePreview(true);
+			AppMain.GetUICore()->EnableViewer(true);
 	}
 
 	return true;
@@ -424,8 +423,8 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					CChannelScan *pThis=GetThis(hDlg);
 					HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
 
-					if (GetAppClass().GetMainWindow()->IsPreview()) {
-						GetAppClass().GetMainWindow()->EnablePreview(false);
+					if (GetAppClass().GetUICore()->IsViewerEnabled()) {
+						GetAppClass().GetUICore()->EnableViewer(false);
 						pThis->m_fRestorePreview=true;
 					}
 					pThis->m_ScanSpace=Space;
@@ -671,7 +670,7 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 				if (pThis->m_fRestorePreview)
 					//pThis->SetUpdateFlag(UPDATE_PREVIEW);
-					GetAppClass().GetMainWindow()->EnablePreview(true);
+					GetAppClass().GetUICore()->EnableViewer(true);
 			}
 			return TRUE;
 		}
@@ -821,8 +820,9 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 	pThis->m_ScanningChannelList.Clear();
 	pThis->m_MaxSignalLevel=0.0f;
 	pThis->m_MaxBitRate=0;
-	while (true) {
-		LPCTSTR pszName=pDtvEngine->m_BonSrcDecoder.GetChannelName(pThis->m_ScanSpace,pThis->m_ScanChannel);
+	for (;;pThis->m_ScanChannel++) {
+		LPCTSTR pszName=pDtvEngine->m_BonSrcDecoder.GetChannelName(
+									pThis->m_ScanSpace,pThis->m_ScanChannel);
 
 		if (pszName==NULL) {
 			fComplete=true;
@@ -830,23 +830,22 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 		}
 		::PostMessage(pThis->m_hScanDlg,WM_APP_BEGINSCAN,pThis->m_ScanChannel,0);
 		pDtvEngine->SetChannel(pThis->m_ScanSpace,pThis->m_ScanChannel);
-		if (::WaitForSingleObject(pThis->m_hCancelEvent,min(pThis->m_ScanWait,2000))==WAIT_OBJECT_0)
+		if (::WaitForSingleObject(pThis->m_hCancelEvent,
+								  min(pThis->m_ScanWait,2000))==WAIT_OBJECT_0)
 			break;
 		if (pThis->m_ScanWait>2000) {
 			DWORD Wait=pThis->m_ScanWait-2000;
 			while (true) {
-				if (pTsAnalyzer->GetNetworkID()!=0) {
-					// 全てのサービスのPMTが来たら待ち時間終了
-					int NumServices=pTsAnalyzer->GetServiceNum();
-					if (NumServices>0) {
-						int i;
-						for (i=0;i<NumServices;i++) {
-							if (!pTsAnalyzer->IsServiceUpdated(i))
-								break;
-						}
-						if (i==NumServices)
+				// 全てのサービスのPMTが来たら待ち時間終了
+				int NumServices=pTsAnalyzer->GetServiceNum();
+				if (NumServices>0) {
+					int i;
+					for (i=0;i<NumServices;i++) {
+						if (!pTsAnalyzer->IsServiceUpdated(i))
 							break;
 					}
+					if (i==NumServices)
+						break;
 				}
 				if (::WaitForSingleObject(pThis->m_hCancelEvent,min(Wait,1000))==WAIT_OBJECT_0)
 					goto End;
@@ -865,12 +864,11 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				|| pThis->GetSignalLevel()>=SIGNAL_LEVEL_THRESHOLD) {
 			for (int i=0;i<=pThis->m_RetryCount;i++) {
 				if (i>0) {
-					if (::WaitForSingleObject(pThis->m_hCancelEvent,pThis->m_RetryInterval)==WAIT_OBJECT_0)
+					if (::WaitForSingleObject(pThis->m_hCancelEvent,
+											  pThis->m_RetryInterval)==WAIT_OBJECT_0)
 						goto End;
 					pThis->GetSignalLevel();
 				}
-				if (pTsAnalyzer->GetNetworkID()==0)
-					continue;
 				NumServices=pTsAnalyzer->GetViewableServiceNum();
 				if (NumServices>0) {
 					WORD ServiceID;
@@ -905,14 +903,26 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				}
 			}
 		}
-		if (!fFound) {
-			pThis->m_ScanChannel++;
+		if (!fFound)
 			continue;
+
+		WORD TransportStreamID=pTsAnalyzer->GetTransportStreamID();
+		WORD NetworkID=pTsAnalyzer->GetNetworkID();
+		if (NetworkID==0) {
+			// ネットワークIDが取得できるまで待つ
+			int i;
+			for (i=6;i>0;i--) {
+				if (::WaitForSingleObject(pThis->m_hCancelEvent,500)==WAIT_OBJECT_0)
+					goto End;
+				NetworkID=pTsAnalyzer->GetNetworkID();
+				if (NetworkID!=0)
+					break;
+			}
+			if (i==0)
+				continue;
 		}
 
 		// 見付かったチャンネルを追加する
-		WORD NetworkID=pTsAnalyzer->GetNetworkID();
-		WORD TransportStreamID=pTsAnalyzer->GetTransportStreamID();
 		if (fScanService) {
 			for (int i=0;i<NumServices;i++) {
 				WORD ServiceID=0;
@@ -949,7 +959,6 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				pThis->m_ScanChannel,
 				pThis->m_ScanningChannelList.NumChannels()-1);
 		}
-		pThis->m_ScanChannel++;
 	}
 End:
 	::PostMessage(pThis->m_hScanDlg,WM_APP_ENDSCAN,fComplete,0);

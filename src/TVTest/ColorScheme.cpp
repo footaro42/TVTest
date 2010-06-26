@@ -208,8 +208,6 @@ const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
 
 
 CColorScheme::CColorScheme()
-	: m_pszName(NULL)
-	, m_pszFileName(NULL)
 {
 	SetDefault();
 	::ZeroMemory(m_LoadedFlags,sizeof(m_LoadedFlags));
@@ -217,8 +215,6 @@ CColorScheme::CColorScheme()
 
 
 CColorScheme::CColorScheme(const CColorScheme &ColorScheme)
-	: m_pszName(NULL)
-	, m_pszFileName(NULL)
 {
 	*this=ColorScheme;
 }
@@ -226,8 +222,6 @@ CColorScheme::CColorScheme(const CColorScheme &ColorScheme)
 
 CColorScheme::~CColorScheme()
 {
-	delete [] m_pszName;
-	delete [] m_pszFileName;
 }
 
 
@@ -237,8 +231,8 @@ CColorScheme &CColorScheme::operator=(const CColorScheme &ColorScheme)
 		::CopyMemory(m_ColorList,ColorScheme.m_ColorList,sizeof(m_ColorList));
 		::CopyMemory(m_GradientList,ColorScheme.m_GradientList,sizeof(m_GradientList));
 		::CopyMemory(m_BorderList,ColorScheme.m_BorderList,sizeof(m_BorderList));
-		ReplaceString(&m_pszName,ColorScheme.m_pszName);
-		ReplaceString(&m_pszFileName,ColorScheme.m_pszFileName);
+		m_Name=ColorScheme.m_Name;
+		m_FileName=ColorScheme.m_FileName;
 		::CopyMemory(m_LoadedFlags,ColorScheme.m_LoadedFlags,sizeof(m_LoadedFlags));
 	}
 	return *this;
@@ -332,7 +326,7 @@ bool CColorScheme::SetBorderType(int Border,Theme::BorderType Type)
 
 bool CColorScheme::SetName(LPCTSTR pszName)
 {
-	return ReplaceString(&m_pszName,pszName);
+	return m_Name.Set(pszName);
 }
 
 
@@ -452,7 +446,7 @@ bool CColorScheme::Save(LPCTSTR pszFileName) const
 
 	if (!Settings.Open(pszFileName,TEXT("ColorScheme"),CSettings::OPEN_WRITE))
 		return false;
-	Settings.Write(TEXT("Name"),m_pszName!=NULL?m_pszName:TEXT(""));
+	Settings.Write(TEXT("Name"),m_Name.GetSafe());
 	for (i=0;i<NUM_COLORS;i++)
 		Settings.WriteColor(m_ColorInfoList[i].pszText,m_ColorList[i]);
 	for (i=0;i<NUM_GRADIENTS;i++) {
@@ -479,7 +473,7 @@ bool CColorScheme::Save(LPCTSTR pszFileName) const
 
 bool CColorScheme::SetFileName(LPCTSTR pszFileName)
 {
-	return ReplaceString(&m_pszFileName,pszFileName);
+	return m_FileName.Set(pszFileName);
 }
 
 

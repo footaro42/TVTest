@@ -37,17 +37,19 @@ private:
 	WNDPROC m_pOldProgramInfoProc;
 	HWND m_hwndProgramInfoPrev;
 	HWND m_hwndProgramInfoNext;
+	CEventHandler *m_pEventHandler;
+
 	COLORREF m_crBackColor;
 	COLORREF m_crTextColor;
 	COLORREF m_crProgramInfoBackColor;
 	COLORREF m_crProgramInfoTextColor;
-	HBRUSH m_hbrBack;
-	HBRUSH m_hbrProgramInfoBack;
+	DrawUtil::CBrush m_BackBrush;
+	DrawUtil::CBrush m_ProgramInfoBackBrush;
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
 	int m_LineMargin;
+	DrawUtil::COffscreen m_Offscreen;
 	unsigned int m_ItemVisibility;
-	CEventHandler *m_pEventHandler;
 
 	int m_OriginalVideoWidth;
 	int m_OriginalVideoHeight;
@@ -60,8 +62,7 @@ private:
 	CDynamicString m_AudioDeviceName;
 	bool m_fSignalLevel;
 	float m_SignalLevel;
-	bool m_fBitRate;
-	float m_BitRate;
+	DWORD m_BitRate;
 	bool m_fRecording;
 	ULONGLONG m_RecordWroteSize;
 	unsigned int m_RecordTime;
@@ -77,6 +78,9 @@ private:
 	void GetItemRect(int Item,RECT *pRect) const;
 	void UpdateItem(int Item);
 	void CalcFontHeight();
+	void Draw(HDC hdc,const RECT &PaintRect);
+	bool GetDrawItemRect(int Item,RECT *pRect,const RECT &PaintRect) const;
+	void DrawItem(HDC hdc,LPCTSTR pszText,const RECT &Rect);
 
 public:
 	static bool Initialize(HINSTANCE hinst);
@@ -98,7 +102,7 @@ public:
 	void SetSignalLevel(float Level);
 	void ShowSignalLevel(bool fShow);
 	bool IsSignalLevelEnabled() const { return m_fSignalLevel; }
-	void SetBitRate(float BitRate);
+	void SetBitRate(DWORD BitRate);
 	void UpdateErrorCount();
 	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
 						 ULONGLONG WroteSize=0,unsigned int RecordTime=0,

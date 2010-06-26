@@ -47,8 +47,6 @@ bool CCaptionPanel::Initialize(HINSTANCE hinst)
 CCaptionPanel::CCaptionPanel()
 	: m_BackColor(RGB(0,0,0))
 	, m_TextColor(RGB(255,255,255))
-	, m_hbrBack(NULL)
-	, m_hfont(NULL)
 	, m_hwndEdit(NULL)
 	, m_pOldEditProc(NULL)
 	, m_fEnable(true)
@@ -64,10 +62,6 @@ CCaptionPanel::CCaptionPanel()
 CCaptionPanel::~CCaptionPanel()
 {
 	Clear();
-	if (m_hbrBack!=NULL)
-		::DeleteObject(m_hbrBack);
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
 }
 
 
@@ -104,12 +98,9 @@ void CCaptionPanel::SetColor(COLORREF BackColor,COLORREF TextColor)
 {
 	m_BackColor=BackColor;
 	m_TextColor=TextColor;
-	if (m_hbrBack!=NULL) {
-		::DeleteObject(m_hbrBack);
-		m_hbrBack=NULL;
-	}
+	m_BackBrush.Destroy();
 	if (m_hwnd!=NULL) {
-		m_hbrBack=::CreateSolidBrush(m_BackColor);
+		m_BackBrush.Create(BackColor);
 		::InvalidateRect(m_hwndEdit,NULL,TRUE);
 	}
 }
@@ -117,15 +108,10 @@ void CCaptionPanel::SetColor(COLORREF BackColor,COLORREF TextColor)
 
 bool CCaptionPanel::SetFont(const LOGFONT *pFont)
 {
-	HFONT hfont=::CreateFontIndirect(pFont);
-
-	if (hfont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	m_hfont=hfont;
 	if (m_hwnd!=NULL) {
-		SetWindowFont(m_hwndEdit,m_hfont,TRUE);
+		SetWindowFont(m_hwndEdit,m_Font.GetHandle(),TRUE);
 	}
 	return true;
 }
@@ -198,14 +184,17 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CCaptionPanel *pThis=static_cast<CCaptionPanel*>(OnCreate(hwnd,lParam));
 
-			if (pThis->m_hbrBack==NULL)
-				pThis->m_hbrBack=::CreateSolidBrush(pThis->m_BackColor);
-			if (pThis->m_hfont==NULL)
-				pThis->m_hfont=CreateDefaultFont();
+			if (!pThis->m_BackBrush.IsCreated())
+				pThis->m_BackBrush.Create(pThis->m_BackColor);
+			if (!pThis->m_Font.IsCreated()) {
+				LOGFONT lf;
+				GetDefaultFont(&lf);
+				pThis->m_Font.Create(&lf);
+			}
 			pThis->m_hwndEdit=CreateWindowEx(0,TEXT("EDIT"),TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 				0,0,0,0,hwnd,(HMENU)IDC_EDIT,m_hinst,NULL);
-			SetWindowFont(pThis->m_hwndEdit,pThis->m_hfont,FALSE);
+			SetWindowFont(pThis->m_hwndEdit,pThis->m_Font.GetHandle(),FALSE);
 			::SetProp(pThis->m_hwndEdit,m_pszPropName,pThis);
 			pThis->m_pOldEditProc=SubclassWindow(pThis->m_hwndEdit,EditWndProc);
 
@@ -234,7 +223,7 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 			::SetTextColor(hdc,pThis->m_TextColor);
 			::SetBkColor(hdc,pThis->m_BackColor);
-			return reinterpret_cast<LRESULT>(pThis->m_hbrBack);
+			return reinterpret_cast<LRESULT>(pThis->m_BackBrush.GetHandle());
 		}
 
 	case WM_APP:

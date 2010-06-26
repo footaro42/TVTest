@@ -22,6 +22,30 @@ EXTERN_C const CLSID CLSID_NullRenderer;
 #define LOCK_TIMEOUT 2000
 
 
+static HRESULT SetVideoMediaType(CMediaType *pMediaType, int Width, int Height)
+{
+	// 映像メディアフォーマット設定
+	pMediaType->InitMediaType();
+	pMediaType->SetType(&MEDIATYPE_Video);
+	pMediaType->SetSubtype(&MEDIASUBTYPE_MPEG2_VIDEO);
+	pMediaType->SetVariableSize();
+	pMediaType->SetTemporalCompression(TRUE);
+	pMediaType->SetSampleSize(0);
+	pMediaType->SetFormatType(&FORMAT_MPEG2Video);
+	// フォーマット構造体確保
+	MPEG2VIDEOINFO *pVideoInfo = (MPEG2VIDEOINFO *)pMediaType->AllocFormatBuffer(sizeof(MPEG2VIDEOINFO));
+	if (!pVideoInfo)
+		return E_OUTOFMEMORY;
+	::ZeroMemory(pVideoInfo, sizeof(MPEG2VIDEOINFO));
+	// ビデオヘッダ設定
+	VIDEOINFOHEADER2 &VideoHeader = pVideoInfo->hdr;
+	//::SetRect(&VideoHeader.rcSource, 0, 0, Width, Height);
+	VideoHeader.bmiHeader.biWidth = Width;
+	VideoHeader.bmiHeader.biHeight = Height;
+	return S_OK;
+}
+
+
 //////////////////////////////////////////////////////////////////////
 // 構築/消滅
 //////////////////////////////////////////////////////////////////////
@@ -63,6 +87,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_wVideoWindowX(0)
 	, m_wVideoWindowY(0)
 	, m_VideoInfo()
+	, m_DemuxerMediaWidth(0)
 	, m_hOwnerWnd(NULL)
 #ifdef _DEBUG
 	, m_dwRegister(0)
@@ -78,6 +103,7 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_bIgnoreDisplayExtension(false)
 	, m_bUseAudioRendererClock(true)
 	, m_bAdjustAudioStreamTime(false)
+	, m_bEnablePTSSync(false)
 #ifdef BONTSENGINE_H264_SUPPORT
 	, m_bAdjustVideoSampleTime(true)
 	, m_bAdjustFrameRate(true)
@@ -114,11 +140,7 @@ void CMediaViewer::Reset(void)
 	SetVideoPID(PID_INVALID);
 	SetAudioPID(PID_INVALID);
 
-	/*
-	if (m_pMpeg2Sequence)
-		m_pMpeg2Sequence->ResetVideoInfo();
-	m_VideoInfo.Reset();
-	*/
+	//m_VideoInfo.Reset();
 }
 
 const bool CMediaViewer::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
@@ -202,6 +224,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			pOutput = DirectShowUtil::GetFilterPin(m_pSrcFilter, PINDIR_OUTPUT);
 			if (pOutput==NULL)
 				throw CBonException(TEXT("ソースフィルタの出力ピンを取得できません。"));
+			m_pSrcFilter->EnableSync(m_bEnablePTSSync);
 		}
 
 		Trace(TEXT("MPEG-2 Demultiplexerフィルタの接続中..."));
@@ -251,29 +274,16 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 									TEXT("互換性のないスプリッタの優先度がMPEG-2 Demultiplexerより高くなっている可能性があります。"));
 
 			// 映像メディアフォーマット設定
-			MediaTypeVideo.InitMediaType();
-			MediaTypeVideo.SetType(&MEDIATYPE_Video);
-			MediaTypeVideo.SetSubtype(&MEDIASUBTYPE_MPEG2_VIDEO);
-			MediaTypeVideo.SetVariableSize();
-			MediaTypeVideo.SetTemporalCompression(TRUE);
-			MediaTypeVideo.SetSampleSize(0);
-			MediaTypeVideo.SetFormatType(&FORMAT_MPEG2Video);
-			 // フォーマット構造体確保
-			MPEG2VIDEOINFO *pVideoInfo = (MPEG2VIDEOINFO *)MediaTypeVideo.AllocFormatBuffer(sizeof(MPEG2VIDEOINFO));
-			if (!pVideoInfo)
+			hr = SetVideoMediaType(&MediaTypeVideo, 720, 480);
+			if (FAILED(hr))
 				throw CBonException(TEXT("メモリが確保できません。"));
-			::ZeroMemory(pVideoInfo, sizeof(MPEG2VIDEOINFO));
-			// ビデオヘッダ設定
-			VIDEOINFOHEADER2 &VideoHeader = pVideoInfo->hdr;
-			//::SetRect(&VideoHeader.rcSource, 0, 0, 720, 480);
-			VideoHeader.bmiHeader.biWidth = 720;
-			VideoHeader.bmiHeader.biHeight = 480;
 			// 映像出力ピン作成
-			hr=pMpeg2Demuxer->CreateOutputPin(&MediaTypeVideo,L"Video",&pOutputVideo);
-			if (hr != S_OK) {
+			hr = pMpeg2Demuxer->CreateOutputPin(&MediaTypeVideo, L"Video", &pOutputVideo);
+			if (FAILED(hr)) {
 				pMpeg2Demuxer->Release();
-				throw CBonException(hr,TEXT("MPEG-2 Demultiplexerの映像出力ピンを作成できません。"));
+				throw CBonException(hr, TEXT("MPEG-2 Demultiplexerの映像出力ピンを作成できません。"));
 			}
+			m_DemuxerMediaWidth = 720;
 			// 音声メディアフォーマット設定
 			MediaTypeAudio.InitMediaType();
 			MediaTypeAudio.SetType(&MEDIATYPE_Audio);
@@ -896,10 +906,8 @@ const bool CMediaViewer::SetVideoPID(const WORD wPID)
 		}
 	}
 
-#ifdef MEDIAVIEWER_USE_TBS_FILTER
 	if (m_pSrcFilter!=NULL)
 		m_pSrcFilter->SetVideoPID(wPID);
-#endif
 
 	m_wVideoEsPID = wPID;
 
@@ -933,10 +941,8 @@ const bool CMediaViewer::SetAudioPID(const WORD wPID)
 		}
 	}
 
-#ifdef MEDIAVIEWER_USE_TBS_FILTER
 	if (m_pSrcFilter!=NULL)
 		m_pSrcFilter->SetAudioPID(wPID);
-#endif
 
 	m_wAudioEsPID = wPID;
 
@@ -958,13 +964,41 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 	// ビデオ情報の更新
 	CMediaViewer *pThis=static_cast<CMediaViewer*>(pParam);
 
-	CBlockLock Lock(&pThis->m_ResizeLock);
-
-	//if (pThis->m_VideoInfo != *pVideoInfo) {
+	/*if (pThis->m_VideoInfo != *pVideoInfo)*/ {
 		// ビデオ情報の更新
+		CBlockLock Lock(&pThis->m_ResizeLock);
+
 		pThis->m_VideoInfo = *pVideoInfo;
 		pThis->AdjustVideoPosition();
-	//}
+	}
+
+#if 0
+	/*
+		試しに新しいサイズを反映させる処理を入れてみたが、
+		これをやると切り替わり時に画面が崩れてしまう
+	*/
+	if (pThis->m_pMp2DemuxFilter
+			&& pThis->m_DemuxerMediaWidth != pVideoInfo->m_OrigWidth) {
+		IMpeg2Demultiplexer *pDemuxer;
+
+		if (SUCCEEDED(pThis->m_pMp2DemuxFilter->QueryInterface(
+									IID_IMpeg2Demultiplexer,
+									reinterpret_cast<LPVOID*>(&pDemuxer)))) {
+			CMediaType MediaType;
+
+			if (SUCCEEDED(SetVideoMediaType(&MediaType,
+											pVideoInfo->m_OrigWidth,
+											pVideoInfo->m_OrigHeight))) {
+				TRACE(TEXT("IMpeg2Demultiplexer::SetOutputPinMediaType() : Video %d x %d\n"),
+					  pVideoInfo->m_OrigWidth, pVideoInfo->m_OrigHeight);
+				if (SUCCEEDED(pDemuxer->SetOutputPinMediaType(L"Video", &MediaType)))
+					pThis->m_DemuxerMediaWidth = pVideoInfo->m_OrigWidth;
+			}
+			pDemuxer->Release();
+		}
+	}
+#endif
+
 	pThis->SendDecoderEvent(EID_VIDEO_SIZE_CHANGED);
 }
 
@@ -1047,7 +1081,9 @@ const bool CMediaViewer::AdjustVideoPosition()
 				int NewSrcWidth=(rcSrc.right-rcSrc.left)*NewDestWidth/DestWidth;
 				rcSrc.left=(m_VideoInfo.m_OrigWidth-NewSrcWidth)/2;
 				rcSrc.right=rcSrc.left+NewSrcWidth;
-TRACE(TEXT("Adjust %dx%d -> %dx%d [%d - %d (%d)]\n"),DestWidth,DestHeight,NewDestWidth,DestHeight,rcSrc.left,rcSrc.right,NewSrcWidth);
+				TRACE(TEXT("Adjust %d x %d -> %d x %d [%d - %d (%d)]\n"),
+					  DestWidth,DestHeight,NewDestWidth,DestHeight,
+					  rcSrc.left,rcSrc.right,NewSrcWidth);
 				DestWidth=NewDestWidth;
 			}
 			rcDst.left = (WindowWidth - DestWidth) / 2;
@@ -1383,12 +1419,11 @@ const bool CMediaViewer::SetViewStretchMode(ViewStretchMode Mode)
 const bool CMediaViewer::SetNoMaskSideCut(bool bNoMask, bool bAdjust)
 {
 	if (m_bNoMaskSideCut != bNoMask) {
-		m_bNoMaskSideCut = bNoMask;
-		if (bAdjust) {
-			CBlockLock Lock(&m_ResizeLock);
+		CBlockLock Lock(&m_ResizeLock);
 
+		m_bNoMaskSideCut = bNoMask;
+		if (bAdjust)
 			AdjustVideoPosition();
-		}
 	}
 	return true;
 }
@@ -1674,6 +1709,28 @@ const bool CMediaViewer::ClearOSD()
 }
 
 
+bool CMediaViewer::EnablePTSSync(bool bEnable)
+{
+	TRACE(TEXT("CMediaViewer::EnablePTSSync(%s)\n"), bEnable ? TEXT("true") : TEXT("false"));
+	if (m_pSrcFilter != NULL) {
+		if (!m_pSrcFilter->EnableSync(bEnable))
+			return false;
+	}
+	m_bEnablePTSSync = bEnable;
+	return true;
+}
+
+
+bool CMediaViewer::IsPTSSyncEnabled() const
+{
+	/*
+	if (m_pSrcFilter != NULL)
+		return m_pSrcFilter->IsSyncEnabled();
+	*/
+	return m_bEnablePTSSync;
+}
+
+
 #ifdef BONTSENGINE_H264_SUPPORT
 bool CMediaViewer::SetAdjustVideoSampleTime(bool bAdjust)
 {
@@ -1692,23 +1749,5 @@ bool CMediaViewer::SetAdjustFrameRate(bool bAdjust)
 	if (m_pH264Parser != NULL)
 		return m_pH264Parser->SetAdjustFrameRate(bAdjust);
 	return true;
-}
-#endif
-
-
-#ifdef MEDIAVIEWER_USE_TBS_FILTER
-bool CMediaViewer::EnableTBSFilter(bool bEnable)
-{
-	if (m_pSrcFilter != NULL)
-		return m_pSrcFilter->EnableSync(bEnable);
-	return false;
-}
-
-
-bool CMediaViewer::IsTBSFilterEnabled() const
-{
-	if (m_pSrcFilter != NULL)
-		return m_pSrcFilter->IsSyncEnabled();
-	return false;
 }
 #endif

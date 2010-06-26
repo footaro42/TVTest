@@ -2,7 +2,7 @@
 #define BASIC_WINDOW_H
 
 
-class CBasicWindow
+class ABSTRACT_CLASS(CBasicWindow)
 {
 protected:
 	HWND m_hwnd;

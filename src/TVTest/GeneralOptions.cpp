@@ -3,8 +3,8 @@
 #include "BonTsEngine/Multi2Decoder.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "GeneralOptions.h"
+#include "DriverManager.h"
 #include "DialogUtil.h"
 #include "MessageDialog.h"
 #include "resource.h"
@@ -55,30 +55,16 @@ bool CGeneralOptions::Apply(DWORD Flags)
 {
 	CAppMain &AppMain=GetAppClass();
 	CCoreEngine *pCoreEngine=AppMain.GetCoreEngine();
-	CMainWindow *pMainWindow=AppMain.GetMainWindow();
-
-	/*
-	if ((Flags&(UPDATE_DECODER | UPDATE_RENDERER))!=0) {
-		if (pCoreEngine->m_DtvEngine.m_MediaViewer.IsOpen()) {
-			CStatusView *pStatusView=pMainWindow->GetStatusView();
-
-			pCoreEngine->m_DtvEngine.SetTracer(pStatusView);
-			pMainWindow->BuildMediaViewer();
-			pCoreEngine->m_DtvEngine.SetTracer(NULL);
-			pStatusView->SetSingleText(NULL);
-		}
-	}
-	*/
 
 	if ((Flags&UPDATE_CARDREADER)!=0) {
 		if (!pCoreEngine->SetCardReaderType(m_CardReaderType)) {
 			AppMain.AddLog(pCoreEngine->GetLastErrorText());
-			pMainWindow->ShowErrorMessage(pCoreEngine);
+			AppMain.GetUICore()->GetSkin()->ShowErrorMessage(pCoreEngine);
 		}
 	}
 
 	if ((Flags&UPDATE_RESIDENT)!=0) {
-		pMainWindow->SetResident(m_fResident);
+		AppMain.GetUICore()->SetResident(m_fResident);
 	}
 
 	if ((Flags&UPDATE_DESCRAMBLECURONLY)!=0) {

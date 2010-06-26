@@ -2,6 +2,7 @@
 #define MAIN_WINDOW_H
 
 
+#include "UISkin.h"
 #include "View.h"
 #include "ChannelManager.h"
 #include "Splitter.h"
@@ -36,13 +37,32 @@ enum {
 };
 
 
+class CBasicViewer
+{
+protected:
+	CDtvEngine *m_pDtvEngine;
+	bool m_fEnabled;
+	CViewWindow m_ViewWindow;
+	CVideoContainerWindow m_VideoContainer;
+	CDisplayBase m_DisplayBase;
+
+public:
+	CBasicViewer(CDtvEngine *pDtvEngine);
+	bool Create(HWND hwndParent,int ViewID,int ContainerID,HWND hwndMessage);
+	bool EnableViewer(bool fEnable);
+	bool IsViewerEnabled() const { return m_fEnabled; }
+	bool BuildViewer();
+	bool CloseViewer();
+	CViewWindow &GetViewWindow() { return m_ViewWindow; }
+	CVideoContainerWindow &GetVideoContainer() { return m_VideoContainer; }
+	CDisplayBase &GetDisplayBase() { return m_DisplayBase; }
+};
+
 class CFullscreen : public CBasicWindow
 {
 	CSplitter m_Splitter;
 	CViewWindow m_ViewWindow;
-	CVideoContainerWindow *m_pVideoContainer;
-	CViewWindow *m_pViewWindow;
-	CDisplayBase *m_pDisplayBase;
+	CBasicViewer *m_pViewer;
 	CTitleBar m_TitleBar;
 	CPanel m_Panel;
 	class CPanelEventHandler : public CPanel::CEventHandler {
@@ -58,6 +78,7 @@ class CFullscreen : public CBasicWindow
 	int m_PanelWidth;
 	POINT m_LastCursorMovePos;
 
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool OnCreate();
 	void OnMouseCommand(int Command);
 	void OnLButtonDoubleClick();
@@ -66,16 +87,12 @@ class CFullscreen : public CBasicWindow
 	void ShowTitleBar(bool fShow);
 	void ShowSideBar(bool fShow);
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	static CFullscreen *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 public:
 	CFullscreen();
 	~CFullscreen();
-	bool Create(HWND hwndOwner,
-				CVideoContainerWindow *pVideoContainer,
-				CViewWindow *pViewWindow,
-				CDisplayBase *pDisplayBase);
+	bool Create(HWND hwndOwner,CBasicViewer *pViewer);
 	void ShowPanel(bool fShow);
 	bool IsPanelVisible() const { return m_fShowPanel; }
 	void OnRButtonDown();
@@ -84,21 +101,16 @@ public:
 	static bool Initialize();
 };
 
-class CMainWindow : public CBasicWindow
+class CMainWindow : public CBasicWindow, public CUISkin
 {
 	enum { UPDATE_TIMER_INTERVAL=500 };
 
 	static const BYTE VolumeNormalizeLevelList[];
 
 	CSplitter m_Splitter;
-	CVideoContainerWindow m_VideoContainer;
-	CViewWindow m_ViewWindow;
-	CDisplayBase m_DisplayBase;
+	CBasicViewer m_Viewer;
 	CTitleBar m_TitleBar;
-	bool m_fFullscreen;
 	CFullscreen m_Fullscreen;
-	bool m_fMaximize;
-	bool m_fAlwaysOnTop;
 	bool m_fShowStatusBar;
 	bool m_fShowTitleBar;
 	bool m_fCustomTitleBar;
@@ -106,7 +118,6 @@ class CMainWindow : public CBasicWindow
 	static int m_ThinFrameWidth;
 	static bool m_fThinFrameCreate;
 	bool m_fThinFrame;
-	bool m_fStandby;
 	bool m_fStandbyInit;
 	bool m_fMinimizeInit;
 	bool m_fSrcFilterReleased;
@@ -115,7 +126,6 @@ class CMainWindow : public CBasicWindow
 	bool m_fRestoreFullscreen;
 	bool m_fProgramGuideUpdating;
 	int m_ProgramGuideUpdateStartChannel;
-	bool m_fRecordingStopOnEventEnd;
 	bool m_fExitOnRecordingStop;
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
@@ -123,10 +133,6 @@ class CMainWindow : public CBasicWindow
 	int m_WheelCount;
 	int m_PrevWheelMode;
 	DWORD m_PrevWheelTime;
-	bool m_fWheelChannelChanging;
-	BOOL m_fScreenSaverActive;
-	BOOL m_fLowPowerActiveOriginal;
-	BOOL m_fPowerOffActiveOriginal;
 	enum {
 		ASPECTRATIO_DEFAULT,
 		ASPECTRATIO_16x9,
@@ -137,37 +143,13 @@ class CMainWindow : public CBasicWindow
 	};
 	int m_AspectRatioType;
 	DWORD m_AspectRatioResetTime;
+	bool m_fFrameCut;
 	int m_VideoSizeChangedTimerCount;
 	bool m_fShowRecordRemainTime;
 	unsigned int m_ProgramListUpdateTimerCount;
-	bool m_fViewerBuildError;
 	int m_CurEventStereoMode;
 	bool m_fAlertedLowFreeSpace;
 
-	class CPreviewManager {
-		bool m_fPreview;
-		CVideoContainerWindow *m_pVideoContainer;
-	public:
-		CPreviewManager(CVideoContainerWindow *pVideoContainer);
-		bool EnablePreview(bool fEnable,bool fHideVideoContainer);
-		bool IsPreviewEnabled() const { return m_fPreview; }
-		bool BuildMediaViewer();
-		bool CloseMediaViewer(bool fHideVideoContainer);
-	};
-	CPreviewManager m_PreviewManager;
-
-	enum {
-		TIMER_ID_UPDATE=1,
-		TIMER_ID_OSD,
-		TIMER_ID_DISPLAY,
-		TIMER_ID_WHEELCHANNELCHANGE,
-		TIMER_ID_WHEELCHANNELCHANGE_DONE,
-		TIMER_ID_PROGRAMLISTUPDATE,
-		TIMER_ID_PROGRAMGUIDEUPDATE,
-		TIMER_ID_VIDEOSIZECHANGED,
-		TIMER_ID_RESETERRORCOUNT,
-		TIMER_ID_HIDETOOLTIP
-	};
 	class CTimer {
 		HWND m_hwnd;
 		UINT m_ID;
@@ -200,9 +182,36 @@ class CMainWindow : public CBasicWindow
 	CDisplayBaseEventHandler m_DisplayBaseEventHandler;
 	friend CDisplayBaseEventHandler;
 
+// CUISkin
+	virtual HWND GetMainWindow() const { return m_hwnd; }
+	virtual bool InitializeViewer();
+	virtual bool FinalizeViewer();
+	virtual bool EnableViewer(bool fEnable);
+	virtual bool IsViewerEnabled() const;
+	virtual void OnVolumeChanged(bool fOSD);
+	virtual void OnMuteChanged();
+	virtual void OnStereoModeChanged();
+	virtual void OnAudioStreamChanged();
+	virtual bool OnStandbyChange(bool fStandby);
+	virtual bool OnFullscreenChange(bool fFullscreen);
+	virtual bool SetAlwaysOnTop(bool fTop);
+	virtual void OnTunerChanged();
+	virtual void OnTunerOpened();
+	virtual void OnTunerClosed();
+	virtual void OnChannelListChanged();
+	virtual void OnChannelChanged(bool fSpaceChanged);
+	virtual void OnServiceChanged();
+	virtual void OnRecordingStarted();
+	virtual void OnRecordingStopped();
+
+// CMainWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool OnCreate(const CREATESTRUCT *pcs);
+	void OnSizeChanged(UINT State,int Width,int Height);
+	bool OnSizeChanging(UINT Edge,RECT *pRect);
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
 	void OnTimer(HWND hwnd,UINT id);
+	bool OnInitMenuPopup(HMENU hmenu);
 	void AutoSelectStereoMode();
 	bool OnExecute(LPCTSTR pszCmdLine);
 	void ShowChannelOSD();
@@ -210,12 +219,7 @@ class CMainWindow : public CBasicWindow
 	void ShowFloatingWindows(bool fShow);
 	bool OpenTuner();
 	void SetTitleText(bool fEvent);
-	void SetTuningSpaceMenu();
-	void SetChannelMenu();
-	void SetNetworkRemoconChannelMenu(HMENU hmenu);
-	bool ProcessTunerSelectMenu(int Command);
 	void RefreshChannelPanel();
-	static CMainWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static DWORD WINAPI ExitWatchThread(LPVOID lpParameter);
 
@@ -225,23 +229,12 @@ public:
 	CMainWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool Show(int CmdShow);
-	bool BuildMediaViewer();
-	bool IsMediaViewerBuildError() const { return m_fViewerBuildError; }
-	bool CloseMediaViewer();
-	bool SetFullscreen(bool fFullscreen);
-	bool GetFullscreen() const { return m_fFullscreen; }
-	HWND GetVideoHostWindow() const;
-	int ShowMessage(LPCTSTR pszText,LPCTSTR pszCaption=NULL,UINT Type=MB_OK | MB_ICONEXCLAMATION) const;
-	void ShowErrorMessage(LPCTSTR pszText);
-	void ShowErrorMessage(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
 	void ShowNotificationBar(LPCTSTR pszText,
 							 CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO,
 							 DWORD Duration=0);
 	void AdjustWindowSize(int Width,int Height);
 	bool ReadSettings(CSettings *pSettings);
 	bool WriteSettings(CSettings *pSettings);
-	void SetAlwaysOnTop(bool fTop);
-	bool GetAlwaysOnTop() const { return m_fAlwaysOnTop; }
 	void SetStatusBarVisible(bool fVisible);
 	bool GetStatusBarVisible() const { return m_fShowStatusBar; }
 	void SetTitleBarVisible(bool fVisible);
@@ -252,37 +245,14 @@ public:
 	bool GetThinFrame() const { return m_fThinFrame; }
 	void SetSideBarVisible(bool fVisible);
 	bool GetSideBarVisible() const { return m_fShowSideBar; }
-	bool EnablePreview(bool fEnable);
-	bool IsPreview() const;
-	bool SetResident(bool fResident);
-	bool GetResident() const;
-	bool SetStandby(bool fStandby);
-	bool GetStandby() const { return m_fStandby; }
 	bool InitStandby();
 	bool InitMinimize();
 	bool IsMinimizeToTray() const;
 	bool ConfirmExit();
-	int GetVolume() const;
-	bool SetVolume(int Volume,bool fOSD=true);
-	bool GetMute() const;
-	bool SetMute(bool fMute);
-	int GetStereoMode() const;
-	bool SetStereoMode(int StereoMode);
-	bool SwitchAudio();
 	int CalcZoomRate();
 	bool CalcZoomRate(int *pNum,int *pDenom);
 	bool SetZoomRate(int ZoomNum,int ZoomDenom=100);
-	void OnChannelListUpdated();
-	void OnChannelChanged(bool fSpaceChanged);
-	void OnDriverChanged();
-	void OnTunerOpened();
-	void OnTunerClosed();
-	void OnServiceChanged();
-	void OnRecordingStart();
-	void OnRecordingStop();
 	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz,bool fStatus);
-	void PopupMenu(const POINT *pPos=NULL);
-	HMENU CreateTunerSelectMenu();
 	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
 	bool DoCommand(LPCWSTR pszCommand);
@@ -290,22 +260,19 @@ public:
 	bool BeginProgramGuideUpdate(bool fStandby=false);
 	void OnProgramGuideUpdateEnd(bool fRelease=true);
 	void EndProgramGuideUpdate(bool fRelease=true);
-	void BeginProgramListUpdateTimer();
 	void UpdatePanel();
 	bool SetLogo(LPCTSTR pszFileName);
 	bool SetViewWindowEdge(bool fEdge);
-	bool GetRecordingStopOnEventEnd() const { return m_fRecordingStopOnEventEnd; }
-	bool SetRecordingStopOnEventEnd(bool fEnable);
 	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
 	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
-	void SetDisplayStatus();
-	void ResetDisplayStatus();
-	bool IsWheelChannelChanging() const { return m_fWheelChannelChanging; }
 	CStatusView *GetStatusView() const;
 	CSplitter &GetSplitter() { return m_Splitter; }
 	CTitleBar &GetTitleBar() { return m_TitleBar; }
 	bool UpdateProgramInfo();
 	static bool Initialize();
+
+// CUISkin
+	virtual HWND GetVideoHostWindow() const;
 };
 
 

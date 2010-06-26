@@ -5,12 +5,13 @@
 #include "BasicWindow.h"
 #include "Theme.h"
 #include "DrawUtil.h"
+#include "Tooltip.h"
 
 
 class CTitleBar : public CBasicWindow
 {
 public:
-	class ABSTRACT_DECL CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		class CTitleBar *m_pTitleBar;
 	public:
@@ -37,7 +38,7 @@ public:
 	void SetVisible(bool fVisible);
 // CTitleBar
 	bool SetLabel(LPCTSTR pszLabel);
-	LPCTSTR GetLabel() const { return m_pszLabel; }
+	LPCTSTR GetLabel() const { return m_Label.Get(); }
 	bool SetMaximizeMode(bool fMaximize);
 	bool SetEventHandler(CEventHandler *pHandler);
 	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
@@ -64,8 +65,8 @@ private:
 	COLORREF m_crHighlightTextColor;
 	Theme::BorderType m_BorderType;
 	HBITMAP m_hbmIcons;
-	HWND m_hwndToolTip;
-	LPTSTR m_pszLabel;
+	CTooltip m_Tooltip;
+	CDynamicString m_Label;
 	HICON m_hIcon;
 	int m_HotItem;
 	int m_ClickItem;
@@ -76,7 +77,9 @@ private:
 	bool GetItemRect(int Item,RECT *pRect) const;
 	bool UpdateItem(int Item);
 	int HitTest(int x,int y) const;
-	void SetToolTip();
+	void UpdateTooltipsRect();
+	void Draw(HDC hdc,const RECT &PaintRect);
+
 	static HINSTANCE m_hinst;
 	static CTitleBar *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);

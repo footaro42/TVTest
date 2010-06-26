@@ -40,6 +40,7 @@ static const struct {
 	{TEXT("SuperFrame"),				CM_ASPECTRATIO_SUPERFRAME},
 	{TEXT("SideCut"),					CM_ASPECTRATIO_SIDECUT},
 	{TEXT("Aspect4x3"),					CM_ASPECTRATIO_4x3},
+	{TEXT("FrameCut"),					CM_FRAMECUT},
 	{TEXT("Fullscreen"),				CM_FULLSCREEN},
 	{TEXT("AlwaysOnTop"),				CM_ALWAYSONTOP},
 	{TEXT("ChannelUp"),					CM_CHANNEL_UP},

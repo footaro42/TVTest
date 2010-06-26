@@ -52,7 +52,6 @@ public:
 	const bool GetOriginalVideoSize(WORD *pWidth,WORD *pHeight) const;
 	const bool GetVideoInfo(CMpeg2VideoInfo *pInfo) const;
 	void ResetVideoInfo();
-	//const bool SetDeliverSamples(bool bDeliver);
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
 	void SetFixSquareDisplay(bool bFix);
 #endif
@@ -76,9 +75,7 @@ protected:
 	MPEG2SEQUENCE_VIDEOINFO_FUNC *m_pfnVideoInfoRecvFunc;
 	LPVOID m_pCallbackParam;
 
-	//bool m_bDeliverSamples;
-
 	CMpeg2Parser m_Mpeg2Parser;
 	CMpeg2VideoInfo m_VideoInfo;
-	CCritSec m_ParserLock;
+	CCritSec m_VideoInfoLock;
 };

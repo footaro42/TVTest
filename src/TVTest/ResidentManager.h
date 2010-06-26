@@ -2,8 +2,10 @@
 #define RESIDENT_MANAGER_H
 
 
-class CResidentManager {
+class CResidentManager
+{
 	HWND m_hwnd;
+	UINT m_TrayIconMessage;
 	bool m_fResident;
 	bool m_fMinimizeToTray;
 	UINT m_Status;
@@ -14,6 +16,7 @@ class CResidentManager {
 	bool ChangeTrayIcon();
 	bool UpdateTipText();
 	bool IsTrayIconVisible() const;
+
 public:
 	enum {
 		STATUS_RECORDING	=0x00000001,
@@ -21,7 +24,7 @@ public:
 	};
 	CResidentManager();
 	~CResidentManager();
-	bool Initialize(HWND hwnd);
+	bool Initialize(HWND hwnd,UINT Message);
 	void Finalize();
 	bool SetResident(bool fResident);
 	bool GetResident() const { return m_fResident; }

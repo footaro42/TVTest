@@ -33,15 +33,16 @@ private:
 
 	bool m_bEnableSync;
 	LONGLONG m_VideoPTS;
+	LONGLONG m_VideoPTSPrev;
 	LONGLONG m_AudioPTS;
 	LONGLONG m_AudioPTSPrev;
 	WORD m_VideoPID;
 	WORD m_AudioPID;
-	struct VideoPacket {
+	struct PacketData {
 		BYTE m_Data[188];
 		LONGLONG m_PTS;
 	};
-	std::list<VideoPacket*> m_VideoPacketList;
+	std::list<PacketData*> m_PoolPacketList;
 	class CAllocator {
 		size_t m_BlockSize;
 		size_t m_BufferLength;
@@ -59,7 +60,8 @@ private:
 	CAllocator m_Allocator;
 
 	void AddData(const CMediaData *pMediaData);
-	void AddPacket(const VideoPacket *pPacket);
+	void AddPacket(const PacketData *pPacket);
+	void AddPoolPackets();
 };
 
 

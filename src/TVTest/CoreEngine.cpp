@@ -58,8 +58,6 @@ CCoreEngine::~CCoreEngine()
 
 void CCoreEngine::Close()
 {
-	//m_DtvEngine.EnablePreview(false);
-	//m_DtvEngine.ReleaseSrcFilter();
 	m_DtvEngine.CloseEngine();
 	UnloadDriver();
 }
@@ -506,11 +504,13 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 	if (NumAudioChannels!=m_NumAudioChannels) {
 		m_NumAudioChannels=NumAudioChannels;
 		Updated|=STATUS_AUDIOCHANNELS;
+		TRACE(TEXT("Audio channels = %dch\n"),NumAudioChannels);
 	}
 	int NumAudioStreams=m_DtvEngine.GetAudioStreamNum();
 	if (NumAudioStreams!=m_NumAudioStreams) {
 		m_NumAudioStreams=NumAudioStreams;
 		Updated|=STATUS_AUDIOSTREAMS;
+		TRACE(TEXT("Audio streams = %dch\n"),NumAudioChannels);
 	}
 	BYTE AudioComponentType=m_DtvEngine.GetAudioComponentType();
 	if (AudioComponentType!=m_AudioComponentType) {

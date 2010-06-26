@@ -67,15 +67,14 @@ CChannelPanel::CChannelPanel()
 	, m_ScrollPos(0)
 	, m_CurChannel(-1)
 	, m_pEventHandler(NULL)
-	, m_hwndToolTip(NULL)
 	, m_fDetailToolTip(false)
 	, m_pLogoManager(NULL)
 {
 	LOGFONT lf;
 	GetDefaultFont(&lf);
-	m_hfont=::CreateFontIndirect(&lf);
+	m_Font.Create(&lf);
 	lf.lfWeight=FW_BOLD;
-	m_hfontChannel=::CreateFontIndirect(&lf);
+	m_ChannelFont.Create(&lf);
 
 	::ZeroMemory(&m_UpdatedTime,sizeof(SYSTEMTIME));
 }
@@ -83,8 +82,6 @@ CChannelPanel::CChannelPanel()
 
 CChannelPanel::~CChannelPanel()
 {
-	::DeleteObject(m_hfont);
-	::DeleteObject(m_hfontChannel);
 	m_ChannelList.DeleteAll();
 }
 
@@ -155,7 +152,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 	}
 	if (m_hwnd!=NULL) {
 		SetScrollBar();
-		SetToolTips();
+		SetTooltips();
 		Invalidate();
 		Update();
 	}
@@ -306,19 +303,11 @@ bool CChannelPanel::SetColors(const Theme::GradientInfo *pChannelBackGradient,CO
 
 bool CChannelPanel::SetFont(const LOGFONT *pFont)
 {
-	HFONT hfont=::CreateFontIndirect(pFont);
-
-	if (hfont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	::DeleteObject(m_hfont);
-	m_hfont=hfont;
 	LOGFONT lf=*pFont;
 	lf.lfWeight=FW_BOLD;
-	hfont=::CreateFontIndirect(&lf);
-	if (hfont!=NULL) {
-		::DeleteObject(m_hfontChannel);
-		m_hfontChannel=hfont;
-	}
+	m_ChannelFont.Create(&lf);
 	if (m_hwnd!=NULL) {
 		CalcItemHeight();
 		m_ScrollPos=0;
@@ -340,11 +329,13 @@ void CChannelPanel::SetDetailToolTip(bool fDetail)
 	if (m_fDetailToolTip!=fDetail) {
 		m_fDetailToolTip=fDetail;
 		if (m_hwnd!=NULL) {
-			if (fDetail)
+			if (fDetail) {
+				m_Tooltip.Destroy();
 				m_EventInfoPopupManager.Initialize(m_hwnd,&m_EventInfoPopupHandler);
-			else
+			} else {
 				m_EventInfoPopupManager.Finalize();
-			::SendMessage(m_hwndToolTip,TTM_ACTIVATE,!fDetail,0);
+				CreateTooltip();
+			}
 		}
 	}
 }
@@ -384,15 +375,10 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 			pThis->CalcItemHeight();
 			pThis->m_ScrollPos=0;
-			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
-				WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,0,0,0,0,
-				hwnd,NULL,m_hinst,NULL);
-			::SendMessage(pThis->m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,256);
-			::SendMessage(pThis->m_hwndToolTip,TTM_SETDELAYTIME,TTDT_AUTOPOP,30000);
-			::SendMessage(pThis->m_hwndToolTip,TTM_ACTIVATE,!pThis->m_fDetailToolTip,0);
-			pThis->SetToolTips();
 			if (pThis->m_fDetailToolTip)
 				pThis->m_EventInfoPopupManager.Initialize(hwnd,&pThis->m_EventInfoPopupHandler);
+			else
+				pThis->CreateTooltip();
 		}
 		return 0;
 
@@ -416,7 +402,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			if (pThis->m_ScrollPos>Max) {
 				pThis->m_ScrollPos=Max;
 				pThis->Invalidate();
-				pThis->SetToolTips();
+				pThis->SetTooltips();
 			}
 			pThis->SetScrollBar();
 		}
@@ -550,8 +536,8 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CChannelPanel *pThis=GetThis(hwnd);
 
-			::DestroyWindow(pThis->m_hwndToolTip);
-			pThis->m_hwndToolTip=NULL;
+			pThis->m_EventInfoPopupManager.Finalize();
+			pThis->m_Tooltip.Destroy();
 			pThis->OnDestroy();
 		}
 		return 0;
@@ -567,7 +553,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 	int OldBkMode;
 	RECT rc;
 
-	hfontOld=(HFONT)::GetCurrentObject(hdc,OBJ_FONT);
+	hfontOld=static_cast<HFONT>(::GetCurrentObject(hdc,OBJ_FONT));
 	crOldTextColor=::GetTextColor(hdc);
 	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 	GetClientRect(&rc);
@@ -578,7 +564,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 
 		rc.bottom=rc.top+m_FontHeight+m_ChannelNameMargin*2;
 		if (rc.bottom>prcPaint->top) {
-			SelectFont(hdc,m_hfontChannel);
+			DrawUtil::SelectObject(hdc,m_ChannelFont);
 			::SetTextColor(hdc,fCurrent?m_CurChannelTextColor:m_ChannelTextColor);
 			rc.left=0;
 			Theme::FillGradient(hdc,&rc,
@@ -590,7 +576,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 			rc.top=rc.bottom;
 			rc.bottom=rc.top+m_FontHeight*m_EventNameLines;
 			if (rc.bottom>prcPaint->top) {
-				SelectFont(hdc,m_hfont);
+				DrawUtil::SelectObject(hdc,m_Font);
 				::SetTextColor(hdc,fCurrent?m_CurEventTextColor:m_EventTextColor);
 				rc.left=0;
 				Theme::FillGradient(hdc,&rc,fCurrent?&m_CurEventBackGradient:&m_EventBackGradient);
@@ -639,7 +625,7 @@ void CChannelPanel::SetScrollPos(int Pos)
 			Invalidate();
 		}
 		SetScrollBar();
-		SetToolTips();
+		SetTooltips();
 	}
 }
 
@@ -663,18 +649,12 @@ void CChannelPanel::SetScrollBar()
 void CChannelPanel::CalcItemHeight()
 {
 	HDC hdc;
-	HFONT hfontOld;
-	TEXTMETRIC tm;
 
 	hdc=::GetDC(m_hwnd);
 	if (hdc==NULL)
 		return;
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
-	::GetTextMetrics(hdc,&tm);
-	//m_FontHeight=tm.tmHeight-tm.tmInternalLeading;
-	m_FontHeight=tm.tmHeight;
+	m_FontHeight=m_Font.GetHeight(hdc);
 	m_ItemHeight=m_FontHeight*(m_EventNameLines*2)+(m_FontHeight+m_ChannelNameMargin*2);
-	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);
 }
 
@@ -723,43 +703,43 @@ int CChannelPanel::HitTest(int x,int y,HitType *pType) const
 }
 
 
-void CChannelPanel::SetToolTips()
+bool CChannelPanel::CreateTooltip()
 {
-	if (m_hwndToolTip!=NULL) {
-		int NumTools=(int)::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
-		TOOLINFO ti;
+	if (!m_Tooltip.Create(m_hwnd))
+		return false;
+	m_Tooltip.SetMaxWidth(256);
+	m_Tooltip.SetPopDelay(30*1000);
+	SetTooltips();
+	return true;
+}
 
-		ti.cbSize=TTTOOLINFOA_V2_SIZE;
-		ti.hwnd=m_hwnd;
-		if (NumTools<m_ChannelList.Length()*2) {
-			ti.uFlags=TTF_SUBCLASS;
-			ti.hinst=NULL;
-			ti.lpszText=LPSTR_TEXTCALLBACK;
-			::SetRect(&ti.rect,0,0,0,0);
-			for (int i=NumTools;i<m_ChannelList.Length()*2;i++) {
-				ti.uId=i;
-				ti.lParam=i;
-				::SendMessage(m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
+
+void CChannelPanel::SetTooltips()
+{
+	if (m_Tooltip.IsCreated()) {
+		int NumTools=m_Tooltip.NumTools(),NumChannels=m_ChannelList.Length();
+		RECT rc;
+
+		if (NumTools<NumChannels*2) {
+			::SetRectEmpty(&rc);
+			for (int i=NumTools;i<NumChannels*2;i++) {
+				m_Tooltip.AddTool(i,rc,LPSTR_TEXTCALLBACK,i);
 			}
-		} else if (NumTools>m_ChannelList.Length()*2) {
-			for (int i=m_ChannelList.Length()*2;i<NumTools;i++) {
-				ti.uId=i;
-				::SendMessage(m_hwndToolTip,TTM_DELTOOL,0,(LPARAM)&ti);
+		} else if (NumTools>NumChannels*2) {
+			for (int i=NumTools-1;i>=NumChannels*2;i--) {
+				m_Tooltip.DeleteTool(i);
 			}
 		}
-		GetClientRect(&ti.rect);
-		ti.rect.top=-m_ScrollPos;
-		ti.uId=0;
-		for (int i=0;i<m_ChannelList.Length();i++) {
-			ti.rect.top+=m_FontHeight+m_ChannelNameMargin*2;
-			ti.rect.bottom=ti.rect.top+m_EventNameLines*m_FontHeight;
-			::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,(LPARAM)&ti);
-			ti.uId++;
-			ti.rect.top=ti.rect.bottom;
-			ti.rect.bottom=ti.rect.top+m_EventNameLines*m_FontHeight;
-			::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,(LPARAM)&ti);
-			ti.uId++;
-			ti.rect.top=ti.rect.bottom;
+		GetClientRect(&rc);
+		rc.top=-m_ScrollPos;
+		for (int i=0;i<NumChannels;i++) {
+			rc.top+=m_FontHeight+m_ChannelNameMargin*2;
+			rc.bottom=rc.top+m_EventNameLines*m_FontHeight;
+			m_Tooltip.SetToolRect(i*2,rc);
+			rc.top=rc.bottom;
+			rc.bottom=rc.top+m_EventNameLines*m_FontHeight;
+			m_Tooltip.SetToolRect(i*2+1,rc);
+			rc.top=rc.bottom;
 		}
 	}
 }

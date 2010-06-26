@@ -5,7 +5,6 @@
 #include "BasicWindow.h"
 #include "TsUtilClass.h"
 #include "PointerArray.h"
-#include "VirtualScreen.h"
 #include "Theme.h"
 #include "DrawUtil.h"
 #include "Aero.h"
@@ -13,7 +12,7 @@
 
 class CStatusView;
 
-class ABSTRACT_DECL CStatusItem
+class ABSTRACT_CLASS(CStatusItem)
 {
 protected:
 	CStatusView *m_pStatus;
@@ -60,7 +59,7 @@ public:
 class CStatusView : public CBasicWindow, public CTracer
 {
 public:
-	class ABSTRACT_DECL CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		CStatusView *m_pStatusView;
 	public:
@@ -87,7 +86,7 @@ private:
 	bool m_fTrackMouseEvent;
 	bool m_fOnButtonDown;
 	CEventHandler *m_pEventHandler;
-	CVirtualScreen m_VirtualScreen;
+	DrawUtil::COffscreen m_Offscreen;
 	bool m_fBufferedPaint;
 	CBufferedPaint m_BufferedPaint;
 

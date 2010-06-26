@@ -60,9 +60,45 @@ public:
 	int GetHeight(HDC hdc,bool fCell=true) const;
 };
 
+class CBrush {
+	HBRUSH m_hbr;
+public:
+	CBrush();
+	CBrush(const CBrush &Brush);
+	CBrush(COLORREF Color);
+	~CBrush();
+	CBrush &operator=(const CBrush &Brush);
+	bool Create(COLORREF Color);
+	bool IsCreated() const { return m_hbr!=NULL; }
+	void Destroy();
+	HBRUSH GetHandle() const { return m_hbr; }
+};
+
 inline HFONT SelectObject(HDC hdc,const CFont &Font) {
 	return static_cast<HFONT>(::SelectObject(hdc,Font.GetHandle()));
 }
+inline HBRUSH SelectObject(HDC hdc,const CBrush &Brush) {
+	return static_cast<HBRUSH>(::SelectObject(hdc,Brush.GetHandle()));
+}
+
+class COffscreen {
+	HDC m_hdc;
+	HBITMAP m_hbm;
+	HBITMAP m_hbmOld;
+	int m_Width;
+	int m_Height;
+
+public:
+	COffscreen();
+	~COffscreen();
+	bool Create(int Width,int Height,HDC hdc=NULL);
+	void Destroy();
+	bool IsCreated() const { return m_hdc!=NULL; }
+	HDC GetDC() const { return m_hdc; }
+	int GetWidth() const { return m_Width; }
+	int GetHeight() const { return m_Height; }
+	bool CopyTo(HDC hdc,const RECT *pDstRect=NULL);
+};
 
 class CDeviceContext {
 	enum {
@@ -179,6 +215,37 @@ public:
 	bool DrawImage(CCanvas *pCanvas,int DstX,int DstY,int DstWidth,int DstHeight,
 				   CImage *pImage,int SrcX,int SrcY,int SrcWidth,int SrcHeight,float Opacity=1.0f);
 	bool FillRect(CCanvas *pCanvas,CBrush *pBrush,const RECT *pRect);
+};
+
+
+#include <uxtheme.h>
+#include <vssym32.h>
+
+class CUxTheme
+{
+	HMODULE m_hLib;
+	HTHEME m_hTheme;
+
+public:
+	CUxTheme();
+	~CUxTheme();
+	bool Initialize();
+	bool Open(HWND hwnd,LPCWSTR pszClassList);
+	void Close();
+	bool IsOpen() const;
+	bool IsActive();
+	bool DrawBackground(HDC hdc,int PartID,int StateID,const RECT *pRect);
+	bool DrawBackground(HDC hdc,int PartID,int StateID,
+						int BackgroundPartID,int BackgroundStateID,
+						const RECT *pRect);
+	bool DrawText(HDC hdc,int PartID,int StateID,LPCWSTR pszText,
+				  DWORD TextFlags,const RECT *pRect);
+	bool GetTextExtent(HDC hdc,int PartID,int StateID,LPCWSTR pszText,
+					   DWORD TextFlags,RECT *pExtentRect);
+	bool GetMargins(int PartID,int StateID,int PropID,MARGINS *pMargins);
+	bool GetColor(int PartID,int StateID,int PropID,COLORREF *pColor);
+	bool GetFont(int PartID,int StateID,int PropID,LOGFONT *pFont);
+	bool GetInt(int PartID,int StateID,int PropID,int *pValue);
 };
 
 

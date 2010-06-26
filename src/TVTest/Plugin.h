@@ -15,15 +15,16 @@ class CPlugin : public CBonErrorHandler
 {
 	//static DWORD m_FinalizeTimeout;
 	HMODULE m_hLib;
-	LPTSTR m_pszFileName;
+	CDynamicString m_FileName;
 	TVTest::PluginParam m_PluginParam;
 	DWORD m_Version;
 	DWORD m_Type;
 	DWORD m_Flags;
-	LPWSTR m_pszPluginName;
-	LPWSTR m_pszCopyright;
-	LPWSTR m_pszDescription;
+	CDynamicString m_PluginName;
+	CDynamicString m_Copyright;
+	CDynamicString m_Description;
 	bool m_fEnabled;
+	bool m_fSetting;
 	int m_Command;
 	TVTest::EventCallbackFunc m_pEventCallback;
 	void *m_pEventCallbackClientData;
@@ -35,6 +36,7 @@ class CPlugin : public CBonErrorHandler
 		CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName);
 		CPluginCommandInfo(const TVTest::CommandInfo &Info);
 		~CPluginCommandInfo();
+		CPluginCommandInfo &operator=(const CPluginCommandInfo &Info);
 		int GetID() const { return m_ID; }
 		LPCWSTR GetText() const { return m_pszText; }
 		LPCWSTR GetName() const { return m_pszName; }
@@ -78,10 +80,10 @@ public:
 	bool IsLoaded() const { return m_hLib!=NULL; }
 	bool IsEnabled() const { return m_fEnabled; }
 	bool Enable(bool fEnable);
-	LPCTSTR GetFileName() const { return m_pszFileName; }
-	LPCWSTR GetPluginName() const { return m_pszPluginName; }
-	LPCWSTR GetCopyright() const { return m_pszCopyright; }
-	LPCWSTR GetDescription() const { return m_pszDescription; }
+	LPCTSTR GetFileName() const { return m_FileName.Get(); }
+	LPCTSTR GetPluginName() const { return m_PluginName.GetSafe(); }
+	LPCTSTR GetCopyright() const { return m_Copyright.GetSafe(); }
+	LPCTSTR GetDescription() const { return m_Description.GetSafe(); }
 	LRESULT SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
 	bool Settings(HWND hwndOwner);
 	bool HasSettings() const { return (m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)!=0; }

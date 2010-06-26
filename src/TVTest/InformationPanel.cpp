@@ -66,29 +66,28 @@ CInformationPanel::CInformationPanel()
 	, m_pOldProgramInfoProc(NULL)
 	, m_hwndProgramInfoPrev(NULL)
 	, m_hwndProgramInfoNext(NULL)
-	, m_hbrBack(NULL)
-	, m_hbrProgramInfoBack(NULL)
 	, m_pEventHandler(NULL)
-{
-	m_crBackColor=RGB(0,0,0);
-	m_crTextColor=RGB(255,255,255);
-	m_crProgramInfoBackColor=RGB(0,0,0);
-	m_crProgramInfoTextColor=RGB(255,255,255);
-	m_LineMargin=1;
-	m_ItemVisibility=(unsigned int)-1;
 
-	m_OriginalVideoWidth=0;
-	m_OriginalVideoHeight=0;
-	m_DisplayVideoWidth=0;
-	m_DisplayVideoHeight=0;
-	m_AspectX=0;
-	m_AspectY=0;
-	m_fSignalLevel=false;
-	m_SignalLevel=0.0f;
-	m_fBitRate=false;
-	m_BitRate=0.0f;
-	m_fRecording=false;
-	m_fNextProgramInfo=false;
+	, m_crBackColor(RGB(0,0,0))
+	, m_crTextColor(RGB(255,255,255))
+	, m_crProgramInfoBackColor(RGB(0,0,0))
+	, m_crProgramInfoTextColor(RGB(255,255,255))
+	, m_FontHeight(0)
+	, m_LineMargin(1)
+	, m_ItemVisibility((unsigned int)-1)
+
+	, m_OriginalVideoWidth(0)
+	, m_OriginalVideoHeight(0)
+	, m_DisplayVideoWidth(0)
+	, m_DisplayVideoHeight(0)
+	, m_AspectX(0)
+	, m_AspectY(0)
+	, m_fSignalLevel(false)
+	, m_SignalLevel(0.0f)
+	, m_BitRate(0)
+	, m_fRecording(false)
+	, m_fNextProgramInfo(false)
+{
 }
 
 
@@ -114,15 +113,17 @@ void CInformationPanel::ResetStatistics()
 	*/
 	m_AspectX=0;
 	m_AspectY=0;
-	//m_VideoDecoderName.Clear();
-	//m_VideoRendererName.Clear();
-	//m_AudioDeviceName.Clear();
+	/*
+	m_VideoDecoderName.Clear();
+	m_VideoRendererName.Clear();
+	m_AudioDeviceName.Clear();
+	*/
 	m_SignalLevel=0.0f;
-	m_fBitRate=false;
-	m_BitRate=0.0f;
+	m_BitRate=0;
 	//m_fRecording=false;
 	m_ProgramInfo.Clear();
 	m_fNextProgramInfo=false;
+
 	if (m_hwnd!=NULL) {
 		InvalidateRect(m_hwnd,NULL,TRUE);
 		SetWindowText(m_hwndProgramInfo,TEXT(""));
@@ -143,8 +144,7 @@ void CInformationPanel::SetColor(COLORREF crBackColor,COLORREF crTextColor)
 	m_crBackColor=crBackColor;
 	m_crTextColor=crTextColor;
 	if (m_hwnd!=NULL) {
-		::DeleteObject(m_hbrBack);
-		m_hbrBack=CreateSolidBrush(crBackColor);
+		m_BackBrush.Create(crBackColor);
 		::InvalidateRect(m_hwnd,NULL,TRUE);
 		::InvalidateRect(m_hwndProgramInfoPrev,NULL,TRUE);
 		::InvalidateRect(m_hwndProgramInfoNext,NULL,TRUE);
@@ -157,8 +157,7 @@ void CInformationPanel::SetProgramInfoColor(COLORREF crBackColor,COLORREF crText
 	m_crProgramInfoBackColor=crBackColor;
 	m_crProgramInfoTextColor=crTextColor;
 	if (m_hwnd!=NULL) {
-		::DeleteObject(m_hbrProgramInfoBack);
-		m_hbrProgramInfoBack=CreateSolidBrush(crBackColor);
+		m_ProgramInfoBackBrush.Create(crBackColor);
 		::InvalidateRect(m_hwndProgramInfo,NULL,TRUE);
 	}
 }
@@ -249,10 +248,9 @@ void CInformationPanel::ShowSignalLevel(bool fShow)
 }
 
 
-void CInformationPanel::SetBitRate(float BitRate)
+void CInformationPanel::SetBitRate(DWORD BitRate)
 {
-	if (!m_fBitRate || BitRate!=m_BitRate) {
-		m_fBitRate=true;
+	if (BitRate!=m_BitRate) {
 		m_BitRate=BitRate;
 		UpdateItem(ITEM_BITRATE);
 	}
@@ -314,6 +312,10 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				GetDefaultFont(&lf);
 				pThis->m_Font.Create(&lf);
 			}
+			pThis->m_BackBrush.Create(pThis->m_crBackColor);
+			pThis->m_ProgramInfoBackBrush.Create(pThis->m_crProgramInfoBackColor);
+			pThis->CalcFontHeight();
+
 			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
 				pThis->m_ProgramInfo.GetSafe(),
 				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
@@ -329,9 +331,6 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?WS_DISABLED:0)
 												| BS_PUSHBUTTON | BS_OWNERDRAW,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFONEXT,m_hinst,NULL);
-			pThis->m_hbrBack=CreateSolidBrush(pThis->m_crBackColor);
-			pThis->m_hbrProgramInfoBack=CreateSolidBrush(pThis->m_crProgramInfoBackColor);
-			pThis->CalcFontHeight();
 		}
 		return 0;
 
@@ -359,105 +358,10 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CInformationPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			HFONT hfontOld;
-			COLORREF crOldTextColor;
-			int OldBkMode;
-			RECT rc;
-			TCHAR szText[256];
 
-			BeginPaint(hwnd,&ps);
-			hfontOld=DrawUtil::SelectObject(ps.hdc,pThis->m_Font);
-			FillRect(ps.hdc,&ps.rcPaint,pThis->m_hbrBack);
-			crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTextColor);
-			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-			if (pThis->IsItemVisible(ITEM_VIDEO)) {
-				pThis->GetItemRect(ITEM_VIDEO,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc)) {
-					wsprintf(szText,TEXT("%d x %d [%d x %d (%d:%d)]"),
-						pThis->m_OriginalVideoWidth,pThis->m_OriginalVideoHeight,
-						pThis->m_DisplayVideoWidth,pThis->m_DisplayVideoHeight,
-						pThis->m_AspectX,pThis->m_AspectY);
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
-				}
-			}
-			if (pThis->IsItemVisible(ITEM_DECODER)
-					&& !pThis->m_VideoDecoderName.IsEmpty()) {
-				pThis->GetItemRect(ITEM_DECODER,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc))
-					DrawText(ps.hdc,pThis->m_VideoDecoderName.Get(),-1,&rc,
-						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
-			}
-			if (pThis->IsItemVisible(ITEM_VIDEORENDERER)
-					&& !pThis->m_VideoRendererName.IsEmpty()) {
-				pThis->GetItemRect(ITEM_VIDEORENDERER,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc))
-					DrawText(ps.hdc,pThis->m_VideoRendererName.Get(),-1,&rc,
-						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
-			}
-			if (pThis->IsItemVisible(ITEM_AUDIODEVICE)
-					&& !pThis->m_AudioDeviceName.IsEmpty()) {
-				pThis->GetItemRect(ITEM_AUDIODEVICE,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc))
-					DrawText(ps.hdc,pThis->m_AudioDeviceName.Get(),-1,&rc,
-						DT_LEFT | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
-			}
-			if (pThis->IsItemVisible(ITEM_BITRATE)) {
-				pThis->GetItemRect(ITEM_BITRATE,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc)) {
-					if (pThis->m_fSignalLevel) {
-						int SignalLevel=(int)(pThis->m_SignalLevel*100.0f);
-						wsprintf(szText,TEXT("%d.%02d dB"),
-										SignalLevel/100,abs(SignalLevel)%100);
-					} else
-						szText[0]='\0';
-					if (pThis->m_fBitRate) {
-						if (pThis->m_fSignalLevel)
-							lstrcat(szText,TEXT(" / "));
-						int BitRate=(int)(pThis->m_BitRate*100.0f);
-						wsprintf(szText+lstrlen(szText),TEXT("%d.%02d Mbps"),
-														BitRate/100,BitRate%100);
-					}
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
-				}
-			}
-			if (pThis->IsItemVisible(ITEM_ERROR)) {
-				pThis->GetItemRect(ITEM_ERROR,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc)) {
-					const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
-					int Length;
-
-					Length=wsprintf(szText,TEXT("D %u / E %u"),
-									pCoreEngine->GetContinuityErrorPacketCount(),
-									pCoreEngine->GetErrorPacketCount());
-					if (pCoreEngine->GetDescramble()
-							&& pCoreEngine->GetCardReaderType()!=CCoreEngine::CARDREADER_NONE)
-					wsprintf(szText+Length,TEXT(" / S %u"),pCoreEngine->GetScramblePacketCount());
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
-				}
-			}
-			if (pThis->IsItemVisible(ITEM_RECORD)) {
-				pThis->GetItemRect(ITEM_RECORD,&rc);
-				if (IsRectIntersect(&ps.rcPaint,&rc)) {
-					if (pThis->m_fRecording) {
-						unsigned int RecordSec=pThis->m_RecordTime/1000;
-						unsigned int Size=(unsigned int)(
-							pThis->m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
-						unsigned int FreeSpace=(unsigned int)(
-							pThis->m_DiskFreeSpace/(ULONGLONG)(1024*1024*1024/100));
-
-						wsprintf(szText,
-							TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
-							RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
-							Size/100,Size%100,FreeSpace/100,FreeSpace%100);
-					} else
-						lstrcpy(szText,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"));
-					DrawText(ps.hdc,szText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
-				}
-			}
-			SetBkMode(ps.hdc,OldBkMode);
-			SetTextColor(ps.hdc,crOldTextColor);
-			SelectObject(ps.hdc,hfontOld);
-			EndPaint(hwnd,&ps);
+			::BeginPaint(hwnd,&ps);
+			pThis->Draw(ps.hdc,ps.rcPaint);
+			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
@@ -468,7 +372,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			SetTextColor(hdc,pThis->m_crProgramInfoTextColor);
 			SetBkColor(hdc,pThis->m_crProgramInfoBackColor);
-			return reinterpret_cast<LRESULT>(pThis->m_hbrProgramInfoBack);
+			return reinterpret_cast<LRESULT>(pThis->m_ProgramInfoBackBrush.GetHandle());
 		}
 
 	case WM_DRAWITEM:
@@ -480,7 +384,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			POINT Points[3];
 
 			hpen=CreatePen(PS_SOLID,1,pThis->m_crTextColor);
-			hbrOld=SelectBrush(pdis->hDC,pThis->m_hbrBack);
+			hbrOld=DrawUtil::SelectObject(pdis->hDC,pThis->m_BackBrush);
 			hpenOld=SelectPen(pdis->hDC,hpen);
 			Rectangle(pdis->hDC,pdis->rcItem.left,pdis->rcItem.top,
 								pdis->rcItem.right,pdis->rcItem.bottom);
@@ -583,13 +487,22 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		}
 		break;
 
+	case WM_DISPLAYCHANGE:
+		{
+			CInformationPanel *pThis=GetThis(hwnd);
+
+			pThis->m_Offscreen.Destroy();
+		}
+		return 0;
+
 	case WM_DESTROY:
 		{
 			CInformationPanel *pThis=GetThis(hwnd);
 
 			SubclassWindow(pThis->m_hwndProgramInfo,pThis->m_pOldProgramInfoProc);
-			DeleteObject(pThis->m_hbrBack);
-			DeleteObject(pThis->m_hbrProgramInfoBack);
+			pThis->m_BackBrush.Destroy();
+			pThis->m_ProgramInfoBackBrush.Destroy();
+			pThis->m_Offscreen.Destroy();
 			pThis->m_hwndProgramInfo=NULL;
 			pThis->m_hwndProgramInfoPrev=NULL;
 			pThis->m_hwndProgramInfoNext=NULL;
@@ -709,12 +622,15 @@ LRESULT CALLBACK CInformationPanel::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPAR
 
 void CInformationPanel::GetItemRect(int Item,RECT *pRect) const
 {
+	int VisibleItemCount;
+
 	GetClientRect(pRect);
-	pRect->top=0;
+	VisibleItemCount=0;
 	for (int i=0;i<Item;i++) {
 		if ((m_ItemVisibility&ITEM_FLAG(i))!=0)
-			pRect->top+=m_FontHeight+m_LineMargin;
+			VisibleItemCount++;
 	}
+	pRect->top=(m_FontHeight+m_LineMargin)*VisibleItemCount;
 	if ((m_ItemVisibility&ITEM_FLAG(Item))==0) {
 		pRect->bottom=pRect->top;
 	} else {
@@ -780,6 +696,129 @@ void CInformationPanel::CalcFontHeight()
 		m_FontHeight=m_Font.GetHeight(hdc);
 		::ReleaseDC(m_hwnd,hdc);
 	}
+}
+
+
+void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
+{
+	HDC hdcDst;
+	RECT rc;
+	TCHAR szText[256];
+
+	GetClientRect(&rc);
+	if (rc.right>m_Offscreen.GetWidth()
+			|| m_FontHeight+m_LineMargin>m_Offscreen.GetHeight())
+		m_Offscreen.Create(rc.right,m_FontHeight+m_LineMargin);
+	hdcDst=m_Offscreen.GetDC();
+	if (hdcDst==NULL)
+		hdcDst=hdc;
+
+	HFONT hfontOld=DrawUtil::SelectObject(hdcDst,m_Font);
+	COLORREF crOldTextColor=::SetTextColor(hdcDst,m_crTextColor);
+	int OldBkMode=::SetBkMode(hdcDst,TRANSPARENT);
+
+	if (GetDrawItemRect(ITEM_VIDEO,&rc,PaintRect)) {
+		::wsprintf(szText,TEXT("%d x %d [%d x %d (%d:%d)]"),
+				   m_OriginalVideoWidth,m_OriginalVideoHeight,
+				   m_DisplayVideoWidth,m_DisplayVideoHeight,
+				   m_AspectX,m_AspectY);
+		DrawItem(hdc,szText,rc);
+	}
+	if (!m_VideoDecoderName.IsEmpty()
+			&& GetDrawItemRect(ITEM_DECODER,&rc,PaintRect)) {
+		DrawItem(hdc,m_VideoDecoderName.Get(),rc);
+	}
+	if (!m_VideoRendererName.IsEmpty()
+			&& GetDrawItemRect(ITEM_VIDEORENDERER,&rc,PaintRect)) {
+		DrawItem(hdc,m_VideoRendererName.Get(),rc);
+	}
+	if (!m_AudioDeviceName.IsEmpty()
+			&& GetDrawItemRect(ITEM_AUDIODEVICE,&rc,PaintRect)) {
+		DrawItem(hdc,m_AudioDeviceName.Get(),rc);
+	}
+	if (GetDrawItemRect(ITEM_BITRATE,&rc,PaintRect)) {
+		int Length=0;
+		if (m_fSignalLevel) {
+			int SignalLevel=(int)(m_SignalLevel*100.0f);
+			Length=::wsprintf(szText,TEXT("%d.%02d dB / "),
+							  SignalLevel/100,abs(SignalLevel)%100);
+		}
+		unsigned int BitRate=m_BitRate*100/(1024*1024);
+		::wsprintf(szText+Length,TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
+		DrawItem(hdc,szText,rc);
+	}
+	if (GetDrawItemRect(ITEM_ERROR,&rc,PaintRect)) {
+		const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+		int Length;
+
+		Length=::wsprintf(szText,TEXT("D %u / E %u"),
+						  pCoreEngine->GetContinuityErrorPacketCount(),
+						  pCoreEngine->GetErrorPacketCount());
+		if (pCoreEngine->GetDescramble()
+				&& pCoreEngine->GetCardReaderType()!=CCoreEngine::CARDREADER_NONE)
+			::wsprintf(szText+Length,TEXT(" / S %u"),
+					   pCoreEngine->GetScramblePacketCount());
+		DrawItem(hdc,szText,rc);
+	}
+	if (GetDrawItemRect(ITEM_RECORD,&rc,PaintRect)) {
+		if (m_fRecording) {
+			unsigned int RecordSec=m_RecordTime/1000;
+			unsigned int Size=
+				(unsigned int)(m_RecordWroteSize/(ULONGLONG)(1024*1024/100));
+			unsigned int FreeSpace=
+				(unsigned int)(m_DiskFreeSpace/(ULONGLONG)(1024*1024*1024/100));
+
+			::wsprintf(szText,
+				TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
+				RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
+				Size/100,Size%100,FreeSpace/100,FreeSpace%100);
+			DrawItem(hdc,szText,rc);
+		} else {
+			DrawItem(hdc,TEXT("Å° <ò^âÊÇµÇƒÇ¢Ç‹ÇπÇÒ>"),rc);
+		}
+	}
+
+	GetItemRect(ITEM_PROGRAMINFO-1,&rc);
+	if (PaintRect.bottom>rc.bottom) {
+		rc.left=PaintRect.left;
+		rc.top=max(PaintRect.top,rc.bottom);
+		rc.right=PaintRect.right;
+		rc.bottom=PaintRect.bottom;
+		::FillRect(hdc,&rc,m_BackBrush.GetHandle());
+	}
+
+	::SetBkMode(hdcDst,OldBkMode);
+	::SetTextColor(hdcDst,crOldTextColor);
+	::SelectObject(hdcDst,hfontOld);
+}
+
+
+bool CInformationPanel::GetDrawItemRect(int Item,RECT *pRect,const RECT &PaintRect) const
+{
+	if (!IsItemVisible(Item))
+		return false;
+	GetItemRect(Item,pRect);
+	pRect->bottom+=m_LineMargin;
+	return ::IsRectIntersect(&PaintRect,pRect)!=FALSE;
+}
+
+
+void CInformationPanel::DrawItem(HDC hdc,LPCTSTR pszText,const RECT &Rect)
+{
+	HDC hdcDst;
+	RECT rcDraw;
+
+	hdcDst=m_Offscreen.GetDC();
+	if (hdcDst!=NULL) {
+		::SetRect(&rcDraw,0,0,Rect.right-Rect.left,Rect.bottom-Rect.top);
+	} else {
+		hdcDst=hdc;
+		rcDraw=Rect;
+	}
+	::FillRect(hdcDst,&rcDraw,m_BackBrush.GetHandle());
+	::DrawText(hdcDst,pszText,-1,&rcDraw,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+	if (hdcDst!=hdc)
+		m_Offscreen.CopyTo(hdc,&Rect);
 }
 
 

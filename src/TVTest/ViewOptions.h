@@ -33,6 +33,12 @@ class CViewOptions : public COptions
 public:
 	CViewOptions();
 // COptions
+	enum {
+		UPDATE_MASKCUTAREA				=0x00000001UL,
+		UPDATE_IGNOREDISPLAYEXTENSION	=0x00000002UL,
+		UPDATE_LOGO						=0x00000004UL
+	};
+	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
 // CViewOptions
@@ -55,6 +61,7 @@ public:
 	bool GetNoMonitorLowPowerActiveOnly() const { return m_fNoMonitorLowPowerActiveOnly; }
 	bool GetShowLogo() const { return m_fShowLogo; }
 	LPCTSTR GetLogoFileName() const { return m_szLogoFileName; }
+
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

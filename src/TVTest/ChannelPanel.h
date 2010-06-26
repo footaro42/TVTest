@@ -7,8 +7,10 @@
 #include "ChannelList.h"
 #include "PointerArray.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 #include "EventInfoPopup.h"
 #include "LogoManager.h"
+#include "Tooltip.h"
 
 
 class CChannelPanel : public CPanelForm::CPage
@@ -46,8 +48,8 @@ public:
 
 private:
 	CEpgProgramList *m_pProgramList;
-	HFONT m_hfont;
-	HFONT m_hfontChannel;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_ChannelFont;
 	int m_FontHeight;
 	int m_ChannelNameMargin;
 	int m_EventNameLines;
@@ -87,7 +89,7 @@ private:
 	CPointerVector<CChannelEventInfo> m_ChannelList;
 	int m_CurChannel;
 	CEventHandler *m_pEventHandler;
-	HWND m_hwndToolTip;
+	CTooltip m_Tooltip;
 	bool m_fDetailToolTip;
 	CEventInfoPopup m_EventInfoPopup;
 	CEventInfoPopupManager m_EventInfoPopupManager;
@@ -120,7 +122,8 @@ private:
 		HIT_EVENT2
 	};
 	int HitTest(int x,int y,HitType *pType=NULL) const;
-	void SetToolTips();
+	bool CreateTooltip();
+	void SetTooltips();
 	bool EventInfoPopupHitTest(int x,int y,LPARAM *pParam);
 	bool GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
 };

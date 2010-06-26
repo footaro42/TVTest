@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "PlaybackOptions.h"
 #include "DirectShowFilter/DirectShowUtil.h"
 #include "DialogUtil.h"
@@ -20,6 +19,7 @@ CPlaybackOptions::CPlaybackOptions()
 	: m_fDownMixSurround(true)
 	, m_fRestoreMute(false)
 	, m_fUseAudioRendererClock(true)
+	, m_fEnablePTSSync(true)
 	, m_fAdjustAudioStreamTime(false)
 	, m_fMinTimerResolution(true)
 	, m_fPacketBuffering(false)
@@ -53,6 +53,11 @@ bool CPlaybackOptions::Apply(DWORD Flags)
 	if ((Flags&UPDATE_ADJUSTAUDIOSTREAMTIME)!=0) {
 		pCoreEngine->m_DtvEngine.m_MediaViewer.SetAdjustAudioStreamTime(m_fAdjustAudioStreamTime);
 	}
+
+	if ((Flags&UPDATE_PTSSYNC)!=0) {
+		pCoreEngine->m_DtvEngine.m_MediaViewer.EnablePTSSync(m_fEnablePTSSync);
+	}
+
 	if ((Flags&UPDATE_PACKETBUFFERING)!=0) {
 		if (!m_fPacketBuffering)
 			pCoreEngine->SetPacketBuffering(false);
@@ -61,14 +66,17 @@ bool CPlaybackOptions::Apply(DWORD Flags)
 		if (m_fPacketBuffering)
 			pCoreEngine->SetPacketBuffering(true);
 	}
+
 	if ((Flags&UPDATE_STREAMTHREADPRIORITY)!=0) {
 		pCoreEngine->m_DtvEngine.m_BonSrcDecoder.SetStreamThreadPriority(m_StreamThreadPriority);
 	}
+
 #ifdef TVH264
 	if ((Flags&UPDATE_ADJUSTFRAMERATE)!=0) {
 		pCoreEngine->m_DtvEngine.m_MediaViewer.SetAdjustVideoSampleTime(m_fAdjustFrameRate);
 	}
 #endif
+
 	return true;
 }
 
@@ -80,6 +88,7 @@ bool CPlaybackOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
 	pSettings->Read(TEXT("RestoreMute"),&m_fRestoreMute);
 	pSettings->Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
+	pSettings->Read(TEXT("PTSSync"),&m_fEnablePTSSync);
 	pSettings->Read(TEXT("AdjustAudioStreamTime"),&m_fAdjustAudioStreamTime);
 	pSettings->Read(TEXT("MinTimerResolution"),&m_fMinTimerResolution);
 	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
@@ -104,6 +113,7 @@ bool CPlaybackOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("DownMixSurround"),m_fDownMixSurround);
 	pSettings->Write(TEXT("RestoreMute"),m_fRestoreMute);
 	pSettings->Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
+	pSettings->Write(TEXT("PTSSync"),m_fEnablePTSSync);
 	pSettings->Write(TEXT("AdjustAudioStreamTime"),m_fAdjustAudioStreamTime);
 	pSettings->Write(TEXT("MinTimerResolution"),m_fMinTimerResolution);
 	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
@@ -179,15 +189,23 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			}
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_AUDIOFILTER,Sel);
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREMUTE,pThis->m_fRestoreMute);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DOWNMIXSURROUND,pThis->m_fDownMixSurround);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREMUTE,
+							  pThis->m_fRestoreMute);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DOWNMIXSURROUND,
+							  pThis->m_fDownMixSurround);
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION,pThis->m_fMinTimerResolution);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME,pThis->m_fAdjustAudioStreamTime);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,!pThis->m_fUseAudioRendererClock);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION,
+							  pThis->m_fMinTimerResolution);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME,
+							  pThis->m_fAdjustAudioStreamTime);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_PTSSYNC,
+							  pThis->m_fEnablePTSSync);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,
+							  !pThis->m_fUseAudioRendererClock);
 
 			// Buffering
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEBUFFERING,pThis->m_fPacketBuffering);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEBUFFERING,
+							  pThis->m_fPacketBuffering);
 			EnableDlgItems(hDlg,IDC_OPTIONS_BUFFERING_FIRST,IDC_OPTIONS_BUFFERING_LAST,
 					pThis->m_fPacketBuffering);
 			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,pThis->m_PacketBufferLength,FALSE);
@@ -206,7 +224,8 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,pThis->m_StreamThreadPriority);
 
 #ifdef TVH264
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTFRAMERATE,pThis->m_fAdjustFrameRate);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTFRAMERATE,
+							  pThis->m_fAdjustFrameRate);
 #endif
 		}
 		return TRUE;
@@ -256,7 +275,7 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				bool f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION);
 				if (f!=pThis->m_fMinTimerResolution) {
 					pThis->m_fMinTimerResolution=f;
-					if (GetAppClass().GetMainWindow()->IsPreview())
+					if (GetAppClass().GetUICore()->IsViewerEnabled())
 						GetAppClass().GetCoreEngine()->SetMinTimerResolution(f);
 				}
 
@@ -264,6 +283,12 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				if (f!=pThis->m_fAdjustAudioStreamTime) {
 					pThis->m_fAdjustAudioStreamTime=f;
 					pThis->SetUpdateFlag(UPDATE_ADJUSTAUDIOSTREAMTIME);
+				}
+
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PTSSYNC);
+				if (f!=pThis->m_fEnablePTSSync) {
+					pThis->m_fEnablePTSSync=f;
+					pThis->SetUpdateFlag(UPDATE_PTSSYNC);
 				}
 
 				f=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK);

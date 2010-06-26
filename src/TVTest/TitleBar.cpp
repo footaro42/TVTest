@@ -64,8 +64,6 @@ CTitleBar::CTitleBar()
 	, m_crHighlightTextColor(RGB(128,192,160))
 	, m_BorderType(Theme::BORDER_RAISED)
 	, m_hbmIcons(NULL)
-	, m_hwndToolTip(NULL)
-	, m_pszLabel(NULL)
 	, m_hIcon(NULL)
 	, m_HotItem(-1)
 	, m_fTrackMouseEvent(false)
@@ -77,7 +75,8 @@ CTitleBar::CTitleBar()
 
 CTitleBar::~CTitleBar()
 {
-	delete [] m_pszLabel;
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pTitleBar=NULL;
 	if (m_hbmIcons!=NULL)
 		::DeleteObject(m_hbmIcons);
 }
@@ -100,7 +99,7 @@ void CTitleBar::SetVisible(bool fVisible)
 
 bool CTitleBar::SetLabel(LPCTSTR pszLabel)
 {
-	if (!ReplaceString(&m_pszLabel,pszLabel))
+	if (!m_Label.Set(pszLabel))
 		return false;
 	if (m_hwnd!=NULL)
 		UpdateItem(ITEM_LABEL);
@@ -190,24 +189,20 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 			rc.bottom=max(pThis->m_FontHeight,TITLE_BUTTON_ICON_HEIGHT)+TITLE_MARGIN*2+TITLE_BORDER*2;
 			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
 			::MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
+
 			if (pThis->m_hbmIcons==NULL)
 				pThis->m_hbmIcons=static_cast<HBITMAP>(::LoadImage(
 					GetAppClass().GetResourceInstance(),
 					MAKEINTRESOURCE(IDB_TITLEBAR),IMAGE_BITMAP,0,0,
 					LR_DEFAULTCOLOR | LR_CREATEDIBSECTION));
-			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,
-				NULL,WS_POPUP | TTS_ALWAYSTIP,0,0,0,0,hwnd,NULL,m_hinst,NULL);
-			TOOLINFO ti;
-			ti.cbSize=TTTOOLINFO_V1_SIZE;
-			ti.uFlags=TTF_SUBCLASS;
-			ti.hwnd=hwnd;
-			ti.hinst=NULL;
-			ti.lpszText=LPSTR_TEXTCALLBACK;
+
+			pThis->m_Tooltip.Create(hwnd);
 			for (int i=ITEM_BUTTON_FIRST;i<=ITEM_LAST;i++) {
-				ti.uId=i;
-				pThis->GetItemRect(i,&ti.rect);
-				::SendMessage(pThis->m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
+				RECT rc;
+				pThis->GetItemRect(i,&rc);
+				pThis->m_Tooltip.AddTool(i,rc);
 			}
+
 			pThis->m_HotItem=-1;
 			pThis->m_fTrackMouseEvent=false;
 		}
@@ -221,7 +216,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 				pThis->UpdateItem(pThis->m_HotItem);
 				pThis->m_HotItem=-1;
 			}
-			pThis->SetToolTip();
+			pThis->UpdateTooltipsRect();
 		}
 		return 0;
 
@@ -229,86 +224,9 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		{
 			CTitleBar *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			HFONT hfontOld;
-			COLORREF crOldTextColor,crOldBkColor;
-			int OldBkMode;
-			RECT rc,rcDraw;
 
 			::BeginPaint(hwnd,&ps);
-			hfontOld=SelectFont(ps.hdc,pThis->m_Font.GetHandle());
-			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-			crOldTextColor=::GetTextColor(ps.hdc);
-			crOldBkColor=::GetBkColor(ps.hdc);
-			for (int i=0;i<=ITEM_LAST;i++) {
-				pThis->GetItemRect(i,&rc);
-				if (rc.right>rc.left
-						&& rc.left<ps.rcPaint.right && rc.right>ps.rcPaint.left
-						&& rc.top<ps.rcPaint.bottom && rc.bottom>ps.rcPaint.top) {
-					bool fHighlight=i==pThis->m_HotItem && i!=ITEM_LABEL;
-
-					::SetTextColor(ps.hdc,fHighlight?
-						pThis->m_crHighlightTextColor:pThis->m_crTextColor);
-					Theme::FillGradient(ps.hdc,&rc,
-						fHighlight?&pThis->m_HighlightBackGradient:&pThis->m_BackGradient);
-					rcDraw.left=rc.left+TITLE_MARGIN;
-					rcDraw.top=rc.top+TITLE_MARGIN;
-					rcDraw.right=rc.right-TITLE_MARGIN;
-					rcDraw.bottom=rc.bottom-TITLE_MARGIN;
-					if (i==ITEM_LABEL) {
-						if (pThis->m_hIcon!=NULL) {
-							::DrawIconEx(ps.hdc,
-										 rcDraw.left,
-										 rc.top+((rc.bottom-rc.top)-TITLE_ICON_HEIGHT)/2,
-										 pThis->m_hIcon,
-										 TITLE_ICON_WIDTH,TITLE_ICON_HEIGHT,
-										 0,NULL,DI_NORMAL);
-							rcDraw.left+=TITLE_ICON_WIDTH+ICON_TEXT_MARGIN;
-						}
-						if (pThis->m_pszLabel!=NULL) {
-							::DrawText(ps.hdc,pThis->m_pszLabel,-1,&rcDraw,
-								DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-						}
-					} else {
-						HDC hdcMem;
-						HBITMAP hbmOld;
-						RGBQUAD Palette[2];
-						COLORREF cr,crTrans;
-
-						hdcMem=::CreateCompatibleDC(ps.hdc);
-						hbmOld=SelectBitmap(hdcMem,pThis->m_hbmIcons);
-						cr=::GetTextColor(ps.hdc);
-						Palette[0].rgbBlue=GetBValue(cr);
-						Palette[0].rgbGreen=GetGValue(cr);
-						Palette[0].rgbRed=GetRValue(cr);
-						crTrans=cr^0x00FFFFFF;
-						Palette[1].rgbBlue=GetBValue(crTrans);
-						Palette[1].rgbGreen=GetGValue(crTrans);
-						Palette[1].rgbRed=GetRValue(crTrans);
-						::SetDIBColorTable(hdcMem,0,2,Palette);
-						::TransparentBlt(ps.hdc,
-							rc.left+((rc.right-rc.left)-TITLE_BUTTON_ICON_WIDTH)/2,
-							rc.top+((rc.bottom-rc.top)-TITLE_BUTTON_ICON_HEIGHT)/2,
-							TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,
-							hdcMem,
-							(i!=ITEM_MAXIMIZE || !pThis->m_fMaximized?
-								(i-1):4)*TITLE_BUTTON_ICON_WIDTH,0,
-							TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,crTrans);
-						::SelectObject(hdcMem,hbmOld);
-						::DeleteDC(hdcMem);
-					}
-				}
-			}
-			if (rc.right<ps.rcPaint.right) {
-				rc.left=rc.right;
-				rc.right=ps.rcPaint.right;
-				Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
-			}
-			::GetClientRect(hwnd,&rc);
-			Theme::DrawBorder(ps.hdc,&rc,pThis->m_BorderType);
-			::SetBkColor(ps.hdc,crOldBkColor);
-			::SetTextColor(ps.hdc,crOldTextColor);
-			::SetBkMode(ps.hdc,OldBkMode);
-			::SelectObject(ps.hdc,hfontOld);
+			pThis->Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -485,8 +403,8 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		{
 			CTitleBar *pThis=GetThis(hwnd);
 
+			pThis->m_Tooltip.Destroy();
 			pThis->OnDestroy();
-			pThis->m_hwndToolTip=NULL;
 		}
 		return 0;
 	}
@@ -550,20 +468,96 @@ int CTitleBar::HitTest(int x,int y) const
 }
 
 
-void CTitleBar::SetToolTip()
+void CTitleBar::UpdateTooltipsRect()
 {
-	int i;
-	TOOLINFO ti;
-
-	if (m_hwndToolTip==NULL)
-		return;
-	ti.cbSize=TTTOOLINFO_V1_SIZE;
-	ti.hwnd=m_hwnd;
-	for (i=ITEM_BUTTON_FIRST;i<=ITEM_LAST;i++) {
-		ti.uId=i;
-		GetItemRect(i,&ti.rect);
-		::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,reinterpret_cast<LPARAM>(&ti));
+	for (int i=ITEM_BUTTON_FIRST;i<=ITEM_LAST;i++) {
+		RECT rc;
+		GetItemRect(i,&rc);
+		m_Tooltip.SetToolRect(i,rc);
 	}
+}
+
+
+void CTitleBar::Draw(HDC hdc,const RECT &PaintRect)
+{
+	HDC hdcMem=NULL;
+	HBITMAP hbmOld;
+	RECT rc,rcDraw;
+
+	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_Font);
+	int OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+	COLORREF crOldTextColor=::GetTextColor(hdc);
+	COLORREF crOldBkColor=::GetBkColor(hdc);
+	for (int i=0;i<=ITEM_LAST;i++) {
+		GetItemRect(i,&rc);
+		if (rc.right>rc.left
+				&& rc.left<PaintRect.right && rc.right>PaintRect.left
+				&& rc.top<PaintRect.bottom && rc.bottom>PaintRect.top) {
+			bool fHighlight=i==m_HotItem && i!=ITEM_LABEL;
+			COLORREF crText=fHighlight?m_crHighlightTextColor:m_crTextColor;
+
+			::SetTextColor(hdc,crText);
+			Theme::FillGradient(hdc,&rc,
+								fHighlight?&m_HighlightBackGradient:&m_BackGradient);
+			rcDraw.left=rc.left+TITLE_MARGIN;
+			rcDraw.top=rc.top+TITLE_MARGIN;
+			rcDraw.right=rc.right-TITLE_MARGIN;
+			rcDraw.bottom=rc.bottom-TITLE_MARGIN;
+			if (i==ITEM_LABEL) {
+				if (m_hIcon!=NULL) {
+					::DrawIconEx(hdc,
+								 rcDraw.left,
+								 rc.top+((rc.bottom-rc.top)-TITLE_ICON_HEIGHT)/2,
+								 m_hIcon,
+								 TITLE_ICON_WIDTH,TITLE_ICON_HEIGHT,
+								 0,NULL,DI_NORMAL);
+					rcDraw.left+=TITLE_ICON_WIDTH+ICON_TEXT_MARGIN;
+				}
+				if (!m_Label.IsEmpty()) {
+					::DrawText(hdc,m_Label.Get(),-1,&rcDraw,
+						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
+				}
+			} else {
+				RGBQUAD Palette[2];
+				COLORREF crTrans=crText^0x00FFFFFF;
+
+				if (hdcMem==NULL) {
+					hdcMem=::CreateCompatibleDC(hdc);
+					hbmOld=SelectBitmap(hdcMem,m_hbmIcons);
+				}
+				Palette[0].rgbBlue=GetBValue(crText);
+				Palette[0].rgbGreen=GetGValue(crText);
+				Palette[0].rgbRed=GetRValue(crText);
+				Palette[1].rgbBlue=GetBValue(crTrans);
+				Palette[1].rgbGreen=GetGValue(crTrans);
+				Palette[1].rgbRed=GetRValue(crTrans);
+				::SetDIBColorTable(hdcMem,0,2,Palette);
+				::TransparentBlt(hdc,
+					rc.left+((rc.right-rc.left)-TITLE_BUTTON_ICON_WIDTH)/2,
+					rc.top+((rc.bottom-rc.top)-TITLE_BUTTON_ICON_HEIGHT)/2,
+					TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,
+					hdcMem,
+					(i!=ITEM_MAXIMIZE || !m_fMaximized?
+						(i-1):4)*TITLE_BUTTON_ICON_WIDTH,0,
+					TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,crTrans);
+			}
+		}
+	}
+	if (hdcMem!=NULL) {
+		::SelectObject(hdcMem,hbmOld);
+		::DeleteDC(hdcMem);
+	}
+	if (rc.right<PaintRect.right) {
+		rc.left=rc.right;
+		rc.right=PaintRect.right;
+		Theme::FillGradient(hdc,&rc,&m_BackGradient);
+	}
+	GetClientRect(&rc);
+	Theme::DrawBorder(hdc,&rc,m_BorderType);
+	::SetBkColor(hdc,crOldBkColor);
+	::SetTextColor(hdc,crOldTextColor);
+	::SetBkMode(hdc,OldBkMode);
+	::SelectObject(hdc,hfontOld);
 }
 
 
@@ -577,4 +571,6 @@ CTitleBar::CEventHandler::CEventHandler()
 
 CTitleBar::CEventHandler::~CEventHandler()
 {
+	if (m_pTitleBar!=NULL)
+		m_pTitleBar->SetEventHandler(NULL);
 }

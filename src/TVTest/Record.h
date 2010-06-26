@@ -99,6 +99,7 @@ private:
 	CRecordTime m_ReserveTime;
 	TimeSpecInfo m_StartTimeSpec;
 	TimeSpecInfo m_StopTimeSpec;
+	bool m_fStopOnEventEnd;
 	RecordClient m_Client;
 	CRecordTask m_RecordTask;
 	CDtvEngine *m_pDtvEngine;
@@ -107,6 +108,7 @@ private:
 	DWORD m_SaveStream;
 	bool m_fDescrambleCurServiceOnly;
 	SIZE_T m_BufferSize;
+
 	static CRecordManager *GetThis(HWND hDlg);
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	int FormatFileName(LPTSTR pszFileName,int MaxFileName,const EventInfo *pEventInfo,LPCTSTR pszFormat) const;
@@ -129,6 +131,8 @@ public:
 	bool SetStopTimeSpec(const TimeSpecInfo *pInfo);
 	bool GetStopTimeSpec(TimeSpecInfo *pInfo) const;
 	bool IsStopTimeSpecified() const;
+	void SetStopOnEventEnd(bool fStop) { m_fStopOnEventEnd=fStop; }
+	bool GetStopOnEventEnd() const { return m_fStopOnEventEnd; }
 	RecordClient GetClient() const { return m_Client; }
 	void SetClient(RecordClient Client) { m_Client=Client; }
 	bool StartRecord(CDtvEngine *pDtvEngine,LPCTSTR pszFileName,bool fTimeShift=false);

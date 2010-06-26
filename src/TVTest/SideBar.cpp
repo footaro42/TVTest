@@ -48,8 +48,7 @@ bool CSideBar::Initialize(HINSTANCE hinst)
 
 
 CSideBar::CSideBar(const CCommandList *pCommandList)
-	: m_hwndToolTip(NULL)
-	, m_fShowToolTips(true)
+	: m_fShowTooltips(true)
 	, m_hbmIcons(NULL)
 	, m_fVertical(true)
 	, m_BackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_HORZ,RGB(128,192,160),RGB(128,192,160))
@@ -68,6 +67,8 @@ CSideBar::CSideBar(const CCommandList *pCommandList)
 
 CSideBar::~CSideBar()
 {
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pSideBar=NULL;
 	if (m_hbmIcons!=NULL)
 		::DeleteObject(m_hbmIcons);
 }
@@ -102,19 +103,8 @@ bool CSideBar::SetIconImage(HBITMAP hbm,COLORREF crTransparent)
 
 void CSideBar::DeleteAllItems()
 {
-	if (m_hwndToolTip!=NULL) {
-		TOOLINFO ti;
-
-		ti.cbSize=TTTOOLINFO_V1_SIZE;
-		ti.hwnd=m_hwnd;
-		for (size_t i=0;i<m_ItemList.size();i++) {
-			if (m_ItemList[i].Command!=ITEM_SEPARATOR) {
-				ti.uId=i;
-				::SendMessage(m_hwndToolTip,TTM_DELTOOL,0,(LPARAM)&ti);
-			}
-		}
-	}
 	m_ItemList.clear();
+	m_Tooltip.DeleteAllTools();
 }
 
 
@@ -128,22 +118,18 @@ bool CSideBar::AddItems(const SideBarItem *pItemList,int NumItems)
 {
 	if (pItemList==NULL || NumItems<=0)
 		return false;
+
 	size_t OldSize=m_ItemList.size();
 	m_ItemList.resize(OldSize+NumItems);
 	::CopyMemory(&m_ItemList[OldSize],pItemList,NumItems*sizeof(SideBarItem));
-	if (m_hwndToolTip!=NULL) {
-		TOOLINFO ti;
 
-		ti.cbSize=TTTOOLINFO_V1_SIZE;
-		ti.uFlags=TTF_SUBCLASS;
-		ti.hwnd=m_hwnd;
-		ti.hinst=NULL;
-		ti.lpszText=LPSTR_TEXTCALLBACK;
+	if (m_Tooltip.IsCreated()) {
 		for (int i=0;i<NumItems;i++) {
 			if (pItemList[i].Command!=ITEM_SEPARATOR) {
-				ti.uId=OldSize+i;
-				GetItemRect((int)OldSize+i,&ti.rect);
-				::SendMessage(m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
+				RECT rc;
+
+				GetItemRect((int)OldSize+i,&rc);
+				m_Tooltip.AddTool((UINT)OldSize+i,rc);
 			}
 		}
 	}
@@ -175,10 +161,9 @@ void CSideBar::SetBorderType(Theme::BorderType Type)
 
 void CSideBar::ShowToolTips(bool fShow)
 {
-	if (m_fShowToolTips!=fShow) {
-		m_fShowToolTips=fShow;
-		if (m_hwndToolTip!=NULL)
-			::SendMessage(m_hwndToolTip,TTM_ACTIVATE,fShow,0);
+	if (m_fShowTooltips!=fShow) {
+		m_fShowTooltips=fShow;
+		m_Tooltip.Enable(fShow);
 	}
 }
 
@@ -189,7 +174,7 @@ void CSideBar::SetVertical(bool fVertical)
 		m_fVertical=fVertical;
 		if (m_hwnd!=NULL) {
 			Invalidate();
-			SetToolTip();
+			UpdateTooltipsRect();
 		}
 	}
 }
@@ -219,22 +204,16 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 			CSideBar *pThis=static_cast<CSideBar*>(OnCreate(hwnd,lParam));
 			LPCREATESTRUCT pcs=reinterpret_cast<LPCREATESTRUCT>(lParam);
 
-			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,
-				NULL,WS_POPUP | TTS_ALWAYSTIP,0,0,0,0,hwnd,NULL,m_hinst,NULL);
-			TOOLINFO ti;
-			ti.cbSize=TTTOOLINFO_V1_SIZE;
-			ti.uFlags=TTF_SUBCLASS;
-			ti.hwnd=hwnd;
-			ti.hinst=NULL;
-			ti.lpszText=LPSTR_TEXTCALLBACK;
+			pThis->m_Tooltip.Create(hwnd);
+			pThis->m_Tooltip.Enable(pThis->m_fShowTooltips);
 			for (int i=0;i<(int)pThis->m_ItemList.size();i++) {
 				if (pThis->m_ItemList[i].Command!=ITEM_SEPARATOR) {
-					ti.uId=i;
-					pThis->GetItemRect(i,&ti.rect);
-					::SendMessage(pThis->m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
+					RECT rc;
+					pThis->GetItemRect(i,&rc);
+					pThis->m_Tooltip.AddTool(i,rc);
 				}
 			}
-			::SendMessage(pThis->m_hwndToolTip,TTM_ACTIVATE,pThis->m_fShowToolTips,0);
+
 			pThis->m_HotItem=-1;
 			pThis->m_fTrackMouseEvent=false;
 		}
@@ -248,7 +227,7 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 				pThis->UpdateItem(pThis->m_HotItem);
 				pThis->m_HotItem=-1;
 			}
-			pThis->SetToolTip();
+			pThis->UpdateTooltipsRect();
 		}
 		return 0;
 
@@ -256,65 +235,9 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 		{
 			CSideBar *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			RECT rc;
-			Theme::GradientDirection FillDir;
-			Theme::GradientInfo Gradient;
-			HDC hdcMemory;
-			HBITMAP hbmOld;
 
 			::BeginPaint(hwnd,&ps);
-			::GetClientRect(hwnd,&rc);
-			if (pThis->m_fVertical) {
-				rc.top=ps.rcPaint.top;
-				rc.bottom=ps.rcPaint.bottom;
-				FillDir=Theme::DIRECTION_HORZ;
-			} else {
-				rc.left=ps.rcPaint.left;
-				rc.right=ps.rcPaint.right;
-				FillDir=Theme::DIRECTION_VERT;
-			}
-			Gradient=pThis->m_BackGradient;
-			Gradient.Direction=FillDir;
-			Theme::FillGradient(ps.hdc,&rc,&Gradient);
-			hdcMemory=::CreateCompatibleDC(ps.hdc);
-			hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,pThis->m_hbmIcons));
-			for (int i=0;i<(int)pThis->m_ItemList.size();i++) {
-				pThis->GetItemRect(i,&rc);
-				if (pThis->m_ItemList[i].Command!=ITEM_SEPARATOR
-						&& rc.left<ps.rcPaint.right && rc.right>ps.rcPaint.left
-						&& rc.top<ps.rcPaint.bottom && rc.bottom>ps.rcPaint.top) {
-					bool fDisabled=(pThis->m_ItemList[i].Flags&ITEM_FLAG_DISABLED)!=0;
-					bool fHotItem=pThis->m_HotItem==i;
-					RGBQUAD ColorTable[2];
-					if (fHotItem) {
-						Gradient=pThis->m_HighlightBackGradient;
-						Gradient.Direction=FillDir;
-						Theme::FillGradient(ps.hdc,&rc,&Gradient);
-						ColorTable[0].rgbBlue=GetBValue(pThis->m_HighlightForeColor);
-						ColorTable[0].rgbGreen=GetGValue(pThis->m_HighlightForeColor);
-						ColorTable[0].rgbRed=GetRValue(pThis->m_HighlightForeColor);
-					} else {
-						ColorTable[0].rgbBlue=GetBValue(pThis->m_ForeColor);
-						ColorTable[0].rgbGreen=GetGValue(pThis->m_ForeColor);
-						ColorTable[0].rgbRed=GetRValue(pThis->m_ForeColor);
-					}
-					ColorTable[1].rgbBlue=~ColorTable[0].rgbBlue;
-					ColorTable[1].rgbGreen=~ColorTable[0].rgbGreen;
-					ColorTable[1].rgbRed=~ColorTable[0].rgbRed;
-					::SetDIBColorTable(hdcMemory,0,2,ColorTable);
-					::TransparentBlt(ps.hdc,
-									 rc.left+BUTTON_MARGIN,rc.top+BUTTON_MARGIN,
-									 ICON_WIDTH,ICON_HEIGHT,
-									 hdcMemory,
-									 pThis->m_ItemList[i].Icon*ICON_WIDTH,0,
-									 ICON_WIDTH,ICON_HEIGHT,
-									 RGB(ColorTable[1].rgbRed,ColorTable[1].rgbGreen,ColorTable[1].rgbBlue));
-				}
-			}
-			::SelectObject(hdcMemory,hbmOld);
-			::DeleteDC(hdcMemory);
-			::GetClientRect(hwnd,&rc);
-			Theme::DrawBorder(ps.hdc,&rc,pThis->m_BorderType);
+			pThis->Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -476,8 +399,8 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 		{
 			CSideBar *pThis=GetThis(hwnd);
 
+			pThis->m_Tooltip.Destroy();
 			pThis->OnDestroy();
-			pThis->m_hwndToolTip=NULL;
 		}
 		return 0;
 	}
@@ -538,19 +461,77 @@ int CSideBar::HitTest(int x,int y) const
 }
 
 
-void CSideBar::SetToolTip()
+void CSideBar::UpdateTooltipsRect()
 {
-	TOOLINFO ti;
-
-	if (m_hwndToolTip==NULL)
-		return;
-	ti.cbSize=TTTOOLINFO_V1_SIZE;
-	ti.hwnd=m_hwnd;
 	for (int i=0;i<(int)m_ItemList.size();i++) {
-		ti.uId=i;
-		GetItemRect(i,&ti.rect);
-		::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,reinterpret_cast<LPARAM>(&ti));
+		RECT rc;
+
+		GetItemRect(i,&rc);
+		m_Tooltip.SetToolRect(i,rc);
 	}
+}
+
+
+void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
+{
+	RECT rcClient,rc;
+	Theme::GradientDirection FillDir;
+	Theme::GradientInfo Gradient;
+	HDC hdcMemory;
+	HBITMAP hbmOld;
+
+	GetClientRect(&rcClient);
+	rc=rcClient;
+	if (m_fVertical) {
+		rc.top=PaintRect.top;
+		rc.bottom=PaintRect.bottom;
+		FillDir=Theme::DIRECTION_HORZ;
+	} else {
+		rc.left=PaintRect.left;
+		rc.right=PaintRect.right;
+		FillDir=Theme::DIRECTION_VERT;
+	}
+	Gradient=m_BackGradient;
+	Gradient.Direction=FillDir;
+	Theme::FillGradient(hdc,&rc,&Gradient);
+	hdcMemory=::CreateCompatibleDC(hdc);
+	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,m_hbmIcons));
+	for (int i=0;i<(int)m_ItemList.size();i++) {
+		GetItemRect(i,&rc);
+		if (m_ItemList[i].Command!=ITEM_SEPARATOR
+				&& rc.left<PaintRect.right && rc.right>PaintRect.left
+				&& rc.top<PaintRect.bottom && rc.bottom>PaintRect.top) {
+			bool fDisabled=(m_ItemList[i].Flags&ITEM_FLAG_DISABLED)!=0;
+			bool fHotItem=m_HotItem==i;
+			COLORREF ForeColor,TransColor;
+			RGBQUAD ColorTable[2];
+			if (fHotItem) {
+				Gradient=m_HighlightBackGradient;
+				Gradient.Direction=FillDir;
+				Theme::FillGradient(hdc,&rc,&Gradient);
+				ForeColor=m_HighlightForeColor;
+			} else {
+				ForeColor=m_ForeColor;
+			}
+			TransColor=ForeColor^0x00FFFFFF;
+			ColorTable[0].rgbBlue=GetBValue(ForeColor);
+			ColorTable[0].rgbGreen=GetGValue(ForeColor);
+			ColorTable[0].rgbRed=GetRValue(ForeColor);
+			ColorTable[1].rgbBlue=GetBValue(TransColor);
+			ColorTable[1].rgbGreen=GetGValue(TransColor);
+			ColorTable[1].rgbRed=GetRValue(TransColor);
+			::SetDIBColorTable(hdcMemory,0,2,ColorTable);
+			::TransparentBlt(hdc,
+							 rc.left+BUTTON_MARGIN,rc.top+BUTTON_MARGIN,
+							 ICON_WIDTH,ICON_HEIGHT,
+							 hdcMemory,
+							 m_ItemList[i].Icon*ICON_WIDTH,0,
+							 ICON_WIDTH,ICON_HEIGHT,TransColor);
+		}
+	}
+	::SelectObject(hdcMemory,hbmOld);
+	::DeleteDC(hdcMemory);
+	Theme::DrawBorder(hdc,&rcClient,m_BorderType);
 }
 
 
@@ -564,4 +545,6 @@ CSideBar::CEventHandler::CEventHandler()
 
 CSideBar::CEventHandler::~CEventHandler()
 {
+	if (m_pSideBar!=NULL)
+		m_pSideBar->SetEventHandler(NULL);
 }

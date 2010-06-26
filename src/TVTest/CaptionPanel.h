@@ -4,8 +4,9 @@
 
 #include <deque>
 #include <map>
-#include "PanelForm.h"
 #include "BonTsEngine/CaptionDecoder.h"
+#include "PanelForm.h"
+#include "DrawUtil.h"
 
 
 class CCaptionDRCSMap : public CCaptionDecoder::IDRCSMap
@@ -45,8 +46,8 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 {
 	COLORREF m_BackColor;
 	COLORREF m_TextColor;
-	HBRUSH m_hbrBack;
-	HFONT m_hfont;
+	DrawUtil::CBrush m_BackBrush;
+	DrawUtil::CFont m_Font;
 	HWND m_hwndEdit;
 	WNDPROC m_pOldEditProc;
 	bool m_fEnable;

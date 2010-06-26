@@ -4,12 +4,13 @@
 
 #include "BasicWindow.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 
 
 class CPanelForm : public CBasicWindow
 {
 public:
-	class CPage : public CBasicWindow {
+	class ABSTRACT_CLASS(CPage) : public CBasicWindow {
 	protected:
 		static bool GetDefaultFont(LOGFONT *pFont);
 		static HFONT CreateDefaultFont();
@@ -19,7 +20,7 @@ public:
 		virtual bool SetFont(const LOGFONT *pFont) { return true; }
 	};
 
-	class CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	public:
 		virtual void OnSelChange() {}
 		virtual void OnRButtonDown() {}
@@ -56,7 +57,7 @@ private:
 	Theme::GradientInfo m_CurTabBackGradient;
 	COLORREF m_crCurTabTextColor;
 	COLORREF m_crCurTabBorderColor;
-	HFONT m_hfont;
+	DrawUtil::CFont m_Font;
 	int m_TabHeight;
 	int m_TabWidth;
 	bool m_fFitTabWidth;
@@ -72,6 +73,7 @@ private:
 	void CalcTabSize();
 	int GetRealTabWidth() const;
 	int HitTest(int x,int y) const;
+	void Draw(HDC hdc,const RECT &PaintRect);
 
 public:
 	static bool Initialize(HINSTANCE hinst);

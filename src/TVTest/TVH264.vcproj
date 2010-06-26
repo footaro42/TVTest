@@ -79,7 +79,7 @@
 				EnableUAC="false"
 				IgnoreAllDefaultLibraries="false"
 				IgnoreDefaultLibraryNames=""
-				DelayLoadDLLs="gdiplus.dll"
+				DelayLoadDLLs="gdiplus.dll;uxtheme.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				LargeAddressAware="0"
@@ -263,7 +263,7 @@
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
 				EnableUAC="false"
-				DelayLoadDLLs="gdiplus.dll"
+				DelayLoadDLLs="gdiplus.dll;uxtheme.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				LargeAddressAware="0"
@@ -367,7 +367,7 @@
 				LargeAddressAware="0"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				OptimizeForWindows98="1"
+				OptimizeForWindows98="0"
 				LinkTimeCodeGeneration="1"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -530,10 +530,6 @@
 			</File>
 			<File
 				RelativePath=".\Help.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\IconMenu.cpp"
 				>
 			</File>
 			<File
@@ -733,11 +729,15 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ToolTip.cpp"
+				RelativePath=".\Tooltip.cpp"
 				>
 			</File>
 			<File
 				RelativePath=".\TVTest.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\UISkin.cpp"
 				>
 			</File>
 			<File
@@ -750,10 +750,6 @@
 			</File>
 			<File
 				RelativePath=".\ViewOptions.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\VirtualScreen.cpp"
 				>
 			</File>
 			<File
@@ -908,10 +904,6 @@
 			</File>
 			<File
 				RelativePath=".\Help\HelpID.h"
-				>
-			</File>
-			<File
-				RelativePath=".\IconMenu.h"
 				>
 			</File>
 			<File
@@ -1087,7 +1079,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\ToolTip.h"
+				RelativePath=".\Tooltip.h"
 				>
 			</File>
 			<File
@@ -1096,6 +1088,14 @@
 			</File>
 			<File
 				RelativePath=".\TVTestPlugin.h"
+				>
+			</File>
+			<File
+				RelativePath=".\UICore.h"
+				>
+			</File>
+			<File
+				RelativePath=".\UISkin.h"
 				>
 			</File>
 			<File
@@ -1108,10 +1108,6 @@
 			</File>
 			<File
 				RelativePath=".\ViewOptions.h"
-				>
-			</File>
-			<File
-				RelativePath=".\VirtualScreen.h"
 				>
 			</File>
 			<File

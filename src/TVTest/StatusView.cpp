@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "StatusView.h"
-#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -166,13 +165,15 @@ void CStatusItem::DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX,int Sr
 
 
 CStatusView::CEventHandler::CEventHandler()
+	: m_pStatusView(NULL)
 {
-	m_pStatusView=NULL;
 }
 
 
 CStatusView::CEventHandler::~CEventHandler()
 {
+	if (m_pStatusView!=NULL)
+		m_pStatusView->SetEventHandler(NULL);
 }
 
 
@@ -229,6 +230,8 @@ CStatusView::CStatusView()
 CStatusView::~CStatusView()
 {
 	Destroy();
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pStatusView=NULL;
 	m_ItemList.DeleteAll();
 	delete [] m_pszSingleText;
 }
@@ -501,7 +504,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 
-			pStatus->m_VirtualScreen.Destroy();
+			pStatus->m_Offscreen.Destroy();
 		}
 		return 0;
 
@@ -509,7 +512,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 
-			pStatus->m_VirtualScreen.Destroy();
+			pStatus->m_Offscreen.Destroy();
 			pStatus->OnDestroy();
 		}
 		return 0;
@@ -682,9 +685,10 @@ int CStatusView::GetCurItem() const
 
 bool CStatusView::SetEventHandler(CEventHandler *pEventHandler)
 {
-	if (m_pEventHandler)
+	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pStatusView=NULL;
-	pEventHandler->m_pStatusView=this;
+	if (pEventHandler!=NULL)
+		pEventHandler->m_pStatusView=this;
 	m_pEventHandler=pEventHandler;
 	return true;
 }
@@ -800,10 +804,10 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 			if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
 				MaxWidth=pItem->GetWidth();
 		}
-		if (MaxWidth>m_VirtualScreen.GetWidth()
-				|| Height>m_VirtualScreen.GetHeight())
-			m_VirtualScreen.Create(MaxWidth+STATUS_MARGIN*2,Height);
-		hdcDst=m_VirtualScreen.GetDC();
+		if (MaxWidth>m_Offscreen.GetWidth()
+				|| Height>m_Offscreen.GetHeight())
+			m_Offscreen.Create(MaxWidth+STATUS_MARGIN*2,Height);
+		hdcDst=m_Offscreen.GetDC();
 		if (hdcDst==NULL)
 			hdcDst=hdc;
 	} else {
@@ -847,8 +851,7 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 			rcDraw.right-=STATUS_MARGIN;
 			pItem->Draw(hdcDst,&rcDraw);
 			if (hdcDst!=hdc)
-				::BitBlt(hdc,rcItem.left,rcItem.top,rcItem.right-rcItem.left,rcItem.bottom-rcItem.top,
-						 hdcDst,0,0,SRCCOPY);
+				m_Offscreen.CopyTo(hdc,&rcItem);
 		}
 		rcItem.left=rcItem.right;
 		rcItem.right=pPaintRect->right;

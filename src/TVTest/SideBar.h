@@ -6,9 +6,11 @@
 #include "BasicWindow.h"
 #include "Command.h"
 #include "Theme.h"
+#include "Tooltip.h"
 
 
-class CSideBar : public CBasicWindow {
+class CSideBar : public CBasicWindow
+{
 public:
 	enum {
 		ITEM_SEPARATOR=0
@@ -24,7 +26,7 @@ public:
 		ITEM_FLAG_CHECKED	=0x0002
 	};
 
-	class CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		CSideBar *m_pSideBar;
 	public:
@@ -37,8 +39,8 @@ public:
 	};
 
 protected:
-	HWND m_hwndToolTip;
-	bool m_fShowToolTips;
+	CTooltip m_Tooltip;
+	bool m_fShowTooltips;
 	HBITMAP m_hbmIcons;
 	COLORREF m_IconTransparentColor;
 	bool m_fVertical;
@@ -57,7 +59,8 @@ protected:
 	void GetItemRect(int Item,RECT *pRect) const;
 	void UpdateItem(int Item) const;
 	int HitTest(int x,int y) const;
-	void SetToolTip();
+	void UpdateTooltipsRect();
+	void Draw(HDC hdc,const RECT &PaintRect);
 
 	static HINSTANCE m_hinst;
 	static CSideBar *GetThis(HWND hwnd);
@@ -67,9 +70,9 @@ public:
 	static bool Initialize(HINSTANCE hinst);
 	CSideBar(const CCommandList *pCommandList);
 	~CSideBar();
-	// CBasicWindow
+// CBasicWindow
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	// CSideBar
+// CSideBar
 	int GetBarWidth() const;
 	bool SetIconImage(HBITMAP hbm,COLORREF crTransparent);
 	void DeleteAllItems();

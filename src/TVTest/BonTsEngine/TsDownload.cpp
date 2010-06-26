@@ -101,22 +101,22 @@ bool CDownloadInfoIndicationParser::ParseData(const BYTE *pData, const WORD Data
 	Message.ProtocolDiscriminator = pData[0];
 	Message.DsmccType = pData[1];
 	Message.MessageID = ((WORD)pData[2] << 8) | (WORD)pData[3];
-	Message.TransactionID = ((DWORD)pData[4] << 24) | ((DWORD)pData[5] << 16) | ((DWORD)pData[6] << 8) | (DWORD)pData[7];
+	Message.TransactionID = MSBFirst32(&pData[4]);
 
 	const BYTE AdaptationLength = pData[9];
-	const WORD MessageLength = ((WORD)pData[10] << 8) | (WORD)pData[11];
+	//const WORD MessageLength = ((WORD)pData[10] << 8) | (WORD)pData[11];
 	if (12 + (WORD)AdaptationLength > DataSize)
 		return false;
 	WORD Pos = 12 + AdaptationLength;
 
-	Message.DownloadID = ((DWORD)pData[Pos + 0] << 24) | ((DWORD)pData[Pos + 1] << 16) | ((DWORD)pData[Pos + 2] << 8) | (DWORD)pData[Pos + 3];
+	Message.DownloadID = MSBFirst32(&pData[Pos]);
 	Message.BlockSize = ((WORD)pData[Pos + 4] << 8) | (WORD)pData[Pos + 5];
 	if (Message.BlockSize == 0 || Message.BlockSize > 4066)
 		return false;
 	Message.WindowSize = pData[Pos + 6];
 	Message.AckPeriod = pData[Pos + 7];
-	Message.TCDownloadWindow = ((DWORD)pData[Pos + 8] << 24) | ((DWORD)pData[Pos + 9] << 16) | ((DWORD)pData[Pos + 10] << 8) | (DWORD)pData[Pos + 11];
-	Message.TCDownloadScenario = ((DWORD)pData[Pos + 12] << 24) | ((DWORD)pData[Pos + 13] << 16) | ((DWORD)pData[Pos + 14] << 8) | (DWORD)pData[Pos + 15];
+	Message.TCDownloadWindow = MSBFirst32(&pData[Pos + 8]);
+	Message.TCDownloadScenario = MSBFirst32(&pData[Pos + 12]);
 
 	// Compatibility Descriptor
 	const WORD DescLength = ((WORD)pData[Pos + 16] << 8) | (WORD)pData[Pos + 17];
@@ -137,7 +137,7 @@ bool CDownloadInfoIndicationParser::ParseData(const BYTE *pData, const WORD Data
 		ModuleInfo Module;
 
 		Module.ModuleID = ((WORD)pData[Pos + 0] << 8) | (WORD)pData[Pos + 1];
-		Module.ModuleSize = ((DWORD)pData[Pos + 2] << 24) | ((DWORD)pData[Pos + 3] << 16) | ((DWORD)pData[Pos + 4] << 8) | (DWORD)pData[Pos + 5];
+		Module.ModuleSize = MSBFirst32(&pData[Pos + 2]);
 		Module.ModuleVersion = pData[Pos + 6];
 
 		const BYTE ModuleInfoLength = pData[Pos + 7];
@@ -176,17 +176,15 @@ bool CDownloadInfoIndicationParser::ParseData(const BYTE *pData, const WORD Data
 		}
 
 #ifdef _DEBUG
-		TRACE(TEXT("[%d] Module ID %04X / Size %lu / Version %d\n"),
-			  i, Module.ModuleID, Module.ModuleSize, Module.ModuleVersion);
-		if (Module.ModuleDesc.Name.pText) {
-			char szText[256];
-			::lstrcpyA(szText, "Name = \"");
-			::lstrcpynA(szText + ::lstrlenA(szText),
+		char szName[256];
+		if (Module.ModuleDesc.Name.pText)
+			::lstrcpynA(szName,
 						Module.ModuleDesc.Name.pText,
 						Module.ModuleDesc.Name.Length + 1);
-			::lstrcatA(szText, "\"\n");
-			::OutputDebugStringA(szText);
-		}
+		else
+			szName[0]='\0';
+		TRACE(TEXT("[%3d] Module ID %04X / Size %lu / Version %d / Name \"%hs\"\n"),
+			  i, Module.ModuleID, Module.ModuleSize, Module.ModuleVersion, szName);
 #endif
 
 		m_pEventHandler->OnDataModule(&Message, &Module);
@@ -215,10 +213,10 @@ bool CDownloadDataBlockParser::ParseData(const BYTE *pData, const WORD DataSize)
 	DataBlock.ProtocolDiscrimnator = pData[0];
 	DataBlock.DsmccType = pData[1];
 	DataBlock.MessageID = ((WORD)pData[2] << 8) | (WORD)pData[3];
-	DataBlock.DownloadID = ((DWORD)pData[4] << 24) | ((DWORD)pData[5] << 16) | ((DWORD)pData[6] << 8) | (DWORD)pData[7];
+	DataBlock.DownloadID = MSBFirst32(&pData[4]);
 
 	const BYTE AdaptationLength = pData[9];
-	const WORD MessageLength = ((WORD)pData[10] << 8) | (WORD)pData[11];
+	//const WORD MessageLength = ((WORD)pData[10] << 8) | (WORD)pData[11];
 	if (12 + (WORD)AdaptationLength + 6 >= DataSize)
 		return false;
 

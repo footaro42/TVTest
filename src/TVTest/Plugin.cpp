@@ -30,14 +30,11 @@ CCriticalLock CPlugin::m_AudioStreamLock;
 
 CPlugin::CPlugin()
 	: m_hLib(NULL)
-	, m_pszFileName(NULL)
 	, m_Version(0)
 	, m_Type(0)
 	, m_Flags(0)
-	, m_pszPluginName(NULL)
-	, m_pszCopyright(NULL)
-	, m_pszDescription(NULL)
 	, m_fEnabled(false)
+	, m_fSetting(false)
 	, m_Command(0)
 	, m_pEventCallback(NULL)
 {
@@ -67,7 +64,7 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		reinterpret_cast<TVTest::GetVersionFunc>(::GetProcAddress(hLib,"TVTGetVersion"));
 	if (pGetVersion==NULL) {
 		::FreeLibrary(hLib);
-		SetError(TEXT("関数のアドレスを取得できません。"));
+		SetError(TEXT("TVTGetVersion()関数のアドレスを取得できません。"));
 		return false;
 	}
 	m_Version=pGetVersion();
@@ -81,7 +78,7 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		reinterpret_cast<TVTest::GetPluginInfoFunc>(::GetProcAddress(hLib,"TVTGetPluginInfo"));
 	if (pGetPluginInfo==NULL) {
 		::FreeLibrary(hLib);
-		SetError(TEXT("関数のアドレスを取得できません。"));
+		SetError(TEXT("TVTGetPluginInfo()関数のアドレスを取得できません。"));
 		return false;
 	}
 	TVTest::PluginInfo PluginInfo;
@@ -95,10 +92,10 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		reinterpret_cast<TVTest::InitializeFunc>(::GetProcAddress(hLib,"TVTInitialize"));
 	if (pInitialize==NULL) {
 		::FreeLibrary(hLib);
-		SetError(TEXT("関数のアドレスを取得できません。"));
+		SetError(TEXT("TVTInitialize()関数のアドレスを取得できません。"));
 		return false;
 	}
-	m_pszFileName=DuplicateString(pszFileName);
+	m_FileName.Set(pszFileName);
 	m_Type=PluginInfo.Type;
 	m_Flags=PluginInfo.Flags;
 	m_fEnabled=(m_Flags&TVTest::PLUGIN_FLAG_ENABLEDEFAULT)!=0;
@@ -108,14 +105,14 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 	m_PluginParam.pInternalData=this;
 	if (!pInitialize(&m_PluginParam)) {
 		::FreeLibrary(hLib);
-		SAFE_DELETE(m_pszFileName);
+		m_FileName.Clear();
 		SetError(TEXT("プラグインの初期化でエラー発生しました。"));
 		return false;
 	}
 	m_hLib=hLib;
-	m_pszPluginName=DuplicateString(PluginInfo.pszPluginName);
-	m_pszCopyright=DuplicateString(PluginInfo.pszCopyright);
-	m_pszDescription=DuplicateString(PluginInfo.pszDescription);
+	m_PluginName.Set(PluginInfo.pszPluginName);
+	m_Copyright.Set(PluginInfo.pszCopyright);
+	m_Description.Set(PluginInfo.pszDescription);
 	ClearError();
 	return true;
 }
@@ -124,7 +121,10 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 void CPlugin::Free()
 {
 	if (m_hLib!=NULL) {
-		GetAppClass().AddLog(TEXT("%s の終了処理を行っています..."),::PathFindFileName(m_pszFileName));
+		CAppMain &App=GetAppClass();
+		LPCTSTR pszFileName=::PathFindFileName(m_FileName.Get());
+
+		App.AddLog(TEXT("%s の終了処理を行っています..."),pszFileName);
 		m_GrabberLock.Lock();
 		if (m_fSetGrabber) {
 			for (int i=m_GrabberList.Length()-1;i>=0;i--) {
@@ -153,7 +153,10 @@ void CPlugin::Free()
 
 		TVTest::FinalizeFunc pFinalize=
 			reinterpret_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
-		if (pFinalize!=NULL) {
+		if (pFinalize==NULL) {
+			App.AddLog(TEXT("%s のTVTFinalize()関数のアドレスを取得できません。"),
+					   pszFileName);
+		} else {
 			// 別スレッドからFinalizeを呼ぶと不正な処理が起こるプラグインがある
 			/*
 			HANDLE hThread=::CreateThread(NULL,0,FinalizeThread,pFinalize,0,NULL);
@@ -162,7 +165,8 @@ void CPlugin::Free()
 				pFinalize();
 			} else {
 				if (::WaitForSingleObject(hThread,m_FinalizeTimeout)==WAIT_TIMEOUT) {
-					GetAppClass().AddLog(TEXT("プラグイン \"%s\" の終了処理がタイムアウトしました。"),::PathFindFileName(m_pszFileName));
+					GetAppClass().AddLog(TEXT("プラグイン \"%s\" の終了処理がタイムアウトしました。"),
+										 ::PathFindFileName(m_FileName.Get()));
 					::TerminateThread(hThread,-1);
 				}
 				::CloseHandle(hThread);
@@ -172,13 +176,14 @@ void CPlugin::Free()
 		}
 		::FreeLibrary(m_hLib);
 		m_hLib=NULL;
-		GetAppClass().AddLog(TEXT("%s を解放しました。"),::PathFindFileName(m_pszFileName));
+		App.AddLog(TEXT("%s を解放しました。"),pszFileName);
 	}
-	SAFE_DELETE(m_pszFileName);
-	SAFE_DELETE(m_pszPluginName);
-	SAFE_DELETE(m_pszCopyright);
-	SAFE_DELETE(m_pszDescription);
+	m_FileName.Clear();
+	m_PluginName.Clear();
+	m_Copyright.Clear();
+	m_Description.Clear();
 	m_fEnabled=false;
+	m_fSetting=false;
 	m_CommandList.DeleteAll();
 }
 
@@ -197,7 +202,12 @@ DWORD WINAPI CPlugin::FinalizeThread(LPVOID lpParameter)
 bool CPlugin::Enable(bool fEnable)
 {
 	if (m_fEnabled!=fEnable) {
-		if (!SendEvent(TVTest::EVENT_PLUGINENABLE,(LPARAM)fEnable))
+		if (m_fSetting)
+			return false;
+		m_fSetting=true;
+		bool fResult=SendEvent(TVTest::EVENT_PLUGINENABLE,(LPARAM)fEnable)!=0;
+		m_fSetting=false;
+		if (!fResult)
 			return false;
 		m_fEnabled=fEnable;
 	}
@@ -272,7 +282,12 @@ bool CPlugin::Settings(HWND hwndOwner)
 {
 	if ((m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)==0)
 		return false;
-	return SendEvent(TVTest::EVENT_PLUGINSETTINGS,(LPARAM)hwndOwner)!=0;
+	if (m_fSetting)
+		return true;
+	m_fSetting=true;
+	bool fResult=SendEvent(TVTest::EVENT_PLUGINSETTINGS,(LPARAM)hwndOwner)!=0;
+	m_fSetting=false;
+	return fResult;
 }
 
 
@@ -833,52 +848,52 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_GETVOLUME:
 		{
-			const CMainWindow *pMainWindow=GetAppClass().GetMainWindow();
-			int Volume=pMainWindow->GetVolume();
-			bool fMute=pMainWindow->GetMute();
+			const CUICore *pUICore=GetAppClass().GetUICore();
+			int Volume=pUICore->GetVolume();
+			bool fMute=pUICore->GetMute();
 
-			return MAKELRESULT(Volume,fMute);
+			return MAKELONG(Volume,fMute);
 		}
 
 	case TVTest::MESSAGE_SETVOLUME:
 		{
-			CMainWindow *pMainWindow=GetAppClass().GetMainWindow();
+			CUICore *pUICore=GetAppClass().GetUICore();
 			int Volume=(int)lParam1;
 
 			if (Volume<0)
-				return pMainWindow->SetMute(lParam2!=0);
-			return pMainWindow->SetVolume(Volume,true);
+				return pUICore->SetMute(lParam2!=0);
+			return pUICore->SetVolume(Volume,true);
 		}
 
 	case TVTest::MESSAGE_GETSTEREOMODE:
-		return GetAppClass().GetMainWindow()->GetStereoMode();
+		return GetAppClass().GetUICore()->GetStereoMode();
 
 	case TVTest::MESSAGE_SETSTEREOMODE:
-		return GetAppClass().GetMainWindow()->SetStereoMode((int)lParam1);
+		return GetAppClass().GetUICore()->SetStereoMode((int)lParam1);
 
 	case TVTest::MESSAGE_GETFULLSCREEN:
-		return GetAppClass().GetMainWindow()->GetFullscreen();
+		return GetAppClass().GetUICore()->GetFullscreen();
 
 	case TVTest::MESSAGE_SETFULLSCREEN:
-		return GetAppClass().GetMainWindow()->SetFullscreen(lParam1!=0);
+		return GetAppClass().GetUICore()->SetFullscreen(lParam1!=0);
 
 	case TVTest::MESSAGE_GETPREVIEW:
-		return GetAppClass().GetMainWindow()->IsPreview();
+		return GetAppClass().GetUICore()->IsViewerEnabled();
 
 	case TVTest::MESSAGE_SETPREVIEW:
-		return GetAppClass().GetMainWindow()->EnablePreview(lParam1!=0);
+		return GetAppClass().GetUICore()->EnableViewer(lParam1!=0);
 
 	case TVTest::MESSAGE_GETSTANDBY:
-		return GetAppClass().GetMainWindow()->GetStandby();
+		return GetAppClass().GetUICore()->GetStandby();
 
 	case TVTest::MESSAGE_SETSTANDBY:
-		return GetAppClass().GetMainWindow()->SetStandby(lParam1!=0);
+		return GetAppClass().GetUICore()->SetStandby(lParam1!=0);
 
 	case TVTest::MESSAGE_GETALWAYSONTOP:
-		return GetAppClass().GetMainWindow()->GetAlwaysOnTop();
+		return GetAppClass().GetUICore()->GetAlwaysOnTop();
 
 	case TVTest::MESSAGE_SETALWAYSONTOP:
-		GetAppClass().GetMainWindow()->SetAlwaysOnTop(lParam1!=0);
+		GetAppClass().GetUICore()->SetAlwaysOnTop(lParam1!=0);
 		return TRUE;
 
 	case TVTest::MESSAGE_CAPTUREIMAGE:
@@ -1092,15 +1107,16 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		return TRUE;
 
 	case TVTest::MESSAGE_GETAUDIOSTREAM:
-		return GetAppClass().GetCoreEngine()->m_DtvEngine.GetAudioStream();
+		return GetAppClass().GetUICore()->GetAudioStream();
 
 	case TVTest::MESSAGE_SETAUDIOSTREAM:
 		{
+			CUICore *pUICore=GetAppClass().GetUICore();
 			int Index=(int)lParam1;
 
-			if (Index<0 || Index>=GetAppClass().GetCoreEngine()->m_DtvEngine.GetAudioStreamNum())
+			if (Index<0 || Index>=pUICore->GetNumAudioStreams()
+					|| !pUICore->SetAudioStream(Index))
 				return FALSE;
-			GetAppClass().GetMainWindow()->PostCommand(CM_AUDIOSTREAM_FIRST+Index);
 		}
 		return TRUE;
 
@@ -1133,7 +1149,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				return FALSE;
 
 			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
-			LPCTSTR pszFileName=::PathFindFileName(pThis->m_pszFileName);
+			LPCTSTR pszFileName=::PathFindFileName(pThis->m_FileName.Get());
 			GetAppClass().AddLog(TEXT("%s : %s"),pszFileName,pszText);
 		}
 		return TRUE;
@@ -1373,18 +1389,18 @@ void CALLBACK CPlugin::AudioStreamCallback(short *pData,DWORD Samples,int Channe
 
 
 CPlugin::CPluginCommandInfo::CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName)
+	: m_ID(ID)
+	, m_pszText(DuplicateString(pszText))
+	, m_pszName(DuplicateString(pszName))
 {
-	m_ID=ID;
-	m_pszText=DuplicateString(pszText);
-	m_pszName=DuplicateString(pszName);
 }
 
 
 CPlugin::CPluginCommandInfo::CPluginCommandInfo(const TVTest::CommandInfo &Info)
+	: m_ID(Info.ID)
+	, m_pszText(DuplicateString(Info.pszText))
+	, m_pszName(DuplicateString(Info.pszName))
 {
-	m_ID=Info.ID;
-	m_pszText=DuplicateString(Info.pszText);
-	m_pszName=DuplicateString(Info.pszName);
 }
 
 
@@ -1392,6 +1408,17 @@ CPlugin::CPluginCommandInfo::~CPluginCommandInfo()
 {
 	delete [] m_pszText;
 	delete [] m_pszName;
+}
+
+
+CPlugin::CPluginCommandInfo &CPlugin::CPluginCommandInfo::operator=(const CPluginCommandInfo &Info)
+{
+	if (&Info!=this) {
+		m_ID=Info.m_ID;
+		ReplaceString(&m_pszText,Info.m_pszText);
+		ReplaceString(&m_pszName,Info.m_pszName);
+	}
+	return *this;
 }
 
 
@@ -1901,13 +1928,13 @@ INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				ListView_InsertItem(hwndList,&lvi);
 				lvi.mask=LVIF_TEXT;
 				lvi.iSubItem=1;
-				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetPluginName());
+				lvi.pszText=const_cast<LPTSTR>(pPlugin->GetPluginName());
 				ListView_SetItem(hwndList,&lvi);
 				lvi.iSubItem=2;
-				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetDescription());
+				lvi.pszText=const_cast<LPTSTR>(pPlugin->GetDescription());
 				ListView_SetItem(hwndList,&lvi);
 				lvi.iSubItem=3;
-				lvi.pszText=const_cast<LPWSTR>(pPlugin->GetCopyright());
+				lvi.pszText=const_cast<LPTSTR>(pPlugin->GetCopyright());
 				ListView_SetItem(hwndList,&lvi);
 			}
 			for (i=0;i<4;i++)

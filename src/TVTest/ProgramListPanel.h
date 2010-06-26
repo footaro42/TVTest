@@ -5,6 +5,7 @@
 #include "PanelForm.h"
 #include "EpgProgramList.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 #include "EventInfoPopup.h"
 
 
@@ -33,8 +34,8 @@ public:
 class CProgramListPanel : public CPanelForm::CPage
 {
 	CEpgProgramList *m_pProgramList;
-	HFONT m_hfont;
-	HFONT m_hfontTitle;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_TitleFont;
 	int m_FontHeight;
 	int m_LineMargin;
 	Theme::GradientInfo m_EventBackGradient;

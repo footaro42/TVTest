@@ -31,6 +31,8 @@ public:
 // CH264ParserFilter
 	typedef void (CALLBACK *VideoInfoCallback)(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	void SetVideoInfoCallback(VideoInfoCallback pCallback, const PVOID pParam = NULL);
+	bool GetVideoInfo(CMpeg2VideoInfo *pInfo) const;
+	void ResetVideoInfo();
 	bool SetAdjustTime(bool bAdjust);
 	bool SetAdjustFrameRate(bool bAdjust);
 
@@ -54,7 +56,7 @@ protected:
 	CMediaType m_MediaType;
 	CH264Parser m_H264Parser;
 	CMpeg2VideoInfo m_VideoInfo;
-	CCritSec m_ParserLock;
+	CCritSec m_VideoInfoLock;
 	IMediaSample *m_pOutSample;
 	HRESULT m_DeliverResult;
 	bool m_bAdjustTime;

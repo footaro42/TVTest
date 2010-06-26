@@ -3,16 +3,18 @@
 
 
 #include "CoreEngine.h"
+#include "UICore.h"
 #include "ChannelManager.h"
 #include "Record.h"
-#include "DriverManager.h"
 
 
 class CMainWindow;
+class CDriverManager;
 class CLogoManager;
 
 class CAppMain
 {
+	CUICore m_UICore;
 	bool m_fSilent;
 	TCHAR m_szIniFileName[MAX_PATH];
 	TCHAR m_szDefaultChannelFileName[MAX_PATH];
@@ -39,6 +41,7 @@ public:
 	bool SaveSettings();
 	bool SaveCurrentChannel();
 	bool IsFirstExecute() const;
+
 	bool SaveChannelSettings();
 	bool InitializeChannel();
 	bool RestoreChannel();
@@ -52,7 +55,7 @@ public:
 	bool OpenTuner();
 	bool CloseTuner();
 	bool OpenBcasCard(bool fRetry=false);
-	bool ShowHelpContent(int ID);
+
 	bool StartRecord(LPCTSTR pszFileName=NULL,
 					 const CRecordManager::TimeSpecInfo *pStartTime=NULL,
 					 const CRecordManager::TimeSpecInfo *pStopTime=NULL,
@@ -67,13 +70,17 @@ public:
 	bool StopRecord();
 	bool RelayRecord(LPCTSTR pszFileName);
 	LPCTSTR GetDefaultRecordFolder() const;
+
+	bool ShowHelpContent(int ID);
 	bool IsChannelScanning() const;
 	bool IsDriverNoSignalLevel(LPCTSTR pszFileName) const;
 	void SetProgress(int Pos,int Max);
 	void EndProgress();
 	COLORREF GetColor(LPCTSTR pszText) const;
+
 	CCoreEngine *GetCoreEngine();
 	const CCoreEngine *GetCoreEngine() const;
+	CUICore *GetUICore();
 	CMainWindow *GetMainWindow();
 	const CChannelManager *GetChannelManager() const;
 	const CRecordManager *GetRecordManager() const;

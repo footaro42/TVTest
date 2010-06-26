@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "PanelForm.h"
-#include "DrawUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -40,34 +39,27 @@ bool CPanelForm::Initialize(HINSTANCE hinst)
 
 
 CPanelForm::CPanelForm()
+	: m_NumWindows(0)
+	, m_crBackColor(RGB(192,192,192))
+	, m_crMarginColor(m_crBackColor)
+	, m_TabBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+						m_crBackColor,m_crBackColor)
+	, m_crTabTextColor(RGB(0,0,0))
+	, m_crTabBorderColor(RGB(128,128,128))
+	, m_CurTabBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+						   RGB(224,224,224),RGB(224,224,224))
+	, m_crCurTabTextColor(RGB(0,0,0))
+	, m_crCurTabBorderColor(RGB(128,128,128))
+	, m_Font(DrawUtil::FONT_DEFAULT)
+	, m_TabHeight(TAB_MARGIN*2)
+	, m_TabWidth(8+TAB_MARGIN*2)
+	, m_fFitTabWidth(true)
+	, m_ClientMargin(4)
+	, m_CurTab(-1)
+	, m_pEventHandler(NULL)
 {
-	LOGFONT lf;
-
 	m_WindowPosition.Width=200;
 	m_WindowPosition.Height=240;
-	m_NumWindows=0;
-	GetObject(GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&lf);
-	m_hfont=CreateFontIndirect(&lf);
-	m_crBackColor=GetSysColor(COLOR_3DFACE);
-	m_crMarginColor=m_crBackColor;
-	m_TabBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_TabBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_TabBackGradient.Color1=GetSysColor(COLOR_3DFACE);
-	m_TabBackGradient.Color2=m_TabBackGradient.Color1;
-	m_crTabTextColor=GetSysColor(COLOR_WINDOWTEXT);
-	m_crTabBorderColor=GetSysColor(COLOR_3DDKSHADOW);
-	m_CurTabBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_CurTabBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_CurTabBackGradient.Color1=GetSysColor(COLOR_3DHIGHLIGHT);
-	m_CurTabBackGradient.Color2=m_CurTabBackGradient.Color1;
-	m_crCurTabTextColor=GetSysColor(COLOR_WINDOWTEXT);
-	m_crCurTabBorderColor=GetSysColor(COLOR_3DDKSHADOW);
-	m_TabHeight=/*abs(lf.lfHeight)+*/TAB_MARGIN*2;
-	m_TabWidth=8+TAB_MARGIN*2;
-	m_fFitTabWidth=true;
-	m_ClientMargin=4;
-	m_CurTab=-1;
-	m_pEventHandler=NULL;
 }
 
 
@@ -75,7 +67,6 @@ CPanelForm::~CPanelForm()
 {
 	for (int i=0;i<m_NumWindows;i++)
 		delete m_pWindowList[i];
-	::DeleteObject(m_hfont);
 }
 
 
@@ -272,12 +263,8 @@ void CPanelForm::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORR
 
 bool CPanelForm::SetTabFont(const LOGFONT *pFont)
 {
-	HFONT hfont=::CreateFontIndirect(pFont);
-
-	if (hfont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	::DeleteObject(m_hfont);
-	m_hfont=hfont;
 	if (m_hwnd!=NULL) {
 		CalcTabSize();
 		RECT rc;
@@ -319,91 +306,9 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 			CPanelForm *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
-			BeginPaint(hwnd,&ps);
-			if (ps.rcPaint.top<pThis->m_TabHeight) {
-				const int TabWidth=pThis->GetRealTabWidth();
-				COLORREF crOldTextColor;
-				int OldBkMode;
-				HFONT hfontOld;
-				int i;
-				RECT rc;
-				HBRUSH hbrOld;
-				HPEN hpen,hpenOld;
-
-				crOldTextColor=GetTextColor(ps.hdc);
-				OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-				hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
-				hbrOld=SelectBrush(ps.hdc,::GetStockObject(NULL_BRUSH));
-				rc.left=0;
-				rc.top=0;
-				rc.right=TabWidth;
-				rc.bottom=pThis->m_TabHeight;
-				for (i=0;i<pThis->m_NumWindows;i++) {
-					int Index=pThis->m_TabOrder[i];
-					const CWindowInfo *pWindow=pThis->m_pWindowList[Index];
-
-					if (!pWindow->m_fVisible)
-						continue;
-
-					const Theme::GradientInfo *pGradient;
-					COLORREF crText,crBorder;
-					RECT rcText;
-
-					if (Index==pThis->m_CurTab) {
-						pGradient=&pThis->m_CurTabBackGradient;
-						crText=pThis->m_crCurTabTextColor;
-						crBorder=pThis->m_crCurTabBorderColor;
-					} else {
-						pGradient=&pThis->m_TabBackGradient;
-						crText=pThis->m_crTabTextColor;
-						crBorder=pThis->m_crTabBorderColor;
-					}
-					Theme::FillGradient(ps.hdc,&rc,pGradient);
-					hpen=CreatePen(PS_SOLID,1,crBorder);
-					hpenOld=SelectPen(ps.hdc,hpen);
-					Rectangle(ps.hdc,rc.left,rc.top,rc.right,
-								Index==pThis->m_CurTab?rc.bottom+1:rc.bottom);
-					SetTextColor(ps.hdc,crText);
-					rcText.left=rc.left+TAB_MARGIN;
-					rcText.top=rc.top+TAB_MARGIN;
-					rcText.right=rc.right-TAB_MARGIN;
-					rcText.bottom=rc.bottom-TAB_MARGIN;
-					DrawText(ps.hdc,pWindow->m_pszTitle,-1,&rcText,
-						DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
-					SelectPen(ps.hdc,hpenOld);
-					DeleteObject(hpen);
-					rc.left=rc.right;
-					rc.right=rc.left+TabWidth;
-				}
-				SelectBrush(ps.hdc,hbrOld);
-				SelectFont(ps.hdc,hfontOld);
-				SetBkMode(ps.hdc,OldBkMode);
-				SetTextColor(ps.hdc,crOldTextColor);
-				if (ps.rcPaint.right>rc.left) {
-					if (ps.rcPaint.left>rc.left)
-						rc.left=ps.rcPaint.left;
-					rc.top=ps.rcPaint.top;
-					rc.right=ps.rcPaint.right;
-					rc.bottom=min(ps.rcPaint.bottom,(long)pThis->m_TabHeight-1);
-					DrawUtil::Fill(ps.hdc,&rc,pThis->m_crBackColor);
-					hpen=CreatePen(PS_SOLID,1,pThis->m_crTabBorderColor);
-					hpenOld=SelectPen(ps.hdc,hpen);
-					MoveToEx(ps.hdc,rc.left,rc.bottom,NULL);
-					LineTo(ps.hdc,rc.right,rc.bottom);
-					SelectPen(ps.hdc,hpenOld);
-					DeleteObject(hpen);
-				}
-			}
-			if (ps.rcPaint.bottom>pThis->m_TabHeight) {
-				RECT rc;
-
-				rc.left=ps.rcPaint.left;
-				rc.top=max(ps.rcPaint.top,(long)pThis->m_TabHeight);
-				rc.right=ps.rcPaint.right;
-				rc.bottom=ps.rcPaint.bottom;
-				DrawUtil::Fill(ps.hdc,&rc,pThis->m_crMarginColor);
-			}
-			EndPaint(hwnd,&ps);
+			::BeginPaint(hwnd,&ps);
+			pThis->Draw(ps.hdc,ps.rcPaint);
+			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
@@ -501,14 +406,12 @@ void CPanelForm::CalcTabSize()
 {
 	HDC hdc;
 	HFONT hfontOld;
-	TEXTMETRIC tm;
 	int MaxWidth;
 	SIZE sz;
 
 	hdc=::GetDC(m_hwnd);
-	hfontOld=SelectFont(hdc,m_hfont);
-	::GetTextMetrics(hdc,&tm);
-	m_TabHeight=(tm.tmHeight/*-tm.tmInternalLeading*/)+TAB_MARGIN*2;
+	m_TabHeight=m_Font.GetHeight(hdc)+TAB_MARGIN*2;
+	hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	MaxWidth=0;
 	for (int i=0;i<m_NumWindows;i++) {
 		if (m_pWindowList[i]->m_fVisible) {
@@ -562,6 +465,94 @@ int CPanelForm::HitTest(int x,int y) const
 		}
 	}
 	return -1;
+}
+
+
+void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
+{
+	if (PaintRect.top<m_TabHeight) {
+		const int TabWidth=GetRealTabWidth();
+		COLORREF crOldTextColor;
+		int OldBkMode;
+		HFONT hfontOld;
+		int i;
+		RECT rc;
+		HBRUSH hbrOld;
+		HPEN hpen,hpenOld;
+
+		crOldTextColor=::GetTextColor(hdc);
+		OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+		hfontOld=DrawUtil::SelectObject(hdc,m_Font);
+		hbrOld=SelectBrush(hdc,::GetStockObject(NULL_BRUSH));
+		rc.left=0;
+		rc.top=0;
+		rc.right=TabWidth;
+		rc.bottom=m_TabHeight;
+		for (i=0;i<m_NumWindows;i++) {
+			int Index=m_TabOrder[i];
+			const CWindowInfo *pWindow=m_pWindowList[Index];
+
+			if (!pWindow->m_fVisible)
+				continue;
+
+			const Theme::GradientInfo *pGradient;
+			COLORREF crText,crBorder;
+			RECT rcText;
+
+			if (Index==m_CurTab) {
+				pGradient=&m_CurTabBackGradient;
+				crText=m_crCurTabTextColor;
+				crBorder=m_crCurTabBorderColor;
+			} else {
+				pGradient=&m_TabBackGradient;
+				crText=m_crTabTextColor;
+				crBorder=m_crTabBorderColor;
+			}
+			Theme::FillGradient(hdc,&rc,pGradient);
+			hpen=::CreatePen(PS_SOLID,1,crBorder);
+			hpenOld=SelectPen(hdc,hpen);
+			::Rectangle(hdc,rc.left,rc.top,rc.right,
+						Index==m_CurTab?rc.bottom+1:rc.bottom);
+			::SetTextColor(hdc,crText);
+			rcText.left=rc.left+TAB_MARGIN;
+			rcText.top=rc.top+TAB_MARGIN;
+			rcText.right=rc.right-TAB_MARGIN;
+			rcText.bottom=rc.bottom-TAB_MARGIN;
+			::DrawText(hdc,pWindow->m_pszTitle,-1,&rcText,
+				DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
+			SelectPen(hdc,hpenOld);
+			::DeleteObject(hpen);
+			rc.left=rc.right;
+			rc.right=rc.left+TabWidth;
+		}
+		SelectBrush(hdc,hbrOld);
+		SelectFont(hdc,hfontOld);
+		::SetBkMode(hdc,OldBkMode);
+		::SetTextColor(hdc,crOldTextColor);
+		if (PaintRect.right>rc.left) {
+			if (PaintRect.left>rc.left)
+				rc.left=PaintRect.left;
+			rc.top=PaintRect.top;
+			rc.right=PaintRect.right;
+			rc.bottom=min(PaintRect.bottom,(long)m_TabHeight-1);
+			DrawUtil::Fill(hdc,&rc,m_crBackColor);
+			hpen=::CreatePen(PS_SOLID,1,m_crTabBorderColor);
+			hpenOld=SelectPen(hdc,hpen);
+			::MoveToEx(hdc,rc.left,rc.bottom,NULL);
+			::LineTo(hdc,rc.right,rc.bottom);
+			SelectPen(hdc,hpenOld);
+			::DeleteObject(hpen);
+		}
+	}
+	if (PaintRect.bottom>m_TabHeight) {
+		RECT rc;
+
+		rc.left=PaintRect.left;
+		rc.top=max(PaintRect.top,(long)m_TabHeight);
+		rc.right=PaintRect.right;
+		rc.bottom=PaintRect.bottom;
+		DrawUtil::Fill(hdc,&rc,m_crMarginColor);
+	}
 }
 
 

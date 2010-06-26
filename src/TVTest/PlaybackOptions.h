@@ -9,10 +9,11 @@ class CPlaybackOptions : public COptions
 {
 	enum {
 		UPDATE_ADJUSTAUDIOSTREAMTIME	= 0x00000001UL,
-		UPDATE_PACKETBUFFERING			= 0x00000002UL,
-		UPDATE_STREAMTHREADPRIORITY		= 0x00000004UL
+		UPDATE_PTSSYNC					= 0x00000002UL,
+		UPDATE_PACKETBUFFERING			= 0x00000004UL,
+		UPDATE_STREAMTHREADPRIORITY		= 0x00000008UL
 #ifdef TVH264
-		, UPDATE_ADJUSTFRAMERATE		= 0x00000008UL
+		, UPDATE_ADJUSTFRAMERATE		= 0x00000010UL
 #endif
 	};
 	enum {
@@ -22,17 +23,23 @@ class CPlaybackOptions : public COptions
 	enum {
 		MAX_PACKET_BUFFER_LENGTH = 0x00100000UL
 	};
+
 	TCHAR m_szAudioDeviceName[MAX_AUDIO_DEVICE_NAME];
 	TCHAR m_szAudioFilterName[MAX_AUDIO_FILTER_NAME];
+
 	bool m_fDownMixSurround;
 	bool m_fRestoreMute;
+
 	bool m_fUseAudioRendererClock;
+	bool m_fEnablePTSSync;
 	bool m_fAdjustAudioStreamTime;
 	bool m_fMinTimerResolution;
+
 	bool m_fPacketBuffering;
 	DWORD m_PacketBufferLength;
 	int m_PacketBufferPoolPercentage;
 	int m_StreamThreadPriority;
+
 #ifdef TVH264
 	bool m_fAdjustFrameRate;
 #endif

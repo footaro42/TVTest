@@ -8,6 +8,8 @@
 #include "PointerArray.h"
 #include "Theme.h"
 #include "LogoManager.h"
+#include "DrawUtil.h"
+#include "Tooltip.h"
 
 
 class CMainMenu
@@ -40,35 +42,58 @@ public:
 	void EnableItem(int ID,bool fEnable);
 	void CheckItem(int ID,bool fCheck);
 	void CheckRadioItem(int FirstID,int LastID,int CheckID);
-	HMENU GetSubMenu(int SubMenu);
+	HMENU GetMenuHandle() const;
+	HMENU GetSubMenu(int SubMenu) const;
 	bool SetAccelerator(CAccelerator *pAccelerator);
 };
 
 class CChannelMenu
 {
+	unsigned int m_Flags;
+	HWND m_hwnd;
 	HMENU m_hmenu;
 	CEpgProgramList *m_pProgramList;
 	CLogoManager *m_pLogoManager;
 	const CChannelList *m_pChannelList;
 	int m_CurChannel;
-	HFONT m_hfont;
-	HFONT m_hfontCurrent;
+	UINT m_FirstCommand;
+	UINT m_LastCommand;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_FontCurrent;
 	int m_TextHeight;
 	int m_ChannelNameWidth;
 	int m_EventNameWidth;
 	int m_LogoWidth;
 	int m_LogoHeight;
-	enum { MENU_MARGIN=2, MENU_LOGO_MARGIN=3 };
+	CUxTheme m_UxTheme;
+	MARGINS m_Margins;
+	int m_MenuLogoMargin;
+	CTooltip m_Tooltip;
+
+	int GetEventText(const CEventInfoData *pEventInfo,
+					 LPTSTR pszText,int MaxLength) const;
 	void CreateFont(HDC hdc);
+	static void GetBaseTime(SYSTEMTIME *pTime);
 
 public:
+	enum {
+		FLAG_SHOWEVENTINFO	=0x0001,
+		FLAG_SHOWLOGO		=0x0002,
+		FLAG_SHOWTOOLTIP	=0x0004,
+		FLAG_SPACEBREAK		=0x0008,
+		FLAG_SHARED			=0x1000
+	};
+
 	CChannelMenu(CEpgProgramList *pProgramList,CLogoManager *pLogoManager);
 	~CChannelMenu();
-	bool Create(const CChannelList *pChannelList,int CurChannel);
+	bool Create(const CChannelList *pChannelList,int CurChannel,UINT Command,
+				HMENU hmenu,HWND hwnd,unsigned int Flags,int MaxRows=0);
 	void Destroy();
-	bool Popup(UINT Flags,int x,int y,HWND hwnd);
+	bool Popup(UINT Flags,int x,int y);
 	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	bool OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
+	bool OnMenuSelect(HWND hwnd,WPARAM wParam,LPARAM lParam);
+	bool OnUninitMenuPopup(HWND hwnd,WPARAM wParam,LPARAM lParam);
 };
 
 class CPopupMenu
@@ -92,6 +117,32 @@ public:
 	}
 };
 
+class CIconMenu
+{
+	enum {
+		ICON_MARGIN=1,
+		TEXT_MARGIN=3
+	};
+	HMENU m_hmenu;
+	HIMAGELIST m_hImageList;
+	UINT m_FirstID;
+	UINT m_LastID;
+	int m_CheckItem;
+
+public:
+	CIconMenu();
+	~CIconMenu();
+	bool Initialize(HMENU hmenu,HINSTANCE hinst,LPCTSTR pszImageName,
+					int IconWidth,COLORREF crMask,
+					UINT FirstID,UINT LastID);
+	void Finalize();
+	bool OnInitMenuPopup(HWND hwnd,HMENU hmenu);
+	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
+	bool OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
+	void SetCheckItem(int Item) { m_CheckItem=Item; }
+	int GetCheckItem() const { return m_CheckItem; }
+};
+
 class CDropDownMenu
 {
 	class CItem {
@@ -109,11 +160,11 @@ class CDropDownMenu
 		void Draw(HDC hdc,const RECT *pRect);
 	};
 	CPointerVector<CItem> m_ItemList;
-	HFONT m_hfont;
 	HWND m_hwnd;
 	HWND m_hwndMessage;
 	RECT m_ItemMargin;
 	RECT m_WindowMargin;
+	DrawUtil::CFont m_Font;
 	COLORREF m_TextColor;
 	COLORREF m_BackColor;
 	COLORREF m_HighlightTextColor;

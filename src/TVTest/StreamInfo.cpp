@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "StreamInfo.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -32,7 +31,7 @@ static void CopyText(LPCTSTR pszText)
 	if (hData!=NULL) {
 		::lstrcpy(static_cast<LPTSTR>(::GlobalLock(hData)),pszText);
 		::GlobalUnlock(hData);
-		if (::OpenClipboard(GetAppClass().GetMainWindow()->GetHandle())) {
+		if (::OpenClipboard(GetAppClass().GetUICore()->GetMainWindow())) {
 			::EmptyClipboard();
 			::SetClipboardData(
 #ifdef UNICODE

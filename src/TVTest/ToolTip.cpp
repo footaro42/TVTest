@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "ToolTip.h"
+#include "Tooltip.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -9,22 +9,241 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+#ifndef TTTOOLINFO_V2_SIZE
+#ifdef UNICODE
+#define TTTOOLINFO_V2_SIZE TTTOOLINFOW_V2_SIZE
+#else
+#define TTTOOLINFO_V2_SIZE TTTOOLINFOA_V2_SIZE
+#endif
+#endif
 
 
 
-CToolTip::CToolTip()
+
+CTooltip::CTooltip()
+	: m_hwndTooltip(NULL)
+	, m_hwndParent(NULL)
+{
+}
+
+
+CTooltip::~CTooltip()
+{
+	Destroy();
+}
+
+
+bool CTooltip::Create(HWND hwnd)
+{
+	if (m_hwndTooltip!=NULL)
+		return false;
+
+	m_hwndTooltip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
+								   WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
+								   0,0,0,0,
+								   hwnd,NULL,GetWindowInstance(hwnd),NULL);
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	m_hwndParent=hwnd;
+
+	return true;
+}
+
+
+void CTooltip::Destroy()
+{
+	if (m_hwndTooltip!=NULL) {
+		::DestroyWindow(m_hwndTooltip);
+		m_hwndTooltip=NULL;
+	}
+}
+
+
+void CTooltip::DeleteAllTools()
+{
+	if (m_hwndTooltip!=NULL) {
+		int Count=(int)::SendMessage(m_hwndTooltip,TTM_GETTOOLCOUNT,0,0);
+		TOOLINFO ti;
+
+		ti.cbSize=TTTOOLINFO_V1_SIZE;
+		ti.lpszText=NULL;
+		for (int i=0;i<Count;i++) {
+			if (::SendMessage(m_hwndTooltip,TTM_ENUMTOOLS,i,reinterpret_cast<LPARAM>(&ti)))
+				::SendMessage(m_hwndTooltip,TTM_DELTOOL,0,reinterpret_cast<LPARAM>(&ti));
+		}
+	}
+}
+
+
+bool CTooltip::Enable(bool fEnable)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+	::SendMessage(m_hwndTooltip,TTM_ACTIVATE,fEnable,0);
+	return true;
+}
+
+
+bool CTooltip::IsVisible() const
+{
+	return m_hwndTooltip!=NULL && ::IsWindowVisible(m_hwndTooltip)!=FALSE;
+}
+
+
+bool CTooltip::SetMaxWidth(int Width)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+	::SendMessage(m_hwndTooltip,TTM_SETMAXTIPWIDTH,0,Width);
+	return true;
+}
+
+
+bool CTooltip::SetPopDelay(int Delay)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+	::SendMessage(m_hwndTooltip,TTM_SETDELAYTIME,TTDT_AUTOPOP,
+				  MAKELONG(min(Delay,32767),0));
+	return true;
+}
+
+
+int CTooltip::NumTools() const
+{
+	if (m_hwndTooltip==NULL)
+		return 0;
+	return (int)::SendMessage(m_hwndTooltip,TTM_GETTOOLCOUNT,0,0);
+}
+
+
+bool CTooltip::AddTool(UINT ID,const RECT &Rect,LPCTSTR pszText,LPARAM lParam)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.uFlags=TTF_SUBCLASS | TTF_TRANSPARENT;
+	ti.hwnd=m_hwndParent;
+	ti.uId=ID;
+	ti.rect=Rect;
+	ti.hinst=NULL;
+	ti.lpszText=const_cast<LPTSTR>(pszText);
+	ti.lParam=lParam;
+	return ::SendMessage(m_hwndTooltip,TTM_ADDTOOL,0,reinterpret_cast<LPARAM>(&ti))!=FALSE;
+}
+
+
+bool CTooltip::DeleteTool(UINT ID)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.hwnd=m_hwndParent;
+	ti.uId=ID;
+	::SendMessage(m_hwndTooltip,TTM_DELTOOL,0,reinterpret_cast<LPARAM>(&ti));
+	return true;
+}
+
+
+bool CTooltip::SetToolRect(UINT ID,const RECT &Rect)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.hwnd=m_hwndParent;
+	ti.uId=ID;
+	ti.rect=Rect;
+	::SendMessage(m_hwndTooltip,TTM_NEWTOOLRECT,0,reinterpret_cast<LPARAM>(&ti));
+	return true;
+}
+
+
+bool CTooltip::SetText(UINT ID,LPCTSTR pszText)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.hwnd=m_hwndParent;
+	ti.uId=ID;
+	ti.hinst=NULL;
+	ti.lpszText=const_cast<LPTSTR>(pszText);
+	::SendMessage(m_hwndTooltip,TTM_UPDATETIPTEXT,0,reinterpret_cast<LPARAM>(&ti));
+	return true;
+}
+
+
+bool CTooltip::AddTrackingTip(UINT ID,LPCTSTR pszText,LPARAM lParam)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.uFlags=TTF_SUBCLASS | TTF_TRANSPARENT | TTF_TRACK | TTF_ABSOLUTE;
+	ti.hwnd=m_hwndParent;
+	ti.uId=ID;
+	::SetRectEmpty(&ti.rect);
+	ti.hinst=NULL;
+	ti.lpszText=const_cast<LPTSTR>(pszText);
+	ti.lParam=lParam;
+	return ::SendMessage(m_hwndTooltip,TTM_ADDTOOL,0,reinterpret_cast<LPARAM>(&ti))!=FALSE;
+}
+
+
+bool CTooltip::TrackActivate(UINT ID,bool fActivate)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.hwnd=m_hwndParent;
+	ti.uId=ID;
+	::SendMessage(m_hwndTooltip,TTM_TRACKACTIVATE,fActivate,reinterpret_cast<LPARAM>(&ti));
+	return true;
+}
+
+
+bool CTooltip::TrackPosition(int x,int y)
+{
+	if (m_hwndTooltip==NULL)
+		return false;
+
+	::SendMessage(m_hwndTooltip,TTM_TRACKPOSITION,0,MAKELONG(x,y));
+	return true;
+}
+
+
+
+
+CBalloonTip::CBalloonTip()
 	: m_hwndToolTips(NULL)
 {
 }
 
 
-CToolTip::~CToolTip()
+CBalloonTip::~CBalloonTip()
 {
 	Finalize();
 }
 
 
-bool CToolTip::Initialize(HWND hwnd)
+bool CBalloonTip::Initialize(HWND hwnd)
 {
 	if (m_hwndToolTips!=NULL)
 		return false;
@@ -55,7 +274,7 @@ bool CToolTip::Initialize(HWND hwnd)
 }
 
 
-void CToolTip::Finalize()
+void CBalloonTip::Finalize()
 {
 	if (m_hwndToolTips!=NULL) {
 		::DestroyWindow(m_hwndToolTips);
@@ -64,7 +283,7 @@ void CToolTip::Finalize()
 }
 
 
-bool CToolTip::Show(LPCTSTR pszText,LPCTSTR pszTitle,const POINT *pPos,int Icon)
+bool CBalloonTip::Show(LPCTSTR pszText,LPCTSTR pszTitle,const POINT *pPos,int Icon)
 {
 	if (m_hwndToolTips==NULL || pszText==NULL)
 		return false;
@@ -90,7 +309,7 @@ bool CToolTip::Show(LPCTSTR pszText,LPCTSTR pszTitle,const POINT *pPos,int Icon)
 }
 
 
-bool CToolTip::Hide()
+bool CBalloonTip::Hide()
 {
 	TOOLINFO ti;
 

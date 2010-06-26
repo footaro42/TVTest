@@ -193,9 +193,9 @@ public:
 	bool GetGradientInfo(int Gradient,Theme::GradientInfo *pInfo) const;
 	Theme::BorderType GetBorderType(int Border) const;
 	bool SetBorderType(int Border,Theme::BorderType Type);
-	LPCTSTR GetName() const { return m_pszName; }
+	LPCTSTR GetName() const { return m_Name.Get(); }
 	bool SetName(LPCTSTR pszName);
-	LPCTSTR GetFileName() const { return m_pszFileName; }
+	LPCTSTR GetFileName() const { return m_FileName.Get(); }
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
 	bool SetFileName(LPCTSTR pszFileName);
@@ -212,8 +212,8 @@ private:
 	COLORREF m_ColorList[NUM_COLORS];
 	GradientType m_GradientList[NUM_GRADIENTS];
 	Theme::BorderType m_BorderList[NUM_BORDERS];
-	LPTSTR m_pszName;
-	LPTSTR m_pszFileName;
+	CDynamicString m_Name;
+	CDynamicString m_FileName;
 	struct ColorInfo {
 		COLORREF DefaultColor;
 		LPCTSTR pszText;

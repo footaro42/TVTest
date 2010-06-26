@@ -65,26 +65,26 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 	グラフ構成図
 
 	CBonSrcDecoder
-		↓
+	    ↓
 	CTsPacketParser
-		↓
+	    ↓
 	CTsAnalyzer
-		↓
+	    ↓
 	CTsDescrambler
-		↓
+	    ↓
 	CMediaTee─────┐
-		↓             ↓
+	    ↓             ↓
 	CMediaBuffer  CEventManager
-		↓             ↓
+	    ↓             ↓
 	CMediaViewer  CCaptionDecoder
-		               ↓
-		          CLogoDownloader
-		               ↓
-		          CMediaGrabber → プラグイン
-		               ↓
-		          CTsSelector
-		               ↓
-		          CFileWriter
+	                   ↓
+	              CLogoDownloader
+	                   ↓
+	              CMediaGrabber → プラグイン
+	                   ↓
+	              CTsSelector
+	                   ↓
+	              CFileWriter
 	*/
 
 	Trace(TEXT("デコーダグラフを構築しています..."));
@@ -551,15 +551,6 @@ const bool CDtvEngine::SetService(const WORD wService)
 
 		TRACE(TEXT("------- Service Select -------\n"));
 		TRACE(TEXT("%d (ServiceID = %04X)\n"), m_CurServiceIndex, wServiceID);
-
-#ifdef BONTSENGINE_1SEG_SUPPORT
-		const BYTE VideoComponentTag = m_TsAnalyzer.GetVideoComponentTag(m_CurServiceIndex);
-		const bool b1Seg = VideoComponentTag >= 0x81 && VideoComponentTag <= 0x8F;
-		//m_MediaViewer.SetAdjustFrameRate(!b1Seg);
-#ifdef MEDIAVIEWER_USE_TBS_FILTER
-		m_MediaViewer.EnableTBSFilter(b1Seg);
-#endif
-#endif
 
 		m_MediaViewer.SetVideoPID(wVideoPID);
 		m_MediaViewer.SetAudioPID(wAudioPID);

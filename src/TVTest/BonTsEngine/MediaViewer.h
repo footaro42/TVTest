@@ -17,9 +17,6 @@
 #include "../DirectShowFilter/Mpeg2SequenceFilter.h"
 #else
 #include "../DirectShowFilter/H264ParserFilter.h"
-#ifdef BONTSENGINE_1SEG_SUPPORT
-#define MEDIAVIEWER_USE_TBS_FILTER	// TBSフィルタ有効
-#endif
 #endif
 
 
@@ -135,16 +132,15 @@ public:
 	const bool DrawText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF crColor,int Opacity);
 	const bool IsDrawTextSupported() const;
 	const bool ClearOSD();
+	bool EnablePTSSync(bool bEnable);
+	bool IsPTSSyncEnabled() const;
 #ifdef BONTSENGINE_H264_SUPPORT
 	bool SetAdjustVideoSampleTime(bool bAdjust);
 	bool SetAdjustFrameRate(bool bAdjust);
 #endif
-#ifdef MEDIAVIEWER_USE_TBS_FILTER
-	bool EnableTBSFilter(bool bEnable);
-	bool IsTBSFilterEnabled() const;
-#endif
 
 protected:
+	static void CALLBACK OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	const bool AdjustVideoPosition();
 	const bool CalcSourceRect(RECT *pRect);
 
@@ -189,10 +185,10 @@ protected:
 	WORD m_wVideoEsPID;
 	WORD m_wAudioEsPID;
 
-	static void CALLBACK OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);
 	WORD m_wVideoWindowX;
 	WORD m_wVideoWindowY;
 	CMpeg2VideoInfo m_VideoInfo;
+	WORD m_DemuxerMediaWidth;
 	HWND m_hOwnerWnd;
 
 	CCriticalLock m_ResizeLock;
@@ -205,6 +201,7 @@ protected:
 	bool m_bIgnoreDisplayExtension;
 	bool m_bUseAudioRendererClock;
 	bool m_bAdjustAudioStreamTime;
+	bool m_bEnablePTSSync;
 #ifdef BONTSENGINE_H264_SUPPORT
 	bool m_bAdjustVideoSampleTime;
 	bool m_bAdjustFrameRate;

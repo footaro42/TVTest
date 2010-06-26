@@ -39,6 +39,26 @@ CViewOptions::CViewOptions()
 }
 
 
+bool CViewOptions::Apply(DWORD Flags)
+{
+	CAppMain &AppMain=GetAppClass();
+
+	if ((Flags&UPDATE_MASKCUTAREA)!=0) {
+		AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetNoMaskSideCut(m_fNoMaskSideCut);
+	}
+
+	if ((Flags&UPDATE_IGNOREDISPLAYEXTENSION)!=0) {
+		AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(m_fIgnoreDisplayExtension);
+	}
+
+	if ((Flags&UPDATE_LOGO)!=0) {
+		AppMain.GetMainWindow()->SetLogo(m_fShowLogo?m_szLogoFileName:NULL);
+	}
+
+	return true;
+}
+
+
 bool CViewOptions::Read(CSettings *pSettings)
 {
 	int Value;
@@ -192,6 +212,7 @@ INT_PTR CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			{
 				CViewOptions *pThis=GetThis(hDlg);
 				CAppMain &AppMain=GetAppClass();
+				bool f;
 
 				pThis->m_fAdjustAspectResizing=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTASPECTRESIZING);
@@ -203,12 +224,15 @@ INT_PTR CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PANSCANNORESIZEWINDOW);
 				pThis->m_fResetPanScanEventChange=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE);
-				pThis->m_fNoMaskSideCut=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMASKSIDECUT);
-				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetNoMaskSideCut(pThis->m_fNoMaskSideCut);
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMASKSIDECUT);
+				if (pThis->m_fNoMaskSideCut!=f) {
+					pThis->m_fNoMaskSideCut=f;
+					pThis->SetUpdateFlag(UPDATE_MASKCUTAREA);
+				}
 				pThis->m_FullscreenStretchMode=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_FULLSCREENCUTFRAME)?
 					CMediaViewer::STRETCH_CUTFRAME:CMediaViewer::STRETCH_KEEPASPECTRATIO;
-				if (AppMain.GetMainWindow()->GetFullscreen())
+				if (AppMain.GetUICore()->GetFullscreen())
 					AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetViewStretchMode(pThis->m_FullscreenStretchMode);
 				pThis->m_MaximizeStretchMode=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MAXIMIZECUTFRAME)?
@@ -227,25 +251,28 @@ INT_PTR CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				pThis->m_fDisablePreviewWhenMinimized=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
 				pThis->m_fRestorePlayStatus=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
-				pThis->m_fIgnoreDisplayExtension=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
-				AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetIgnoreDisplayExtension(pThis->m_fIgnoreDisplayExtension);
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
+				if (pThis->m_fIgnoreDisplayExtension!=f) {
+					pThis->m_fIgnoreDisplayExtension=f;
+					pThis->SetUpdateFlag(UPDATE_IGNOREDISPLAYEXTENSION);
+				}
 				pThis->m_fNoScreenSaver=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOSCREENSAVER);
 				pThis->m_fNoMonitorLowPower=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER);
 				pThis->m_fNoMonitorLowPowerActiveOnly=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY);
-				AppMain.GetMainWindow()->SetDisplayStatus();
+				AppMain.GetUICore()->PreventDisplaySave(true);
 				{
 					bool fLogo=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO);
 					TCHAR szFileName[MAX_PATH];
 
 					::GetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,szFileName,MAX_PATH);
-					if (fLogo!=pThis->m_fShowLogo || ::lstrcmp(szFileName,pThis->m_szLogoFileName)!=0) {
-						AppMain.GetMainWindow()->SetLogo(fLogo?szFileName:NULL);
+					if (fLogo!=pThis->m_fShowLogo
+							|| ::lstrcmp(szFileName,pThis->m_szLogoFileName)!=0) {
 						pThis->m_fShowLogo=fLogo;
 						::lstrcpy(pThis->m_szLogoFileName,szFileName);
+						pThis->SetUpdateFlag(UPDATE_LOGO);
 					}
 				}
 			}

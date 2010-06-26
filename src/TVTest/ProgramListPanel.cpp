@@ -278,38 +278,28 @@ CProgramListPanel::CProgramListPanel()
 	: m_EventInfoPopupManager(&m_EventInfoPopup)
 	, m_EventInfoPopupHandler(this)
 	, m_pProgramList(NULL)
-	, m_hfont(NULL)
-	, m_hfontTitle(NULL)
+	, m_FontHeight(0)
+	, m_LineMargin(1)
+	, m_EventBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+						  RGB(0,0,0),RGB(0,0,0))
+	, m_EventTextColor(RGB(255,255,255))
+	, m_CurEventBackGradient(m_EventBackGradient)
+	, m_CurEventTextColor(RGB(255,255,255))
+	, m_TitleBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
+						  RGB(128,128,128),RGB(128,128,128))
+	, m_TitleTextColor(RGB(255,255,255))
+	, m_CurTitleBackGradient(m_TitleBackGradient)
+	, m_CurTitleTextColor(RGB(255,255,255))
+	, m_MarginColor(RGB(0,0,0))
+	, m_CurEventID(-1)
+	, m_ScrollPos(0)
+	//, m_hwndToolTip(NULL)
 {
-	m_FontHeight=0;
-	m_LineMargin=1;
-	m_EventBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_EventBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_EventBackGradient.Color1=RGB(0,0,0);
-	m_EventBackGradient.Color2=RGB(0,0,0);
-	m_EventTextColor=RGB(255,255,255);
-	m_CurEventBackGradient=m_EventBackGradient;
-	m_CurEventTextColor=m_EventTextColor;
-	m_TitleBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_TitleBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_TitleBackGradient.Color1=RGB(128,128,128);
-	m_TitleBackGradient.Color2=RGB(128,128,128);
-	m_TitleTextColor=RGB(255,255,255);
-	m_CurTitleBackGradient=m_TitleBackGradient;
-	m_CurTitleTextColor=m_TitleTextColor;
-	m_MarginColor=RGB(0,0,0);
-	m_CurEventID=-1;
-	m_ScrollPos=0;
-	//m_hwndToolTip=NULL;
 }
 
 
 CProgramListPanel::~CProgramListPanel()
 {
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	if (m_hfontTitle!=NULL)
-		::DeleteObject(m_hfontTitle);
 }
 
 
@@ -453,9 +443,9 @@ void CProgramListPanel::CalcDimentions()
 	for (int i=0;i<m_ItemList.NumItems();i++) {
 		CProgramItemInfo *pItem=m_ItemList.GetItem(i);
 
-		::SelectObject(hdc,m_hfontTitle);
+		DrawUtil::SelectObject(hdc,m_TitleFont);
 		m_TotalLines+=pItem->CalcTitleLines(hdc,rc.right);
-		::SelectObject(hdc,m_hfont);
+		DrawUtil::SelectObject(hdc,m_Font);
 		m_TotalLines+=pItem->CalcTextLines(hdc,rc.right-TEXT_LEFT_MARGIN);
 	}
 	::SelectObject(hdc,hfontOld);
@@ -534,18 +524,11 @@ void CProgramListPanel:: SetColors(
 
 bool CProgramListPanel::SetFont(const LOGFONT *pFont)
 {
-	HFONT hfont=::CreateFontIndirect(pFont);
-
-	if (hfont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	m_hfont=hfont;
-	if (m_hfontTitle!=NULL)
-		::DeleteObject(m_hfontTitle);
 	LOGFONT lf=*pFont;
 	lf.lfWeight=FW_BOLD;
-	m_hfontTitle=::CreateFontIndirect(&lf);
+	m_TitleFont.Create(&lf);
 	m_ScrollPos=0;
 	if (m_hwnd!=NULL) {
 		CalcFontHeight();
@@ -567,17 +550,11 @@ bool CProgramListPanel::SetEventInfoFont(const LOGFONT *pFont)
 void CProgramListPanel::CalcFontHeight()
 {
 	HDC hdc;
-	HFONT hfontOld;
-	TEXTMETRIC tm;
 
 	hdc=::GetDC(m_hwnd);
 	if (hdc==NULL)
 		return;
-	hfontOld=static_cast<HFONT>(::SelectObject(hdc,m_hfont));
-	::GetTextMetrics(hdc,&tm);
-	//m_FontHeight=tm.tmHeight-tm.tmInternalLeading;
-	m_FontHeight=tm.tmHeight;
-	::SelectObject(hdc,hfontOld);
+	m_FontHeight=m_Font.GetHeight();
 	::ReleaseDC(m_hwnd,hdc);
 }
 
@@ -660,8 +637,13 @@ LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 		{
 			CProgramListPanel *pThis=static_cast<CProgramListPanel*>(OnCreate(hwnd,lParam));
 
-			if (pThis->m_hfont==NULL)
-				pThis->m_hfont=CreateDefaultFont();
+			if (!pThis->m_Font.IsCreated()) {
+				LOGFONT lf;
+				GetDefaultFont(&lf);
+				pThis->m_Font.Create(&lf);
+				lf.lfWeight=FW_BOLD;
+				pThis->m_TitleFont.Create(&lf);
+			}
 			pThis->CalcFontHeight();
 			/*
 			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
@@ -842,7 +824,7 @@ void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 
 		rc.bottom=rc.top+pItem->GetTitleLines()*(m_FontHeight+m_LineMargin);
 		if (rc.bottom>prcPaint->top) {
-			::SelectObject(hdc,m_hfontTitle);
+			DrawUtil::SelectObject(hdc,m_TitleFont);
 			::SetTextColor(hdc,fCur?m_CurTitleTextColor:m_TitleTextColor);
 			rc.left=0;
 			Theme::FillGradient(hdc,&rc,fCur?&m_CurTitleBackGradient:&m_TitleBackGradient);
@@ -861,7 +843,7 @@ void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 				FillRect(hdc,&rcMargin,hbr);
 			}
 			*/
-			::SelectObject(hdc,m_hfont);
+			DrawUtil::SelectObject(hdc,m_Font);
 			::SetTextColor(hdc,fCur?m_CurEventTextColor:m_EventTextColor);
 			rc.left=0;
 			Theme::FillGradient(hdc,&rc,fCur?&m_CurEventBackGradient:&m_EventBackGradient);

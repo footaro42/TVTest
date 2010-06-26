@@ -529,7 +529,7 @@ int CFont::GetHeight(bool fCell) const
 
 int CFont::GetHeight(HDC hdc,bool fCell) const
 {
-	if (hdc==NULL)
+	if (m_hfont==NULL || hdc==NULL)
 		return 0;
 	HGDIOBJ hOldFont=::SelectObject(hdc,m_hfont);
 	TEXTMETRIC tm;
@@ -538,6 +538,154 @@ int CFont::GetHeight(HDC hdc,bool fCell) const
 	if (!fCell)
 		tm.tmHeight-=tm.tmInternalLeading;
 	return tm.tmHeight;
+}
+
+
+CBrush::CBrush()
+	: m_hbr(NULL)
+{
+}
+
+CBrush::CBrush(const CBrush &Brush)
+	: m_hbr(NULL)
+{
+	*this=Brush;
+}
+
+CBrush::CBrush(COLORREF Color)
+	: m_hbr(NULL)
+{
+	Create(Color);
+}
+
+CBrush::~CBrush()
+{
+	Destroy();
+}
+
+CBrush &CBrush::operator=(const CBrush &Brush)
+{
+	if (&Brush!=this) {
+		Destroy();
+		if (Brush.m_hbr!=NULL) {
+			LOGBRUSH lb;
+
+			if (::GetObject(Brush.m_hbr,sizeof(LOGBRUSH),&lb)==sizeof(LOGBRUSH))
+				m_hbr=::CreateBrushIndirect(&lb);
+		}
+	}
+	return *this;
+}
+
+bool CBrush::Create(COLORREF Color)
+{
+	HBRUSH hbr=::CreateSolidBrush(Color);
+
+	if (hbr==NULL)
+		return false;
+	Destroy();
+	m_hbr=hbr;
+	return true;
+}
+
+void CBrush::Destroy()
+{
+	if (m_hbr!=NULL) {
+		::DeleteObject(m_hbr);
+		m_hbr=NULL;
+	}
+}
+
+
+COffscreen::COffscreen()
+	: m_hdc(NULL)
+	, m_hbm(NULL)
+	, m_hbmOld(NULL)
+	, m_Width(0)
+	, m_Height(0)
+{
+}
+
+COffscreen::~COffscreen()
+{
+	Destroy();
+}
+
+bool COffscreen::Create(int Width,int Height,HDC hdc)
+{
+	if (Width<=0 || Height<=0)
+		return false;
+	Destroy();
+	HDC hdcScreen;
+	if (hdc==NULL) {
+		hdcScreen=::GetDC(NULL);
+		if (hdcScreen==NULL)
+			return false;
+		hdc=hdcScreen;
+	} else {
+		hdcScreen=NULL;
+	}
+	m_hdc=::CreateCompatibleDC(hdc);
+	if (m_hdc==NULL) {
+		if (hdcScreen!=NULL)
+			::ReleaseDC(NULL,hdcScreen);
+		return false;
+	}
+	m_hbm=::CreateCompatibleBitmap(hdc,Width,Height);
+	if (hdcScreen!=NULL)
+		::ReleaseDC(NULL,hdcScreen);
+	if (m_hbm==NULL) {
+		Destroy();
+		return false;
+	}
+	m_hbmOld=static_cast<HBITMAP>(::SelectObject(m_hdc,m_hbm));
+	m_Width=Width;
+	m_Height=Height;
+	return true;
+}
+
+void COffscreen::Destroy()
+{
+	if (m_hbmOld!=NULL) {
+		::SelectObject(m_hdc,m_hbmOld);
+		m_hbmOld=NULL;
+	}
+	if (m_hdc!=NULL) {
+		::DeleteDC(m_hdc);
+		m_hdc=NULL;
+	}
+	if (m_hbm!=NULL) {
+		::DeleteObject(m_hbm);
+		m_hbm=NULL;
+		m_Width=0;
+		m_Height=0;
+	}
+}
+
+bool COffscreen::CopyTo(HDC hdc,const RECT *pDstRect)
+{
+	int DstX,DstY,Width,Height;
+
+	if (m_hdc==NULL || hdc==NULL)
+		return false;
+	if (pDstRect!=NULL) {
+		DstX=pDstRect->left;
+		DstY=pDstRect->top;
+		Width=pDstRect->right-pDstRect->left;
+		Height=pDstRect->bottom-pDstRect->top;
+		if (Width<=0 || Height<=0)
+			return false;
+		if (Width>m_Width)
+			Width=m_Width;
+		if (Height>m_Height)
+			Height=m_Height;
+	} else {
+		DstX=DstY=0;
+		Width=m_Width;
+		Height=m_Height;
+	}
+	::BitBlt(hdc,DstX,DstY,Width,Height,m_hdc,0,0,SRCCOPY);
+	return true;
 }
 
 
@@ -736,19 +884,15 @@ void CDeviceContext::DrawText(LPCTSTR pszText,int Length,RECT *pRect,UINT Format
 //#pragma comment(linker, "/DELAYLOAD:gdiplus.dll")
 
 
-
-
 CGdiPlus::CGdiPlus()
 	: m_fInitialized(false)
 {
 }
 
-
 CGdiPlus::~CGdiPlus()
 {
 	Finalize();
 }
-
 
 bool CGdiPlus::Initialize()
 {
@@ -772,7 +916,6 @@ bool CGdiPlus::Initialize()
 	return true;
 }
 
-
 void CGdiPlus::Finalize()
 {
 	if (m_fInitialized) {
@@ -780,7 +923,6 @@ void CGdiPlus::Finalize()
 		m_fInitialized=false;
 	}
 }
-
 
 bool CGdiPlus::DrawImage(CCanvas *pCanvas,CImage *pImage,int x,int y)
 {
@@ -792,7 +934,6 @@ bool CGdiPlus::DrawImage(CCanvas *pCanvas,CImage *pImage,int x,int y)
 	}
 	return false;
 }
-
 
 bool CGdiPlus::DrawImage(CCanvas *pCanvas,int DstX,int DstY,int DstWidth,int DstHeight,
 	CImage *pImage,int SrcX,int SrcY,int SrcWidth,int SrcHeight,float Opacity)
@@ -817,7 +958,6 @@ bool CGdiPlus::DrawImage(CCanvas *pCanvas,int DstX,int DstY,int DstWidth,int Dst
 	return false;
 }
 
-
 bool CGdiPlus::FillRect(CCanvas *pCanvas,CBrush *pBrush,const RECT *pRect)
 {
 	if (pCanvas!=NULL && pCanvas->m_pGraphics!=NULL
@@ -831,13 +971,10 @@ bool CGdiPlus::FillRect(CCanvas *pCanvas,CBrush *pBrush,const RECT *pRect)
 }
 
 
-
-
 CGdiPlus::CImage::CImage()
 	: m_pBitmap(NULL)
 {
 }
-
 
 CGdiPlus::CImage::CImage(const CImage &Src)
 	: m_pBitmap(NULL)
@@ -845,12 +982,10 @@ CGdiPlus::CImage::CImage(const CImage &Src)
 	*this=Src;
 }
 
-
 CGdiPlus::CImage::~CImage()
 {
 	Free();
 }
-
 
 CGdiPlus::CImage &CGdiPlus::CImage::operator=(const CImage &Src)
 {
@@ -862,7 +997,6 @@ CGdiPlus::CImage &CGdiPlus::CImage::operator=(const CImage &Src)
 	return *this;
 }
 
-
 void CGdiPlus::CImage::Free()
 {
 	if (m_pBitmap!=NULL) {
@@ -871,7 +1005,6 @@ void CGdiPlus::CImage::Free()
 	}
 }
 
-
 bool CGdiPlus::CImage::LoadFromFile(LPCWSTR pszFileName)
 {
 	Free();
@@ -879,14 +1012,12 @@ bool CGdiPlus::CImage::LoadFromFile(LPCWSTR pszFileName)
 	return m_pBitmap!=NULL;
 }
 
-
 bool CGdiPlus::CImage::LoadFromResource(HINSTANCE hinst,LPCWSTR pszName)
 {
 	Free();
 	m_pBitmap=Gdiplus::Bitmap::FromResource(hinst,pszName);
 	return m_pBitmap!=NULL;
 }
-
 
 bool CGdiPlus::CImage::LoadFromResource(HINSTANCE hinst,LPCTSTR pszName,LPCTSTR pszType)
 {
@@ -922,7 +1053,6 @@ bool CGdiPlus::CImage::LoadFromResource(HINSTANCE hinst,LPCTSTR pszName,LPCTSTR 
 	return m_pBitmap!=NULL;
 }
 
-
 bool CGdiPlus::CImage::Create(int Width,int Height,int BitsPerPixel)
 {
 	Free();
@@ -944,14 +1074,12 @@ bool CGdiPlus::CImage::Create(int Width,int Height,int BitsPerPixel)
 	return true;
 }
 
-
 bool CGdiPlus::CImage::CreateFromBitmap(HBITMAP hbm,HPALETTE hpal)
 {
 	Free();
 	m_pBitmap=Gdiplus::Bitmap::FromHBITMAP(hbm,hpal);
 	return m_pBitmap!=NULL;
 }
-
 
 bool CGdiPlus::CImage::CreateFromDIB(const BITMAPINFO *pbmi,const void *pBits)
 {
@@ -960,12 +1088,10 @@ bool CGdiPlus::CImage::CreateFromDIB(const BITMAPINFO *pbmi,const void *pBits)
 	return m_pBitmap!=NULL;
 }
 
-
 bool CGdiPlus::CImage::IsCreated() const
 {
 	return m_pBitmap!=NULL;
 }
-
 
 int CGdiPlus::CImage::GetWidth() const
 {
@@ -974,14 +1100,12 @@ int CGdiPlus::CImage::GetWidth() const
 	return m_pBitmap->GetWidth();
 }
 
-
 int CGdiPlus::CImage::GetHeight() const
 {
 	if (m_pBitmap==NULL)
 		return 0;
 	return m_pBitmap->GetHeight();
 }
-
 
 void CGdiPlus::CImage::Clear()
 {
@@ -1002,31 +1126,25 @@ void CGdiPlus::CImage::Clear()
 }
 
 
-
-
 CGdiPlus::CBrush::CBrush()
 	: m_pBrush(NULL)
 {
 }
-
 
 CGdiPlus::CBrush::CBrush(BYTE r,BYTE g,BYTE b,BYTE a)
 {
 	m_pBrush=new Gdiplus::SolidBrush(Gdiplus::Color(a,r,g,b));
 }
 
-
 CGdiPlus::CBrush::CBrush(COLORREF Color)
 {
 	m_pBrush=new Gdiplus::SolidBrush(Gdiplus::Color(255,GetRValue(Color),GetGValue(Color),GetBValue(Color)));
 }
 
-
 CGdiPlus::CBrush::~CBrush()
 {
 	Free();
 }
-
 
 void CGdiPlus::CBrush::Free()
 {
@@ -1035,7 +1153,6 @@ void CGdiPlus::CBrush::Free()
 		m_pBrush=NULL;
 	}
 }
-
 
 bool CGdiPlus::CBrush::CreateSolidBrush(BYTE r,BYTE g,BYTE b,BYTE a)
 {
@@ -1052,13 +1169,10 @@ bool CGdiPlus::CBrush::CreateSolidBrush(BYTE r,BYTE g,BYTE b,BYTE a)
 }
 
 
-
-
 CGdiPlus::CCanvas::CCanvas(HDC hdc)
 {
 	m_pGraphics=new Gdiplus::Graphics(hdc);
 }
-
 
 CGdiPlus::CCanvas::CCanvas(CImage *pImage)
 	: m_pGraphics(NULL)
@@ -1067,17 +1181,147 @@ CGdiPlus::CCanvas::CCanvas(CImage *pImage)
 		m_pGraphics=new Gdiplus::Graphics(pImage->m_pBitmap);
 }
 
-
 CGdiPlus::CCanvas::~CCanvas()
 {
 	if (m_pGraphics!=NULL)
 		delete m_pGraphics;
 }
 
-
 bool CGdiPlus::CCanvas::Clear(BYTE r,BYTE g,BYTE b,BYTE a)
 {
 	if (m_pGraphics==NULL)
 		return false;
 	return m_pGraphics->Clear(Gdiplus::Color(a,r,g,b))==Gdiplus::Ok;
+}
+
+
+
+
+#pragma comment(lib, "uxtheme.lib")
+//#pragma comment(linker, "/DELAYLOAD:uxtheme.dll")
+
+
+CUxTheme::CUxTheme()
+	: m_hLib(NULL)
+	, m_hTheme(NULL)
+{
+}
+
+CUxTheme::~CUxTheme()
+{
+	Close();
+	if (m_hLib!=NULL)
+		::FreeLibrary(m_hLib);
+}
+
+bool CUxTheme::Initialize()
+{
+	if (m_hLib==NULL) {
+		// uxtheme.dll がロードできるか調べる
+		// (uxtheme.dllが無くても起動するように遅延ロードの指定をしている)
+		m_hLib=::LoadLibrary(TEXT("uxtheme.dll"));
+		if (m_hLib==NULL)
+			return false;
+	}
+	return true;
+}
+
+bool CUxTheme::Open(HWND hwnd,LPCWSTR pszClassList)
+{
+	Close();
+	if (!Initialize())
+		return false;
+	m_hTheme=::OpenThemeData(hwnd,pszClassList);
+	if (m_hTheme==NULL)
+		return false;
+	return true;
+}
+
+void CUxTheme::Close()
+{
+	if (m_hTheme!=NULL) {
+		::CloseThemeData(m_hTheme);
+		m_hTheme=NULL;
+	}
+}
+
+bool CUxTheme::IsOpen() const
+{
+	return m_hTheme!=NULL;
+}
+
+bool CUxTheme::IsActive()
+{
+	if (m_hLib==NULL)
+		return false;
+	return ::IsThemeActive()!=FALSE;
+}
+
+bool CUxTheme::DrawBackground(HDC hdc,int PartID,int StateID,const RECT *pRect)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::DrawThemeBackground(m_hTheme,hdc,PartID,StateID,pRect,NULL)==S_OK;
+}
+
+bool CUxTheme::DrawBackground(HDC hdc,int PartID,int StateID,
+							  int BackgroundPartID,int BackgroundStateID,
+							  const RECT *pRect)
+{
+	if (m_hTheme==NULL)
+		return false;
+	if (::IsThemeBackgroundPartiallyTransparent(m_hTheme,PartID,StateID)) {
+		if (::DrawThemeBackground(m_hTheme,hdc,
+								  BackgroundPartID,BackgroundStateID,
+								  pRect,NULL)!=S_OK)
+			return false;
+	}
+	return ::DrawThemeBackground(m_hTheme,hdc,PartID,StateID,pRect,NULL)==S_OK;
+}
+
+bool CUxTheme::DrawText(HDC hdc,int PartID,int StateID,LPCWSTR pszText,
+						DWORD TextFlags,const RECT *pRect)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::DrawThemeText(m_hTheme,hdc,PartID,StateID,pszText,lstrlenW(pszText),
+						   TextFlags,0,pRect)==S_OK;
+}
+
+bool CUxTheme::GetTextExtent(HDC hdc,int PartID,int StateID,LPCWSTR pszText,
+							 DWORD TextFlags,RECT *pExtentRect)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::GetThemeTextExtent(m_hTheme,hdc,PartID,StateID,
+								pszText,lstrlenW(pszText),TextFlags,
+								NULL,pExtentRect)==S_OK;
+}
+
+bool CUxTheme::GetMargins(int PartID,int StateID,int PropID,MARGINS *pMargins)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::GetThemeMargins(m_hTheme,NULL,PartID,StateID,PropID,NULL,pMargins)==S_OK;
+}
+
+bool CUxTheme::GetColor(int PartID,int StateID,int PropID,COLORREF *pColor)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::GetThemeColor(m_hTheme,PartID,StateID,PropID,pColor)==S_OK;
+}
+
+bool CUxTheme::GetFont(int PartID,int StateID,int PropID,LOGFONT *pFont)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::GetThemeFont(m_hTheme,NULL,PartID,StateID,PropID,pFont)==S_OK;
+}
+
+bool CUxTheme::GetInt(int PartID,int StateID,int PropID,int *pValue)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::GetThemeInt(m_hTheme,PartID,StateID,PropID,pValue)==S_OK;
 }

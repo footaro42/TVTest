@@ -68,8 +68,7 @@ void CLogoDataModule::OnComplete(const BYTE *pData, const DWORD ModuleSize)
 		Info.LogoID = ((WORD)(pData[Pos + 0] & 0x01) << 8) | (WORD)pData[Pos + 1];
 		const BYTE NumberOfServices = pData[Pos + 2];
 		Pos += 3;
-		if (NumberOfServices == 0
-				|| Pos + 6 * NumberOfServices + 2 >= ModuleSize)
+		if (Pos + 6 * NumberOfServices + 2 >= ModuleSize)
 			return;
 
 		Info.ServiceList.resize(NumberOfServices);
@@ -90,14 +89,16 @@ void CLogoDataModule::OnComplete(const BYTE *pData, const DWORD ModuleSize)
 		}
 
 		const WORD DataSize = ((WORD)pData[Pos + 0] << 8) | (WORD)pData[Pos + 1];
-		Pos+=2;
-		if (DataSize == 0 || Pos + DataSize > ModuleSize)
+		Pos += 2;
+		if (Pos + DataSize > ModuleSize)
 			return;
 
-		Info.DataSize = DataSize;
-		Info.pData = &pData[Pos];
+		if (NumberOfServices > 0 && DataSize > 0) {
+			Info.DataSize = DataSize;
+			Info.pData = &pData[Pos];
 
-		m_pEventHandler->OnLogoData(&Info);
+			m_pEventHandler->OnLogoData(&Info);
+		}
 
 		Pos += DataSize;
 	}

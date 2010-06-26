@@ -19,7 +19,6 @@ CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
 #endif
 	, m_pfnVideoInfoRecvFunc(NULL)
 	, m_pCallbackParam(NULL)
-	//, m_bDeliverSamples(true)
 	, m_Mpeg2Parser(this)
 	, m_VideoInfo()
 {
@@ -134,11 +133,9 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	m_pOutSample = pOut;
 
 	// シーケンスを取得
-	m_ParserLock.Lock();
 	m_Mpeg2Parser.StoreEs(pData, DataSize);
-	m_ParserLock.Unlock();
 
-	return /*m_bDeliverSamples && */pOut->GetActualDataLength() > 0 ? S_OK : S_FALSE;
+	return pOut->GetActualDataLength() > 0 ? S_OK : S_FALSE;
 }
 
 
@@ -160,11 +157,8 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
 	LONG DataSize = pSample->GetActualDataLength();
 
 	// シーケンスを取得
-	m_ParserLock.Lock();
 	m_Mpeg2Parser.StoreEs(pData, DataSize);
-	m_ParserLock.Unlock();
 
-	//return m_bDeliverSamples ? S_OK : S_FALSE;
 	return S_OK;
 }
 
@@ -276,7 +270,9 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 
 	if (Info != m_VideoInfo) {
 		// 映像のサイズ及びフレームレートが変わった
+		m_VideoInfoLock.Lock();
 		m_VideoInfo = Info;
+		m_VideoInfoLock.Unlock();
 
 		TRACE(TEXT("Mpeg2 sequence %d x %d [%d x %d (%d=%d:%d)]\n"),
 			  OrigWidth, OrigHeight, DisplayWidth, DisplayHeight, pSequence->GetAspectRatioInfo(), AspectX, AspectY);
@@ -290,7 +286,7 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 
 const bool CMpeg2SequenceFilter::GetVideoSize(WORD *pX, WORD *pY) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
+	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
 
 	if (m_VideoInfo.m_DisplayWidth == 0 || m_VideoInfo.m_DisplayHeight == 0)
 		return false;
@@ -302,7 +298,7 @@ const bool CMpeg2SequenceFilter::GetVideoSize(WORD *pX, WORD *pY) const
 
 const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX, BYTE *pY) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
+	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
 
 	if (m_VideoInfo.m_AspectRatioX == 0 || m_VideoInfo.m_AspectRatioY == 0)
 		return false;
@@ -314,7 +310,7 @@ const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX, BYTE *pY) const
 
 const bool CMpeg2SequenceFilter::GetOriginalVideoSize(WORD *pWidth, WORD *pHeight) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
+	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
 
 	if (m_VideoInfo.m_OrigWidth == 0 || m_VideoInfo.m_OrigHeight == 0)
 		return false;
@@ -328,7 +324,10 @@ const bool CMpeg2SequenceFilter::GetOriginalVideoSize(WORD *pWidth, WORD *pHeigh
 
 const bool CMpeg2SequenceFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_ParserLock));
+	if (!pInfo)
+		return false;
+
+	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
 
 	*pInfo = m_VideoInfo;
 	return true;
@@ -337,16 +336,7 @@ const bool CMpeg2SequenceFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 
 void CMpeg2SequenceFilter::ResetVideoInfo()
 {
-	CAutoLock Lock(&m_ParserLock);
+	CAutoLock Lock(&m_VideoInfoLock);
 
 	m_VideoInfo.Reset();
 }
-
-
-/*
-const bool CMpeg2SequenceFilter::SetDeliverSamples(bool bDeliver)
-{
-	m_bDeliverSamples = bDeliver;
-	return true;
-}
-*/

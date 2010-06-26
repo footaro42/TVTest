@@ -188,12 +188,11 @@ bool inline CTsPacketParser::ParsePacket(void)
 #endif
 
 			// 次のデコーダにデータを渡す
-			WORD PID;
-			if (m_bOutputNullPacket || ((PID=m_TsPacket.GetPID()) != 0x1FFFU)) {
+			if (m_bOutputNullPacket || m_TsPacket.GetPID() != 0x1FFFU) {
 				// 出力カウントインクリメント
-				m_OutputPacketCount++;
-
 				OutputMedia(&m_TsPacket);
+
+				m_OutputPacketCount++;
 			}
 		}
 		bOK=true;
