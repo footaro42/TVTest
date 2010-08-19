@@ -12,24 +12,9 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-CDriverChannelInfo::CDriverChannelInfo(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
-	: CChannelInfo(*pChannelInfo)
-	, m_pszDriverName(DuplicateString(pszDriverName))
-{
-}
-
-
-CDriverChannelInfo::~CDriverChannelInfo()
-{
-	delete [] m_pszDriverName;
-}
-
-
-
-
 CChannelHistory::CChannelHistory()
 	: m_MaxChannelHistory(20)
-	, m_MaxChannelHistoryMenu(20)
+	, m_CurrentChannel(-1)
 {
 }
 
@@ -40,13 +25,91 @@ CChannelHistory::~CChannelHistory()
 }
 
 
-int CChannelHistory::NumChannels() const
+void CChannelHistory::Clear()
+{
+	for (size_t i=0;i<m_ChannelList.size();i++)
+		delete m_ChannelList[i];
+	m_ChannelList.clear();
+	m_CurrentChannel=-1;
+}
+
+
+bool CChannelHistory::SetCurrentChannel(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
+{
+	if (pszDriverName==NULL || pChannelInfo==NULL)
+		return false;
+
+	if (m_CurrentChannel>=0) {
+		const CChannel *pCurChannel=m_ChannelList[m_CurrentChannel];
+
+		if (::lstrcmpi(pCurChannel->GetDriverFileName(),pszDriverName)==0
+				&& pCurChannel->GetChannelIndex()==pChannelInfo->GetChannelIndex()
+				&& pCurChannel->GetNetworkID()==pChannelInfo->GetNetworkID()
+				&& pCurChannel->GetTransportStreamID()==pChannelInfo->GetTransportStreamID()
+				&& pCurChannel->GetServiceID()==pChannelInfo->GetServiceID())
+			return true;
+	}
+
+	while ((int)m_ChannelList.size()-1>m_CurrentChannel) {
+		delete m_ChannelList[m_ChannelList.size()-1];
+		m_ChannelList.pop_back();
+	}
+	m_ChannelList.push_back(new CChannel(pszDriverName,pChannelInfo));
+	m_CurrentChannel++;
+	if ((int)m_ChannelList.size()>m_MaxChannelHistory) {
+		delete m_ChannelList[0];
+		m_ChannelList.pop_front();
+		m_CurrentChannel--;
+	}
+	return true;
+}
+
+
+const CChannelHistory::CChannel *CChannelHistory::Forward()
+{
+	if (m_CurrentChannel+1>=(int)m_ChannelList.size())
+		return NULL;
+	return m_ChannelList[++m_CurrentChannel];
+}
+
+
+const CChannelHistory::CChannel *CChannelHistory::Backward()
+{
+	if (m_CurrentChannel<1)
+		return NULL;
+	return m_ChannelList[--m_CurrentChannel];
+}
+
+
+CChannelHistory::CChannel::CChannel(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
+	: CChannelInfo(*pChannelInfo)
+	, m_DriverName(pszDriverName)
+{
+}
+
+
+
+
+CRecentChannelList::CRecentChannelList()
+	: m_MaxChannelHistory(20)
+	, m_MaxChannelHistoryMenu(20)
+{
+}
+
+
+CRecentChannelList::~CRecentChannelList()
+{
+	Clear();
+}
+
+
+int CRecentChannelList::NumChannels() const
 {
 	return (int)m_ChannelList.size();
 }
 
 
-void CChannelHistory::Clear()
+void CRecentChannelList::Clear()
 {
 	for (size_t i=0;i<m_ChannelList.size();i++)
 		delete m_ChannelList[i];
@@ -54,7 +117,7 @@ void CChannelHistory::Clear()
 }
 
 
-const CDriverChannelInfo *CChannelHistory::GetChannelInfo(int Index) const
+const CRecentChannelList::CChannel *CRecentChannelList::GetChannelInfo(int Index) const
 {
 	if (Index<0 || Index>=NumChannels())
 		return NULL;
@@ -62,12 +125,12 @@ const CDriverChannelInfo *CChannelHistory::GetChannelInfo(int Index) const
 }
 
 
-bool CChannelHistory::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
+bool CRecentChannelList::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
 {
 	if (pszDriverName==NULL || pChannelInfo==NULL)
 		return false;
 
-	std::deque<CDriverChannelInfo*>::iterator itr;
+	std::deque<CChannel*>::iterator itr;
 	for (itr=m_ChannelList.begin();itr!=m_ChannelList.end();itr++) {
 		if (::lstrcmpi((*itr)->GetDriverFileName(),pszDriverName)==0
 				&& (*itr)->GetSpace()==pChannelInfo->GetSpace()
@@ -80,7 +143,7 @@ bool CChannelHistory::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo
 			break;
 		}
 	}
-	m_ChannelList.push_front(new CDriverChannelInfo(pszDriverName,pChannelInfo));
+	m_ChannelList.push_front(new CChannel(pszDriverName,pChannelInfo));
 	if ((int)m_ChannelList.size()>m_MaxChannelHistory) {
 		delete m_ChannelList[m_ChannelList.size()-1];
 		m_ChannelList.pop_back();
@@ -89,11 +152,11 @@ bool CChannelHistory::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo
 }
 
 
-bool CChannelHistory::SetMenu(HMENU hmenu,bool fClear) const
+bool CRecentChannelList::SetMenu(HMENU hmenu,bool fClear) const
 {
 	ClearMenu(hmenu);
 	for (int i=0;i<m_MaxChannelHistoryMenu;i++) {
-		const CDriverChannelInfo *pChannelInfo=GetChannelInfo(i);
+		const CChannel *pChannelInfo=GetChannelInfo(i);
 		TCHAR szText[64];
 		int Length;
 
@@ -112,7 +175,7 @@ bool CChannelHistory::SetMenu(HMENU hmenu,bool fClear) const
 }
 
 
-bool CChannelHistory::Load(LPCTSTR pszFileName)
+bool CRecentChannelList::Load(LPCTSTR pszFileName)
 {
 	CSettings Settings;
 
@@ -146,7 +209,7 @@ bool CChannelHistory::Load(LPCTSTR pszFileName)
 					break;
 				CChannelInfo ChannelInfo(Space,0,Channel,0,Service,szChannelName);
 				ChannelInfo.SetServiceID(ServiceID);
-				m_ChannelList.push_front(new CDriverChannelInfo(szDriverName,&ChannelInfo));
+				m_ChannelList.push_front(new CChannel(szDriverName,&ChannelInfo));
 			}
 		}
 		Settings.Close();
@@ -155,14 +218,14 @@ bool CChannelHistory::Load(LPCTSTR pszFileName)
 }
 
 
-bool CChannelHistory::Save(LPCTSTR pszFileName) const
+bool CRecentChannelList::Save(LPCTSTR pszFileName) const
 {
 	CSettings Settings;
 
 	if (Settings.Open(pszFileName,TEXT("RecentChannel"),CSettings::OPEN_WRITE)) {
 		Settings.Write(TEXT("Count"),NumChannels());
 		for (size_t i=0;i<m_ChannelList.size();i++) {
-			const CDriverChannelInfo *pChannelInfo=m_ChannelList[i];
+			const CChannel *pChannelInfo=m_ChannelList[i];
 			TCHAR szName[64];
 
 			::wsprintf(szName,TEXT("History%d_Driver"),i);
@@ -181,4 +244,11 @@ bool CChannelHistory::Save(LPCTSTR pszFileName) const
 		Settings.Close();
 	}
 	return true;
+}
+
+
+CRecentChannelList::CChannel::CChannel(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo)
+	: CChannelInfo(*pChannelInfo)
+	, m_DriverName(pszDriverName)
+{
 }

@@ -4,6 +4,7 @@
 
 #include "BasicWindow.h"
 #include "Theme.h"
+#include "DrawUtil.h"
 
 
 class CNotificationBar : public CBasicWindow
@@ -15,20 +16,6 @@ public:
 		MESSAGE_ERROR
 	};
 
-private:
-	Theme::GradientInfo m_BackGradient;
-	COLORREF m_TextColor[3];
-	HFONT m_hfont;
-	int m_BarHeight;
-	bool m_fAnimate;
-	LPTSTR m_pszText;
-	MessageType m_MessageType;
-
-	static HINSTANCE m_hinst;
-	static CNotificationBar *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-public:
 	CNotificationBar();
 	~CNotificationBar();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
@@ -39,7 +26,22 @@ public:
 				   COLORREF crTextColor,COLORREF crWarningTextColor,COLORREF crErrorTextColor);
 	bool SetFont(const LOGFONT *pFont);
 	void SetAnimate(bool fAnimate) { m_fAnimate=fAnimate; }
+	int GetBarHeight() const { return m_BarHeight; }
+
 	static bool Initialize(HINSTANCE hinst);
+
+private:
+	Theme::GradientInfo m_BackGradient;
+	COLORREF m_TextColor[3];
+	DrawUtil::CFont m_Font;
+	int m_BarHeight;
+	bool m_fAnimate;
+	CDynamicString m_Text;
+	MessageType m_MessageType;
+
+	static HINSTANCE m_hinst;
+	static CNotificationBar *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

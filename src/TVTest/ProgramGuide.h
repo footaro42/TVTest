@@ -123,7 +123,8 @@ public:
 	enum { MIN_ITEM_WIDTH=100, MAX_ITEM_WIDTH=500 };
 	enum { TIME_BAR_BACK_COLORS=8 };
 
-	class ABSTRACT_DECL CFrame {
+	class ABSTRACT_CLASS(CFrame)
+	{
 	protected:
 		CProgramGuide *m_pProgramGuide;
 	public:
@@ -137,7 +138,7 @@ public:
 		friend class CProgramGuide;
 	};
 
-	class ABSTRACT_DECL CEventHandler
+	class ABSTRACT_CLASS(CEventHandler)
 	{
 	protected:
 		class CProgramGuide *m_pProgramGuide;
@@ -212,6 +213,7 @@ private:
 	ServiceInfo m_CurrentChannel;
 	TCHAR m_szDriverFileName[MAX_PATH];
 	const CDriverManager *m_pDriverManager;
+	int m_BeginHour;
 	SYSTEMTIME m_stFirstTime;
 	SYSTEMTIME m_stLastTime;
 	SYSTEMTIME m_stCurTime;
@@ -280,9 +282,11 @@ public:
 	int GetCurrentTuningSpace() const { return m_CurrentTuningSpace; }
 	bool GetTuningSpaceName(int Space,LPTSTR pszName,int MaxName) const;
 	bool EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const;
+	bool SetBeginHour(int Hour);
 	bool SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime);
 	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
 	bool GetCurrentTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
+	bool GetDayTimeRange(int Day,SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
 	bool SetViewDay(int Day);
 	int GetViewDay() const { return m_Day; }
 	int GetLinesPerHour() const { return m_LinesPerHour; }
@@ -333,9 +337,7 @@ public:
 	~CProgramGuideFrame();
 	CProgramGuide *GetProgramGuide() { return m_pProgramGuide; }
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
-	void SetStatusBorderType(Theme::BorderType Type);
+	void SetStatusTheme(const CStatusView::ThemeInfo *pTheme);
 // CProgramGuide::CFrame
 	bool SetAlwaysOnTop(bool fTop);
 	bool GetAlwaysOnTop() const { return m_fAlwaysOnTop; }
@@ -363,9 +365,7 @@ public:
 	~CProgramGuideDisplay();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void SetEventHandler(CEventHandler *pHandler);
-	void SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
-	void SetStatusBorderType(Theme::BorderType Type);
+	void SetStatusTheme(const CStatusView::ThemeInfo *pTheme);
 
 private:
 	CProgramGuide *m_pProgramGuide;

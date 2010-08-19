@@ -21,7 +21,6 @@ protected:
 	int m_Width;
 	int m_MinWidth;
 	bool m_fVisible;
-	bool Update();
 	bool GetMenuPos(POINT *pPos,UINT *pFlags);
 	enum {
 		DRAWTEXT_HCENTER = 0x00000001UL
@@ -43,6 +42,7 @@ public:
 	int GetMinWidth() const { return m_MinWidth; }
 	void SetVisible(bool fVisible);
 	bool GetVisible() const { return m_fVisible; }
+	bool Update();
 	virtual LPCTSTR GetName() const=0;
 	virtual void Draw(HDC hdc,const RECT *pRect)=0;
 	virtual void DrawPreview(HDC hdc,const RECT *pRect) { Draw(hdc,pRect); }
@@ -69,15 +69,24 @@ public:
 		friend CStatusView;
 	};
 
+	struct ThemeInfo {
+		Theme::Style ItemStyle;
+		Theme::Style HighlightItemStyle;
+		Theme::BorderInfo Border;
+	};
+
 private:
 	static HINSTANCE m_hinst;
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
+	/*
 	Theme::GradientInfo m_BackGradient;
 	COLORREF m_crTextColor;
 	Theme::GradientInfo m_HighlightBackGradient;
 	COLORREF m_crHighlightTextColor;
-	Theme::BorderType m_BorderType;
+	Theme::BorderInfo m_BorderInfo;
+	*/
+	ThemeInfo m_Theme;
 	CPointerVector<CStatusItem> m_ItemList;
 	int m_NumItems;
 	bool m_fSingleMode;
@@ -119,9 +128,12 @@ public:
 	int GetFontHeight() const { return m_FontHeight; }
 	int GetIntegralWidth() const;
 	void SetSingleText(LPCTSTR pszText);
+	/*
 	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
 				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
-	void SetBorderType(Theme::BorderType Type);
+	*/
+	bool SetTheme(const ThemeInfo *pTheme);
+	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
 	bool GetFont(LOGFONT *pFont) const;
 	int GetCurItem() const;

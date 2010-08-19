@@ -16,6 +16,7 @@ static char THIS_FILE[]=__FILE__;
 CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
 	: m_pProgramGuide(pProgramGuide)
 	, m_fOnScreen(false)
+	, m_BeginHour(-1)
 	, m_ViewHours(26)
 	, m_ItemWidth(pProgramGuide->GetItemWidth())
 	, m_LinesPerHour(pProgramGuide->GetLinesPerHour())
@@ -38,6 +39,10 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 		int Value;
 
 		Settings.Read(TEXT("OnScreen"),&m_fOnScreen);
+		if (Settings.Read(TEXT("BeginHour"),&Value)
+				&& Value>=-1 && Value<=23)
+			m_BeginHour=Value;
+		m_pProgramGuide->SetBeginHour(m_BeginHour);
 		if (Settings.Read(TEXT("ViewHours"),&Value)
 				&& Value>=MIN_VIEW_HOURS && Value<=MAX_VIEW_HOURS)
 			m_ViewHours=Value;
@@ -162,6 +167,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 
 	if (Settings.Open(pszFileName,TEXT("ProgramGuide"),CSettings::OPEN_WRITE)) {
 		Settings.Write(TEXT("OnScreen"),m_fOnScreen);
+		Settings.Write(TEXT("BeginHour"),m_BeginHour);
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
 		Settings.Write(TEXT("ItemWidth"),m_ItemWidth);
 		Settings.Write(TEXT("LinesPerHour"),m_LinesPerHour);
@@ -266,6 +272,13 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			CProgramGuideOptions *pThis=static_cast<CProgramGuideOptions*>(OnInitDialog(hDlg,lParam));
 
 			DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN,pThis->m_fOnScreen);
+			DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,TEXT("åªç›éû"));
+			for (int i=0;i<=23;i++) {
+				TCHAR szText[8];
+				::wsprintf(szText,TEXT("%déû"),i);
+				DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,szText);
+			}
+			DlgComboBox_SetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,pThis->m_BeginHour+1);
 			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,pThis->m_ViewHours,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS_UD,
 								 UDM_SETRANGE32,MIN_VIEW_HOURS,MAX_VIEW_HOURS);
@@ -522,26 +535,34 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			{
 				CProgramGuideOptions *pThis=GetThis(hDlg);
 				int Value;
+				bool fUpdate=false;
 
 				pThis->m_fOnScreen=DlgCheckBox_IsChecked(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN);
+				Value=(int)DlgComboBox_GetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR)-1;
+				if (pThis->m_BeginHour!=Value) {
+					pThis->m_BeginHour=Value;
+					pThis->m_pProgramGuide->SetBeginHour(Value);
+					fUpdate=true;
+				}
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,NULL,TRUE);
-				Value=LimitRange(Value,(int)MIN_VIEW_HOURS,(int)MAX_VIEW_HOURS);
+				Value=CLAMP(Value,(int)MIN_VIEW_HOURS,(int)MAX_VIEW_HOURS);
 				if (pThis->m_ViewHours!=Value) {
 					SYSTEMTIME stFirst,stLast;
-					FILETIME ft;
 
 					pThis->m_ViewHours=Value;
 					pThis->m_pProgramGuide->GetTimeRange(&stFirst,NULL);
-					::SystemTimeToFileTime(&stFirst,&ft);
-					ft+=(LONGLONG)pThis->m_ViewHours*(FILETIME_SECOND*60*60);
+					stLast=stFirst;
+					OffsetSystemTime(&stLast,(LONGLONG)pThis->m_ViewHours*(60*60*1000));
 					pThis->m_pProgramGuide->SetTimeRange(&stFirst,&stLast);
-					pThis->m_pProgramGuide->UpdateProgramGuide();
+					fUpdate=true;
 				}
+				if (fUpdate)
+					pThis->m_pProgramGuide->UpdateProgramGuide();
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_CHANNELWIDTH,NULL,TRUE);
-				pThis->m_ItemWidth=LimitRange(Value,
+				pThis->m_ItemWidth=CLAMP(Value,
 					(int)CProgramGuide::MIN_ITEM_WIDTH,(int)CProgramGuide::MAX_ITEM_WIDTH);
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,NULL,TRUE);
-				pThis->m_LinesPerHour=LimitRange(Value,
+				pThis->m_LinesPerHour=CLAMP(Value,
 					(int)CProgramGuide::MIN_LINES_PER_HOUR,(int)CProgramGuide::MAX_LINES_PER_HOUR);
 				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth);
 

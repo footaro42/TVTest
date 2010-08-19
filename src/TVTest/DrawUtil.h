@@ -6,16 +6,23 @@ namespace DrawUtil {
 
 // ìhÇËÇ¬Ç‘ÇµÇÃï˚å¸
 enum FillDirection {
-	DIRECTION_HORZ,	// êÖïΩï˚å¸
-	DIRECTION_VERT	// êÇíºï˚å¸
+	DIRECTION_HORZ,			// êÖïΩï˚å¸
+	DIRECTION_VERT,			// êÇíºï˚å¸
+	DIRECTION_HORZMIRROR,	// ç∂âEëŒèÃ
+	DIRECTION_VERTMIRROR	// è„â∫ëŒèÃ
 };
 
 bool Fill(HDC hdc,const RECT *pRect,COLORREF Color);
 bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
 				  FillDirection Direction=DIRECTION_HORZ);
-bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+bool FillGlossyGradient(HDC hdc,const RECT *pRect,
+						COLORREF Color1,COLORREF Color2,
 						FillDirection Direction=DIRECTION_HORZ,
 						int GlossRatio1=96,int GlossRatio2=48);
+bool FillInterlacedGradient(HDC hdc,const RECT *pRect,
+							COLORREF Color1,COLORREF Color2,
+							FillDirection Direction=DIRECTION_HORZ,
+							COLORREF LineColor=RGB(0,0,0),int LineOpacity=48);
 bool GlossOverlay(HDC hdc,const RECT *pRect,
 				  int Highlight1=192,int Highlight2=32,
 				  int Shadow1=32,int Shadow2=0);
@@ -24,6 +31,8 @@ bool FillBorder(HDC hdc,const RECT *pBorderRect,const RECT *pEmptyRect,const REC
 
 bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
 				HBITMAP hbm,const RECT *pSrcRect=NULL,BYTE Opacity=255);
+bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
+					  HDC hdcSrc,int SrcX,int SrcY,int Width,int Height,COLORREF Color);
 
 int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width);
 bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight);
@@ -44,7 +53,7 @@ class CFont {
 public:
 	CFont();
 	CFont(const CFont &Font);
-	CFont(const LOGFONT *pFont);
+	CFont(const LOGFONT &Font);
 	CFont(FontType Type);
 	~CFont();
 	CFont &operator=(const CFont &Font);
@@ -59,6 +68,9 @@ public:
 	int GetHeight(bool fCell=true) const;
 	int GetHeight(HDC hdc,bool fCell=true) const;
 };
+
+bool DrawText(HDC hdc,LPCTSTR pszText,const RECT &Rect,UINT Format,
+			  const CFont *pFont=NULL,COLORREF Color=CLR_INVALID);
 
 class CBrush {
 	HBRUSH m_hbr;

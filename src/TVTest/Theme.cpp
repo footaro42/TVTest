@@ -1,11 +1,20 @@
 #include "stdafx.h"
 #include "Theme.h"
 #include "DrawUtil.h"
+#include "Util.h"
+
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
 
 
+namespace Theme
+{
 
 
-bool Theme::FillGradient(HDC hdc,const RECT *pRect,const GradientInfo *pInfo)
+bool FillGradient(HDC hdc,const RECT *pRect,const GradientInfo *pInfo)
 {
 	if (hdc==NULL || pRect==NULL || pInfo==NULL)
 		return false;
@@ -21,6 +30,10 @@ bool Theme::FillGradient(HDC hdc,const RECT *pRect,const GradientInfo *pInfo)
 		fResult=DrawUtil::FillGlossyGradient(hdc,pRect,pInfo->Color1,pInfo->Color2,
 											 (DrawUtil::FillDirection)pInfo->Direction);
 		break;
+	case GRADIENT_INTERLACED:
+		fResult=DrawUtil::FillInterlacedGradient(hdc,pRect,pInfo->Color1,pInfo->Color2,
+												 (DrawUtil::FillDirection)pInfo->Direction);
+		break;
 	default:
 		fResult=false;
 	}
@@ -28,7 +41,7 @@ bool Theme::FillGradient(HDC hdc,const RECT *pRect,const GradientInfo *pInfo)
 }
 
 
-bool Theme::DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
+bool DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
 {
 	if (hdc==NULL || pRect==NULL)
 		return false;
@@ -36,7 +49,7 @@ bool Theme::DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
 	RECT rc=*pRect;
 
 	switch (Type) {
-	case BORDER_FLAT:
+	case BORDER_SOLID:
 		{
 			HPEN hpen,hpenOld;
 			HBRUSH hbrOld;
@@ -45,8 +58,9 @@ bool Theme::DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
 			hpenOld=static_cast<HPEN>(::SelectObject(hdc,hpen));
 			hbrOld=static_cast<HBRUSH>(::SelectObject(hdc,::GetStockObject(NULL_BRUSH)));
 			::Rectangle(hdc,rc.left,rc.top,rc.right,rc.bottom);
-			::SelectObject(hdc,hpenOld);
 			::SelectObject(hdc,hbrOld);
+			::SelectObject(hdc,hpenOld);
+			::DeleteObject(hpen);
 		}
 		break;
 	case BORDER_SUNKEN:
@@ -60,3 +74,72 @@ bool Theme::DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
 	}
 	return true;
 }
+
+
+bool DrawBorder(HDC hdc,const RECT *pRect,const BorderInfo *pInfo)
+{
+	if (hdc==NULL || pRect==NULL || pInfo==NULL)
+		return false;
+
+	if (pInfo->Type==BORDER_NONE)
+		return true;
+
+	RECT rc=*pRect;
+	HPEN hpenOld=static_cast<HPEN>(::SelectObject(hdc,::GetStockObject(DC_PEN)));
+	COLORREF OldDCPenColor=::GetDCPenColor(hdc);
+	HBRUSH hbrOld=static_cast<HBRUSH>(::SelectObject(hdc,::GetStockObject(NULL_BRUSH)));
+
+	switch (pInfo->Type) {
+	case BORDER_SOLID:
+		::SetDCPenColor(hdc,pInfo->Color);
+		::Rectangle(hdc,rc.left,rc.top,rc.right,rc.bottom);
+		break;
+	case BORDER_SUNKEN:
+		::SetDCPenColor(hdc,MixColor(pInfo->Color,RGB(255,255,255)));
+		::MoveToEx(hdc,rc.left+1,rc.bottom-1,NULL);
+		::LineTo(hdc,rc.right-1,rc.bottom-1);
+		::LineTo(hdc,rc.right-1,rc.top);
+		::SetDCPenColor(hdc,MixColor(pInfo->Color,0));
+		::LineTo(hdc,rc.left,rc.top);
+		::LineTo(hdc,rc.left,rc.bottom);
+		break;
+	case BORDER_RAISED:
+		::SetDCPenColor(hdc,MixColor(pInfo->Color,RGB(255,255,255)));
+		::MoveToEx(hdc,rc.right-2,rc.top,NULL);
+		::LineTo(hdc,rc.left,rc.top);
+		::LineTo(hdc,rc.left,rc.bottom-1);
+		::SetDCPenColor(hdc,MixColor(pInfo->Color,0));
+		::LineTo(hdc,rc.right-1,rc.bottom-1);
+		::LineTo(hdc,rc.right-1,rc.top-1);
+		break;
+	default:
+		::SelectObject(hdc,hbrOld);
+		::SelectObject(hdc,hpenOld);
+		return false;
+	}
+
+	::SelectObject(hdc,hbrOld);
+	::SetDCPenColor(hdc,OldDCPenColor);
+	::SelectObject(hdc,hpenOld);
+
+	return true;
+}
+
+
+bool DrawStyleBackground(HDC hdc,const RECT *pRect,const Style *pStyle)
+{
+	if (hdc==NULL || pRect==NULL || pStyle==NULL)
+		return false;
+
+	RECT rc=*pRect;
+
+	if (pStyle->Border.Type!=BORDER_NONE) {
+		DrawBorder(hdc,&rc,&pStyle->Border);
+		::InflateRect(&rc,-1,-1);
+	}
+	FillGradient(hdc,&rc,&pStyle->Gradient);
+	return true;
+}
+
+
+}	// namespace Theme

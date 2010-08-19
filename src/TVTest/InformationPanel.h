@@ -10,7 +10,7 @@
 class CInformationPanel : public CPanelForm::CPage
 {
 public:
-	class ABSTRACT_DECL CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	public:
 		virtual ~CEventHandler() {}
 		virtual bool OnProgramInfoUpdate(bool fNext) { return false; }
@@ -21,12 +21,12 @@ public:
 		ITEM_DECODER,
 		ITEM_VIDEORENDERER,
 		ITEM_AUDIODEVICE,
-		ITEM_BITRATE,
+		ITEM_SIGNALLEVEL,
+		ITEM_MEDIABITRATE,
 		ITEM_ERROR,
 		ITEM_RECORD,
 		ITEM_PROGRAMINFO,
 		NUM_ITEMS,
-		ITEM_SIGNALLEVEL=ITEM_BITRATE,
 	};
 
 private:
@@ -63,6 +63,8 @@ private:
 	bool m_fSignalLevel;
 	float m_SignalLevel;
 	DWORD m_BitRate;
+	DWORD m_VideoBitRate;
+	DWORD m_AudioBitRate;
 	bool m_fRecording;
 	ULONGLONG m_RecordWroteSize;
 	unsigned int m_RecordTime;
@@ -103,6 +105,7 @@ public:
 	void ShowSignalLevel(bool fShow);
 	bool IsSignalLevelEnabled() const { return m_fSignalLevel; }
 	void SetBitRate(DWORD BitRate);
+	void SetMediaBitRate(DWORD VideoBitRate,DWORD AudioBitRate);
 	void UpdateErrorCount();
 	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
 						 ULONGLONG WroteSize=0,unsigned int RecordTime=0,

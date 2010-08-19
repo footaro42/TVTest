@@ -136,10 +136,10 @@ bool CProgramItemInfo::IsChanged(const CProgramItemInfo *pItem) const
 
 
 CProgramItemList::CProgramItemList()
+	: m_NumItems(0)
+	, m_ppItemList(NULL)
+	, m_ItemListLength(0)
 {
-	m_NumItems=0;
-	m_ppItemList=NULL;
-	m_ItemListLength=0;
 }
 
 
@@ -280,21 +280,26 @@ CProgramListPanel::CProgramListPanel()
 	, m_pProgramList(NULL)
 	, m_FontHeight(0)
 	, m_LineMargin(1)
-	, m_EventBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
-						  RGB(0,0,0),RGB(0,0,0))
-	, m_EventTextColor(RGB(255,255,255))
-	, m_CurEventBackGradient(m_EventBackGradient)
-	, m_CurEventTextColor(RGB(255,255,255))
-	, m_TitleBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
-						  RGB(128,128,128),RGB(128,128,128))
-	, m_TitleTextColor(RGB(255,255,255))
-	, m_CurTitleBackGradient(m_TitleBackGradient)
-	, m_CurTitleTextColor(RGB(255,255,255))
-	, m_MarginColor(RGB(0,0,0))
+	, m_TitleMargin(2)
 	, m_CurEventID(-1)
 	, m_ScrollPos(0)
 	//, m_hwndToolTip(NULL)
 {
+	m_Theme.EventNameStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.EventNameStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.EventNameStyle.Gradient.Color1=RGB(0,0,0);
+	m_Theme.EventNameStyle.Gradient.Color2=RGB(0,0,0);
+	m_Theme.EventNameStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.EventNameStyle.TextColor=RGB(255,255,255);
+	m_Theme.CurEventNameStyle=m_Theme.EventNameStyle;
+	m_Theme.EventTextStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.EventTextStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.EventTextStyle.Gradient.Color1=RGB(128,128,128);
+	m_Theme.EventTextStyle.Gradient.Color2=RGB(128,128,128);
+	m_Theme.EventTextStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.EventTextStyle.TextColor=RGB(255,255,255);
+	m_Theme.CurEventTextStyle=m_Theme.EventTextStyle;
+	m_Theme.MarginColor=RGB(0,0,0);
 }
 
 
@@ -317,7 +322,7 @@ bool CProgramListPanel::UpdateProgramList(WORD TransportStreamID,WORD ServiceID)
 	m_pProgramList->UpdateService(TransportStreamID,ServiceID);
 	if (m_hwnd!=NULL) {
 		if (UpdateListInfo(TransportStreamID,ServiceID)) {
-			CalcDimentions();
+			CalcDimensions();
 			SetScrollBar();
 			//SetToolTip();
 			Invalidate();
@@ -332,7 +337,7 @@ bool CProgramListPanel::OnProgramListChanged()
 	/*
 	if (m_hwnd!=NULL) {
 		if (UpdateListInfo(ServiceID)) {
-			CalcDimentions();
+			CalcDimensions();
 			SetScrollBar();
 			Invalidate();
 		}
@@ -430,7 +435,7 @@ void CProgramListPanel::SetCurrentEventID(int EventID)
 }
 
 
-void CProgramListPanel::CalcDimentions()
+void CProgramListPanel::CalcDimensions()
 {
 	HDC hdc;
 	RECT rc;
@@ -461,7 +466,10 @@ void CProgramListPanel::SetScrollPos(int Pos)
 	if (Pos<0) {
 		Pos=0;
 	} else {
-		int Max=max(m_TotalLines*(m_FontHeight+m_LineMargin)-rc.bottom,0);
+		int Max=m_TotalLines*(m_FontHeight+m_LineMargin)+
+				m_ItemList.NumItems()*(m_TitleMargin*2-m_LineMargin)-rc.bottom;
+		if (Max<0)
+			Max=0;
 		if (Pos>Max)
 			Pos=Max;
 	}
@@ -493,7 +501,8 @@ void CProgramListPanel::SetScrollBar()
 	si.cbSize=sizeof(SCROLLINFO);
 	si.fMask=SIF_PAGE | SIF_RANGE | SIF_POS | SIF_DISABLENOSCROLL;
 	si.nMin=0;
-	si.nMax=m_TotalLines<1?0:m_TotalLines*(m_FontHeight+m_LineMargin);
+	si.nMax=m_TotalLines<1?0:m_TotalLines*(m_FontHeight+m_LineMargin)+
+						m_ItemList.NumItems()*(m_TitleMargin*2-m_LineMargin);
 	GetClientRect(&rc);
 	si.nPage=rc.bottom;
 	si.nPos=m_ScrollPos;
@@ -501,6 +510,7 @@ void CProgramListPanel::SetScrollBar()
 }
 
 
+/*
 void CProgramListPanel:: SetColors(
 	const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
 	const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
@@ -520,6 +530,27 @@ void CProgramListPanel:: SetColors(
 	if (m_hwnd!=NULL)
 		Invalidate();
 }
+*/
+
+
+bool CProgramListPanel::SetTheme(const ThemeInfo *pTheme)
+{
+	if (pTheme==NULL)
+		return false;
+	m_Theme=*pTheme;
+	if (m_hwnd!=NULL)
+		Invalidate();
+	return true;
+}
+
+
+bool CProgramListPanel::GetTheme(ThemeInfo *pTheme) const
+{
+	if (pTheme==NULL)
+		return false;
+	*pTheme=m_Theme;
+	return true;
+}
 
 
 bool CProgramListPanel::SetFont(const LOGFONT *pFont)
@@ -532,7 +563,7 @@ bool CProgramListPanel::SetFont(const LOGFONT *pFont)
 	m_ScrollPos=0;
 	if (m_hwnd!=NULL) {
 		CalcFontHeight();
-		CalcDimentions();
+		CalcDimensions();
 		SetScrollBar();
 		//SetToolTip();
 		Invalidate();
@@ -573,7 +604,8 @@ int CProgramListPanel::HitTest(int x,int y) const
 	for (int i=0;i<m_ItemList.NumItems();i++) {
 		const CProgramItemInfo *pItem=m_ItemList.GetItem(i);
 
-		rc.bottom=rc.top+(pItem->GetTitleLines()+pItem->GetTextLines())*(m_FontHeight+m_LineMargin);
+		rc.bottom=rc.top+(pItem->GetTitleLines()+pItem->GetTextLines())*(m_FontHeight+m_LineMargin)+
+			(m_TitleMargin*2-m_LineMargin);
 		if (::PtInRect(&rc,pt))
 			return i;
 		rc.top=rc.bottom;
@@ -614,7 +646,8 @@ void CProgramListPanel::SetToolTip()
 		for (int i=0;i<NumItems;i++) {
 			const CProgramItemInfo *pItem=m_ItemList.GetItem(i);
 
-			ti.rect.bottom=ti.rect.top+(pItem->GetTitleLines()+pItem->GetTextLines())*(m_FontHeight+m_LineMargin);
+			ti.rect.bottom=ti.rect.top+(pItem->GetTitleLines()+pItem->GetTextLines())*(m_FontHeight+m_LineMargin)+
+				(m_TitleMargin*2-m_LineMargin);
 			::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,(LPARAM)&ti);
 			ti.uId++;
 			ti.rect.top=ti.rect.bottom;
@@ -671,7 +704,7 @@ LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 		{
 			CProgramListPanel *pThis=GetThis(hwnd);
 
-			pThis->CalcDimentions();
+			pThis->CalcDimensions();
 			pThis->SetScrollBar();
 			//pThis->SetToolTip();
 		}
@@ -696,7 +729,10 @@ LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 			Pos=pThis->m_ScrollPos;
 			pThis->GetClientRect(&rc);
 			Page=rc.bottom;
-			Max=max(pThis->m_TotalLines*LineHeight-Page,0);
+			Max=pThis->m_TotalLines*LineHeight+
+				pThis->m_ItemList.NumItems()*(pThis->m_TitleMargin*2-pThis->m_LineMargin)-Page;
+			if (Max<0)
+				Max=0;
 			switch (LOWORD(wParam)) {
 			case SB_LINEUP:		Pos-=LineHeight;	break;
 			case SB_LINEDOWN:	Pos+=LineHeight;	break;
@@ -812,7 +848,7 @@ void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 	int OldBkMode;
 	RECT rc,rcMargin;
 
-	hbr=::CreateSolidBrush(m_MarginColor);
+	hbr=::CreateSolidBrush(m_Theme.MarginColor);
 	hfontOld=static_cast<HFONT>(::GetCurrentObject(hdc,OBJ_FONT));
 	crOldTextColor=::GetTextColor(hdc);
 	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
@@ -822,17 +858,27 @@ void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 		CProgramItemInfo *pItem=m_ItemList.GetItem(i);
 		bool fCur=pItem->GetEventID()==m_CurEventID;
 
-		rc.bottom=rc.top+pItem->GetTitleLines()*(m_FontHeight+m_LineMargin);
+		rc.bottom=rc.top+pItem->GetTitleLines()*(m_FontHeight+m_LineMargin)+
+												(m_TitleMargin*2-m_LineMargin);
 		if (rc.bottom>prcPaint->top) {
+			const Theme::Style &Style=
+				fCur?m_Theme.CurEventNameStyle:m_Theme.EventNameStyle;
+
 			DrawUtil::SelectObject(hdc,m_TitleFont);
-			::SetTextColor(hdc,fCur?m_CurTitleTextColor:m_TitleTextColor);
+			::SetTextColor(hdc,Style.TextColor);
 			rc.left=0;
-			Theme::FillGradient(hdc,&rc,fCur?&m_CurTitleBackGradient:&m_TitleBackGradient);
-			pItem->DrawTitle(hdc,&rc,m_FontHeight+m_LineMargin);
+			Theme::DrawStyleBackground(hdc,&rc,&Style);
+			RECT rcTitle=rc;
+			rcTitle.top+=m_TitleMargin;
+			rcTitle.bottom-=m_TitleMargin;
+			pItem->DrawTitle(hdc,&rcTitle,m_FontHeight+m_LineMargin);
 		}
 		rc.top=rc.bottom;
 		rc.bottom=rc.top+pItem->GetTextLines()*(m_FontHeight+m_LineMargin);
 		if (rc.bottom>prcPaint->top) {
+			const Theme::Style &Style=
+				fCur?m_Theme.CurEventTextStyle:m_Theme.EventTextStyle;
+
 			/*
 			rc.left=TEXT_LEFT_MARGIN;
 			if (prcPaint->left<rc.left) {
@@ -840,13 +886,13 @@ void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 				rcMargin.top=rc.top;
 				rcMargin.right=min(rc.left,prcPaint->right);
 				rcMargin.bottom=rc.bottom;
-				FillRect(hdc,&rcMargin,hbr);
+				::FillRect(hdc,&rcMargin,hbr);
 			}
 			*/
 			DrawUtil::SelectObject(hdc,m_Font);
-			::SetTextColor(hdc,fCur?m_CurEventTextColor:m_EventTextColor);
+			::SetTextColor(hdc,Style.TextColor);
 			rc.left=0;
-			Theme::FillGradient(hdc,&rc,fCur?&m_CurEventBackGradient:&m_EventBackGradient);
+			Theme::DrawStyleBackground(hdc,&rc,&Style);
 			rc.left=TEXT_LEFT_MARGIN;
 			pItem->DrawText(hdc,&rc,m_FontHeight+m_LineMargin);
 		}

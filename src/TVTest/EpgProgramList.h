@@ -185,6 +185,7 @@ public:
 	CEpgServiceInfo *GetServiceInfo(WORD TSID,WORD ServiceID);
 	bool GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID,CEventInfoData *pInfo);
 	bool GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo);
+	bool GetNextEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo);
 	bool LoadFromFile(LPCTSTR pszFileName);
 	bool SaveToFile(LPCTSTR pszFileName);
 };

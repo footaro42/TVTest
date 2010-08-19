@@ -969,7 +969,7 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 		CBlockLock Lock(&pThis->m_ResizeLock);
 
 		pThis->m_VideoInfo = *pVideoInfo;
-		pThis->AdjustVideoPosition();
+		//pThis->AdjustVideoPosition();
 	}
 
 #if 0
@@ -1005,7 +1005,8 @@ void CMediaViewer::OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVO
 const bool CMediaViewer::AdjustVideoPosition()
 {
 	// ‰f‘œ‚ÌˆÊ’u‚ğ’²®‚·‚é
-	if (m_pVideoRenderer && m_wVideoWindowX > 0 && m_wVideoWindowY > 0) {
+	if (m_pVideoRenderer && m_wVideoWindowX > 0 && m_wVideoWindowY > 0
+			&& m_VideoInfo.m_OrigWidth > 0 && m_VideoInfo.m_OrigHeight > 0) {
 		long WindowWidth, WindowHeight, DestWidth, DestHeight;
 
 		WindowWidth = m_wVideoWindowX;
@@ -1597,11 +1598,11 @@ bool CMediaViewer::GetDownMixSurround() const
 }
 
 
-bool CMediaViewer::SetAudioNormalize(bool bNormalize,float Level)
+bool CMediaViewer::SetAudioGainControl(bool bGainControl, float Gain, float SurroundGain)
 {
 	if (m_pAacDecoder==NULL)
 		return false;
-	return m_pAacDecoder->SetNormalize(bNormalize,Level);
+	return m_pAacDecoder->SetGainControl(bGainControl, Gain, SurroundGain);
 }
 
 
@@ -1751,3 +1752,24 @@ bool CMediaViewer::SetAdjustFrameRate(bool bAdjust)
 	return true;
 }
 #endif
+
+
+DWORD CMediaViewer::GetAudioBitRate() const
+{
+	if (m_pAacDecoder != NULL)
+		return m_pAacDecoder->GetBitRate();
+	return 0;
+}
+
+
+DWORD CMediaViewer::GetVideoBitRate() const
+{
+#ifndef BONTSENGINE_H264_SUPPORT
+	if (m_pMpeg2Sequence != NULL)
+		return m_pMpeg2Sequence->GetBitRate();
+#else
+	if (m_pH264Parser != NULL)
+		return m_pH264Parser->GetBitRate();
+#endif
+	return 0;
+}

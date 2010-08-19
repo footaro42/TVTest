@@ -23,6 +23,8 @@ class CRecordOptions : public COptions
 	unsigned int m_BufferSize;
 	unsigned int m_TimeShiftBufferSize;
 	bool m_fEnableTimeShiftRecording;
+	bool m_fShowRemainTime;
+	int m_StatusBarRecordCommand;
 
 	static CRecordOptions *GetThis(HWND hDlg);
 
@@ -56,6 +58,9 @@ public:
 	}
 	bool IsTimeShiftRecordingEnabled() const { return m_fEnableTimeShiftRecording; }
 	bool EnableTimeShiftRecording(bool fEnable);
+	void SetShowRemainTime(bool fShow) { m_fShowRemainTime=fShow; }
+	bool GetShowRemainTime() const { return m_fShowRemainTime; }
+	int GetStatusBarRecordCommand() const { return m_StatusBarRecordCommand; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

@@ -634,9 +634,9 @@ void CEventManager::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSecti
 			continue;
 
 		TimeEventInfo TimeEvent(&pEventInfo->StartTime);
-		TimeEvent.Duration=pEventInfo->Duration;
-		TimeEvent.EventID=pEventInfo->EventID;
-		TimeEvent.UpdateTime=CurTotTime;
+		TimeEvent.Duration = pEventInfo->Duration;
+		TimeEvent.EventID = pEventInfo->EventID;
+		TimeEvent.UpdateTime = CurTotTime;
 		std::pair<TimeEventMap::iterator, bool> TimeResult = itrService->second.TimeMap.insert(TimeEvent);
 		TimeEventMap::iterator itrCur = TimeResult.first;
 		if (TimeResult.second
@@ -689,11 +689,12 @@ void CEventManager::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSecti
 			if (!TimeResult.second) {
 				if (itrCur->EventID != TimeEvent.EventID)
 					RemoveEvent(&itrService->second.EventMap, itrCur->EventID);
-				itrCur->Duration = TimeEvent.Duration;
-				itrCur->EventID = TimeEvent.EventID;
 			}
 		}
-		itrCur->UpdateTime = TimeEvent.UpdateTime;
+		if (!TimeResult.second) {
+			itrService->second.TimeMap.erase(itrCur);
+			itrService->second.TimeMap.insert(TimeEvent);
+		}
 
 		// イベントを追加 or 既存のイベントを取得
 		std::pair<EventMap::iterator, bool> EventResult = 

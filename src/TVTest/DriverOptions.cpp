@@ -17,20 +17,24 @@ static char THIS_FILE[]=__FILE__;
 #define DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE		0x00000004
 #define DRIVER_FLAG_ALLCHANNELS						0x00000008
 #define DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT	0x00000010
+#define DRIVER_FLAG_NOTIGNOREINITIALSTREAM			0x00000020
 
 
 
 
-class CDriverSettings {
-	LPTSTR m_pszFileName;
+class CDriverSettings
+{
+	CDynamicString m_FileName;
 	int m_InitialChannelType;
 	int m_InitialSpace;
 	int m_InitialChannel;
 	bool m_fAllChannels;
 	bool m_fDescrambleDriver;
 	bool m_fNoSignalLevel;
+	bool m_fIgnoreInitialStream;
 	bool m_fPurgeStreamOnChannelChange;
 	bool m_fResetChannelChangeErrorCount;
+
 public:
 	int m_LastSpace;
 	int m_LastChannel;
@@ -38,10 +42,7 @@ public:
 	bool m_fLastAllChannels;
 
 	CDriverSettings(LPCTSTR pszFileName);
-	CDriverSettings(const CDriverSettings &Settings);
-	~CDriverSettings();
-	CDriverSettings &operator=(const CDriverSettings &Settings);
-	LPCTSTR GetFileName() const { return m_pszFileName; }
+	LPCTSTR GetFileName() const { return m_FileName.Get(); }
 	bool SetFileName(LPCTSTR pszFileName);
 	enum {
 		INITIALCHANNEL_NONE,
@@ -60,6 +61,8 @@ public:
 	void SetDescrambleDriver(bool fDescramble) { m_fDescrambleDriver=fDescramble; }
 	bool GetNoSignalLevel() const { return m_fNoSignalLevel; }
 	void SetNoSignalLevel(bool fNoSignalLevel) { m_fNoSignalLevel=fNoSignalLevel; }
+	bool GetIgnoreInitialStream() const { return m_fIgnoreInitialStream; }
+	void SetIgnoreInitialStream(bool fIgnore) { m_fIgnoreInitialStream=fIgnore; }
 	bool GetPurgeStreamOnChannelChange() const { return m_fPurgeStreamOnChannelChange; }
 	void SetPurgeStreamOnChannelChange(bool fPurge) { m_fPurgeStreamOnChannelChange=fPurge; }
 	bool GetResetChannelChangeErrorCount() const { return m_fResetChannelChangeErrorCount; }
@@ -68,14 +71,15 @@ public:
 
 
 CDriverSettings::CDriverSettings(LPCTSTR pszFileName)
-	: m_pszFileName(DuplicateString(pszFileName))
+	: m_FileName(pszFileName)
 	, m_InitialChannelType(INITIALCHANNEL_LAST)
 	, m_InitialSpace(0)
 	, m_InitialChannel(0)
 	, m_fAllChannels(false)
 	, m_fDescrambleDriver(false)
 	, m_fNoSignalLevel(GetAppClass().GetCoreEngine()->IsNetworkDriverFileName(pszFileName))
-	, m_fPurgeStreamOnChannelChange(false)
+	, m_fIgnoreInitialStream(true)
+	, m_fPurgeStreamOnChannelChange(true)
 	, m_fResetChannelChangeErrorCount(false)
 	, m_LastSpace(-1)
 	, m_LastChannel(-1)
@@ -85,54 +89,9 @@ CDriverSettings::CDriverSettings(LPCTSTR pszFileName)
 }
 
 
-CDriverSettings::CDriverSettings(const CDriverSettings &Settings)
-	: m_pszFileName(DuplicateString(Settings.m_pszFileName))
-	, m_InitialChannelType(Settings.m_InitialChannelType)
-	, m_InitialSpace(Settings.m_InitialSpace)
-	, m_InitialChannel(Settings.m_InitialChannel)
-	, m_fAllChannels(Settings.m_fAllChannels)
-	, m_fDescrambleDriver(Settings.m_fDescrambleDriver)
-	, m_fNoSignalLevel(Settings.m_fNoSignalLevel)
-	, m_fPurgeStreamOnChannelChange(Settings.m_fPurgeStreamOnChannelChange)
-	, m_fResetChannelChangeErrorCount(Settings.m_fResetChannelChangeErrorCount)
-	, m_LastSpace(Settings.m_LastSpace)
-	, m_LastChannel(Settings.m_LastChannel)
-	, m_LastServiceID(Settings.m_LastServiceID)
-	, m_fLastAllChannels(Settings.m_fLastAllChannels)
-{
-}
-
-
-CDriverSettings::~CDriverSettings()
-{
-	delete [] m_pszFileName;
-}
-
-
-CDriverSettings &CDriverSettings::operator=(const CDriverSettings &Settings)
-{
-	if (&Settings!=this) {
-		ReplaceString(&m_pszFileName,Settings.m_pszFileName);
-		m_InitialChannelType=Settings.m_InitialChannelType;
-		m_InitialSpace=Settings.m_InitialSpace;
-		m_InitialChannel=Settings.m_InitialChannel;
-		m_fAllChannels=Settings.m_fAllChannels;
-		m_fDescrambleDriver=Settings.m_fDescrambleDriver;
-		m_fNoSignalLevel=Settings.m_fNoSignalLevel;
-		m_fPurgeStreamOnChannelChange=Settings.m_fPurgeStreamOnChannelChange;
-		m_fResetChannelChangeErrorCount=Settings.m_fResetChannelChangeErrorCount;
-		m_LastSpace=Settings.m_LastSpace;
-		m_LastChannel=Settings.m_LastChannel;
-		m_LastServiceID=Settings.m_LastServiceID;
-		m_fLastAllChannels=Settings.m_fLastAllChannels;
-	}
-	return *this;
-}
-
-
 bool CDriverSettings::SetFileName(LPCTSTR pszFileName)
 {
-	return ReplaceString(&m_pszFileName,pszFileName);
+	return m_FileName.Set(pszFileName);
 }
 
 
@@ -269,6 +228,7 @@ bool CDriverOptions::Load(LPCTSTR pszFileName)
 						pSettings->SetPurgeStreamOnChannelChange((Value&DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE)!=0);
 						pSettings->SetAllChannels((Value&DRIVER_FLAG_ALLCHANNELS)!=0);
 						pSettings->SetResetChannelChangeErrorCount((Value&DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT)!=0);
+						pSettings->SetIgnoreInitialStream((Value&DRIVER_FLAG_NOTIGNOREINITIALSTREAM)==0);
 					}
 					::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
 					if (Settings.Read(szName,&Value))
@@ -324,6 +284,8 @@ bool CDriverOptions::Save(LPCTSTR pszFileName) const
 				Flags|=DRIVER_FLAG_ALLCHANNELS;
 			if (pSettings->GetResetChannelChangeErrorCount())
 				Flags|=DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT;
+			if (!pSettings->GetIgnoreInitialStream())
+				Flags|=DRIVER_FLAG_NOTIGNOREINITIALSTREAM;
 			Settings.Write(szName,Flags);
 			::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
 			Settings.Write(szName,pSettings->m_LastSpace);
@@ -429,6 +391,18 @@ bool CDriverOptions::IsNoSignalLevel(LPCTSTR pszFileName) const
 }
 
 
+bool CDriverOptions::IsIgnoreInitialStream(LPCTSTR pszFileName) const
+{
+	if (pszFileName==NULL)
+		return false;
+
+	int Index=m_SettingList.Find(pszFileName);
+	if (Index<0)
+		return false;
+	return m_SettingList.GetDriverSettings(Index)->GetIgnoreInitialStream();
+}
+
+
 bool CDriverOptions::IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const
 {
 	if (pszFileName==NULL)
@@ -523,12 +497,10 @@ void CDriverOptions::InitDlgItem(int Driver)
 		}
 		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_DESCRAMBLEDRIVER,
 						  pSettings->GetDescrambleDriver());
-		/*
-		bool fNetwork=GetAppClass().GetCoreEngine()->IsNetworkDriverFileName(pszFileName);
-		EnableDlgItem(m_hDlg,IDC_DRIVEROPTIONS_NOSIGNALLEVEL,!fNetwork);
-		*/
 		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_NOSIGNALLEVEL,
-						  /*fNetwork?true:*/pSettings->GetNoSignalLevel());
+						  pSettings->GetNoSignalLevel());
+		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_IGNOREINITIALSTREAM,
+						  pSettings->GetIgnoreInitialStream());
 		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_PURGESTREAMONCHANNELCHANGE,
 						  pSettings->GetPurgeStreamOnChannelChange());
 		DlgCheckBox_Check(m_hDlg,IDC_DRIVEROPTIONS_RESETCHANNELCHANGEERRORCOUNT,

@@ -170,6 +170,7 @@ void CStatusOptions::SetDefaultItemList()
 		{STATUS_ITEM_CLOCK,			false},
 		{STATUS_ITEM_PROGRAMINFO,	false},
 		{STATUS_ITEM_BUFFERING,		false},
+		{STATUS_ITEM_MEDIABITRATE,	false},
 	};
 
 	for (int i=0;i<NUM_STATUS_ITEMS;i++) {

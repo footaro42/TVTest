@@ -29,7 +29,8 @@ CCoreEngine::CCoreEngine()
 	, m_AudioComponentType(0)
 	, m_fMute(false)
 	, m_Volume(50)
-	, m_VolumeNormalizeLevel(100)
+	, m_AudioGain(100)
+	, m_SurroundAudioGain(100)
 	, m_StereoMode(0)
 	, m_fDownMixSurround(true)
 	, m_EventID(0)
@@ -242,8 +243,9 @@ bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		}
 	}
 	m_DtvEngine.SetVolume(m_fMute?-100.0f:LevelToDeciBel(m_Volume));
-	m_DtvEngine.m_MediaViewer.SetAudioNormalize(m_VolumeNormalizeLevel!=100,
-										(float)m_VolumeNormalizeLevel/100.0f);
+	m_DtvEngine.m_MediaViewer.SetAudioGainControl(
+		m_AudioGain!=100 || m_SurroundAudioGain!=100,
+		(float)m_AudioGain/100.0f,(float)m_SurroundAudioGain/100.0f);
 	m_DtvEngine.SetStereoMode(m_StereoMode);
 	m_DtvEngine.m_MediaViewer.SetDownMixSurround(m_fDownMixSurround);
 	return true;
@@ -446,14 +448,27 @@ bool CCoreEngine::SetMute(bool fMute)
 }
 
 
-bool CCoreEngine::SetVolumeNormalizeLevel(int Level)
+bool CCoreEngine::SetAudioGainControl(int Gain,int SurroundGain)
 {
-	if (Level<0)
+	if (Gain<0 || SurroundGain<0)
 		return false;
-	if (Level!=m_VolumeNormalizeLevel) {
-		m_DtvEngine.m_MediaViewer.SetAudioNormalize(Level!=100,(float)Level/100.0f);
-		m_VolumeNormalizeLevel=Level;
+	if (Gain!=m_AudioGain || SurroundGain!=m_SurroundAudioGain) {
+		m_DtvEngine.m_MediaViewer.SetAudioGainControl(
+			Gain!=100 || SurroundGain!=100,
+			(float)Gain/100.0f,(float)SurroundGain/100.0f);
+		m_AudioGain=Gain;
+		m_SurroundAudioGain=SurroundGain;
 	}
+	return true;
+}
+
+
+bool CCoreEngine::GetAudioGainControl(int *pGain,int *pSurroundGain) const
+{
+	if (pGain)
+		*pGain=m_AudioGain;
+	if (pSurroundGain)
+		*pSurroundGain=m_SurroundAudioGain;
 	return true;
 }
 

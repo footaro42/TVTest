@@ -178,11 +178,16 @@ HRESULT CH264ParserFilter::StartStreaming(void)
 
 	Reset();
 	m_VideoInfo.Reset();
+
+	m_BitRateCalculator.Initialize();
+
 	return S_OK;
 }
 
 HRESULT CH264ParserFilter::StopStreaming(void)
 {
+	m_BitRateCalculator.Reset();
+
 	return S_OK;
 }
 
@@ -197,9 +202,10 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 		return hr;
 	LONG DataSize = pIn->GetActualDataLength();
 
+	m_pOutSample = pOut;
+
 	// 出力メディアサンプル設定
 	if (m_bAdjustTime) {
-		m_pOutSample = pOut;
 		pOut->SetActualDataLength(0UL);
 
 		// タイムスタンプ取得
@@ -262,6 +268,8 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	m_DeliverResult = S_OK;
 
 	m_H264Parser.StoreEs(pInData, DataSize);
+
+	m_BitRateCalculator.Update(DataSize);
 
 	if (pOut->GetActualDataLength() == 0)
 		return S_FALSE;
@@ -355,6 +363,11 @@ bool CH264ParserFilter::SetAdjustFrameRate(bool bAdjust)
 	return true;
 }
 
+DWORD CH264ParserFilter::GetBitRate() const
+{
+	return m_BitRateCalculator.GetBitRate();
+}
+
 void CH264ParserFilter::Reset()
 {
 	m_H264Parser.Reset();
@@ -365,6 +378,23 @@ void CH264ParserFilter::Reset()
 
 void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264AccessUnit *pAccessUnit)
 {
+	WORD OrigWidth, OrigHeight;
+	OrigWidth = pAccessUnit->GetHorizontalSize();
+	OrigHeight = pAccessUnit->GetVerticalSize();
+
+	if (m_VideoInfo.m_OrigWidth != OrigWidth) {
+		CMediaType MediaType(m_pOutput->CurrentMediaType());
+		VIDEOINFOHEADER *pVideoInfo=(VIDEOINFOHEADER*)MediaType.Format();
+
+		if (pVideoInfo
+				&& (pVideoInfo->bmiHeader.biWidth != OrigWidth
+					|| pVideoInfo->bmiHeader.biHeight != OrigHeight)) {
+			pVideoInfo->bmiHeader.biWidth = OrigWidth;
+			pVideoInfo->bmiHeader.biHeight = OrigHeight;
+			m_pOutSample->SetMediaType(&MediaType);
+		}
+	}
+
 	if (m_bAdjustTime) {
 		/*
 			1フレーム単位でタイムスタンプを設定しないとかくつく
@@ -397,12 +427,9 @@ void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264Acce
 		}
 	}
 
-	WORD OrigWidth, OrigHeight;
 	WORD DisplayWidth, DisplayHeight;
 	BYTE AspectX = 0, AspectY = 0;
 
-	OrigWidth = pAccessUnit->GetHorizontalSize();
-	OrigHeight = pAccessUnit->GetVerticalSize();
 	DisplayWidth = OrigWidth;
 	DisplayHeight = OrigHeight;
 

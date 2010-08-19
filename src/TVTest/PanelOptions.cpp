@@ -28,6 +28,7 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	, m_FirstTab(-1)
 	, m_LastTab(0)
 	, m_fChannelDetailToolTip(false)
+	, m_EventsPerChannel(2)
 {
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
 	NONCLIENTMETRICS ncm;
@@ -68,6 +69,13 @@ bool CPanelOptions::InitializePanelForm(CPanelForm *pPanelForm)
 	}
 	pPanelForm->SetTabOrder(TabOrder);
 	return true;
+}
+
+
+void CPanelOptions::ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel)
+{
+	pChannelPanel->SetDetailToolTip(m_fChannelDetailToolTip);
+	pChannelPanel->SetEventsPerChannel(m_EventsPerChannel);
 }
 
 
@@ -178,6 +186,7 @@ bool CPanelOptions::Read(CSettings *pSettings)
 	}
 
 	pSettings->Read(TEXT("ChannelPanelDetailToolTip"),&m_fChannelDetailToolTip);
+	pSettings->Read(TEXT("ChannelPanelEventsPerChannel"),&m_EventsPerChannel);
 
 	return true;
 }
@@ -207,14 +216,16 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 		pSettings->Write(szName,m_TabList[i].fVisible);
 	}
 	// Channel panel
-	bool fChannelDetailToolTip=m_fChannelDetailToolTip;
 	CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
 	if (pPanel!=NULL) {
 		CChannelPanel *pChannelPanel=dynamic_cast<CChannelPanel*>(pPanel->GetPageByID(PANEL_ID_CHANNEL));
-		if (pChannelPanel!=NULL)
-			fChannelDetailToolTip=pChannelPanel->GetDetailToolTip();
+		if (pChannelPanel!=NULL) {
+			pSettings->Write(TEXT("ChannelPanelDetailToolTip"),
+							 pChannelPanel->GetDetailToolTip());
+			pSettings->Write(TEXT("ChannelPanelEventsPerChannel"),
+							 pChannelPanel->GetEventsPerChannel());
+		}
 	}
-	pSettings->Write(TEXT("ChannelPanelDetailToolTip"),fChannelDetailToolTip);
 	return true;
 }
 

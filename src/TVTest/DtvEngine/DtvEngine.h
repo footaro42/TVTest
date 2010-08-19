@@ -45,8 +45,6 @@ public:
 		CDtvEngine *m_pDtvEngine;
 		virtual void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer, bool bStreamChanged) {}
 		virtual void OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer) {}
-		//virtual void OnPcrTimeStampUpdated(CProgManager *pProgManager) {}
-		//virtual void OnFileWriteError(CFileWriter *pFileWriter) {}
 		virtual void OnFileWriteError(CBufferedFileWriter *pFileWriter) {}
 		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
 		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
@@ -122,6 +120,7 @@ public:
 	bool GetWriteStream(WORD *pServiceID, DWORD *pStream = NULL);
 	bool SetWriteCurServiceOnly(bool bOnly, DWORD Stream=CTsSelector::STREAM_ALL);
 	bool GetWriteCurServiceOnly() const { return m_bWriteCurServiceOnly; }
+	void SetStartStreamingOnDriverOpen(bool bStart);
 // CBonBaseClass
 	void SetTracer(CTracer *pTracer);
 
@@ -148,6 +147,7 @@ protected:
 
 	CCriticalLock m_EngineLock;
 	CEventHandler *m_pEventHandler;
+
 	WORD m_wCurTransportStream;
 	WORD m_CurServiceIndex;
 	WORD m_CurServiceID;
@@ -158,6 +158,7 @@ protected:
 	bool m_bIsFileMode;
 	bool m_bDescramble;
 	bool m_bBuffering;
+	bool m_bStartStreamingOnDriverOpen;
 
 	bool m_bDescrambleCurServiceOnly;
 	bool m_bWriteCurServiceOnly;

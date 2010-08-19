@@ -54,8 +54,8 @@ bool CBasicWindow::SetPosition(int Left,int Top,int Width,int Height)
 bool CBasicWindow::SetPosition(const RECT *pPosition)
 {
 	return SetPosition(pPosition->left,pPosition->top,
-						pPosition->right-pPosition->left,
-						pPosition->bottom-pPosition->top);
+					   pPosition->right-pPosition->left,
+					   pPosition->bottom-pPosition->top);
 }
 
 
@@ -100,8 +100,8 @@ void CBasicWindow::GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) co
 					mi.cbSize=sizeof(MONITORINFO);
 					::GetMonitorInfo(hMonitor,&mi);
 					::OffsetRect(&wc.rcNormalPosition,
-											mi.rcWork.left-mi.rcMonitor.left,
-											mi.rcWork.top-mi.rcMonitor.top);
+								 mi.rcWork.left-mi.rcMonitor.left,
+								 mi.rcWork.top-mi.rcMonitor.top);
 				}
 				rc=wc.rcNormalPosition;
 			}
@@ -202,9 +202,21 @@ bool CBasicWindow::Invalidate(bool fErase)
 }
 
 
+bool CBasicWindow::Invalidate(const RECT *pRect,bool fErase)
+{
+	return m_hwnd!=NULL && ::InvalidateRect(m_hwnd,pRect,fErase);
+}
+
+
 bool CBasicWindow::Update()
 {
 	return m_hwnd!=NULL && ::UpdateWindow(m_hwnd);
+}
+
+
+bool CBasicWindow::Redraw(const RECT *pRect,UINT Flags)
+{
+	return m_hwnd!=NULL && ::RedrawWindow(m_hwnd,pRect,NULL,Flags);
 }
 
 
@@ -223,6 +235,14 @@ bool CBasicWindow::GetClientSize(SIZE *pSize) const
 	pSize->cx=rc.right;
 	pSize->cy=rc.bottom;
 	return true;
+}
+
+
+bool CBasicWindow::CalcPositionFromClientRect(RECT *pRect) const
+{
+	if (m_hwnd==NULL)
+		return false;
+	return ::AdjustWindowRectEx(pRect,GetStyle(),FALSE,GetExStyle())!=FALSE;
 }
 
 
@@ -369,4 +389,17 @@ bool CBasicWindow::PostMessage(UINT Msg,WPARAM wParam,LPARAM lParam)
 	if (m_hwnd==NULL)
 		return false;
 	return ::PostMessage(m_hwnd,Msg,wParam,lParam)!=FALSE;
+}
+
+
+bool CBasicWindow::SendSizeMessage()
+{
+	if (m_hwnd==NULL)
+		return false;
+
+	RECT rc;
+	if (!::GetClientRect(m_hwnd,&rc))
+		return false;
+	::SendMessage(m_hwnd,WM_SIZE,0,MAKELONG(rc.right,rc.bottom));
+	return true;
 }

@@ -11,6 +11,13 @@
 class CTitleBar : public CBasicWindow
 {
 public:
+	struct ThemeInfo {
+		Theme::Style CaptionStyle;
+		Theme::Style IconStyle;
+		Theme::Style HighlightIconStyle;
+		Theme::BorderInfo Border;
+	};
+
 	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		class CTitleBar *m_pTitleBar;
@@ -41,9 +48,13 @@ public:
 	LPCTSTR GetLabel() const { return m_Label.Get(); }
 	bool SetMaximizeMode(bool fMaximize);
 	bool SetEventHandler(CEventHandler *pHandler);
-	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
-	void SetBorderType(Theme::BorderType Type);
+	/*
+	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF TextColor,COLORREF IconColor,
+				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF HighlightIconColor);
+	void SetBorder(const Theme::BorderInfo *pInfo);
+	*/
+	bool SetTheme(const ThemeInfo *pTheme);
+	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
 	void SetIcon(HICON hIcon);
 
@@ -59,11 +70,15 @@ private:
 	};
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
+	/*
 	Theme::GradientInfo m_BackGradient;
-	COLORREF m_crTextColor;
+	COLORREF m_TextColor;
+	COLORREF m_IconColor;
 	Theme::GradientInfo m_HighlightBackGradient;
-	COLORREF m_crHighlightTextColor;
-	Theme::BorderType m_BorderType;
+	COLORREF m_HighlightIconColor;
+	Theme::BorderInfo m_BorderInfo;
+	*/
+	ThemeInfo m_Theme;
 	HBITMAP m_hbmIcons;
 	CTooltip m_Tooltip;
 	CDynamicString m_Label;

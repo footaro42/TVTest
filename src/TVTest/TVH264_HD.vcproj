@@ -477,6 +477,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ControlPanelItems.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\CoreEngine.cpp"
 				>
 			</File>
@@ -545,6 +549,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Layout.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Logger.cpp"
 				>
 			</File>
@@ -578,6 +586,10 @@
 			</File>
 			<File
 				RelativePath=".\Options.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\OSDManager.cpp"
 				>
 			</File>
 			<File
@@ -665,7 +677,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Splitter.cpp"
+				RelativePath=".\StatusItems.cpp"
 				>
 			</File>
 			<File
@@ -847,6 +859,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\ControlPanelItems.h"
+				>
+			</File>
+			<File
 				RelativePath=".\CoreEngine.h"
 				>
 			</File>
@@ -919,6 +935,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Layout.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Logger.h"
 				>
 			</File>
@@ -956,6 +976,10 @@
 			</File>
 			<File
 				RelativePath=".\Options.h"
+				>
+			</File>
+			<File
+				RelativePath=".\OSDManager.h"
 				>
 			</File>
 			<File
@@ -1047,7 +1071,7 @@
 				>
 			</File>
 			<File
-				RelativePath=".\Splitter.h"
+				RelativePath=".\StatusItems.h"
 				>
 			</File>
 			<File

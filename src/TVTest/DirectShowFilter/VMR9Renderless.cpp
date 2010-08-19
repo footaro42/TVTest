@@ -248,7 +248,7 @@ STDMETHODIMP CVMR9Allocator::InitializeDevice(DWORD_PTR dwUserID,
 	if (m_pSurfaceAllocatorNotify==NULL)
 		return E_FAIL;
 
-	TRACE(TEXT("CVMRAllocator::InitializeDevice() : %ul x %ul\n"),
+	TRACE(TEXT("CVMRAllocator::InitializeDevice() : %lu x %lu\n"),
 		  lpAllocInfo->dwWidth,lpAllocInfo->dwHeight);
 
 	HRESULT hr;

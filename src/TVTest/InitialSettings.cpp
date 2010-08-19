@@ -334,6 +334,11 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					}
 				}
 #endif
+				if (!CVideoRenderer::IsAvailable(VideoRenderer)) {
+					::MessageBox(hDlg,TEXT("選択されたレンダラはこの環境で利用可能になっていません。"),
+								 NULL,MB_OK | MB_ICONEXCLAMATION);
+					return TRUE;
+				}
 
 				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,
 								 pThis->m_szDriverFileName,MAX_PATH);

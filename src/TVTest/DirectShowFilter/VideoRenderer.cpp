@@ -5,12 +5,16 @@
 #include "VMR9Renderless.h"
 #include "EVRenderer.h"
 #include "DirectShowUtil.h"
+#include "../HelperClass/StdUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
+
+
+static const CLSID CLSID_madVR = {0xe1a8b82a, 0x32ce, 0x4b0d, {0xbe, 0x0d, 0xaa, 0x68, 0xc7, 0x72, 0xe4, 0x23}};
 
 
 
@@ -48,11 +52,14 @@ bool CVideoRenderer::HasProperty()
 
 
 
-class CVideoRenderer_Default : public CVideoRenderer {
-	IVideoWindow *m_pVideoWindow;
-	IBasicVideo2 *m_pBasicVideo;
+class CVideoRenderer_Default : public CVideoRenderer
+{
 protected:
+	IVideoWindow *m_pVideoWindow;
+	IBasicVideo *m_pBasicVideo;
+
 	bool InitializeBasicVideo(IGraphBuilder *pFilterGraph,HWND hwndRender,HWND hwndMessageDrain);
+
 public:
 	CVideoRenderer_Default();
 	virtual bool Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain);
@@ -95,10 +102,10 @@ bool CVideoRenderer_Default::InitializeBasicVideo(IGraphBuilder *pFilterGraph,
 	m_pVideoWindow->SetWindowForeground(OATRUE);
 	m_pVideoWindow->put_Visible(OATRUE);
 
-	hr=pFilterGraph->QueryInterface(IID_IBasicVideo2,reinterpret_cast<LPVOID *>(&m_pBasicVideo));
+	hr=pFilterGraph->QueryInterface(IID_IBasicVideo,reinterpret_cast<LPVOID *>(&m_pBasicVideo));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pVideoWindow);
-		SetError(hr,TEXT("IBasicVideo2を取得できません。"));
+		SetError(hr,TEXT("IBasicVideoを取得できません。"));
 		return false;
 	}
 	m_pFilterGraph=pFilterGraph;
@@ -206,50 +213,68 @@ bool CVideoRenderer_Default::SetVisible(bool fVisible)
 
 
 
-class CVideoRenderer_VideoRenderer : public CVideoRenderer_Default {
+class CVideoRenderer_Basic : public CVideoRenderer_Default
+{
+	CLSID m_clsidRenderer;
+	LPTSTR m_pszRendererName;
+	bool m_bNoSourcePosition;
+
 public:
-	CVideoRenderer_VideoRenderer();
-	~CVideoRenderer_VideoRenderer();
+	CVideoRenderer_Basic(const CLSID &clsid,LPCTSTR pszName,bool bNoSourcePosition=false);
+	~CVideoRenderer_Basic();
 	bool Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain);
 	bool Finalize();
+	bool SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSourceRect,
+						  const RECT *pDestRect,const RECT *pWindowRect);
 };
 
 
-CVideoRenderer_VideoRenderer::CVideoRenderer_VideoRenderer()
+CVideoRenderer_Basic::CVideoRenderer_Basic(const CLSID &clsid,LPCTSTR pszName,bool bNoSourcePosition)
+	: m_clsidRenderer(clsid)
+	, m_pszRendererName(StdUtil::strdup(pszName))
+	, m_bNoSourcePosition(bNoSourcePosition)
 {
 }
 
 
-CVideoRenderer_VideoRenderer::~CVideoRenderer_VideoRenderer()
+CVideoRenderer_Basic::~CVideoRenderer_Basic()
 {
 	SAFE_RELEASE(m_pRenderer);
+	delete [] m_pszRendererName;
 }
 
 
-bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain)
+bool CVideoRenderer_Basic::Initialize(IGraphBuilder *pFilterGraph,IPin *pInputPin,HWND hwndRender,HWND hwndMessageDrain)
 {
 	HRESULT hr;
+	TCHAR szMessage[256];
 
-	hr=::CoCreateInstance(CLSID_VideoRenderer,NULL,CLSCTX_INPROC_SERVER,
-						IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
+	hr=::CoCreateInstance(m_clsidRenderer,NULL,CLSCTX_INPROC_SERVER,
+						  IID_IBaseFilter,reinterpret_cast<LPVOID*>(&m_pRenderer));
 	if (FAILED(hr)) {
-		SetError(hr,TEXT("Video Rendererのインスタンスを作成できません。"));
+		StdUtil::snprintf(szMessage,sizeof(szMessage)/sizeof(TCHAR),
+						  TEXT("%sのインスタンスを作成できません。"),
+						  m_pszRendererName);
+		SetError(hr,szMessage,TEXT("指定したレンダラがインストールされているか確認してください。"));
 		return false;
 	}
-	hr=DirectShowUtil::AppendFilterAndConnect(pFilterGraph,m_pRenderer,L"Video Renderer",&pInputPin);
+
+	hr=pFilterGraph->AddFilter(m_pRenderer,m_pszRendererName);
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(hr,TEXT("Video Rendererをフィルタグラフに接続できません。"));
+		StdUtil::snprintf(szMessage,sizeof(szMessage)/sizeof(TCHAR),
+						  TEXT("%sをフィルタグラフに追加できません。"),
+						  m_pszRendererName);
+		SetError(hr,szMessage);
 		return false;
 	}
 
-#if 1
 	IFilterGraph2 *pFilterGraph2;
 	hr=pFilterGraph->QueryInterface(IID_IFilterGraph2,
 									reinterpret_cast<LPVOID*>(&pFilterGraph2));
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("IFilterGraph2を取得できません。"));
+		SetError(hr,TEXT("IFilterGraph2を取得できません。"));
 		return false;
 	}
 	hr=pFilterGraph2->RenderEx(pInputPin,
@@ -257,32 +282,70 @@ bool CVideoRenderer_VideoRenderer::Initialize(IGraphBuilder *pFilterGraph,IPin *
 	pFilterGraph2->Release();
 	if (FAILED(hr)) {
 		SAFE_RELEASE(m_pRenderer);
-		SetError(TEXT("映像レンダラを構築できません。"));
-		return false;
-	}
-#else
-	hr=pFilterGraph->Render(pInputPin);
-	if (FAILED(hr)) {
-		SAFE_RELEASE(m_pRenderer);
 		SetError(hr,TEXT("映像レンダラを構築できません。"));
 		return false;
 	}
-#endif
 
 	if (!InitializeBasicVideo(pFilterGraph,hwndRender,hwndMessageDrain)) {
 		SAFE_RELEASE(m_pRenderer);
 		return false;
 	}
+
 	ClearError();
+
 	return true;
 }
 
 
-bool CVideoRenderer_VideoRenderer::Finalize()
+bool CVideoRenderer_Basic::Finalize()
 {
 	CVideoRenderer_Default::Finalize();
-	CHECK_RELEASE(m_pRenderer);
+	SAFE_RELEASE(m_pRenderer);
 	return true;
+}
+
+
+bool CVideoRenderer_Basic::SetVideoPosition(int SourceWidth,int SourceHeight,const RECT *pSourceRect,
+											const RECT *pDestRect,const RECT *pWindowRect)
+{
+	if (m_pVideoWindow==NULL || m_pBasicVideo==NULL)
+		return false;
+
+	if (m_bNoSourcePosition) {
+		/*
+			IBasicVideo::SetSourcePosition() に対応していないレンダラ用
+		*/
+		const int CutWidth=pSourceRect->right-pSourceRect->left;
+		const int CutHeight=pSourceRect->bottom-pSourceRect->top;
+		if (CutWidth<=0 || CutHeight<=0)
+			return false;
+		const int WindowWidth=pWindowRect->right-pWindowRect->left;
+		const int WindowHeight=pWindowRect->bottom-pWindowRect->top;
+		RECT rcDest=*pDestRect;
+		int DestWidth=rcDest.right-rcDest.left;
+		int DestHeight=rcDest.bottom-rcDest.top;
+
+		rcDest.left-=pSourceRect->left*DestWidth/CutWidth;
+		rcDest.right+=(SourceWidth-pSourceRect->right)*DestWidth/CutWidth;
+		rcDest.top-=pSourceRect->top*DestHeight/CutHeight;
+		rcDest.bottom+=(SourceHeight-pSourceRect->bottom)*DestHeight/CutHeight;
+		DestWidth=rcDest.right-rcDest.left;
+		DestHeight=rcDest.bottom-rcDest.top;
+		//::OffsetRect(&rcDest,(WindowWidth-DestWidth)/2,(WindowHeight-DestHeight)/2);
+		m_pBasicVideo->SetDefaultSourcePosition();
+		m_pBasicVideo->SetDestinationPosition(rcDest.left,rcDest.top,
+											  DestWidth,DestHeight);
+		m_pVideoWindow->SetWindowPosition(pWindowRect->left,pWindowRect->top,
+										  WindowWidth,WindowHeight);
+		TRACE(TEXT("CVideoRenderer_Basic::SetVideoPosition() : Src [%d, %d, %d, %d] Dest [%d, %d, %d, %d] -> [%d, %d, %d, %d]\n"),
+			  pSourceRect->left,pSourceRect->top,pSourceRect->right,pSourceRect->bottom,
+			  pDestRect->left,pDestRect->top,pDestRect->right,pDestRect->bottom,
+			  rcDest.left,rcDest.top,rcDest.right,rcDest.bottom);
+		return true;
+	}
+
+	return CVideoRenderer_Default::SetVideoPosition(SourceWidth,SourceHeight,pSourceRect,
+													pDestRect,pWindowRect);
 }
 
 
@@ -1403,7 +1466,7 @@ bool CVideoRenderer::CreateRenderer(RendererType Type,CVideoRenderer **ppRendere
 		break;
 	/*
 	case RENDERER_VIDEORENDERER:
-		*ppRenderer=new CVideoRenderer_VideoRenderer;
+		*ppRenderer=new CVideoRenderer_Basic(CLSID_VideoRenderer,TEXT("Video Renderer"));
 		break;
 	*/
 	case RENDERER_VMR7:
@@ -1424,6 +1487,9 @@ bool CVideoRenderer::CreateRenderer(RendererType Type,CVideoRenderer **ppRendere
 	case RENDERER_OVERLAYMIXER:
 		*ppRenderer=new CVideoRenderer_OverlayMixer;
 		break;
+	case RENDERER_madVR:
+		*ppRenderer=new CVideoRenderer_Basic(CLSID_madVR,TEXT("madVR"),true);
+		break;
 	default:
 		return false;
 	}
@@ -1442,6 +1508,7 @@ LPCTSTR CVideoRenderer::EnumRendererName(int Index)
 		TEXT("VMR9 Renderless"),
 		TEXT("EVR"),
 		TEXT("Overlay Mixer"),
+		TEXT("madVR"),
 	};
 
 	if (Index<0 || Index>=sizeof(pszRendererName)/sizeof(LPCTSTR))
@@ -1460,4 +1527,57 @@ CVideoRenderer::RendererType CVideoRenderer::ParseName(LPCTSTR pszName)
 			return (RendererType)i;
 	}
 	return RENDERER_UNDEFINED;
+}
+
+
+static bool TestCreateInstance(REFCLSID clsid)
+{
+	HRESULT hr;
+	IBaseFilter *pRenderer;
+
+	hr=::CoCreateInstance(clsid,NULL,CLSCTX_INPROC_SERVER,
+						  IID_IBaseFilter,reinterpret_cast<LPVOID*>(&pRenderer));
+	if (FAILED(hr))
+		return false;
+	pRenderer->Release();
+	return true;
+}
+
+bool CVideoRenderer::IsAvailable(RendererType Type)
+{
+	switch (Type) {
+	case RENDERER_DEFAULT:
+		break;
+	/*
+	case RENDERER_VIDEORENDERER:
+		if (!TestCreateInstance(CLSID_VideoRenderer))
+			return false;
+		break;
+	*/
+	case RENDERER_VMR7:
+	case RENDERER_VMR7RENDERLESS:
+		if (!TestCreateInstance(CLSID_VideoMixingRenderer))
+			return false;
+		break;
+	case RENDERER_VMR9:
+	case RENDERER_VMR9RENDERLESS:
+		if (!TestCreateInstance(CLSID_VideoMixingRenderer9))
+			return false;
+		break;
+	case RENDERER_EVR:
+		if (!TestCreateInstance(CLSID_EnhancedVideoRenderer))
+			return false;
+		break;
+	case RENDERER_OVERLAYMIXER:
+		if (!TestCreateInstance(CLSID_OverlayMixer))
+			return false;
+		break;
+	case RENDERER_madVR:
+		if (!TestCreateInstance(CLSID_madVR))
+			return false;
+		break;
+	default:
+		return false;
+	}
+	return true;
 }

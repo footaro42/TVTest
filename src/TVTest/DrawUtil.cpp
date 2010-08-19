@@ -32,48 +32,34 @@ bool Fill(HDC hdc,const RECT *pRect,COLORREF Color)
 bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
 				  FillDirection Direction)
 {
-	if (pRect->left>pRect->right || pRect->top>pRect->bottom)
+	if (hdc==NULL || pRect==NULL
+			|| pRect->left>pRect->right || pRect->top>pRect->bottom)
 		return false;
-#if 0
-	HPEN hpenOld,hpenCur,hpen;
-	int i,Max;
-	COLORREF cr,crPrev;
 
-	hpenOld=static_cast<HPEN>(::GetCurrentObject(hdc,OBJ_PEN));
-	hpenCur=NULL;
-	crPrev=CLR_INVALID;
-	if (Direction==DIRECTION_HORZ)
-		Max=pRect->right-pRect->left-1;
-	else
-		Max=pRect->bottom-pRect->top-1;
-	for (i=0;i<=Max;i++) {
-		cr=RGB((GetRValue(Color1)*(Max-i)+GetRValue(Color2)*i)/Max,
-			   (GetGValue(Color1)*(Max-i)+GetGValue(Color2)*i)/Max,
-			   (GetBValue(Color1)*(Max-i)+GetBValue(Color2)*i)/Max);
-		if (cr!=crPrev) {
-			hpen=::CreatePen(PS_SOLID,1,cr);
-			if (hpen) {
-				::SelectObject(hdc,hpen);
-				if (hpenCur)
-					::DeleteObject(hpenCur);
-				hpenCur=hpen;
+	if (Direction==DIRECTION_HORZMIRROR || Direction==DIRECTION_VERTMIRROR) {
+		RECT rc;
+
+		rc=*pRect;
+		if (Direction==DIRECTION_HORZMIRROR) {
+			rc.right=(pRect->left+pRect->right)/2;
+			if (rc.right>rc.left) {
+				FillGradient(hdc,&rc,Color1,Color2,DIRECTION_HORZ);
+				rc.left=rc.right;
 			}
-			crPrev=cr;
-		}
-		if (Direction==DIRECTION_HORZ) {
-			::MoveToEx(hdc,pRect->left+i,pRect->top,NULL);
-			::LineTo(hdc,pRect->left+i,pRect->bottom);
+			rc.right=pRect->right;
+			FillGradient(hdc,&rc,Color2,Color1,DIRECTION_HORZ);
 		} else {
-			::MoveToEx(hdc,pRect->left,pRect->top+i,NULL);
-			::LineTo(hdc,pRect->right,pRect->top+i);
+			rc.bottom=(pRect->top+pRect->bottom)/2;
+			if (rc.bottom>rc.top) {
+				FillGradient(hdc,&rc,Color1,Color2,DIRECTION_VERT);
+				rc.top=rc.bottom;
+			}
+			rc.bottom=pRect->bottom;
+			FillGradient(hdc,&rc,Color2,Color1,DIRECTION_VERT);
 		}
+		return true;
 	}
-	if (hpenCur) {
-		::SelectObject(hdc,hpenOld);
-		::DeleteObject(hpenCur);
-	}
-	return true;
-#else
+
 	TRIVERTEX vert[2];
 	GRADIENT_RECT rect={0,1};
 
@@ -91,38 +77,107 @@ bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
 	vert[1].Alpha=0x0000;
 	return ::GradientFill(hdc,vert,2,&rect,1,
 		Direction==DIRECTION_HORZ?GRADIENT_FILL_RECT_H:GRADIENT_FILL_RECT_V)!=FALSE;
-#endif
 }
 
 
 // 光沢のあるグラデーションで塗りつぶす
-bool FillGlossyGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+bool FillGlossyGradient(HDC hdc,const RECT *pRect,
+						COLORREF Color1,COLORREF Color2,
 						FillDirection Direction,int GlossRatio1,int GlossRatio2)
 {
-	COLORREF crCenter=MixColor(Color1,Color2,128);
 	RECT rc;
+	COLORREF crCenter,crEnd;
+	FillDirection Dir;
 
 	rc.left=pRect->left;
 	rc.top=pRect->top;
-	if (Direction==DIRECTION_HORZ) {
+	if (Direction==DIRECTION_HORZ || Direction==DIRECTION_HORZMIRROR) {
 		rc.right=(rc.left+pRect->right)/2;
 		rc.bottom=pRect->bottom;
+		Dir=DIRECTION_HORZ;
 	} else {
 		rc.right=pRect->right;
 		rc.bottom=(rc.top+pRect->bottom)/2;
+		Dir=DIRECTION_VERT;
+	}
+	if (Direction==DIRECTION_HORZ || Direction==DIRECTION_VERT) {
+		crCenter=MixColor(Color1,Color2,128);
+		crEnd=Color2;
+	} else {
+		crCenter=Color2;
+		crEnd=Color1;
 	}
 	DrawUtil::FillGradient(hdc,&rc,
 						   MixColor(RGB(255,255,255),Color1,GlossRatio1),
 						   MixColor(RGB(255,255,255),crCenter,GlossRatio2),
-						   Direction);
-	if (Direction==DIRECTION_HORZ) {
+						   Dir);
+	if (Direction==DIRECTION_HORZ || Direction==DIRECTION_HORZMIRROR) {
 		rc.left=rc.right;
 		rc.right=pRect->right;
 	} else {
 		rc.top=rc.bottom;
 		rc.bottom=pRect->bottom;
 	}
-	DrawUtil::FillGradient(hdc,&rc,crCenter,Color2,Direction);
+	DrawUtil::FillGradient(hdc,&rc,crCenter,crEnd,Dir);
+	return true;
+}
+
+
+// 
+bool FillInterlacedGradient(HDC hdc,const RECT *pRect,
+							COLORREF Color1,COLORREF Color2,FillDirection Direction,
+							COLORREF LineColor,int LineOpacity)
+{
+	if (hdc==NULL || pRect==NULL)
+		return false;
+
+	int Width=pRect->right-pRect->left;
+	int Height=pRect->bottom-pRect->top;
+	if (Width<=0 || Height<=0)
+		return false;
+	if (Width==1 || Height==1)
+		return Fill(hdc,pRect,MixColor(Color1,Color2));
+
+	HPEN hpenOld=static_cast<HPEN>(::SelectObject(hdc,::GetStockObject(DC_PEN)));
+	COLORREF OldPenColor=::GetDCPenColor(hdc);
+
+	if (Direction==DIRECTION_HORZ || Direction==DIRECTION_HORZMIRROR) {
+		int Center=pRect->left*2+Width-1;
+
+		for (int x=pRect->left;x<pRect->right;x++) {
+			COLORREF Color;
+
+			Color=MixColor(Color1,Color2,
+						   (BYTE)(Direction==DIRECTION_HORZ?
+								  (pRect->right-1-x)*255/(Width-1):
+								  abs(Center-x*2)*255/(Width-1)));
+			if ((x-pRect->left)%2==1)
+				Color=MixColor(LineColor,Color,LineOpacity);
+			::SetDCPenColor(hdc,Color);
+			::MoveToEx(hdc,x,pRect->top,NULL);
+			::LineTo(hdc,x,pRect->bottom);
+		}
+	} else {
+		int Center=pRect->top*2+Height-1;
+
+		for (int y=pRect->top;y<pRect->bottom;y++) {
+			COLORREF Color;
+
+			Color=MixColor(Color1,Color2,
+						   (BYTE)(Direction==DIRECTION_VERT?
+								  (pRect->bottom-1-y)*255/(Height-1):
+								  abs(Center-y*2)*255/(Height-1)));
+			if ((y-pRect->top)%2==1)
+				Color=MixColor(LineColor,Color,LineOpacity);
+			::SetDCPenColor(hdc,Color);
+			::MoveToEx(hdc,pRect->left,y,NULL);
+			::LineTo(hdc,pRect->right,y);
+		}
+	}
+
+	::SelectObject(hdc,hpenOld);
+	::SetDCPenColor(hdc,OldPenColor);
+
 	return true;
 }
 
@@ -307,6 +362,57 @@ bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
 }
 
 
+// 単色で画像を描画する
+bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
+					  HDC hdcSrc,int SrcX,int SrcY,int Width,int Height,COLORREF Color)
+{
+	COLORREF TransColor=Color^0x00FFFFFF;
+	RGBQUAD Palette[2];
+
+	if (hdcDst==NULL || hdcSrc==NULL)
+		return false;
+	Palette[0].rgbBlue=GetBValue(Color);
+	Palette[0].rgbGreen=GetGValue(Color);
+	Palette[0].rgbRed=GetRValue(Color);
+	Palette[0].rgbReserved=0;
+	Palette[1].rgbBlue=GetBValue(TransColor);
+	Palette[1].rgbGreen=GetGValue(TransColor);
+	Palette[1].rgbRed=GetRValue(TransColor);
+	Palette[1].rgbReserved=0;
+	::SetDIBColorTable(hdcSrc,0,2,Palette);
+	::TransparentBlt(hdcDst,DstX,DstY,Width,Height,
+					 hdcSrc,SrcX,SrcY,Width,Height,TransColor);
+	return true;
+}
+
+
+// テキストを描画する
+bool DrawText(HDC hdc,LPCTSTR pszText,const RECT &Rect,UINT Format,
+			  const CFont *pFont,COLORREF Color)
+{
+	if (hdc==NULL || pszText==NULL)
+		return false;
+
+	int OldBkMode;
+	COLORREF OldTextColor;
+	HFONT hfontOld;
+
+	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+	if (Color!=CLR_INVALID)
+		OldTextColor=::SetTextColor(hdc,Color);
+	if (pFont!=NULL)
+		hfontOld=DrawUtil::SelectObject(hdc,*pFont);
+	RECT rc=Rect;
+	::DrawText(hdc,pszText,-1,&rc,Format);
+	if (pFont!=NULL)
+		::SelectObject(hdc,hfontOld);
+	if (Color!=CLR_INVALID)
+		::SetTextColor(hdc,OldTextColor);
+	::SetBkMode(hdc,OldBkMode);
+	return true;
+}
+
+
 // テキストを指定幅で折り返して何行になるか計算する
 int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
 {
@@ -425,10 +531,10 @@ CFont::CFont(const CFont &Font)
 	*this=Font;
 }
 
-CFont::CFont(const LOGFONT *pFont)
+CFont::CFont(const LOGFONT &Font)
 	: m_hfont(NULL)
 {
-	Create(pFont);
+	Create(&Font);
 }
 
 CFont::CFont(FontType Type)

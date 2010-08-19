@@ -172,3 +172,21 @@ class CMD5Calculator
 public:
 	static void CalcMD5(const void *pData, SIZE_T DataSize, BYTE pMD5[16]);
 };
+
+
+/////////////////////////////////////////////////////////////////////////////
+// ビットレート計算クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CBitRateCalculator
+{
+	DWORD m_Time;
+	SIZE_T m_Size;
+	DWORD m_BitRate;
+public:
+	CBitRateCalculator();
+	void Initialize();
+	void Reset();
+	bool Update(SIZE_T Size);
+	DWORD GetBitRate() const { return m_BitRate; }
+};

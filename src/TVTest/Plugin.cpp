@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "Plugin.h"
 #include "Image.h"
 #include "DialogUtil.h"
@@ -100,7 +99,7 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 	m_Flags=PluginInfo.Flags;
 	m_fEnabled=(m_Flags&TVTest::PLUGIN_FLAG_ENABLEDEFAULT)!=0;
 	m_PluginParam.Callback=Callback;
-	m_PluginParam.hwndApp=GetAppClass().GetMainWindow()->GetHandle();
+	m_PluginParam.hwndApp=GetAppClass().GetUICore()->GetMainWindow();
 	m_PluginParam.pClientData=NULL;
 	m_PluginParam.pInternalData=this;
 	if (!pInitialize(&m_PluginParam)) {
@@ -563,7 +562,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				return FALSE;
 			if (fPause==pRecordManager->IsPaused())
 				return FALSE;
-			App.GetMainWindow()->SendCommand(CM_RECORD_PAUSE);
+			App.GetUICore()->DoCommand(CM_RECORD_PAUSE);
 		}
 		return TRUE;
 
@@ -679,10 +678,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		}
 
 	case TVTest::MESSAGE_GETZOOM:
-		return GetAppClass().GetMainWindow()->CalcZoomRate();
+		return GetAppClass().GetUICore()->GetZoomPercentage();
 
 	case TVTest::MESSAGE_SETZOOM:
-		return GetAppClass().GetMainWindow()->SetZoomRate((int)lParam1,(int)lParam2);
+		return GetAppClass().GetUICore()->SetZoomRate((int)lParam1,(int)lParam2);
 
 	case TVTest::MESSAGE_GETPANSCAN:
 		{
@@ -749,7 +748,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			default:
 				return FALSE;
 			}
-			GetAppClass().GetMainWindow()->PostCommand(Command);
+			GetAppClass().GetUICore()->DoCommand(Command);
 		}
 		return TRUE;
 
@@ -914,7 +913,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		return (LRESULT)(LPVOID)NULL;
 
 	case TVTest::MESSAGE_SAVEIMAGE:
-		GetAppClass().GetMainWindow()->PostCommand(CM_SAVEIMAGE);
+		GetAppClass().GetUICore()->DoCommand(CM_SAVEIMAGE);
 		return TRUE;
 
 	case TVTest::MESSAGE_RESET:
@@ -922,17 +921,18 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			DWORD Flags=(DWORD)lParam1;
 
 			if (Flags==TVTest::RESET_ALL)
-				GetAppClass().GetMainWindow()->SendCommand(CM_RESET);
+				GetAppClass().GetUICore()->DoCommand(CM_RESET);
 			else if (Flags==TVTest::RESET_VIEWER)
-				GetAppClass().GetMainWindow()->SendCommand(CM_RESETVIEWER);
+				GetAppClass().GetUICore()->DoCommand(CM_RESETVIEWER);
 			else
 				return FALSE;
 		}
 		return TRUE;
 
 	case TVTest::MESSAGE_CLOSE:
-		GetAppClass().GetMainWindow()->PostCommand(
-							(lParam1&TVTest::CLOSE_EXIT)!=0?CM_EXIT:CM_CLOSE);
+		::PostMessage(GetAppClass().GetUICore()->GetMainWindow(),
+					  WM_COMMAND,
+					  (lParam1&TVTest::CLOSE_EXIT)!=0?CM_EXIT:CM_CLOSE,0);
 		return TRUE;
 
 	case TVTest::MESSAGE_SETSTREAMCALLBACK:
@@ -1102,7 +1102,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		{
 			bool fNext=lParam1&1;
 
-			GetAppClass().GetMainWindow()->PostCommand(fNext?CM_CHANNEL_UP:CM_CHANNEL_DOWN);
+			GetAppClass().GetUICore()->DoCommand(fNext?CM_CHANNEL_UP:CM_CHANNEL_DOWN);
 		}
 		return TRUE;
 
@@ -1155,7 +1155,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		return TRUE;
 
 	case TVTest::MESSAGE_RESETSTATUS:
-		GetAppClass().GetMainWindow()->SendCommand(CM_RESETERRORCOUNT);
+		GetAppClass().GetUICore()->DoCommand(CM_RESETERRORCOUNT);
 		return TRUE;
 
 	case TVTest::MESSAGE_SETAUDIOCALLBACK:
@@ -1201,7 +1201,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 			if (pszCommand==NULL || pszCommand[0]=='\0')
 				return FALSE;
-			return GetAppClass().GetMainWindow()->DoCommand(pszCommand);
+			return GetAppClass().GetUICore()->DoCommand(pszCommand);
 		}
 
 	case TVTest::MESSAGE_GETBCASINFO:

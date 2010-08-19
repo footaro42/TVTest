@@ -46,35 +46,28 @@ bool CPanel::Initialize(HINSTANCE hinst)
 
 
 CPanel::CPanel()
+	: m_TitleMargin(4)
+	, m_ButtonSize(14)
+	, m_Font(DrawUtil::FONT_CAPTION)
+	, m_TitleHeight(0)
+	, m_pWindow(NULL)
+	, m_fShowTitle(false)
+	, m_fEnableFloating(true)
+	, m_pEventHandler(NULL)
 {
-	NONCLIENTMETRICS ncm;
+	COLORREF CaptionColor=::GetSysColor(COLOR_INACTIVECAPTION);
 
-	m_TitleMargin=4;
-	m_ButtonSize=14;
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(ncm);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	m_hfont=CreateFontIndirect(&ncm.lfCaptionFont);
-	m_TitleHeight=max(abs(ncm.lfCaptionFont.lfHeight),m_ButtonSize)+m_TitleMargin*2;
-	m_pWindow=NULL;
-	m_pszTitle=NULL;
-	m_fShowTitle=false;
-	m_fEnableFloating=true;
-	m_TitleBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_TitleBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_TitleBackGradient.Color1=GetSysColor(COLOR_INACTIVECAPTION);
-	m_TitleBackGradient.Color2=m_TitleBackGradient.Color1;
-	m_crTitleTextColor=GetSysColor(COLOR_INACTIVECAPTIONTEXT);
-	m_pEventHandler=NULL;
+	m_Theme.TitleStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.TitleStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.TitleStyle.Gradient.Color1=CaptionColor;
+	m_Theme.TitleStyle.Gradient.Color2=CaptionColor;
+	m_Theme.TitleStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.TitleStyle.TextColor=::GetSysColor(COLOR_INACTIVECAPTIONTEXT);
 }
 
 
 CPanel::~CPanel()
 {
-	delete [] m_pszTitle;
 }
 
 
@@ -94,12 +87,12 @@ bool CPanel::SetWindow(CBasicWindow *pWindow,LPCTSTR pszTitle)
 		if (pWindow->GetParent()!=m_hwnd)
 			pWindow->SetParent(m_hwnd);
 		pWindow->SetVisible(true);
-		ReplaceString(&m_pszTitle,pszTitle);
+		m_Title.Set(pszTitle);
 		GetPosition(&rc);
 		rc.right=rc.left+pWindow->GetWidth();
 		SetPosition(&rc);
 	} else {
-		ReplaceString(&m_pszTitle,NULL);
+		m_Title.Clear();
 	}
 	return true;
 }
@@ -129,16 +122,26 @@ void CPanel::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-bool CPanel::SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText)
+bool CPanel::SetTheme(const ThemeInfo *pTheme)
 {
-	m_TitleBackGradient=*pBackGradient;
-	m_crTitleTextColor=crTitleText;
+	if (pTheme==NULL)
+		return false;
+	m_Theme=*pTheme;
 	if (m_hwnd!=NULL && m_fShowTitle) {
 		RECT rc;
 
 		GetTitleRect(&rc);
-		::InvalidateRect(m_hwnd,&rc,TRUE);
+		Invalidate(&rc);
 	}
+	return true;
+}
+
+
+bool CPanel::GetTheme(ThemeInfo *pTheme) const
+{
+	if (pTheme==NULL)
+		return false;
+	*pTheme=m_Theme;
 	return true;
 }
 
@@ -166,6 +169,26 @@ bool CPanel::GetContentRect(RECT *pRect) const
 			pRect->bottom=pRect->top;
 	}
 	return true;
+}
+
+
+void CPanel::Draw(HDC hdc,const RECT &PaintRect) const
+{
+	if (m_fShowTitle && PaintRect.top<m_TitleHeight) {
+		RECT rc;
+
+		GetTitleRect(&rc);
+		Theme::DrawStyleBackground(hdc,&rc,&m_Theme.TitleStyle);
+		if (!m_Title.IsEmpty()) {
+			rc.left+=m_TitleMargin;
+			rc.right-=m_TitleMargin+m_ButtonSize;
+			DrawUtil::DrawText(hdc,m_Title.Get(),rc,
+				DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX,
+				&m_Font,m_Theme.TitleStyle.TextColor);
+		}
+		GetCloseButtonRect(&rc);
+		::DrawFrameControl(hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
+	}
 }
 
 
@@ -209,8 +232,13 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			//CPanel *pThis=dynamic_cast<CPanel*>(OnCreate(hwnd,lParam));
-			OnCreate(hwnd,lParam);
+			CPanel *pThis=dynamic_cast<CPanel*>(OnCreate(hwnd,lParam));
+
+			HDC hdc=::GetDC(hwnd);
+			int FontHeight=pThis->m_Font.GetHeight(hdc,false);
+			pThis->m_TitleHeight=
+				max(FontHeight,pThis->m_ButtonSize)+pThis->m_TitleMargin*2;
+			::ReleaseDC(hwnd,hdc);
 		}
 		return 0;
 
@@ -227,32 +255,9 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			CPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
-			BeginPaint(hwnd,&ps);
-			if (pThis->m_fShowTitle && ps.rcPaint.top<pThis->m_TitleHeight) {
-				RECT rc;
-				HFONT hfontOld;
-				COLORREF crOldTextColor;
-				int OldBkMode;
-
-				pThis->GetClientRect(&rc);
-				rc.bottom=pThis->m_TitleHeight;
-				Theme::FillGradient(ps.hdc,&rc,&pThis->m_TitleBackGradient);
-				if (pThis->m_pszTitle!=NULL) {
-					hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
-					crOldTextColor=SetTextColor(ps.hdc,pThis->m_crTitleTextColor);
-					OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-					rc.left+=pThis->m_TitleMargin;
-					rc.right-=pThis->m_TitleMargin+pThis->m_ButtonSize;
-					DrawText(ps.hdc,pThis->m_pszTitle,-1,&rc,
-						DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-					SetTextColor(ps.hdc,crOldTextColor);
-					SetBkMode(ps.hdc,OldBkMode);
-					SelectFont(ps.hdc,hfontOld);
-				}
-				pThis->GetCloseButtonRect(&rc);
-				DrawFrameControl(ps.hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
-			}
-			EndPaint(hwnd,&ps);
+			::BeginPaint(hwnd,&ps);
+			pThis->Draw(ps.hdc,ps.rcPaint);
+			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
@@ -267,23 +272,23 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				RECT rc;
 
 				pThis->GetCloseButtonRect(&rc);
-				if (PtInRect(&rc,pt)) {
+				if (::PtInRect(&rc,pt)) {
 					if (pThis->m_pEventHandler!=NULL)
 						pThis->m_pEventHandler->OnClose();
 					return 0;
 				}
 				if (pThis->m_fEnableFloating) {
-					ClientToScreen(hwnd,&pt);
+					::ClientToScreen(hwnd,&pt);
 					pThis->m_ptDragStartPos=pt;
-					SetCapture(hwnd);
+					::SetCapture(hwnd);
 				}
 			}
 		}
 		return 0;
 
 	case WM_LBUTTONUP:
-		if (GetCapture()==hwnd)
-			ReleaseCapture();
+		if (::GetCapture()==hwnd)
+			::ReleaseCapture();
 		return 0;
 
 	case WM_MOUSEMOVE:
@@ -293,10 +298,10 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
-			ClientToScreen(hwnd,&pt);
+			::ClientToScreen(hwnd,&pt);
 			if (abs(pt.x-pThis->m_ptDragStartPos.x)>=4
 					|| abs(pt.y-pThis->m_ptDragStartPos.y)>=4) {
-				ReleaseCapture();
+				::ReleaseCapture();
 				if (pThis->m_pEventHandler!=NULL
 						&& pThis->m_pEventHandler->OnFloating()) {
 					::SendMessage(pThis->GetParent(),WM_NCLBUTTONDOWN,HTCAPTION,MAKELPARAM(pt.x,pt.y));
@@ -312,29 +317,29 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
-			if (pThis->m_fShowTitle && pt.y<pThis->m_TitleHeight) {
-				static const LPCTSTR pszMenu[] = {
-					TEXT("閉じる(&C)"),
-					TEXT("フローティング(&F)")
-				};
-				HMENU hmenu;
-				int i;
+			if (pThis->m_fShowTitle && pt.y<pThis->m_TitleHeight
+					&& pThis->m_pEventHandler!=NULL) {
+				HMENU hmenu=::CreatePopupMenu();
 
-				ClientToScreen(hwnd,&pt);
-				hmenu=CreatePopupMenu();
-				for (i=0;i<lengthof(pszMenu);i++)
-					AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,i+1,pszMenu[i]);
-				if (!pThis->m_fEnableFloating)
-					EnableMenuItem(hmenu,2,MF_BYCOMMAND | MFS_GRAYED);
-				switch (TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,
-													pt.x,pt.y,0,hwnd,NULL)) {
+				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("閉じる(&C)"));
+				if (pThis->m_fEnableFloating)
+					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("フローティング(&F)"));
+				pThis->m_pEventHandler->OnMenuPopup(hmenu);
+				::ClientToScreen(hwnd,&pt);
+				int Command=::TrackPopupMenu(hmenu,
+											 TPM_RIGHTBUTTON | TPM_RETURNCMD,
+											 pt.x,pt.y,0,hwnd,NULL);
+				switch (Command) {
+				case 0:
+					break;
 				case 1:
-					if (pThis->m_pEventHandler!=NULL)
-						pThis->m_pEventHandler->OnClose();
+					pThis->m_pEventHandler->OnClose();
 					break;
 				case 2:
-					if (pThis->m_pEventHandler!=NULL)
-						pThis->m_pEventHandler->OnFloating();
+					pThis->m_pEventHandler->OnFloating();
+					break;
+				default:
+					pThis->m_pEventHandler->OnMenuSelected(Command);
 					break;
 				}
 			}
@@ -359,7 +364,7 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 		}
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 
@@ -383,7 +388,7 @@ bool CPanelFrame::Initialize(HINSTANCE hinst)
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=PANEL_FRAME_WINDOW_CLASS;
-		if (RegisterClass(&wc)==0)
+		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
@@ -392,16 +397,16 @@ bool CPanelFrame::Initialize(HINSTANCE hinst)
 
 
 CPanelFrame::CPanelFrame()
+	: m_fFloating(true)
+	, m_DockingWidth(-1)
+	, m_Opacity(255)
+	, m_DragDockingTarget(DOCKING_NONE)
+	, m_pEventHandler(NULL)
 {
 	m_WindowPosition.Left=120;
 	m_WindowPosition.Top=120;
 	m_WindowPosition.Width=200;
 	m_WindowPosition.Height=240;
-	m_fFloating=true;
-	m_DockingWidth=-1;
-	m_Opacity=255;
-	m_DragDockingTarget=DOCKING_NONE;
-	m_pEventHandler=NULL;
 }
 
 
@@ -416,24 +421,23 @@ bool CPanelFrame::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 						   PANEL_FRAME_WINDOW_CLASS,TEXT("パネル"),m_hinst))
 		return false;
 	if (m_Opacity<255) {
-		SetExStyle(ExStyle|WS_EX_LAYERED);
+		SetExStyle(ExStyle | WS_EX_LAYERED);
 		::SetLayeredWindowAttributes(m_hwnd,0,m_Opacity,LWA_ALPHA);
 	}
 	return true;
 }
 
 
-bool CPanelFrame::Create(HWND hwndOwner,CSplitter *pSplitter,int PanelID,CBasicWindow *pWindow,LPCTSTR pszTitle)
+bool CPanelFrame::Create(HWND hwndOwner,Layout::CSplitter *pSplitter,int PanelID,
+						 CBasicWindow *pWindow,LPCTSTR pszTitle)
 {
 	RECT rc;
 
 	m_pSplitter=pSplitter;
 	m_PanelID=PanelID;
-	//if (!Create(hwndOwner,WS_POPUP | WS_THICKFRAME | WS_CLIPCHILDREN))
-	//	return false;
 	if (!Create(hwndOwner,
-			WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_CLIPCHILDREN,
-			WS_EX_TOOLWINDOW))
+				WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME | WS_CLIPCHILDREN,
+				WS_EX_TOOLWINDOW))
 		return false;
 	m_Panel.Create(m_hwnd,WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN);
 	m_Panel.SetWindow(pWindow,pszTitle);
@@ -450,10 +454,12 @@ bool CPanelFrame::Create(HWND hwndOwner,CSplitter *pSplitter,int PanelID,CBasicW
 		m_Panel.ShowTitle(false);
 		m_Panel.SetVisible(true);
 	} else {
-		m_pSplitter->SetPane(m_pSplitter->IDToIndex(PanelID),&m_Panel,PanelID);
+		Layout::CWindowContainer *pContainer=
+			dynamic_cast<Layout::CWindowContainer*>(m_pSplitter->GetPaneByID(PanelID));
+
+		pContainer->SetWindow(&m_Panel);
 		m_pSplitter->SetPaneSize(PanelID,m_DockingWidth);
 		m_Panel.ShowTitle(true);
-		//m_pSplitter->SetPaneVisible(PanelID,true);
 	}
 	return true;
 }
@@ -463,11 +469,14 @@ bool CPanelFrame::SetFloating(bool fFloating)
 {
 	if (m_fFloating!=fFloating) {
 		if (m_hwnd!=NULL) {
+			Layout::CWindowContainer *pContainer=
+				dynamic_cast<Layout::CWindowContainer*>(m_pSplitter->GetPaneByID(m_PanelID));
+
 			if (fFloating) {
 				RECT rc;
 
-				//m_DockingWidth=m_pSplitter->GetPaneSize(m_PanelID);
-				m_pSplitter->SetPane(m_pSplitter->IDToIndex(m_PanelID),NULL,m_PanelID);
+				pContainer->SetVisible(false);
+				pContainer->SetWindow(NULL);
 				m_Panel.SetParent(this);
 				m_Panel.SetVisible(true);
 				GetClientRect(&rc);
@@ -478,9 +487,9 @@ bool CPanelFrame::SetFloating(bool fFloating)
 				SetVisible(false);
 				m_Panel.SetVisible(false);
 				m_Panel.ShowTitle(true);
-				m_pSplitter->SetPane(m_pSplitter->IDToIndex(m_PanelID),&m_Panel,m_PanelID);
+				pContainer->SetWindow(&m_Panel);
 				m_pSplitter->SetPaneSize(m_PanelID,m_DockingWidth);
-				m_pSplitter->SetPaneVisible(m_PanelID,true);
+				pContainer->SetVisible(true);
 			}
 		}
 		m_fFloating=fFloating;
@@ -496,7 +505,7 @@ bool CPanelFrame::SetDockingWidth(int Width)
 }
 
 
-void CPanelFrame::SetEventHandler(CPanelFrameEventHandler *pHandler)
+void CPanelFrame::SetEventHandler(CEventHandler *pHandler)
 {
 	m_pEventHandler=pHandler;
 }
@@ -514,15 +523,24 @@ bool CPanelFrame::SetPanelVisible(bool fVisible,bool fNoActivate)
 		else
 			SetVisible(fVisible);
 	} else {
-		m_pSplitter->SetPaneVisible(m_PanelID,fVisible);
+		Layout::CWindowContainer *pContainer=
+			dynamic_cast<Layout::CWindowContainer*>(m_pSplitter->GetPaneByID(m_PanelID));
+
+		pContainer->SetVisible(fVisible);
 	}
 	return true;
 }
 
 
-bool CPanelFrame::SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText)
+bool CPanelFrame::SetTheme(const CPanel::ThemeInfo *pTheme)
 {
-	return m_Panel.SetTitleColor(pBackGradient,crTitleText);
+	return m_Panel.SetTheme(pTheme);
+}
+
+
+bool CPanelFrame::GetTheme(CPanel::ThemeInfo *pTheme) const
+{
+	return m_Panel.GetTheme(pTheme);
 }
 
 
@@ -551,7 +569,7 @@ bool CPanelFrame::SetOpacity(int Opacity)
 
 CPanelFrame *CPanelFrame::GetThis(HWND hwnd)
 {
-	return reinterpret_cast<CPanelFrame*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
+	return reinterpret_cast<CPanelFrame*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
 }
 
 
@@ -628,12 +646,12 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 
 			if (!pThis->m_fDragMoving)
 				break;
-			GetCursorPos(&pt);
-			GetWindowRect(pThis->m_pSplitter->GetHandle(),&rcTarget);
+			::GetCursorPos(&pt);
+			pThis->m_pSplitter->GetLayoutBase()->GetScreenPosition(&rcTarget);
 			Target=DOCKING_NONE;
 			rc=rcTarget;
 			rc.right=rc.left+16;
-			if (PtInRect(&rc,pt)) {
+			if (::PtInRect(&rc,pt)) {
 				Target=DOCKING_LEFT;
 			} else {
 				rc.right=rcTarget.right;
@@ -671,7 +689,8 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 					Index=0;
 				else
 					Index=1;
-				if (pThis->m_pSplitter->IDToIndex(pThis->m_PanelID)!=Index)
+				//if (pThis->m_pSplitter->IDToIndex(pThis->m_PanelID)!=Index)
+				if (pThis->m_pSplitter->GetPane(Index)->GetID()!=pThis->m_PanelID)
 					pThis->m_pSplitter->SwapPane();
 				::SendMessage(hwnd,WM_SYSCOMMAND,SC_DOCKING,0);
 			}
@@ -738,7 +757,7 @@ bool CPanelFrame::OnFloating()
 	MapWindowRect(m_Panel.GetHandle(),NULL,&rc);
 	if (m_pEventHandler!=NULL && !m_pEventHandler->OnFloatingChange(true))
 		return false;
-	AdjustWindowRectEx(&rc,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
+	CalcPositionFromClientRect(&rc);
 	SetPosition(&rc);
 	SetFloating(true);
 	return true;
@@ -773,6 +792,29 @@ void CPanelFrame::OnSizeChanged(int Width,int Height)
 {
 	if (!m_fFloating)
 		m_DockingWidth=Width;
+}
+
+
+#define PANEL_MENU_PLACEMENT	CPanel::MENU_USER
+
+bool CPanelFrame::OnMenuPopup(HMENU hmenu)
+{
+	::AppendMenu(hmenu,MF_STRING | MF_ENABLED,PANEL_MENU_PLACEMENT,
+				 m_pSplitter->IDToIndex(m_PanelID)==0?TEXT("右へ"):TEXT("左へ"));
+	return true;
+}
+
+
+bool CPanelFrame::OnMenuSelected(int Command)
+{
+	switch (Command) {
+	case PANEL_MENU_PLACEMENT:
+		m_pSplitter->SwapPane();
+		break;
+	default:
+		return false;
+	}
+	return true;
 }
 
 

@@ -7,33 +7,58 @@
 #include "ChannelList.h"
 
 
-class CDriverChannelInfo : public CChannelInfo
+class CChannelHistory
 {
-	LPTSTR m_pszDriverName;
-
 public:
-	CDriverChannelInfo(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
-	~CDriverChannelInfo();
-	LPCTSTR GetDriverFileName() const { return m_pszDriverName; }
-};
+	class CChannel : public CChannelInfo
+	{
+		CDynamicString m_DriverName;
 
-class CChannelHistory : public COptions
-{
-	std::deque<CDriverChannelInfo*> m_ChannelList;
-	int m_MaxChannelHistory;
-	int m_MaxChannelHistoryMenu;
+	public:
+		CChannel(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
+		LPCTSTR GetDriverFileName() const { return m_DriverName.Get(); }
+	};
 
-public:
 	CChannelHistory();
 	~CChannelHistory();
+	void Clear();
+	bool SetCurrentChannel(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
+	const CChannel *Forward();
+	const CChannel *Backward();
+
+private:
+	std::deque<CChannel*> m_ChannelList;
+	int m_MaxChannelHistory;
+	int m_CurrentChannel;
+};
+
+class CRecentChannelList : public COptions
+{
+public:
+	class CChannel : public ::CChannelInfo
+	{
+		CDynamicString m_DriverName;
+
+	public:
+		CChannel(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
+		LPCTSTR GetDriverFileName() const { return m_DriverName.Get(); }
+	};
+
+	CRecentChannelList();
+	~CRecentChannelList();
 	int NumChannels() const;
 	void Clear();
-	const CDriverChannelInfo *GetChannelInfo(int Index) const;
+	const CChannel *GetChannelInfo(int Index) const;
 	bool Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
 	bool SetMenu(HMENU hmenu,bool fClear=true) const;
 // COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
+
+private:
+	std::deque<CChannel*> m_ChannelList;
+	int m_MaxChannelHistory;
+	int m_MaxChannelHistoryMenu;
 };
 
 

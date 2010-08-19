@@ -46,7 +46,8 @@ bool CNotificationBar::Initialize(HINSTANCE hinst)
 
 
 CNotificationBar::CNotificationBar()
-	: m_hfont(NULL)
+	: m_fAnimate(true)
+	, m_BarHeight(0)
 {
 	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
 	m_BackGradient.Direction=Theme::DIRECTION_VERT;
@@ -55,24 +56,16 @@ CNotificationBar::CNotificationBar()
 	m_TextColor[MESSAGE_INFO]=RGB(224,224,224);
 	m_TextColor[MESSAGE_WARNING]=RGB(255,160,64);
 	m_TextColor[MESSAGE_ERROR]=RGB(224,64,64);
-	NONCLIENTMETRICS ncm;
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(ncm);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	ncm.lfMessageFont.lfHeight=-14;
-	SetFont(&ncm.lfMessageFont);
-	m_fAnimate=true;
-	m_pszText=NULL;
+
+	LOGFONT lf;
+	DrawUtil::GetSystemFont(DrawUtil::FONT_MESSAGE,&lf);
+	lf.lfHeight=-14;
+	SetFont(&lf);
 }
 
 
 CNotificationBar::~CNotificationBar()
 {
-	::DeleteObject(m_hfont);
-	delete [] m_pszText;
 }
 
 
@@ -138,7 +131,7 @@ bool CNotificationBar::Hide()
 
 bool CNotificationBar::SetText(LPCTSTR pszText,MessageType Type)
 {
-	ReplaceString(&m_pszText,pszText);
+	m_Text.Set(pszText);
 	m_MessageType=Type;
 	if (m_hwnd!=NULL)
 		Invalidate();
@@ -161,15 +154,14 @@ bool CNotificationBar::SetColors(const Theme::GradientInfo *pBackGradient,
 
 bool CNotificationBar::SetFont(const LOGFONT *pFont)
 {
-	if (pFont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	HFONT hfont=::CreateFontIndirect(pFont);
-	if (hfont==NULL)
-		return false;
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	m_hfont=hfont;
-	m_BarHeight=abs(pFont->lfHeight)+BAR_MARGIN*2;
+	if (m_hwnd!=NULL) {
+		HDC hdc=::GetDC(m_hwnd);
+
+		m_BarHeight=m_Font.GetHeight(hdc,false)+BAR_MARGIN*2;
+		::ReleaseDC(m_hwnd,hdc);
+	}
 	return true;
 }
 
@@ -187,6 +179,9 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 		{
 			CNotificationBar *pThis=static_cast<CNotificationBar*>(OnCreate(hwnd,lParam));
 
+			HDC hdc=::GetDC(hwnd);
+			pThis->m_BarHeight=pThis->m_Font.GetHeight(hdc,false)+BAR_MARGIN*2;
+			::ReleaseDC(hwnd,hdc);
 		}
 		return 0;
 
@@ -199,22 +194,14 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 			::BeginPaint(hwnd,&ps);
 			::GetClientRect(hwnd,&rc);
 			Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
-			if (pThis->m_pszText!=NULL) {
-				COLORREF OldTextColor;
-				int OldBkMode;
-				HFONT hfontOld;
-
-				OldTextColor=::SetTextColor(ps.hdc,pThis->m_TextColor[pThis->m_MessageType]);
-				OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-				hfontOld=static_cast<HFONT>(::SelectObject(ps.hdc,pThis->m_hfont));
+			if (!pThis->m_Text.IsEmpty()) {
 				rc.left+=BAR_MARGIN;
 				rc.right-=BAR_MARGIN;
-				if (rc.left<rc.right)
-					::DrawText(ps.hdc,pThis->m_pszText,-1,&rc,
-							   DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-				::SetTextColor(ps.hdc,OldTextColor);
-				::SetBkMode(ps.hdc,OldBkMode);
-				::SelectObject(ps.hdc,hfontOld);
+				if (rc.left<rc.right) {
+					DrawUtil::DrawText(ps.hdc,pThis->m_Text.Get(),rc,
+						DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS,
+						&pThis->m_Font,pThis->m_TextColor[pThis->m_MessageType]);
+				}
 			}
 			::EndPaint(hwnd,&ps);
 		}

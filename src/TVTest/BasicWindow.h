@@ -2,6 +2,7 @@
 #define BASIC_WINDOW_H
 
 
+// ウィンドウの基底クラス
 class ABSTRACT_CLASS(CBasicWindow)
 {
 protected:
@@ -11,8 +12,9 @@ protected:
 		int Width,Height;
 		bool fMaximized;
 	} m_WindowPosition;
+
 	bool CreateBasicWindow(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID,
-						LPCTSTR pszClassName,LPCTSTR pszText,HINSTANCE hinst);
+						   LPCTSTR pszClassName,LPCTSTR pszText,HINSTANCE hinst);
 	static CBasicWindow *OnCreate(HWND hwnd,LPARAM lParam);
 	void OnDestroy();
 	static CBasicWindow *GetBasicWindow(HWND hwnd);
@@ -36,9 +38,12 @@ public:
 	bool GetMaximize() const;
 	HWND GetHandle() const { return m_hwnd; }
 	bool Invalidate(bool fErase=true);
+	bool Invalidate(const RECT *pRect,bool fErase=true);
 	bool Update();
+	bool Redraw(const RECT *pRect=NULL,UINT Flags=RDW_ERASE | RDW_INVALIDATE | RDW_UPDATENOW);
 	bool GetClientRect(RECT *pRect) const;
 	bool GetClientSize(SIZE *pSize) const;
+	bool CalcPositionFromClientRect(RECT *pRect) const;
 	bool SetParent(HWND hwnd);
 	bool SetParent(CBasicWindow *pWindow);
 	HWND GetParent() const;
@@ -49,6 +54,7 @@ public:
 	bool SetExStyle(DWORD ExStyle,bool fFrameChange=false);
 	LRESULT SendMessage(UINT Msg,WPARAM wParam,LPARAM lParam);
 	bool PostMessage(UINT Msg,WPARAM wParam,LPARAM lParam);
+	bool SendSizeMessage();
 };
 
 

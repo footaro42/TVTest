@@ -29,8 +29,8 @@ static char THIS_FILE[]=__FILE__;
 #define MENU_DRIVER 8
 
 static const LPCTSTR DayText[] = {
-	TEXT("ç°ì˙"), TEXT("ñæì˙"), TEXT("ñæå„ì˙"), TEXT("ñæÅXå„ì˙"),
-	TEXT("4ì˙å„"), TEXT("5ì˙å„"), TEXT("6ì˙å„")
+	TEXT("ç°ì˙"), TEXT("ñæì˙"), TEXT("ñæå„ì˙"), TEXT("3ì˙å„"),
+	TEXT("4ì˙å„"), TEXT("5ì˙å„"), TEXT("6ì˙å„"), TEXT("7ì˙å„"),
 };
 
 
@@ -916,6 +916,7 @@ CProgramGuide::CProgramGuide()
 	, m_fShowToolTip(true)
 	, m_CurrentTuningSpace(-2)
 	, m_pDriverManager(NULL)
+	, m_BeginHour(-1)
 	, m_fUpdating(false)
 	, m_pEventHandler(NULL)
 	, m_pFrame(NULL)
@@ -1066,16 +1067,11 @@ bool CProgramGuide::UpdateList(bool fUpdateList)
 
 void CProgramGuide::CalcLayout()
 {
-	SYSTEMTIME stFirst=m_stFirstTime,stLast=m_stLastTime;
+	SYSTEMTIME stFirst,stLast;
 	HDC hdc;
 	HFONT hfontOld;
 
-	if (m_Day!=DAY_TODAY) {
-		LONGLONG Offset=(LONGLONG)m_Day*(24*60*60*1000);
-
-		OffsetSystemTime(&stFirst,Offset);
-		OffsetSystemTime(&stLast,Offset);
-	}
+	GetCurrentTimeRange(&stFirst,&stLast);
 	hdc=::GetDC(m_hwnd);
 	hfontOld=static_cast<HFONT>(GetCurrentObject(hdc,OBJ_FONT));
 	for (int i=0;i<m_ServiceList.NumServices();i++) {
@@ -1245,8 +1241,12 @@ void CProgramGuide::DrawTimeBar(HDC hdc,const RECT *pRect,bool fRight)
 	rc.right=pRect->right;
 	for (int i=0;i<m_Hours;i++) {
 		TCHAR szText[32];
-		int Hour=(m_stFirstTime.wHour+i)%24;
+		int Hour;
 
+		if (m_Day==DAY_TODAY || m_BeginHour<0)
+			Hour=(m_stFirstTime.wHour+i)%24;
+		else
+			Hour=(m_BeginHour+i)%24;
 		rc.bottom=rc.top+PixelsPerHour;
 		Theme::FillGradient(hdc,&rc,&m_TimeBarBackGradient[Hour/3]);
 		::MoveToEx(hdc,rc.left,rc.top,NULL);
@@ -1281,8 +1281,10 @@ void CProgramGuide::DrawTimeBar(HDC hdc,const RECT *pRect,bool fRight)
 			::DeleteObject(::SelectObject(hdc,hpen));
 		}
 		if (i==0 || Hour==0) {
-			SYSTEMTIME st=m_stFirstTime;
-			OffsetSystemTime(&st,(LONGLONG)(m_Day+(i+23)/24)*(1000LL*60*60*24));
+			SYSTEMTIME st;
+			GetCurrentTimeRange(&st,NULL);
+			if (i>0)
+				OffsetSystemTime(&st,(LONGLONG)i*(1000*60*60));
 			::wsprintf(szText,TEXT("%d/%d(%s) %déû"),
 					   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),Hour);
 		} else {
@@ -1597,15 +1599,10 @@ void CProgramGuide::SetCaption()
 				m_pFrame->SetCaption(TITLE_TEXT TEXT(" - î‘ëgï\ÇÃéÊìæíÜ..."));
 			} else {
 				TCHAR szText[256];
-				SYSTEMTIME stFirst=m_stFirstTime,stLast=m_stLastTime;
+				SYSTEMTIME stFirst,stLast;
 
+				GetCurrentTimeRange(&stFirst,&stLast);
 				OffsetSystemTime(&stLast,-60*60*1000);
-				if (m_Day!=DAY_TODAY) {
-					LONGLONG Offset=(LONGLONG)m_Day*(24*60*60*1000);
-
-					OffsetSystemTime(&stFirst,Offset);
-					OffsetSystemTime(&stLast,Offset);
-				}
 				::wsprintf(szText,TITLE_TEXT TEXT(" - %s %d/%d(%s) %déû Å` %d/%d(%s) %déû"),
 						   DayText[m_Day],stFirst.wMonth,stFirst.wDay,
 						   GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour,
@@ -1749,6 +1746,15 @@ bool CProgramGuide::EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const
 }
 
 
+bool CProgramGuide::SetBeginHour(int Hour)
+{
+	if (Hour<-1 || Hour>=24)
+		return false;
+	m_BeginHour=Hour;
+	return true;
+}
+
+
 bool CProgramGuide::SetTimeRange(const SYSTEMTIME *pFirstTime,const SYSTEMTIME *pLastTime)
 {
 	FILETIME ftFirst,ftLast;
@@ -1782,11 +1788,27 @@ bool CProgramGuide::GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) c
 
 bool CProgramGuide::GetCurrentTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const
 {
+	return GetDayTimeRange(m_Day,pFirstTime,pLastTime);
+}
+
+
+bool CProgramGuide::GetDayTimeRange(int Day,SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const
+{
 	SYSTEMTIME stFirst=m_stFirstTime,stLast=m_stLastTime;
 
-	if (m_Day!=DAY_TODAY) {
-		LONGLONG Offset=(LONGLONG)m_Day*(24*60*60*1000);
+	if (Day!=DAY_TODAY) {
+		LONGLONG Offset;
 
+		if (m_BeginHour<0) {
+			Offset=Day*24;
+		} else {
+			Offset=Day*24-stFirst.wHour;
+			if (stFirst.wHour>m_BeginHour)
+				Offset+=m_BeginHour;
+			else if (stFirst.wHour<m_BeginHour)
+				Offset-=24-m_BeginHour;
+		}
+		Offset*=60*60*1000;
 		OffsetSystemTime(&stFirst,Offset);
 		OffsetSystemTime(&stLast,Offset);
 	}
@@ -2229,18 +2251,19 @@ LRESULT CALLBACK CProgramGuide::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			::CheckMenuRadioItem(hmenu,CM_PROGRAMGUIDE_TODAY,
 								 CM_PROGRAMGUIDE_TODAY+DAY_LAST,
 								 CM_PROGRAMGUIDE_TODAY+pThis->m_Day,MF_BYCOMMAND);
-			SYSTEMTIME st=pThis->m_stFirstTime;
 			MENUITEMINFO mii;
 			mii.cbSize=sizeof(mii);
 			mii.fMask=MIIM_STRING;
 			mii.dwTypeData=szText;
 			for (int i=CM_PROGRAMGUIDE_TODAY;i<=CM_PROGRAMGUIDE_TODAY+DAY_LAST;i++) {
+				SYSTEMTIME st;
+
+				pThis->GetDayTimeRange(i-CM_PROGRAMGUIDE_TODAY,&st,NULL);
 				mii.cch=lengthof(szText);
 				::GetMenuItemInfo(hmenu,i,FALSE,&mii);
 				::wsprintf(szText+::lstrlen(szText),TEXT(" %d/%d(%s) %déûÅ`"),
 						   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
 				::SetMenuItemInfo(hmenu,i,FALSE,&mii);
-				OffsetSystemTime(&st,24*60*60*1000);
 			}
 
 			HMENU hmenuDriver=::GetSubMenu(hmenuPopup,MENU_DRIVER);
@@ -2862,13 +2885,12 @@ public:
 			SYSTEMTIME st;
 			TCHAR szText[256];
 
-			m_pProgramGuide->GetTimeRange(&st,NULL);
 			for (int i=CProgramGuide::DAY_TODAY;i<=CProgramGuide::DAY_LAST;i++) {
+				m_pProgramGuide->GetDayTimeRange(i,&st,NULL);
 				::wsprintf(szText,TEXT("%s %d/%d(%s) %déûÅ`"),
 						   DayText[i],
 						   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
 				m_Menu.SetItemText(CM_PROGRAMGUIDE_TODAY+i,szText);
-				OffsetSystemTime(&st,24*60*60*1000);
 			}
 			RECT rc;
 			POINT pt;
@@ -3016,19 +3038,10 @@ bool CProgramGuideFrame::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID
 }
 
 
-void CProgramGuideFrame::SetStatusColor(
-	const Theme::GradientInfo *pBackGradient,COLORREF crText,
-	const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
+void CProgramGuideFrame::SetStatusTheme(const CStatusView::ThemeInfo *pTheme)
 {
 	for (int i=0;i<lengthof(m_StatusView);i++)
-		m_StatusView[i].SetColor(pBackGradient,crText,pHighlightBackGradient,crHighlightText);
-}
-
-
-void CProgramGuideFrame::SetStatusBorderType(Theme::BorderType Type)
-{
-	for (int i=0;i<lengthof(m_StatusView);i++)
-		m_StatusView[i].SetBorderType(Type);
+		m_StatusView[i].SetTheme(pTheme);
 }
 
 
@@ -3231,19 +3244,10 @@ void CProgramGuideDisplay::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-void CProgramGuideDisplay::SetStatusColor(
-	const Theme::GradientInfo *pBackGradient,COLORREF crText,
-	const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
+void CProgramGuideDisplay::SetStatusTheme(const CStatusView::ThemeInfo *pTheme)
 {
 	for (int i=0;i<lengthof(m_StatusView);i++)
-		m_StatusView[i].SetColor(pBackGradient,crText,pHighlightBackGradient,crHighlightText);
-}
-
-
-void CProgramGuideDisplay::SetStatusBorderType(Theme::BorderType Type)
-{
-	for (int i=0;i<lengthof(m_StatusView);i++)
-		m_StatusView[i].SetBorderType(Type);
+		m_StatusView[i].SetTheme(pTheme);
 }
 
 

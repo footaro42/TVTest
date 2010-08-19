@@ -135,6 +135,8 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	// シーケンスを取得
 	m_Mpeg2Parser.StoreEs(pData, DataSize);
 
+	m_BitRateCalculator.Update(DataSize);
+
 	return pOut->GetActualDataLength() > 0 ? S_OK : S_FALSE;
 }
 
@@ -155,9 +157,12 @@ HRESULT CMpeg2SequenceFilter::Transform(IMediaSample *pSample)
 	if (FAILED(hr))
 		return hr;
 	LONG DataSize = pSample->GetActualDataLength();
+	m_pOutSample = pSample;
 
 	// シーケンスを取得
 	m_Mpeg2Parser.StoreEs(pData, DataSize);
+
+	m_BitRateCalculator.Update(DataSize);
 
 	return S_OK;
 }
@@ -206,12 +211,16 @@ HRESULT CMpeg2SequenceFilter::StartStreaming(void)
 	m_Mpeg2Parser.Reset();
 	m_VideoInfo.Reset();
 
+	m_BitRateCalculator.Initialize();
+
 	return S_OK;
 }
 
 
 HRESULT CMpeg2SequenceFilter::StopStreaming(void)
 {
+	m_BitRateCalculator.Reset();
+
 	return S_OK;
 }
 
@@ -235,6 +244,7 @@ void CMpeg2SequenceFilter::SetRecvCallback(MPEG2SEQUENCE_VIDEOINFO_FUNC pCallbac
 }
 
 
+#include <dvdmedia.h>
 void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence)
 {
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
@@ -270,6 +280,19 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 
 	if (Info != m_VideoInfo) {
 		// 映像のサイズ及びフレームレートが変わった
+		if (m_VideoInfo.m_OrigWidth != OrigWidth) {
+			CMediaType MediaType(m_pOutput->CurrentMediaType());
+			MPEG2VIDEOINFO *pVideoInfo=(MPEG2VIDEOINFO*)MediaType.Format();
+
+			if (pVideoInfo
+					&& (pVideoInfo->hdr.bmiHeader.biWidth != OrigWidth
+						|| pVideoInfo->hdr.bmiHeader.biHeight != OrigHeight)) {
+				pVideoInfo->hdr.bmiHeader.biWidth = OrigWidth;
+				pVideoInfo->hdr.bmiHeader.biHeight = OrigHeight;
+				m_pOutSample->SetMediaType(&MediaType);
+			}
+		}
+
 		m_VideoInfoLock.Lock();
 		m_VideoInfo = Info;
 		m_VideoInfoLock.Unlock();
@@ -339,4 +362,10 @@ void CMpeg2SequenceFilter::ResetVideoInfo()
 	CAutoLock Lock(&m_VideoInfoLock);
 
 	m_VideoInfo.Reset();
+}
+
+
+DWORD CMpeg2SequenceFilter::GetBitRate() const
+{
+	return m_BitRateCalculator.GetBitRate();
 }

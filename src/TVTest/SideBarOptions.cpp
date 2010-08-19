@@ -47,7 +47,7 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_CAPTUREPREVIEW,			23},
 	{CM_RESET,					24},
 	{CM_RESETVIEWER,			25},
-	{CM_INFORMATION,			26},
+	{CM_PANEL,					26},
 	{CM_PROGRAMGUIDE,			27},
 	{CM_STATUSBAR,				28},
 	{CM_VIDEODECODERPROPERTY,	29},
@@ -84,7 +84,7 @@ static const int DefaultItemList[] = {
 	CM_ALWAYSONTOP,
 	CM_DISABLEVIEWER,
 	0,
-	CM_INFORMATION,
+	CM_PANEL,
 	CM_PROGRAMGUIDE,
 	CM_CHANNELDISPLAYMENU,
 	CM_OPTIONS,
@@ -162,7 +162,7 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 	if (!Settings.Open(pszFileName,TEXT("SideBar"),CSettings::OPEN_WRITE))
 		return false;
 
-	//Settings.Clear();
+	Settings.Clear();
 	Settings.Write(TEXT("ShowPopup"),m_fShowPopup);
 	Settings.Write(TEXT("ShowToolTips"),m_fShowToolTips);
 	Settings.Write(TEXT("Place"),(int)m_Place);

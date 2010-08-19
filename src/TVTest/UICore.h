@@ -33,6 +33,10 @@ public:
 	bool IsViewerEnabled() const;
 	bool EnableViewer(bool fEnable);
 
+	bool SetZoomRate(int Rate,int Factor=100);
+	bool GetZoomRate(int *pRate,int *pFactor) const;
+	int GetZoomPercentage() const;
+
 	int GetVolume() const;
 	bool SetVolume(int Volume,bool fOSD=true);
 	bool GetMute() const;
@@ -44,6 +48,7 @@ public:
 	bool SetAudioStream(int Stream);
 	bool SwitchStereoMode();
 	bool SwitchAudio();
+	int FormatCurrentAudioText(LPTSTR pszText,int MaxLength) const;
 
 	bool GetStandby() const { return m_fStandby; }
 	bool SetStandby(bool fStandby);
@@ -58,10 +63,24 @@ public:
 
 	void PopupMenu(const POINT *pPos=NULL);
 	void PopupSubMenu(int SubMenu,const POINT *pPos=NULL,UINT Flags=0);
+	enum MenuType {
+		MENU_TUNERSELECT,
+		MENU_RECORD,
+		MENU_CAPTURE,
+		MENU_BUFFERING,
+		MENU_STREAMERROR,
+		MENU_CLOCK
+	};
+	bool ShowSpecialMenu(MenuType Menu,const POINT *pPos=NULL,UINT Flags=0);
 	void InitChannelMenu(HMENU hmenu);
 	void InitNetworkRemoconChannelMenu(HMENU hmenu);
 	void InitTunerMenu(HMENU hmenu);
 	bool ProcessTunerMenu(int Command);
+
+	bool DoCommand(int Command);
+	bool DoCommand(LPCTSTR pszCommand);
+
+	bool ConfirmStopRecording();
 
 	void OnTunerChanged();
 	void OnTunerOpened();

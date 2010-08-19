@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "AppMain.h"
-#include "MainWindow.h"
 #include "Capture.h"
 #include "Image.h"
 #include "DrawUtil.h"
@@ -495,16 +494,9 @@ void CCaptureWindow::ShowStatusBar(bool fShow)
 }
 
 
-void CCaptureWindow::SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-	const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
+void CCaptureWindow::SetStatusTheme(const CStatusView::ThemeInfo *pTheme)
 {
-	m_Status.SetColor(pBackGradient,crText,pHighlightBackGradient,crHighlightText);
-}
-
-
-void CCaptureWindow::SetStatusBorderType(Theme::BorderType Type)
-{
-	m_Status.SetBorderType(Type);
+	m_Status.SetTheme(pTheme);
 }
 
 
@@ -716,7 +708,7 @@ void CCaptureWindow::CCaptureStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 void CCaptureWindow::CCaptureStatusItem::OnLButtonDown(int x,int y)
 {
-	GetAppClass().GetMainWindow()->SendCommand(CM_CAPTURE);
+	GetAppClass().GetUICore()->DoCommand(CM_CAPTURE);
 }
 
 void CCaptureWindow::CCaptureStatusItem::OnRButtonDown(int x,int y)

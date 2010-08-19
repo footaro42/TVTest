@@ -26,6 +26,12 @@ public:
 		ITEM_FLAG_CHECKED	=0x0002
 	};
 
+	struct ThemeInfo {
+		Theme::Style ItemStyle;
+		Theme::Style HighlightItemStyle;
+		Theme::BorderInfo Border;
+	};
+
 	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		CSideBar *m_pSideBar;
@@ -44,11 +50,14 @@ protected:
 	HBITMAP m_hbmIcons;
 	COLORREF m_IconTransparentColor;
 	bool m_fVertical;
+	/*
 	Theme::GradientInfo m_BackGradient;
 	COLORREF m_ForeColor;
 	Theme::GradientInfo m_HighlightBackGradient;
 	COLORREF m_HighlightForeColor;
-	Theme::BorderType m_BorderType;
+	Theme::BorderInfo m_BorderInfo;
+	*/
+	ThemeInfo m_Theme;
 	std::vector<SideBarItem> m_ItemList;
 	int m_HotItem;
 	int m_ClickItem;
@@ -78,9 +87,13 @@ public:
 	void DeleteAllItems();
 	bool AddItem(const SideBarItem *pItem);
 	bool AddItems(const SideBarItem *pItemList,int NumItems);
+	/*
 	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore,
 				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightFore);
-	void SetBorderType(Theme::BorderType Type);
+	void SetBorder(const Theme::BorderInfo *pInfo);
+	*/
+	bool SetTheme(const ThemeInfo *pTheme);
+	bool GetTheme(ThemeInfo *pTheme) const;
 	void ShowToolTips(bool fShow);
 	void SetVertical(bool fVertical);
 	void SetEventHandler(CEventHandler *pHandler);

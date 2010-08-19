@@ -8,9 +8,9 @@
 #include "Record.h"
 
 
-class CMainWindow;
 class CDriverManager;
 class CLogoManager;
+class CCommandList;
 
 class CAppMain
 {
@@ -52,6 +52,7 @@ public:
 	bool SetServiceByIndex(int Service);
 	bool SetServiceByID(WORD ServiceID,int *pServiceIndex=NULL);
 	bool SetDriver(LPCTSTR pszFileName);
+	bool SetDriverAndChannel(LPCTSTR pszDriverFileName,const CChannelInfo *pChannelInfo);
 	bool OpenTuner();
 	bool CloseTuner();
 	bool OpenBcasCard(bool fRetry=false);
@@ -81,11 +82,11 @@ public:
 	CCoreEngine *GetCoreEngine();
 	const CCoreEngine *GetCoreEngine() const;
 	CUICore *GetUICore();
-	CMainWindow *GetMainWindow();
 	const CChannelManager *GetChannelManager() const;
 	const CRecordManager *GetRecordManager() const;
 	const CDriverManager *GetDriverManager() const;
 	CLogoManager *GetLogoManager() const;
+	const CCommandList *GetCommandList() const;
 };
 
 

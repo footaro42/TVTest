@@ -30,6 +30,8 @@ protected:
 	virtual bool FinalizeViewer()=0;
 	virtual bool EnableViewer(bool fEnable)=0;
 	virtual bool IsViewerEnabled() const=0;
+	virtual bool SetZoomRate(int Rate,int Factor)=0;
+	virtual bool GetZoomRate(int *pRate,int *pFactor)=0;
 	virtual void OnVolumeChanged(bool fOSD) {}
 	virtual void OnMuteChanged() {}
 	virtual void OnStereoModeChanged() {}

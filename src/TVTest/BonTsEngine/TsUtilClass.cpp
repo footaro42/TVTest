@@ -543,3 +543,47 @@ void CMD5Calculator::CalcMD5(const void *pData, SIZE_T DataSize, BYTE pMD5[16])
 	((ULONGLONG*)PaddingData)[7] = BitsSize;
 	MD5Transform(pdwMD5, PaddingData);
 }
+
+
+/////////////////////////////////////////////////////////////////////////////
+// ビットレート計算クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CBitRateCalculator::CBitRateCalculator()
+{
+	Reset();
+}
+
+void CBitRateCalculator::Initialize()
+{
+	m_Time=::GetTickCount();
+	m_Size=0;
+	m_BitRate=0;
+}
+
+void CBitRateCalculator::Reset()
+{
+	m_Time=0;
+	m_Size=0;
+	m_BitRate=0;
+}
+
+bool CBitRateCalculator::Update(SIZE_T Size)
+{
+	DWORD Now=::GetTickCount();
+	bool bUpdated=false;
+
+	if (Now>=m_Time) {
+		m_Size+=Size;
+		if (Now-m_Time>=1000) {
+			m_BitRate=(DWORD)(((ULONGLONG)m_Size*8*1000)/(ULONGLONG)(Now-m_Time));
+			m_Time=Now;
+			m_Size=0;
+			bUpdated=true;
+		}
+	} else {
+		m_Time=Now;
+		m_Size=0;
+	}
+	return bUpdated;
+}

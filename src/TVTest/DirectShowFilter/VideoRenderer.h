@@ -24,7 +24,8 @@ public:
 		RENDERER_VMR7RENDERLESS,
 		RENDERER_VMR9RENDERLESS,
 		RENDERER_EVR,
-		RENDERER_OVERLAYMIXER
+		RENDERER_OVERLAYMIXER,
+		RENDERER_madVR
 	};
 	CVideoRenderer();
 	virtual ~CVideoRenderer();
@@ -42,9 +43,11 @@ public:
 	virtual bool HasProperty();
 	IBaseFilter *GetRendererFilter() const { return m_pRenderer; }
 	virtual bool SetCrop1088To1080(bool bCrop) { return false; }
+
 	static bool CreateRenderer(RendererType Type,CVideoRenderer **ppRenderer);
 	static LPCTSTR EnumRendererName(int Index);
 	static RendererType ParseName(LPCTSTR pszName);
+	static bool IsAvailable(RendererType Type);
 };
 
 

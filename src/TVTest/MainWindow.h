@@ -5,12 +5,13 @@
 #include "UISkin.h"
 #include "View.h"
 #include "ChannelManager.h"
-#include "Splitter.h"
+#include "Layout.h"
 #include "TitleBar.h"
 #include "StatusView.h"
 #include "Settings.h"
 #include "NotificationBar.h"
 #include "Panel.h"
+#include "OSDManager.h"
 
 
 #define MAIN_WINDOW_CLASS		APP_NAME TEXT(" Window")
@@ -32,8 +33,15 @@
 #define WM_APP_TVTESTACTIVE		(WM_APP+11)
 
 enum {
-	PANE_ID_VIEW=1,
-	PANE_ID_PANEL
+	CONTAINER_ID_VIEW=1,
+	CONTAINER_ID_PANELSPLITTER,
+	CONTAINER_ID_PANEL,
+	CONTAINER_ID_STATUSSPLITTER,
+	CONTAINER_ID_STATUS,
+	CONTAINER_ID_TITLEBARSPLITTER,
+	CONTAINER_ID_TITLEBAR,
+	CONTAINER_ID_SIDEBARSPLITTER,
+	CONTAINER_ID_SIDEBAR
 };
 
 
@@ -60,7 +68,7 @@ public:
 
 class CFullscreen : public CBasicWindow
 {
-	CSplitter m_Splitter;
+	Layout::CLayoutBase m_LayoutBase;
 	CViewWindow m_ViewWindow;
 	CBasicViewer *m_pViewer;
 	CTitleBar m_TitleBar;
@@ -101,13 +109,11 @@ public:
 	static bool Initialize();
 };
 
-class CMainWindow : public CBasicWindow, public CUISkin
+class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEventHandler
 {
 	enum { UPDATE_TIMER_INTERVAL=500 };
 
-	static const BYTE VolumeNormalizeLevelList[];
-
-	CSplitter m_Splitter;
+	Layout::CLayoutBase m_LayoutBase;
 	CBasicViewer m_Viewer;
 	CTitleBar m_TitleBar;
 	CFullscreen m_Fullscreen;
@@ -145,7 +151,6 @@ class CMainWindow : public CBasicWindow, public CUISkin
 	DWORD m_AspectRatioResetTime;
 	bool m_fFrameCut;
 	int m_VideoSizeChangedTimerCount;
-	bool m_fShowRecordRemainTime;
 	unsigned int m_ProgramListUpdateTimerCount;
 	int m_CurEventStereoMode;
 	bool m_fAlertedLowFreeSpace;
@@ -188,6 +193,8 @@ class CMainWindow : public CBasicWindow, public CUISkin
 	virtual bool FinalizeViewer();
 	virtual bool EnableViewer(bool fEnable);
 	virtual bool IsViewerEnabled() const;
+	virtual bool SetZoomRate(int Rate,int Factor);
+	virtual bool GetZoomRate(int *pRate,int *pFactor);
 	virtual void OnVolumeChanged(bool fOSD);
 	virtual void OnMuteChanged();
 	virtual void OnStereoModeChanged();
@@ -204,6 +211,10 @@ class CMainWindow : public CBasicWindow, public CUISkin
 	virtual void OnRecordingStarted();
 	virtual void OnRecordingStopped();
 
+// COSDManager::CEventHandler
+	virtual bool GetOSDWindow(HWND *phwndParent,RECT *pRect,bool *pfForcePseudoOSD);
+	virtual bool SetOSDHideTimer(DWORD Delay);
+
 // CMainWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool OnCreate(const CREATESTRUCT *pcs);
@@ -214,6 +225,7 @@ class CMainWindow : public CBasicWindow, public CUISkin
 	bool OnInitMenuPopup(HMENU hmenu);
 	void AutoSelectStereoMode();
 	bool OnExecute(LPCTSTR pszCmdLine);
+	int GetZoomPercentage();
 	void ShowChannelOSD();
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);
@@ -249,24 +261,21 @@ public:
 	bool InitMinimize();
 	bool IsMinimizeToTray() const;
 	bool ConfirmExit();
-	int CalcZoomRate();
-	bool CalcZoomRate(int *pNum,int *pDenom);
-	bool SetZoomRate(int ZoomNum,int ZoomDenom=100);
-	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz,bool fStatus);
-	void SendCommand(int Command) { OnCommand(m_hwnd,Command,NULL,0); }
+	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz);
+	void SendCommand(int Command) { SendMessage(WM_COMMAND,Command,0); }
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
-	bool DoCommand(LPCWSTR pszCommand);
 	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
 	bool BeginProgramGuideUpdate(bool fStandby=false);
 	void OnProgramGuideUpdateEnd(bool fRelease=true);
 	void EndProgramGuideUpdate(bool fRelease=true);
 	void UpdatePanel();
+	void ApplyColorScheme(const class CColorScheme *pColorScheme);
 	bool SetLogo(LPCTSTR pszFileName);
 	bool SetViewWindowEdge(bool fEdge);
 	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
 	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
 	CStatusView *GetStatusView() const;
-	CSplitter &GetSplitter() { return m_Splitter; }
+	Layout::CLayoutBase &GetLayoutBase() { return m_LayoutBase; }
 	CTitleBar &GetTitleBar() { return m_TitleBar; }
 	bool UpdateProgramInfo();
 	static bool Initialize();

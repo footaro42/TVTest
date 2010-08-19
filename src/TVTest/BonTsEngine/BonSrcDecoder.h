@@ -50,6 +50,7 @@ public:
 
 	const bool SetChannel(const BYTE byChannel);
 	const bool SetChannel(const DWORD dwSpace, const DWORD dwChannel);
+	const bool SetChannelAndPlay(const DWORD dwSpace, const DWORD dwChannel);
 	const float GetSignalLevel(void);
 
 	const bool IsBonDriver2(void) const;
@@ -70,25 +71,21 @@ public:
 
 private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
-	void OnTsStream(BYTE *pStreamData, DWORD dwStreamSize);
-	bool PauseStreamRecieve(DWORD TimeOut = 4000);
-	bool ResumeStreamRecieve(DWORD TimeOut = 4000);
+	bool LockStream();
+	void UnlockStream();
 
 	IBonDriver *m_pBonDriver;
 	IBonDriver2 *m_pBonDriver2;	
 
 	HANDLE m_hStreamRecvThread;
-	CLocalEvent m_PauseEvent;
-	CLocalEvent m_ResumeEvent;
-	CLocalEvent m_BreakEvent;
+	CCriticalLock m_StreamLock;
 	volatile bool m_bKillSignal;
+	volatile bool m_bPauseSignal;
 
-	CMediaData m_TsStream;
-
-	bool m_bIsPlaying;
+	volatile bool m_bIsPlaying;
 	DWORD m_dwLastError;
 
-	DWORD m_BitRate;
+	CBitRateCalculator m_BitRateCalculator;
 	DWORD m_StreamRemain;
 
 	int m_StreamThreadPriority;

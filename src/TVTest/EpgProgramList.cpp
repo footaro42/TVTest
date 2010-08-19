@@ -526,7 +526,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 			std::pair<std::set<EventTime>::iterator,bool> Result=
 				EventTimeTable.insert(EventTime(itrEvent->second));
 			if (Result.second) {
-				EventTime &Time=*Result.first;
+				const EventTime &Time=*Result.first;
 				bool fSkip=false;
 				std::set<EventTime>::iterator itr;
 				itr=Result.first;
@@ -737,6 +737,37 @@ bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pT
 			SetCommonEventInfo(pInfo);
 			return true;
 		}
+	}
+	return false;
+}
+
+
+bool CEpgProgramList::GetNextEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo)
+{
+	CBlockLock Lock(&m_Lock);
+
+	CEpgServiceInfo *pServiceInfo=GetServiceInfo(TSID,ServiceID);
+	if (pServiceInfo==NULL)
+		return NULL;
+
+	CEventInfoList::EventMap::iterator itrEvent;
+	const CEventInfoData *pNextEvent=NULL;
+	SYSTEMTIME stNearest;
+	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
+			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();itrEvent++) {
+		SYSTEMTIME stStart;
+
+		itrEvent->second.GetStartTime(&stStart);
+		if (CompareSystemTime(&stStart,pTime)>0
+				&& (pNextEvent==NULL || CompareSystemTime(&stStart,&stNearest)<0)) {
+			pNextEvent=&itrEvent->second;
+			stNearest=stStart;
+		}
+	}
+	if (pNextEvent!=NULL) {
+		*pInfo=*pNextEvent;
+		SetCommonEventInfo(pInfo);
+		return true;
 	}
 	return false;
 }

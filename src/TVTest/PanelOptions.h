@@ -39,6 +39,7 @@ class CPanelOptions : public COptions
 	};
 	TabInfo m_TabList[NUM_PANELS];
 	bool m_fChannelDetailToolTip;
+	int m_EventsPerChannel;
 
 	static CPanelOptions *GetThis(HWND hDlg);
 	static LRESULT CALLBACK TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -51,6 +52,7 @@ public:
 	bool Write(CSettings *pSettings) const;
 // CPanelOptions
 	bool InitializePanelForm(CPanelForm *pPanelForm);
+	void ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel);
 	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
 	void SetSnapAtMainWindow(bool fSnap);
 	int GetSnapMargin() const { return m_SnapMargin; }
@@ -59,7 +61,6 @@ public:
 	void SetAttachToMainWindow(bool fAttach);
 	const LOGFONT *GetFont() const { return &m_Font; }
 	int GetFirstTab() const;
-	bool GetChannelDetailToolTip() const { return m_fChannelDetailToolTip; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

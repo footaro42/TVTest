@@ -33,11 +33,44 @@ public:
 
 class CProgramListPanel : public CPanelForm::CPage
 {
+public:
+	struct ThemeInfo {
+		Theme::Style EventNameStyle;
+		Theme::Style CurEventNameStyle;
+		Theme::Style EventTextStyle;
+		Theme::Style CurEventTextStyle;
+		COLORREF MarginColor;
+	};
+
+	static bool Initialize(HINSTANCE hinst);
+	CProgramListPanel();
+	~CProgramListPanel();
+	void SetEpgProgramList(CEpgProgramList *pList) { m_pProgramList=pList; }
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	bool UpdateProgramList(WORD TransportStreamID,WORD ServiceID);
+	bool OnProgramListChanged();
+	void ClearProgramList();
+	void SetCurrentEventID(int EventID);
+	/*
+	void SetColors(const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
+		const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
+		const Theme::GradientInfo *pTitleBackGradient,COLORREF TitleTextColor,
+		const Theme::GradientInfo *pCurTitleBackGradient,COLORREF CurTitleTextColor,
+		COLORREF MarginColor);
+	*/
+	bool SetTheme(const ThemeInfo *pTheme);
+	bool GetTheme(ThemeInfo *pTheme) const;
+	bool SetFont(const LOGFONT *pFont);
+	bool SetEventInfoFont(const LOGFONT *pFont);
+
+private:
 	CEpgProgramList *m_pProgramList;
 	DrawUtil::CFont m_Font;
 	DrawUtil::CFont m_TitleFont;
 	int m_FontHeight;
 	int m_LineMargin;
+	int m_TitleMargin;
+	/*
 	Theme::GradientInfo m_EventBackGradient;
 	COLORREF m_EventTextColor;
 	Theme::GradientInfo m_CurEventBackGradient;
@@ -47,6 +80,8 @@ class CProgramListPanel : public CPanelForm::CPage
 	Theme::GradientInfo m_CurTitleBackGradient;
 	COLORREF m_CurTitleTextColor;
 	COLORREF m_MarginColor;
+	*/
+	ThemeInfo m_Theme;
 	int m_TotalLines;
 	CProgramItemList m_ItemList;
 	int m_CurEventID;
@@ -71,30 +106,12 @@ class CProgramListPanel : public CPanelForm::CPage
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void DrawProgramList(HDC hdc,const RECT *prcPaint);
 	bool UpdateListInfo(WORD TransportStreamID,WORD ServiceID);
-	void CalcDimentions();
+	void CalcDimensions();
 	void SetScrollPos(int Pos);
 	void SetScrollBar();
 	void CalcFontHeight();
 	int HitTest(int x,int y) const;
 	//void SetToolTip();
-
-public:
-	static bool Initialize(HINSTANCE hinst);
-	CProgramListPanel();
-	~CProgramListPanel();
-	void SetEpgProgramList(CEpgProgramList *pList) { m_pProgramList=pList; }
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	bool UpdateProgramList(WORD TransportStreamID,WORD ServiceID);
-	bool OnProgramListChanged();
-	void ClearProgramList();
-	void SetCurrentEventID(int EventID);
-	void SetColors(const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
-		const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
-		const Theme::GradientInfo *pTitleBackGradient,COLORREF TitleTextColor,
-		const Theme::GradientInfo *pCurTitleBackGradient,COLORREF CurTitleTextColor,
-		COLORREF MarginColor);
-	bool SetFont(const LOGFONT *pFont);
-	bool SetEventInfoFont(const LOGFONT *pFont);
 };
 
 

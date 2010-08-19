@@ -22,8 +22,14 @@ class CPseudoOSD
 	} m_Position;
 	UINT_PTR m_TimerID;
 	int m_AnimationCount;
+	int m_Opacity;
+	bool m_fLayeredWindow;
+	HWND m_hwndParent;
+	POINT m_ParentPosition;
 
+	void Draw(HDC hdc,const RECT &PaintRect) const;
 	void DrawImageEffect(HDC hdc,const RECT *pRect) const;
+	void UpdateLayeredWindow();
 
 	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
@@ -41,7 +47,7 @@ public:
 
 	CPseudoOSD();
 	~CPseudoOSD();
-	bool Create(HWND hwndParent);
+	bool Create(HWND hwndParent,bool fLayeredWindow=false);
 	bool Destroy();
 	bool Show(DWORD Time=0,bool fAnimation=false);
 	bool Hide();
@@ -53,6 +59,8 @@ public:
 	bool SetTextHeight(int Height);
 	bool CalcTextSize(SIZE *pSize);
 	bool SetImage(HBITMAP hbm,unsigned int ImageEffect=0);
+	bool SetOpacity(int Opacity);
+	void OnParentMove();
 };
 
 

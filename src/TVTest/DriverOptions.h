@@ -10,7 +10,8 @@
 
 class CDriverSettings;
 
-class CDriverSettingList {
+class CDriverSettingList
+{
 	CPointerVector<CDriverSettings> m_SettingList;
 public:
 	CDriverSettingList();
@@ -24,7 +25,8 @@ public:
 	int Find(LPCTSTR pszFileName) const;
 };
 
-class CDriverOptions : public COptions {
+class CDriverOptions : public COptions
+{
 	CDriverManager *m_pDriverManager;
 	CDriverSettingList m_SettingList;
 	CDriverSettingList m_CurSettingList;
@@ -33,6 +35,7 @@ class CDriverOptions : public COptions {
 	void AddChannelList(const CChannelList *pChannelList);
 	CDriverSettings *GetCurSelDriverSettings() const;
 	static CDriverOptions *GetThis(HWND hDlg);
+
 public:
 	CDriverOptions();
 	~CDriverOptions();
@@ -51,6 +54,7 @@ public:
 	bool SetLastChannel(LPCTSTR pszFileName,const ChannelInfo *pChannelInfo);
 	bool IsDescrambleDriver(LPCTSTR pszFileName) const;
 	bool IsNoSignalLevel(LPCTSTR pszFileName) const;
+	bool IsIgnoreInitialStream(LPCTSTR pszFileName) const;
 	bool IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const;
 	bool IsResetChannelChangeErrorCount(LPCTSTR pszFileName) const;
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

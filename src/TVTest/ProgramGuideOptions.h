@@ -10,6 +10,7 @@ class CProgramGuideOptions : public COptions
 {
 	CProgramGuide *m_pProgramGuide;
 	bool m_fOnScreen;
+	int m_BeginHour;
 	enum { MIN_VIEW_HOURS=1, MAX_VIEW_HOURS=24*7 };
 	int m_ViewHours;
 	int m_ItemWidth;

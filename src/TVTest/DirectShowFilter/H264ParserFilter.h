@@ -2,6 +2,7 @@
 
 #include "../BonTsEngine/MediaData.h"
 #include "../BonTsEngine/TsMedia.h"
+#include "../BonTsEngine/TsUtilClass.h"
 #include "VideoInfo.h"
 #include <queue>
 
@@ -35,6 +36,7 @@ public:
 	void ResetVideoInfo();
 	bool SetAdjustTime(bool bAdjust);
 	bool SetAdjustFrameRate(bool bAdjust);
+	DWORD GetBitRate() const;
 
 protected:
 	CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr);
@@ -74,4 +76,5 @@ protected:
 		}
 	};
 	CMediaDataQueue m_MediaQueue;
+	CBitRateCalculator m_BitRateCalculator;
 };

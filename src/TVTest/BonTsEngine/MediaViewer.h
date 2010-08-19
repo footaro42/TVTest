@@ -120,7 +120,7 @@ public:
 	const bool GetCurrentImage(BYTE **ppDib);
 	bool SetDownMixSurround(bool bDownMix);
 	bool GetDownMixSurround() const;
-	bool SetAudioNormalize(bool bNormalize,float Level=1.0f);
+	bool SetAudioGainControl(bool bGainControl, float Gain = 1.0f, float SurroundGain = 1.0f);
 	CVideoRenderer::RendererType GetVideoRendererType() const;
 	bool SetUseAudioRendererClock(bool bUse);
 	bool GetUseAudioRendererClock() const { return m_bUseAudioRendererClock; }
@@ -138,6 +138,8 @@ public:
 	bool SetAdjustVideoSampleTime(bool bAdjust);
 	bool SetAdjustFrameRate(bool bAdjust);
 #endif
+	DWORD GetAudioBitRate() const;
+	DWORD GetVideoBitRate() const;
 
 protected:
 	static void CALLBACK OnMpeg2VideoInfo(const CMpeg2VideoInfo *pVideoInfo,const LPVOID pParam);

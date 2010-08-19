@@ -1,12 +1,13 @@
-#ifndef VIEW_H
-#define VIEW_H
+#ifndef TVTEST_VIEW_H
+#define TVTEST_VIEW_H
 
 
 #include "BasicWindow.h"
 #include "DtvEngine.h"
+#include "Theme.h"
 
 
-class CDisplayView : public CBasicWindow
+class ABSTRACT_CLASS(CDisplayView) : public CBasicWindow
 {
 	friend class CDisplayBase;
 
@@ -30,7 +31,7 @@ public:
 class CDisplayBase
 {
 public:
-	class ABSTRACT_DECL CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	public:
 		virtual ~CEventHandler() = 0;
 		virtual bool OnVisibleChange(bool fVisible) { return true; }
@@ -59,47 +60,76 @@ private:
 
 class CVideoContainerWindow : public CBasicWindow
 {
+public:
+	class ABSTRACT_CLASS(CEventHandler) {
+	protected:
+		CVideoContainerWindow *m_pVideoContainer;
+	public:
+		CEventHandler();
+		virtual ~CEventHandler();
+		virtual void OnSizeChanged(int Width,int Height) {}
+		friend class CVideoContainerWindow;
+	};
+
+	CVideoContainerWindow();
+	~CVideoContainerWindow();
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID,CDtvEngine *pDtvEngine);
+	CDtvEngine *GetDtvEngine() { return m_pDtvEngine; }
+	const CDtvEngine *GetDtvEngine() const { return m_pDtvEngine; }
+	void SetDisplayBase(CDisplayBase *pDisplayBase);
+	void SetEventHandler(CEventHandler *pEventHandler);
+	static bool Initialize(HINSTANCE hinst);
+
+private:
 	CDtvEngine *m_pDtvEngine;
 	CDisplayBase *m_pDisplayBase;
+	CEventHandler *m_pEventHandler;
 
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	static HINSTANCE m_hinst;
 	static CVideoContainerWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
-public:
-	CVideoContainerWindow();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID,CDtvEngine *pDtvEngine);
-	CDtvEngine *GetDtvEngine() { return m_pDtvEngine; }
-	const CDtvEngine *GetDtvEngine() const { return m_pDtvEngine; }
-	void SetDisplayBase(CDisplayBase *pDisplayBase);
-	static bool Initialize(HINSTANCE hinst);
 };
 
 class CViewWindow : public CBasicWindow
 {
-	static HINSTANCE m_hinst;
-	CVideoContainerWindow *m_pVideoContainer;
-	HWND m_hwndMessage;
-	HBITMAP m_hbmLogo;
-	bool m_fEdge;
-	bool m_fShowCursor;
-
-	static CViewWindow *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
 public:
+	class ABSTRACT_CLASS(CEventHandler) {
+	protected:
+		CViewWindow *m_pView;
+	public:
+		CEventHandler();
+		virtual ~CEventHandler();
+		virtual void OnSizeChanged(int Width,int Height) {}
+		friend class CViewWindow;
+	};
+
 	CViewWindow();
 	~CViewWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void SetVideoContainer(CVideoContainerWindow *pVideoContainer);
 	void SetMessageWindow(HWND hwnd);
+	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetLogo(HBITMAP hbm);
-	void SetEdge(bool fEdge);
+	void SetBorder(bool fBorder,const Theme::BorderInfo *pInfo);
 	void ShowCursor(bool fShow);
 	int GetVerticalEdgeWidth() const;
 	int GetHorizontalEdgeHeight() const;
 	static bool Initialize(HINSTANCE hinst);
+
+private:
+	static HINSTANCE m_hinst;
+	CVideoContainerWindow *m_pVideoContainer;
+	HWND m_hwndMessage;
+	CEventHandler *m_pEventHandler;
+	HBITMAP m_hbmLogo;
+	bool m_fBorder;
+	Theme::BorderInfo m_BorderInfo;
+	bool m_fShowCursor;
+
+	static CViewWindow *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

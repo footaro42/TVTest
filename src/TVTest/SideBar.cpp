@@ -51,17 +51,26 @@ CSideBar::CSideBar(const CCommandList *pCommandList)
 	: m_fShowTooltips(true)
 	, m_hbmIcons(NULL)
 	, m_fVertical(true)
-	, m_BackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_HORZ,RGB(128,192,160),RGB(128,192,160))
-	, m_ForeColor(RGB(64,96,80))
-	, m_HighlightBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_HORZ,RGB(64,96,80),RGB(64,96,80))
-	, m_HighlightForeColor(RGB(128,192,160))
-	, m_BorderType(Theme::BORDER_RAISED)
 	, m_HotItem(-1)
 	, m_ClickItem(-1)
 	, m_fTrackMouseEvent(false)
 	, m_pEventHandler(NULL)
 	, m_pCommandList(pCommandList)
 {
+	m_Theme.ItemStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.ItemStyle.Gradient.Direction=Theme::DIRECTION_HORZ;
+	m_Theme.ItemStyle.Gradient.Color1=RGB(192,192,192);
+	m_Theme.ItemStyle.Gradient.Color2=RGB(192,192,192);
+	m_Theme.ItemStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.ItemStyle.TextColor=RGB(0,0,0);
+	m_Theme.HighlightItemStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.HighlightItemStyle.Gradient.Direction=Theme::DIRECTION_HORZ;
+	m_Theme.HighlightItemStyle.Gradient.Color1=RGB(128,128,128);
+	m_Theme.HighlightItemStyle.Gradient.Color2=RGB(128,128,128);
+	m_Theme.HighlightItemStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.HighlightItemStyle.TextColor=RGB(255,255,255);
+	m_Theme.Border.Type=Theme::BORDER_RAISED;
+	m_Theme.Border.Color=RGB(192,192,192);
 }
 
 
@@ -137,6 +146,7 @@ bool CSideBar::AddItems(const SideBarItem *pItemList,int NumItems)
 }
 
 
+/*
 void CSideBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore,
 						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightFore)
 {
@@ -149,13 +159,34 @@ void CSideBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore
 }
 
 
-void CSideBar::SetBorderType(Theme::BorderType Type)
+void CSideBar::SetBorder(const Theme::BorderInfo *pInfo)
 {
-	if (m_BorderType!=Type) {
-		m_BorderType=Type;
+	if (m_BorderInfo!=*pInfo) {
+		m_BorderInfo=*pInfo;
 		if (m_hwnd!=NULL)
 			Invalidate();
 	}
+}
+*/
+
+
+bool CSideBar::SetTheme(const ThemeInfo *pTheme)
+{
+	if (pTheme==NULL)
+		return false;
+	m_Theme=*pTheme;
+	if (m_hwnd!=NULL)
+		Invalidate();
+	return true;
+}
+
+
+bool CSideBar::GetTheme(ThemeInfo *pTheme) const
+{
+	if (pTheme==NULL)
+		return false;
+	*pTheme=m_Theme;
+	return true;
 }
 
 
@@ -472,11 +503,22 @@ void CSideBar::UpdateTooltipsRect()
 }
 
 
+static Theme::GradientDirection GetGradientDirection(bool fVertical,Theme::GradientDirection Direction)
+{
+	if (fVertical)
+		return Direction;
+	switch (Direction) {
+	case Theme::DIRECTION_HORZ:			Direction=Theme::DIRECTION_VERT;		break;
+	case Theme::DIRECTION_VERT:			Direction=Theme::DIRECTION_HORZ;		break;
+	case Theme::DIRECTION_HORZMIRROR:	Direction=Theme::DIRECTION_VERTMIRROR;	break;
+	case Theme::DIRECTION_VERTMIRROR:	Direction=Theme::DIRECTION_HORZMIRROR;	break;
+	}
+	return Direction;
+}
+
 void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 {
 	RECT rcClient,rc;
-	Theme::GradientDirection FillDir;
-	Theme::GradientInfo Gradient;
 	HDC hdcMemory;
 	HBITMAP hbmOld;
 
@@ -485,14 +527,13 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 	if (m_fVertical) {
 		rc.top=PaintRect.top;
 		rc.bottom=PaintRect.bottom;
-		FillDir=Theme::DIRECTION_HORZ;
 	} else {
 		rc.left=PaintRect.left;
 		rc.right=PaintRect.right;
-		FillDir=Theme::DIRECTION_VERT;
 	}
-	Gradient=m_BackGradient;
-	Gradient.Direction=FillDir;
+	Theme::GradientInfo Gradient;
+	Gradient=m_Theme.ItemStyle.Gradient;
+	Gradient.Direction=GetGradientDirection(m_fVertical,Gradient.Direction);
 	Theme::FillGradient(hdc,&rc,&Gradient);
 	hdcMemory=::CreateCompatibleDC(hdc);
 	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,m_hbmIcons));
@@ -501,37 +542,48 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 		if (m_ItemList[i].Command!=ITEM_SEPARATOR
 				&& rc.left<PaintRect.right && rc.right>PaintRect.left
 				&& rc.top<PaintRect.bottom && rc.bottom>PaintRect.top) {
-			bool fDisabled=(m_ItemList[i].Flags&ITEM_FLAG_DISABLED)!=0;
-			bool fHotItem=m_HotItem==i;
-			COLORREF ForeColor,TransColor;
-			RGBQUAD ColorTable[2];
-			if (fHotItem) {
-				Gradient=m_HighlightBackGradient;
-				Gradient.Direction=FillDir;
-				Theme::FillGradient(hdc,&rc,&Gradient);
-				ForeColor=m_HighlightForeColor;
+			COLORREF ForeColor;
+
+			if (m_HotItem==i) {
+				Theme::Style Style=m_Theme.HighlightItemStyle;
+				Style.Gradient.Direction=
+					GetGradientDirection(m_fVertical,Style.Gradient.Direction);
+				Theme::DrawStyleBackground(hdc,&rc,&Style);
+				ForeColor=m_Theme.HighlightItemStyle.TextColor;
 			} else {
-				ForeColor=m_ForeColor;
+				ForeColor=m_Theme.ItemStyle.TextColor;
+				if ((m_ItemList[i].Flags&ITEM_FLAG_DISABLED)!=0)
+					ForeColor=MixColor(ForeColor,
+									   MixColor(m_Theme.ItemStyle.Gradient.Color1,
+												m_Theme.ItemStyle.Gradient.Color2));
 			}
-			TransColor=ForeColor^0x00FFFFFF;
-			ColorTable[0].rgbBlue=GetBValue(ForeColor);
-			ColorTable[0].rgbGreen=GetGValue(ForeColor);
-			ColorTable[0].rgbRed=GetRValue(ForeColor);
-			ColorTable[1].rgbBlue=GetBValue(TransColor);
-			ColorTable[1].rgbGreen=GetGValue(TransColor);
-			ColorTable[1].rgbRed=GetRValue(TransColor);
-			::SetDIBColorTable(hdcMemory,0,2,ColorTable);
-			::TransparentBlt(hdc,
-							 rc.left+BUTTON_MARGIN,rc.top+BUTTON_MARGIN,
-							 ICON_WIDTH,ICON_HEIGHT,
-							 hdcMemory,
-							 m_ItemList[i].Icon*ICON_WIDTH,0,
-							 ICON_WIDTH,ICON_HEIGHT,TransColor);
+			DrawUtil::DrawMonoColorDIB(hdc,
+									   rc.left+BUTTON_MARGIN,rc.top+BUTTON_MARGIN,
+									   hdcMemory,
+									   m_ItemList[i].Icon*ICON_WIDTH,0,
+									   ICON_WIDTH,ICON_HEIGHT,ForeColor);
 		}
 	}
+	/*
+	if ((m_fVertical && PaintRect.bottom>rc.bottom)
+			|| (!m_fVertical && PaintRect.right>rc.right)) {
+		Theme::GradientInfo Gradient;
+
+		if (m_fVertical) {
+			rc.top=rc.bottom;
+			rc.bottom=PaintRect.bottom;
+		} else {
+			rc.left=rc.right;
+			rc.right=PaintRect.right;
+		}
+		Gradient=m_Theme.ItemStyle.Gradient;
+		Gradient.Direction=FillDir;
+		Theme::FillGradient(hdc,&rc,&Gradient);
+	}
+	*/
 	::SelectObject(hdcMemory,hbmOld);
 	::DeleteDC(hdcMemory);
-	Theme::DrawBorder(hdc,&rcClient,m_BorderType);
+	Theme::DrawBorder(hdc,&rcClient,&m_Theme.Border);
 }
 
 

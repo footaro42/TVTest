@@ -2,6 +2,7 @@
 
 #include "MediaData.h"
 #include "TsMedia.h"
+#include "TsUtilClass.h"
 #include "AacDecoder.h"
 
 
@@ -47,13 +48,15 @@ public:
 	int GetStereoMode() const { return m_StereoMode; }
 	bool SetDownMixSurround(bool bDownMix);
 	bool GetDownMixSurround() const { return m_bDownMixSurround; }
-	bool SetNormalize(bool bNormalize, float Level=1.0f);
-	bool GetNormalize(float *pLevel) const;
+	bool SetGainControl(bool bGainControl, float Gain = 1.0f, float SurroundGain = 1.0f);
+	bool GetGainControl(float *pGain = NULL, float *pSurroundGain = NULL) const;
 
 	bool SetAdjustStreamTime(bool bAdjust);
 
 	typedef void (CALLBACK *StreamCallback)(short *pData, DWORD Samples, int Channels, void *pParam);
 	bool SetStreamCallback(StreamCallback pCallback, void *pParam = NULL);
+
+	DWORD GetBitRate() const;
 
 protected:
 	CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr);
@@ -82,9 +85,11 @@ private:
 	// Append by HDUSTestÇÃíÜÇÃêl
 	int m_StereoMode;
 	bool m_bDownMixSurround;
-	bool m_bNormalize;
-	float m_NormalizeLevel;
-	void Normalize(short *pBuffer, DWORD Samples);
+
+	bool m_bGainControl;
+	float m_Gain;
+	float m_SurroundGain;
+	void GainControl(short *pBuffer, const DWORD Samples, const float Gain);
 
 	StreamCallback m_pStreamCallback;
 	void *m_pStreamCallbackParam;
@@ -92,4 +97,6 @@ private:
 	bool m_bAdjustStreamTime;
 	REFERENCE_TIME m_StartTime;
 	LONGLONG m_SampleCount;
+
+	CBitRateCalculator m_BitRateCalculator;
 };

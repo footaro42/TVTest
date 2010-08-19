@@ -495,6 +495,20 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			{
 				CGeneralOptions *pThis=GetThis(hDlg);
 
+				CVideoRenderer::RendererType Renderer=(CVideoRenderer::RendererType)
+					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_RENDERER);
+				if (Renderer!=pThis->m_VideoRendererType) {
+					if (!CVideoRenderer::IsAvailable(Renderer)) {
+						pThis->SettingError();
+						::MessageBox(hDlg,TEXT("選択されたレンダラはこの環境で利用可能になっていません。"),
+									 NULL,MB_OK | MB_ICONEXCLAMATION);
+						return TRUE;
+					}
+					pThis->m_VideoRendererType=Renderer;
+					pThis->SetUpdateFlag(UPDATE_RENDERER);
+					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
+				}
+
 				::GetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,
 								 pThis->m_szDriverDirectory,lengthof(pThis->m_szDriverDirectory));
 				pThis->m_DefaultDriverType=(DefaultDriverType)
@@ -513,14 +527,6 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				if (::lstrcmpi(szDecoder,pThis->m_szMpeg2DecoderName)!=0) {
 					::lstrcpy(pThis->m_szMpeg2DecoderName,szDecoder);
 					pThis->SetUpdateFlag(UPDATE_DECODER);
-					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
-				}
-
-				CVideoRenderer::RendererType Renderer=(CVideoRenderer::RendererType)
-					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_RENDERER);
-				if (Renderer!=pThis->m_VideoRendererType) {
-					pThis->m_VideoRendererType=Renderer;
-					pThis->SetUpdateFlag(UPDATE_RENDERER);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 

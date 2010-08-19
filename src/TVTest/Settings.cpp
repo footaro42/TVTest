@@ -90,7 +90,7 @@ void CSettings::Close()
 
 bool CSettings::Clear()
 {
-	return WritePrivateProfileSection(m_szSection,TEXT("\0"),m_szFileName)!=FALSE;
+	return WritePrivateProfileString(m_szSection,NULL,NULL,m_szFileName)!=FALSE;
 }
 
 

@@ -2,6 +2,7 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "RecordOptions.h"
+#include "Command.h"
 #include "DialogUtil.h"
 #include "resource.h"
 
@@ -20,6 +21,13 @@ static char THIS_FILE[]=__FILE__;
 #define MIN_TIMESHIFT_BUFFER_SIZE	1
 #define MAX_TIMESHIFT_BUFFER_SIZE	1024
 
+// ステータスバーからの録画のコマンド
+static const int StatusBarCommandList[] = {
+	CM_RECORD_START,
+	CM_RECORDOPTION,
+	CM_TIMESHIFTRECORDING,
+};
+
 
 
 
@@ -37,6 +45,8 @@ CRecordOptions::CRecordOptions()
 	, m_BufferSize(0x100000)
 	, m_TimeShiftBufferSize(32)
 	, m_fEnableTimeShiftRecording(false)
+	, m_fShowRemainTime(false)
+	, m_StatusBarRecordCommand(CM_RECORD_START)
 {
 	m_szSaveFolder[0]='\0';
 	::lstrcpy(m_szFileName,TEXT("Record_%date%-%time%.ts"));
@@ -120,6 +130,13 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	if (pSettings->Read(TEXT("TimeShiftRecBufferSize"),&Value))
 		m_TimeShiftBufferSize=CLAMP(Value,MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
 	pSettings->Read(TEXT("TimeShiftRecording"),&m_fEnableTimeShiftRecording);
+	pSettings->Read(TEXT("ShowRecordRemainTime"),&m_fShowRemainTime);
+	TCHAR szCommand[CCommandList::MAX_COMMAND_TEXT];
+	if (pSettings->Read(TEXT("StatusBarRecordCommand"),szCommand,lengthof(szCommand))) {
+		int Command=GetAppClass().GetCommandList()->ParseText(szCommand);
+		if (Command!=0)
+			m_StatusBarRecordCommand=Command;
+	}
 	return true;
 }
 
@@ -141,6 +158,10 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("LowFreeSpaceThreshold"),m_LowFreeSpaceThreshold);
 	pSettings->Write(TEXT("TimeShiftRecBufferSize"),m_TimeShiftBufferSize);
 	pSettings->Write(TEXT("TimeShiftRecording"),m_fEnableTimeShiftRecording);
+	pSettings->Write(TEXT("ShowRecordRemainTime"),m_fShowRemainTime);
+	LPCTSTR pszCommand=GetAppClass().GetCommandList()->GetCommandTextByID(m_StatusBarRecordCommand);
+	if (pszCommand!=NULL)
+		pSettings->Write(TEXT("StatusBarRecordCommand"),pszCommand);
 	return true;
 }
 
@@ -354,6 +375,17 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE,pThis->m_TimeShiftBufferSize,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE_SPIN,
 							   MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
+
+			const CCommandList *pCommandList=GetAppClass().GetCommandList();
+			for (int i=0;i<lengthof(StatusBarCommandList);i++) {
+				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
+
+				pCommandList->GetCommandNameByID(StatusBarCommandList[i],
+												 szText,lengthof(szText));
+				DlgComboBox_AddString(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND,szText);
+				if (StatusBarCommandList[i]==pThis->m_StatusBarRecordCommand)
+					DlgComboBox_SetCurSel(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND,i);
+			}
 		}
 		return TRUE;
 
@@ -509,6 +541,10 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					pThis->m_TimeShiftBufferSize=BufferSize;
 					pThis->SetUpdateFlag(UPDATE_TIMESHIFTBUFFER);
 				}
+
+				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND);
+				if (Sel>=0)
+					pThis->m_StatusBarRecordCommand=StatusBarCommandList[Sel];
 			}
 			break;
 		}

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../BonTsEngine/TsMedia.h"
+#include "../BonTsEngine/TsUtilClass.h"
 #include "VideoInfo.h"
 
 
@@ -55,6 +56,7 @@ public:
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
 	void SetFixSquareDisplay(bool bFix);
 #endif
+	DWORD GetBitRate() const;
 
 protected:
 	CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr);
@@ -62,11 +64,11 @@ protected:
 
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
 	HRESULT Transform(IMediaSample * pIn, IMediaSample *pOut);
-	IMediaSample *m_pOutSample;
 #else
 	HRESULT Transform(IMediaSample *pSample);
 	HRESULT Receive(IMediaSample *pSample);
 #endif
+	IMediaSample *m_pOutSample;
 
 // CMpeg2Parser::ISequenceHandler
 	virtual void OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence);
@@ -78,4 +80,6 @@ protected:
 	CMpeg2Parser m_Mpeg2Parser;
 	CMpeg2VideoInfo m_VideoInfo;
 	CCritSec m_VideoInfoLock;
+
+	CBitRateCalculator m_BitRateCalculator;
 };

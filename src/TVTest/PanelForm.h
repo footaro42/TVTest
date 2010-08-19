@@ -34,6 +34,14 @@ public:
 		bool fVisible;
 	};
 
+	struct ThemeInfo {
+		Theme::Style TabStyle;
+		Theme::Style CurTabStyle;
+		Theme::Style TabMarginStyle;
+		COLORREF BackColor;
+		COLORREF BorderColor;
+	};
+
 private:
 	enum {MAX_WINDOWS=8};
 	enum {TAB_MARGIN=3};
@@ -49,6 +57,7 @@ private:
 	CWindowInfo *m_pWindowList[MAX_WINDOWS];
 	int m_NumWindows;
 	int m_TabOrder[MAX_WINDOWS];
+	/*
 	COLORREF m_crBackColor;
 	COLORREF m_crMarginColor;
 	Theme::GradientInfo m_TabBackGradient;
@@ -57,6 +66,8 @@ private:
 	Theme::GradientInfo m_CurTabBackGradient;
 	COLORREF m_crCurTabTextColor;
 	COLORREF m_crCurTabBorderColor;
+	*/
+	ThemeInfo m_Theme;
 	DrawUtil::CFont m_Font;
 	int m_TabHeight;
 	int m_TabWidth;
@@ -95,9 +106,13 @@ public:
 	bool SetTabOrder(const int *pOrder);
 	bool GetTabInfo(int Index,TabInfo *pInfo) const;
 	void SetEventHandler(CEventHandler *pHandler);
+	/*
 	void SetBackColors(COLORREF crBack,COLORREF crMargin);
 	void SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder);
 	void SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder);
+	*/
+	bool SetTheme(const ThemeInfo *pTheme);
+	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetTabFont(const LOGFONT *pFont);
 	bool SetPageFont(const LOGFONT *pFont);
 };

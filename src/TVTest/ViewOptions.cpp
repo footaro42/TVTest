@@ -1,8 +1,8 @@
 #include "stdafx.h"
 #include "TVTest.h"
-#include "MainWindow.h"
 #include "ViewOptions.h"
 #include "AppMain.h"
+#include "MainWindow.h"
 #include "DialogUtil.h"
 #include "resource.h"
 
@@ -52,7 +52,9 @@ bool CViewOptions::Apply(DWORD Flags)
 	}
 
 	if ((Flags&UPDATE_LOGO)!=0) {
-		AppMain.GetMainWindow()->SetLogo(m_fShowLogo?m_szLogoFileName:NULL);
+		CMainWindow *pMainWindow=dynamic_cast<CMainWindow*>(AppMain.GetUICore()->GetSkin());
+		if (pMainWindow!=NULL)
+			pMainWindow->SetLogo(m_fShowLogo?m_szLogoFileName:NULL);
 	}
 
 	return true;
@@ -237,13 +239,16 @@ INT_PTR CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				pThis->m_MaximizeStretchMode=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MAXIMIZECUTFRAME)?
 					CMediaViewer::STRETCH_CUTFRAME:CMediaViewer::STRETCH_KEEPASPECTRATIO;
-				if (AppMain.GetMainWindow()->GetMaximize())
+				if (::IsZoomed(AppMain.GetUICore()->GetMainWindow()))
 					AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetViewStretchMode(pThis->m_MaximizeStretchMode);
 				{
 					bool fEdge=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CLIENTEDGE);
 					if (fEdge!=pThis->m_fClientEdge) {
 						pThis->m_fClientEdge=fEdge;
-						AppMain.GetMainWindow()->SetViewWindowEdge(fEdge);
+						CMainWindow *pMainWindow=
+							dynamic_cast<CMainWindow*>(GetAppClass().GetUICore()->GetSkin());
+						if (pMainWindow!=NULL)
+							pMainWindow->SetViewWindowEdge(fEdge);
 					}
 				}
 				pThis->m_fMinimizeToTray=

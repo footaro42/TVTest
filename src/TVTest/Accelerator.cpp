@@ -128,56 +128,57 @@ static const struct {
 	int Command;
 	LPCTSTR pszText;
 } AppCommandList[] = {
-	{APPCOMMAND_VOLUME_UP,				TEXT("Volume Up")},
-	{APPCOMMAND_VOLUME_DOWN,			TEXT("Volume Down")},
-	{APPCOMMAND_VOLUME_MUTE,			TEXT("Volume Mute")},
-	{APPCOMMAND_MEDIA_PLAY_PAUSE,		TEXT("Play/Pause")},
-	{APPCOMMAND_MEDIA_PLAY,				TEXT("Play")},
-	{APPCOMMAND_MEDIA_PAUSE,			TEXT("Pause")},
-	{APPCOMMAND_MEDIA_STOP,				TEXT("Stop")},
-	{APPCOMMAND_MEDIA_RECORD,			TEXT("Record")},
-	{APPCOMMAND_MEDIA_CHANNEL_UP,		TEXT("Channel Up")},
-	{APPCOMMAND_MEDIA_CHANNEL_DOWN,		TEXT("Channel Down")},
-	{APPCOMMAND_MEDIA_PREVIOUSTRACK,	TEXT("Previous Track")},
-	{APPCOMMAND_MEDIA_NEXTTRACK,		TEXT("Next Track")},
-	{APPCOMMAND_MEDIA_REWIND,			TEXT("Rewind")},
-	{APPCOMMAND_MEDIA_FAST_FORWARD,		TEXT("Fast Forward")},
-	{APPCOMMAND_NEW,					TEXT("New")},
-	{APPCOMMAND_OPEN,					TEXT("Open")},
-	{APPCOMMAND_SAVE,					TEXT("Save")},
-	{APPCOMMAND_PRINT,					TEXT("Print")},
-	{APPCOMMAND_CLOSE,					TEXT("Close")},
-	{APPCOMMAND_UNDO,					TEXT("Undo")},
-	{APPCOMMAND_REDO,					TEXT("Redo")},
-	{APPCOMMAND_CUT,					TEXT("Cut")},
-	{APPCOMMAND_COPY,					TEXT("Copy")},
-	{APPCOMMAND_PASTE,					TEXT("Paste")},
-	{APPCOMMAND_FIND,					TEXT("Find")},
-	{APPCOMMAND_HELP,					TEXT("Help")},
-	{APPCOMMAND_CORRECTION_LIST,		TEXT("Correction List")},
-	{APPCOMMAND_BROWSER_BACKWARD,		TEXT("Browser Backward")},
-	{APPCOMMAND_BROWSER_FORWARD,		TEXT("Browser Forward")},
-	{APPCOMMAND_BROWSER_HOME,			TEXT("Browser Home")},
-	{APPCOMMAND_BROWSER_STOP,			TEXT("Browser Stop")},
-	{APPCOMMAND_BROWSER_FAVORITES,		TEXT("Browser Favorites")},
-	{APPCOMMAND_BROWSER_REFRESH,		TEXT("Browser Refresh")},
-	{APPCOMMAND_BROWSER_SEARCH,			TEXT("Browser Search")},
-	{APPCOMMAND_BASS_BOOST,				TEXT("Bass Boost")},
-	{APPCOMMAND_BASS_UP,				TEXT("Base Up")},
-	{APPCOMMAND_BASS_DOWN,				TEXT("Base Down")},
-	{APPCOMMAND_TREBLE_DOWN,			TEXT("Treble Down")},
-	{APPCOMMAND_TREBLE_UP,				TEXT("Treble Up")},
-	{APPCOMMAND_MIC_ON_OFF_TOGGLE,		TEXT("Mic On/Off")},
-	{APPCOMMAND_MICROPHONE_VOLUME_UP,	TEXT("Mic Volume Up")},
-	{APPCOMMAND_MICROPHONE_VOLUME_DOWN,	TEXT("Mic Volume Down")},
-	{APPCOMMAND_MICROPHONE_VOLUME_MUTE,	TEXT("Mic Volume Mute")},
+	{APPCOMMAND_VOLUME_UP,				TEXT("音量+")},
+	{APPCOMMAND_VOLUME_DOWN,			TEXT("音量-")},
+	{APPCOMMAND_VOLUME_MUTE,			TEXT("消音")},
+	{APPCOMMAND_MEDIA_PLAY_PAUSE,		TEXT("再生/一時停止")},
+	{APPCOMMAND_MEDIA_PLAY,				TEXT("再生")},
+	{APPCOMMAND_MEDIA_PAUSE,			TEXT("一時停止")},
+	{APPCOMMAND_MEDIA_STOP,				TEXT("停止")},
+	{APPCOMMAND_MEDIA_RECORD,			TEXT("録音/録画")},
+	{APPCOMMAND_MEDIA_CHANNEL_UP,		TEXT("チャンネル+")},
+	{APPCOMMAND_MEDIA_CHANNEL_DOWN,		TEXT("チャンネル-")},
+	{APPCOMMAND_MEDIA_PREVIOUSTRACK,	TEXT("前のトラック")},
+	{APPCOMMAND_MEDIA_NEXTTRACK,		TEXT("次のトラック")},
+	{APPCOMMAND_MEDIA_REWIND,			TEXT("巻き戻し")},
+	{APPCOMMAND_MEDIA_FAST_FORWARD,		TEXT("早送り")},
+	{APPCOMMAND_BROWSER_BACKWARD,		TEXT("戻る")},
+	{APPCOMMAND_BROWSER_FORWARD,		TEXT("進む")},
+	{APPCOMMAND_BROWSER_HOME,			TEXT("ホーム")},
+	{APPCOMMAND_BROWSER_STOP,			TEXT("中止")},
+	{APPCOMMAND_BROWSER_FAVORITES,		TEXT("お気に入り")},
+	{APPCOMMAND_BROWSER_REFRESH,		TEXT("更新")},
+	{APPCOMMAND_BROWSER_SEARCH,			TEXT("Web検索")},
+	{APPCOMMAND_NEW,					TEXT("新規作成")},
+	{APPCOMMAND_OPEN,					TEXT("開く")},
+	{APPCOMMAND_SAVE,					TEXT("保存")},
+	{APPCOMMAND_PRINT,					TEXT("印刷")},
+	{APPCOMMAND_CLOSE,					TEXT("閉じる")},
+	{APPCOMMAND_UNDO,					TEXT("元に戻す")},
+	{APPCOMMAND_REDO,					TEXT("やり直し")},
+	{APPCOMMAND_CUT,					TEXT("切り取り")},
+	{APPCOMMAND_COPY,					TEXT("コピー")},
+	{APPCOMMAND_PASTE,					TEXT("貼り付け")},
+	{APPCOMMAND_FIND,					TEXT("検索")},
+	{APPCOMMAND_HELP,					TEXT("ヘルプ")},
+	{APPCOMMAND_CORRECTION_LIST,		TEXT("訂正候補")},
+	{APPCOMMAND_SPELL_CHECK,			TEXT("スペルチェック")},
+	{APPCOMMAND_BASS_BOOST,				TEXT("Bass boost")},
+	{APPCOMMAND_BASS_DOWN,				TEXT("Bass down")},
+	{APPCOMMAND_BASS_UP,				TEXT("Bass up")},
+	{APPCOMMAND_TREBLE_DOWN,			TEXT("Treble down")},
+	{APPCOMMAND_TREBLE_UP,				TEXT("Treble up")},
+	{APPCOMMAND_MIC_ON_OFF_TOGGLE,		TEXT("Mic on/off")},
+	{APPCOMMAND_MICROPHONE_VOLUME_UP,	TEXT("Mic volume up")},
+	{APPCOMMAND_MICROPHONE_VOLUME_DOWN,	TEXT("Mic volume down")},
+	{APPCOMMAND_MICROPHONE_VOLUME_MUTE,	TEXT("Mic volume mute")},
 	{APPCOMMAND_LAUNCH_MEDIA_SELECT,	TEXT("Media Select")},
 	{APPCOMMAND_LAUNCH_APP1,			TEXT("Launch App1")},
 	{APPCOMMAND_LAUNCH_APP2,			TEXT("Launch App2")},
-	{APPCOMMAND_LAUNCH_MAIL,			TEXT("Launch Mail")},
-	{APPCOMMAND_FORWARD_MAIL,			TEXT("Forward Mail")},
-	{APPCOMMAND_SEND_MAIL,				TEXT("Send Mail")},
-	{APPCOMMAND_REPLY_TO_MAIL,			TEXT("Reply to Mail")},
+	{APPCOMMAND_LAUNCH_MAIL,			TEXT("Launch mail")},
+	{APPCOMMAND_FORWARD_MAIL,			TEXT("Forward mail")},
+	{APPCOMMAND_SEND_MAIL,				TEXT("Send mail")},
+	{APPCOMMAND_REPLY_TO_MAIL,			TEXT("Reply to mail")},
 	{APPCOMMAND_DICTATE_OR_COMMAND_CONTROL_TOGGLE,	TEXT("Dictate or Command/Control")},
 };
 
@@ -196,27 +197,29 @@ const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
 	{CM_RECORD,				'R',			0,			false},
 	{CM_COPY,				'C',			0,			false},
 	{CM_SAVEIMAGE,			'V',			0,			false},
-	{CM_INFORMATION,		'I',			0,			false},
+	{CM_PANEL,				'P',			0,			false},
 	{CM_PROGRAMGUIDE,		'E',			0,			false},
 	{CM_CHANNELDISPLAYMENU,	'Z',			0,			false},
 };
 
 const CAccelerator::AppCommandInfo CAccelerator::m_DefaultAppCommandList[] = {
-	{CM_VOLUME_UP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_UP},
-	{CM_VOLUME_DOWN,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_DOWN},
-	{CM_VOLUME_MUTE,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_MUTE},
-	{CM_RECORD_STOP,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_STOP},
-	{CM_RECORD_PAUSE,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_PAUSE},
-	{CM_RECORD_START,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_RECORD},
-	{CM_CHANNEL_UP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_CHANNEL_UP},
-	{CM_CHANNEL_DOWN,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_CHANNEL_DOWN},
+	{CM_VOLUME_UP,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_UP},
+	{CM_VOLUME_DOWN,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_DOWN},
+	{CM_VOLUME_MUTE,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_VOLUME_MUTE},
+	{CM_RECORD_STOP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_STOP},
+	{CM_RECORD_PAUSE,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_PAUSE},
+	{CM_RECORD_START,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_RECORD},
+	{CM_CHANNEL_UP,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_CHANNEL_UP},
+	{CM_CHANNEL_DOWN,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_CHANNEL_DOWN},
 	/*
-	{CM_CHANNEL_UP,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_NEXTTRACK},
-	{CM_CHANNEL_DOWN,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_PREVIOUSTRACK},
+	{CM_CHANNEL_UP,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_NEXTTRACK},
+	{CM_CHANNEL_DOWN,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_MEDIA_PREVIOUSTRACK},
 	*/
-	{CM_CLOSE,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_CLOSE},
-	{CM_SAVEIMAGE,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_SAVE},
-	{CM_COPY,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_COPY},
+	{CM_CHANNEL_BACKWARD,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_BROWSER_BACKWARD},
+	{CM_CHANNEL_FORWARD,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_BROWSER_FORWARD},
+	{CM_CLOSE,				MEDIAKEY_APPCOMMAND,	APPCOMMAND_CLOSE},
+	{CM_SAVEIMAGE,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_SAVE},
+	{CM_COPY,				MEDIAKEY_APPCOMMAND,	APPCOMMAND_COPY},
 };
 
 
@@ -788,19 +791,20 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			lvc.pszText=TEXT("マルチメディアキー");
 			ListView_InsertColumn(hwndList,2,&lvc);
 			for (int i=0;i<pThis->m_pCommandList->NumCommands();i++) {
+				int Command=pThis->m_pCommandList->GetCommandID(i);
 				const KeyInfo *pKey=NULL;
 				int AppCommand=0;
 				LV_ITEM lvi;
 				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
 
 				for (size_t j=0;j<pThis->m_KeyList.size();j++) {
-					if (pThis->m_KeyList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
+					if (pThis->m_KeyList[j].Command==Command) {
 						pKey=&pThis->m_KeyList[j];
 						break;
 					}
 				}
 				for (size_t j=0;j<pThis->m_AppCommandList.size();j++) {
-					if (pThis->m_AppCommandList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
+					if (pThis->m_AppCommandList[j].Command==Command) {
 						for (size_t k=0;k<pThis->m_MediaKeyList.size();k++) {
 							if (pThis->m_MediaKeyList[k].Type==pThis->m_AppCommandList[j].Type
 									&& pThis->m_MediaKeyList[k].Command==pThis->m_AppCommandList[j].AppCommand) {
@@ -808,6 +812,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 								break;
 							}
 						}
+						break;
 					}
 				}
 				pThis->m_pCommandList->GetCommandName(i,szText,lengthof(szText));
@@ -975,6 +980,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				for (i=0;i<NumCommands;i++) {
+					int Command=pThis->m_pCommandList->GetCommandID(i);
 					WORD Key=0;
 					BYTE Mod=0;
 					int AppCommand=0;
@@ -982,15 +988,21 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
 					for (j=0;j<lengthof(m_DefaultAccelList);j++) {
-						if (m_DefaultAccelList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
+						if (m_DefaultAccelList[j].Command==Command) {
 							Key=m_DefaultAccelList[j].KeyCode;
 							Mod=m_DefaultAccelList[j].Modifiers;
 							break;
 						}
 					}
 					for (j=0;j<lengthof(m_DefaultAppCommandList);j++) {
-						if (m_DefaultAppCommandList[j].Command==pThis->m_pCommandList->GetCommandID(i)) {
-							AppCommand=j+1;
+						if (m_DefaultAppCommandList[j].Command==Command) {
+							for (size_t k=0;k<pThis->m_MediaKeyList.size();k++) {
+								if (pThis->m_MediaKeyList[k].Type==MEDIAKEY_APPCOMMAND
+										&& pThis->m_MediaKeyList[k].Command==m_DefaultAppCommandList[j].AppCommand) {
+									AppCommand=(int)(k+1);
+									break;
+								}
+							}
 							break;
 						}
 					}

@@ -301,10 +301,6 @@
 				>
 			</File>
 			<File
-				RelativePath=".\gzio.c"
-				>
-			</File>
-			<File
 				RelativePath=".\infback.c"
 				>
 			</File>
@@ -318,10 +314,6 @@
 			</File>
 			<File
 				RelativePath=".\inftrees.c"
-				>
-			</File>
-			<File
-				RelativePath=".\minigzip.c"
 				>
 			</File>
 			<File
@@ -386,12 +378,6 @@
 				RelativePath=".\zutil.h"
 				>
 			</File>
-		</Filter>
-		<Filter
-			Name="リソース ファイル"
-			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav"
-			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}"
-			>
 		</Filter>
 	</Files>
 	<Globals>

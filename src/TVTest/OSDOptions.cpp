@@ -4,6 +4,7 @@
 #include "DialogUtil.h"
 #include "DrawUtil.h"
 #include "Util.h"
+#include "Aero.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -23,6 +24,9 @@ COSDOptions::COSDOptions()
 	, m_FadeTime(3000)
 	, m_ChannelChangeType(CHANNELCHANGE_LOGOANDTEXT)
 
+	, m_fLayeredWindow(true)
+	, m_fCompositionEnabled(false)
+
 	, m_fEnableNotificationBar(true)
 	, m_NotificationBarDuration(3000)
 	, m_NotificationBarFlags(NOTIFY_EVENTNAME
@@ -31,14 +35,18 @@ COSDOptions::COSDOptions()
 #endif
 		)
 {
-	NONCLIENTMETRICS ncm;
-#if WINVER<0x0600
-	ncm.cbSize=sizeof(ncm);
-#else
-	ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	m_NotificationBarFont=ncm.lfMessageFont;
+	OSVERSIONINFO osvi;
+	osvi.dwOSVersionInfoSize=sizeof(osvi);
+	::GetVersionEx(&osvi);
+	if (osvi.dwMajorVersion>=6) {
+		CAeroGlass Aero;
+		if (Aero.IsEnabled())
+			m_fCompositionEnabled=true;
+	}
+
+	LOGFONT lf;
+	DrawUtil::GetSystemFont(DrawUtil::FONT_MESSAGE,&lf);
+	m_NotificationBarFont=lf;
 	m_NotificationBarFont.lfHeight=
 #ifndef TVH264_FOR_1SEG
 		-14;
@@ -46,7 +54,7 @@ COSDOptions::COSDOptions()
 		-12;
 #endif
 
-	m_DisplayMenuFont=ncm.lfMessageFont;
+	m_DisplayMenuFont=lf;
 	m_fDisplayMenuFontAutoSize=true;
 }
 
@@ -128,6 +136,20 @@ bool COSDOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
 	pSettings->Write(TEXT("DisplayMenuFontAutoSize"),m_fDisplayMenuFontAutoSize);
 	return true;
+}
+
+
+bool COSDOptions::GetLayeredWindow() const
+{
+	return m_fLayeredWindow && m_fCompositionEnabled;
+}
+
+
+void COSDOptions::OnDwmCompositionChanged()
+{
+	CAeroGlass Aero;
+
+	m_fCompositionEnabled=Aero.IsEnabled();
 }
 
 

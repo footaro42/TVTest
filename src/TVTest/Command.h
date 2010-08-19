@@ -1,12 +1,12 @@
-#ifndef COMMAND_H
-#define COMMAND_H
+#ifndef TVTEST_COMMAND_H
+#define TVTEST_COMMAND_H
 
 
 #include "PointerArray.h"
-#include "DriverManager.h"
-#include "Plugin.h"
 
 
+class CDriverManager;
+class CPluginList;
 class CZoomOptions;
 
 class CCommandList

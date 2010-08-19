@@ -24,7 +24,15 @@ HINSTANCE CVideoContainerWindow::m_hinst=NULL;
 CVideoContainerWindow::CVideoContainerWindow()
 	: m_pDtvEngine(NULL)
 	, m_pDisplayBase(NULL)
+	, m_pEventHandler(NULL)
 {
+}
+
+
+CVideoContainerWindow::~CVideoContainerWindow()
+{
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pVideoContainer=NULL;
 }
 
 
@@ -99,10 +107,13 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 	case WM_SIZE:
 		{
 			CVideoContainerWindow *pThis=GetThis(hwnd);
+			int Width=LOWORD(lParam),Height=HIWORD(lParam);
 
-			pThis->m_pDtvEngine->SetViewSize(LOWORD(lParam),HIWORD(lParam));
+			pThis->m_pDtvEngine->SetViewSize(Width,Height);
 			if (pThis->m_pDisplayBase!=NULL)
 				pThis->m_pDisplayBase->AdjustPosition();
+			if (uMsg==WM_SIZE && pThis->m_pEventHandler!=NULL)
+				pThis->m_pEventHandler->OnSizeChanged(Width,Height);
 		}
 		return 0;
 
@@ -169,6 +180,31 @@ void CVideoContainerWindow::SetDisplayBase(CDisplayBase *pDisplayBase)
 }
 
 
+void CVideoContainerWindow::SetEventHandler(CEventHandler *pEventHandler)
+{
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pVideoContainer=NULL;
+	if (pEventHandler!=NULL)
+		pEventHandler->m_pVideoContainer=this;
+	m_pEventHandler=pEventHandler;
+}
+
+
+
+
+CVideoContainerWindow::CEventHandler::CEventHandler()
+	: m_pVideoContainer(NULL)
+{
+}
+
+
+CVideoContainerWindow::CEventHandler::~CEventHandler()
+{
+	if (m_pVideoContainer!=NULL)
+		m_pVideoContainer->SetEventHandler(NULL);
+}
+
+
 
 
 HINSTANCE CViewWindow::m_hinst=NULL;
@@ -200,8 +236,10 @@ bool CViewWindow::Initialize(HINSTANCE hinst)
 CViewWindow::CViewWindow()
 	: m_pVideoContainer(NULL)
 	, m_hwndMessage(NULL)
+	, m_pEventHandler(NULL)
 	, m_hbmLogo(NULL)
-	, m_fEdge(false)
+	, m_fBorder(false)
+	, m_BorderInfo(Theme::BORDER_SUNKEN,RGB(128,128,128))
 	, m_fShowCursor(true)
 {
 }
@@ -209,7 +247,9 @@ CViewWindow::CViewWindow()
 
 CViewWindow::~CViewWindow()
 {
-	if (m_hbmLogo)
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pView=NULL;
+	if (m_hbmLogo!=NULL)
 		::DeleteObject(m_hbmLogo);
 }
 
@@ -240,6 +280,16 @@ void CViewWindow::SetMessageWindow(HWND hwnd)
 }
 
 
+void CViewWindow::SetEventHandler(CEventHandler *pEventHandler)
+{
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->m_pView=NULL;
+	if (pEventHandler!=NULL)
+		pEventHandler->m_pView=this;
+	m_pEventHandler=pEventHandler;
+}
+
+
 bool CViewWindow::SetLogo(HBITMAP hbm)
 {
 	if (hbm==NULL && m_hbmLogo==NULL)
@@ -255,10 +305,11 @@ bool CViewWindow::SetLogo(HBITMAP hbm)
 }
 
 
-void CViewWindow::SetEdge(bool fEdge)
+void CViewWindow::SetBorder(bool fBorder,const Theme::BorderInfo *pInfo)
 {
-	if (m_fEdge!=fEdge) {
-		m_fEdge=fEdge;
+	if (m_fBorder!=fBorder || m_BorderInfo!=*pInfo) {
+		m_fBorder=fBorder;
+		m_BorderInfo=*pInfo;
 		if (m_hwnd)
 			Invalidate();
 	}
@@ -316,23 +367,26 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 	case WM_SIZE:
 		{
 			CViewWindow *pThis=GetThis(hwnd);
+			const int Width=LOWORD(lParam),Height=HIWORD(lParam);
 
 			if (pThis->m_pVideoContainer!=NULL
 					&& pThis->m_pVideoContainer->GetParent()==hwnd) {
-				int x=0,y=0,Width=LOWORD(lParam),Height=HIWORD(lParam);
+				int x=0,y=0,cx=Width,cy=Height;
 
-				if (pThis->m_fEdge) {
+				if (pThis->m_fBorder) {
 					x=EDGE_SIZE;
 					y=EDGE_SIZE;
-					Width-=EDGE_SIZE*2;
-					if (Width<0)
-						Width=0;
-					Height-=EDGE_SIZE*2;
-					if (Height<0)
-						Height=0;
+					cx-=EDGE_SIZE*2;
+					if (cx<0)
+						cx=0;
+					cy-=EDGE_SIZE*2;
+					if (cy<0)
+						cy=0;
 				}
-				pThis->m_pVideoContainer->SetPosition(x,y,Width,Height);
+				pThis->m_pVideoContainer->SetPosition(x,y,cx,cy);
 			}
+			if (pThis->m_pEventHandler!=NULL)
+				pThis->m_pEventHandler->OnSizeChanged(Width,Height);
 		}
 		return 0;
 
@@ -348,26 +402,21 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			if (pThis->m_hbmLogo) {
 				RECT rcImage;
 				BITMAP bm;
-				HDC hdcMemory;
-				HBITMAP hbmOld;
 
 				::GetObject(pThis->m_hbmLogo,sizeof(BITMAP),&bm);
 				rcImage.left=(rcClient.right-bm.bmWidth)/2;
 				rcImage.top=(rcClient.bottom-bm.bmHeight)/2;
 				rcImage.right=rcImage.left+bm.bmWidth;
 				rcImage.bottom=rcImage.top+bm.bmHeight;
-				hdcMemory=::CreateCompatibleDC(ps.hdc);
-				hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,pThis->m_hbmLogo));
-				::BitBlt(ps.hdc,rcImage.left,rcImage.top,bm.bmWidth,bm.bmHeight,
-						 hdcMemory,0,0,SRCCOPY);
-				::SelectObject(hdcMemory,hbmOld);
-				::DeleteDC(hdcMemory);
+				DrawUtil::DrawBitmap(ps.hdc,
+									 rcImage.left,rcImage.top,bm.bmWidth,bm.bmHeight,
+									 pThis->m_hbmLogo);
 				DrawUtil::FillBorder(ps.hdc,&rcClient,&rcImage,&ps.rcPaint,hbr);
 			} else {
 				::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			}
-			if (pThis->m_fEdge)
-				::DrawEdge(ps.hdc,&rcClient,BDR_SUNKENINNER,BF_RECT);
+			if (pThis->m_fBorder)
+				Theme::DrawBorder(ps.hdc,&rcClient,&pThis->m_BorderInfo);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -431,6 +480,21 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+}
+
+
+
+
+CViewWindow::CEventHandler::CEventHandler()
+	: m_pView(NULL)
+{
+}
+
+
+CViewWindow::CEventHandler::~CEventHandler()
+{
+	if (m_pView!=NULL)
+		m_pView->SetEventHandler(NULL);
 }
 
 

@@ -43,7 +43,8 @@ private:
 	BYTE m_AudioComponentType;
 	bool m_fMute;
 	int m_Volume;
-	int m_VolumeNormalizeLevel;
+	int m_AudioGain;
+	int m_SurroundAudioGain;
 	int m_StereoMode;
 	bool m_fDownMixSurround;
 	WORD m_EventID;
@@ -113,8 +114,8 @@ public:
 	int GetVolume() const { return m_Volume; }
 	bool SetMute(bool fMute);
 	bool GetMute() const { return m_fMute; }
-	bool SetVolumeNormalizeLevel(int Level);
-	int GetVolumeNormalizeLevel() const { return m_VolumeNormalizeLevel; }
+	bool SetAudioGainControl(int Gain,int SurroundGain);
+	bool GetAudioGainControl(int *pGain,int *pSurroundGain) const;
 	bool SetStereoMode(int Mode);
 	int GetStereoMode() const { return m_StereoMode; }
 	bool SetDownMixSurround(bool fDownMix);

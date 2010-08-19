@@ -25,6 +25,9 @@ private:
 	int m_FadeTime;
 	ChannelChangeType m_ChannelChangeType;
 
+	bool m_fLayeredWindow;
+	bool m_fCompositionEnabled;
+
 	bool m_fEnableNotificationBar;
 	int m_NotificationBarDuration;
 	unsigned int m_NotificationBarFlags;
@@ -56,6 +59,8 @@ public:
 	int GetOpacity() const { return m_Opacity; }
 	int GetFadeTime() const { return m_FadeTime; }
 	ChannelChangeType GetChannelChangeType() const { return m_ChannelChangeType; }
+	bool GetLayeredWindow() const;
+	void OnDwmCompositionChanged();
 	bool IsNotificationBarEnabled() const { return m_fEnableNotificationBar; }
 	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
 	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }

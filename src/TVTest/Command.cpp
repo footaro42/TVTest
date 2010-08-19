@@ -2,6 +2,8 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "Command.h"
+#include "DriverManager.h"
+#include "Plugin.h"
 #include "ZoomOptions.h"
 #include "HelperClass/StdUtil.h"
 #include "resource.h"
@@ -45,13 +47,19 @@ static const struct {
 	{TEXT("AlwaysOnTop"),				CM_ALWAYSONTOP},
 	{TEXT("ChannelUp"),					CM_CHANNEL_UP},
 	{TEXT("ChannelDown"),				CM_CHANNEL_DOWN},
+	{TEXT("ChannelBackward"),			CM_CHANNEL_BACKWARD},
+	{TEXT("ChannelForward"),			CM_CHANNEL_FORWARD},
 	{TEXT("Mute"),						CM_VOLUME_MUTE},
 	{TEXT("VolumeUp"),					CM_VOLUME_UP},
 	{TEXT("VolumeDown"),				CM_VOLUME_DOWN},
-	{TEXT("VolumeNormalizeNone"),		CM_VOLUMENORMALIZE_NONE},
-	{TEXT("VolumeNormalize125"),		CM_VOLUMENORMALIZE_125},
-	{TEXT("VolumeNormalize150"),		CM_VOLUMENORMALIZE_150},
-	{TEXT("VolumeNormalize200"),		CM_VOLUMENORMALIZE_200},
+	{TEXT("VolumeNormalizeNone"),		CM_AUDIOGAIN_NONE},
+	{TEXT("VolumeNormalize125"),		CM_AUDIOGAIN_125},
+	{TEXT("VolumeNormalize150"),		CM_AUDIOGAIN_150},
+	{TEXT("VolumeNormalize200"),		CM_AUDIOGAIN_200},
+	{TEXT("SurroundGainNone"),			CM_SURROUNDAUDIOGAIN_NONE},
+	{TEXT("SurroundGain125"),			CM_SURROUNDAUDIOGAIN_125},
+	{TEXT("SurroundGain150"),			CM_SURROUNDAUDIOGAIN_150},
+	{TEXT("SurroundGain200"),			CM_SURROUNDAUDIOGAIN_200},
 	{TEXT("SwitchAudio"),				CM_SWITCHAUDIO},
 	{TEXT("Stereo"),					CM_STEREO_THROUGH},
 	{TEXT("StereoLeft"),				CM_STEREO_LEFT},
@@ -73,7 +81,7 @@ static const struct {
 	{TEXT("Reset"),						CM_RESET},
 	{TEXT("ResetViewer"),				CM_RESETVIEWER},
 	{TEXT("RebuildViewer"),				CM_REBUILDVIEWER},
-	{TEXT("Panel"),						CM_INFORMATION},
+	{TEXT("Panel"),						CM_PANEL},
 	{TEXT("ProgramGuide"),				CM_PROGRAMGUIDE},
 	{TEXT("TitleBar"),					CM_TITLEBAR},
 	{TEXT("StatusBar"),					CM_STATUSBAR},

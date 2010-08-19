@@ -81,9 +81,7 @@ public:
 	bool SetEventHandler(CEventHandler *pEventHandler);
 	void ShowStatusBar(bool fShow);
 	bool IsStatusBarVisible() const { return m_fShowStatusBar; }
-	void SetStatusColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-		const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
-	void SetStatusBorderType(Theme::BorderType Type);
+	void SetStatusTheme(const CStatusView::ThemeInfo *pTheme);
 
 private:
 	static HINSTANCE m_hinst;

@@ -6,12 +6,15 @@ namespace Theme {
 
 	enum GradientType {
 		GRADIENT_NORMAL,
-		GRADIENT_GLOSSY
+		GRADIENT_GLOSSY,
+		GRADIENT_INTERLACED
 	};
 
 	enum GradientDirection {
 		DIRECTION_HORZ,
-		DIRECTION_VERT
+		DIRECTION_VERT,
+		DIRECTION_HORZMIRROR,
+		DIRECTION_VERTMIRROR
 	};
 
 	struct GradientInfo {
@@ -39,13 +42,37 @@ namespace Theme {
 	bool FillGradient(HDC hdc,const RECT *pRect,const GradientInfo *pInfo);
 
 	enum BorderType {
-		BORDER_FLAT,
+		BORDER_NONE,
+		BORDER_SOLID,
 		BORDER_SUNKEN,
 		BORDER_RAISED
 	};
 
+	struct BorderInfo {
+		BorderType Type;
+		COLORREF Color;
+		BorderInfo() : Type(BORDER_NONE), Color(RGB(0,0,0)) {}
+		BorderInfo(BorderType type,COLORREF color) : Type(type), Color(color) {}
+		bool operator==(const BorderInfo &Info) const {
+			return Type==Info.Type && Color==Info.Color;
+		}
+		bool operator!=(const BorderInfo &Info) const {
+			return !(*this==Info);
+		}
+	};
+
 	bool DrawBorder(HDC hdc,const RECT *pRect,BorderType Type);
-}
+	bool DrawBorder(HDC hdc,const RECT *pRect,const BorderInfo *pInfo);
+
+	struct Style {
+		GradientInfo Gradient;
+		BorderInfo Border;
+		COLORREF TextColor;
+	};
+
+	bool DrawStyleBackground(HDC hdc,const RECT *pRect,const Style *pStyle);
+
+}	// namespace Theme
 
 
 #endif

@@ -40,16 +40,6 @@ bool CPanelForm::Initialize(HINSTANCE hinst)
 
 CPanelForm::CPanelForm()
 	: m_NumWindows(0)
-	, m_crBackColor(RGB(192,192,192))
-	, m_crMarginColor(m_crBackColor)
-	, m_TabBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
-						m_crBackColor,m_crBackColor)
-	, m_crTabTextColor(RGB(0,0,0))
-	, m_crTabBorderColor(RGB(128,128,128))
-	, m_CurTabBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
-						   RGB(224,224,224),RGB(224,224,224))
-	, m_crCurTabTextColor(RGB(0,0,0))
-	, m_crCurTabBorderColor(RGB(128,128,128))
 	, m_Font(DrawUtil::FONT_DEFAULT)
 	, m_TabHeight(TAB_MARGIN*2)
 	, m_TabWidth(8+TAB_MARGIN*2)
@@ -60,6 +50,25 @@ CPanelForm::CPanelForm()
 {
 	m_WindowPosition.Width=200;
 	m_WindowPosition.Height=240;
+
+	m_Theme.TabStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.TabStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.TabStyle.Gradient.Color1=RGB(192,192,192);
+	m_Theme.TabStyle.Gradient.Color2=RGB(192,192,192);
+	m_Theme.TabStyle.Border.Type=Theme::BORDER_SOLID;
+	m_Theme.TabStyle.Border.Color=RGB(128,128,128);
+	m_Theme.TabStyle.TextColor=RGB(0,0,0);
+	m_Theme.CurTabStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.CurTabStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.CurTabStyle.Gradient.Color1=RGB(224,224,224);
+	m_Theme.CurTabStyle.Gradient.Color2=RGB(224,224,224);
+	m_Theme.CurTabStyle.Border.Type=Theme::BORDER_SOLID;
+	m_Theme.CurTabStyle.Border.Color=RGB(128,128,128);
+	m_Theme.CurTabStyle.TextColor=RGB(0,0,0);
+	m_Theme.TabMarginStyle=m_Theme.TabStyle;
+	m_Theme.TabMarginStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.BackColor=RGB(192,192,192);
+	m_Theme.BorderColor=RGB(128,128,128);
 }
 
 
@@ -232,6 +241,7 @@ void CPanelForm::SetEventHandler(CEventHandler *pHandler)
 }
 
 
+/*
 void CPanelForm::SetBackColors(COLORREF crBack,COLORREF crMargin)
 {
 	m_crBackColor=crBack;
@@ -258,6 +268,27 @@ void CPanelForm::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORR
 	m_crCurTabBorderColor=crBorder;
 	if (m_hwnd!=NULL)
 		Invalidate();
+}
+*/
+
+
+bool CPanelForm::SetTheme(const ThemeInfo *pTheme)
+{
+	if (pTheme==NULL)
+		return false;
+	m_Theme=*pTheme;
+	if (m_hwnd!=NULL)
+		Invalidate();
+	return true;
+}
+
+
+bool CPanelForm::GetTheme(ThemeInfo *pTheme) const
+{
+	if (pTheme==NULL)
+		return false;
+	*pTheme=m_Theme;
+	return true;
 }
 
 
@@ -480,6 +511,8 @@ void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
 		HBRUSH hbrOld;
 		HPEN hpen,hpenOld;
 
+		hpen=::CreatePen(PS_SOLID,1,m_Theme.BorderColor);
+		hpenOld=SelectPen(hdc,hpen);
 		crOldTextColor=::GetTextColor(hdc);
 		OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 		hfontOld=DrawUtil::SelectObject(hdc,m_Font);
@@ -495,33 +528,25 @@ void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
 			if (!pWindow->m_fVisible)
 				continue;
 
-			const Theme::GradientInfo *pGradient;
-			COLORREF crText,crBorder;
-			RECT rcText;
+			const bool fCur=Index==m_CurTab;
+			const Theme::Style &Style=fCur?m_Theme.CurTabStyle:m_Theme.TabStyle;
+			RECT rcTab,rcText;
 
-			if (Index==m_CurTab) {
-				pGradient=&m_CurTabBackGradient;
-				crText=m_crCurTabTextColor;
-				crBorder=m_crCurTabBorderColor;
-			} else {
-				pGradient=&m_TabBackGradient;
-				crText=m_crTabTextColor;
-				crBorder=m_crTabBorderColor;
+			rcTab=rc;
+			if (fCur)
+				rcTab.bottom++;
+			Theme::DrawStyleBackground(hdc,&rcTab,&Style);
+			if (!fCur) {
+				::MoveToEx(hdc,rc.left,rc.bottom-1,NULL);
+				::LineTo(hdc,rc.right,rc.bottom-1);
 			}
-			Theme::FillGradient(hdc,&rc,pGradient);
-			hpen=::CreatePen(PS_SOLID,1,crBorder);
-			hpenOld=SelectPen(hdc,hpen);
-			::Rectangle(hdc,rc.left,rc.top,rc.right,
-						Index==m_CurTab?rc.bottom+1:rc.bottom);
-			::SetTextColor(hdc,crText);
+			::SetTextColor(hdc,Style.TextColor);
 			rcText.left=rc.left+TAB_MARGIN;
 			rcText.top=rc.top+TAB_MARGIN;
 			rcText.right=rc.right-TAB_MARGIN;
 			rcText.bottom=rc.bottom-TAB_MARGIN;
 			::DrawText(hdc,pWindow->m_pszTitle,-1,&rcText,
 				DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
-			SelectPen(hdc,hpenOld);
-			::DeleteObject(hpen);
 			rc.left=rc.right;
 			rc.right=rc.left+TabWidth;
 		}
@@ -532,17 +557,13 @@ void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
 		if (PaintRect.right>rc.left) {
 			if (PaintRect.left>rc.left)
 				rc.left=PaintRect.left;
-			rc.top=PaintRect.top;
 			rc.right=PaintRect.right;
-			rc.bottom=min(PaintRect.bottom,(long)m_TabHeight-1);
-			DrawUtil::Fill(hdc,&rc,m_crBackColor);
-			hpen=::CreatePen(PS_SOLID,1,m_crTabBorderColor);
-			hpenOld=SelectPen(hdc,hpen);
-			::MoveToEx(hdc,rc.left,rc.bottom,NULL);
-			::LineTo(hdc,rc.right,rc.bottom);
-			SelectPen(hdc,hpenOld);
-			::DeleteObject(hpen);
+			Theme::DrawStyleBackground(hdc,&rc,&m_Theme.TabMarginStyle);
+			::MoveToEx(hdc,rc.left,rc.bottom-1,NULL);
+			::LineTo(hdc,rc.right,rc.bottom-1);
 		}
+		SelectPen(hdc,hpenOld);
+		::DeleteObject(hpen);
 	}
 	if (PaintRect.bottom>m_TabHeight) {
 		RECT rc;
@@ -551,7 +572,7 @@ void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
 		rc.top=max(PaintRect.top,(long)m_TabHeight);
 		rc.right=PaintRect.right;
 		rc.bottom=PaintRect.bottom;
-		DrawUtil::Fill(hdc,&rc,m_crMarginColor);
+		DrawUtil::Fill(hdc,&rc,m_Theme.BackColor);
 	}
 }
 

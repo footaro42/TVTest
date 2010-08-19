@@ -56,13 +56,6 @@ bool CTitleBar::Initialize(HINSTANCE hinst)
 CTitleBar::CTitleBar()
 	: m_Font(DrawUtil::FONT_CAPTION)
 	, m_FontHeight(m_Font.GetHeight(false))
-	, m_BackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
-					 RGB(128,192,160),RGB(128,192,160))
-	, m_crTextColor(RGB(64,96,80))
-	, m_HighlightBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
-							  RGB(64,96,80),RGB(64,96,80))
-	, m_crHighlightTextColor(RGB(128,192,160))
-	, m_BorderType(Theme::BORDER_RAISED)
 	, m_hbmIcons(NULL)
 	, m_hIcon(NULL)
 	, m_HotItem(-1)
@@ -70,6 +63,21 @@ CTitleBar::CTitleBar()
 	, m_fMaximized(false)
 	, m_pEventHandler(NULL)
 {
+	m_Theme.CaptionStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.CaptionStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.CaptionStyle.Gradient.Color1=RGB(192,192,192);
+	m_Theme.CaptionStyle.Gradient.Color2=RGB(192,192,192);
+	m_Theme.CaptionStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.CaptionStyle.TextColor=RGB(255,255,255);
+	m_Theme.IconStyle=m_Theme.CaptionStyle;
+	m_Theme.HighlightIconStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.HighlightIconStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.HighlightIconStyle.Gradient.Color1=RGB(0,0,128);
+	m_Theme.HighlightIconStyle.Gradient.Color2=RGB(0,0,128);
+	m_Theme.HighlightIconStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.HighlightIconStyle.TextColor=RGB(255,255,255);
+	m_Theme.Border.Type=Theme::BORDER_RAISED;
+	m_Theme.Border.Color=RGB(192,192,192);
 }
 
 
@@ -129,25 +137,48 @@ bool CTitleBar::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-void CTitleBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-						 const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
+/*
+void CTitleBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF TextColor,COLORREF IconColor,
+						 const Theme::GradientInfo *pHighlightBackGradient,COLORREF HighlightIconColor)
 {
 	m_BackGradient=*pBackGradient;
-	m_crTextColor=crText;
+	m_TextColor=TextColor;
+	m_IconColor=IconColor;
 	m_HighlightBackGradient=*pHighlightBackGradient;
-	m_crHighlightTextColor=crHighlightText;
+	m_HighlightIconColor=HighlightIconColor;
 	if (m_hwnd!=NULL)
 		Invalidate();
 }
 
 
-void CTitleBar::SetBorderType(Theme::BorderType Type)
+void CTitleBar::SetBorder(const Theme::BorderInfo *pInfo)
 {
-	if (m_BorderType!=Type) {
-		m_BorderType=Type;
+	if (m_BorderInfo!=*pInfo) {
+		m_BorderInfo=*pInfo;
 		if (m_hwnd!=NULL)
 			Invalidate();
 	}
+}
+*/
+
+
+bool CTitleBar::SetTheme(const ThemeInfo *pTheme)
+{
+	if (pTheme==NULL)
+		return false;
+	m_Theme=*pTheme;
+	if (m_hwnd!=NULL)
+		Invalidate();
+	return true;
+}
+
+
+bool CTitleBar::GetTheme(ThemeInfo *pTheme) const
+{
+	if (pTheme==NULL)
+		return false;
+	*pTheme=m_Theme;
+	return true;
 }
 
 
@@ -494,16 +525,13 @@ void CTitleBar::Draw(HDC hdc,const RECT &PaintRect)
 				&& rc.left<PaintRect.right && rc.right>PaintRect.left
 				&& rc.top<PaintRect.bottom && rc.bottom>PaintRect.top) {
 			bool fHighlight=i==m_HotItem && i!=ITEM_LABEL;
-			COLORREF crText=fHighlight?m_crHighlightTextColor:m_crTextColor;
 
-			::SetTextColor(hdc,crText);
-			Theme::FillGradient(hdc,&rc,
-								fHighlight?&m_HighlightBackGradient:&m_BackGradient);
 			rcDraw.left=rc.left+TITLE_MARGIN;
 			rcDraw.top=rc.top+TITLE_MARGIN;
 			rcDraw.right=rc.right-TITLE_MARGIN;
 			rcDraw.bottom=rc.bottom-TITLE_MARGIN;
 			if (i==ITEM_LABEL) {
+				Theme::DrawStyleBackground(hdc,&rc,&m_Theme.CaptionStyle);
 				if (m_hIcon!=NULL) {
 					::DrawIconEx(hdc,
 								 rcDraw.left,
@@ -514,32 +542,27 @@ void CTitleBar::Draw(HDC hdc,const RECT &PaintRect)
 					rcDraw.left+=TITLE_ICON_WIDTH+ICON_TEXT_MARGIN;
 				}
 				if (!m_Label.IsEmpty()) {
+					::SetTextColor(hdc,m_Theme.CaptionStyle.TextColor);
 					::DrawText(hdc,m_Label.Get(),-1,&rcDraw,
 						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 				}
 			} else {
-				RGBQUAD Palette[2];
-				COLORREF crTrans=crText^0x00FFFFFF;
+				const Theme::Style &Style=
+					fHighlight?m_Theme.HighlightIconStyle:m_Theme.IconStyle;
 
 				if (hdcMem==NULL) {
 					hdcMem=::CreateCompatibleDC(hdc);
 					hbmOld=SelectBitmap(hdcMem,m_hbmIcons);
 				}
-				Palette[0].rgbBlue=GetBValue(crText);
-				Palette[0].rgbGreen=GetGValue(crText);
-				Palette[0].rgbRed=GetRValue(crText);
-				Palette[1].rgbBlue=GetBValue(crTrans);
-				Palette[1].rgbGreen=GetGValue(crTrans);
-				Palette[1].rgbRed=GetRValue(crTrans);
-				::SetDIBColorTable(hdcMem,0,2,Palette);
-				::TransparentBlt(hdc,
+				Theme::DrawStyleBackground(hdc,&rc,&Style);
+				DrawUtil::DrawMonoColorDIB(hdc,
 					rc.left+((rc.right-rc.left)-TITLE_BUTTON_ICON_WIDTH)/2,
 					rc.top+((rc.bottom-rc.top)-TITLE_BUTTON_ICON_HEIGHT)/2,
-					TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,
 					hdcMem,
 					(i!=ITEM_MAXIMIZE || !m_fMaximized?
 						(i-1):4)*TITLE_BUTTON_ICON_WIDTH,0,
-					TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,crTrans);
+					TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,
+					Style.TextColor);
 			}
 		}
 	}
@@ -550,10 +573,10 @@ void CTitleBar::Draw(HDC hdc,const RECT &PaintRect)
 	if (rc.right<PaintRect.right) {
 		rc.left=rc.right;
 		rc.right=PaintRect.right;
-		Theme::FillGradient(hdc,&rc,&m_BackGradient);
+		Theme::FillGradient(hdc,&rc,&m_Theme.CaptionStyle.Gradient);
 	}
 	GetClientRect(&rc);
-	Theme::DrawBorder(hdc,&rc,m_BorderType);
+	Theme::DrawBorder(hdc,&rc,&m_Theme.Border);
 	::SetBkColor(hdc,crOldBkColor);
 	::SetTextColor(hdc,crOldTextColor);
 	::SetBkMode(hdc,OldBkMode);

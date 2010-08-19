@@ -18,11 +18,13 @@ static char THIS_FILE[]=__FILE__;
 
 CDtvEngine::CDtvEngine(void)
 	: m_pEventHandler(NULL)
+
 	, m_wCurTransportStream(0U)
 	, m_CurServiceIndex(SERVICE_INVALID)
 	, m_CurServiceID(SID_INVALID)
 	, m_SpecServiceID(SID_INVALID)
 	, m_CurAudioStream(0)
+
 	, m_BonSrcDecoder(this)
 	, m_TsPacketParser(this)
 	, m_TsAnalyzer(this)
@@ -37,10 +39,13 @@ CDtvEngine::CDtvEngine(void)
 	, m_EventManager(this)
 	, m_CaptionDecoder(this)
 	, m_LogoDownloader(this)
+
 	, m_bBuiled(false)
 	, m_bIsFileMode(false)
 	, m_bDescramble(true)
 	, m_bBuffering(false)
+	, m_bStartStreamingOnDriverOpen(false)
+
 	, m_bDescrambleCurServiceOnly(false)
 	, m_bWriteCurServiceOnly(false)
 	, m_WriteStream(CTsSelector::STREAM_ALL)
@@ -118,7 +123,7 @@ const bool CDtvEngine::BuildEngine(CEventHandler *pEventHandler,
 	m_pEventHandler = pEventHandler;
 	m_pEventHandler->m_pDtvEngine = this;
 
-	m_bBuiled=true;
+	m_bBuiled = true;
 
 	return true;
 }
@@ -154,7 +159,7 @@ const bool CDtvEngine::CloseEngine(void)
 	// イベントハンドラ解除
 	m_pEventHandler = NULL;
 
-	m_bBuiled=false;
+	m_bBuiled = false;
 
 	Trace(TEXT("DtvEngineを閉じました。"));
 
@@ -189,10 +194,12 @@ const bool CDtvEngine::OpenSrcFilter_BonDriver(HMODULE hBonDriverDll)
 	}
 	m_MediaBuffer.SetFileMode(false);
 	m_BonSrcDecoder.SetOutputDecoder(&m_TsPacketParser);
-	Trace(TEXT("ストリームの再生を開始しています..."));
-	if (!m_BonSrcDecoder.Play()) {
-		SetError(m_BonSrcDecoder.GetLastErrorException());
-		return false;
+	if (m_bStartStreamingOnDriverOpen) {
+		Trace(TEXT("ストリームの再生を開始しています..."));
+		if (!m_BonSrcDecoder.Play()) {
+			SetError(m_BonSrcDecoder.GetLastErrorException());
+			return false;
+		}
 	}
 	//ResetEngine();
 	ResetStatus();
@@ -505,7 +512,7 @@ const bool CDtvEngine::SetChannel(const BYTE byTuningSpace, const WORD wChannel,
 	m_SpecServiceID = ServiceID;
 
 	// チャンネル変更
-	if (!m_BonSrcDecoder.SetChannel((DWORD)byTuningSpace, (DWORD)wChannel)) {
+	if (!m_BonSrcDecoder.SetChannelAndPlay((DWORD)byTuningSpace, (DWORD)wChannel)) {
 		m_SpecServiceID = SID_INVALID;
 		SetError(m_BonSrcDecoder.GetLastErrorException());
 		return false;
@@ -950,6 +957,12 @@ bool CDtvEngine::SetWriteCurServiceOnly(bool bOnly, DWORD Stream)
 		}
 	}
 	return true;
+}
+
+
+void CDtvEngine::SetStartStreamingOnDriverOpen(bool bStart)
+{
+	m_bStartStreamingOnDriverOpen = bStart;
 }
 
 

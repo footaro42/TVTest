@@ -32,6 +32,7 @@ const LPCTSTR CInformationPanel::m_pszItemNameList[] = {
 	TEXT("VideoRenderer"),
 	TEXT("AudioDevice"),
 	TEXT("SignalLevel"),
+	TEXT("MediaBitRate"),
 	TEXT("Error"),
 	TEXT("Record"),
 	TEXT("ProgramInfo"),
@@ -74,7 +75,13 @@ CInformationPanel::CInformationPanel()
 	, m_crProgramInfoTextColor(RGB(255,255,255))
 	, m_FontHeight(0)
 	, m_LineMargin(1)
-	, m_ItemVisibility((unsigned int)-1)
+	, m_ItemVisibility(ITEM_FLAG(ITEM_VIDEO)
+					 | ITEM_FLAG(ITEM_DECODER)
+					 | ITEM_FLAG(ITEM_VIDEORENDERER)
+					 | ITEM_FLAG(ITEM_SIGNALLEVEL)
+					 | ITEM_FLAG(ITEM_ERROR)
+					 | ITEM_FLAG(ITEM_RECORD)
+					 | ITEM_FLAG(ITEM_PROGRAMINFO))
 
 	, m_OriginalVideoWidth(0)
 	, m_OriginalVideoHeight(0)
@@ -85,6 +92,8 @@ CInformationPanel::CInformationPanel()
 	, m_fSignalLevel(false)
 	, m_SignalLevel(0.0f)
 	, m_BitRate(0)
+	, m_VideoBitRate(0)
+	, m_AudioBitRate(0)
 	, m_fRecording(false)
 	, m_fNextProgramInfo(false)
 {
@@ -252,7 +261,17 @@ void CInformationPanel::SetBitRate(DWORD BitRate)
 {
 	if (BitRate!=m_BitRate) {
 		m_BitRate=BitRate;
-		UpdateItem(ITEM_BITRATE);
+		UpdateItem(ITEM_SIGNALLEVEL);
+	}
+}
+
+
+void CInformationPanel::SetMediaBitRate(DWORD VideoBitRate,DWORD AudioBitRate)
+{
+	if (VideoBitRate!=m_VideoBitRate || AudioBitRate!=m_AudioBitRate) {
+		m_VideoBitRate=VideoBitRate;
+		m_AudioBitRate=AudioBitRate;
+		UpdateItem(ITEM_MEDIABITRATE);
 	}
 }
 
@@ -443,6 +462,7 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		case CM_INFORMATIONPANEL_ITEM_VIDEORENDERER:
 		case CM_INFORMATIONPANEL_ITEM_AUDIODEVICE:
 		case CM_INFORMATIONPANEL_ITEM_SIGNALLEVEL:
+		case CM_INFORMATIONPANEL_ITEM_MEDIABITRATE:
 		case CM_INFORMATIONPANEL_ITEM_ERROR:
 		case CM_INFORMATIONPANEL_ITEM_RECORD:
 		case CM_INFORMATIONPANEL_ITEM_PROGRAMINFO:
@@ -724,19 +744,16 @@ void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
 				   m_AspectX,m_AspectY);
 		DrawItem(hdc,szText,rc);
 	}
-	if (!m_VideoDecoderName.IsEmpty()
-			&& GetDrawItemRect(ITEM_DECODER,&rc,PaintRect)) {
+	if (GetDrawItemRect(ITEM_DECODER,&rc,PaintRect)) {
 		DrawItem(hdc,m_VideoDecoderName.Get(),rc);
 	}
-	if (!m_VideoRendererName.IsEmpty()
-			&& GetDrawItemRect(ITEM_VIDEORENDERER,&rc,PaintRect)) {
+	if (GetDrawItemRect(ITEM_VIDEORENDERER,&rc,PaintRect)) {
 		DrawItem(hdc,m_VideoRendererName.Get(),rc);
 	}
-	if (!m_AudioDeviceName.IsEmpty()
-			&& GetDrawItemRect(ITEM_AUDIODEVICE,&rc,PaintRect)) {
+	if (GetDrawItemRect(ITEM_AUDIODEVICE,&rc,PaintRect)) {
 		DrawItem(hdc,m_AudioDeviceName.Get(),rc);
 	}
-	if (GetDrawItemRect(ITEM_BITRATE,&rc,PaintRect)) {
+	if (GetDrawItemRect(ITEM_SIGNALLEVEL,&rc,PaintRect)) {
 		int Length=0;
 		if (m_fSignalLevel) {
 			int SignalLevel=(int)(m_SignalLevel*100.0f);
@@ -745,6 +762,18 @@ void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
 		}
 		unsigned int BitRate=m_BitRate*100/(1024*1024);
 		::wsprintf(szText+Length,TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
+		DrawItem(hdc,szText,rc);
+	}
+	if (GetDrawItemRect(ITEM_MEDIABITRATE,&rc,PaintRect)) {
+		/*
+		unsigned int VideoBitRate=m_VideoBitRate*100/1024;
+		unsigned int AudioBitRate=m_AudioBitRate*100/1024;
+		::wsprintf(szText,TEXT("âfëú %u.%02u Kbps / âπê∫ %u.%02u Kbps"),
+				   VideoBitRate/100,VideoBitRate%100,
+				   AudioBitRate/100,AudioBitRate%100);
+		*/
+		::wsprintf(szText,TEXT("âfëú %u Kbps / âπê∫ %u Kbps"),
+				   m_VideoBitRate/1024,m_AudioBitRate/1024);
 		DrawItem(hdc,szText,rc);
 	}
 	if (GetDrawItemRect(ITEM_ERROR,&rc,PaintRect)) {
@@ -816,7 +845,8 @@ void CInformationPanel::DrawItem(HDC hdc,LPCTSTR pszText,const RECT &Rect)
 		rcDraw=Rect;
 	}
 	::FillRect(hdcDst,&rcDraw,m_BackBrush.GetHandle());
-	::DrawText(hdcDst,pszText,-1,&rcDraw,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
+	if (pszText!=NULL && pszText[0]!='\0')
+		::DrawText(hdcDst,pszText,-1,&rcDraw,DT_LEFT | DT_SINGLELINE | DT_END_ELLIPSIS);
 	if (hdcDst!=hdc)
 		m_Offscreen.CopyTo(hdc,&Rect);
 }

@@ -9,12 +9,14 @@
 #include <tchar.h>
 #include <commctrl.h>
 #include <shlwapi.h>
+#include <Powrprof.h>
 #define TVTEST_PLUGIN_CLASS_IMPLEMENT
 #include "TVTestPlugin.h"
 #include "resource.h"
 
 #pragma comment(lib,"comctl32.lib")
 #pragma comment(lib,"shlwapi.lib")
+#pragma comment(lib,"powrprof.lib")
 
 
 // ウィンドウクラス名
@@ -201,6 +203,7 @@ bool CSleepTimer::DoSleep()
 			::CloseHandle(hToken);
 		}
 	}
+
 	switch (m_Mode) {
 	case MODE_EXIT:
 		if (!m_pApp->Close(m_fForce?TVTest::CLOSE_EXIT:0))
@@ -212,22 +215,37 @@ bool CSleepTimer::DoSleep()
 			::PostMessage(HWND_BROADCAST,WM_SYSCOMMAND,SC_MONITORPOWER,2);
 		}
 		break;
+
 	case MODE_POWEROFF:
 		if (!::ExitWindowsEx((m_fForce?EWX_FORCE:0) | EWX_POWEROFF,0))
 			return false;
 		break;
+
 	case MODE_LOGOFF:
 		if (!::ExitWindowsEx((m_fForce?EWX_FORCE:0) | EWX_LOGOFF,0))
 			return false;
 		break;
+
 	case MODE_SUSPEND:
+#if 0	// SetSystemPowerState() だと自動復帰できなくなるみたい
 		if (!::SetSystemPowerState(TRUE,m_fForce))
 			return false;
+#else
+		if (!::SetSuspendState(FALSE,m_fForce,FALSE))
+			return false;
+#endif
 		break;
+
 	case MODE_HIBERNATE:
+#if 0	// SetSystemPowerState() だと自動復帰できなくなるみたい
 		if (!::SetSystemPowerState(FALSE,m_fForce))
 			return false;
+#else
+		if (!::SetSuspendState(TRUE,m_fForce,FALSE))
+			return false;
+#endif
 		break;
+
 	default:
 		return false;
 	}

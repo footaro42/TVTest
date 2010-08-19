@@ -26,9 +26,8 @@ CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	, m_pBonDriver2(NULL)
 	, m_hStreamRecvThread(NULL)
 	, m_bKillSignal(false)
-	, m_TsStream(0x10000UL)
+	, m_bPauseSignal(false)
 	, m_bIsPlaying(false)
-	, m_BitRate(0)
 	, m_StreamRemain(0)
 	, m_StreamThreadPriority(THREAD_PRIORITY_NORMAL)
 	, m_bPurgeStreamOnChannelChange(true)
@@ -45,7 +44,7 @@ void CBonSrcDecoder::Reset(void)
 	if (m_pBonDriver == NULL)
 		return;
 
-	if (!PauseStreamRecieve()) {
+	if (!LockStream()) {
 		Trace(TEXT("ストリーム受信スレッドが応答しません。"));
 		return;
 	}
@@ -53,7 +52,7 @@ void CBonSrcDecoder::Reset(void)
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
 
-	ResumeStreamRecieve();
+	UnlockStream();
 }
 
 const bool CBonSrcDecoder::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
@@ -119,13 +118,8 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 #endif
 
 	// ストリーム受信スレッド起動
-	if (!m_PauseEvent.Create(true)
-			|| !m_ResumeEvent.Create()
-			|| !m_BreakEvent.Create()) {
-		SetError(ERR_INTERNAL, TEXT("イベントオブジェクトを作成できません。"));
-		goto OnError;
-	}
 	m_bKillSignal = false;
+	m_bPauseSignal = false;
 	m_bIsPlaying = false;
 	m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, NULL);
 	if (!m_hStreamRecvThread) {
@@ -144,9 +138,6 @@ OnError:
 	m_pBonDriver->Release();
 	m_pBonDriver = NULL;
 	m_pBonDriver2 = NULL;
-	m_PauseEvent.Close();
-	m_ResumeEvent.Close();
-	m_BreakEvent.Close();
 	return false;
 }
 
@@ -159,17 +150,15 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		// ストリーム受信スレッド停止
 		Trace(TEXT("ストリーム受信スレッドを停止しています..."));
 		m_bKillSignal = true;
-		if (m_PauseEvent.SignalAndWait(m_hStreamRecvThread, 5000UL) != WAIT_OBJECT_0) {
+		m_bPauseSignal = true;
+		if (::WaitForSingleObject(m_hStreamRecvThread, 5000UL) != WAIT_OBJECT_0) {
 			// スレッド強制終了
 			::TerminateThread(m_hStreamRecvThread, 0UL);
-			Trace(TEXT("ストリーム受信スレッドを強制終了しました。"));
+			Trace(TEXT("ストリーム受信スレッドが応答しないため強制終了しました。"));
 		}
 		::CloseHandle(m_hStreamRecvThread);
 		m_hStreamRecvThread = NULL;
 	}
-	m_PauseEvent.Close();
-	m_ResumeEvent.Close();
-	m_BreakEvent.Close();
 
 	if (m_pBonDriver) {
 		// チューナを閉じる
@@ -213,7 +202,7 @@ const bool CBonSrcDecoder::Play(void)
 		return true;
 	}
 
-	if (!PauseStreamRecieve()) {
+	if (!LockStream()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
 		return false;
 	}
@@ -227,7 +216,7 @@ const bool CBonSrcDecoder::Play(void)
 	// ストリームを再生状態にする
 	m_bIsPlaying = true;
 
-	ResumeStreamRecieve();
+	UnlockStream();
 
 	ClearError();
 
@@ -247,14 +236,14 @@ const bool CBonSrcDecoder::Stop(void)
 		return true;
 	}
 
-	if (!PauseStreamRecieve()) {
+	if (!LockStream()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
 		return false;
 	}
 
 	m_bIsPlaying = false;
 
-	ResumeStreamRecieve();
+	UnlockStream();
 
 	ClearError();
 
@@ -271,7 +260,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 		return false;
 	}
 
-	if (!PauseStreamRecieve()) {
+	if (!LockStream()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
 		return false;
 	}
@@ -282,7 +271,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 
 	// チャンネルを変更する
 	if (!m_pBonDriver->SetChannel(byChannel)) {
-		ResumeStreamRecieve();
+		UnlockStream();
 		SetError(ERR_TUNER,TEXT("チャンネルの変更ができません。"),
 						   TEXT("IBonDriver::SetChannel()の呼び出しでエラーが返されました。"));
 		return false;
@@ -291,7 +280,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 	// 下位デコーダをリセットする
 	ResetDownstreamDecoder();
 
-	ResumeStreamRecieve();
+	UnlockStream();
 
 	ClearError();
 
@@ -308,7 +297,7 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 		return false;
 	}
 
-	if (!PauseStreamRecieve()) {
+	if (!LockStream()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
 		return false;
 	}
@@ -319,7 +308,7 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 
 	// チャンネルを変更する
 	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
-		ResumeStreamRecieve();
+		UnlockStream();
 		SetError(ERR_TUNER,TEXT("チャンネルの変更ができません。"),
 						   TEXT("IBonDriver2::SetChannel()の呼び出しでエラーが返されました。"));
 		return false;
@@ -328,7 +317,46 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 	// 下位デコーダをリセットする
 	ResetDownstreamDecoder();
 
-	ResumeStreamRecieve();
+	UnlockStream();
+
+	ClearError();
+
+	return true;
+}
+
+const bool CBonSrcDecoder::SetChannelAndPlay(const DWORD dwSpace, const DWORD dwChannel)
+{
+	TRACE(TEXT("CBonSrcDecoder::SetChannelAndPlay(%lu, %lu)\n"), dwSpace, dwChannel);
+
+	if (m_pBonDriver2 == NULL) {
+		// チューナが開かれていない
+		SetError(ERR_NOTOPEN,NULL);
+		return false;
+	}
+
+	if (!LockStream()) {
+		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
+		return false;
+	}
+
+	// 未処理のストリームを破棄する
+	if (m_bPurgeStreamOnChannelChange)
+		m_pBonDriver2->PurgeTsStream();
+
+	// チャンネルを変更する
+	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
+		UnlockStream();
+		SetError(ERR_TUNER,TEXT("チャンネルの変更ができません。"),
+						   TEXT("IBonDriver2::SetChannel()の呼び出しでエラーが返されました。"));
+		return false;
+	}
+
+	// 下位デコーダをリセットする
+	ResetDownstreamDecoder();
+
+	m_bIsPlaying = true;
+
+	UnlockStream();
 
 	ClearError();
 
@@ -385,7 +413,7 @@ const bool CBonSrcDecoder::PurgeStream(void)
 		return false;
 	}
 
-	if (!PauseStreamRecieve()) {
+	if (!LockStream()) {
 		SetError(ERR_TIMEOUT,TEXT("ストリーム受信スレッドが応答しません。"));
 		return false;
 	}
@@ -393,7 +421,7 @@ const bool CBonSrcDecoder::PurgeStream(void)
 	// 未処理のストリームを破棄する
 	m_pBonDriver->PurgeTsStream();
 
-	ResumeStreamRecieve();
+	UnlockStream();
 
 	ClearError();
 
@@ -401,116 +429,61 @@ const bool CBonSrcDecoder::PurgeStream(void)
 }
 
 
-void CBonSrcDecoder::OnTsStream(BYTE *pStreamData, DWORD dwStreamSize)
-{
-	if (m_bIsPlaying) {
-		// 最上位デコーダに入力する
-		m_TsStream.SetData(pStreamData, dwStreamSize);
-		OutputMedia(&m_TsStream);
-	}
-}
-
-
 DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 {
+	// チューナからTSデータを取り出すスレッド
 	CBonSrcDecoder *pThis = static_cast<CBonSrcDecoder *>(pParam);
+
+	CMediaData TsStream(0x10000UL);
 
 	::CoInitialize(NULL);
 
 	::SetThreadPriority(::GetCurrentThread(),pThis->m_StreamThreadPriority);
 
-	// チューナからTSデータを取り出すスレッド
-	while (true) {
-		DWORD BitRateTime=::GetTickCount();
-		DWORD TotalSize=0;
-		pThis->m_BitRate=0;
+	pThis->m_BitRateCalculator.Initialize();
 
-		while (!pThis->m_PauseEvent.IsSignaled()) {
-			// 処理簡略化のためポーリング方式を採用する
-			DWORD dwStreamRemain = 0UL;
+	while (!pThis->m_bKillSignal) {
+		// 処理簡略化のためポーリング方式を採用する
+		DWORD dwStreamRemain = 0UL;
 
-			do {
-				BYTE *pStreamData = NULL;
-				DWORD dwStreamSize = 0UL;
+		do {
+			BYTE *pStreamData = NULL;
+			DWORD dwStreamSize = 0UL;
 
-				if (pThis->m_pBonDriver->GetTsStream(&pStreamData,&dwStreamSize,&dwStreamRemain)
-						&& pStreamData && dwStreamSize) {
-#if 1
-					pThis->OnTsStream(pStreamData, dwStreamSize);
-#else
-					// 一度に送るサイズを小さくする程CPU使用率の変動が少なくなる
-					DWORD Remain,Size;
-
-					for (Remain=dwStreamSize;Remain>0;Remain-=Size) {
-						Size=min(Remain,188*64);
-						pThis->OnTsStream(pStreamData+(dwStreamSize-Remain),Size);
-					}
-#endif
-					TotalSize+=dwStreamSize;
+			pThis->m_StreamLock.Lock();
+			if (pThis->m_pBonDriver->GetTsStream(&pStreamData,&dwStreamSize,&dwStreamRemain)
+					&& pStreamData && dwStreamSize) {
+				if (pThis->m_bIsPlaying) {
+					// 最上位デコーダに入力する
+					TsStream.SetData(pStreamData, dwStreamSize);
+					pThis->OutputMedia(&TsStream);
 				}
+			}
+			pThis->m_StreamLock.Unlock();
 
-				// ビットレート計算
-				DWORD Now=::GetTickCount();
-				if (Now>=BitRateTime) {
-					if (Now-BitRateTime>=1000) {
-						pThis->m_BitRate=(DWORD)(((ULONGLONG)TotalSize*8*1000)/(ULONGLONG)(Now-BitRateTime));
-						BitRateTime=Now;
-						TotalSize=0;
-					}
-				} else {
-					BitRateTime=Now;
-					TotalSize=0;
-				}
-				pThis->m_StreamRemain=dwStreamRemain;
-				if (pThis->m_PauseEvent.IsSignaled())
-					goto Break;
-			} while (dwStreamRemain>0);
+			pThis->m_StreamRemain=dwStreamRemain;
+			pThis->m_BitRateCalculator.Update(dwStreamSize);
 
+			if (pThis->m_bKillSignal)
+				goto Break;
+		} while (!pThis->m_bPauseSignal && dwStreamRemain > 0);
 #if 1
-			// ウェイト(24Mbpsとして次のデータ到着まで約15msかかる)
-			::Sleep(5UL);
+		// ウェイト(24Mbpsとして次のデータ到着まで約15msかかる)
+		::Sleep(5UL);
 #else
-			// WaitTsStream で待つと負荷が上がる環境があるらしい
-			pThis->m_pBonDriver->WaitTsStream(20);
+		// WaitTsStream で待つと負荷が上がる環境があるらしい
+		pThis->m_pBonDriver->WaitTsStream(20);
 #endif
-		}
-	Break:
-		if (pThis->m_bKillSignal)
-			break;
-		pThis->m_PauseEvent.Reset();
-		pThis->m_ResumeEvent.Reset();
-		pThis->m_BreakEvent.SignalAndWait(&pThis->m_ResumeEvent,20000);
 	}
+Break:
 
-	pThis->m_BitRate=0;
+	pThis->m_BitRateCalculator.Reset();
 
 	::CoUninitialize();
 
 	TRACE(TEXT("CBonSrcDecoder::StreamRecvThread() return\n"));
 
 	return 0UL;
-}
-
-
-/*
-	ストリームの受信を一時停止させる
-	Purgeしたストリームを読みに行って落ちることがあるので、その対策
-*/
-bool CBonSrcDecoder::PauseStreamRecieve(DWORD TimeOut)
-{
-	m_BreakEvent.Reset();
-	if (m_PauseEvent.SignalAndWait(&m_BreakEvent, TimeOut) == WAIT_TIMEOUT) {
-		m_PauseEvent.Reset();
-		return false;
-	}
-	return true;
-}
-
-
-bool CBonSrcDecoder::ResumeStreamRecieve(DWORD TimeOut)
-{
-	m_ResumeEvent.Set();
-	return true;
 }
 
 
@@ -555,7 +528,7 @@ int CBonSrcDecoder::GetCurChannel() const
 
 DWORD CBonSrcDecoder::GetBitRate() const
 {
-	return m_BitRate;
+	return m_BitRateCalculator.GetBitRate();
 }
 
 
@@ -583,4 +556,19 @@ void CBonSrcDecoder::SetPurgeStreamOnChannelChange(bool bPurge)
 {
 	TRACE(TEXT("CBonSrcDecoder::SetPurgeStreamOnChannelChange(%s)\n"), bPurge ? TEXT("true") : TEXT("false"));
 	m_bPurgeStreamOnChannelChange = bPurge;
+}
+
+
+bool CBonSrcDecoder::LockStream()
+{
+	m_bPauseSignal = true;
+	bool bOK = m_StreamLock.TryLock(4000);
+	m_bPauseSignal = false;
+	return bOK;
+}
+
+
+void CBonSrcDecoder::UnlockStream()
+{
+	m_StreamLock.Unlock();
 }

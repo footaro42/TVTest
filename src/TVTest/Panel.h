@@ -1,14 +1,16 @@
-#ifndef PANEL_H
-#define PANEL_H
+#ifndef TVTEST_PANEL_H
+#define TVTEST_PANEL_H
 
 
-#include "Splitter.h"
+#include "Layout.h"
+#include "DrawUtil.h"
 #include "Theme.h"
 
 
-class CPanel : public CBasicWindow {
+class CPanel : public CBasicWindow
+{
 public:
-	class CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	public:
 		virtual ~CEventHandler() {}
 		virtual bool OnFloating() { return false; }
@@ -17,29 +19,14 @@ public:
 		virtual bool OnMoving(RECT *pRect) { return false; }
 		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
 		virtual void OnSizeChanged(int Width,int Height) {}
+		virtual bool OnMenuPopup(HMENU hmenu) { return true; }
+		virtual bool OnMenuSelected(int Command) { return false; }
+	};
+	enum { MENU_USER=100 };
+	struct ThemeInfo {
+		Theme::Style TitleStyle;
 	};
 
-private:
-	int m_TitleMargin;
-	int m_ButtonSize;
-	HFONT m_hfont;
-	int m_TitleHeight;
-	CBasicWindow *m_pWindow;
-	LPTSTR m_pszTitle;
-	bool m_fShowTitle;
-	bool m_fEnableFloating;
-	Theme::GradientInfo m_TitleBackGradient;
-	COLORREF m_crTitleTextColor;
-	CEventHandler *m_pEventHandler;
-	POINT m_ptDragStartPos;
-	POINT m_ptMovingWindowPos;
-	void OnSize(int Width,int Height);
-	void GetCloseButtonRect(RECT *pRect) const;
-	static HINSTANCE m_hinst;
-	static CPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-public:
 	static bool Initialize(HINSTANCE hinst);
 	CPanel();
 	~CPanel();
@@ -49,12 +36,36 @@ public:
 	void EnableFloating(bool fEnable);
 	void SetEventHandler(CEventHandler *pHandler);
 	CBasicWindow *GetWindow() { return m_pWindow; }
-	bool SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText);
+	bool SetTheme(const ThemeInfo *pTheme);
+	bool GetTheme(ThemeInfo *pTheme) const;
 	bool GetTitleRect(RECT *pRect) const;
 	bool GetContentRect(RECT *pRect) const;
+
+private:
+	int m_TitleMargin;
+	int m_ButtonSize;
+	DrawUtil::CFont m_Font;
+	int m_TitleHeight;
+	CBasicWindow *m_pWindow;
+	CDynamicString m_Title;
+	bool m_fShowTitle;
+	bool m_fEnableFloating;
+	ThemeInfo m_Theme;
+	CEventHandler *m_pEventHandler;
+	POINT m_ptDragStartPos;
+	POINT m_ptMovingWindowPos;
+
+	void Draw(HDC hdc,const RECT &PaintRect) const;
+	void OnSize(int Width,int Height);
+	void GetCloseButtonRect(RECT *pRect) const;
+
+	static HINSTANCE m_hinst;
+	static CPanel *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
-class CDropHelper : public CBasicWindow {
+class CDropHelper : public CBasicWindow
+{
 	int m_Opacity;
 	static HINSTANCE m_hinst;
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
@@ -68,20 +79,40 @@ public:
 	bool Hide();
 };
 
-class CPanelFrameEventHandler {
+class CPanelFrame : public CBasicWindow, public CPanel::CEventHandler
+{
 public:
-	virtual bool OnClose() { return true; }
-	virtual bool OnMoving(RECT *pRect) { return false; }
-	virtual bool OnEnterSizeMove() { return false; }
-	virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
-	virtual bool OnMouseWheel(WPARAM wParam,LPARAM lParam) { return false; }
-	virtual void OnVisibleChange(bool fVisible) {}
-	virtual bool OnFloatingChange(bool fFloating) { return true; }
-	virtual bool OnActivate(bool fActive) { return false; }
-};
+	class ABSTRACT_CLASS(CEventHandler) {
+	public:
+		virtual ~CEventHandler() {}
+		virtual bool OnClose() { return true; }
+		virtual bool OnMoving(RECT *pRect) { return false; }
+		virtual bool OnEnterSizeMove() { return false; }
+		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
+		virtual bool OnMouseWheel(WPARAM wParam,LPARAM lParam) { return false; }
+		virtual void OnVisibleChange(bool fVisible) {}
+		virtual bool OnFloatingChange(bool fFloating) { return true; }
+		virtual bool OnActivate(bool fActive) { return false; }
+	};
 
-class CPanelFrame : public CBasicWindow, public CPanel::CEventHandler {
-	CSplitter *m_pSplitter;
+	static bool Initialize(HINSTANCE hinst);
+	CPanelFrame();
+	~CPanelFrame();
+	bool Create(HWND hwndOwner,Layout::CSplitter *pSplitter,int PanelID,
+				CBasicWindow *pWindow,LPCTSTR pszTitle);
+	CPanel *GetPanel() { return &m_Panel; }
+	CBasicWindow *GetWindow() { return m_Panel.GetWindow(); }
+	bool SetFloating(bool fFloating);
+	bool GetFloating() const { return m_fFloating; }
+	void SetEventHandler(CEventHandler *pHandler);
+	bool SetPanelVisible(bool fVisible,bool fNoActivate=false);
+	int GetDockingWidth() const { return m_DockingWidth; }
+	bool SetDockingWidth(int Width);
+	bool SetTheme(const CPanel::ThemeInfo *pTheme);
+	bool GetTheme(CPanel::ThemeInfo *pTheme) const;
+	bool SetOpacity(int Opacity);
+	int GetOpacity() const { return m_Opacity; }
+	Layout::CSplitter *m_pSplitter;
 	int m_PanelID;
 	CPanel m_Panel;
 	bool m_fFloating;
@@ -93,37 +124,24 @@ class CPanelFrame : public CBasicWindow, public CPanel::CEventHandler {
 		DOCKING_LEFT,
 		DOCKING_RIGHT
 	};
+
+private:
 	DockingPlace m_DragDockingTarget;
 	bool m_fDragMoving;
-	CPanelFrameEventHandler *m_pEventHandler;
+	CEventHandler *m_pEventHandler;
 	bool Create(HWND hwndParent,DWORD Sytle,DWORD ExStyle=0,int ID=0);
 	static HINSTANCE m_hinst;
 	static CPanelFrame *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	// CPanel::CEventHandler
+// CPanel::CEventHandler
 	bool OnFloating();
 	bool OnClose();
 	bool OnEnterSizeMove();
 	bool OnMoving(RECT *pRect);
 	bool OnKeyDown(UINT KeyCode,UINT Flags);
 	void OnSizeChanged(int Width,int Height);
-
-public:
-	static bool Initialize(HINSTANCE hinst);
-	CPanelFrame();
-	~CPanelFrame();
-	bool Create(HWND hwndOwner,CSplitter *pSplitter,int PanelID,CBasicWindow *pWindow,LPCTSTR pszTitle);
-	CPanel *GetPanel() { return &m_Panel; }
-	CBasicWindow *GetWindow() { return m_Panel.GetWindow(); }
-	bool SetFloating(bool fFloating);
-	bool GetFloating() const { return m_fFloating; }
-	void SetEventHandler(CPanelFrameEventHandler *pHandler);
-	bool SetPanelVisible(bool fVisible,bool fNoActivate=false);
-	int GetDockingWidth() const { return m_DockingWidth; }
-	bool SetDockingWidth(int Width);
-	bool SetTitleColor(const Theme::GradientInfo *pBackGradient,COLORREF crTitleText);
-	bool SetOpacity(int Opacity);
-	int GetOpacity() const { return m_Opacity; }
+	bool OnMenuPopup(HMENU hmenu);
+	bool OnMenuSelected(int Command);
 };
 
 

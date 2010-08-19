@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "ControlPanel.h"
-#include "DrawUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -22,7 +21,7 @@ bool CControlPanel::Initialize(HINSTANCE hinst)
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
 
-		wc.style=0;
+		wc.style=CS_HREDRAW;
 		wc.lpfnWndProc=WndProc;
 		wc.cbClsExtra=0;
 		wc.cbWndExtra=0;
@@ -41,35 +40,35 @@ bool CControlPanel::Initialize(HINSTANCE hinst)
 
 
 CControlPanel::CControlPanel()
+	: m_MarginSize(2)
+	, m_hwndMessage(NULL)
+	, m_HotItem(-1)
 {
-	m_NumItems=0;
 	LOGFONT lf;
 	GetDefaultFont(&lf);
-	m_hfont=::CreateFontIndirect(&lf);
+	m_Font.Create(&lf);
 	m_FontHeight=abs(lf.lfHeight);
-	m_BackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_BackGradient.Direction=Theme::DIRECTION_VERT;
-	m_BackGradient.Color1=RGB(0,0,0);
-	m_BackGradient.Color2=RGB(0,0,0);
-	m_crTextColor=RGB(255,255,255);
-	m_OverBackGradient.Type=Theme::GRADIENT_NORMAL;
-	m_OverBackGradient.Direction=Theme::DIRECTION_VERT;
-	m_OverBackGradient.Color1=RGB(255,255,255);
-	m_OverBackGradient.Color2=RGB(255,255,255);
-	m_crOverTextColor=RGB(0,0,0);
-	m_crMarginColor=RGB(0,0,0);
-	m_hwndMessage=NULL;
-	m_HotItem=-1;
+
+	m_Theme.ItemStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.ItemStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.ItemStyle.Gradient.Color1=RGB(0,0,0);
+	m_Theme.ItemStyle.Gradient.Color2=RGB(0,0,0);
+	m_Theme.ItemStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.ItemStyle.TextColor=RGB(255,255,255);
+	m_Theme.OverItemStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
+	m_Theme.OverItemStyle.Gradient.Direction=Theme::DIRECTION_VERT;
+	m_Theme.OverItemStyle.Gradient.Color1=RGB(255,255,255);
+	m_Theme.OverItemStyle.Gradient.Color2=RGB(255,255,255);
+	m_Theme.OverItemStyle.Border.Type=Theme::BORDER_NONE;
+	m_Theme.OverItemStyle.TextColor=RGB(0,0,0);
+	m_Theme.MarginColor=RGB(0,0,0);
 }
 
 
 CControlPanel::~CControlPanel()
 {
-	int i;
-
-	for (i=0;i<m_NumItems;i++)
-		delete m_pItemList[i];
-	DeleteObject(m_hfont);
+	for (size_t i=0;i<m_ItemList.size();i++)
+		delete m_ItemList[i];
 }
 
 
@@ -82,11 +81,19 @@ bool CControlPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 
 bool CControlPanel::AddItem(CControlPanelItem *pItem)
 {
-	if (m_NumItems==MAX_ITEMS)
+	if (pItem==NULL)
 		return false;
-	m_pItemList[m_NumItems++]=pItem;
+	m_ItemList.push_back(pItem);
 	pItem->m_pControlPanel=this;
 	return true;
+}
+
+
+CControlPanelItem *CControlPanel::GetItem(int Index) const
+{
+	if (Index<0 || Index>=(int)m_ItemList.size())
+		return NULL;
+	return m_ItemList[Index];
 }
 
 
@@ -94,23 +101,60 @@ bool CControlPanel::UpdateItem(int Index)
 {
 	RECT rc;
 
-	if (Index<0 || Index>=m_NumItems || m_hwnd==NULL)
+	if (Index<0 || Index>=(int)m_ItemList.size() || m_hwnd==NULL)
 		return false;
-	m_pItemList[Index]->GetPosition(&rc);
-	InvalidateRect(m_hwnd,&rc,TRUE);
+	m_ItemList[Index]->GetPosition(&rc);
+	Invalidate(&rc);
 	return true;
 }
 
 
 bool CControlPanel::GetItemPosition(int Index,RECT *pRect) const
 {
-	if (Index<0 || Index>=m_NumItems)
+	if (Index<0 || Index>=(int)m_ItemList.size())
 		return false;
-	m_pItemList[Index]->GetPosition(pRect);
+	m_ItemList[Index]->GetPosition(pRect);
 	return true;
 }
 
 
+void CControlPanel::UpdateLayout()
+{
+	RECT rc;
+	int Width;
+	int x,y;
+	int MaxHeight;
+
+	GetClientRect(&rc);
+	Width=(rc.right-rc.left)-m_MarginSize*2;
+	x=m_MarginSize;
+	y=m_MarginSize;
+	for (size_t i=0;i<m_ItemList.size();i++) {
+		CControlPanelItem *pItem=m_ItemList[i];
+
+		if (!pItem->GetVisible())
+			continue;
+		if (pItem->GetBreak()) {
+			x=m_MarginSize;
+			if (i>0)
+				y+=MaxHeight;
+			MaxHeight=0;
+		}
+		SIZE sz;
+		pItem->CalcSize(Width,&sz);
+		rc.left=x;
+		rc.top=y;
+		rc.right=x+sz.cx;
+		rc.bottom=y+sz.cy;
+		pItem->m_Position=rc;
+		if (sz.cy>MaxHeight)
+			MaxHeight=sz.cy;
+		x+=sz.cx;
+	}
+}
+
+
+/*
 void CControlPanel::SetColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,
 	const Theme::GradientInfo *pOverBackGradient,COLORREF crOverText,
 	COLORREF crMargin)
@@ -124,24 +168,39 @@ void CControlPanel::SetColors(const Theme::GradientInfo *pBackGradient,COLORREF 
 	if (m_hwnd!=NULL)
 		Invalidate();
 }
+*/
 
 
-/*
+bool CControlPanel::SetTheme(const ThemeInfo *pTheme)
+{
+	if (pTheme==NULL)
+		return false;
+	m_Theme=*pTheme;
+	if (m_hwnd!=NULL)
+		Invalidate();
+	return true;
+}
+
+
+bool CControlPanel::GetTheme(ThemeInfo *pTheme) const
+{
+	if (pTheme==NULL)
+		return false;
+	*pTheme=m_Theme;
+	return true;
+}
+
+
 bool CControlPanel::SetFont(const LOGFONT *pFont)
 {
-	HFONT hfont=::CreateFontIndirect(pFont);
-
-	if (hfont==NULL)
+	if (!m_Font.Create(pFont))
 		return false;
-	if (m_hfont!=NULL)
-		::DeleteObject(m_hfont);
-	m_hfont=hfont;
 	if (m_hwnd!=NULL) {
+		UpdateLayout();
 		Invalidate();
 	}
 	return true;
 }
-*/
 
 
 void CControlPanel::SetSendMessageWindow(HWND hwnd)
@@ -159,16 +218,139 @@ void CControlPanel::SendCommand(int Command)
 
 bool CControlPanel::CheckRadioItem(int FirstID,int LastID,int CheckID)
 {
-	int i;
+	for (size_t i=0;i<m_ItemList.size();i++) {
+		CControlPanelItem *pItem=m_ItemList[i];
 
-	for (i=0;i<m_NumItems;i++) {
-		if (m_pItemList[i]->m_Command>=FirstID
-				&& m_pItemList[i]->m_Command<=LastID)
-			m_pItemList[i]->m_fCheck=m_pItemList[i]->m_Command==CheckID;
+		if (pItem->m_Command>=FirstID && pItem->m_Command<=LastID)
+			pItem->m_fCheck=pItem->m_Command==CheckID;
 	}
 	if (m_hwnd!=NULL)
-		InvalidateRect(m_hwnd,NULL,TRUE);
+		Invalidate();
 	return true;
+}
+
+
+bool CControlPanel::CalcTextSize(LPCTSTR pszText,SIZE *pSize)
+{
+	pSize->cx=0;
+	pSize->cy=0;
+
+	if (m_hwnd==NULL || pszText==NULL)
+		return false;
+
+	HDC hdc=::GetDC(m_hwnd);
+	if (hdc==NULL)
+		return false;
+	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_Font);
+	::GetTextExtentPoint32(hdc,pszText,::lstrlen(pszText),pSize);
+	SelectFont(hdc,hfontOld);
+	::ReleaseDC(m_hwnd,hdc);
+	return true;
+}
+
+
+void CControlPanel::Draw(HDC hdc,const RECT &PaintRect)
+{
+	RECT rcClient;
+	GetClientRect(&rcClient);
+	int Width=(rcClient.right-rcClient.left)-m_MarginSize*2;
+
+	int MaxHeight;
+	MaxHeight=0;
+	for (int i=0;i<(int)m_ItemList.size();i++) {
+		CControlPanelItem *pItem=m_ItemList[i];
+
+		if (pItem->GetVisible()) {
+			int Height=pItem->m_Position.bottom-pItem->m_Position.top;
+			if (Height>MaxHeight)
+				MaxHeight=Height;
+		}
+	}
+	if (MaxHeight==0)
+		return;
+	if (!m_Offscreen.IsCreated()
+			|| m_Offscreen.GetWidth()<Width
+			|| m_Offscreen.GetHeight()<MaxHeight) {
+		if (!m_Offscreen.Create(Width+32,MaxHeight,hdc))
+			return;
+	}
+
+	HBRUSH hbrMargin=::CreateSolidBrush(m_Theme.MarginColor);
+	HDC hdcOffscreen=m_Offscreen.GetDC();
+	HFONT hfontOld;
+	COLORREF crOldTextColor;
+	int OldBkMode;
+	RECT rc,rcOffscreen,rcDest;
+
+	rc=rcClient;
+	::InflateRect(&rc,-m_MarginSize,-m_MarginSize);
+	DrawUtil::FillBorder(hdc,&rcClient,&rc,&PaintRect,hbrMargin);
+	hfontOld=DrawUtil::SelectObject(hdcOffscreen,m_Font);
+	crOldTextColor=::GetTextColor(hdcOffscreen);
+	OldBkMode=::SetBkMode(hdcOffscreen,TRANSPARENT);
+	::SetRect(&rcOffscreen,0,0,Width,MaxHeight);
+	::SetRect(&rcDest,m_MarginSize,-1,m_MarginSize+Width,0);
+	for (int i=0;i<(int)m_ItemList.size();i++) {
+		CControlPanelItem *pItem=m_ItemList[i];
+
+		if (!pItem->GetVisible())
+			continue;
+		pItem->GetPosition(&rc);
+		if (rc.left<PaintRect.right && rc.right>PaintRect.left
+				&& rc.top<PaintRect.bottom && rc.bottom>PaintRect.top) {
+			COLORREF crText,crBack;
+
+			if (rc.top!=rcDest.top) {
+				if (rcDest.top>=0)
+					m_Offscreen.CopyTo(hdc,&rcDest);
+				::FillRect(hdcOffscreen,&rcOffscreen,hbrMargin);
+				rcDest.top=rc.top;
+			}
+			if (rcDest.bottom<rc.bottom)
+				rcDest.bottom=rc.bottom;
+			::OffsetRect(&rc,-m_MarginSize,-rc.top);
+			if (i==m_HotItem) {
+				crText=m_Theme.OverItemStyle.TextColor;
+				crBack=MixColor(m_Theme.OverItemStyle.Gradient.Color1,
+								m_Theme.OverItemStyle.Gradient.Color2);
+				Theme::DrawStyleBackground(hdcOffscreen,&rc,&m_Theme.OverItemStyle);
+			} else {
+				Theme::Style Style=m_Theme.ItemStyle;
+
+				crText=Style.TextColor;
+				crBack=MixColor(Style.Gradient.Color1,Style.Gradient.Color2);
+				if (!pItem->GetEnable()) {
+					crText=MixColor(crText,crBack);
+				} else if (pItem->GetCheck()) {
+					Style.Gradient.Color1=MixColor(Style.Gradient.Color1,
+												   m_Theme.OverItemStyle.Gradient.Color1);
+					Style.Gradient.Color2=MixColor(Style.Gradient.Color2,
+												  m_Theme.OverItemStyle.Gradient.Color2);
+					crBack=MixColor(Style.Gradient.Color1,Style.Gradient.Color2);
+				}
+				Theme::DrawStyleBackground(hdcOffscreen,&rc,&Style);
+			}
+			::SetTextColor(hdcOffscreen,crText);
+			::SetBkColor(hdcOffscreen,crBack);
+			pItem->Draw(hdcOffscreen,rc);
+		}
+	}
+	if (rcDest.top>=0) {
+		m_Offscreen.CopyTo(hdc,&rcDest);
+		rc.top=rcDest.bottom;
+	} else {
+		rc.top=m_MarginSize;
+	}
+	if (rc.top<PaintRect.bottom) {
+		rc.left=PaintRect.left;
+		rc.right=PaintRect.right;
+		rc.bottom=PaintRect.bottom;
+		::FillRect(hdc,&rc,hbrMargin);
+	}
+	::SetBkMode(hdc,OldBkMode);
+	::SetTextColor(hdc,crOldTextColor);
+	SelectFont(hdc,hfontOld);
+	::DeleteObject(hbrMargin);
 }
 
 
@@ -188,23 +370,15 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 			pThis->m_HotItem=-1;
 			pThis->m_fTrackMouseEvent=false;
+			pThis->m_fOnButtonDown=false;
 		}
 		return 0;
 
 	case WM_SIZE:
 		{
 			CControlPanel *pThis=GetThis(hwnd);
-			int Width=LOWORD(lParam),Height=HIWORD(lParam);
-			int i;
-			bool fRayoutChanged;
 
-			fRayoutChanged=false;
-			for (i=0;i<pThis->m_NumItems;i++) {
-				if (pThis->m_pItemList[i]->Rayout(Width,Height))
-					fRayoutChanged=true;
-			}
-			if (fRayoutChanged)
-				InvalidateRect(hwnd,NULL,TRUE);
+			pThis->UpdateLayout();
 		}
 		return 0;
 
@@ -212,44 +386,10 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CControlPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
-			HFONT hfontOld;
-			COLORREF crOldTextColor;
-			int OldBkMode;
-			RECT rc;
 
-			BeginPaint(hwnd,&ps);
-			DrawUtil::Fill(ps.hdc,&ps.rcPaint,pThis->m_crMarginColor);
-			hfontOld=SelectFont(ps.hdc,pThis->m_hfont);
-			crOldTextColor=GetTextColor(ps.hdc);
-			OldBkMode=SetBkMode(ps.hdc,TRANSPARENT);
-			for (int i=0;i<pThis->m_NumItems;i++) {
-				pThis->m_pItemList[i]->GetPosition(&rc);
-				if (rc.left<ps.rcPaint.right && rc.right>ps.rcPaint.left
-						&& rc.top<ps.rcPaint.bottom && rc.bottom>ps.rcPaint.top) {
-					COLORREF crText,crBack;
-
-					if (i==pThis->m_HotItem) {
-						crText=pThis->m_crOverTextColor;
-						crBack=MixColor(pThis->m_OverBackGradient.Color1,pThis->m_OverBackGradient.Color2,128);
-						Theme::FillGradient(ps.hdc,&rc,&pThis->m_OverBackGradient);
-					} else {
-						crText=pThis->m_crTextColor;
-						crBack=MixColor(pThis->m_BackGradient.Color1,pThis->m_BackGradient.Color2,128);
-						if (!pThis->m_pItemList[i]->GetEnable())
-							crText=MixColor(crText,crBack,128);
-						if (pThis->m_pItemList[i]->GetCheck())
-							crBack=MixColor(crText,crBack,128);
-						Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
-					}
-					SetTextColor(ps.hdc,crText);
-					SetBkColor(ps.hdc,crBack);
-					pThis->m_pItemList[i]->Draw(ps.hdc);
-				}
-			}
-			SetBkMode(ps.hdc,OldBkMode);
-			SetTextColor(ps.hdc,crOldTextColor);
-			SelectFont(ps.hdc,hfontOld);
-			EndPaint(hwnd,&ps);
+			::BeginPaint(hwnd,&ps);
+			pThis->Draw(ps.hdc,ps.rcPaint);
+			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
@@ -259,22 +399,23 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 			RECT rc;
 
-			if (GetCapture()==hwnd) {
-				pThis->m_pItemList[pThis->m_HotItem]->GetPosition(&rc);
+			if (::GetCapture()==hwnd) {
+				pThis->m_ItemList[pThis->m_HotItem]->GetPosition(&rc);
 				x-=rc.left;
 				y-=rc.top;
-				pThis->m_pItemList[pThis->m_HotItem]->OnMouseMove(x,y);
+				pThis->m_ItemList[pThis->m_HotItem]->OnMouseMove(x,y);
 			} else {
 				int i;
 				POINT pt;
 
 				pt.x=x;
 				pt.y=y;
-				for (i=pThis->m_NumItems-1;i>=0;i--) {
-					if (pThis->m_pItemList[i]->GetVisible()
-							&& pThis->m_pItemList[i]->GetEnable()) {
-						pThis->m_pItemList[i]->GetPosition(&rc);
-						if (PtInRect(&rc,pt))
+				for (i=(int)pThis->m_ItemList.size()-1;i>=0;i--) {
+					const CControlPanelItem *pItem=pThis->m_ItemList[i];
+
+					if (pItem->GetVisible() && pItem->GetEnable()) {
+						pItem->GetPosition(&rc);
+						if (::PtInRect(&rc,pt))
 							break;
 					}
 				}
@@ -294,7 +435,7 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 					tme.cbSize=sizeof(TRACKMOUSEEVENT);
 					tme.dwFlags=TME_LEAVE;
 					tme.hwndTrack=hwnd;
-					if (TrackMouseEvent(&tme))
+					if (::TrackMouseEvent(&tme))
 						pThis->m_fTrackMouseEvent=true;
 				}
 			}
@@ -305,11 +446,13 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CControlPanel *pThis=GetThis(hwnd);
 
-			if (pThis->m_HotItem>=0) {
-				int i=pThis->m_HotItem;
+			if (!pThis->m_fOnButtonDown) {
+				if (pThis->m_HotItem>=0) {
+					int i=pThis->m_HotItem;
 
-				pThis->m_HotItem=-1;
-				pThis->UpdateItem(i);
+					pThis->m_HotItem=-1;
+					pThis->UpdateItem(i);
+				}
 			}
 			pThis->m_fTrackMouseEvent=false;
 		}
@@ -324,19 +467,33 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			if (pThis->m_HotItem>=0) {
 				RECT rc;
 
-				pThis->m_pItemList[pThis->m_HotItem]->GetPosition(&rc);
+				pThis->m_ItemList[pThis->m_HotItem]->GetPosition(&rc);
 				x-=rc.left;
 				y-=rc.top;
+				pThis->m_fOnButtonDown=true;
 				if (uMsg==WM_LBUTTONDOWN)
-					pThis->m_pItemList[pThis->m_HotItem]->OnLButtonDown(x,y);
+					pThis->m_ItemList[pThis->m_HotItem]->OnLButtonDown(x,y);
 				else
-					pThis->m_pItemList[pThis->m_HotItem]->OnRButtonDown(x,y);
+					pThis->m_ItemList[pThis->m_HotItem]->OnRButtonDown(x,y);
+				pThis->m_fOnButtonDown=false;
+				if (!pThis->m_fTrackMouseEvent) {
+					POINT pt;
+
+					::GetCursorPos(&pt);
+					::ScreenToClient(hwnd,&pt);
+					::GetClientRect(hwnd,&rc);
+					if (::PtInRect(&rc,pt)) {
+						::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
+					} else {
+						::SendMessage(hwnd,WM_MOUSELEAVE,0,0);
+					}
+				}
 			} else if (uMsg==WM_RBUTTONDOWN) {
 				POINT pt;
 
 				pt.x=x;
 				pt.y=y;
-				MapWindowPoints(hwnd,pThis->GetParent(),&pt,1);
+				::MapWindowPoints(hwnd,pThis->GetParent(),&pt,1);
 				::SendMessage(pThis->GetParent(),uMsg,wParam,MAKELPARAM(pt.x,pt.y));
 			}
 		}
@@ -344,7 +501,7 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_LBUTTONUP:
 		if (GetCapture()==hwnd) {
-			ReleaseCapture();
+			::ReleaseCapture();
 		}
 		return 0;
 
@@ -353,11 +510,19 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			CControlPanel *pThis=GetThis(hwnd);
 
 			if (pThis->m_HotItem>=0) {
-				SetCursor(LoadCursor(NULL,IDC_HAND));
+				::SetCursor(LoadCursor(NULL,IDC_HAND));
 				return TRUE;
 			}
 		}
 		break;
+
+	case WM_DISPLAYCHANGE:
+		{
+			CControlPanel *pThis=GetThis(hwnd);
+
+			pThis->m_Offscreen.Destroy();
+		}
+		return 0;
 
 	case WM_DESTROY:
 		{
@@ -374,16 +539,14 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 
 CControlPanelItem::CControlPanelItem()
+	: m_Command(0)
+	, m_fVisible(true)
+	, m_fEnable(true)
+	, m_fCheck(false)
+	, m_fBreak(true)
+	, m_pControlPanel(NULL)
 {
-	m_Position.Left=0;
-	m_Position.Top=0;
-	m_Position.Width=0;
-	m_Position.Height=0;
-	m_Command=0;
-	m_fVisible=true;
-	m_fEnable=true;
-	m_fCheck=false;
-	m_pControlPanel=NULL;
+	::SetRectEmpty(&m_Position);
 }
 
 
@@ -395,13 +558,13 @@ CControlPanelItem::~CControlPanelItem()
 void CControlPanelItem::GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const
 {
 	if (pLeft)
-		*pLeft=m_Position.Left;
+		*pLeft=m_Position.left;
 	if (pTop)
-		*pTop=m_Position.Top;
+		*pTop=m_Position.top;
 	if (pWidth)
-		*pWidth=m_Position.Width;
+		*pWidth=m_Position.right-m_Position.left;
 	if (pHeight)
-		*pHeight=m_Position.Height;
+		*pHeight=m_Position.bottom-m_Position.top;
 }
 
 
@@ -409,20 +572,17 @@ bool CControlPanelItem::SetPosition(int Left,int Top,int Width,int Height)
 {
 	if (Width<0 || Height<0)
 		return false;
-	m_Position.Left=Left;
-	m_Position.Top=Top;
-	m_Position.Width=Width;
-	m_Position.Height=Height;
+	m_Position.left=Left;
+	m_Position.top=Top;
+	m_Position.right=Left+Width;
+	m_Position.bottom=Top+Height;
 	return true;
 }
 
 
 void CControlPanelItem::GetPosition(RECT *pRect) const
 {
-	pRect->left=m_Position.Left;
-	pRect->top=m_Position.Top;
-	pRect->right=m_Position.Left+m_Position.Width;
-	pRect->bottom=m_Position.Top+m_Position.Height;
+	*pRect=m_Position;
 }
 
 
@@ -444,37 +604,43 @@ void CControlPanelItem::SetCheck(bool fCheck)
 }
 
 
+void CControlPanelItem::SetBreak(bool fBreak)
+{
+	m_fBreak=fBreak;
+}
+
+
+void CControlPanelItem::CalcSize(int Width,SIZE *pSize)
+{
+	pSize->cx=Width;
+	pSize->cy=m_Position.bottom-m_Position.top;
+}
+
+
 void CControlPanelItem::OnLButtonDown(int x,int y)
 {
 	m_pControlPanel->SendCommand(m_Command);
 }
 
 
-
-
-CControlPanelButton::CControlPanelButton(int Command,LPCTSTR pszText,
-										int Left,int Top,int Width,int Height)
+bool CControlPanelItem::CalcTextSize(LPCTSTR pszText,SIZE *pSize) const
 {
-	m_Command=Command;
-	m_pszText=DuplicateString(pszText);
-	m_Position.Left=Left;
-	m_Position.Top=Top;
-	m_Position.Width=Width;
-	m_Position.Height=Height;
+	if (m_pControlPanel==NULL || pszText==NULL) {
+		pSize->cx=0;
+		pSize->cy=0;
+		return false;
+	}
+	return m_pControlPanel->CalcTextSize(pszText,pSize);
 }
 
 
-CControlPanelButton::~CControlPanelButton()
+void CControlPanelItem::GetMenuPos(POINT *pPos) const
 {
-	delete [] m_pszText;
-}
-
-
-void CControlPanelButton::Draw(HDC hdc)
-{
-	RECT rc;
-
-	GetPosition(&rc);
-	DrawText(hdc,m_pszText,-1,&rc,
-						DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	if (m_pControlPanel==NULL) {
+		::GetCursorPos(pPos);
+		return;
+	}
+	pPos->x=m_Position.left;
+	pPos->y=m_Position.bottom;
+	::ClientToScreen(m_pControlPanel->GetHandle(),pPos);
 }

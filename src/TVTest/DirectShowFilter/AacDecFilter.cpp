@@ -67,7 +67,9 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_StereoMode(STEREOMODE_STEREO)
 	, m_bDownMixSurround(true)
 	, m_pStreamCallback(NULL)
-	, m_bNormalize(false)
+	, m_bGainControl(false)
+	, m_Gain(1.0f)
+	, m_SurroundGain(1.0f)
 	, m_bAdjustStreamTime(false)
 	, m_StartTime(-1)
 	, m_SampleCount(0)
@@ -230,6 +232,8 @@ HRESULT CAacDecFilter::StartStreaming(void)
 	m_StartTime = -1;
 	m_SampleCount = 0;
 
+	m_BitRateCalculator.Initialize();
+
 	return S_OK;
 }
 
@@ -239,6 +243,8 @@ HRESULT CAacDecFilter::StopStreaming(void)
 
 	// AACデコーダクローズ
 	m_AacDecoder.CloseDecoder();
+
+	m_BitRateCalculator.Reset();
 
 	return S_OK;
 }
@@ -286,7 +292,10 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	pOut->SetActualDataLength(0);
 
 	// ADTSパーサに入力
-	m_AdtsParser.StoreEs(pInData, pIn->GetActualDataLength());
+	LONG InSize = pIn->GetActualDataLength();
+	m_AdtsParser.StoreEs(pInData, InSize);
+
+	m_BitRateCalculator.Update(InSize);
 
 	if (pOut->GetActualDataLength() == 0)
 		return S_FALSE;
@@ -434,8 +443,9 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 		return;
 	}
 
-	if (m_bNormalize)
-		Normalize((short*)pOutBuff, dwOutSize / sizeof(short));
+	if (m_bGainControl && (byChannel < 6 || !m_bDownMixSurround))
+		GainControl((short*)pOutBuff, dwOutSize / sizeof(short),
+					byChannel < 6 ? m_Gain : m_SurroundGain);
 
 	if (m_pStreamCallback)
 		m_pStreamCallback((short*)pOutBuff, dwSamples, m_bDownMixSurround ? 2 : byChannel, m_pStreamCallbackParam);
@@ -501,23 +511,24 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 {
 	// 5.1ch → 2ch ダウンミックス
 
+	const double Level = m_bGainControl ? m_SurroundGain : 1.0;
 	int iOutLch, iOutRch;
 
 	for(DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++){
 		// ダウンミックス
-		iOutLch = (int)(
+		iOutLch = (int)((
 					(double)pSrc[dwPos * 6UL + 1UL]	* DMR_FRONT		+
 					(double)pSrc[dwPos * 6UL + 3UL]	* DMR_REAR		+
 					(double)pSrc[dwPos * 6UL + 0UL]	* DMR_CENTER	+
 					(double)pSrc[dwPos * 6UL + 5UL]	* DMR_LFE
-					);
+					) * Level);
 
-		iOutRch = (int)(
+		iOutRch = (int)((
 					(double)pSrc[dwPos * 6UL + 2UL]	* DMR_FRONT		+
 					(double)pSrc[dwPos * 6UL + 4UL]	* DMR_REAR		+
 					(double)pSrc[dwPos * 6UL + 0UL]	* DMR_CENTER	+
 					(double)pSrc[dwPos * 6UL + 5UL]	* DMR_LFE
-					);
+					) * Level);
 
 		// クリップ
 		if(iOutLch > 32767L)iOutLch = 32767L;
@@ -545,29 +556,61 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 
 	int iOutLch, iOutRch;
 
-	for (DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++) {
-		// ダウンミックス
-		iOutLch =	((int)pSrc[dwPos * 6UL + 1UL] * IDOWNMIX_FRONT	+
-					 (int)pSrc[dwPos * 6UL + 3UL] * IDOWNMIX_REAR	+
-					 (int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
-					 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE) /
-					IDOWNMIX_DENOM;
+	if (!m_bGainControl) {
+		for (DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++) {
+			// ダウンミックス
+			iOutLch =	((int)pSrc[dwPos * 6UL + 1UL] * IDOWNMIX_FRONT	+
+						 (int)pSrc[dwPos * 6UL + 3UL] * IDOWNMIX_REAR	+
+						 (int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
+						 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE) /
+						IDOWNMIX_DENOM;
 
-		iOutRch =	((int)pSrc[dwPos * 6UL + 2UL] * IDOWNMIX_FRONT	+
-					 (int)pSrc[dwPos * 6UL + 4UL] * IDOWNMIX_REAR	+
-					 (int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
-					 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE) /
-					IDOWNMIX_DENOM;
+			iOutRch =	((int)pSrc[dwPos * 6UL + 2UL] * IDOWNMIX_FRONT	+
+						 (int)pSrc[dwPos * 6UL + 4UL] * IDOWNMIX_REAR	+
+						 (int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
+						 (int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE) /
+						IDOWNMIX_DENOM;
 
-		// クリップ
-		if(iOutLch > 32767)iOutLch = 32767;
-		else if(iOutLch < -32768L)iOutLch = -32768;
+			// クリップ
+			if(iOutLch > 32767)iOutLch = 32767;
+			else if(iOutLch < -32768L)iOutLch = -32768;
 
-		if(iOutRch > 32767)iOutRch = 32767;
-		else if(iOutRch < -32768)iOutRch = -32768;
+			if(iOutRch > 32767)iOutRch = 32767;
+			else if(iOutRch < -32768)iOutRch = -32768;
 
-		pDst[dwPos * 2UL + 0UL] = (short)iOutLch;	// L
-		pDst[dwPos * 2UL + 1UL] = (short)iOutRch;	// R
+			pDst[dwPos * 2UL + 0UL] = (short)iOutLch;	// L
+			pDst[dwPos * 2UL + 1UL] = (short)iOutRch;	// R
+		}
+	} else {
+		static const int Factor = 4096;
+		static const LONGLONG Divisor = Factor * IDOWNMIX_DENOM;
+		const LONGLONG Level = (LONGLONG)(m_SurroundGain * (float)Factor);
+
+		for (DWORD dwPos = 0UL ; dwPos < dwSamples ; dwPos++) {
+			// ダウンミックス
+			iOutLch =	(int)pSrc[dwPos * 6UL + 1UL] * IDOWNMIX_FRONT	+
+						(int)pSrc[dwPos * 6UL + 3UL] * IDOWNMIX_REAR	+
+						(int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
+						(int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE;
+
+			iOutRch =	(int)pSrc[dwPos * 6UL + 2UL] * IDOWNMIX_FRONT	+
+						(int)pSrc[dwPos * 6UL + 4UL] * IDOWNMIX_REAR	+
+						(int)pSrc[dwPos * 6UL + 0UL] * IDOWNMIX_CENTER	+
+						(int)pSrc[dwPos * 6UL + 5UL] * IDOWNMIX_LFE;
+
+			iOutLch = (int)((LONGLONG)iOutLch * Level / Divisor);
+			iOutRch = (int)((LONGLONG)iOutRch * Level / Divisor);
+
+			// クリップ
+			if(iOutLch > 32767)iOutLch = 32767;
+			else if(iOutLch < -32768L)iOutLch = -32768;
+
+			if(iOutRch > 32767)iOutRch = 32767;
+			else if(iOutRch < -32768)iOutRch = -32768;
+
+			pDst[dwPos * 2UL + 0UL] = (short)iOutLch;	// L
+			pDst[dwPos * 2UL + 1UL] = (short)iOutRch;	// R
+		}
 	}
 
 	// バッファサイズを返す
@@ -623,40 +666,40 @@ bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 }
 
 
-bool CAacDecFilter::SetNormalize(bool bNormalize,float Level)
+bool CAacDecFilter::SetGainControl(bool bGainControl, float Gain, float SurroundGain)
 {
 	CAutoLock AutoLock(m_pLock);
 
-	m_bNormalize = bNormalize;
-	m_NormalizeLevel = Level;
+	m_bGainControl = bGainControl;
+	m_Gain = Gain;
+	m_SurroundGain = SurroundGain;
 	return true;
 }
 
 
-bool CAacDecFilter::GetNormalize(float *pLevel) const
+bool CAacDecFilter::GetGainControl(float *pGain, float *pSurroundGain) const
 {
-	if (pLevel)
-		*pLevel = m_NormalizeLevel;
-	return m_bNormalize;
+	if (pGain)
+		*pGain = m_Gain;
+	if (pSurroundGain)
+		*pSurroundGain = m_SurroundGain;
+	return m_bGainControl;
 }
 
 
-#define NORMALIZE_SHIFT_BITS	12
-#define NORMALIZE_DENOM			(1<<NORMALIZE_SHIFT_BITS)
-
-/*
-	本当はダウンミックスと同時に行った方が良い
-*/
-void CAacDecFilter::Normalize(short *pBuffer,DWORD Samples)
+void CAacDecFilter::GainControl(short *pBuffer, const DWORD Samples, const float Gain)
 {
-	int Level = (int)(m_NormalizeLevel * (float)NORMALIZE_DENOM);
+	static const int Factor = 0x1000;
+	const int Level = (int)(Gain * (float)Factor);
 	short *p, *pEnd;
 	int Value;
 
+	if (Level == Factor)
+		return;
 	p= pBuffer;
 	pEnd= p + Samples;
 	while (p < pEnd) {
-		Value = (*p * Level) / NORMALIZE_DENOM;
+		Value = ((int)*p * Level) / Factor;
 		*p++ = Value > 32767 ? 32767 : Value < -32768 ? -32768 : Value;
 	}
 }
@@ -683,4 +726,10 @@ bool CAacDecFilter::SetStreamCallback(StreamCallback pCallback, void *pParam)
 	m_pStreamCallbackParam = pParam;
 
 	return true;
+}
+
+
+DWORD CAacDecFilter::GetBitRate() const
+{
+	return m_BitRateCalculator.GetBitRate();
 }
