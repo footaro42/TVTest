@@ -42,11 +42,6 @@ static char THIS_FILE[]=__FILE__;
 
 #endif
 
-inline LONGLONG llabs(LONGLONG val)
-{
-	return val<0?-val:val;
-}
-
 
 CH264ParserFilter::CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	: CTransformFilter(H264PARSERFILTER_NAME, pUnk, CLSID_H264ParserFilter)
@@ -61,6 +56,7 @@ CH264ParserFilter::CH264ParserFilter(LPUNKNOWN pUnk, HRESULT *phr)
 #endif
 	  )
 	, m_bAdjustFrameRate(true)
+	, m_bAttachMediaType(false)
 {
 	TRACE(TEXT("CH264ParserFilter::CH264ParserFilter() %p\n"),this);
 
@@ -246,7 +242,7 @@ HRESULT CH264ParserFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 				m_PrevTime = StartTime;
 			} else {
 				if (m_PrevTime < 0
-						|| llabs((m_PrevTime + FRAME_TIME(m_SampleCount)) - StartTime) > REFERENCE_TIME_SECOND / 5LL) {
+						|| _abs64((m_PrevTime + FRAME_TIME(m_SampleCount)) - StartTime) > REFERENCE_TIME_SECOND / 5LL) {
 #ifdef _DEBUG
 					if (m_PrevTime >= 0)
 						TRACE(TEXT("Reset H.264 sample time\n"));
@@ -327,7 +323,7 @@ bool CH264ParserFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 	if (!pInfo)
 		return false;
 
-	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
+	CAutoLock Lock(&m_VideoInfoLock);
 
 	*pInfo = m_VideoInfo;
 	return true;
@@ -363,6 +359,11 @@ bool CH264ParserFilter::SetAdjustFrameRate(bool bAdjust)
 	return true;
 }
 
+void CH264ParserFilter::SetAttachMediaType(bool bAttach)
+{
+	m_bAttachMediaType = bAttach;
+}
+
 DWORD CH264ParserFilter::GetBitRate() const
 {
 	return m_BitRateCalculator.GetBitRate();
@@ -382,7 +383,7 @@ void CH264ParserFilter::OnAccessUnit(const CH264Parser *pParser, const CH264Acce
 	OrigWidth = pAccessUnit->GetHorizontalSize();
 	OrigHeight = pAccessUnit->GetVerticalSize();
 
-	if (m_VideoInfo.m_OrigWidth != OrigWidth) {
+	if (m_bAttachMediaType && m_VideoInfo.m_OrigWidth != OrigWidth) {
 		CMediaType MediaType(m_pOutput->CurrentMediaType());
 		VIDEOINFOHEADER *pVideoInfo=(VIDEOINFOHEADER*)MediaType.Format();
 

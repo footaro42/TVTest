@@ -627,7 +627,7 @@ void CEpgProgramList::Clear()
 
 int CEpgProgramList::NumServices() const
 {
-	CBlockLock Lock(const_cast<CCriticalLock*>(&m_Lock));
+	CBlockLock Lock(&m_Lock);
 
 	return (int)m_ServiceMap.size();
 }
@@ -1061,7 +1061,7 @@ static bool WriteString(CNFile *pFile,LPCWSTR pszString,CCrc32 *pCrc)
 static bool WriteCRC(CNFile *pFile,const CCrc32 *pCrc)
 {
 	DWORD CRC32=pCrc->GetCrc();
-	return pFile->Write(&CRC32,sizeof(DWORD));
+	return pFile->Write(&CRC32,sizeof(CRC32));
 }
 
 
@@ -1091,10 +1091,11 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			ServiceInfoHeader ServiceHeader;
 
 			if (File.Read(&ServiceHeader,sizeof(ServiceInfoHeader))!=sizeof(ServiceInfoHeader)
-					|| !ReadString(&File,&pszText)
-					|| ServiceHeader.NumEvents>=0xFFFF)
+					|| !ReadString(&File,&pszText))
 				goto OnError;
 			delete [] pszText;
+			if (ServiceHeader.NumEvents>0xFFFF)
+				goto OnError;
 			ServiceHeader2.OriginalNetworkID=ServiceHeader.OriginalNID;
 			ServiceHeader2.TransportStreamID=ServiceHeader.TSID;
 			ServiceHeader2.ServiceID=ServiceHeader.ServiceID;
@@ -1102,8 +1103,10 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 		} else {
 			if (File.Read(&ServiceHeader2,sizeof(ServiceInfoHeader2))!=sizeof(ServiceInfoHeader2))
 				goto OnError;
-			if (ServiceHeader2.CRC!=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,sizeof(ServiceInfoHeader2)-sizeof(DWORD)))
+			if (ServiceHeader2.CRC!=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,sizeof(ServiceInfoHeader2)-sizeof(DWORD))) {
+				TRACE(TEXT("CEpgProgramList::LoadFromFile() : Service CRC error!\n"));
 				goto OnError;
+			}
 		}
 
 		CServiceInfoData ServiceData(ServiceHeader2.OriginalNetworkID,
@@ -1165,22 +1168,11 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				}
 				pEventData->m_fCommonEvent=false;
 				pEventData->m_UpdateTime=0;
-				if (!ReadString(&File,&pszText))
+				if (!ReadString(&File,&pEventData->m_pszEventName)
+						|| !ReadString(&File,&pEventData->m_pszEventText)
+						|| !ReadString(&File,&pEventData->m_pszEventExtText)
+						|| !ReadString(&File,&pEventData->m_pszComponentTypeText))
 					goto OnError;
-				if (pszText!=NULL)
-					pEventData->m_pszEventName=pszText;
-				if (!ReadString(&File,&pszText))
-					goto OnError;
-				if (pszText!=NULL)
-					pEventData->m_pszEventText=pszText;
-				if (!ReadString(&File,&pszText))
-					goto OnError;
-				if (pszText!=NULL)
-					pEventData->m_pszEventExtText=pszText;
-				if (!ReadString(&File,&pszText))
-					goto OnError;
-				if (pszText!=NULL)
-					pEventData->m_pszComponentTypeText=pszText;
 				if (!ReadString(&File,&pszText))
 					goto OnError;
 				if (pszText!=NULL) {
@@ -1264,7 +1256,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				if (File.Read(&CRC32,sizeof(DWORD))!=sizeof(DWORD))
 					goto OnError;
 				if (CRC32!=CRC.GetCrc()) {
-					TRACE(TEXT("CEpgProgramList::LoadFromFile() : CRC error!\n"));
+					TRACE(TEXT("CEpgProgramList::LoadFromFile() : Event CRC error!\n"));
 					// 2‰ñ‘±‚¯‚ÄCRCƒGƒ‰[‚Ìê‡‚Í“Ç‚Ýž‚Ý’†Ž~
 					if (fCRCError)
 						goto OnError;
@@ -1326,34 +1318,54 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 		return false;
 	}
 
-	EpgListFileHeader FileHeader;
-
-	::CopyMemory(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type));
-	FileHeader.Version=EPGLISTFILEHEADER_VERSION;
-	FileHeader.NumServices=(DWORD)m_ServiceMap.size();
-
-	if (!File.Write(&FileHeader,sizeof(EpgListFileHeader)))
-		goto OnError;
-
 	SYSTEMTIME stCurrent,st;
 	::GetLocalTime(&stCurrent);
 
+	WORD *pNumEvents=new WORD[m_ServiceMap.size()];
+	DWORD NumServices=0;
+	size_t ServiceIndex=0;
 	for (ServiceMap::iterator itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
-		CEpgServiceInfo *pServiceInfo=itrService->second;
-		ServiceInfoHeader2 ServiceHeader2(pServiceInfo->m_ServiceData);
-		CEventInfoList::EventMap::iterator itrEvent;
+		const CEpgServiceInfo *pServiceInfo=itrService->second;
+		CEventInfoList::EventMap::const_iterator itrEvent;
+		WORD NumEvents=0;
 
 		for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
 				itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
 				itrEvent++) {
 			if (itrEvent->second.GetEndTime(&st)
 					&& CompareSystemTime(&st,&stCurrent)>0)
-				ServiceHeader2.NumEvents++;
+				NumEvents++;
 		}
+		pNumEvents[ServiceIndex++]=NumEvents;
+		if (NumEvents>0)
+			NumServices++;
+	}
+
+	EpgListFileHeader FileHeader;
+
+	::CopyMemory(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type));
+	FileHeader.Version=EPGLISTFILEHEADER_VERSION;
+	FileHeader.NumServices=NumServices;
+
+	if (!File.Write(&FileHeader,sizeof(EpgListFileHeader)))
+		goto OnError;
+
+	ServiceIndex=0;
+	for (ServiceMap::iterator itrService=m_ServiceMap.begin();
+		 	itrService!=m_ServiceMap.end();itrService++,ServiceIndex++) {
+		if (pNumEvents[ServiceIndex]==0)
+			continue;
+
+		const CEpgServiceInfo *pServiceInfo=itrService->second;
+		ServiceInfoHeader2 ServiceHeader2(pServiceInfo->m_ServiceData);
+		ServiceHeader2.NumEvents=pNumEvents[ServiceIndex];
 		ServiceHeader2.CRC=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,sizeof(ServiceInfoHeader2)-sizeof(DWORD));
 		if (!File.Write(&ServiceHeader2,sizeof(ServiceInfoHeader2)))
 			goto OnError;
+
 		if (ServiceHeader2.NumEvents>0) {
+			CEventInfoList::EventMap::const_iterator itrEvent;
+
 			for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
 					itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
 					itrEvent++) {
@@ -1406,6 +1418,8 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 		}
 	}
 
+	delete [] pNumEvents;
+
 	File.Close();
 
 	HANDLE hFile=::CreateFile(pszFileName,GENERIC_READ,FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);
@@ -1418,6 +1432,7 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 	return true;
 
 OnError:
+	delete [] pNumEvents;
 	File.Close();
 	::DeleteFile(pszFileName);
 	GlobalLock.Release();

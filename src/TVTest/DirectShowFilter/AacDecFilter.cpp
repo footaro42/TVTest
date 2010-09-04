@@ -272,11 +272,6 @@ const BYTE CAacDecFilter::GetCurrentChannelNum()
 	return m_byCurChannelNum;
 }
 
-inline LONGLONG llabs(LONGLONG val)
-{
-	return val<0?-val:val;
-}
-
 HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 {
 	CAutoLock AutoLock(m_pLock);
@@ -308,7 +303,7 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 		if (hr == S_OK || hr == VFW_S_NO_STOP_TIME) {
 			if (m_StartTime >= 0) {
 				REFERENCE_TIME CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
-				if (llabs(StartTime - CurTime) > REFERENCE_TIME_SECOND / 5LL) {
+				if (_abs64(StartTime - CurTime) > REFERENCE_TIME_SECOND / 5LL) {
 					// TODO: いきなりリセットしないで徐々に合わせる
 					TRACE(TEXT("Reset audio time\n"));
 					m_StartTime = StartTime;

@@ -36,6 +36,7 @@ public:
 	void ResetVideoInfo();
 	bool SetAdjustTime(bool bAdjust);
 	bool SetAdjustFrameRate(bool bAdjust);
+	void SetAttachMediaType(bool bAttach);
 	DWORD GetBitRate() const;
 
 protected:
@@ -58,7 +59,7 @@ protected:
 	CMediaType m_MediaType;
 	CH264Parser m_H264Parser;
 	CMpeg2VideoInfo m_VideoInfo;
-	CCritSec m_VideoInfoLock;
+	mutable CCritSec m_VideoInfoLock;
 	IMediaSample *m_pOutSample;
 	HRESULT m_DeliverResult;
 	bool m_bAdjustTime;
@@ -76,5 +77,6 @@ protected:
 		}
 	};
 	CMediaDataQueue m_MediaQueue;
+	bool m_bAttachMediaType;
 	CBitRateCalculator m_BitRateCalculator;
 };

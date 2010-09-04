@@ -31,10 +31,10 @@ CPointerArray::CPointerArray()
 
 
 CPointerArray::CPointerArray(const CPointerArray &Array)
+	: m_ppList(NULL)
+	, m_Length(0)
+	, m_ListLength(0)
 {
-	m_ppList=NULL;
-	m_Length=0;
-	m_ListLength=0;
 	if (Array.m_Length>0) {
 		m_ppList=static_cast<void**>(malloc(Array.m_Length*sizeof(void*)));
 		if (m_ppList==NULL)

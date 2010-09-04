@@ -473,6 +473,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Controller.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\ControlPanel.cpp"
 				>
 			</File>
@@ -650,10 +654,6 @@
 			</File>
 			<File
 				RelativePath=".\RecordOptions.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\RemoteController.cpp"
 				>
 			</File>
 			<File
@@ -855,6 +855,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\Controller.h"
+				>
+			</File>
+			<File
 				RelativePath=".\ControlPanel.h"
 				>
 			</File>
@@ -1040,10 +1044,6 @@
 			</File>
 			<File
 				RelativePath=".\RecordOptions.h"
-				>
-			</File>
-			<File
-				RelativePath=".\RemoteController.h"
 				>
 			</File>
 			<File

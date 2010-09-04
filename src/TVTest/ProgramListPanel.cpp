@@ -305,6 +305,7 @@ CProgramListPanel::CProgramListPanel()
 
 CProgramListPanel::~CProgramListPanel()
 {
+	Destroy();
 }
 
 

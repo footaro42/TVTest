@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
 #include "TVTest.h"
 #include "DialogUtil.h"
 
@@ -106,7 +105,7 @@ void SyncTrackBarWithEdit(HWND hDlg,int EditID,int TrackbarID)
 	Min=(int)SendDlgItemMessage(hDlg,TrackbarID,TBM_GETRANGEMIN,0,0);
 	Max=(int)SendDlgItemMessage(hDlg,TrackbarID,TBM_GETRANGEMAX,0,0);
 	Val=GetDlgItemInt(hDlg,EditID,NULL,TRUE);
-	SendDlgItemMessage(hDlg,TrackbarID,TBM_SETPOS,TRUE,LimitRange(Val,Min,Max));
+	SendDlgItemMessage(hDlg,TrackbarID,TBM_SETPOS,TRUE,CLAMP(Val,Min,Max));
 }
 
 

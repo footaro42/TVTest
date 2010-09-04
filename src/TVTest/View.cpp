@@ -13,8 +13,6 @@ static char THIS_FILE[]=__FILE__;
 #define VIEW_WINDOW_CLASS				APP_NAME TEXT(" View")
 #define VIDEO_CONTAINER_WINDOW_CLASS	APP_NAME TEXT(" Video Container")
 
-#define EDGE_SIZE	1
-
 
 
 
@@ -26,6 +24,8 @@ CVideoContainerWindow::CVideoContainerWindow()
 	, m_pDisplayBase(NULL)
 	, m_pEventHandler(NULL)
 {
+	m_ClientSize.cx=0;
+	m_ClientSize.cy=0;
 }
 
 
@@ -112,8 +112,13 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 			pThis->m_pDtvEngine->SetViewSize(Width,Height);
 			if (pThis->m_pDisplayBase!=NULL)
 				pThis->m_pDisplayBase->AdjustPosition();
-			if (uMsg==WM_SIZE && pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnSizeChanged(Width,Height);
+			if (uMsg==WM_SIZE
+					&& (Width!=pThis->m_ClientSize.cx || Height!=pThis->m_ClientSize.cy)) {
+				if (pThis->m_pEventHandler!=NULL)
+					pThis->m_pEventHandler->OnSizeChanged(Width,Height);
+				pThis->m_ClientSize.cx=Width;
+				pThis->m_ClientSize.cy=Height;
+			}
 		}
 		return 0;
 
@@ -238,8 +243,7 @@ CViewWindow::CViewWindow()
 	, m_hwndMessage(NULL)
 	, m_pEventHandler(NULL)
 	, m_hbmLogo(NULL)
-	, m_fBorder(false)
-	, m_BorderInfo(Theme::BORDER_SUNKEN,RGB(128,128,128))
+	, m_BorderInfo(Theme::BORDER_NONE,RGB(128,128,128))
 	, m_fShowCursor(true)
 {
 }
@@ -297,18 +301,15 @@ bool CViewWindow::SetLogo(HBITMAP hbm)
 	if (m_hbmLogo)
 		::DeleteObject(m_hbmLogo);
 	m_hbmLogo=hbm;
-	if (m_hwnd) {
-		Invalidate();
-		Update();
-	}
+	if (m_hwnd)
+		Redraw();
 	return true;
 }
 
 
-void CViewWindow::SetBorder(bool fBorder,const Theme::BorderInfo *pInfo)
+void CViewWindow::SetBorder(const Theme::BorderInfo *pInfo)
 {
-	if (m_fBorder!=fBorder || m_BorderInfo!=*pInfo) {
-		m_fBorder=fBorder;
+	if (m_BorderInfo!=*pInfo) {
 		m_BorderInfo=*pInfo;
 		if (m_hwnd)
 			Invalidate();
@@ -336,15 +337,15 @@ void CViewWindow::ShowCursor(bool fShow)
 }
 
 
-int CViewWindow::GetVerticalEdgeWidth() const
+bool CViewWindow::CalcClientRect(RECT *pRect) const
 {
-	return EDGE_SIZE;
+	return Theme::SubtractBorderRect(&m_BorderInfo,pRect);
 }
 
 
-int CViewWindow::GetHorizontalEdgeHeight() const
+bool CViewWindow::CalcWindowRect(RECT *pRect) const
 {
-	return EDGE_SIZE;
+	return Theme::AddBorderRect(&m_BorderInfo,pRect);
 }
 
 
@@ -371,19 +372,13 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 
 			if (pThis->m_pVideoContainer!=NULL
 					&& pThis->m_pVideoContainer->GetParent()==hwnd) {
-				int x=0,y=0,cx=Width,cy=Height;
+				RECT rc;
 
-				if (pThis->m_fBorder) {
-					x=EDGE_SIZE;
-					y=EDGE_SIZE;
-					cx-=EDGE_SIZE*2;
-					if (cx<0)
-						cx=0;
-					cy-=EDGE_SIZE*2;
-					if (cy<0)
-						cy=0;
-				}
-				pThis->m_pVideoContainer->SetPosition(x,y,cx,cy);
+				::SetRect(&rc,0,0,Width,Height);
+				pThis->CalcClientRect(&rc);
+				pThis->m_pVideoContainer->SetPosition(rc.left,rc.top,
+													  max(rc.right-rc.left,0),
+													  max(rc.bottom-rc.top,0));
 			}
 			if (pThis->m_pEventHandler!=NULL)
 				pThis->m_pEventHandler->OnSizeChanged(Width,Height);
@@ -415,8 +410,7 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			} else {
 				::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			}
-			if (pThis->m_fBorder)
-				Theme::DrawBorder(ps.hdc,&rcClient,&pThis->m_BorderInfo);
+			Theme::DrawBorder(ps.hdc,rcClient,&pThis->m_BorderInfo);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;

@@ -99,6 +99,7 @@ CChannelPanel::CChannelPanel()
 
 CChannelPanel::~CChannelPanel()
 {
+	Destroy();
 	m_ChannelList.DeleteAll();
 }
 

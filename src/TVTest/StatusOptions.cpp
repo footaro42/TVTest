@@ -270,29 +270,24 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						TextColor=COLOR_HIGHLIGHTTEXT;
 						BackColor=COLOR_HIGHLIGHT;
 					}
-					FillRect(pdis->hDC,&pdis->rcItem,(HBRUSH)(BackColor+1));
-					OldBkMode=SetBkMode(pdis->hDC,TRANSPARENT);
-					crTextColor=GetSysColor(TextColor);
-					if (!pItemInfo->fVisible) {
-						COLORREF crBack=GetSysColor(BackColor);
-
-						crTextColor=
-							RGB((GetRValue(crTextColor)+GetRValue(crBack))/2,
-								(GetGValue(crTextColor)+GetGValue(crBack))/2,
-								(GetBValue(crTextColor)+GetBValue(crBack))/2);
-					}
-					crOldTextColor=SetTextColor(pdis->hDC,crTextColor);
+					::FillRect(pdis->hDC,&pdis->rcItem,
+							   reinterpret_cast<HBRUSH>(BackColor+1));
+					OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
+					crTextColor=::GetSysColor(TextColor);
+					if (!pItemInfo->fVisible)
+						crTextColor=MixColor(crTextColor,::GetSysColor(BackColor));
+					crOldTextColor=::SetTextColor(pdis->hDC,crTextColor);
 					rc.left=pdis->rcItem.left+ITEM_MARGIN;
 					rc.top=pdis->rcItem.top+ITEM_MARGIN;
 					rc.right=rc.left+CHECK_WIDTH;
 					rc.bottom=pdis->rcItem.bottom-ITEM_MARGIN;
-					DrawFrameControl(pdis->hDC,&rc,DFC_BUTTON,
+					::DrawFrameControl(pdis->hDC,&rc,DFC_BUTTON,
 						DFCS_BUTTONCHECK | (pItemInfo->fVisible?DFCS_CHECKED:0));
 					rc.left=pdis->rcItem.left+ITEM_MARGIN+CHECK_WIDTH+ITEM_MARGIN;
 					rc.top=pdis->rcItem.top+ITEM_MARGIN;
 					rc.right=rc.left+pThis->m_TextWidth;
 					rc.bottom=pdis->rcItem.bottom-ITEM_MARGIN;
-					DrawText(pdis->hDC,pItem->GetName(),-1,&rc,
+					::DrawText(pdis->hDC,pItem->GetName(),-1,&rc,
 						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 					rc.left=rc.right+ITEM_MARGIN+1;
 					rc.right=rc.left+(pItemInfo->Width>=0?
@@ -301,18 +296,19 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					rc.bottom=rc.top+pThis->m_pStatusView->GetItemHeight();
 					HPEN hpen,hpenOld;
 					HBRUSH hbrOld;
-					hpen=CreatePen(PS_SOLID,1,crTextColor);
+					hpen=::CreatePen(PS_SOLID,1,crTextColor);
 					hpenOld=SelectPen(pdis->hDC,hpen);
 					hbrOld=SelectBrush(pdis->hDC,static_cast<HBRUSH>(GetStockObject(NULL_BRUSH)));
-					Rectangle(pdis->hDC,rc.left-1,rc.top-1,rc.right+1,rc.bottom+1);
+					::Rectangle(pdis->hDC,rc.left-1,rc.top-1,rc.right+1,rc.bottom+1);
 					SelectBrush(pdis->hDC,hbrOld);
-					SelectPen(pdis->hDC,hpen);
+					SelectPen(pdis->hDC,hpenOld);
+					::DeleteObject(hpen);
 					pThis->m_pStatusView->DrawItemPreview(pItem,pdis->hDC,&rc);
-					SetBkMode(pdis->hDC,OldBkMode);
-					SetTextColor(pdis->hDC,crOldTextColor);
+					::SetBkMode(pdis->hDC,OldBkMode);
+					::SetTextColor(pdis->hDC,crOldTextColor);
 					if ((int)pdis->itemID==pThis->m_DropInsertPos
 								|| (int)pdis->itemID+1==pThis->m_DropInsertPos)
-						PatBlt(pdis->hDC,pdis->rcItem.left,
+						::PatBlt(pdis->hDC,pdis->rcItem.left,
 							(int)pdis->itemID==pThis->m_DropInsertPos?
 										pdis->rcItem.top:pdis->rcItem.bottom-1,
 							pdis->rcItem.right-pdis->rcItem.left,1,DSTINVERT);
@@ -320,7 +316,7 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						break;
 				}
 			case ODA_FOCUS:
-				DrawFocusRect(pdis->hDC,&pdis->rcItem);
+				::DrawFocusRect(pdis->hDC,&pdis->rcItem);
 				break;
 			}
 		}
@@ -340,8 +336,10 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			return TRUE;
 
 		case IDC_STATUSOPTIONS_CHOOSEFONT:
-			if (ChooseFontDialog(hDlg,&lfCurFont))
+			if (ChooseFontDialog(hDlg,&lfCurFont)) {
 				SetFontInfo(hDlg,&lfCurFont);
+				// TODO: フォントの設定をプレビューに適用する
+			}
 		}
 		return TRUE;
 
@@ -360,27 +358,29 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				// Font
 				if (memcmp(&pThis->m_lfItemFont,&lfCurFont,28/*offsetof(LOGFONT,lfFaceName)*/)!=0
 						|| lstrcmp(pThis->m_lfItemFont.lfFaceName,lfCurFont.lfFaceName)!=0) {
-					int OldHeight=pThis->m_pStatusView->GetHeight(),NewHeight;
+					//int OldHeight=pThis->m_pStatusView->GetHeight(),NewHeight;
 
 					pThis->m_lfItemFont=lfCurFont;
 					pThis->m_pStatusView->SetFont(&lfCurFont);
+					/*
 					NewHeight=pThis->m_pStatusView->GetHeight();
 					if (NewHeight!=OldHeight) {
-						HWND hwnd=GetParent(pThis->m_pStatusView->GetHandle());
+						HWND hwnd=GetAppClass().GetUICore()->GetMainWindow();
 						RECT rc;
 
-						GetClientRect(hwnd,&rc);
-						if (IsZoomed(hwnd)) {
-							SendMessage(hwnd,WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
+						::GetClientRect(hwnd,&rc);
+						if (::IsZoomed(hwnd)) {
+							::SendMessage(hwnd,WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
 						} else {
 							RECT rcWindow;
 
-							GetWindowRect(hwnd,&rcWindow);
-							SetWindowPos(hwnd,NULL,0,0,rc.right-rc.left,
+							::GetWindowRect(hwnd,&rcWindow);
+							::SetWindowPos(hwnd,NULL,0,0,rc.right-rc.left,
 								(rcWindow.bottom-rcWindow.top)+(NewHeight-OldHeight),
 								SWP_NOZORDER | SWP_NOMOVE);
 						}
 					}
+					*/
 				}
 			}
 			break;

@@ -102,6 +102,7 @@ CInformationPanel::CInformationPanel()
 
 CInformationPanel::~CInformationPanel()
 {
+	Destroy();
 }
 
 
@@ -326,11 +327,8 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		{
 			CInformationPanel *pThis=static_cast<CInformationPanel*>(OnCreate(hwnd,lParam));
 
-			if (!pThis->m_Font.IsCreated()) {
-				LOGFONT lf;
-				GetDefaultFont(&lf);
-				pThis->m_Font.Create(&lf);
-			}
+			if (!pThis->m_Font.IsCreated())
+				CreateDefaultFont(&pThis->m_Font);
 			pThis->m_BackBrush.Create(pThis->m_crBackColor);
 			pThis->m_ProgramInfoBackBrush.Create(pThis->m_crProgramInfoBackColor);
 			pThis->CalcFontHeight();

@@ -105,8 +105,8 @@
 			<param name="Local" value="options\accelerator.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-			<param name="Name" value="HDUSリモコン">
-			<param name="Local" value="options\hduscontroller.html">
+			<param name="Name" value="リモコン">
+			<param name="Local" value="options\controller.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="ドライバ別設定">

@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.10
+	TVTest プラグインヘッダ ver.0.0.11
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -83,6 +83,15 @@
 
 /*
 	更新履歴
+
+	ver.0.0.11 (TVTest ver.0.7.6 or later)
+	・以下のメッセージを追加した
+	  ・MESSAGE_SETWINDOWMESSAGECALLBACK
+	  ・MESSAGE_REGISTERCONTROLLER
+	  ・MESSAGE_ONCOTROLLERBUTTONDOWN
+	  ・MESSAGE_GETCONTROLLERSETTINGS
+	・EVENT_CONTROLLERFOCUS を追加した
+	・プラグインのフラグに PLUGIN_FLAG_NOUNLOAD を追加した
 
 	ver.0.0.10 (TVTest ver.0.7.0 or later)
 	・以下のメッセージを追加した
@@ -168,7 +177,7 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_(major,minor,rev) \
 	(((major)<<24) | ((minor)<<12) | (rev))
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_(0,0,10)
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_(0,0,11)
 #endif
 
 // エクスポート関数定義用
@@ -190,6 +199,9 @@ enum {
 												// 特別な理由が無い限り使わない
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
 	,PLUGIN_FLAG_DISABLEONSTART	=0x00000004UL	// 起動時は必ず無効
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+	,PLUGIN_FLAG_NOUNLOAD		=0x00000008UL	// 終了時以外アンロード不可
 #endif
 };
 
@@ -306,6 +318,12 @@ enum {
 	MESSAGE_RELAYRECORD,			// 録画ファイルの切り替え
 	MESSAGE_SILENTMODE,				// サイレントモードの取得/設定
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+	MESSAGE_SETWINDOWMESSAGECALLBACK,	// ウィンドウメッセージコールバックの設定
+	MESSAGE_REGISTERCONTROLLER,		// コントローラの登録
+	MESSAGE_ONCONTROLLERBUTTONDOWN,	// コントローラのボタンが押されたのを通知
+	MESSAGE_GETCONTROLLERSETTINGS,	// コントローラの設定を取得
+#endif
 	MESSAGE_TRAILER
 };
 
@@ -346,6 +364,9 @@ enum {
 	EVENT_CLOSE,				// TVTestのウィンドウが閉じられる
 	EVENT_STARTRECORD,			// 録画が開始される
 	EVENT_RELAYRECORD,			// 録画ファイルが切り替えられた
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+	EVENT_CONTROLLERFOCUS,		// コントローラの対象を設定
 #endif
 	EVENT_TRAILER
 };
@@ -391,6 +412,8 @@ inline void MsgMemoryFree(PluginParam *pParam,void *pData) {
 
 // イベントハンドル用コールバックの設定
 // pClientData はコールバックの呼び出し時に渡されます。
+// 一つのプラグインで設定できるコールバック関数は一つだけです。
+// Callback に NULL を渡すと設定が解除されます。
 inline bool MsgSetEventCallback(PluginParam *pParam,EventCallbackFunc Callback,void *pClientData=NULL) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETEVENTCALLBACK,(LPARAM)Callback,(LPARAM)pClientData)!=0;
 }
@@ -1342,6 +1365,116 @@ struct StartRecordInfo {
 #endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
 
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+
+/*
+メッセージコールバック関数を登録すると、TVTest のメインウィンドウにメッセージが
+送られた時に呼び出されます。
+コールバック関数では、TVTest にメッセージの処理をさせない時は TRUE を返します。
+その際、pResult に書き込んだ値が返されます。
+*/
+
+// ウィンドウメッセージコールバック関数
+typedef BOOL (CALLBACK *WindowMessageCallbackFunc)(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult,void *pUserData);
+
+// ウィンドウメッセージコールバックの設定
+// pClientData はコールバックの呼び出し時に渡されます。
+// 一つのプラグインで設定できるコールバック関数は一つだけです。
+// Callback に NULL を渡すと設定が解除されます。
+inline bool MsgSetWindowMessageCallback(PluginParam *pParam,WindowMessageCallbackFunc Callback,void *pClientData=NULL) {
+	return (*pParam->Callback)(pParam,MESSAGE_SETWINDOWMESSAGECALLBACK,(LPARAM)Callback,(LPARAM)pClientData)!=0;
+}
+
+/*
+コントローラの登録を行うと、設定ダイアログのリモコンのページで割り当てが設定できるようになります。
+コントローラの画像を用意すると、設定の右側に表示されます。
+ボタンが押された時に MsgOnControllerButtonDown を呼び出して通知すると、
+割り当ての設定に従って機能が実行されます。
+*/
+
+// コントローラのボタンの情報
+struct ControllerButtonInfo {
+	LPCWSTR pszName;				// ボタンの名称("音声切替" など)
+	LPCWSTR pszDefaultCommand;		// デフォルトのコマンド(MsgDoCommand と同じもの)
+									// 指定しない場合はNULL
+	struct {
+		WORD Left,Top,Width,Height;	// 画像のボタンの位置(画像が無い場合は無視される)
+	} ButtonRect;
+	struct {
+		WORD Left,Top;				// 画像の選択ボタンの位置(画像が無い場合は無視される)
+	} SelButtonPos;
+	DWORD Reserved;					// 予約領域(0にしてください)
+};
+
+// コントローラの情報
+struct ControllerInfo {
+	DWORD Size;									// 構造体のサイズ
+	DWORD Flags;								// 各種フラグ(CONTROLLER_FLAG_???)
+	LPCWSTR pszName;							// コントローラ識別名
+	LPCWSTR pszText;							// コントローラの名称("HDUSリモコン" など)
+	int NumButtons;								// ボタンの数
+	const ControllerButtonInfo *pButtonList;	// ボタンのリスト
+	LPCWSTR pszIniFileName;						// 設定ファイル名(NULL にすると TVTest の Ini ファイル)
+	LPCWSTR pszSectionName;						// 設定のセクション名
+	UINT ControllerImageID;						// コントローラの画像の識別子(無い場合は0)
+	UINT SelButtonsImageID;						// 選択ボタン画像の識別子(無い場合は0)
+	typedef BOOL (CALLBACK *TranslateMessageCallback)(HWND hwnd,MSG *pMessage,void *pClientData);
+	TranslateMessageCallback pTranslateMessage;	// メッセージの変換コールバック(必要無ければ NULL)
+	void *pClientData;							// コールバックに渡すパラメータ
+};
+
+// コントローラのフラグ
+enum {
+	CONTROLLER_FLAG_ACTIVEONLY	=0x00000001UL	// アクティブ時のみ使用できる
+};
+
+// コントローラを登録する
+inline bool MsgRegisterController(PluginParam *pParam,const ControllerInfo *pInfo)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_REGISTERCONTROLLER,(LPARAM)pInfo,0)!=0;
+}
+
+// コントローラのボタンが押されたことを通知する
+inline bool MsgOnControllerButtonDown(PluginParam *pParam,LPCWSTR pszName,int Button)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_ONCONTROLLERBUTTONDOWN,(LPARAM)pszName,Button)!=0;
+}
+
+// コントローラの設定
+struct ControllerSettings {
+	DWORD Mask;		// 取得する項目
+	DWORD Flags;	// 各種フラグ
+};
+
+// コントローラの設定マスク
+enum {
+	CONTROLLER_SETTINGS_MASK_FLAGS		=0x00000001UL	// Flags が有効
+};
+
+// コントローラの設定フラグ
+enum {
+	CONTROLLER_SETTINGS_FLAG_ACTIVEONLY	=0x00000001UL	// アクティブ時のみ
+};
+
+// コントローラの設定を取得する
+inline bool MsgGetControllerSettings(PluginParam *pParam,LPCWSTR pszName,ControllerSettings *pSettings)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_GETCONTROLLERSETTINGS,(LPARAM)pszName,(LPARAM)pSettings)!=0;
+}
+
+// コントローラがアクティブ時のみに設定されているか取得する
+inline bool MsgIsControllerActiveOnly(PluginParam *pParam,LPCWSTR pszName)
+{
+	ControllerSettings Settings;
+	Settings.Mask=CONTROLLER_SETTINGS_MASK_FLAGS;
+	if (!MsgGetControllerSettings(pParam,pszName,&Settings))
+		return false;
+	return (Settings.Flags&CONTROLLER_SETTINGS_FLAG_ACTIVEONLY)!=0;
+}
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+
+
 /*
 	TVTest アプリケーションクラス
 
@@ -1645,6 +1778,24 @@ public:
 		return MsgSetSilentMode(m_pParam,fSilent);
 	}
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+	bool SetWindowMessageCallback(WindowMessageCallbackFunc Callback,void *pClientData=NULL) {
+		return MsgSetWindowMessageCallback(m_pParam,Callback,pClientData);
+	}
+	bool RegisterController(ControllerInfo *pInfo) {
+		pInfo->Size=sizeof(ControllerInfo);
+		return MsgRegisterController(m_pParam,pInfo);
+	}
+	bool OnControllerButtonDown(LPCWSTR pszName,int Button) {
+		return MsgOnControllerButtonDown(m_pParam,pszName,Button);
+	}
+	bool GetControllerSettings(LPCWSTR pszName,ControllerSettings *pSettings) {
+		return MsgGetControllerSettings(m_pParam,pszName,pSettings);
+	}
+	bool IsControllerActiveOnly(LPCWSTR pszName) {
+		return MsgIsControllerActiveOnly(m_pParam,pszName);
+	}
+#endif
 };
 
 /*
@@ -1768,6 +1919,11 @@ protected:
 	// 録画ファイルの切り替えが行われた
 	virtual bool OnRelayRecord(LPCWSTR pszFileName) { return false; }
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+	// コントローラの対象の設定
+	virtual bool OnControllerFocus(HWND hwnd) { return false; }
+#endif
+
 public:
 	virtual ~CTVTestEventHandler() {}
 	LRESULT HandleEvent(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData) {
@@ -1804,6 +1960,9 @@ public:
 		case EVENT_CLOSE:				return OnClose();
 		case EVENT_STARTRECORD:			return OnStartRecord((StartRecordInfo*)lParam1);
 		case EVENT_RELAYRECORD:			return OnRelayRecord((LPCWSTR)lParam1);
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
+		case EVENT_CONTROLLERFOCUS:		return OnControllerFocus((HWND)lParam1);
 #endif
 		}
 		return 0;

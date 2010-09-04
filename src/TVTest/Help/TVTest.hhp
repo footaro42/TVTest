@@ -30,10 +30,10 @@ options\accelerator.html
 options\capture.html
 options\channelscan.html
 options\colorscheme.html
+options\controller.html
 options\driver.html
 options\epg.html
 options\general.html
-options\hduscontroller.html
 options\log.html
 options\networkremocon.html
 options\operation.html
@@ -57,10 +57,10 @@ HELP_ID_OPTIONS_ACCELERATOR=options\accelerator.html
 HELP_ID_OPTIONS_CAPTURE=options\capture.html
 HELP_ID_OPTIONS_CHANNELSCAN=options\channelscan.html
 HELP_ID_OPTIONS_COLORSCHEME=options\colorscheme.html
+HELP_ID_OPTIONS_CONTROLLER=options\controller.html
 HELP_ID_OPTIONS_DRIVER=options\driver.html
 HELP_ID_OPTIONS_EPG=options\epg.html
 HELP_ID_OPTIONS_GENERAL=options\general.html
-HELP_ID_OPTIONS_HDUSCONTROLLER=options\hduscontroller.html
 HELP_ID_OPTIONS_LOG=options\log.html
 HELP_ID_OPTIONS_NETWORKREMOCON=options\networkremocon.html
 HELP_ID_OPTIONS_OPERATION=options\operation.html

@@ -76,6 +76,7 @@ CSideBar::CSideBar(const CCommandList *pCommandList)
 
 CSideBar::~CSideBar()
 {
+	Destroy();
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pSideBar=NULL;
 	if (m_hbmIcons!=NULL)
@@ -583,7 +584,7 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 	*/
 	::SelectObject(hdcMemory,hbmOld);
 	::DeleteDC(hdcMemory);
-	Theme::DrawBorder(hdc,&rcClient,&m_Theme.Border);
+	Theme::DrawBorder(hdc,rcClient,&m_Theme.Border);
 }
 
 

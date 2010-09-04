@@ -66,6 +66,7 @@ public:
 		CEventHandler();
 		virtual ~CEventHandler();
 		virtual void OnMouseLeave() {}
+		virtual void OnHeightChanged(int Height) {}
 		friend CStatusView;
 	};
 

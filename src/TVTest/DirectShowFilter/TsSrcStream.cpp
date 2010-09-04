@@ -21,9 +21,6 @@ static char THIS_FILE[]=__FILE__;
 #define MIN_AUDIO_DELAY	(PTS_CLOCK/5)
 
 
-inline LONGLONG llabs(LONGLONG v) { return v<0?-v:v; }
-
-
 CTsSrcStream::CTsSrcStream(DWORD BufferLength)
 	: m_pBuffer(NULL)
 	, m_BufferLength(BufferLength)
@@ -138,7 +135,7 @@ bool CTsSrcStream::InputMedia(const CMediaData *pMediaData)
 #else	// BONTSENGINE_1SEG_SUPPORT
 
 	LONGLONG VideoPTS=m_VideoPTS;
-	if (m_VideoPTSPrev>=0 && llabs(VideoPTS-m_VideoPTSPrev)>=ERR_PTS_DIFF) {
+	if (m_VideoPTSPrev>=0 && _abs64(VideoPTS-m_VideoPTSPrev)>=ERR_PTS_DIFF) {
 		if (VideoPTS<m_VideoPTSPrev)
 			VideoPTS+=0x200000000LL;
 		if (VideoPTS>=m_VideoPTSPrev+ERR_PTS_DIFF) {

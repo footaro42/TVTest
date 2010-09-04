@@ -1,4 +1,5 @@
 #include "StdAfx.h"
+#include <dvdmedia.h>
 #include <initguid.h>
 #include "Mpeg2SequenceFilter.h"
 
@@ -20,6 +21,7 @@ CMpeg2SequenceFilter::CMpeg2SequenceFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	, m_pfnVideoInfoRecvFunc(NULL)
 	, m_pCallbackParam(NULL)
 	, m_Mpeg2Parser(this)
+	, m_bAttachMediaType(false)
 	, m_VideoInfo()
 {
 	TRACE(TEXT("CMpeg2SequenceFilter::CMpeg2SequenceFilter() %p\n"), this);
@@ -244,7 +246,6 @@ void CMpeg2SequenceFilter::SetRecvCallback(MPEG2SEQUENCE_VIDEOINFO_FUNC pCallbac
 }
 
 
-#include <dvdmedia.h>
 void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, const CMpeg2Sequence *pSequence)
 {
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
@@ -280,7 +281,7 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 
 	if (Info != m_VideoInfo) {
 		// 映像のサイズ及びフレームレートが変わった
-		if (m_VideoInfo.m_OrigWidth != OrigWidth) {
+		if (m_bAttachMediaType && m_VideoInfo.m_OrigWidth != OrigWidth) {
 			CMediaType MediaType(m_pOutput->CurrentMediaType());
 			MPEG2VIDEOINFO *pVideoInfo=(MPEG2VIDEOINFO*)MediaType.Format();
 
@@ -309,7 +310,7 @@ void CMpeg2SequenceFilter::OnMpeg2Sequence(const CMpeg2Parser *pMpeg2Parser, con
 
 const bool CMpeg2SequenceFilter::GetVideoSize(WORD *pX, WORD *pY) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
+	CAutoLock Lock(&m_VideoInfoLock);
 
 	if (m_VideoInfo.m_DisplayWidth == 0 || m_VideoInfo.m_DisplayHeight == 0)
 		return false;
@@ -321,7 +322,7 @@ const bool CMpeg2SequenceFilter::GetVideoSize(WORD *pX, WORD *pY) const
 
 const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX, BYTE *pY) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
+	CAutoLock Lock(&m_VideoInfoLock);
 
 	if (m_VideoInfo.m_AspectRatioX == 0 || m_VideoInfo.m_AspectRatioY == 0)
 		return false;
@@ -333,7 +334,7 @@ const bool CMpeg2SequenceFilter::GetAspectRatio(BYTE *pX, BYTE *pY) const
 
 const bool CMpeg2SequenceFilter::GetOriginalVideoSize(WORD *pWidth, WORD *pHeight) const
 {
-	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
+	CAutoLock Lock(&m_VideoInfoLock);
 
 	if (m_VideoInfo.m_OrigWidth == 0 || m_VideoInfo.m_OrigHeight == 0)
 		return false;
@@ -350,7 +351,7 @@ const bool CMpeg2SequenceFilter::GetVideoInfo(CMpeg2VideoInfo *pInfo) const
 	if (!pInfo)
 		return false;
 
-	CAutoLock Lock(const_cast<CCritSec*>(&m_VideoInfoLock));
+	CAutoLock Lock(&m_VideoInfoLock);
 
 	*pInfo = m_VideoInfo;
 	return true;
@@ -362,6 +363,12 @@ void CMpeg2SequenceFilter::ResetVideoInfo()
 	CAutoLock Lock(&m_VideoInfoLock);
 
 	m_VideoInfo.Reset();
+}
+
+
+void CMpeg2SequenceFilter::SetAttachMediaType(bool bAttach)
+{
+	m_bAttachMediaType = bAttach;
 }
 
 

@@ -1,5 +1,5 @@
-#ifndef TVTEST_KEYHOOK_H
-#define TVTEST_KEYHOOK_H
+#ifndef HDUS_REMOCON_KEYHOOK_H
+#define HDUS_REMOCON_KEYHOOK_H
 
 
 #ifdef __cplusplus
@@ -7,7 +7,7 @@ extern "C" {
 #endif
 
 
-#define KEYHOOK_MESSAGE TEXT("TVTest KeyHook")
+#define KEYHOOK_MESSAGE TEXT("HDUS Remocon KeyHook")
 
 #define KEYHOOK_LPARAM_REPEATCOUNT	0x0000FFFF
 #define KEYHOOK_LPARAM_SHIFT		0x00010000

@@ -84,12 +84,12 @@ private:
 	CDtvEngine *m_pDtvEngine;
 	CDisplayBase *m_pDisplayBase;
 	CEventHandler *m_pEventHandler;
+	SIZE m_ClientSize;
 
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	static HINSTANCE m_hinst;
 	static CVideoContainerWindow *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
 };
 
 class CViewWindow : public CBasicWindow
@@ -112,10 +112,10 @@ public:
 	void SetMessageWindow(HWND hwnd);
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetLogo(HBITMAP hbm);
-	void SetBorder(bool fBorder,const Theme::BorderInfo *pInfo);
+	void SetBorder(const Theme::BorderInfo *pInfo);
 	void ShowCursor(bool fShow);
-	int GetVerticalEdgeWidth() const;
-	int GetHorizontalEdgeHeight() const;
+	bool CalcClientRect(RECT *pRect) const;
+	bool CalcWindowRect(RECT *pRect) const;
 	static bool Initialize(HINSTANCE hinst);
 
 private:
@@ -124,7 +124,6 @@ private:
 	HWND m_hwndMessage;
 	CEventHandler *m_pEventHandler;
 	HBITMAP m_hbmLogo;
-	bool m_fBorder;
 	Theme::BorderInfo m_BorderInfo;
 	bool m_fShowCursor;
 

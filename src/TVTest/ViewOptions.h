@@ -20,7 +20,7 @@ class CViewOptions : public COptions
 	bool m_fClientEdge;
 	bool m_fMinimizeToTray;
 	bool m_fDisablePreviewWhenMinimized;
-	bool m_fRestorePlayStatus;
+	bool m_fUseLogoIcon;
 	bool m_fIgnoreDisplayExtension;
 	bool m_fNoScreenSaver;
 	bool m_fNoMonitorLowPower;
@@ -54,7 +54,7 @@ public:
 	bool GetClientEdge() const { return m_fClientEdge; }
 	bool GetMinimizeToTray() const { return m_fMinimizeToTray; }
 	bool GetDisablePreviewWhenMinimized() const { return m_fDisablePreviewWhenMinimized; }
-	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
+	bool GetUseLogoIcon() const { return m_fUseLogoIcon; }
 	bool GetIgnoreDisplayExtension() const { return m_fIgnoreDisplayExtension; }
 	bool GetNoScreenSaver() const { return m_fNoScreenSaver; }
 	bool GetNoMonitorLowPower() const { return m_fNoMonitorLowPower; }

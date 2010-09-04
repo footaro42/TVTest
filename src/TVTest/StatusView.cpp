@@ -11,7 +11,6 @@ static char THIS_FILE[]=__FILE__;
 
 #define STATUS_WINDOW_CLASS	APP_NAME TEXT(" Status")
 
-#define STATUS_BORDER	1
 #define STATUS_MARGIN	4
 
 
@@ -323,12 +322,13 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			CStatusView *pStatus=static_cast<CStatusView*>(OnCreate(hwnd,lParam));
 			RECT rc;
 
-			rc.left=0;
-			rc.top=0;
-			rc.right=0;
-			rc.bottom=pStatus->m_FontHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
+			::SetRectEmpty(&rc);
+			rc.bottom=pStatus->m_FontHeight+STATUS_MARGIN*2;
+			Theme::AddBorderRect(&pStatus->m_Theme.Border,&rc);
 			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
-			::MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
+			::SetWindowPos(hwnd,NULL,0,0,pcs->cx,rc.bottom-rc.top,
+						   SWP_NOZORDER | SWP_NOMOVE);
+
 			pStatus->m_HotItem=-1;
 			pStatus->m_fTrackMouseEvent=false;
 		}
@@ -533,23 +533,21 @@ void CStatusView::UpdateItem(int ID)
 
 bool CStatusView::GetItemRect(int ID,RECT *pRect) const
 {
-	int Index,i;
+	int Index;
 	RECT rc;
 
 	Index=IDToIndex(ID);
 	if (Index<0)
 		return false;
 	GetClientRect(&rc);
-	rc.left+=STATUS_BORDER;
-	rc.top+=STATUS_BORDER;
-	rc.bottom-=STATUS_BORDER;
-	for (i=0;i<Index;i++) {
+	Theme::SubtractBorderRect(&m_Theme.Border,&rc);
+	for (int i=0;i<Index;i++) {
 		if (m_ItemList[i]->GetVisible())
 			rc.left+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
 	}
 	rc.right=rc.left;
 	if (m_ItemList[Index]->GetVisible())
-		rc.right+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
+		rc.right+=m_ItemList[Index]->GetWidth()+STATUS_MARGIN*2;
 	*pRect=rc;
 	return true;
 }
@@ -577,7 +575,8 @@ int CStatusView::GetItemHeight() const
 	RECT rc;
 
 	GetClientRect(&rc);
-	return (rc.bottom-rc.top)-STATUS_BORDER*2;
+	Theme::SubtractBorderRect(&m_Theme.Border,&rc);
+	return rc.bottom-rc.top;
 }
 
 
@@ -585,12 +584,14 @@ int CStatusView::GetIntegralWidth() const
 {
 	int Width;
 
-	Width=STATUS_BORDER*2;
+	Width=0;
 	for (int i=0;i<m_NumItems;i++) {
 		if (m_ItemList[i]->GetVisible())
 			Width+=m_ItemList[i]->GetWidth()+STATUS_MARGIN*2;
 	}
-	return Width;
+	RECT rc={0,0,Width,0};
+	Theme::AddBorderRect(&m_Theme.Border,&rc);
+	return rc.right-rc.left;
 }
 
 
@@ -678,13 +679,20 @@ bool CStatusView::SetFont(const LOGFONT *pFont)
 		return false;
 	m_FontHeight=m_Font.GetHeight(false);
 	if (m_hwnd!=NULL) {
-		RECT rc;
+		RECT rcWindow,rc;
 
-		GetClientRect(&rc);
-		rc.bottom=m_FontHeight+STATUS_MARGIN*2+STATUS_BORDER*2;
-		::AdjustWindowRectEx(&rc,GetWindowStyle(m_hwnd),FALSE,GetWindowExStyle(m_hwnd));
-		::SetWindowPos(m_hwnd,NULL,0,0,rc.right-rc.left,rc.bottom-rc.top,
-					   SWP_NOZORDER | SWP_NOMOVE);
+		GetPosition(&rcWindow);
+		::SetRectEmpty(&rc);
+		rc.bottom=m_FontHeight+STATUS_MARGIN*2;
+		Theme::AddBorderRect(&m_Theme.Border,&rc);
+		CalcPositionFromClientRect(&rc);
+		int Height=rc.bottom-rc.top;
+		if (Height!=rcWindow.bottom-rcWindow.top) {
+			::SetWindowPos(m_hwnd,NULL,0,0,rcWindow.right-rcWindow.left,Height,
+						   SWP_NOZORDER | SWP_NOMOVE);
+			if (m_pEventHandler!=NULL)
+				m_pEventHandler->OnHeightChanged(Height);
+		}
 		Invalidate();
 	}
 	return true;
@@ -806,17 +814,15 @@ void CStatusView::SetHotItem(int Item)
 
 void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 {
-	RECT rc;
+	RECT rcClient,rc;
 	HDC hdcDst;
 	HFONT hfontOld;
 	COLORREF crOldTextColor,crOldBkColor;
 	int OldBkMode;
 
-	GetClientRect(&rc);
-	rc.left+=STATUS_BORDER;
-	rc.top+=STATUS_BORDER;
-	rc.right-=STATUS_BORDER;
-	rc.bottom-=STATUS_BORDER;
+	GetClientRect(&rcClient);
+	rc=rcClient;
+	Theme::SubtractBorderRect(&m_Theme.Border,&rc);
 
 	if (!m_fSingleMode) {
 		const int Height=rc.bottom-rc.top;
@@ -847,22 +853,21 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 		::DrawText(hdcDst,m_pszSingleText,-1,&rc,
 				   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 	} else {
-		RECT rcItem,rcDraw;
+		RECT rcDraw;
 
-		::SetRect(&rcItem,STATUS_BORDER,STATUS_BORDER,STATUS_BORDER,rc.bottom);
+		rc.right=rc.left;
 		for (int i=0;i<m_NumItems;i++) {
 			CStatusItem *pItem=m_ItemList[i];
 			if (!pItem->GetVisible())
 				continue;
-			rcItem.left=rcItem.right;
-			rcItem.right=rcItem.left+pItem->GetWidth()+STATUS_MARGIN*2;
-			if (rcItem.right<=pPaintRect->left
-					|| rcItem.left>=pPaintRect->right)
+			rc.left=rc.right;
+			rc.right=rc.left+pItem->GetWidth()+STATUS_MARGIN*2;
+			if (rc.right<=pPaintRect->left || rc.left>=pPaintRect->right)
 				continue;
 			bool fHighlight=i==m_HotItem;
 			const Theme::Style &Style=
 				fHighlight?m_Theme.HighlightItemStyle:m_Theme.ItemStyle;
-			rcDraw=rcItem;
+			rcDraw=rc;
 			if (hdcDst!=hdc)
 				::OffsetRect(&rcDraw,-rcDraw.left,-rcDraw.top);
 			Theme::DrawStyleBackground(hdcDst,&rcDraw,&Style);
@@ -872,15 +877,15 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 			rcDraw.right-=STATUS_MARGIN;
 			pItem->Draw(hdcDst,&rcDraw);
 			if (hdcDst!=hdc)
-				m_Offscreen.CopyTo(hdc,&rcItem);
+				m_Offscreen.CopyTo(hdc,&rc);
 		}
-		rcItem.left=rcItem.right;
-		rcItem.right=pPaintRect->right;
-		if (rcItem.right>rcItem.left)
-			Theme::FillGradient(hdc,&rcItem,&m_Theme.ItemStyle.Gradient);
+		if (rc.right<pPaintRect->right) {
+			rc.left=max(rc.right,pPaintRect->left);
+			rc.right=pPaintRect->right;
+			Theme::FillGradient(hdc,&rc,&m_Theme.ItemStyle.Gradient);
+		}
 	}
-	GetClientRect(&rc);
-	Theme::DrawBorder(hdc,&rc,&m_Theme.Border);
+	Theme::DrawBorder(hdc,rcClient,&m_Theme.Border);
 	::SetBkColor(hdcDst,crOldBkColor);
 	::SetTextColor(hdcDst,crOldTextColor);
 	::SetBkMode(hdcDst,OldBkMode);

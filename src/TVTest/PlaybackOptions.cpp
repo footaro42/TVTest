@@ -18,6 +18,7 @@ static char THIS_FILE[]=__FILE__;
 CPlaybackOptions::CPlaybackOptions()
 	: m_fDownMixSurround(true)
 	, m_fRestoreMute(false)
+	, m_fRestorePlayStatus(false)
 	, m_fUseAudioRendererClock(true)
 	, m_fEnablePTSSync(true)
 	, m_fAdjustAudioStreamTime(false)
@@ -87,6 +88,7 @@ bool CPlaybackOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("AudioFilter"),m_szAudioFilterName,MAX_AUDIO_FILTER_NAME);
 	pSettings->Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
 	pSettings->Read(TEXT("RestoreMute"),&m_fRestoreMute);
+	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
 	pSettings->Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
 	pSettings->Read(TEXT("PTSSync"),&m_fEnablePTSSync);
 	pSettings->Read(TEXT("AdjustAudioStreamTime"),&m_fAdjustAudioStreamTime);
@@ -112,6 +114,7 @@ bool CPlaybackOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("AudioFilter"),m_szAudioFilterName);
 	pSettings->Write(TEXT("DownMixSurround"),m_fDownMixSurround);
 	pSettings->Write(TEXT("RestoreMute"),m_fRestoreMute);
+	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
 	pSettings->Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
 	pSettings->Write(TEXT("PTSSync"),m_fEnablePTSSync);
 	pSettings->Write(TEXT("AdjustAudioStreamTime"),m_fAdjustAudioStreamTime);
@@ -193,6 +196,8 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 							  pThis->m_fRestoreMute);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DOWNMIXSURROUND,
 							  pThis->m_fDownMixSurround);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,
+							  pThis->m_fRestorePlayStatus);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION,
 							  pThis->m_fMinTimerResolution);
@@ -268,9 +273,13 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
-				pThis->m_fDownMixSurround=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DOWNMIXSURROUND);
+				pThis->m_fDownMixSurround=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DOWNMIXSURROUND);
 				GetAppClass().GetCoreEngine()->SetDownMixSurround(pThis->m_fDownMixSurround);
-				pThis->m_fRestoreMute=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREMUTE);
+				pThis->m_fRestoreMute=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREMUTE);
+				pThis->m_fRestorePlayStatus=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
 
 				bool f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION);
 				if (f!=pThis->m_fMinTimerResolution) {

@@ -28,7 +28,7 @@ CViewOptions::CViewOptions()
 	, m_fClientEdge(true)
 	, m_fMinimizeToTray(false)
 	, m_fDisablePreviewWhenMinimized(false)
-	, m_fRestorePlayStatus(false)
+	, m_fUseLogoIcon(false)
 	, m_fIgnoreDisplayExtension(false)
 	, m_fNoScreenSaver(false)
 	, m_fNoMonitorLowPower(false)
@@ -80,7 +80,7 @@ bool CViewOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("ClientEdge"),&m_fClientEdge);
 	pSettings->Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
 	pSettings->Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
-	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
+	pSettings->Read(TEXT("UseLogoIcon"),&m_fUseLogoIcon);
 	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
 	pSettings->Read(TEXT("NoScreenSaver"),&m_fNoScreenSaver);
 	pSettings->Read(TEXT("NoMonitorLowPower"),&m_fNoMonitorLowPower);
@@ -104,8 +104,8 @@ bool CViewOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("ClientEdge"),m_fClientEdge);
 	pSettings->Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
 	pSettings->Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
-	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
 	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
+	pSettings->Write(TEXT("UseLogoIcon"),m_fUseLogoIcon);
 	pSettings->Write(TEXT("NoScreenSaver"),m_fNoScreenSaver);
 	pSettings->Write(TEXT("NoMonitorLowPower"),m_fNoMonitorLowPower);
 	pSettings->Write(TEXT("NoMonitorLowPowerActiveOnly"),m_fNoMonitorLowPowerActiveOnly);
@@ -148,10 +148,10 @@ INT_PTR CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,pThis->m_fMinimizeToTray);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,
 							  pThis->m_fDisablePreviewWhenMinimized);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,
-							  pThis->m_fRestorePlayStatus);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE,
 							  pThis->m_fIgnoreDisplayExtension);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USELOGOICON,
+							  pThis->m_fUseLogoIcon);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOSCREENSAVER,pThis->m_fNoScreenSaver);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER,pThis->m_fNoMonitorLowPower);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,
@@ -255,11 +255,15 @@ INT_PTR CALLBACK CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY);
 				pThis->m_fDisablePreviewWhenMinimized=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
-				pThis->m_fRestorePlayStatus=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
 				if (pThis->m_fIgnoreDisplayExtension!=f) {
 					pThis->m_fIgnoreDisplayExtension=f;
 					pThis->SetUpdateFlag(UPDATE_IGNOREDISPLAYEXTENSION);
+				}
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USELOGOICON);
+				if (pThis->m_fUseLogoIcon!=f) {
+					pThis->m_fUseLogoIcon=f;
+					GetAppClass().GetUICore()->UpdateIcon();
 				}
 				pThis->m_fNoScreenSaver=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOSCREENSAVER);

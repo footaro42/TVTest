@@ -14,6 +14,7 @@ public:
 	protected:
 		static bool GetDefaultFont(LOGFONT *pFont);
 		static HFONT CreateDefaultFont();
+		static bool CreateDefaultFont(DrawUtil::CFont *pFont);
 	public:
 		CPage();
 		virtual ~CPage()=0;

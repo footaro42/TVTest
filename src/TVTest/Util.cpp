@@ -522,6 +522,119 @@ bool GetAbsolutePath(LPCTSTR pszFilePath,LPTSTR pszAbsolutePath,int MaxLength)
 }
 
 
+static HBITMAP CreateIconMaskBitmap(int IconWidth,int IconHeight,
+									int ImageWidth,int ImageHeight)
+{
+	SIZE_T BytesPerLine,BitsBytes;
+	BYTE *pBits;
+	int Top;
+	HBITMAP hbm;
+
+	BytesPerLine=(IconWidth+15)/16*2;
+	BitsBytes=BytesPerLine*IconHeight;
+	pBits=new BYTE[BitsBytes];
+	::FillMemory(pBits,BitsBytes,0xFF);
+	Top=(IconHeight-ImageHeight)/2;
+	if (ImageWidth==IconWidth) {
+		::ZeroMemory(pBits+Top*BytesPerLine,ImageHeight*BytesPerLine);
+	} else {
+		int Left,x,y;
+		BYTE *p;
+
+		Left=(IconWidth-ImageWidth)/2;
+		p=pBits+Top*BytesPerLine;
+		for (y=0;y<ImageHeight;y++) {
+			for (x=Left;x<Left+ImageWidth;x++)
+				//p[x/8]&=~(0x80>>(x%8));
+				p[x>>3]&=~(0x80>>(x&7));
+			p+=BytesPerLine;
+		}
+	}
+	hbm=::CreateBitmap(IconWidth,IconHeight,1,1,pBits);
+	delete [] pBits;
+	return hbm;
+}
+
+static HBITMAP CreateIconColorBitmap(HBITMAP hbm,int IconWidth,int IconHeight,
+									 int ImageWidth,int ImageHeight)
+{
+	HDC hdc;
+	HBITMAP hbmIcon;
+
+	hdc=::GetDC(NULL);
+	hbmIcon=::CreateCompatibleBitmap(hdc,IconWidth,IconHeight);
+	if (hbmIcon!=NULL) {
+		BITMAP bm;
+		::GetObject(hbm,sizeof(bm),&bm);
+		HDC hdcSrc=::CreateCompatibleDC(hdc);
+		HBITMAP hbmSrcOld=static_cast<HBITMAP>(::SelectObject(hdcSrc,hbm));
+		HDC hdcDest=::CreateCompatibleDC(hdc);
+		HBITMAP hbmDestOld=static_cast<HBITMAP>(::SelectObject(hdcDest,hbmIcon));
+
+		if (ImageWidth<IconWidth || ImageHeight<IconHeight) {
+			RECT rc={0,0,IconWidth,IconHeight};
+
+			::FillRect(hdcDest,&rc,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
+		}
+		int OldStretchMode=::SetStretchBltMode(hdcDest,STRETCH_HALFTONE);
+		::StretchBlt(hdcDest,
+					 (IconWidth-ImageWidth)/2,(IconHeight-ImageHeight)/2,
+					 ImageWidth,ImageHeight,
+					 hdcSrc,0,0,bm.bmWidth,bm.bmHeight,SRCCOPY);
+		::SetStretchBltMode(hdcDest,OldStretchMode);
+		::SelectObject(hdcDest,hbmDestOld);
+		::DeleteDC(hdcDest);
+		::SelectObject(hdcSrc,hbmSrcOld);
+		::DeleteDC(hdcSrc);
+	}
+	::ReleaseDC(NULL,hdc);
+	return hbmIcon;
+}
+
+HICON CreateIconFromBitmap(HBITMAP hbm,int IconWidth,int IconHeight,int ImageWidth,int ImageHeight)
+{
+	if (hbm==NULL || IconWidth<=0 || IconHeight<=0
+			|| ImageWidth<0 || ImageWidth>IconWidth
+			|| ImageHeight<0 || ImageHeight>IconHeight)
+		return NULL;
+
+	if (ImageWidth==0 || ImageHeight==0) {
+		BITMAP bm;
+
+		if (::GetObject(hbm,sizeof(bm),&bm)!=sizeof(bm))
+			return NULL;
+		if (bm.bmWidth<=IconWidth && bm.bmHeight<=IconHeight) {
+			ImageWidth=bm.bmWidth;
+			ImageHeight=bm.bmHeight;
+		} else {
+			ImageWidth=min(bm.bmWidth*IconHeight/bm.bmHeight,IconWidth);
+			if (ImageWidth<1)
+				ImageWidth=1;
+			ImageHeight=min(bm.bmHeight*IconWidth/bm.bmWidth,IconHeight);
+			if (ImageHeight<1)
+				ImageHeight=1;
+		}
+	}
+
+	ICONINFO ii;
+	ii.hbmMask=CreateIconMaskBitmap(IconWidth,IconHeight,ImageWidth,ImageHeight);
+	if (ii.hbmMask==NULL)
+		return NULL;
+	ii.hbmColor=CreateIconColorBitmap(hbm,IconWidth,IconHeight,ImageWidth,ImageHeight);
+	if (ii.hbmColor==NULL) {
+		::DeleteObject(ii.hbmMask);
+		return NULL;
+	}
+	ii.fIcon=TRUE;
+	ii.xHotspot=0;
+	ii.yHotspot=0;
+	HICON hico=::CreateIconIndirect(&ii);
+	::DeleteObject(ii.hbmMask);
+	::DeleteObject(ii.hbmColor);
+	return hico;
+}
+
+
 
 
 CDynamicString::CDynamicString()

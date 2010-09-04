@@ -317,6 +317,8 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			if((!m_pMpeg2Sequence) || (hr != S_OK))
 				throw CBonException(hr,TEXT("MPEG-2シーケンスフィルタを作成できません。"));
 			m_pMpeg2Sequence->SetRecvCallback(OnMpeg2VideoInfo,this);
+			// madVR は映像サイズの変化時に MediaType を設定しないと新しいサイズが適用されない
+			m_pMpeg2Sequence->SetAttachMediaType(RendererType==CVideoRenderer::RENDERER_madVR);
 			// フィルタの追加と接続
 			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 						m_pMpeg2Sequence,L"Mpeg2SequenceFilter",&pOutputVideo);
@@ -331,10 +333,12 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			// インスタンス作成
 			m_pH264Parser = static_cast<CH264ParserFilter*>(CH264ParserFilter::CreateInstance(NULL, &hr));
 			if((!m_pH264Parser) || (hr != S_OK))
-				throw CBonException(TEXT("H264パーサフィルタを作成できません。"));
+				throw CBonException(TEXT("H.264パーサフィルタを作成できません。"));
 			m_pH264Parser->SetVideoInfoCallback(OnMpeg2VideoInfo,this);
 			m_pH264Parser->SetAdjustTime(m_bAdjustVideoSampleTime);
 			m_pH264Parser->SetAdjustFrameRate(m_bAdjustFrameRate);
+			// madVR は映像サイズの変化時に MediaType を設定しないと新しいサイズが適用されない
+			m_pH264Parser->SetAttachMediaType(RendererType==CVideoRenderer::RENDERER_madVR);
 			// フィルタの追加と接続
 			hr=DirectShowUtil::AppendFilterAndConnect(m_pFilterGraph,
 							m_pH264Parser,L"H264ParserFilter",&pOutputVideo);
@@ -502,7 +506,7 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			1080x1080(4:3)の映像が正方形に表示される問題に対応
 			…しようと思ったが変になるので保留
 		*/
-		if (::StrCmpNI(m_pszVideoDecoderName, TEXT("CyberLink"), 9) == 0)
+		if (::StrStrI(m_pszVideoDecoderName, TEXT("CyberLink")) != NULL)
 			m_pMpeg2Sequence->SetFixSquareDisplay(true);
 #endif
 #else	// ndef BONTSENGINE_H264_SUPPORT
@@ -684,7 +688,12 @@ const bool CMediaViewer::OpenViewer(HWND hOwnerHwnd, HWND hMessageDrainHwnd,
 			::wsprintf(szText+Length,TEXT("\nエラーコード(HRESULT) 0x%08X"),Exception.GetErrorCode());
 			SetErrorSystemMessage(szText);
 		}
+
+		SAFE_RELEASE(pOutput);
+		SAFE_RELEASE(pOutputVideo);
+		SAFE_RELEASE(pOutputAudio);
 		CloseViewer();
+
 		TRACE(TEXT("フィルタグラフ構築失敗 : %s\n"), GetLastErrorText());
 		return false;
 	}

@@ -8,9 +8,10 @@
 #include "Record.h"
 
 
+class CCommandList;
 class CDriverManager;
 class CLogoManager;
-class CCommandList;
+class CControllerManager;
 
 class CAppMain
 {
@@ -82,11 +83,12 @@ public:
 	CCoreEngine *GetCoreEngine();
 	const CCoreEngine *GetCoreEngine() const;
 	CUICore *GetUICore();
+	const CCommandList *GetCommandList() const;
 	const CChannelManager *GetChannelManager() const;
 	const CRecordManager *GetRecordManager() const;
 	const CDriverManager *GetDriverManager() const;
 	CLogoManager *GetLogoManager() const;
-	const CCommandList *GetCommandList() const;
+	CControllerManager *GetControllerManager() const;
 };
 
 

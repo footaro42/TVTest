@@ -151,6 +151,15 @@ bool CCoreEngine::LoadDriver()
 		case ERROR_MOD_NOT_FOUND:
 			SetErrorAdvise(TEXT("ファイルが見つかりません。"));
 			break;
+		case ERROR_BAD_EXE_FORMAT:
+			SetErrorAdvise(
+#ifndef WIN64
+				TEXT("32")
+#else
+				TEXT("64")
+#endif
+				TEXT("ビット用のBonDriverではないか、ファイルが破損している可能性があります。"));
+			break;
 		case ERROR_SXS_CANT_GEN_ACTCTX:
 			SetErrorAdvise(TEXT("このBonDriverに必要なランタイムがインストールされていない可能性があります。"));
 			break;

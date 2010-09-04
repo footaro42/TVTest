@@ -2,17 +2,29 @@
 #define POINTER_ARRAY_H
 
 
-class CPointerArray {
+class CPointerArray
+{
 	void **m_ppList;
 	int m_Length;
 	int m_ListLength;
+
 public:
 	CPointerArray();
 	CPointerArray(const CPointerArray &Array);
 	virtual ~CPointerArray();
 	CPointerArray &operator=(const CPointerArray &Array);
-	void *&operator[](int Index) { return m_ppList[Index]; }
-	const void *operator[](int Index) const { return m_ppList[Index]; }
+	void *&operator[](int Index) {
+#ifdef _DEBUG
+		if (Index<0 || Index>=m_Length) ::DebugBreak();
+#endif
+		return m_ppList[Index];
+	}
+	const void *operator[](int Index) const {
+#ifdef _DEBUG
+		if (Index<0 || Index>=m_Length) ::DebugBreak();
+#endif
+		return m_ppList[Index];
+	}
 	void Clear();
 	int Length() const { return m_Length; }
 	int Capacity() const { return m_ListLength; }
@@ -30,8 +42,10 @@ public:
 	void Sort(CompareFunc pCompare,bool fDescending=false,void *pParam=NULL);
 };
 
-template <typename Type> class CPointerVector {
+template <typename Type> class CPointerVector
+{
 	CPointerArray m_Array;
+
 public:
 	Type *operator[](int Index) { return static_cast<Type*>(m_Array[Index]);}
 	const Type *operator[](int Index) const { return static_cast<const Type*>(m_Array[Index]); }

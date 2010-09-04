@@ -620,3 +620,13 @@ HFONT CPanelForm::CPage::CreateDefaultFont()
 		return NULL;
 	return ::CreateFontIndirect(&lf);
 }
+
+
+bool CPanelForm::CPage::CreateDefaultFont(DrawUtil::CFont *pFont)
+{
+	LOGFONT lf;
+
+	if (!GetDefaultFont(&lf))
+		return false;
+	return pFont->Create(&lf);
+}

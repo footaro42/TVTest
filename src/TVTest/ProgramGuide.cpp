@@ -973,6 +973,7 @@ CProgramGuide::CProgramGuide()
 
 CProgramGuide::~CProgramGuide()
 {
+	Destroy();
 }
 
 
@@ -3024,6 +3025,7 @@ CProgramGuideFrame::CProgramGuideFrame(CProgramGuide *pProgramGuide)
 
 CProgramGuideFrame::~CProgramGuideFrame()
 {
+	Destroy();
 }
 
 
@@ -3224,6 +3226,7 @@ CProgramGuideDisplay::CProgramGuideDisplay(CProgramGuide *pProgramGuide)
 
 CProgramGuideDisplay::~CProgramGuideDisplay()
 {
+	Destroy();
 }
 
 

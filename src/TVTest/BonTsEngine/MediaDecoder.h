@@ -53,5 +53,5 @@ protected:
 	const DWORD m_dwInputNum;
 	const DWORD m_dwOutputNum;
 
-	CCriticalLock m_DecoderLock;
+	mutable CCriticalLock m_DecoderLock;
 };

@@ -56,6 +56,7 @@ public:
 #ifndef MPEG2SEQUENCEFILTER_INPLACE
 	void SetFixSquareDisplay(bool bFix);
 #endif
+	void SetAttachMediaType(bool bAttach);
 	DWORD GetBitRate() const;
 
 protected:
@@ -79,7 +80,9 @@ protected:
 
 	CMpeg2Parser m_Mpeg2Parser;
 	CMpeg2VideoInfo m_VideoInfo;
-	CCritSec m_VideoInfoLock;
+	mutable CCritSec m_VideoInfoLock;
+
+	bool m_bAttachMediaType;
 
 	CBitRateCalculator m_BitRateCalculator;
 };

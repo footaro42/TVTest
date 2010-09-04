@@ -41,12 +41,12 @@ bool FillGradient(HDC hdc,const RECT *pRect,const GradientInfo *pInfo)
 }
 
 
-bool DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
+bool DrawBorder(HDC hdc,const RECT &Rect,BorderType Type)
 {
-	if (hdc==NULL || pRect==NULL)
+	if (hdc==NULL)
 		return false;
 
-	RECT rc=*pRect;
+	RECT rc=Rect;
 
 	switch (Type) {
 	case BORDER_SOLID:
@@ -76,7 +76,14 @@ bool DrawBorder(HDC hdc,const RECT *pRect,BorderType Type)
 }
 
 
-bool DrawBorder(HDC hdc,const RECT *pRect,const BorderInfo *pInfo)
+bool DrawBorder(HDC hdc,const RECT &Rect,const BorderInfo *pInfo)
+{
+	RECT rc=Rect;
+	return DrawBorder(hdc,&rc,pInfo);
+}
+
+
+bool DrawBorder(HDC hdc,RECT *pRect,const BorderInfo *pInfo)
 {
 	if (hdc==NULL || pRect==NULL || pInfo==NULL)
 		return false;
@@ -122,6 +129,28 @@ bool DrawBorder(HDC hdc,const RECT *pRect,const BorderInfo *pInfo)
 	::SetDCPenColor(hdc,OldDCPenColor);
 	::SelectObject(hdc,hpenOld);
 
+	::InflateRect(pRect,-1,-1);
+
+	return true;
+}
+
+
+bool AddBorderRect(const BorderInfo *pInfo,RECT *pRect)
+{
+	if (pInfo==NULL || pRect==NULL)
+		return false;
+	if (pInfo->Type!=BORDER_NONE)
+		::InflateRect(pRect,1,1);
+	return true;
+}
+
+
+bool SubtractBorderRect(const BorderInfo *pInfo,RECT *pRect)
+{
+	if (pInfo==NULL || pRect==NULL)
+		return false;
+	if (pInfo->Type!=BORDER_NONE)
+		::InflateRect(pRect,-1,-1);
 	return true;
 }
 
@@ -133,10 +162,8 @@ bool DrawStyleBackground(HDC hdc,const RECT *pRect,const Style *pStyle)
 
 	RECT rc=*pRect;
 
-	if (pStyle->Border.Type!=BORDER_NONE) {
+	if (pStyle->Border.Type!=BORDER_NONE)
 		DrawBorder(hdc,&rc,&pStyle->Border);
-		::InflateRect(&rc,-1,-1);
-	}
 	FillGradient(hdc,&rc,&pStyle->Gradient);
 	return true;
 }

@@ -83,6 +83,7 @@ CTitleBar::CTitleBar()
 
 CTitleBar::~CTitleBar()
 {
+	Destroy();
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pTitleBar=NULL;
 	if (m_hbmIcons!=NULL)
@@ -193,9 +194,15 @@ bool CTitleBar::SetFont(const LOGFONT *pFont)
 
 void CTitleBar::SetIcon(HICON hIcon)
 {
-	m_hIcon=hIcon;
-	if (m_hwnd!=NULL)
-		Invalidate();
+	if (m_hIcon!=hIcon) {
+		m_hIcon=hIcon;
+		if (m_hwnd!=NULL) {
+			RECT rc;
+
+			GetItemRect(ITEM_LABEL,&rc);
+			Invalidate(&rc);
+		}
+	}
 }
 
 
@@ -576,7 +583,7 @@ void CTitleBar::Draw(HDC hdc,const RECT &PaintRect)
 		Theme::FillGradient(hdc,&rc,&m_Theme.CaptionStyle.Gradient);
 	}
 	GetClientRect(&rc);
-	Theme::DrawBorder(hdc,&rc,&m_Theme.Border);
+	Theme::DrawBorder(hdc,rc,&m_Theme.Border);
 	::SetBkColor(hdc,crOldBkColor);
 	::SetTextColor(hdc,crOldTextColor);
 	::SetBkMode(hdc,OldBkMode);

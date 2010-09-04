@@ -266,11 +266,11 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 	}
 	Base=lengthof(CommandList);
 	if (Index<Base+m_DriverList.Length())
-		return StdUtil::snprintf(pszName,MaxLength,TEXT("ドライバ(%s)"),
+		return StdUtil::snprintf(pszName,MaxLength,TEXT("ドライバ (%s)"),
 								 m_DriverList[Index-Base]);
 	Base+=m_DriverList.Length();
 	if (Index<Base+m_PluginList.Length())
-		return StdUtil::snprintf(pszName,MaxLength,TEXT("プラグイン(%s)"),
+		return StdUtil::snprintf(pszName,MaxLength,TEXT("プラグイン (%s)"),
 								 m_PluginList[Index-Base]);
 	Base+=m_PluginList.Length();
 	LPCTSTR pszText=m_PluginCommandList[Index-Base];
@@ -279,7 +279,7 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 	for (Length=0;pszText[Length]!=':';Length++)
 		szFileName[Length]=pszText[Length];
 	szFileName[Length]='\0';
-	return StdUtil::snprintf(pszName,MaxLength,TEXT("%s(%s)"),
+	return StdUtil::snprintf(pszName,MaxLength,TEXT("%s (%s)"),
 							 szFileName,pszText+::lstrlen(pszText)+1);
 }
 

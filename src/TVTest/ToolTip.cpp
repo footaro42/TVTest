@@ -68,7 +68,7 @@ void CTooltip::DeleteAllTools()
 
 		ti.cbSize=TTTOOLINFO_V1_SIZE;
 		ti.lpszText=NULL;
-		for (int i=0;i<Count;i++) {
+		for (int i=Count-1;i>=0;i--) {
 			if (::SendMessage(m_hwndTooltip,TTM_ENUMTOOLS,i,reinterpret_cast<LPARAM>(&ti)))
 				::SendMessage(m_hwndTooltip,TTM_DELTOOL,0,reinterpret_cast<LPARAM>(&ti));
 		}

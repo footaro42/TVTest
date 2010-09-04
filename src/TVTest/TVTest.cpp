@@ -13,7 +13,7 @@
 #include "ControlPanel.h"
 #include "ControlPanelItems.h"
 #include "Accelerator.h"
-#include "RemoteController.h"
+#include "Controller.h"
 #include "GeneralOptions.h"
 #include "ViewOptions.h"
 #include "OSDOptions.h"
@@ -120,7 +120,7 @@ static CPanelOptions PanelOptions(&PanelFrame);
 static CColorSchemeOptions ColorSchemeOptions;
 static COperationOptions OperationOptions;
 static CAccelerator Accelerator;
-static CHDUSController HDUSController;
+static CControllerManager ControllerManager;
 static CDriverOptions DriverOptions;
 static CPlaybackOptions PlaybackOptions;
 static CRecordOptions RecordOptions;
@@ -1105,7 +1105,7 @@ bool CAppMain::LoadSettings()
 		RecordOptions.Read(&Setting);
 		CaptureOptions.Read(&Setting);
 		Accelerator.Read(&Setting);
-		HDUSController.Read(&Setting);
+		ControllerManager.Read(&Setting);
 		ChannelScan.Read(&Setting);
 		PluginOptions.Read(&Setting);
 		EpgOptions.Read(&Setting);
@@ -1118,7 +1118,7 @@ bool CAppMain::LoadSettings()
 	SideBarOptions.Load(m_szIniFileName);
 	ColorSchemeOptions.Load(m_szIniFileName);
 	//Accelerator.Load(m_szIniFileName);
-	//HDUSController.Load(m_szIniFileName);
+	//ControllerManager.Load(m_szIniFileName);
 	DriverOptions.Load(m_szIniFileName);
 	ProgramGuideOptions.Load(m_szIniFileName);
 	PluginOptions.Load(m_szIniFileName);
@@ -1226,7 +1226,7 @@ bool CAppMain::SaveSettings()
 		RecordOptions.Write(&Setting);
 		CaptureOptions.Write(&Setting);
 		Accelerator.Write(&Setting);
-		HDUSController.Write(&Setting);
+		ControllerManager.Write(&Setting);
 		ChannelScan.Write(&Setting);
 		PluginOptions.Write(&Setting);
 		EpgOptions.Write(&Setting);
@@ -1239,7 +1239,7 @@ bool CAppMain::SaveSettings()
 	SideBarOptions.Save(m_szIniFileName);
 	ColorSchemeOptions.Save(m_szIniFileName);
 	Accelerator.Save(m_szIniFileName);
-	HDUSController.Save(m_szIniFileName);
+	//ControllerManager.Save(m_szIniFileName);
 	DriverOptions.Save(m_szIniFileName);
 	ProgramGuideOptions.Save(m_szIniFileName);
 	PluginOptions.Save(m_szIniFileName);
@@ -1549,6 +1549,12 @@ const CRecordManager *CAppMain::GetRecordManager() const
 const CDriverManager *CAppMain::GetDriverManager() const
 {
 	return &DriverManager;
+}
+
+
+CControllerManager *CAppMain::GetControllerManager() const
+{
+	return &ControllerManager;
 }
 
 
@@ -1894,6 +1900,9 @@ CUICore::CUICore()
 	, m_fFullscreen(false)
 	, m_fAlwaysOnTop(false)
 
+	, m_hicoLogoBig(NULL)
+	, m_hicoLogoSmall(NULL)
+
 	, m_fViewerInitializeError(false)
 
 	, m_fScreenSaverActiveOriginal(FALSE)
@@ -1906,6 +1915,10 @@ CUICore::CUICore()
 
 CUICore::~CUICore()
 {
+	if (m_hicoLogoBig!=NULL)
+		::DeleteObject(m_hicoLogoBig);
+	if (m_hicoLogoSmall!=NULL)
+		::DeleteObject(m_hicoLogoSmall);
 }
 
 bool CUICore::SetSkin(CUISkin *pSkin)
@@ -2617,22 +2630,76 @@ bool CUICore::ConfirmStopRecording()
 	return RecordOptions.ConfirmStatusBarStop(hwnd);
 }
 
+bool CUICore::UpdateIcon()
+{
+	HICON hicoBig=NULL,hicoSmall=NULL;
+
+	if (ViewOptions.GetUseLogoIcon() && CoreEngine.IsDriverOpen()) {
+		const CChannelInfo *pCurChannel=ChannelManager.GetCurrentChannelInfo();
+
+		if (pCurChannel!=NULL) {
+			HBITMAP hbmLogo;
+
+			hbmLogo=LogoManager.GetAssociatedLogoBitmap(
+				pCurChannel->GetNetworkID(),pCurChannel->GetServiceID(),
+				CLogoManager::LOGOTYPE_BIG);
+			if (hbmLogo!=NULL) {
+				int Width=::GetSystemMetrics(SM_CXICON);
+				int Height=::GetSystemMetrics(SM_CYICON);
+				hicoBig=CreateIconFromBitmap(hbmLogo,Width,Height,
+											 Width,(Width*9+15)/16);
+			}
+			hbmLogo=LogoManager.GetAssociatedLogoBitmap(
+				pCurChannel->GetNetworkID(),pCurChannel->GetServiceID(),
+				CLogoManager::LOGOTYPE_SMALL);
+			if (hbmLogo!=NULL) {
+				int Width=::GetSystemMetrics(SM_CXSMICON);
+				int Height=::GetSystemMetrics(SM_CYSMICON);
+				hicoSmall=CreateIconFromBitmap(hbmLogo,Width,Height,
+											   // 本来の比率より縦長にしている(見栄えのため)
+											   Width,Width*11/16);
+			}
+		}
+	}
+	HWND hwnd=GetMainWindow();
+	if (hwnd!=NULL) {
+		HICON hicoDefault;
+
+		if (hicoBig==NULL || hicoSmall==NULL)
+			hicoDefault=::LoadIcon(hInst,MAKEINTRESOURCE(IDI_ICON));
+		::SendMessage(hwnd,WM_SETICON,ICON_BIG,
+					  reinterpret_cast<LPARAM>(hicoBig!=NULL?hicoBig:hicoDefault));
+		::SendMessage(hwnd,WM_SETICON,ICON_SMALL,
+					  reinterpret_cast<LPARAM>(hicoSmall!=NULL?hicoSmall:hicoDefault));
+	}
+	if (m_hicoLogoBig!=NULL)
+		::DestroyIcon(m_hicoLogoBig);
+	m_hicoLogoBig=hicoBig;
+	if (m_hicoLogoSmall!=NULL)
+		::DestroyIcon(m_hicoLogoSmall);
+	m_hicoLogoSmall=hicoSmall;
+	return true;
+}
+
 void CUICore::OnTunerChanged()
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnTunerChanged();
+	UpdateIcon();
 }
 
 void CUICore::OnTunerOpened()
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnTunerOpened();
+	UpdateIcon();
 }
 
 void CUICore::OnTunerClosed()
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnTunerClosed();
+	UpdateIcon();
 }
 
 void CUICore::OnChannelListChanged()
@@ -2645,6 +2712,7 @@ void CUICore::OnChannelChanged(bool fSpaceChanged)
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnChannelChanged(fSpaceChanged);
+	UpdateIcon();
 }
 
 void CUICore::OnServiceChanged()
@@ -2883,7 +2951,7 @@ public:
 		PAGE_COLORSCHEME,
 		PAGE_OPERATION,
 		PAGE_ACCELERATOR,
-		PAGE_HDUSCONTROLLER,
+		PAGE_CONTROLLER,
 		PAGE_DRIVER,
 		PAGE_AUDIO,
 		PAGE_RECORD,
@@ -2946,8 +3014,8 @@ const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 		COperationOptions::DlgProc,		&OperationOptions,	RGB(128,128,0)},
 	{TEXT("キー割り当て"),			MAKEINTRESOURCE(IDD_OPTIONS_ACCELERATOR),
 		CAccelerator::DlgProc,			&Accelerator,		RGB(128,255,64)},
-	{TEXT("HDUSリモコン"),			MAKEINTRESOURCE(IDD_OPTIONS_HDUSCONTROLLER),
-		CHDUSController::DlgProc,		&HDUSController,	RGB(255,255,128)},
+	{TEXT("リモコン"),				MAKEINTRESOURCE(IDD_OPTIONS_CONTROLLER),
+		CControllerManager::DlgProc,	&ControllerManager,	RGB(255,255,128)},
 	{TEXT("ドライバ別設定"),		MAKEINTRESOURCE(IDD_OPTIONS_DRIVER),
 		CDriverOptions::DlgProc,		&DriverOptions,		RGB(128,255,128)},
 	{TEXT("再生"),					MAKEINTRESOURCE(IDD_OPTIONS_PLAYBACK),
@@ -3878,6 +3946,15 @@ class CMyStatusViewEventHandler : public CStatusView::CEventHandler
 				&& !MainWindow.GetStatusBarVisible())
 			m_pStatusView->SetVisible(false);
 	}
+
+	void OnHeightChanged(int Height)
+	{
+		Layout::CWindowContainer *pContainer=
+			dynamic_cast<Layout::CWindowContainer*>(MainWindow.GetLayoutBase().GetContainerByID(CONTAINER_ID_STATUS));
+
+		if (pContainer!=NULL)
+			pContainer->SetMinSize(0,Height);
+	}
 };
 
 
@@ -4268,7 +4345,9 @@ bool CBasicViewer::Create(HWND hwndParent,int ViewID,int ContainerID,HWND hwndMe
 	const CColorScheme *pColorScheme=ColorSchemeOptions.GetColorScheme();
 	Theme::BorderInfo Border;
 	pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
-	m_ViewWindow.SetBorder(ViewOptions.GetClientEdge(),&Border);
+	if (!ViewOptions.GetClientEdge())
+		Border.Type=Theme::BORDER_NONE;
+	m_ViewWindow.SetBorder(&Border);
 	m_VideoContainer.Create(m_ViewWindow.GetHandle(),
 		WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,0,ContainerID,m_pDtvEngine);
 	m_ViewWindow.SetVideoContainer(&m_VideoContainer);
@@ -5162,10 +5241,10 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 	mi.cbSize=sizeof(mi);
 	::GetMonitorInfo(hMonitor,&mi);
 
-	if (ViewOptions.GetClientEdge()) {
-		Width+=m_Viewer.GetViewWindow().GetVerticalEdgeWidth()*2;
-		Height+=m_Viewer.GetViewWindow().GetHorizontalEdgeHeight()*2;
-	}
+	::SetRect(&rc,0,0,Width,Height);
+	m_Viewer.GetViewWindow().CalcWindowRect(&rc);
+	Width=rc.right-rc.left;
+	Height=rc.bottom-rc.top;
 	m_LayoutBase.GetScreenPosition(&rc);
 	rc.right=rc.left+Width;
 	rc.bottom=rc.top+Height;
@@ -5595,9 +5674,9 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				else
 					Command=CM_CHANNELNO_FIRST+((int)wParam-'1');
 			} else if (wParam>=VK_F13 && wParam<=VK_F24
-					&& !HDUSController.IsEnabled()
+					&& !ControllerManager.IsControllerEnabled(TEXT("HDUS Remocon"))
 					&& (::GetKeyState(VK_SHIFT)<0 || ::GetKeyState(VK_CONTROL)<0)) {
-				ShowMessage(TEXT("リモコンを使用するためには、設定でリモコンを有効にしてください。"),
+				ShowMessage(TEXT("リモコンを使用するためには、メニューの [プラグイン] -> [HDUSリモコン] でリモコンを有効にしてください。"),
 							TEXT("お知らせ"),MB_OK | MB_ICONINFORMATION);
 				break;
 			} else {
@@ -5792,6 +5871,11 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			if (m_pCore->GetFullscreen())
 				::SetWindowText(m_Fullscreen.GetHandle(),pszText);
 		}
+		break;
+
+	case WM_SETICON:
+		if (wParam==ICON_SMALL)
+			m_TitleBar.SetIcon(reinterpret_cast<HICON>(lParam));
 		break;
 
 	case WM_POWERBROADCAST:
@@ -6081,7 +6165,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		ChannelMenu.Destroy();
 		MainMenu.Destroy();
 		Accelerator.Finalize();
-		HDUSController.Finalize();
+		ControllerManager.DeleteAllControllers();
 		TaskbarManager.Finalize();
 		ProgramGuideFrame.Destroy();
 		NotifyBalloonTip.Finalize();
@@ -6093,7 +6177,8 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		CoreEngine.m_DtvEngine.SetTracer(NULL);
 		CoreEngine.m_DtvEngine.m_BonSrcDecoder.SetTracer(NULL);
 
-		PluginOptions.StorePluginOptions();
+		if (!CmdLineParser.m_fNoPlugin)
+			PluginOptions.StorePluginOptions();
 		PluginList.FreePlugins();
 
 		// 終了時の負荷で他のプロセスの録画がドロップすることがあるらしい...
@@ -6129,13 +6214,15 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return 0;
 
 	case WM_ACTIVATEAPP:
-		if (HDUSController.OnActivateApp(hwnd,wParam,lParam))
+		if (ControllerManager.OnActivateApp(hwnd,wParam,lParam))
 			return 0;
 		break;
 
 	default:
-		if (HDUSController.HandleMessage(hwnd,uMsg,wParam,lParam))
+		/*
+		if (ControllerManager.HandleMessage(hwnd,uMsg,wParam,lParam))
 			return 0;
+		*/
 		if (ResidentManager.HandleMessage(uMsg,wParam,lParam))
 			return 0;
 		if (TaskbarManager.HandleMessage(uMsg,wParam,lParam))
@@ -6398,10 +6485,7 @@ bool CMainWindow::OnSizeChanging(UINT Edge,RECT *pRect)
 
 			GetPosition(&rcWindow);
 			GetClientRect(&rcClient);
-			if (ViewOptions.GetClientEdge()) {
-				rcClient.right-=m_Viewer.GetViewWindow().GetVerticalEdgeWidth()*2;
-				rcClient.bottom-=m_Viewer.GetViewWindow().GetHorizontalEdgeHeight()*2;
-			}
+			m_Viewer.GetViewWindow().CalcClientRect(&rcClient);
 			if (m_fShowStatusBar)
 				rcClient.bottom-=StatusView.GetHeight();
 			if (m_fShowTitleBar && m_fCustomTitleBar)
@@ -8147,6 +8231,7 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 	}
 	CaptionPanel.Clear();
 	UpdateControlPanelStatus();
+
 	LPCTSTR pszDriverFileName=CoreEngine.GetDriverFileName();
 	pInfo=ChannelManager.GetCurrentRealChannelInfo();
 	RecentChannelList.Add(pszDriverFileName,pInfo);
@@ -8531,6 +8616,10 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 	}
 
+	LRESULT Result=0;
+	if (PluginList.OnMessage(hwnd,uMsg,wParam,lParam,&Result))
+		return Result;
+
 	if (uMsg==WM_DESTROY) {
 		pThis->OnMessage(hwnd,uMsg,wParam,lParam);
 		pThis->OnDestroy();
@@ -8670,7 +8759,7 @@ bool CMainWindow::OnStandbyChange(bool fStandby)
 bool CMainWindow::InitStandby()
 {
 	m_fRestorePreview=!CmdLineParser.m_fNoDirectShow && !CmdLineParser.m_fNoView
-						&& (!ViewOptions.GetRestorePlayStatus() || fEnablePlay);
+					&& (!PlaybackOptions.GetRestorePlayStatus() || fEnablePlay);
 	m_fRestoreFullscreen=CmdLineParser.m_fFullscreen;
 	if (CoreEngine.GetDriverFileName()[0]!='\0')
 		m_fSrcFilterReleased=true;
@@ -8698,7 +8787,7 @@ bool CMainWindow::InitStandby()
 bool CMainWindow::InitMinimize()
 {
 	m_fRestorePreview=!CmdLineParser.m_fNoDirectShow && !CmdLineParser.m_fNoView
-						&& (!ViewOptions.GetRestorePlayStatus() || fEnablePlay);
+					&& (!PlaybackOptions.GetRestorePlayStatus() || fEnablePlay);
 	if (RestoreChannelInfo.Space>=0 && RestoreChannelInfo.Channel>=0) {
 		int Space=RestoreChannelInfo.fAllChannels?CChannelManager::SPACE_ALL:RestoreChannelInfo.Space;
 		const CChannelList *pList=ChannelManager.GetChannelList(Space);
@@ -8998,7 +9087,9 @@ void CMainWindow::ApplyColorScheme(const CColorScheme *pColorScheme)
 
 	m_LayoutBase.SetBackColor(pColorScheme->GetColor(CColorScheme::COLOR_SPLITTER));
 	pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
-	m_Viewer.GetViewWindow().SetBorder(ViewOptions.GetClientEdge(),&Border);
+	if (!ViewOptions.GetClientEdge())
+		Border.Type=Theme::BORDER_NONE;
+	m_Viewer.GetViewWindow().SetBorder(&Border);
 
 	CTitleBar::ThemeInfo TitleBarTheme;
 	pColorScheme->GetStyle(CColorScheme::STYLE_TITLEBARCAPTION,
@@ -9042,7 +9133,9 @@ bool CMainWindow::SetViewWindowEdge(bool fEdge)
 	Theme::BorderInfo Border;
 
 	pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
-	m_Viewer.GetViewWindow().SetBorder(fEdge,&Border);
+	if (!fEdge)
+		Border.Type=Theme::BORDER_NONE;
+	m_Viewer.GetViewWindow().SetBorder(&Border);
 	return true;
 }
 
@@ -9361,8 +9454,12 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 				ExcludePlugins.push_back(CmdLineParser.m_NoLoadPlugins[i].Get());
 		}
 		PluginList.LoadPlugins(szPluginDir,&ExcludePlugins);
-		PluginOptions.RestorePluginOptions();
 	}
+
+	CommandList.Initialize(&DriverManager,&PluginList,&ZoomOptions);
+
+	if (!CmdLineParser.m_fNoPlugin)
+		PluginOptions.RestorePluginOptions();
 
 	CoreEngine.m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(PlaybackOptions.GetUseAudioRendererClock());
 	CoreEngine.SetDownMixSurround(PlaybackOptions.GetDownMixSurround());
@@ -9410,7 +9507,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 	if (PlaybackOptions.GetRestoreMute() && fMuteStatus)
 		AppMain.GetUICore()->SetMute(true);
-	if ((!ViewOptions.GetRestorePlayStatus() || fEnablePlay)
+	if ((!PlaybackOptions.GetRestorePlayStatus() || fEnablePlay)
 			&& CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {
 		if (!CmdLineParser.m_fNoView && !CmdLineParser.m_fMinimize)
 			AppMain.GetUICore()->EnableViewer(true);
@@ -9493,11 +9590,8 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 	ApplyEventInfoFont();
 
-	CommandList.Initialize(&DriverManager,&PluginList,&ZoomOptions);
 	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
 						   AppMain.GetIniFileName(),&CommandList);
-	HDUSController.Initialize(MainWindow.GetHandle(),
-							  AppMain.GetIniFileName(),&CommandList);
 	OperationOptions.Initialize(AppMain.GetIniFileName(),&CommandList);
 
 	if (CoreEngine.m_DtvEngine.IsSrcFilterOpen()) {
@@ -9565,7 +9659,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 			continue;
 		if ((IsNoAcceleratorMessage(&msg)
 				|| !Accelerator.TranslateMessage(MainWindow.GetHandle(),&msg))
-				&& !HDUSController.TranslateMessage(MainWindow.GetHandle(),&msg)) {
+				&& !ControllerManager.TranslateMessage(MainWindow.GetHandle(),&msg)) {
 			TranslateMessage(&msg);
 			DispatchMessage(&msg);
 		}

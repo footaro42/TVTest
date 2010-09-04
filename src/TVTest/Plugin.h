@@ -28,6 +28,8 @@ class CPlugin : public CBonErrorHandler
 	int m_Command;
 	TVTest::EventCallbackFunc m_pEventCallback;
 	void *m_pEventCallbackClientData;
+	TVTest::WindowMessageCallbackFunc m_pMessageCallback;
+	void *m_pMessageCallbackClientData;
 	class CPluginCommandInfo {
 		int m_ID;
 		LPWSTR m_pszText;
@@ -42,6 +44,7 @@ class CPlugin : public CBonErrorHandler
 		LPCWSTR GetName() const { return m_pszName; }
 	};
 	CPointerVector<CPluginCommandInfo> m_CommandList;
+	std::vector<CDynamicString> m_ControllerList;
 	class CMediaGrabberInfo {
 	public:
 		CPlugin *m_pPlugin;
@@ -80,13 +83,16 @@ public:
 	bool IsLoaded() const { return m_hLib!=NULL; }
 	bool IsEnabled() const { return m_fEnabled; }
 	bool Enable(bool fEnable);
+	HMODULE GetModuleHandle() { return m_hLib; }
 	LPCTSTR GetFileName() const { return m_FileName.Get(); }
 	LPCTSTR GetPluginName() const { return m_PluginName.GetSafe(); }
 	LPCTSTR GetCopyright() const { return m_Copyright.GetSafe(); }
 	LPCTSTR GetDescription() const { return m_Description.GetSafe(); }
 	LRESULT SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
+	bool OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult);
 	bool Settings(HWND hwndOwner);
 	bool HasSettings() const { return (m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)!=0; }
+	bool CanUnload() const { return (m_Flags&TVTest::PLUGIN_FLAG_NOUNLOAD)==0; }
 	int GetCommand() const { return m_Command; }
 	bool SetCommand(int Command);
 	int NumPluginCommands() const;
@@ -139,6 +145,7 @@ public:
 	bool SendCloseEvent();
 	bool SendStartRecordEvent(const class CRecordManager *pRecordManager,LPTSTR pszFileName,int MaxFileName);
 	bool SendRelayRecordEvent(LPCTSTR pszFileName);
+	bool OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult);
 };
 
 class CPluginOptions : public COptions

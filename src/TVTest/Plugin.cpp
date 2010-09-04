@@ -4,7 +4,9 @@
 #include "Plugin.h"
 #include "Image.h"
 #include "DialogUtil.h"
+#include "Command.h"
 #include "LogoManager.h"
+#include "Controller.h"
 #include "BonTsEngine/TsEncode.h"
 #include "resource.h"
 
@@ -13,6 +15,145 @@
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
+
+
+
+
+class CControllerPlugin : public CController
+{
+	CPlugin *m_pPlugin;
+	DWORD m_Flags;
+	CDynamicString m_Name;
+	CDynamicString m_Text;
+	int m_NumButtons;
+	CController::ButtonInfo *m_pButtonList;
+	LPTSTR m_pButtonNameList;
+	CDynamicString m_IniFileName;
+	CDynamicString m_SectionName;
+	UINT m_ControllerImageID;
+	UINT m_SelButtonsImageID;
+	TVTest::ControllerInfo::TranslateMessageCallback m_pTranslateMessage;
+	void *m_pClientData;
+
+public:
+	CControllerPlugin(CPlugin *pPlugin,const TVTest::ControllerInfo *pInfo);
+	~CControllerPlugin();
+	LPCTSTR GetName() const { return m_Name.Get(); }
+	LPCTSTR GetText() const { return m_Text.Get(); }
+	int NumButtons() const { return m_NumButtons; }
+	bool GetButtonInfo(int Index,ButtonInfo *pInfo) const;
+	bool Enable(bool fEnable) { return m_pPlugin->Enable(fEnable); }
+	bool IsEnabled() const { return m_pPlugin->IsEnabled(); }
+	bool IsActiveOnly() const { return (m_Flags&TVTest::CONTROLLER_FLAG_ACTIVEONLY)!=0; }
+	bool SetTargetWindow(HWND hwnd) {
+		return m_pPlugin->SendEvent(TVTest::EVENT_CONTROLLERFOCUS,(LPARAM)hwnd)!=0;
+	}
+	bool TranslateMessage(HWND hwnd,MSG *pMessage);
+	bool GetIniFileName(LPTSTR pszFileName,int MaxLength) const;
+	LPCTSTR GetIniFileSection() const;
+	HBITMAP GetImage(ImageType Type) const;
+};
+
+
+CControllerPlugin::CControllerPlugin(CPlugin *pPlugin,const TVTest::ControllerInfo *pInfo)
+	: m_pPlugin(pPlugin)
+	, m_Flags(pInfo->Flags)
+	, m_Name(pInfo->pszName)
+	, m_Text(pInfo->pszText)
+	, m_NumButtons(pInfo->NumButtons)
+	, m_IniFileName(pInfo->pszIniFileName)
+	, m_SectionName(pInfo->pszSectionName)
+	, m_ControllerImageID(pInfo->ControllerImageID)
+	, m_SelButtonsImageID(pInfo->SelButtonsImageID)
+	, m_pTranslateMessage(pInfo->pTranslateMessage)
+	, m_pClientData(pInfo->pClientData)
+{
+	const CCommandList *pCommandList=GetAppClass().GetCommandList();
+
+	int Length=m_NumButtons+1;
+	for (int i=0;i<m_NumButtons;i++)
+		Length+=::lstrlen(pInfo->pButtonList[i].pszName);
+	m_pButtonNameList=new TCHAR[Length];
+	LPTSTR pszName=m_pButtonNameList;
+
+	m_pButtonList=new CController::ButtonInfo[m_NumButtons];
+	for (int i=0;i<m_NumButtons;i++) {
+		const TVTest::ControllerButtonInfo &ButtonInfo=pInfo->pButtonList[i];
+
+		::lstrcpy(pszName,ButtonInfo.pszName);
+		m_pButtonList[i].pszName=pszName;
+		m_pButtonList[i].DefaultCommand=ButtonInfo.pszDefaultCommand!=NULL?
+					pCommandList->ParseText(ButtonInfo.pszDefaultCommand):0;
+		m_pButtonList[i].ImageButtonRect.Left=ButtonInfo.ButtonRect.Left;
+		m_pButtonList[i].ImageButtonRect.Top=ButtonInfo.ButtonRect.Top;
+		m_pButtonList[i].ImageButtonRect.Width=ButtonInfo.ButtonRect.Width;
+		m_pButtonList[i].ImageButtonRect.Height=ButtonInfo.ButtonRect.Height;
+		m_pButtonList[i].ImageSelButtonPos.Left=ButtonInfo.SelButtonPos.Left;
+		m_pButtonList[i].ImageSelButtonPos.Top=ButtonInfo.SelButtonPos.Top;
+		pszName+=::lstrlen(pszName)+1;
+	}
+}
+
+
+CControllerPlugin::~CControllerPlugin()
+{
+	delete [] m_pButtonList;
+	delete [] m_pButtonNameList;
+}
+
+
+bool CControllerPlugin::GetButtonInfo(int Index,ButtonInfo *pInfo) const
+{
+	if (Index<0 || Index>=m_NumButtons)
+		return false;
+	*pInfo=m_pButtonList[Index];
+	return true;
+}
+
+
+bool CControllerPlugin::TranslateMessage(HWND hwnd,MSG *pMessage)
+{
+	if (m_pTranslateMessage==NULL)
+		return false;
+	return m_pTranslateMessage(hwnd,pMessage,m_pClientData)!=FALSE;
+}
+
+
+bool CControllerPlugin::GetIniFileName(LPTSTR pszFileName,int MaxLength) const
+{
+	if (m_IniFileName.IsEmpty())
+		return CController::GetIniFileName(pszFileName,MaxLength);
+	if (m_IniFileName.Length()>=MaxLength)
+		return false;
+	::lstrcpy(pszFileName,m_IniFileName.Get());
+	return true;
+}
+
+
+LPCTSTR CControllerPlugin::GetIniFileSection() const
+{
+	if (m_SectionName.IsEmpty())
+		return m_Name.Get();
+	return m_SectionName.Get();
+}
+
+
+HBITMAP CControllerPlugin::GetImage(ImageType Type) const
+{
+	UINT ID;
+
+	switch (Type) {
+	case IMAGE_CONTROLLER:	ID=m_ControllerImageID;	break;
+	case IMAGE_SELBUTTONS:	ID=m_SelButtonsImageID;	break;
+	default:	return NULL;
+	}
+	if (ID==0)
+		return NULL;
+	return static_cast<HBITMAP>(::LoadImage(m_pPlugin->GetModuleHandle(),
+											MAKEINTRESOURCE(ID),
+											IMAGE_BITMAP,0,0,
+											LR_CREATEDIBSECTION));
+}
 
 
 
@@ -36,6 +177,7 @@ CPlugin::CPlugin()
 	, m_fSetting(false)
 	, m_Command(0)
 	, m_pEventCallback(NULL)
+	, m_pMessageCallback(NULL)
 {
 }
 
@@ -148,7 +290,11 @@ void CPlugin::Free()
 		}
 		m_AudioStreamLock.Unlock();
 
+		for (size_t i=0;i<m_ControllerList.size();i++)
+			GetAppClass().GetControllerManager()->DeleteController(m_ControllerList[i].Get());
+
 		m_pEventCallback=NULL;
+		m_pMessageCallback=NULL;
 
 		TVTest::FinalizeFunc pFinalize=
 			reinterpret_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
@@ -184,6 +330,8 @@ void CPlugin::Free()
 	m_fEnabled=false;
 	m_fSetting=false;
 	m_CommandList.DeleteAll();
+	m_ControllerList.clear();
+	m_PluginParam.pInternalData=NULL;
 }
 
 
@@ -209,6 +357,10 @@ bool CPlugin::Enable(bool fEnable)
 		if (!fResult)
 			return false;
 		m_fEnabled=fEnable;
+		if (fEnable) {
+			for (size_t i=0;i<m_ControllerList.size();i++)
+				GetAppClass().GetControllerManager()->LoadControllerSettings(m_ControllerList[i].Get());
+		}
 	}
 	return true;
 }
@@ -277,6 +429,14 @@ LRESULT CPlugin::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
 }
 
 
+bool CPlugin::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult)
+{
+	if (m_pMessageCallback!=NULL)
+		return m_pMessageCallback(hwnd,uMsg,wParam,lParam,pResult,m_pMessageCallbackClientData)!=FALSE;
+	return false;
+}
+
+
 bool CPlugin::Settings(HWND hwndOwner)
 {
 	if ((m_Flags&TVTest::PLUGIN_FLAG_HASSETTINGS)==0)
@@ -289,6 +449,11 @@ bool CPlugin::Settings(HWND hwndOwner)
 	return fResult;
 }
 
+
+inline CPlugin *ThisFromParam(TVTest::PluginParam *pParam)
+{
+	return static_cast<CPlugin*>(pParam->pInternalData);
+}
 
 LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2)
 {
@@ -316,7 +481,9 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETEVENTCALLBACK:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
 
 			pThis->m_pEventCallback=reinterpret_cast<TVTest::EventCallbackFunc>(lParam1);
 			pThis->m_pEventCallbackClientData=reinterpret_cast<void*>(lParam2);
@@ -357,17 +524,19 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETCHANNEL:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
 			CAppMain &AppMain=GetAppClass();
 
 			AppMain.OpenTuner();
-			if (pThis->m_Version<TVTEST_PLUGIN_VERSION_(0,0,8)) {
+			if (pThis->m_Version<TVTEST_PLUGIN_VERSION_(0,0,8))
 				return AppMain.SetChannel((int)lParam1,(int)lParam2);
-			} else {
-				int Channel=(SHORT)LOWORD(lParam2);
-				WORD ServiceID=HIWORD(lParam2);
-				return AppMain.SetChannel((int)lParam1,Channel,ServiceID!=0?(int)ServiceID:-1);
-			}
+
+			int Channel=(SHORT)LOWORD(lParam2);
+			WORD ServiceID=HIWORD(lParam2);
+			return AppMain.SetChannel((int)lParam1,Channel,ServiceID!=0?(int)ServiceID:-1);
 		}
 
 	case TVTest::MESSAGE_GETSERVICE:
@@ -937,7 +1106,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETSTREAMCALLBACK:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
 			TVTest::StreamCallbackInfo *pInfo=reinterpret_cast<TVTest::StreamCallbackInfo*>(lParam1);
 
 			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::StreamCallbackInfo))
@@ -971,7 +1143,9 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_ENABLEPLUGIN:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
 
 			return pThis->Enable(lParam1!=0);
 		}
@@ -1122,14 +1296,19 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_ISPLUGINENABLED:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
 
 			return pThis->IsEnabled();
 		}
 
 	case TVTest::MESSAGE_REGISTERCOMMAND:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
 			const TVTest::CommandInfo *pCommandList=reinterpret_cast<TVTest::CommandInfo*>(lParam1);
 			int NumCommands=(int)lParam2;
 
@@ -1144,11 +1323,13 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 	case TVTest::MESSAGE_ADDLOG:
 		{
 			LPCWSTR pszText=reinterpret_cast<LPCWSTR>(lParam1);
-
 			if (pszText==NULL)
 				return FALSE;
 
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
 			LPCTSTR pszFileName=::PathFindFileName(pThis->m_FileName.Get());
 			GetAppClass().AddLog(TEXT("%s : %s"),pszFileName,pszText);
 		}
@@ -1160,7 +1341,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SETAUDIOCALLBACK:
 		{
-			CPlugin *pThis=static_cast<CPlugin*>(pParam->pInternalData);
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
 			TVTest::AudioCallbackFunc pCallback=reinterpret_cast<TVTest::AudioCallbackFunc>(lParam1);
 
 			m_AudioStreamLock.Lock();
@@ -1354,6 +1538,69 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			}
 		}
 		return FALSE;
+
+	case TVTest::MESSAGE_SETWINDOWMESSAGECALLBACK:
+		{
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
+			pThis->m_pMessageCallback=reinterpret_cast<TVTest::WindowMessageCallbackFunc>(lParam1);
+			pThis->m_pMessageCallbackClientData=reinterpret_cast<void*>(lParam2);
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_REGISTERCONTROLLER:
+		{
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
+			const TVTest::ControllerInfo *pInfo=reinterpret_cast<const TVTest::ControllerInfo*>(lParam1);
+
+			if (pInfo==NULL
+					|| pInfo->Size!=sizeof(TVTest::ControllerInfo)
+					|| pInfo->pszName==NULL || pInfo->pszName[0]=='\0'
+					|| pInfo->pszText==NULL || pInfo->pszText[0]=='\0'
+					|| pInfo->NumButtons<1
+					|| pInfo->pButtonList==NULL)
+				return FALSE;
+			CControllerPlugin *pController=new CControllerPlugin(pThis,pInfo);
+			CControllerManager *pControllerManager=GetAppClass().GetControllerManager();
+			if (!pControllerManager->AddController(pController)) {
+				delete pController;
+				return FALSE;
+			}
+			pThis->m_ControllerList.push_back(CDynamicString(pInfo->pszName));
+			if (pThis->m_fEnabled)
+				pControllerManager->LoadControllerSettings(pInfo->pszName);
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_ONCONTROLLERBUTTONDOWN:
+		return GetAppClass().GetControllerManager()->OnButtonDown(
+			reinterpret_cast<LPCWSTR>(lParam1),(int)lParam2);
+
+	case TVTest::MESSAGE_GETCONTROLLERSETTINGS:
+		{
+			static const DWORD ValidMask=TVTest::CONTROLLER_SETTINGS_MASK_FLAGS;
+			LPCWSTR pszName=reinterpret_cast<LPCWSTR>(lParam1);
+			TVTest::ControllerSettings *pSettings=reinterpret_cast<TVTest::ControllerSettings*>(lParam2);
+
+			if (pSettings==NULL
+					|| (pSettings->Mask|ValidMask)!=ValidMask)
+				return FALSE;
+			const CControllerManager::ControllerSettings *pControllerSettings=
+				GetAppClass().GetControllerManager()->GetControllerSettings(pszName);
+			if (pControllerSettings==NULL)
+				return FALSE;
+			if ((pSettings->Mask&TVTest::CONTROLLER_SETTINGS_MASK_FLAGS)!=0) {
+				pSettings->Flags=0;
+				if (pControllerSettings->fActiveOnly)
+					pSettings->Flags|=TVTest::CONTROLLER_SETTINGS_FLAG_ACTIVEONLY;
+			}
+		}
+		return TRUE;
 	}
 	return 0;
 }
@@ -1597,7 +1844,9 @@ bool CPluginList::OnPluginCommand(LPCTSTR pszCommand)
 
 bool CPluginList::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
 {
-	for (int i=0;i<NumPlugins();i++) {
+	const int Plugins=NumPlugins();
+
+	for (int i=0;i<Plugins;i++) {
 		m_PluginList[i]->SendEvent(Event,lParam1,lParam2);
 	}
 	return true;
@@ -1763,6 +2012,19 @@ bool CPluginList::SendStartRecordEvent(const CRecordManager *pRecordManager,LPTS
 bool CPluginList::SendRelayRecordEvent(LPCTSTR pszFileName)
 {
 	return SendEvent(TVTest::EVENT_RELAYRECORD,reinterpret_cast<LPARAM>(pszFileName));
+}
+
+
+bool CPluginList::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult)
+{
+	const int Plugins=NumPlugins();
+	bool fNoDefault=false;
+
+	for (int i=0;i<Plugins;i++) {
+		if (m_PluginList[i]->OnMessage(hwnd,uMsg,wParam,lParam,pResult))
+			fNoDefault=true;
+	}
+	return fNoDefault;
 }
 
 
@@ -2044,6 +2306,8 @@ INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 						::EnableMenuItem(hmenu,IDC_PLUGIN_SETTINGS,
 								pPlugin->HasSettings()?MFS_ENABLED:MFS_GRAYED);
+						::EnableMenuItem(hmenu,IDC_PLUGIN_UNLOAD,
+								pPlugin->CanUnload()?MFS_ENABLED:MFS_GRAYED);
 						::GetCursorPos(&pt);
 						::TrackPopupMenu(::GetSubMenu(hmenu,0),TPM_RIGHTBUTTON,
 										 pt.x,pt.y,0,hDlg,NULL);

@@ -7,7 +7,8 @@
 #include "BonTsEngine/EventManager.h"
 
 
-class CServiceInfoData {
+class CServiceInfoData
+{
 public:
 	WORD m_OriginalNID;
 	WORD m_TSID;
@@ -18,12 +19,14 @@ public:
 	bool operator!=(const CServiceInfoData &Info) const { return !(*this==Info); }
 };
 
-class CEventInfoData {
+class CEventInfoData
+{
 	LPWSTR m_pszEventName;
 	LPWSTR m_pszEventText;
 	LPWSTR m_pszEventExtText;
 	LPWSTR m_pszComponentTypeText;
 	friend class CEpgProgramList;
+
 public:
 	struct AudioInfo {
 		enum { MAX_TEXT=CEventManager::CEventInfo::AudioInfo::MAX_TEXT };
@@ -132,7 +135,8 @@ public:
 	bool GetEndTime(SYSTEMTIME *pTime) const;
 };
 
-class CEventInfoList {
+class CEventInfoList
+{
 public:
 	typedef std::map<WORD,CEventInfoData> EventMap;
 	typedef std::map<WORD,CEventInfoData>::iterator EventIterator;
@@ -145,7 +149,8 @@ public:
 	bool RemoveEvent(WORD EventID);
 };
 
-class CEpgServiceInfo {
+class CEpgServiceInfo
+{
 public:
 	CServiceInfoData m_ServiceData;
 	CEventInfoList m_EventList;
@@ -157,12 +162,13 @@ public:
 	const CEventInfoData *GetEventInfo(WORD EventID);
 };
 
-class CEpgProgramList {
+class CEpgProgramList
+{
 	CEventManager *m_pEventManager;
 	typedef ULONGLONG ServiceMapKey;
 	typedef std::map<ServiceMapKey,CEpgServiceInfo*> ServiceMap;
 	ServiceMap m_ServiceMap;
-	CCriticalLock m_Lock;
+	mutable CCriticalLock m_Lock;
 	FILETIME m_LastWriteTime;
 	static ServiceMapKey GetServiceMapKey(WORD OriginalNID,WORD TSID,WORD ServiceID) {
 		return ((ULONGLONG)OriginalNID<<32) | ((ULONGLONG)TSID<<16) | (ULONGLONG)ServiceID;
@@ -170,6 +176,7 @@ class CEpgProgramList {
 	const CEventInfoData *GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID);
 	bool SetCommonEventInfo(CEventInfoData *pInfo);
 	bool Merge(CEpgProgramList *pSrcList);
+
 public:
 	CEpgProgramList(CEventManager *pEventManager);
 	~CEpgProgramList();

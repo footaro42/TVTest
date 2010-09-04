@@ -12,6 +12,9 @@ class CUICore
 	bool m_fFullscreen;
 	bool m_fAlwaysOnTop;
 
+	HICON m_hicoLogoBig;
+	HICON m_hicoLogoSmall;
+
 	bool m_fViewerInitializeError;
 
 	BOOL m_fScreenSaverActiveOriginal;
@@ -81,6 +84,8 @@ public:
 	bool DoCommand(LPCTSTR pszCommand);
 
 	bool ConfirmStopRecording();
+
+	bool UpdateIcon();
 
 	void OnTunerChanged();
 	void OnTunerOpened();

@@ -67,6 +67,7 @@ CControlPanel::CControlPanel()
 
 CControlPanel::~CControlPanel()
 {
+	Destroy();
 	for (size_t i=0;i<m_ItemList.size();i++)
 		delete m_ItemList[i];
 }

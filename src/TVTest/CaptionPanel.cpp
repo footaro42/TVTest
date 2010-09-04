@@ -61,6 +61,7 @@ CCaptionPanel::CCaptionPanel()
 
 CCaptionPanel::~CCaptionPanel()
 {
+	Destroy();
 	Clear();
 }
 
@@ -123,7 +124,7 @@ void CCaptionPanel::Clear()
 
 	ClearCaptionList();
 	if (m_hwndEdit!=NULL) {
-		::SetWindowText(m_hwndEdit, TEXT(""));
+		::SetWindowText(m_hwndEdit,TEXT(""));
 		m_fClearLast=true;
 		m_fContinue=false;
 	}
@@ -186,11 +187,9 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 			if (!pThis->m_BackBrush.IsCreated())
 				pThis->m_BackBrush.Create(pThis->m_BackColor);
-			if (!pThis->m_Font.IsCreated()) {
-				LOGFONT lf;
-				GetDefaultFont(&lf);
-				pThis->m_Font.Create(&lf);
-			}
+			if (!pThis->m_Font.IsCreated())
+				CreateDefaultFont(&pThis->m_Font);
+
 			pThis->m_hwndEdit=CreateWindowEx(0,TEXT("EDIT"),TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 				0,0,0,0,hwnd,(HMENU)IDC_EDIT,m_hinst,NULL);

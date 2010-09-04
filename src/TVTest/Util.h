@@ -2,11 +2,6 @@
 #define TVTEST_UTIL_H
 
 
-template<typename t> t LimitRange(t value,t min,t max)
-{
-	return value<min?min:value>max?max:value;
-}
-
 LONGLONG StringToInt64(LPCTSTR pszString);
 ULONGLONG StringToUInt64(LPCTSTR pszString);
 bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
@@ -17,7 +12,12 @@ LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
 
-#define NullToEmptyString(pszString) ((pszString)?(pszString):TEXT(""))
+inline LPCSTR NullToEmptyString(LPCSTR pszString) {
+	return pszString!=NULL?pszString:"";
+}
+inline LPCWSTR NullToEmptyString(LPCWSTR pszString) {
+	return pszString!=NULL?pszString:L"";
+}
 
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2);
 
@@ -58,6 +58,8 @@ int GetErrorText(DWORD ErrorCode,LPTSTR pszText,int MaxLength);
 bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard=false,LPTSTR pszMessage=NULL,int MaxMessage=0);
 bool GetAbsolutePath(LPCTSTR pszFilePath,LPTSTR pszAbsolutePath,int MaxLength);
 
+HICON CreateIconFromBitmap(HBITMAP hbm,int IconWidth,int IconHeight,int ImageWidth=0,int ImageHeight=0);
+
 class CDynamicString {
 protected:
 	LPTSTR m_pszString;
@@ -67,7 +69,7 @@ public:
 #ifdef MOVE_CONSTRUCTOR_SUPPORTED
 	CDynamicString(CDynamicString &&String);
 #endif
-	CDynamicString(LPCTSTR pszString);
+	explicit CDynamicString(LPCTSTR pszString);
 	virtual ~CDynamicString();
 	CDynamicString &operator=(const CDynamicString &String);
 #ifdef MOVE_ASSIGNMENT_SUPPORTED

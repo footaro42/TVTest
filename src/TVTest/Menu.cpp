@@ -503,12 +503,16 @@ int CChannelMenu::GetEventText(const CEventInfoData *pEventInfo,
 							   LPTSTR pszText,int MaxLength) const
 {
 	SYSTEMTIME stStart,stEnd;
+	TCHAR szEnd[16];
 	int Length;
 
 	pEventInfo->GetStartTime(&stStart);
-	pEventInfo->GetEndTime(&stEnd);
-	Length=::wnsprintf(pszText,MaxLength-1,L"%02d:%02d`%02d:%02d %s",
-					   stStart.wHour,stStart.wMinute,stEnd.wHour,stEnd.wMinute,
+	if (pEventInfo->GetEndTime(&stEnd))
+		::wsprintf(szEnd,TEXT("%02d:%02d"),stEnd.wHour,stEnd.wMinute);
+	else
+		szEnd[0]='\0';
+	Length=::wnsprintf(pszText,MaxLength-1,TEXT("%02d:%02d`%s %ls"),
+					   stStart.wHour,stStart.wMinute,szEnd,
 					   NullToEmptyString(pEventInfo->GetEventName()));
 	pszText[Length]='\0';
 	return Length;
@@ -1046,7 +1050,7 @@ void CDropDownMenu::Draw(HDC hdc,const RECT *pPaintRect)
 	::SelectObject(hdc,hfontOld);
 	::DeleteObject(hbrBack);
 	::GetClientRect(m_hwnd,&rc);
-	Theme::DrawBorder(hdc,&rc,m_BorderType);
+	Theme::DrawBorder(hdc,rc,m_BorderType);
 }
 
 

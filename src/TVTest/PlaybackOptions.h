@@ -29,6 +29,7 @@ class CPlaybackOptions : public COptions
 
 	bool m_fDownMixSurround;
 	bool m_fRestoreMute;
+	bool m_fRestorePlayStatus;
 
 	bool m_fUseAudioRendererClock;
 	bool m_fEnablePTSSync;
@@ -58,6 +59,7 @@ public:
 	LPCTSTR GetAudioFilterName() const { return m_szAudioFilterName; }
 	bool GetDownMixSurround() const { return m_fDownMixSurround; }
 	bool GetRestoreMute() const { return m_fRestoreMute; }
+	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
 	bool GetUseAudioRendererClock() const { return m_fUseAudioRendererClock; }
 	bool GetAdjustAudioStreamTime() const { return m_fAdjustAudioStreamTime; }
 	bool GetMinTimerResolution() const { return m_fMinTimerResolution; }

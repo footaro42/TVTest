@@ -22,6 +22,14 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+static bool IsBonDriverSpinel(LPCTSTR pszFileName)
+{
+	return ::StrStrI(::PathFindFileName(pszFileName),TEXT("Spinel"))!=NULL;
+}
+
+
+
+
 class CDriverSettings
 {
 	CDynamicString m_FileName;
@@ -43,7 +51,7 @@ public:
 
 	CDriverSettings(LPCTSTR pszFileName);
 	LPCTSTR GetFileName() const { return m_FileName.Get(); }
-	bool SetFileName(LPCTSTR pszFileName);
+	bool SetFileName(LPCTSTR pszFileName) { return m_FileName.Set(pszFileName); }
 	enum {
 		INITIALCHANNEL_NONE,
 		INITIALCHANNEL_LAST,
@@ -78,7 +86,7 @@ CDriverSettings::CDriverSettings(LPCTSTR pszFileName)
 	, m_fAllChannels(false)
 	, m_fDescrambleDriver(false)
 	, m_fNoSignalLevel(GetAppClass().GetCoreEngine()->IsNetworkDriverFileName(pszFileName))
-	, m_fIgnoreInitialStream(true)
+	, m_fIgnoreInitialStream(!IsBonDriverSpinel(pszFileName))
 	, m_fPurgeStreamOnChannelChange(true)
 	, m_fResetChannelChangeErrorCount(false)
 	, m_LastSpace(-1)
@@ -86,12 +94,6 @@ CDriverSettings::CDriverSettings(LPCTSTR pszFileName)
 	, m_LastServiceID(-1)
 	, m_fLastAllChannels(false)
 {
-}
-
-
-bool CDriverSettings::SetFileName(LPCTSTR pszFileName)
-{
-	return m_FileName.Set(pszFileName);
 }
 
 
@@ -398,7 +400,7 @@ bool CDriverOptions::IsIgnoreInitialStream(LPCTSTR pszFileName) const
 
 	int Index=m_SettingList.Find(pszFileName);
 	if (Index<0)
-		return false;
+		return !IsBonDriverSpinel(pszFileName);
 	return m_SettingList.GetDriverSettings(Index)->GetIgnoreInitialStream();
 }
 
@@ -717,6 +719,17 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 				if (pSettings!=NULL) {
 					pSettings->SetNoSignalLevel(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_NOSIGNALLEVEL));
+				}
+			}
+			return TRUE;
+
+		case IDC_DRIVEROPTIONS_IGNOREINITIALSTREAM:
+			{
+				CDriverOptions *pThis=GetThis(hDlg);
+				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+
+				if (pSettings!=NULL) {
+					pSettings->SetIgnoreInitialStream(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_IGNOREINITIALSTREAM));
 				}
 			}
 			return TRUE;
