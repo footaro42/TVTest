@@ -598,6 +598,7 @@ void CClockStatusItem::SetTOT(bool fTOT)
 CProgramInfoStatusItem::CProgramInfoStatusItem()
 	: CStatusItem(STATUS_ITEM_PROGRAMINFO,256)
 	, m_fNext(false)
+	, m_fEnablePopupInfo(true)
 {
 }
 
@@ -623,6 +624,13 @@ void CProgramInfoStatusItem::OnLButtonDown(int x,int y)
 void CProgramInfoStatusItem::OnRButtonDown(int x,int y)
 {
 	m_EventInfoPopup.Hide();
+
+	POINT pt;
+	UINT Flags;
+
+	GetMenuPos(&pt,&Flags);
+	GetAppClass().GetUICore()->ShowSpecialMenu(CUICore::MENU_PROGRAMINFO,
+											   &pt,Flags | TPM_RIGHTBUTTON);
 }
 
 void CProgramInfoStatusItem::OnFocus(bool fFocus)
@@ -638,7 +646,8 @@ void CProgramInfoStatusItem::OnFocus(bool fFocus)
 
 bool CProgramInfoStatusItem::OnMouseHover(int x,int y)
 {
-	if (m_EventInfoPopup.IsVisible()
+	if (!m_fEnablePopupInfo
+			|| m_EventInfoPopup.IsVisible()
 			|| ::GetActiveWindow()!=::GetForegroundWindow())
 		return true;
 
@@ -660,6 +669,13 @@ bool CProgramInfoStatusItem::OnMouseHover(int x,int y)
 		}
 	}
 	return true;
+}
+
+void CProgramInfoStatusItem::EnablePopupInfo(bool fEnable)
+{
+	m_fEnablePopupInfo=fEnable;
+	if (!fEnable)
+		m_EventInfoPopup.Hide();
 }
 
 bool CProgramInfoStatusItem::UpdateContent()

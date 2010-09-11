@@ -84,6 +84,7 @@ class CHDUSRemocon : public TVTest::CTVTestPlugin
 	bool BeginHook();
 	bool EndHook();
 	bool SetWindow(HWND hwnd);
+	void OnError(LPCWSTR pszMessage);
 
 	static LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData);
 	static BOOL CALLBACK MessageCallback(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,
@@ -164,6 +165,18 @@ bool CHDUSRemocon::InitializePlugin()
 		if (m_Message==0)
 			return false;
 
+		// Vista/7 で管理者権限で実行された時用の対策
+#ifndef MSGFLT_ADD
+#define MSGFLT_ADD 1
+#endif
+		typedef BOOL (WINAPI *ChangeWindowMessageFilterFunc)(UINT,DWORD);
+		HMODULE hLib=::LoadLibrary(TEXT("user32.dll"));
+		ChangeWindowMessageFilterFunc pChangeFilter=
+			(ChangeWindowMessageFilterFunc)::GetProcAddress(hLib,"ChangeWindowMessageFilter");
+		if (pChangeFilter!=NULL)
+			pChangeFilter(m_Message,MSGFLT_ADD);
+		::FreeLibrary(hLib);
+
 		m_fInitialized=true;
 	}
 
@@ -214,18 +227,6 @@ bool CHDUSRemocon::BeginHook()
 	}
 	m_fHook=true;
 
-	// Vista で管理者権限で実行された時用の対策
-#ifndef MSGFLT_ADD
-#define MSGFLT_ADD 1
-#endif
-	typedef BOOL (WINAPI *ChangeWindowMessageFilterFunc)(UINT,DWORD);
-	HMODULE hLib=::LoadLibrary(TEXT("user32.dll"));
-	ChangeWindowMessageFilterFunc pChangeFilter=
-		(ChangeWindowMessageFilterFunc)::GetProcAddress(hLib,"ChangeWindowMessageFilter");
-	if (pChangeFilter!=NULL)
-		pChangeFilter(m_Message,MSGFLT_ADD);
-	::FreeLibrary(hLib);
-
 	return true;
 }
 
@@ -260,6 +261,17 @@ bool CHDUSRemocon::SetWindow(HWND hwnd)
 }
 
 
+void CHDUSRemocon::OnError(LPCWSTR pszMessage)
+{
+	// エラー発生時のメッセージ表示
+	m_pApp->AddLog(pszMessage);
+	if (!m_pApp->GetSilentMode()) {
+		::MessageBoxW(m_pApp->GetAppWindow(),pszMessage,L"HDUSリモコン",
+					  MB_OK | MB_ICONEXCLAMATION);
+	}
+}
+
+
 // イベントコールバック関数
 // 何かイベントが起きると呼ばれる
 LRESULT CALLBACK CHDUSRemocon::EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData)
@@ -271,15 +283,11 @@ LRESULT CALLBACK CHDUSRemocon::EventCallback(UINT Event,LPARAM lParam1,LPARAM lP
 		// プラグインの有効状態が変化した
 		if (lParam1!=0) {
 			if (!pThis->InitializePlugin()) {
-				::MessageBox(pThis->m_pApp->GetAppWindow(),
-							 TEXT("初期化でエラーが発生しました。"),NULL,
-							 MB_OK | MB_ICONEXCLAMATION);
+				pThis->OnError(L"初期化でエラーが発生しました。");
 				return FALSE;
 			}
 			if (!pThis->BeginHook()) {
-				::MessageBox(pThis->m_pApp->GetAppWindow(),
-							 TEXT("フックできません。"),NULL,
-							 MB_OK | MB_ICONEXCLAMATION);
+				pThis->OnError(L"フックできません。");
 				return FALSE;
 			}
 		} else {

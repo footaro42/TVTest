@@ -237,6 +237,9 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		return false;
 	}
 	m_FileName.Set(pszFileName);
+	m_PluginName.Set(PluginInfo.pszPluginName);
+	m_Copyright.Set(PluginInfo.pszCopyright);
+	m_Description.Set(PluginInfo.pszDescription);
 	m_Type=PluginInfo.Type;
 	m_Flags=PluginInfo.Flags;
 	m_fEnabled=(m_Flags&TVTest::PLUGIN_FLAG_ENABLEDEFAULT)!=0;
@@ -245,15 +248,12 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 	m_PluginParam.pClientData=NULL;
 	m_PluginParam.pInternalData=this;
 	if (!pInitialize(&m_PluginParam)) {
+		Free();
 		::FreeLibrary(hLib);
-		m_FileName.Clear();
 		SetError(TEXT("プラグインの初期化でエラー発生しました。"));
 		return false;
 	}
 	m_hLib=hLib;
-	m_PluginName.Set(PluginInfo.pszPluginName);
-	m_Copyright.Set(PluginInfo.pszCopyright);
-	m_Description.Set(PluginInfo.pszDescription);
 	ClearError();
 	return true;
 }
@@ -261,40 +261,43 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 
 void CPlugin::Free()
 {
+	CAppMain &App=GetAppClass();
+
+	m_pEventCallback=NULL;
+	m_pMessageCallback=NULL;
+
+	m_GrabberLock.Lock();
+	if (m_fSetGrabber) {
+		for (int i=m_GrabberList.Length()-1;i>=0;i--) {
+			if (m_GrabberList[i]->m_pPlugin==this)
+				m_GrabberList.Delete(i);
+		}
+		if (m_GrabberList.Length()==0) {
+			App.GetCoreEngine()->m_DtvEngine.m_MediaGrabber.SetMediaGrabCallback(NULL);
+			m_fSetGrabber=false;
+		}
+	}
+	m_GrabberLock.Unlock();
+
+	m_AudioStreamLock.Lock();
+	for (int i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
+		if (m_AudioStreamCallbackList[i]->m_pPlugin==this) {
+			m_AudioStreamCallbackList.Delete(i);
+			break;
+		}
+	}
+	m_AudioStreamLock.Unlock();
+
+	m_CommandList.DeleteAll();
+
+	for (size_t i=0;i<m_ControllerList.size();i++)
+		App.GetControllerManager()->DeleteController(m_ControllerList[i].Get());
+	m_ControllerList.clear();
+
 	if (m_hLib!=NULL) {
-		CAppMain &App=GetAppClass();
 		LPCTSTR pszFileName=::PathFindFileName(m_FileName.Get());
 
 		App.AddLog(TEXT("%s の終了処理を行っています..."),pszFileName);
-		m_GrabberLock.Lock();
-		if (m_fSetGrabber) {
-			for (int i=m_GrabberList.Length()-1;i>=0;i--) {
-				if (m_GrabberList[i]->m_pPlugin==this)
-					m_GrabberList.Delete(i);
-			}
-			if (m_GrabberList.Length()==0) {
-				CMediaGrabber &MediaGrabber=GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaGrabber;
-
-				MediaGrabber.SetMediaGrabCallback(NULL);
-				m_fSetGrabber=false;
-			}
-		}
-		m_GrabberLock.Unlock();
-
-		m_AudioStreamLock.Lock();
-		for (int i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
-			if (m_AudioStreamCallbackList[i]->m_pPlugin==this) {
-				m_AudioStreamCallbackList.Delete(i);
-				break;
-			}
-		}
-		m_AudioStreamLock.Unlock();
-
-		for (size_t i=0;i<m_ControllerList.size();i++)
-			GetAppClass().GetControllerManager()->DeleteController(m_ControllerList[i].Get());
-
-		m_pEventCallback=NULL;
-		m_pMessageCallback=NULL;
 
 		TVTest::FinalizeFunc pFinalize=
 			reinterpret_cast<TVTest::FinalizeFunc>(::GetProcAddress(m_hLib,"TVTFinalize"));
@@ -323,14 +326,13 @@ void CPlugin::Free()
 		m_hLib=NULL;
 		App.AddLog(TEXT("%s を解放しました。"),pszFileName);
 	}
+
 	m_FileName.Clear();
 	m_PluginName.Clear();
 	m_Copyright.Clear();
 	m_Description.Clear();
 	m_fEnabled=false;
 	m_fSetting=false;
-	m_CommandList.DeleteAll();
-	m_ControllerList.clear();
 	m_PluginParam.pInternalData=NULL;
 }
 

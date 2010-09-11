@@ -24,6 +24,7 @@ static char THIS_FILE[]=__FILE__;
 CStatusOptions::CStatusOptions(CStatusView *pStatusView)
 	: m_pStatusView(pStatusView)
 	, m_fShowTOTTime(false)
+	, m_fEnablePopupProgramInfo(true)
 {
 	SetDefaultItemList();
 	m_pStatusView->GetFont(&m_lfItemFont);
@@ -109,6 +110,7 @@ bool CStatusOptions::Load(LPCTSTR pszFileName)
 		m_lfItemFont.lfItalic=Value;
 
 	Settings.Read(TEXT("TOTTime"),&m_fShowTOTTime);
+	Settings.Read(TEXT("PopupProgramInfo"),&m_fEnablePopupProgramInfo);
 
 	return true;
 }
@@ -141,6 +143,7 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 	Settings.Write(TEXT("FontItalic"),(int)m_lfItemFont.lfItalic);
 
 	Settings.Write(TEXT("TOTTime"),m_fShowTOTTime);
+	Settings.Write(TEXT("PopupProgramInfo"),m_fEnablePopupProgramInfo);
 
 	return true;
 }

@@ -1023,6 +1023,9 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 									(LPARAM)(pszName!=NULL?pszName:TEXT("")));
 				SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_SETITEMDATA,Index,i);
 			}
+			SendDlgItemMessage(hDlg,IDC_COLORSCHEME_PRESET,CB_SETCUEBANNER,0,
+							   reinterpret_cast<LPARAM>(L"<”zF‚ð‘I‘ð‚µ‚Ä‚­‚¾‚³‚¢>"));
+
 			for (i=0;i<CColorScheme::NUM_COLORS;i++) {
 				SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_ADDSTRING,0,pThis->m_pColorScheme->GetColor(i));
 			}

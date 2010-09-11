@@ -158,6 +158,7 @@ public:
 class CProgramInfoStatusItem : public CStatusItem
 {
 	bool m_fNext;
+	bool m_fEnablePopupInfo;
 	CEventInfoPopup m_EventInfoPopup;
 	CDynamicString m_Text;
 
@@ -172,6 +173,7 @@ public:
 	void OnFocus(bool fFocus);
 	bool OnMouseHover(int x,int y);
 // CProgramInfoStatusItem
+	void EnablePopupInfo(bool fEnable);
 	bool UpdateContent();
 	bool SetEventInfoFont(const LOGFONT *pFont) {
 		return m_EventInfoPopup.SetFont(pFont);

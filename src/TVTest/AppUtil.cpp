@@ -16,6 +16,43 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+bool IsTVTestWindow(HWND hwnd)
+{
+	TCHAR szClass[64];
+
+	return ::GetClassName(hwnd,szClass,lengthof(szClass))==lengthof(MAIN_WINDOW_CLASS)-1
+			&& ::lstrcmpi(szClass,MAIN_WINDOW_CLASS)==0;
+}
+
+
+struct TVTestWindowEnumInfo {
+	WNDENUMPROC pEnumFunc;
+	LPARAM Param;
+};
+
+static BOOL CALLBACK TVTestWindowEnumProc(HWND hwnd,LPARAM Param)
+{
+	if (IsTVTestWindow(hwnd)) {
+		TVTestWindowEnumInfo *pInfo=reinterpret_cast<TVTestWindowEnumInfo*>(Param);
+
+		if (!(*pInfo->pEnumFunc)(hwnd,pInfo->Param))
+			return FALSE;
+	}
+	return TRUE;
+}
+
+bool EnumTVTestWindows(WNDENUMPROC pEnumFunc,LPARAM Param)
+{
+	TVTestWindowEnumInfo Info;
+
+	Info.pEnumFunc=pEnumFunc;
+	Info.Param=Param;
+	return EnumWindows(TVTestWindowEnumProc,reinterpret_cast<LPARAM>(&Info))!=FALSE;
+}
+
+
+
+
 CAppMutex::CAppMutex(bool fEnable)
 {
 	if (fEnable) {
@@ -140,12 +177,10 @@ bool CPortQuery::Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort)
 BOOL CALLBACK CPortQuery::EnumProc(HWND hwnd,LPARAM lParam)
 {
 	CPortQuery *pThis=reinterpret_cast<CPortQuery*>(lParam);
-	TCHAR szClass[64];
 
 	if (hwnd==pThis->m_hwndSelf)
 		return TRUE;
-	if (::GetClassName(hwnd,szClass,lengthof(szClass))>0
-			&& ::lstrcmpi(szClass,MAIN_WINDOW_CLASS)==0) {
+	if (IsTVTestWindow(hwnd)) {
 		DWORD_PTR Result;
 
 		if (::SendMessageTimeout(hwnd,WM_APP_QUERYPORT,0,0,

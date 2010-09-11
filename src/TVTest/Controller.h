@@ -75,7 +75,10 @@ public:
 	bool LoadControllerSettings(LPCTSTR pszName);
 	bool SaveControllerSettings(LPCTSTR pszName) const;
 	bool TranslateMessage(HWND hwnd,MSG *pMessage);
-	bool OnActivateApp(HWND hwnd,WPARAM wParam,LPARAM lParam);
+	bool IsFocus() const { return m_fFocus; }
+	bool IsActive() const { return m_fActive; }
+	bool OnActiveChange(HWND hwnd,bool fActive);
+	bool OnFocusChange(HWND hwnd,bool fFocus);
 	bool OnButtonDown(LPCTSTR pszName,int Button) const;
 	const ControllerSettings *GetControllerSettings(LPCTSTR pszName) const;
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -90,6 +93,7 @@ private:
 
 	std::vector<ControllerInfo> m_ControllerList;
 	std::vector<ControllerSettings> m_CurSettingsList;
+	bool m_fFocus;
 	bool m_fActive;
 	CDynamicString m_CurController;
 	HBITMAP m_hbmController;

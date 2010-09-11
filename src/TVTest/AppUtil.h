@@ -5,6 +5,9 @@
 #include <vector>
 
 
+bool IsTVTestWindow(HWND hwnd);
+bool EnumTVTestWindows(WNDENUMPROC pEnumFunc,LPARAM Param=0);
+
 class CAppMutex {
 	HANDLE m_hMutex;
 	bool m_fAlreadyExists;

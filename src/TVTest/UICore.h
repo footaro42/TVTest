@@ -72,7 +72,8 @@ public:
 		MENU_CAPTURE,
 		MENU_BUFFERING,
 		MENU_STREAMERROR,
-		MENU_CLOCK
+		MENU_CLOCK,
+		MENU_PROGRAMINFO
 	};
 	bool ShowSpecialMenu(MenuType Menu,const POINT *pPos=NULL,UINT Flags=0);
 	void InitChannelMenu(HMENU hmenu);

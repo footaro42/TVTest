@@ -28,21 +28,20 @@ static void FillRandomData(BYTE *pData,size_t Size)
 
 
 CGeneralOptions::CGeneralOptions()
+	: m_DefaultDriverType(DEFAULT_DRIVER_LAST)
+	, m_VideoRendererType(CVideoRenderer::RENDERER_DEFAULT)
+	, m_CardReaderType(CCoreEngine::CARDREADER_SCARD)
+	, m_fTemporaryNoDescramble(false)
+	, m_fResident(false)
+	, m_fKeepSingleTask(false)
+	//, m_fDescrambleUseSSE2(CTsDescrambler::IsSSE2Available())
+	, m_fDescrambleUseSSE2(false)
+	, m_fDescrambleCurServiceOnly(false)
+	, m_fEnableEmmProcess(false)
 {
 	m_szDriverDirectory[0]='\0';
-	m_DefaultDriverType=DEFAULT_DRIVER_LAST;
 	m_szDefaultDriverName[0]='\0';
 	m_szLastDriverName[0]='\0';
-	m_szMpeg2DecoderName[0]='\0';
-	m_VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
-	m_CardReaderType=CCoreEngine::CARDREADER_SCARD;
-	m_fTemporaryNoDescramble=false;
-	m_fResident=false;
-	m_fKeepSingleTask=false;
-	//m_fDescrambleUseSSE2=CTsDescrambler::IsSSE2Available();
-	m_fDescrambleUseSSE2=false;
-	m_fDescrambleCurServiceOnly=false;
-	m_fEnableEmmProcess=false;
 }
 
 
@@ -97,16 +96,17 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 					m_szDefaultDriverName,lengthof(m_szDefaultDriverName));
 	pSettings->Read(TEXT("Driver"),
 					m_szLastDriverName,lengthof(m_szLastDriverName));
-	pSettings->Read(TEXT("Mpeg2Decoder"),
-					m_szMpeg2DecoderName,lengthof(m_szMpeg2DecoderName));
+	TCHAR szDecoder[MAX_MPEG2_DECODER_NAME];
+	if (pSettings->Read(TEXT("Mpeg2Decoder"),szDecoder,lengthof(szDecoder)))
+		m_Mpeg2DecoderName.Set(szDecoder);
 	TCHAR szRenderer[16];
 	if (pSettings->Read(TEXT("Renderer"),szRenderer,lengthof(szRenderer))) {
 		if (szRenderer[0]=='\0') {
 			m_VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
 		} else {
-			m_VideoRendererType=CVideoRenderer::ParseName(szRenderer);
-			if (m_VideoRendererType==CVideoRenderer::RENDERER_UNDEFINED)
-				m_VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
+			CVideoRenderer::RendererType Renderer=CVideoRenderer::ParseName(szRenderer);
+			if (Renderer!=CVideoRenderer::RENDERER_UNDEFINED)
+				m_VideoRendererType=Renderer;
 		}
 	}
 	bool fNoDescramble;
@@ -130,7 +130,7 @@ bool CGeneralOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("DefaultDriverType"),(int)m_DefaultDriverType);
 	pSettings->Write(TEXT("DefaultDriver"),m_szDefaultDriverName);
 	pSettings->Write(TEXT("Driver"),GetAppClass().GetCoreEngine()->GetDriverFileName());
-	pSettings->Write(TEXT("Mpeg2Decoder"),m_szMpeg2DecoderName);
+	pSettings->Write(TEXT("Mpeg2Decoder"),m_Mpeg2DecoderName.GetSafe());
 	pSettings->Write(TEXT("Renderer"),
 					 CVideoRenderer::EnumRendererName((int)m_VideoRendererType));
 	pSettings->Write(TEXT("NoDescramble"),m_CardReaderType==CCoreEngine::CARDREADER_NONE);	// Backward compatibility
@@ -187,17 +187,13 @@ bool CGeneralOptions::GetFirstDriverName(LPTSTR pszDriverName) const
 
 LPCTSTR CGeneralOptions::GetMpeg2DecoderName() const
 {
-	return m_szMpeg2DecoderName;
+	return m_Mpeg2DecoderName.Get();
 }
 
 
 bool CGeneralOptions::SetMpeg2DecoderName(LPCTSTR pszDecoderName)
 {
-	if (pszDecoderName==NULL)
-		m_szMpeg2DecoderName[0]='\0';
-	else
-		::lstrcpy(m_szMpeg2DecoderName,pszDecoderName);
-	return true;
+	return m_Mpeg2DecoderName.Set(pszDecoderName);
 }
 
 
@@ -272,7 +268,7 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,EM_LIMITTEXT,MAX_PATH-1,0);
 			::SetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,pThis->m_szDriverDirectory);
 
-			// Driver
+			// BonDriver
 			::CheckRadioButton(hDlg,IDC_OPTIONS_DEFAULTDRIVER_NONE,
 									IDC_OPTIONS_DEFAULTDRIVER_CUSTOM,
 							   (int)pThis->m_DefaultDriverType+IDC_OPTIONS_DEFAULTDRIVER_NONE);
@@ -313,28 +309,38 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 					}
 				}
 			}
-			int Sel;
-			if (pThis->m_szMpeg2DecoderName[0]=='\0') {
-				Sel=0;
+			int Sel=0;
+			if (Count==0) {
+				DlgComboBox_AddString(hDlg,IDC_OPTIONS_DECODER,TEXT("<デコーダが見付かりません>"));
 			} else {
-				Sel=(int)DlgComboBox_FindStringExact(hDlg,IDC_OPTIONS_DECODER,-1,
-													 pThis->m_szMpeg2DecoderName)+1;
+				CMediaViewer &MediaViewer=GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer;
+				TCHAR szText[32+MAX_MPEG2_DECODER_NAME];
+
+				::lstrcpy(szText,TEXT("デフォルト"));
+				if (!pThis->m_Mpeg2DecoderName.IsEmpty()) {
+					Sel=(int)DlgComboBox_FindStringExact(hDlg,IDC_OPTIONS_DECODER,-1,
+														 pThis->m_Mpeg2DecoderName.Get())+1;
+				} else if (MediaViewer.IsOpen()) {
+					::lstrcat(szText,TEXT(" ("));
+					MediaViewer.GetVideoDecoderName(szText+::lstrlen(szText),MAX_MPEG2_DECODER_NAME);
+					::lstrcat(szText,TEXT(")"));
+				}
+				DlgComboBox_InsertString(hDlg,IDC_OPTIONS_DECODER,0,szText);
 			}
-			DlgComboBox_InsertString(hDlg,IDC_OPTIONS_DECODER,0,
-				Count>0?TEXT("デフォルト"):TEXT("<デコーダが見付かりません>"));
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_DECODER,Sel);
 
-			// Card reader
+			// Renderer
 			LPCTSTR pszRenderer;
 			DlgComboBox_AddString(hDlg,IDC_OPTIONS_RENDERER,TEXT("デフォルト"));
 			for (int i=1;(pszRenderer=CVideoRenderer::EnumRendererName(i))!=NULL;i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_RENDERER,pszRenderer);
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_RENDERER,pThis->m_VideoRendererType);
 
+			// Card reader
 			static const LPCTSTR pszCardReaderList[] = {
 				TEXT("なし (スクランブル解除しない)"),
 				TEXT("スマートカードリーダ"),
-				TEXT("HDUS内蔵カードリーダ")
+				TEXT("HDUS内蔵カードリーダ"),
 			};
 			for (int i=0;i<lengthof(pszCardReaderList);i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_CARDREADER,pszCardReaderList[i]);
@@ -524,8 +530,8 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 					DlgComboBox_GetLBString(hDlg,IDC_OPTIONS_DECODER,Sel,szDecoder);
 				else
 					szDecoder[0]='\0';
-				if (::lstrcmpi(szDecoder,pThis->m_szMpeg2DecoderName)!=0) {
-					::lstrcpy(pThis->m_szMpeg2DecoderName,szDecoder);
+				if (::lstrcmpi(szDecoder,pThis->m_Mpeg2DecoderName.GetSafe())!=0) {
+					pThis->m_Mpeg2DecoderName.Set(szDecoder);
 					pThis->SetUpdateFlag(UPDATE_DECODER);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}

@@ -9,9 +9,12 @@
 
 
 #pragma data_seg(".SHARE")
-HHOOK hHook=NULL;
-HWND hwndTarget=NULL;
+HHOOK hGlobalHook=NULL;
+HWND hwndGlobalTarget=NULL;
+LONG GlobalHookCount=0;
 #pragma data_seg()
+HHOOK hLocalHook;
+HWND hwndLocalTarget;
 HINSTANCE hInst;
 UINT Message;
 BOOL fShiftPress;
@@ -23,6 +26,9 @@ BOOL fCtrlPress;
 BOOL WINAPI DllMain(HINSTANCE hInstance,DWORD dwReason,LPVOID pvReserved)
 {
 	if (dwReason==DLL_PROCESS_ATTACH) {
+#ifndef _DEBUG
+		DisableThreadLibraryCalls(hInstance);
+#endif
 		hInst=hInstance;
 		Message=RegisterWindowMessage(KEYHOOK_MESSAGE);
 	}
@@ -30,7 +36,7 @@ BOOL WINAPI DllMain(HINSTANCE hInstance,DWORD dwReason,LPVOID pvReserved)
 }
 
 
-LRESULT CALLBACK KeyHookProc(int nCode,WPARAM wParam,LPARAM lParam)
+LRESULT KeyHookProc(HHOOK hHook,HWND hwnd,int nCode,WPARAM wParam,LPARAM lParam)
 {
 	if (nCode==HC_ACTION) {
 		static const struct {
@@ -73,12 +79,12 @@ LRESULT CALLBACK KeyHookProc(int nCode,WPARAM wParam,LPARAM lParam)
 			{VK_F22,	MK_CONTROL | MK_SHIFT},	// B
 			{VK_F23,	MK_CONTROL | MK_SHIFT},	// C
 			{VK_F24,	MK_CONTROL | MK_SHIFT},	// D
-			/*
+#if 0
 			{VK_UP,		MK_SHIFT},				// 音量 up
 			{VK_DOWN,	MK_SHIFT},				// 音量 down
 			{VK_UP,		MK_CONTROL},			// Ch up
 			{VK_DOWN,	MK_CONTROL},			// Ch down
-			*/
+#endif
 		};
 		BOOL fPress=(lParam&0x80000000)==0;
 
@@ -98,7 +104,7 @@ LRESULT CALLBACK KeyHookProc(int nCode,WPARAM wParam,LPARAM lParam)
 				for (i=0;i<sizeof(KeyList)/sizeof(KeyList[0]);i++) {
 					if (KeyList[i].KeyCode==wParam
 							&& KeyList[i].Modifier==Modifier) {
-						PostMessage(hwndTarget,Message,wParam,
+						PostMessage(hwnd,Message,wParam,
 							// キーリピート回数が常に1になっている
 							//(lParam&KEYHOOK_LPARAM_REPEATCOUNT) |
 							((lParam&0x40000000)!=0?2:1) |
@@ -114,17 +120,37 @@ LRESULT CALLBACK KeyHookProc(int nCode,WPARAM wParam,LPARAM lParam)
 }
 
 
+LRESULT CALLBACK GlobalKeyHookProc(int nCode,WPARAM wParam,LPARAM lParam)
+{
+	return KeyHookProc(hGlobalHook,hwndGlobalTarget,nCode,wParam,lParam);
+}
+
+
+LRESULT CALLBACK LocalKeyHookProc(int nCode,WPARAM wParam,LPARAM lParam)
+{
+	return KeyHookProc(hLocalHook,hwndLocalTarget,nCode,wParam,lParam);
+}
+
+
 __declspec(dllexport) BOOL WINAPI BeginHook(HWND hwnd,BOOL fLocal)
 {
-	if (hHook!=NULL)
-		return TRUE;
-	if (fLocal)
-		hHook=SetWindowsHookEx(WH_KEYBOARD,KeyHookProc,NULL,GetWindowThreadProcessId(hwnd,NULL));
-	else
-		hHook=SetWindowsHookEx(WH_KEYBOARD,KeyHookProc,hInst,0);
-	if (hHook==NULL)
-		return FALSE;
-	hwndTarget=hwnd;
+	if (fLocal) {
+		if (hLocalHook==NULL) {
+			hLocalHook=SetWindowsHookEx(WH_KEYBOARD,LocalKeyHookProc,NULL,
+										GetWindowThreadProcessId(hwnd,NULL));
+			if (hLocalHook==NULL)
+				return FALSE;
+		}
+		hwndLocalTarget=hwnd;
+	} else {
+		if (hGlobalHook==NULL) {
+			hGlobalHook=SetWindowsHookEx(WH_KEYBOARD,GlobalKeyHookProc,hInst,0);
+			if (hGlobalHook==NULL)
+				return FALSE;
+		}
+		GlobalHookCount++;
+		hwndGlobalTarget=hwnd;
+	}
 	fShiftPress=FALSE;
 	fCtrlPress=FALSE;
 	return TRUE;
@@ -133,9 +159,16 @@ __declspec(dllexport) BOOL WINAPI BeginHook(HWND hwnd,BOOL fLocal)
 
 __declspec(dllexport) BOOL WINAPI EndHook(void)
 {
-	if (hHook!=NULL) {
-		UnhookWindowsHookEx(hHook);
-		hHook=NULL;
+	if (hLocalHook!=NULL) {
+		UnhookWindowsHookEx(hLocalHook);
+		hLocalHook=NULL;
+	} else {
+		if (hGlobalHook==NULL)
+			return FALSE;
+		if (InterlockedDecrement(&GlobalHookCount)==0) {
+			UnhookWindowsHookEx(hGlobalHook);
+			hGlobalHook=NULL;
+		}
 	}
 	return TRUE;
 }
@@ -143,8 +176,9 @@ __declspec(dllexport) BOOL WINAPI EndHook(void)
 
 __declspec(dllexport) BOOL WINAPI SetWindow(HWND hwnd)
 {
-	if (hHook==NULL)
-		return FALSE;
-	hwndTarget=hwnd;
+	if (hLocalHook!=NULL)
+		hwndLocalTarget=hwnd;
+	if (hGlobalHook!=NULL)
+		hwndGlobalTarget=hwnd;
 	return TRUE;
 }

@@ -47,6 +47,67 @@ static TVTest::ControllerButtonInfo g_ButtonList[] = {
 #define NUM_BUTTONS (sizeof(g_ButtonList)/sizeof(g_ButtonList[0]))
 
 
+// 対象ウィンドウを設定/取得するクラス
+class CTargetWindow
+{
+	HANDLE m_hMap;
+	HWND *m_phwnd;
+
+public:
+	CTargetWindow()
+		: m_phwnd(NULL)
+	{
+		// 共有メモリを作成する
+		SECURITY_DESCRIPTOR sd;
+		SECURITY_ATTRIBUTES sa;
+		::ZeroMemory(&sd,sizeof(sd));
+		::InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
+		::SetSecurityDescriptorDacl(&sd,TRUE,NULL,FALSE);
+		::ZeroMemory(&sa,sizeof(sa));
+		sa.nLength=sizeof(sa);
+		sa.lpSecurityDescriptor=&sd;
+		m_hMap=::CreateFileMapping(INVALID_HANDLE_VALUE,&sa,
+								   PAGE_READWRITE,0,sizeof(HWND),
+								   TEXT("TVTest GamePad Target"));
+		if (m_hMap!=NULL) {
+			bool fExists=::GetLastError()==ERROR_ALREADY_EXISTS;
+
+			m_phwnd=(HWND*)::MapViewOfFile(m_hMap,FILE_MAP_WRITE,0,0,0);
+			if (m_phwnd!=NULL) {
+				if (!fExists)
+					*m_phwnd=NULL;
+			} else {
+				::CloseHandle(m_hMap);
+				m_hMap=NULL;
+			}
+		}
+	}
+
+	~CTargetWindow()
+	{
+		if (m_hMap!=NULL) {
+			::UnmapViewOfFile(m_phwnd);
+			::CloseHandle(m_hMap);
+		}
+	}
+
+	bool SetWindow(HWND hwnd)
+	{
+		if (m_phwnd==NULL)
+			return false;
+		*m_phwnd=hwnd;
+		return true;
+	}
+
+	HWND GetWindow() const
+	{
+		if (m_phwnd==NULL)
+			return NULL;
+		return *m_phwnd;
+	}
+};
+
+
 // プラグインクラス
 class CGamePad : public TVTest::CTVTestPlugin
 {
@@ -56,8 +117,7 @@ class CGamePad : public TVTest::CTVTestPlugin
 		DWORD RepeatCount;
 	};
 
-	bool m_fInitialized;			// 初期化済みか?
-	HWND m_hwndTarget;				// 操作対象ウィンドウ
+	CTargetWindow m_TargetWindow;	// 操作対象ウィンドウ
 	HANDLE m_hThread;				// スレッドのハンドル
 	HANDLE m_hEvent;				// イベントのハンドル
 	ButtonStatus m_ButtonStatus[NUM_BUTTONS];	// ボタンの状態
@@ -80,9 +140,7 @@ public:
 
 
 CGamePad::CGamePad()
-	: m_fInitialized(false)
-	, m_hwndTarget(NULL)
-	, m_hThread(NULL)
+	: m_hThread(NULL)
 	, m_hEvent(NULL)
 {
 }
@@ -127,7 +185,11 @@ bool CGamePad::Initialize()
 		return false;
 	}
 
-	m_hwndTarget=m_pApp->GetAppWindow();
+	// 共有メモリにウィンドウハンドルを設定
+	if (!m_TargetWindow.SetWindow(m_pApp->GetAppWindow())) {
+		m_pApp->AddLog(L"共有メモリを作成できません。");
+		return false;
+	}
 
 	// イベントコールバック関数を登録
 	m_pApp->SetEventCallback(EventCallback,this);
@@ -160,8 +222,11 @@ bool CGamePad::Start()
 		m_hThread=::CreateThread(NULL,0,ThreadProc,this,0,NULL);
 		if (m_hThread==NULL)
 			return false;
-		m_pApp->SetWindowMessageCallback(MessageCallback,this);
 	}
+
+	// メッセージコールバック関数を登録
+	m_pApp->SetWindowMessageCallback(MessageCallback,this);
+
 	return true;
 }
 
@@ -180,6 +245,8 @@ void CGamePad::End()
 		::CloseHandle(m_hEvent);
 		m_hEvent=NULL;
 	}
+
+	// メッセージコールバック関数を登録解除
 	m_pApp->SetWindowMessageCallback(NULL);
 }
 
@@ -194,14 +261,14 @@ LRESULT CALLBACK CGamePad::EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam
 	case TVTest::EVENT_PLUGINENABLE:
 		// プラグインの有効状態が変化した
 		if (lParam1!=0) {
-			if (!pThis->m_fInitialized) {
-				pThis->m_hwndTarget=pThis->m_pApp->GetAppWindow();
-				pThis->m_fInitialized=true;
-			}
 			if (!pThis->Start()) {
-				::MessageBox(pThis->m_pApp->GetAppWindow(),
-							 TEXT("初期化でエラーが発生しました。"),NULL,
-							 MB_OK | MB_ICONEXCLAMATION);
+				pThis->m_pApp->AddLog(L"初期化でエラーが発生しました。");
+				if (!pThis->m_pApp->GetSilentMode()) {
+					::MessageBoxW(pThis->m_pApp->GetAppWindow(),
+								  L"初期化でエラーが発生しました。",
+								  L"ゲームパッド",
+								  MB_OK | MB_ICONEXCLAMATION);
+				}
 				return FALSE;
 			}
 		} else {
@@ -211,7 +278,7 @@ LRESULT CALLBACK CGamePad::EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam
 
 	case TVTest::EVENT_CONTROLLERFOCUS:
 		// このプロセスが操作の対象になった
-		pThis->m_hwndTarget=reinterpret_cast<HWND>(lParam1);
+		pThis->m_TargetWindow.SetWindow(reinterpret_cast<HWND>(lParam1));
 		return TRUE;
 	}
 	return 0;
@@ -260,7 +327,7 @@ DWORD WINAPI CGamePad::ThreadProc(LPVOID pParameter)
 	// ボタンの状態をポーリング
 	while (::WaitForSingleObject(pThis->m_hEvent,100)==WAIT_TIMEOUT) {
 		// このウィンドウが対象か?
-		if (pThis->m_hwndTarget!=pThis->m_pApp->GetAppWindow())
+		if (pThis->m_TargetWindow.GetWindow()!=pThis->m_pApp->GetAppWindow())
 			continue;
 
 		// 各デバイスの情報を取得する

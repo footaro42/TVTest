@@ -30,7 +30,7 @@
 #define WM_APP_EMMPROCESSED		(WM_APP+8)
 #define WM_APP_ECMERROR			(WM_APP+9)
 #define WM_APP_EPGLOADED		(WM_APP+10)
-#define WM_APP_TVTESTACTIVE		(WM_APP+11)
+#define WM_APP_CONTROLLERFOCUS	(WM_APP+11)
 
 enum {
 	CONTAINER_ID_VIEW=1,
@@ -85,6 +85,12 @@ class CFullscreen : public CBasicWindow
 	bool m_fShowPanel;
 	int m_PanelWidth;
 	POINT m_LastCursorMovePos;
+	enum {
+		TIMER_ID_HIDECURSOR=1
+	};
+	enum {
+		HIDE_CURSOR_DELAY=1000UL
+	};
 
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool OnCreate();
@@ -121,6 +127,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool m_fShowTitleBar;
 	bool m_fCustomTitleBar;
 	bool m_fShowSideBar;
+	int m_PanelPaneIndex;
 	static int m_ThinFrameWidth;
 	static bool m_fThinFrameCreate;
 	bool m_fThinFrame;
@@ -257,6 +264,7 @@ public:
 	bool GetThinFrame() const { return m_fThinFrame; }
 	void SetSideBarVisible(bool fVisible);
 	bool GetSideBarVisible() const { return m_fShowSideBar; }
+	int GetPanelPaneIndex() const;
 	bool InitStandby();
 	bool InitMinimize();
 	bool IsMinimizeToTray() const;

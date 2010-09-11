@@ -72,7 +72,8 @@ bool CController::OnButtonDown(int Index)
 
 
 CControllerManager::CControllerManager()
-	: m_fActive(false)
+	: m_fFocus(false)
+	, m_fActive(false)
 	, m_hbmController(NULL)
 	, m_hbmSelButtons(NULL)
 {
@@ -249,15 +250,21 @@ bool CControllerManager::TranslateMessage(HWND hwnd,MSG *pMessage)
 }
 
 
-bool CControllerManager::OnActivateApp(HWND hwnd,WPARAM wParam,LPARAM lParam)
+bool CControllerManager::OnActiveChange(HWND hwnd,bool fActive)
 {
-	m_fActive=wParam!=FALSE;
-	if (m_fActive) {
-		for (size_t i=0;i<m_ControllerList.size();i++) {
-			if (m_ControllerList[i].pController->IsEnabled()) {
-				m_ControllerList[i].pController->SetTargetWindow(hwnd);
-			}
-		}
+	m_fActive=fActive;
+	if (fActive)
+		OnFocusChange(hwnd,true);
+	return true;
+}
+
+
+bool CControllerManager::OnFocusChange(HWND hwnd,bool fFocus)
+{
+	m_fFocus=fFocus;
+	if (fFocus) {
+		for (size_t i=0;i<m_ControllerList.size();i++)
+			m_ControllerList[i].pController->SetTargetWindow(hwnd);
 	}
 	return true;
 }
@@ -343,7 +350,7 @@ void CControllerManager::InitDlgItems()
 	}
 	m_Tooltip.DeleteAllTools();
 
-	int Sel=DlgComboBox_GetCurSel(m_hDlg,IDC_CONTROLLER_LIST);
+	int Sel=(int)DlgComboBox_GetCurSel(m_hDlg,IDC_CONTROLLER_LIST);
 	if (Sel>=0) {
 		const CCommandList *pCommandList=GetAppClass().GetCommandList();
 		const ControllerInfo &Info=m_ControllerList[Sel];
@@ -423,7 +430,7 @@ void CControllerManager::InitDlgItems()
 
 void CControllerManager::SetButtonCommand(HWND hwndList,int Index,int Command)
 {
-	int CurController=DlgComboBox_GetCurSel(m_hDlg,IDC_CONTROLLER_LIST);
+	int CurController=(int)DlgComboBox_GetCurSel(m_hDlg,IDC_CONTROLLER_LIST);
 	if (CurController<0)
 		return;
 

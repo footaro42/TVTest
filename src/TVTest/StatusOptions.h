@@ -25,7 +25,9 @@ class CStatusOptions : public COptions
 	UINT m_DragTimerID;
 	bool m_fDragResize;
 	LOGFONT m_lfItemFont;
+
 	bool m_fShowTOTTime;
+	bool m_fEnablePopupProgramInfo;
 
 	void SetDefaultItemList();
 	void InitListBox(HWND hDlg);
@@ -47,8 +49,11 @@ public:
 	bool Save(LPCTSTR pszFileName) const;
 // CStatusOptions
 	bool ApplyOptions();
-	bool GetShowTOTTime() { return m_fShowTOTTime; }
+	bool GetShowTOTTime() const { return m_fShowTOTTime; }
 	void SetShowTOTTime(bool fShow) { m_fShowTOTTime=fShow; }
+	bool IsPopupProgramInfoEnabled() const { return m_fEnablePopupProgramInfo; }
+	void EnablePopupProgramInfo(bool fEnable) { m_fEnablePopupProgramInfo=fEnable; }
+
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

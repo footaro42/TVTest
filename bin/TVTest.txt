@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.7.6
+    TVTest ver.0.7.7
 
 
 ◆ はじめに
@@ -32,25 +32,26 @@
 
 ◆ ファイル構成
 
-  ・TVTest.exe            本体
-  ・TVTest.txt            このファイル
-  ・TVTest.chm            ヘルプファイル
-  ・TVTest.sample.ch      チャンネル設定ファイルのサンプル
-  ・TVTest_Image.dll      画像保存用 DLL
-  ・TVTest_Logo.bmp       ロゴ画像
-  ・TVTest_0.7.6_Src.zip  ソースファイル
-  ・TVTest_SDK_100905.zip プラグイン開発用 SDK
-  ・Tuner.dll             各チューナー用アイコンの DLL
-  ・Tuner.ini             チューナーの表示設定ファイル
-  ・BonDriver_UDP.dll     UDP 受信用 BonDriver (ver1.20)
-  ・BonDriver_UDP.txt     BonDriver_UDP.dll の説明
-  ・Preset_BS.ch2         BS 用チャンネルプリセット
-  ・Preset_CS.ch2         CS 用チャンネルプリセット
-  ・DRCSMap.sample.ini    DRCS 用設定のサンプル
-  ・Plugins\              プラグインフォルダ
-                          (SDK にあるサンプルがいくつか入っています)
-  ・Themes\               配色設定フォルダ
-                          (配色のプリセットがいくつか入っています)
+  ・TVTest.exe               本体
+  ・TVTest.txt               このファイル
+  ・TVTest.chm               ヘルプファイル
+  ・TVTest.sample.ch         チャンネル設定ファイルのサンプル
+  ・TVTest_Image.dll         画像保存用 DLL
+  ・TVTest_Logo.bmp          ロゴ画像
+  ・TVTest_0.7.7_Src.zip     ソースファイル
+  ・TVTest_SDK_100912.zip    プラグイン開発用 SDK
+  ・Tuner.dll                各チューナー用アイコンの DLL
+  ・Tuner.ini                チューナーの表示設定ファイル
+  ・BonDriver_UDP.dll        UDP 受信用 BonDriver (ver1.20)
+  ・BonDriver_UDP.txt        BonDriver_UDP.dll の説明
+  ・Preset_BS.ch2            BS 用チャンネルプリセット
+  ・Preset_CS.ch2            CS 用チャンネルプリセット
+  ・DRCSMap.sample.ini       DRCS 用設定のサンプル
+  ・HDUSRemocon_KeyHook.dll  HDUS リモコン用フック DLL
+  ・Plugins\                 プラグインフォルダ
+                             (SDK にあるサンプルがいくつか入っています)
+  ・Themes\                  配色設定フォルダ
+                             (配色のプリセットがいくつか入っています)
 
   起動すると、本体のあるフォルダに以下のファイルが作成されます。
 
@@ -476,6 +477,14 @@
 
 
 ◆ 更新履歴
+
+  ver.0.7.7
+    ・ver.0.7.4 以降でパネルのドッキング位置が復元されない不具合を修正
+    ・複数起動時にリモコンの操作対象のウィンドウが正常に設定されないことがある不具合を修正
+    ・複数起動時にゲームパッドの操作が全てのウィンドウに適用される不具合を修正
+    ・ステータスバーの番組情報のポップアップ表示を行わないようにできるようにした
+    ・デコーダをデフォルトにした場合、実際に使用されているデコーダが設定に表示されるようにした
+    ・その他微修正
 
   ver.0.7.6
     ・リモコンの対応をプラグイン化した

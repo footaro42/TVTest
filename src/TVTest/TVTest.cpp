@@ -91,7 +91,6 @@ static CLogoManager LogoManager;
 
 static bool fShowPanelWindow=false;
 static CPanelFrame PanelFrame;
-static int PanelPaneIndex=1;
 static CPanelForm PanelForm;
 
 static CInformationPanel InfoPanel;
@@ -1063,9 +1062,6 @@ bool CAppMain::LoadSettings()
 			PanelFrame.SetFloating(f);
 		if (Setting.Read(TEXT("PanelDockingWidth"),&Value))
 			PanelFrame.SetDockingWidth(Value);
-		if (Setting.Read(TEXT("PanelDockingIndex"),&Value)
-				&& (Value==0 || Value==1))
-			PanelPaneIndex=Value;
 		ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
 		Setting.Read(TEXT("ProgramGuideLeft"),&Left);
 		Setting.Read(TEXT("ProgramGuideTop"),&Top);
@@ -1195,7 +1191,6 @@ bool CAppMain::SaveSettings()
 		Setting.Write(TEXT("InfoHeight"),Height);
 		Setting.Write(TEXT("PanelFloating"),PanelFrame.GetFloating());
 		Setting.Write(TEXT("PanelDockingWidth"),PanelFrame.GetDockingWidth());
-		Setting.Write(TEXT("PanelDockingIndex"),PanelPaneIndex);
 		Setting.Write(TEXT("InfoCurTab"),PanelForm.GetCurPageID());
 		ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
 		Setting.Write(TEXT("ProgramGuideLeft"),Left);
@@ -2397,6 +2392,16 @@ bool CUICore::ShowSpecialMenu(MenuType Menu,const POINT *pPos,UINT Flags)
 		}
 		break;
 
+	case MENU_PROGRAMINFO:
+		{
+			CPopupMenu Menu(hInst,IDM_PROGRAMINFOSTATUS);
+
+			Menu.CheckItem(CM_PROGRAMINFOSTATUS_POPUPINFO,
+						   StatusOptions.IsPopupProgramInfoEnabled());
+			Menu.Popup(GetMainWindow(),&pt,Flags);
+		}
+		break;
+
 	default:
 		return false;
 	}
@@ -3532,7 +3537,7 @@ bool CMyPanelEventHandler::OnFloatingChange(bool fFloating)
 	int Size;
 	RECT rc;
 
-	PanelPaneIndex=pSplitter->IDToIndex(CONTAINER_ID_PANEL);
+	int PanelPaneIndex=pSplitter->IDToIndex(CONTAINER_ID_PANEL);
 	if (fFloating)
 		pSplitter->GetPane(PanelPaneIndex)->SetVisible(false);
 	MainWindow.GetPosition(&rc);
@@ -4481,24 +4486,27 @@ LRESULT CFullscreen::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return 0;
 
 	case WM_TIMER:
-		if (!m_fMenu) {
-			POINT pt;
-			RECT rc;
-			::GetCursorPos(&pt);
-			m_ViewWindow.GetPosition(&rc);
-			if (::PtInRect(&rc,pt)) {
-				::SetCursor(NULL);
-				ShowCursor(false);
+		if (wParam==TIMER_ID_HIDECURSOR) {
+			if (!m_fMenu) {
+				POINT pt;
+				RECT rc;
+				::GetCursorPos(&pt);
+				m_ViewWindow.GetPosition(&rc);
+				if (::PtInRect(&rc,pt)) {
+					ShowCursor(false);
+					::SetCursor(NULL);
+				}
 			}
+			::KillTimer(hwnd,TIMER_ID_HIDECURSOR);
 		}
-		::KillTimer(hwnd,1);
 		return 0;
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
 			HWND hwndCursor=reinterpret_cast<HWND>(wParam);
 
-			if (hwndCursor==m_pViewer->GetVideoContainer().GetHandle()
+			if (hwndCursor==hwnd
+					|| hwndCursor==m_pViewer->GetVideoContainer().GetHandle()
 					|| hwndCursor==m_ViewWindow.GetHandle()
 					|| CPseudoOSD::IsPseudoOSD(hwndCursor)) {
 				::SetCursor(m_fShowCursor?::LoadCursor(NULL,IDC_ARROW):NULL);
@@ -4573,22 +4581,22 @@ LRESULT CFullscreen::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		m_TitleBar.SetLabel(reinterpret_cast<LPCTSTR>(lParam));
 		break;
 
-	case WM_DESTROY:
-		{
-			SIZE sz;
+	case WM_SETICON:
+		if (wParam==ICON_SMALL)
+			m_TitleBar.SetIcon(reinterpret_cast<HICON>(lParam));
+		break;
 
-			m_pViewer->GetViewWindow().GetClientSize(&sz);
-			m_pViewer->GetVideoContainer().SetParent(&m_pViewer->GetViewWindow());
-			m_pViewer->GetViewWindow().SendMessage(WM_SIZE,0,MAKELPARAM(sz.cx,sz.cy));
-			ShowCursor(true);
-			m_pViewer->GetDisplayBase().AdjustPosition();
-			m_TitleBar.Destroy();
-			OSDManager.Reset();
-			ShowStatusView(false);
-			ShowSideBar(false);
-			ShowPanel(false);
-			OnDestroy();
-		}
+	case WM_DESTROY:
+		m_pViewer->GetVideoContainer().SetParent(&m_pViewer->GetViewWindow());
+		m_pViewer->GetViewWindow().SendSizeMessage();
+		ShowCursor(true);
+		m_pViewer->GetDisplayBase().AdjustPosition();
+		m_TitleBar.Destroy();
+		OSDManager.Reset();
+		ShowStatusView(false);
+		ShowSideBar(false);
+		ShowPanel(false);
+		OnDestroy();
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
@@ -4650,18 +4658,22 @@ bool CFullscreen::OnCreate()
 	m_Panel.ShowTitle(true);
 	m_Panel.EnableFloating(false);
 	m_Panel.SetEventHandler(&m_PanelEventHandler);
+	CPanel::ThemeInfo PanelTheme;
+	PanelFrame.GetTheme(&PanelTheme);
+	m_Panel.SetTheme(&PanelTheme);
 
 	Layout::CSplitter *pSplitter=new Layout::CSplitter(CONTAINER_ID_PANELSPLITTER);
 	pSplitter->SetVisible(true);
+	int PanelPaneIndex=MainWindow.GetPanelPaneIndex();
 	Layout::CWindowContainer *pViewContainer=new Layout::CWindowContainer(CONTAINER_ID_VIEW);
 	pViewContainer->SetWindow(&m_ViewWindow);
 	pViewContainer->SetMinSize(32,32);
 	pViewContainer->SetVisible(true);
-	pSplitter->SetPane(0,pViewContainer);
+	pSplitter->SetPane(1-PanelPaneIndex,pViewContainer);
 	Layout::CWindowContainer *pPanelContainer=new Layout::CWindowContainer(CONTAINER_ID_PANEL);
 	pPanelContainer->SetWindow(&m_Panel);
 	pPanelContainer->SetMinSize(64,32);
-	pSplitter->SetPane(1,pPanelContainer);
+	pSplitter->SetPane(PanelPaneIndex,pPanelContainer);
 	pSplitter->SetAdjustPane(CONTAINER_ID_VIEW);
 	m_LayoutBase.SetTopContainer(pSplitter);
 
@@ -4672,7 +4684,10 @@ bool CFullscreen::OnCreate()
 	m_TitleBar.Create(m_ViewWindow.GetHandle(),
 					  WS_CHILD | WS_CLIPSIBLINGS,0,IDC_TITLEBAR);
 	m_TitleBar.SetEventHandler(&FullscreenTitleBarUtil);
-	m_TitleBar.SetIcon(::LoadIcon(hInst,MAKEINTRESOURCE(IDI_ICON)));
+	HICON hico=reinterpret_cast<HICON>(MainWindow.SendMessage(WM_GETICON,ICON_SMALL,0));
+	if (hico==NULL)
+		hico=::LoadIcon(hInst,MAKEINTRESOURCE(IDI_ICON));
+	m_TitleBar.SetIcon(hico);
 
 	OSDManager.Reset();
 
@@ -4685,9 +4700,10 @@ bool CFullscreen::OnCreate()
 	m_fShowTitleBar=false;
 	m_fShowSideBar=false;
 	m_fShowPanel=false;
-	m_LastCursorMovePos.x=-4;
-	m_LastCursorMovePos.y=-4;
-	::SetTimer(m_hwnd,1,1000,NULL);
+
+	m_LastCursorMovePos.x=-100;
+	m_LastCursorMovePos.y=-100;
+	::SetTimer(m_hwnd,TIMER_ID_HIDECURSOR,HIDE_CURSOR_DELAY,NULL);
 
 	return true;
 }
@@ -4740,14 +4756,14 @@ void CFullscreen::OnMouseCommand(int Command)
 	if (Command==0)
 		return;
 	// メニュー表示中はカーソルを消さない
-	KillTimer(m_hwnd,1);
+	KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
 	ShowCursor(true);
 	::SetCursor(LoadCursor(NULL,IDC_ARROW));
 	m_fMenu=true;
 	MainWindow.SendMessage(WM_COMMAND,MAKEWPARAM(Command,CMainWindow::COMMAND_FROM_MOUSE),0);
 	m_fMenu=false;
 	if (m_hwnd!=NULL)
-		::SetTimer(m_hwnd,1,1000,NULL);
+		::SetTimer(m_hwnd,TIMER_ID_HIDECURSOR,HIDE_CURSOR_DELAY,NULL);
 }
 
 
@@ -4771,39 +4787,47 @@ void CFullscreen::OnLButtonDoubleClick()
 
 void CFullscreen::OnMouseMove()
 {
+	if (m_fMenu)
+		return;
+
 	POINT pt;
 	RECT rcClient,rc;
 
-	if (m_fMenu)
-		return;
-	GetCursorPos(&pt);
+	::GetCursorPos(&pt);
 	::ScreenToClient(m_hwnd,&pt);
 	m_ViewWindow.GetClientRect(&rcClient);
+
 	rc=rcClient;
 	rc.top=rc.bottom-StatusView.GetHeight();
 	if (::PtInRect(&rc,pt)) {
 		if (!m_fShowStatusView)
 			ShowStatusView(true);
-		::KillTimer(m_hwnd,1);
+		::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
 		return;
-	} else if (m_fShowStatusView)
+	}
+	if (m_fShowStatusView)
 		ShowStatusView(false);
+
 	if (FullscreenTitleBarUtil.IsSpot(&rcClient,&pt)) {
 		if (!m_fShowTitleBar)
 			ShowTitleBar(true);
-		::KillTimer(m_hwnd,1);
+		::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
 		return;
-	} else if (m_fShowTitleBar)
+	}
+	if (m_fShowTitleBar)
 		ShowTitleBar(false);
+
 	if (SideBarOptions.ShowPopup()) {
 		if (SideBarUtil.IsSpot(&rcClient,&pt)) {
 			if (!m_fShowSideBar)
 				ShowSideBar(true);
-			::KillTimer(m_hwnd,1);
+			::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
 			return;
-		} else if (m_fShowSideBar)
+		}
+		if (m_fShowSideBar)
 			ShowSideBar(false);
 	}
+
 	if (abs(m_LastCursorMovePos.x-pt.x)>=4 || abs(m_LastCursorMovePos.y-pt.y)>=4) {
 		m_LastCursorMovePos=pt;
 		if (!m_fShowCursor) {
@@ -4811,7 +4835,8 @@ void CFullscreen::OnMouseMove()
 			ShowCursor(true);
 		}
 	}
-	::SetTimer(m_hwnd,1,1000,NULL);
+
+	::SetTimer(m_hwnd,TIMER_ID_HIDECURSOR,HIDE_CURSOR_DELAY,NULL);
 }
 
 
@@ -5072,6 +5097,36 @@ bool CMyCaptureWindowEvent::OnKeyDown(UINT KeyCode,UINT Flags)
 static CMyCaptureWindowEvent CaptureWindowEventHandler;
 
 
+struct ControllerFocusInfo {
+	HWND hwnd;
+	bool fSkipSelf;
+	bool fFocus;
+};
+
+static BOOL CALLBACK ControllerFocusCallback(HWND hwnd,LPARAM Param)
+{
+	ControllerFocusInfo *pInfo=reinterpret_cast<ControllerFocusInfo*>(Param);
+
+	if (!pInfo->fSkipSelf || hwnd!=pInfo->hwnd) {
+		::PostMessage(hwnd,WM_APP_CONTROLLERFOCUS,pInfo->fFocus,0);
+		pInfo->fFocus=false;
+	}
+	return TRUE;
+}
+
+static bool BroadcastControllerFocusMessage(HWND hwnd,bool fSkipSelf,bool fFocus,
+											DWORD ActiveThreadID=0)
+{
+	ControllerFocusInfo Info;
+
+	Info.hwnd=hwnd;
+	Info.fSkipSelf=fSkipSelf;
+	Info.fFocus=fFocus;
+	return EnumTVTestWindows(ControllerFocusCallback,
+							 reinterpret_cast<LPARAM>(&Info));
+}
+
+
 
 
 int CMainWindow::m_ThinFrameWidth=2;
@@ -5102,6 +5157,7 @@ CMainWindow::CMainWindow()
 	, m_fShowTitleBar(true)
 	, m_fCustomTitleBar(true)
 	, m_fShowSideBar(false)
+	, m_PanelPaneIndex(1)
 	, m_fThinFrame(false)
 	, m_fStandbyInit(false)
 	, m_fMinimizeInit(false)
@@ -5294,7 +5350,7 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 
 bool CMainWindow::ReadSettings(CSettings *pSettings)
 {
-	int Left,Top,Width,Height;
+	int Left,Top,Width,Height,Value;
 	bool f;
 
 	GetPosition(&Left,&Top,&Width,&Height);
@@ -5312,6 +5368,9 @@ bool CMainWindow::ReadSettings(CSettings *pSettings)
 		SetStatusBarVisible(f);
 	if (pSettings->Read(TEXT("ShowTitleBar"),&f))
 		SetTitleBarVisible(f);
+	if (pSettings->Read(TEXT("PanelDockingIndex"),&Value)
+			&& (Value==0 || Value==1))
+		m_PanelPaneIndex=Value;
 	if (pSettings->Read(TEXT("ThinFrame"),&f))
 		SetThinFrame(f);
 	if (!m_fThinFrame && pSettings->Read(TEXT("CustomTitleBar"),&f))
@@ -5336,6 +5395,7 @@ bool CMainWindow::WriteSettings(CSettings *pSettings)
 	pSettings->Write(TEXT("AlwaysOnTop"),m_pCore->GetAlwaysOnTop());
 	pSettings->Write(TEXT("ShowStatusBar"),m_fShowStatusBar);
 	pSettings->Write(TEXT("ShowTitleBar"),m_fShowTitleBar);
+	pSettings->Write(TEXT("PanelDockingIndex"),m_PanelPaneIndex);
 	pSettings->Write(TEXT("ThinFrame"),m_fThinFrame);
 	pSettings->Write(TEXT("CustomTitleBar"),m_fCustomTitleBar);
 	pSettings->Write(TEXT("ShowSideBar"),m_fShowSideBar);
@@ -5477,6 +5537,17 @@ void CMainWindow::SetSideBarVisible(bool fVisible)
 			MainMenu.CheckItem(CM_SIDEBAR,fVisible);
 		}
 	}
+}
+
+
+int CMainWindow::GetPanelPaneIndex() const
+{
+	Layout::CSplitter *pSplitter=
+		dynamic_cast<Layout::CSplitter*>(m_LayoutBase.GetContainerByID(CONTAINER_ID_PANELSPLITTER));
+
+	if (pSplitter==NULL)
+		return m_PanelPaneIndex;
+	return pSplitter->IDToIndex(CONTAINER_ID_PANEL);
 }
 
 
@@ -5874,8 +5945,10 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		break;
 
 	case WM_SETICON:
-		if (wParam==ICON_SMALL)
+		if (wParam==ICON_SMALL) {
 			m_TitleBar.SetIcon(reinterpret_cast<HICON>(lParam));
+			m_Fullscreen.SendMessage(uMsg,wParam,lParam);
+		}
 		break;
 
 	case WM_POWERBROADCAST:
@@ -6119,6 +6192,21 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		}
 		return 0;
 
+	case WM_APP_CONTROLLERFOCUS:
+		// コントローラの操作対象が変わった
+		ControllerManager.OnFocusChange(hwnd,wParam!=0);
+		return 0;
+
+	case WM_ACTIVATEAPP:
+		{
+			bool fActive=wParam!=FALSE;
+
+			ControllerManager.OnActiveChange(hwnd,fActive);
+			if (fActive)
+				BroadcastControllerFocusMessage(hwnd,fActive || m_fClosing,!fActive);
+		}
+		return 0;
+
 	case WM_DISPLAYCHANGE:
 		CoreEngine.m_DtvEngine.m_MediaViewer.DisplayModeChanged();
 		break;
@@ -6207,16 +6295,13 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			::CloseHandle(hEvent);
 #endif
 
+		m_PanelPaneIndex=GetPanelPaneIndex();
+
 		// Finalize()ではエラー時にダイアログを出すことがあるので、
 		// 終了監視の外に出す必要がある
 		AppMain.SaveCurrentChannel();
 		AppMain.Finalize();
 		return 0;
-
-	case WM_ACTIVATEAPP:
-		if (ControllerManager.OnActivateApp(hwnd,wParam,lParam))
-			return 0;
-		break;
 
 	default:
 		/*
@@ -6268,7 +6353,9 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 	CClockStatusItem *pClockStatusItem=new CClockStatusItem;
 	pClockStatusItem->SetTOT(StatusOptions.GetShowTOTTime());
 	StatusView.AddItem(pClockStatusItem);
-	StatusView.AddItem(new CProgramInfoStatusItem);
+	CProgramInfoStatusItem *pProgramInfoStatusItem=new CProgramInfoStatusItem;
+	pProgramInfoStatusItem->EnablePopupInfo(StatusOptions.IsPopupProgramInfoEnabled());
+	StatusView.AddItem(pProgramInfoStatusItem);
 	StatusView.AddItem(new CBufferingStatusItem);
 	StatusView.AddItem(new CTunerStatusItem);
 	StatusView.AddItem(new CMediaBitRateStatusItem);
@@ -6331,11 +6418,11 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 
 	Layout::CSplitter *pPanelSplitter=new Layout::CSplitter(CONTAINER_ID_PANELSPLITTER);
 	pPanelSplitter->SetVisible(true);
-	pPanelSplitter->SetPane(0,pTitleBarSplitter);
+	pPanelSplitter->SetPane(1-m_PanelPaneIndex,pTitleBarSplitter);
 	pPanelSplitter->SetAdjustPane(CONTAINER_ID_TITLEBARSPLITTER);
 	pWindowContainer=new Layout::CWindowContainer(CONTAINER_ID_PANEL);
 	pWindowContainer->SetMinSize(64,0);
-	pPanelSplitter->SetPane(1,pWindowContainer);
+	pPanelSplitter->SetPane(m_PanelPaneIndex,pWindowContainer);
 
 	Layout::CSplitter *pStatusSplitter=new Layout::CSplitter(CONTAINER_ID_STATUSSPLITTER);
 	pStatusSplitter->SetStyle(Layout::CSplitter::STYLE_VERT | Layout::CSplitter::STYLE_FIXED);
@@ -7280,13 +7367,25 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_SHOWTOTTIME:
 		{
-			bool fTOT=!StatusOptions.GetShowTOTTime();
+			const bool fTOT=!StatusOptions.GetShowTOTTime();
+			StatusOptions.SetShowTOTTime(fTOT);
+
 			CClockStatusItem *pItem=
 				dynamic_cast<CClockStatusItem*>(StatusView.GetItemByID(STATUS_ITEM_CLOCK));
-
-			StatusOptions.SetShowTOTTime(fTOT);
 			if (pItem!=NULL)
 				pItem->SetTOT(fTOT);
+		}
+		return;
+
+	case CM_PROGRAMINFOSTATUS_POPUPINFO:
+		{
+			const bool fEnable=!StatusOptions.IsPopupProgramInfoEnabled();
+			StatusOptions.EnablePopupProgramInfo(fEnable);
+
+			CProgramInfoStatusItem *pItem=
+				dynamic_cast<CProgramInfoStatusItem*>(StatusView.GetItemByID(STATUS_ITEM_PROGRAMINFO));
+			if (pItem!=NULL)
+				pItem->EnablePopupInfo(fEnable);
 		}
 		return;
 
@@ -8047,11 +8146,12 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 									CM_SERVICE_FIRST+(int)ServiceList.size()-1,
 									CM_SERVICE_FIRST+CurService);
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_AUDIO)) {
-		CTsAnalyzer::EventAudioInfo AudioInfo;
-
 		ClearMenu(hmenu);
-		if (CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo)
-				&& AudioInfo.ComponentType==0x02) {
+
+		CTsAnalyzer::EventAudioInfo AudioInfo;
+		const bool fDualMono=CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo)
+								&& AudioInfo.ComponentType==0x02;
+		if (fDualMono) {
 			// Dual mono
 			TCHAR szText[80],szAudio1[64],szAudio2[64];
 
@@ -8090,14 +8190,9 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 					::lstrcpy(szText,TEXT("副音声(&R)"));
 				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_RIGHT,szText);
 			}
-		} else {
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_THROUGH,TEXT("ステレオ/スルー(&S)"));
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_LEFT,TEXT("左(主音声)(&L)"));
-			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_STEREO_RIGHT,TEXT("右(副音声)(&R)"));
+			::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
 		}
-		::CheckMenuRadioItem(hmenu,CM_STEREO_THROUGH,CM_STEREO_RIGHT,
-							 CM_STEREO_THROUGH+m_pCore->GetStereoMode(),MF_BYCOMMAND);
-		::AppendMenu(hmenu,MFT_SEPARATOR,0,NULL);
+
 		const int NumAudioStreams=m_pCore->GetNumAudioStreams();
 		if (NumAudioStreams>0) {
 			for (int i=0;i<NumAudioStreams;i++) {
@@ -8116,12 +8211,25 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 						::wsprintf(szText+Length,TEXT(" (%s)"),GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG));
 					}
 				}
-				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_AUDIOSTREAM_FIRST+i,szText);
+				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,CM_AUDIOSTREAM_FIRST+i,szText);
 			}
-			MainMenu.CheckRadioItem(CM_AUDIOSTREAM_FIRST,
-									CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
-									CM_AUDIOSTREAM_FIRST+m_pCore->GetAudioStream());
+			::CheckMenuRadioItem(hmenu,
+								 CM_AUDIOSTREAM_FIRST,
+								 CM_AUDIOSTREAM_FIRST+NumAudioStreams-1,
+								 CM_AUDIOSTREAM_FIRST+m_pCore->GetAudioStream(),
+								 MF_BYCOMMAND);
 		}
+
+		if (!fDualMono) {
+			if (NumAudioStreams>0)
+				::AppendMenu(hmenu,MF_SEPARATOR,0,NULL);
+			::AppendMenu(hmenu,MF_STRING | MF_ENABLED,CM_STEREO_THROUGH,TEXT("ステレオ/スルー(&S)"));
+			::AppendMenu(hmenu,MF_STRING | MF_ENABLED,CM_STEREO_LEFT,TEXT("左(主音声)(&L)"));
+			::AppendMenu(hmenu,MF_STRING | MF_ENABLED,CM_STEREO_RIGHT,TEXT("右(副音声)(&R)"));
+		}
+		::CheckMenuRadioItem(hmenu,CM_STEREO_THROUGH,CM_STEREO_RIGHT,
+							 CM_STEREO_THROUGH+m_pCore->GetStereoMode(),
+							 MF_BYCOMMAND);
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_FILTERPROPERTY)) {
 		for (int i=0;i<lengthof(g_DirectShowFilterPropertyList);i++) {
 			MainMenu.EnableItem(g_DirectShowFilterPropertyList[i].Command,
@@ -9650,6 +9758,16 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList(),false);
 
 	SetFocus(MainWindow.GetHandle());
+
+	{
+		HWND hwndForeground=GetForegroundWindow();
+		if (hwndForeground!=NULL) {
+			DWORD ProcessID=0;
+			GetWindowThreadProcessId(hwndForeground,&ProcessID);
+			if (ProcessID==GetCurrentProcessId())
+				BroadcastControllerFocusMessage(NULL,false,true);
+		}
+	}
 
 	MSG msg;
 

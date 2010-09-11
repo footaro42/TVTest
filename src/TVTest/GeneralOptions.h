@@ -49,7 +49,7 @@ private:
 	DefaultDriverType m_DefaultDriverType;
 	TCHAR m_szDefaultDriverName[MAX_PATH];
 	TCHAR m_szLastDriverName[MAX_PATH];
-	TCHAR m_szMpeg2DecoderName[MAX_MPEG2_DECODER_NAME];
+	CDynamicString m_Mpeg2DecoderName;
 	CVideoRenderer::RendererType m_VideoRendererType;
 	CCoreEngine::CardReaderType m_CardReaderType;
 	bool m_fTemporaryNoDescramble;
