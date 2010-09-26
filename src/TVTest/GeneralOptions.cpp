@@ -34,8 +34,12 @@ CGeneralOptions::CGeneralOptions()
 	, m_fTemporaryNoDescramble(false)
 	, m_fResident(false)
 	, m_fKeepSingleTask(false)
-	//, m_fDescrambleUseSSE2(CTsDescrambler::IsSSE2Available())
+#ifdef _M_AMD64
+	, m_fDescrambleUseSSE2(CTsDescrambler::IsSSE2Available())
+#else
+	// SSE2 の方が遅いプロセッサもあるのでデフォルトは false にしておく
 	, m_fDescrambleUseSSE2(false)
+#endif
 	, m_fDescrambleCurServiceOnly(false)
 	, m_fEnableEmmProcess(false)
 {

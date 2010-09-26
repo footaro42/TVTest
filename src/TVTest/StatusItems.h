@@ -162,6 +162,8 @@ class CProgramInfoStatusItem : public CStatusItem
 	CEventInfoPopup m_EventInfoPopup;
 	CDynamicString m_Text;
 
+	void ShowPopupInfo();
+
 public:
 	CProgramInfoStatusItem();
 // CStatusItem
@@ -170,6 +172,7 @@ public:
 	void DrawPreview(HDC hdc,const RECT *pRect);
 	void OnLButtonDown(int x,int y);
 	void OnRButtonDown(int x,int y);
+	void OnLButtonDoubleClick(int x,int y);
 	void OnFocus(bool fFocus);
 	bool OnMouseHover(int x,int y);
 // CProgramInfoStatusItem

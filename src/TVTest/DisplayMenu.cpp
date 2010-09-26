@@ -454,17 +454,21 @@ void CChannelDisplayMenu::GetChannelItemRect(int Index,RECT *pRect) const
 
 void CChannelDisplayMenu::UpdateTunerItem(int Index) const
 {
-	RECT rc;
-	GetTunerItemRect(Index,&rc);
-	::InvalidateRect(m_hwnd,&rc,TRUE);
+	if (m_hwnd!=NULL) {
+		RECT rc;
+		GetTunerItemRect(Index,&rc);
+		::InvalidateRect(m_hwnd,&rc,TRUE);
+	}
 }
 
 
 void CChannelDisplayMenu::UpdateChannelItem(int Index) const
 {
-	RECT rc;
-	GetChannelItemRect(Index,&rc);
-	::InvalidateRect(m_hwnd,&rc,TRUE);
+	if (m_hwnd!=NULL) {
+		RECT rc;
+		GetChannelItemRect(Index,&rc);
+		::InvalidateRect(m_hwnd,&rc,TRUE);
+	}
 }
 
 

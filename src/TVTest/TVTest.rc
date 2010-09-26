@@ -140,7 +140,8 @@ BEGIN
 			MENUITEM "サイドバー(&I)",CM_SIDEBAR
 			MENUITEM SEPARATOR
 			MENUITEM "細いウィンドウ枠を使用(&F)",CM_THINFRAME
-			MENUITEM "カスタムタイトルバーを使用(&C)",CM_CUSTOMTITLEBAR
+			MENUITEM "独自タイトルバーを使用(&C)",CM_CUSTOMTITLEBAR
+			MENUITEM "パネルドッキング時にタイトルバーを分割(&P)",CM_SPLITTITLEBAR
 		END
 		POPUP "プラグイン(&U)"
 		BEGIN
@@ -538,7 +539,8 @@ BEGIN
 	CM_STATUSBAR,				"ステータスバー"
 	CM_SIDEBAR,					"サイドバー"
 	CM_THINFRAME,				"細いウィンドウ枠を使用"
-	CM_CUSTOMTITLEBAR,			"カスタムタイトルバーを使用"
+	CM_CUSTOMTITLEBAR,			"独自タイトルバーを使用"
+	CM_SPLITTITLEBAR,			"パネルドッキング時にタイトルバーを分割"
 	CM_VIDEODECODERPROPERTY,	"映像デコーダのプロパティ"
 	CM_VIDEORENDERERPROPERTY,	"映像レンダラのプロパティ"
 	CM_AUDIOFILTERPROPERTY,		"音声フィルタのプロパティ"

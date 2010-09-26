@@ -187,7 +187,9 @@ void CPanel::Draw(HDC hdc,const RECT &PaintRect) const
 				&m_Font,m_Theme.TitleStyle.TextColor);
 		}
 		GetCloseButtonRect(&rc);
-		::DrawFrameControl(hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
+		::DrawFrameControl(hdc,&rc,DFC_CAPTION,
+						   DFCS_CAPTIONCLOSE | DFCS_MONO |
+						   (m_fCloseButtonPushed?DFCS_PUSHED:0));
 	}
 }
 
@@ -239,6 +241,7 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			pThis->m_TitleHeight=
 				max(FontHeight,pThis->m_ButtonSize)+pThis->m_TitleMargin*2;
 			::ReleaseDC(hwnd,hdc);
+			pThis->m_fCloseButtonPushed=false;
 		}
 		return 0;
 
@@ -273,12 +276,12 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 				pThis->GetCloseButtonRect(&rc);
 				if (::PtInRect(&rc,pt)) {
-					if (pThis->m_pEventHandler!=NULL)
-						pThis->m_pEventHandler->OnClose();
-					return 0;
-				}
-				if (pThis->m_fEnableFloating) {
+					pThis->m_fCloseButtonPushed=true;
+					::SetCapture(hwnd);
+					::InvalidateRect(hwnd,&rc,FALSE);
+				} else if (pThis->m_fEnableFloating) {
 					::ClientToScreen(hwnd,&pt);
+					pThis->m_fCloseButtonPushed=false;
 					pThis->m_ptDragStartPos=pt;
 					::SetCapture(hwnd);
 				}
@@ -287,25 +290,59 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 		return 0;
 
 	case WM_LBUTTONUP:
-		if (::GetCapture()==hwnd)
+		if (::GetCapture()==hwnd) {
+			CPanel *pThis=GetThis(hwnd);
+			bool fCloseButtonPushed=pThis->m_fCloseButtonPushed;
+
 			::ReleaseCapture();
+			if (fCloseButtonPushed) {
+				POINT pt;
+				RECT rc;
+
+				pt.x=GET_X_LPARAM(lParam);
+				pt.y=GET_Y_LPARAM(lParam);
+				pThis->GetCloseButtonRect(&rc);
+				if (::PtInRect(&rc,pt)) {
+					if (pThis->m_pEventHandler!=NULL)
+						pThis->m_pEventHandler->OnClose();
+				}
+			}
+		}
 		return 0;
 
 	case WM_MOUSEMOVE:
-		if (GetCapture()==hwnd) {
+		if (::GetCapture()==hwnd) {
 			CPanel *pThis=GetThis(hwnd);
-			POINT pt;
 
-			pt.x=GET_X_LPARAM(lParam);
-			pt.y=GET_Y_LPARAM(lParam);
-			::ClientToScreen(hwnd,&pt);
-			if (abs(pt.x-pThis->m_ptDragStartPos.x)>=4
-					|| abs(pt.y-pThis->m_ptDragStartPos.y)>=4) {
-				::ReleaseCapture();
-				if (pThis->m_pEventHandler!=NULL
-						&& pThis->m_pEventHandler->OnFloating()) {
-					::SendMessage(pThis->GetParent(),WM_NCLBUTTONDOWN,HTCAPTION,MAKELPARAM(pt.x,pt.y));
+			if (!pThis->m_fCloseButtonPushed) {
+				POINT pt;
+
+				pt.x=GET_X_LPARAM(lParam);
+				pt.y=GET_Y_LPARAM(lParam);
+				::ClientToScreen(hwnd,&pt);
+				if (abs(pt.x-pThis->m_ptDragStartPos.x)>=4
+						|| abs(pt.y-pThis->m_ptDragStartPos.y)>=4) {
+					::ReleaseCapture();
+					if (pThis->m_pEventHandler!=NULL
+							&& pThis->m_pEventHandler->OnFloating()) {
+						::SendMessage(pThis->GetParent(),WM_NCLBUTTONDOWN,
+									  HTCAPTION,MAKELONG(pt.x,pt.y));
+					}
 				}
+			}
+		}
+		return 0;
+
+	case WM_CAPTURECHANGED:
+		{
+			CPanel *pThis=GetThis(hwnd);
+
+			if (pThis->m_fCloseButtonPushed) {
+				RECT rc;
+
+				pThis->m_fCloseButtonPushed=false;
+				pThis->GetCloseButtonRect(&rc);
+				::InvalidateRect(hwnd,&rc,FALSE);
 			}
 		}
 		return 0;

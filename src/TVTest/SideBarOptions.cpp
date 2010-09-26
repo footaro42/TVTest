@@ -98,6 +98,7 @@ CSideBarOptions::CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOpt
 	, m_fShowToolTips(true)
 	, m_Place(PLACE_LEFT)
 	, m_himlIcons(NULL)
+	, m_pEventHandler(NULL)
 {
 	m_ItemList.resize(lengthof(DefaultItemList));
 	for (int i=0;i<lengthof(DefaultItemList);i++)
@@ -273,6 +274,8 @@ void CSideBarOptions::ApplyItemList() const
 		}
 	}
 	m_pSideBar->Invalidate();
+	if (m_pEventHandler!=NULL)
+		m_pEventHandler->OnItemChanged();
 }
 
 
@@ -476,19 +479,22 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				pThis->m_pSideBar->ShowToolTips(pThis->m_fShowToolTips);
 
 				HWND hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST);
+				std::vector<int> ItemList;
 				int i,Count;
 				LVITEM lvi;
 
-				pThis->m_ItemList.clear();
 				Count=ListView_GetItemCount(hwndList);
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				for (i=0;i<Count;i++) {
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
-					pThis->m_ItemList.push_back((int)lvi.lParam);
+					ItemList.push_back((int)lvi.lParam);
 				}
-				pThis->ApplyItemList();
+				if (ItemList!=pThis->m_ItemList) {
+					pThis->m_ItemList=ItemList;
+					pThis->ApplyItemList();
+				}
 			}
 			break;
 		}

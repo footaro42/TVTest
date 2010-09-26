@@ -615,10 +615,17 @@ void CProgramInfoStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 
 void CProgramInfoStatusItem::OnLButtonDown(int x,int y)
 {
-	m_fNext=!m_fNext;
-	m_EventInfoPopup.Hide();
-	UpdateContent();
-	Update();
+	if (!m_fEnablePopupInfo) {
+		if (!m_EventInfoPopup.IsVisible())
+			ShowPopupInfo();
+		else
+			m_EventInfoPopup.Hide();
+	} else {
+		m_fNext=!m_fNext;
+		m_EventInfoPopup.Hide();
+		UpdateContent();
+		Update();
+	}
 }
 
 void CProgramInfoStatusItem::OnRButtonDown(int x,int y)
@@ -631,6 +638,19 @@ void CProgramInfoStatusItem::OnRButtonDown(int x,int y)
 	GetMenuPos(&pt,&Flags);
 	GetAppClass().GetUICore()->ShowSpecialMenu(CUICore::MENU_PROGRAMINFO,
 											   &pt,Flags | TPM_RIGHTBUTTON);
+}
+
+void CProgramInfoStatusItem::OnLButtonDoubleClick(int x,int y)
+{
+	if (!m_fEnablePopupInfo) {
+		m_fNext=!m_fNext;
+		UpdateContent();
+		Update();
+		m_EventInfoPopup.Hide();
+		ShowPopupInfo();
+	} else {
+		OnLButtonDown(x,y);
+	}
 }
 
 void CProgramInfoStatusItem::OnFocus(bool fFocus)
@@ -647,27 +667,10 @@ void CProgramInfoStatusItem::OnFocus(bool fFocus)
 bool CProgramInfoStatusItem::OnMouseHover(int x,int y)
 {
 	if (!m_fEnablePopupInfo
-			|| m_EventInfoPopup.IsVisible()
 			|| ::GetActiveWindow()!=::GetForegroundWindow())
 		return true;
 
-	CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
-	WORD ServiceID;
-	if (CoreEngine.m_DtvEngine.GetServiceID(&ServiceID)) {
-		CEventInfoData EventInfo;
-
-		if (CoreEngine.GetCurrentEventInfo(&EventInfo,ServiceID,m_fNext)) {
-			RECT rc;
-			POINT pt;
-
-			GetRect(&rc);
-			pt.x=rc.left;
-			pt.y=rc.top;
-			::ClientToScreen(m_pStatus->GetHandle(),&pt);
-			::SetRect(&rc,pt.x,pt.y-300,pt.x+300,pt.y);
-			m_EventInfoPopup.Show(&EventInfo,&rc);
-		}
-	}
+	ShowPopupInfo();
 	return true;
 }
 
@@ -701,6 +704,30 @@ bool CProgramInfoStatusItem::UpdateContent()
 		return false;
 	m_Text.Set(szText);
 	return true;
+}
+
+void CProgramInfoStatusItem::ShowPopupInfo()
+{
+	if (m_EventInfoPopup.IsVisible())
+		return;
+
+	CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
+	WORD ServiceID;
+	if (CoreEngine.m_DtvEngine.GetServiceID(&ServiceID)) {
+		CEventInfoData EventInfo;
+
+		if (CoreEngine.GetCurrentEventInfo(&EventInfo,ServiceID,m_fNext)) {
+			RECT rc;
+			POINT pt;
+
+			GetRect(&rc);
+			pt.x=rc.left;
+			pt.y=rc.top;
+			::ClientToScreen(m_pStatus->GetHandle(),&pt);
+			::SetRect(&rc,pt.x,pt.y-300,pt.x+300,pt.y);
+			m_EventInfoPopup.Show(&EventInfo,&rc);
+		}
+	}
 }
 
 

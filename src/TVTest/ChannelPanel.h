@@ -43,15 +43,6 @@ public:
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
-	/*
-	bool SetColors(const Theme::GradientInfo *pChannelBackGradient,COLORREF ChannelTextColor,
-				   const Theme::GradientInfo *pCurChannelBackGradient,COLORREF CurChannelTextColor,
-				   const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
-				   const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
-				   const Theme::GradientInfo *pCurChannelEventBackGradient,COLORREF CurChannelEventTextColor,
-				   const Theme::GradientInfo *pCurChannelEventBackGradient,COLORREF CurChannelEventTextColor,
-				   COLORREF MarginColor);
-	*/
 	bool SetFont(const LOGFONT *pFont);
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	void SetDetailToolTip(bool fDetail);
@@ -73,17 +64,6 @@ private:
 	int m_EventNameLines;
 	int m_ItemHeight;
 	int m_ExpandedItemHeight;
-	/*
-	Theme::GradientInfo m_ChannelBackGradient;
-	COLORREF m_ChannelTextColor;
-	Theme::GradientInfo m_CurChannelBackGradient;
-	COLORREF m_CurChannelTextColor;
-	Theme::GradientInfo m_EventBackGradient[2];
-	COLORREF m_EventTextColor[2];
-	Theme::GradientInfo m_CurEventBackGradient[2];
-	COLORREF m_CurEventTextColor[2];
-	COLORREF m_MarginColor;
-	*/
 	ThemeInfo m_Theme;
 	HBITMAP m_hbmChevron;
 	int m_EventsPerChannel;

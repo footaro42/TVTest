@@ -126,6 +126,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool m_fShowStatusBar;
 	bool m_fShowTitleBar;
 	bool m_fCustomTitleBar;
+	bool m_fSplitTitleBar;
 	bool m_fShowSideBar;
 	int m_PanelPaneIndex;
 	static int m_ThinFrameWidth;
@@ -260,11 +261,15 @@ public:
 	bool GetTitleBarVisible() const { return m_fShowTitleBar; }
 	void SetCustomTitleBar(bool fCustom);
 	bool GetCustomTitleBar() const { return m_fCustomTitleBar; }
+	void SetSplitTitleBar(bool fSplit);
+	bool GetSplitTitleBar() const { return m_fSplitTitleBar; }
 	void SetThinFrame(bool fThinFrame);
 	bool GetThinFrame() const { return m_fThinFrame; }
 	void SetSideBarVisible(bool fVisible);
 	bool GetSideBarVisible() const { return m_fShowSideBar; }
 	int GetPanelPaneIndex() const;
+	bool IsFullscreenPanelVisible() const { return m_Fullscreen.IsPanelVisible(); }
+	int GetAspectRatioType() const { return m_AspectRatioType; }
 	bool InitStandby();
 	bool InitMinimize();
 	bool IsMinimizeToTray() const;

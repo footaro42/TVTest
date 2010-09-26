@@ -46,13 +46,9 @@ public:
 // CTitleBar
 	bool SetLabel(LPCTSTR pszLabel);
 	LPCTSTR GetLabel() const { return m_Label.Get(); }
-	bool SetMaximizeMode(bool fMaximize);
+	void SetMaximizeMode(bool fMaximize);
+	void SetFullscreenMode(bool fFullscreen);
 	bool SetEventHandler(CEventHandler *pHandler);
-	/*
-	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF TextColor,COLORREF IconColor,
-				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF HighlightIconColor);
-	void SetBorder(const Theme::BorderInfo *pInfo);
-	*/
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
@@ -70,14 +66,6 @@ private:
 	};
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
-	/*
-	Theme::GradientInfo m_BackGradient;
-	COLORREF m_TextColor;
-	COLORREF m_IconColor;
-	Theme::GradientInfo m_HighlightBackGradient;
-	COLORREF m_HighlightIconColor;
-	Theme::BorderInfo m_BorderInfo;
-	*/
 	ThemeInfo m_Theme;
 	HBITMAP m_hbmIcons;
 	CTooltip m_Tooltip;
@@ -87,6 +75,7 @@ private:
 	int m_ClickItem;
 	bool m_fTrackMouseEvent;
 	bool m_fMaximized;
+	bool m_fFullscreen;
 	CEventHandler *m_pEventHandler;
 
 	bool GetItemRect(int Item,RECT *pRect) const;

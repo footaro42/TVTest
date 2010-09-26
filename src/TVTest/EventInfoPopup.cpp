@@ -44,7 +44,7 @@ bool CEventInfoPopup::Initialize(HINSTANCE hinst)
 
 CEventInfoPopup::CEventInfoPopup()
 	: m_hwndEdit(NULL)
-	, m_BackColor(::GetSysColor(COLOR_3DFACE))
+	, m_BackColor(::GetSysColor(COLOR_WINDOW))
 	, m_TextColor(::GetSysColor(COLOR_WINDOWTEXT))
 	, m_TitleBackGradient(Theme::GRADIENT_NORMAL,Theme::DIRECTION_VERT,
 						  RGB(255,255,255),RGB(228,228,240))
@@ -469,6 +469,24 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 		}
 		break;
 
+	case WM_NCRBUTTONDOWN:
+		if (wParam==HTCAPTION) {
+			CEventInfoPopup *pThis=GetThis(hwnd);
+			POINT pt={GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam)};
+			HMENU hmenu=::CreatePopupMenu();
+
+			::AppendMenu(hmenu,MF_STRING | MF_ENABLED,1,TEXT("番組名をコピー(&C)"));
+			int Command=::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,pt.x,pt.y,0,hwnd,NULL);
+			::DestroyMenu(hmenu);
+			switch (Command) {
+			case 1:
+				pThis->CopyText(pThis->m_EventInfo.GetEventName());
+				break;
+			}
+			return 0;
+		}
+		break;
+
 	case WM_MOUSEWHEEL:
 		return ::SendMessage(GetThis(hwnd)->m_hwndEdit,uMsg,wParam,lParam);
 
@@ -478,14 +496,16 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 			if (reinterpret_cast<MSGFILTER*>(lParam)->msg==WM_RBUTTONDOWN) {
 				CEventInfoPopup *pThis=GetThis(hwnd);
 				HMENU hmenu=::CreatePopupMenu();
-				POINT pt;
 
-				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("コピー(&C)"));
-				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("すべて選択(&A)"));
+				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,1,TEXT("コピー(&C)"));
+				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,2,TEXT("すべて選択(&A)"));
+				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,3,TEXT("番組名をコピー(&E)"));
 				if (pThis->m_pEventHandler!=NULL)
 					pThis->m_pEventHandler->OnMenuPopup(hmenu);
+				POINT pt;
 				::GetCursorPos(&pt);
 				int Command=::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,pt.x,pt.y,0,hwnd,NULL);
+				::DestroyMenu(hmenu);
 				switch (Command) {
 				case 1:
 					if (::SendMessage(pThis->m_hwndEdit,EM_SELECTIONTYPE,0,0)==SEL_EMPTY) {
@@ -497,12 +517,14 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 				case 2:
 					CRichEditUtil::SelectAll(pThis->m_hwndEdit);
 					break;
+				case 3:
+					pThis->CopyText(pThis->m_EventInfo.GetEventName());
+					break;
 				default:
 					if (Command>=CEventHandler::COMMAND_FIRST)
 						pThis->m_pEventHandler->OnMenuSelected(Command);
 					break;
 				}
-				::DestroyMenu(hmenu);
 			}
 			return 0;
 
@@ -547,6 +569,34 @@ void CEventInfoPopup::GetCloseButtonRect(RECT *pRect) const
 	rc.top=m_ButtonMargin;
 	rc.bottom=rc.top+m_ButtonSize;
 	*pRect=rc;
+}
+
+
+bool CEventInfoPopup::CopyText(LPCWSTR pszText) const
+{
+	if (pszText==NULL)
+		return false;
+
+	int Length=::lstrlenW(pszText);
+	HGLOBAL hData=::GlobalAlloc(GMEM_MOVEABLE,(Length+1)*sizeof(WCHAR));
+	if (hData==NULL)
+		return false;
+
+	bool fOK=false;
+	if (::OpenClipboard(m_hwnd)) {
+		LPWSTR pData=static_cast<LPWSTR>(::GlobalLock(hData));
+		if (pData!=NULL) {
+			::lstrcpyW(pData,pszText);
+			::GlobalUnlock(hData);
+			::EmptyClipboard();
+			if (::SetClipboardData(CF_UNICODETEXT,hData)!=NULL)
+				fOK=true;
+		}
+		::CloseClipboard();
+	}
+	if (!fOK)
+		::GlobalFree(hData);
+	return fOK;
 }
 
 

@@ -24,6 +24,15 @@ static char THIS_FILE[]=__FILE__;
 #define ICON_TEXT_MARGIN			4
 #define NUM_BUTTONS 4
 
+enum {
+	ICON_MINIMIZE,
+	ICON_MAXIMIZE,
+	ICON_FULLSCREEN,
+	ICON_CLOSE,
+	ICON_RESTORE,
+	ICON_FULLSCREENCLOSE
+};
+
 
 
 
@@ -61,6 +70,7 @@ CTitleBar::CTitleBar()
 	, m_HotItem(-1)
 	, m_fTrackMouseEvent(false)
 	, m_fMaximized(false)
+	, m_fFullscreen(false)
 	, m_pEventHandler(NULL)
 {
 	m_Theme.CaptionStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
@@ -116,14 +126,23 @@ bool CTitleBar::SetLabel(LPCTSTR pszLabel)
 }
 
 
-bool CTitleBar::SetMaximizeMode(bool fMaximize)
+void CTitleBar::SetMaximizeMode(bool fMaximize)
 {
 	if (m_fMaximized!=fMaximize) {
 		m_fMaximized=fMaximize;
 		if (m_hwnd!=NULL)
 			UpdateItem(ITEM_MAXIMIZE);
 	}
-	return true;
+}
+
+
+void CTitleBar::SetFullscreenMode(bool fFullscreen)
+{
+	if (m_fFullscreen!=fFullscreen) {
+		m_fFullscreen=fFullscreen;
+		if (m_hwnd!=NULL)
+			UpdateItem(ITEM_FULLSCREEN);
+	}
 }
 
 
@@ -136,31 +155,6 @@ bool CTitleBar::SetEventHandler(CEventHandler *pHandler)
 	m_pEventHandler=pHandler;
 	return true;
 }
-
-
-/*
-void CTitleBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF TextColor,COLORREF IconColor,
-						 const Theme::GradientInfo *pHighlightBackGradient,COLORREF HighlightIconColor)
-{
-	m_BackGradient=*pBackGradient;
-	m_TextColor=TextColor;
-	m_IconColor=IconColor;
-	m_HighlightBackGradient=*pHighlightBackGradient;
-	m_HighlightIconColor=HighlightIconColor;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-
-
-void CTitleBar::SetBorder(const Theme::BorderInfo *pInfo)
-{
-	if (m_BorderInfo!=*pInfo) {
-		m_BorderInfo=*pInfo;
-		if (m_hwnd!=NULL)
-			Invalidate();
-	}
-}
-*/
 
 
 bool CTitleBar::SetTheme(const ThemeInfo *pTheme)
@@ -429,6 +423,8 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				if (pThis->m_fMaximized && pnmttdi->hdr.idFrom==ITEM_MAXIMIZE)
 					pnmttdi->lpszText=TEXT("元のサイズに戻す");
+				else if (pThis->m_fFullscreen && pnmttdi->hdr.idFrom==ITEM_FULLSCREEN)
+					pnmttdi->lpszText=TEXT("全画面表示解除");
 				else
 					pnmttdi->lpszText=pszToolTip[pnmttdi->hdr.idFrom-ITEM_BUTTON_FIRST];
 				pnmttdi->hinst=NULL;
@@ -446,7 +442,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		}
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 
@@ -484,7 +480,7 @@ bool CTitleBar::UpdateItem(int Item)
 		return false;
 	if (!GetItemRect(Item,&rc))
 		return false;
-	::InvalidateRect(m_hwnd,&rc,FALSE);
+	Invalidate(&rc,false);
 	return true;
 }
 
@@ -566,8 +562,10 @@ void CTitleBar::Draw(HDC hdc,const RECT &PaintRect)
 					rc.left+((rc.right-rc.left)-TITLE_BUTTON_ICON_WIDTH)/2,
 					rc.top+((rc.bottom-rc.top)-TITLE_BUTTON_ICON_HEIGHT)/2,
 					hdcMem,
-					(i!=ITEM_MAXIMIZE || !m_fMaximized?
-						(i-1):4)*TITLE_BUTTON_ICON_WIDTH,0,
+					((i==ITEM_MAXIMIZE && m_fMaximized)?ICON_RESTORE:
+					((i==ITEM_FULLSCREEN && m_fFullscreen)?ICON_FULLSCREENCLOSE:
+						i-1))*TITLE_BUTTON_ICON_WIDTH,
+					0,
 					TITLE_BUTTON_ICON_WIDTH,TITLE_BUTTON_ICON_HEIGHT,
 					Style.TextColor);
 			}

@@ -129,6 +129,10 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 	{HEXRGB(0x33D6FF),	TEXT("SideBarHighlightBack2"),				TEXT("サイドバー選択背景2")},
 	{HEXRGB(0x444444),	TEXT("SideBarHighlightIcon"),				TEXT("サイドバー選択アイコン")},
 	{HEXRGB(0x3384FF),	TEXT("SideBarHighlightBorder"),				TEXT("サイドバー選択外枠")},
+	{HEXRGB(0x777777),	TEXT("SideBarCheckBack"),					TEXT("サイドバーチェック背景1")},
+	{HEXRGB(0x222222),	TEXT("SideBarCheckBack2"),					TEXT("サイドバーチェック背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("SideBarCheckIcon"),					TEXT("サイドバーチェックアイコン")},
+	{HEXRGB(0x222222),	TEXT("SideBarCheckBorder"),					TEXT("サイドバーチェック外枠")},
 	{HEXRGB(0x777777),	TEXT("SideBarBorder"),						TEXT("サイドバー外枠")},
 	{HEXRGB(0x222222),	TEXT("NotificationBarBack"),				TEXT("通知バー背景1")},
 	{HEXRGB(0x333333),	TEXT("NotificationBarBack2"),				TEXT("通知バー背景2")},
@@ -226,6 +230,8 @@ const CColorScheme::GradientInfo CColorScheme::m_GradientInfoList[NUM_GRADIENTS]
 		COLOR_SIDEBARBACK1,						COLOR_SIDEBARBACK2},
 	{TEXT("SideBarHighlightBackGradient"),				Theme::DIRECTION_HORZ,	true,
 		COLOR_SIDEBARHIGHLIGHTBACK1,			COLOR_SIDEBARHIGHLIGHTBACK2},
+	{TEXT("SideBarCheckBackGradient"),					Theme::DIRECTION_HORZ,	true,
+		COLOR_SIDEBARCHECKBACK1,				COLOR_SIDEBARCHECKBACK2},
 	{TEXT("NotificationBarBackGradient"),				Theme::DIRECTION_VERT,	true,
 		COLOR_NOTIFICATIONBARBACK1,				COLOR_NOTIFICATIONBARBACK2},
 	{TEXT("ProgramGuideChannelBackGradient"),			Theme::DIRECTION_VERT,	true,
@@ -256,7 +262,7 @@ const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
 	{TEXT("ScreenBorder"),						Theme::BORDER_SUNKEN,
 		COLOR_SCREENBORDER,							true},
 	{TEXT("StatusBorder"),						Theme::BORDER_RAISED,
-		COLOR_STATUSBORDER,							true},
+		COLOR_STATUSBORDER,							false},
 	{TEXT("StatusItemBorder"),					Theme::BORDER_NONE,
 		COLOR_STATUSITEMBORDER,						false},
 	{TEXT("StatusHighlightBorder"),				Theme::BORDER_NONE,
@@ -275,6 +281,8 @@ const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
 		COLOR_SIDEBARITEMBORDER,					false},
 	{TEXT("SideBarHighlightBorder"),			Theme::BORDER_NONE,
 		COLOR_SIDEBARHIGHLIGHTBORDER,				false},
+	{TEXT("SideBarCheckBorder"),				Theme::BORDER_SUNKEN,
+		COLOR_SIDEBARCHECKBORDER,					false},
 	{TEXT("ProgramGuideStatusBorder"),			Theme::BORDER_SUNKEN,
 		COLOR_STATUSBORDER,							true},
 	{TEXT("PanelTabBorder"),					Theme::BORDER_SOLID,
@@ -283,8 +291,8 @@ const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
 		COLOR_PANELCURTABBORDER,					false},
 	{TEXT("PanelTabMarginBorder"),				Theme::BORDER_NONE,
 		COLOR_PANELTABMARGINBORDER,					false},
-	{TEXT("PanelTitleBorder"),					Theme::BORDER_NONE,
-		COLOR_PANELTITLEBORDER},
+	{TEXT("PanelTitleBorder"),					Theme::BORDER_RAISED,
+		COLOR_PANELTITLEBORDER,						false},
 	{TEXT("ProgramListPanelEventBorder"),		Theme::BORDER_NONE,
 		COLOR_PROGRAMLISTPANEL_EVENTBORDER,			false},
 	{TEXT("ProgramListPanelCurEventBorder"),	Theme::BORDER_NONE,
@@ -326,6 +334,8 @@ const CColorScheme::StyleInfo CColorScheme::m_StyleList[NUM_STYLES] = {
 		COLOR_SIDEBARICON},
 	{GRADIENT_SIDEBARHIGHLIGHTBACK,				BORDER_SIDEBARHIGHLIGHT,
 		COLOR_SIDEBARHIGHLIGHTICON},
+	{GRADIENT_SIDEBARCHECKBACK,					BORDER_SIDEBARCHECK,
+		COLOR_SIDEBARCHECKICON},
 	{GRADIENT_PANELTABBACK,						BORDER_PANEL_TAB,
 		COLOR_PANELTABTEXT},
 	{GRADIENT_PANELCURTABBACK,					BORDER_PANEL_CURTAB,
@@ -564,6 +574,7 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 				{COLOR_PROGRAMLISTPANEL_CURTITLEBACK2,		COLOR_PROGRAMLISTPANEL_TITLEBACK2},
 				{COLOR_PROGRAMLISTPANEL_CURTITLETEXT,		COLOR_PROGRAMLISTPANEL_TITLETEXT},
 				{COLOR_PANELTABLINE,						COLOR_PANELTABBORDER},
+				{COLOR_PANELTITLEBORDER,					COLOR_PANELTITLEBACK1},
 				{COLOR_CHANNELPANEL_CURCHANNELNAMEBACK1,	COLOR_CHANNELPANEL_CHANNELNAMEBACK1},
 				{COLOR_CHANNELPANEL_CURCHANNELNAMEBACK2,	COLOR_CHANNELPANEL_CHANNELNAMEBACK2},
 				{COLOR_CHANNELPANEL_CURCHANNELNAMETEXT,		COLOR_CHANNELPANEL_CHANNELNAMETEXT},
@@ -601,6 +612,10 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 				{COLOR_SIDEBARHIGHLIGHTBACK1,				COLOR_STATUSHIGHLIGHTBACK1},
 				{COLOR_SIDEBARHIGHLIGHTBACK2,				COLOR_STATUSHIGHLIGHTBACK2},
 				{COLOR_SIDEBARHIGHLIGHTICON,				COLOR_STATUSHIGHLIGHTTEXT},
+				{COLOR_SIDEBARCHECKBACK1,					COLOR_SIDEBARBACK1},
+				{COLOR_SIDEBARCHECKBACK2,					COLOR_SIDEBARBACK2},
+				{COLOR_SIDEBARCHECKICON,					COLOR_SIDEBARICON},
+				{COLOR_SIDEBARCHECKBORDER,					COLOR_SIDEBARCHECKBACK2},
 				{COLOR_SIDEBARBORDER,						COLOR_SIDEBARBACK1},
 				{COLOR_PROGRAMGUIDECURCHANNELBACK1,			COLOR_PROGRAMGUIDECHANNELBACK1},
 				{COLOR_PROGRAMGUIDECURCHANNELBACK2,			COLOR_PROGRAMGUIDECHANNELBACK2},
@@ -627,8 +642,14 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 			else if (::lstrcmpi(szText,TEXT("interlaced"))==0)
 				m_GradientList[i].Type=Theme::GRADIENT_INTERLACED;
 		} else {
-			if (i==GRADIENT_TITLEBARICON)
+			switch (i) {
+			case GRADIENT_TITLEBARICON:
 				m_GradientList[i].Type=m_GradientList[GRADIENT_TITLEBARBACK].Type;
+				break;
+			case GRADIENT_SIDEBARCHECKBACK:
+				m_GradientList[i].Type=m_GradientList[GRADIENT_SIDEBARBACK].Type;
+				break;
+			}
 		}
 
 		TCHAR szName[128];
@@ -642,8 +663,14 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 				}
 			}
 		} else {
-			if (i==GRADIENT_TITLEBARICON)
+			switch (i) {
+			case GRADIENT_TITLEBARICON:
 				m_GradientList[i].Direction=m_GradientList[GRADIENT_TITLEBARBACK].Direction;
+				break;
+			case GRADIENT_SIDEBARCHECKBACK:
+				m_GradientList[i].Direction=m_GradientList[GRADIENT_SIDEBARBACK].Direction;
+				break;
+			}
 		}
 	}
 
@@ -1604,7 +1631,7 @@ INT_PTR CALLBACK CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,
 						RECT rc;
 						::SendDlgItemMessage(hDlg,IDC_COLORSCHEME_LIST,LB_GETITEMRECT,
 											 Sel,reinterpret_cast<LPARAM>(&rc));
-						::InvalidateRect(::GetDlgItem(hDlg,IDC_COLORSCHEME_LIST),&rc,TRUE);
+						InvalidateDlgItem(hDlg,IDC_COLORSCHEME_LIST,&rc);
 					}
 				}
 			}

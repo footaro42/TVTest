@@ -140,12 +140,12 @@ bool CChannelPanel::UpdateEvents(CChannelEventInfo *pInfo,const SYSTEMTIME *pTim
 			if (i==0) {
 				if (pInfo->SetEventInfo(0,NULL))
 					fChanged=true;
-				if (m_EventsPerChannel==0)
+				if (NumEvents==1)
 					break;
 				i++;
 			}
 			if (m_pProgramList->GetNextEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)
-					&& DiffSystemTime(&EventInfo.m_stStartTime,&st)<12*60*60*1000) {
+					&& DiffSystemTime(&EventInfo.m_stStartTime,&st)<8*60*60*1000) {
 				if (pInfo->SetEventInfo(i,&EventInfo))
 					fChanged=true;
 			} else {
@@ -294,35 +294,6 @@ bool CChannelPanel::GetTheme(ThemeInfo *pTheme) const
 	*pTheme=m_Theme;
 	return true;
 }
-
-
-/*
-bool CChannelPanel::SetColors(const Theme::GradientInfo *pChannelBackGradient,COLORREF ChannelTextColor,
-	const Theme::GradientInfo *pCurChannelBackGradient,COLORREF CurChannelTextColor,
-	const Theme::GradientInfo *pEventBackGradient1,COLORREF EventTextColor1,
-	const Theme::GradientInfo *pEventBackGradient2,COLORREF EventTextColor2,
-	const Theme::GradientInfo *pCurEventBackGradient1,COLORREF CurEventTextColor1,
-	const Theme::GradientInfo *pCurEventBackGradient2,COLORREF CurEventTextColor2,
-	COLORREF MarginColor)
-{
-	m_ChannelBackGradient=*pChannelBackGradient;
-	m_ChannelTextColor=ChannelTextColor;
-	m_CurChannelBackGradient=*pCurChannelBackGradient;
-	m_CurChannelTextColor=CurChannelTextColor;
-	m_EventBackGradient[0]=*pEventBackGradient1;
-	m_EventBackGradient[1]=*pEventBackGradient2;
-	m_EventTextColor[0]=EventTextColor1;
-	m_EventTextColor[1]=EventTextColor2;
-	m_CurChannelEventBackGradient[0]=*pCurChannelEventBackGradient1;
-	m_CurChannelEventBackGradient[1]=*pCurChannelEventBackGradient2;
-	m_CurChannelEventTextColor[0]=CurChannelEventTextColor1;
-	m_CurChannelEventTextColor[1]=CurChannelEventTextColor2;
-	m_MarginColor=MarginColor;
-	if (m_hwnd!=NULL)
-		Invalidate();
-	return true;
-}
-*/
 
 
 bool CChannelPanel::SetFont(const LOGFONT *pFont)

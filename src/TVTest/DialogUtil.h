@@ -85,6 +85,7 @@
 void EnableDlgItem(HWND hDlg,int ID,bool fEnable);
 void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable);
 void InvalidateDlgItem(HWND hDlg,int ID,bool fErase=true);
+void InvalidateDlgItem(HWND hDlg,int ID,const RECT *pRect,bool fErase=true);
 void ShowDlgItem(HWND hDlg,int ID,bool fShow);
 int GetDlgItemTextLength(HWND hDlg,int ID);
 void SetDlgItemFocus(HWND hDlg,int ID);

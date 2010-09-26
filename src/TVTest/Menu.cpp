@@ -1012,9 +1012,11 @@ int CDropDownMenu::HitTest(int x,int y) const
 
 void CDropDownMenu::UpdateItem(int Index) const
 {
-	RECT rc;
-	if (GetItemRect(Index,&rc))
-		::InvalidateRect(m_hwnd,&rc,TRUE);
+	if (m_hwnd!=NULL) {
+		RECT rc;
+		if (GetItemRect(Index,&rc))
+			::InvalidateRect(m_hwnd,&rc,TRUE);
+	}
 }
 
 

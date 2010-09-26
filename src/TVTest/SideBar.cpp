@@ -69,6 +69,9 @@ CSideBar::CSideBar(const CCommandList *pCommandList)
 	m_Theme.HighlightItemStyle.Gradient.Color2=RGB(128,128,128);
 	m_Theme.HighlightItemStyle.Border.Type=Theme::BORDER_NONE;
 	m_Theme.HighlightItemStyle.TextColor=RGB(255,255,255);
+	m_Theme.CheckItemStyle=m_Theme.ItemStyle;
+	m_Theme.CheckItemStyle.Border.Type=Theme::BORDER_SUNKEN;
+	m_Theme.CheckItemStyle.Border.Color=RGB(192,192,192);
 	m_Theme.Border.Type=Theme::BORDER_RAISED;
 	m_Theme.Border.Color=RGB(192,192,192);
 }
@@ -147,28 +150,74 @@ bool CSideBar::AddItems(const SideBarItem *pItemList,int NumItems)
 }
 
 
-/*
-void CSideBar::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore,
-						const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightFore)
+int CSideBar::CommandToIndex(int Command) const
 {
-	m_BackGradient=*pBackGradient;
-	m_ForeColor=crFore;
-	m_HighlightBackGradient=*pHighlightBackGradient;
-	m_HighlightForeColor=crHighlightFore;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-
-
-void CSideBar::SetBorder(const Theme::BorderInfo *pInfo)
-{
-	if (m_BorderInfo!=*pInfo) {
-		m_BorderInfo=*pInfo;
-		if (m_hwnd!=NULL)
-			Invalidate();
+	for (size_t i=0;i<m_ItemList.size();i++) {
+		if (m_ItemList[i].Command==Command)
+			return (int)i;
 	}
+	return -1;
 }
-*/
+
+
+bool CSideBar::EnableItem(int Command,bool fEnable)
+{
+	int Index=CommandToIndex(Command);
+
+	if (Index<0)
+		return false;
+	if (((m_ItemList[Index].Flags&ITEM_FLAG_DISABLED)==0)!=fEnable) {
+		m_ItemList[Index].Flags^=ITEM_FLAG_DISABLED;
+		if (!fEnable && m_HotItem==Index)
+			m_HotItem=-1;
+		UpdateItem(Index);
+	}
+	return true;
+}
+
+
+bool CSideBar::IsItemEnabled(int Command) const
+{
+	int Index=CommandToIndex(Command);
+
+	if (Index<0)
+		return false;
+	return (m_ItemList[Index].Flags&ITEM_FLAG_DISABLED)==0;
+}
+
+
+bool CSideBar::CheckItem(int Command,bool fCheck)
+{
+	int Index=CommandToIndex(Command);
+
+	if (Index<0)
+		return false;
+	if (((m_ItemList[Index].Flags&ITEM_FLAG_CHECKED)!=0)!=fCheck) {
+		m_ItemList[Index].Flags^=ITEM_FLAG_CHECKED;
+		UpdateItem(Index);
+	}
+	return true;
+}
+
+
+bool CSideBar::CheckRadioItem(int First,int Last,int Check)
+{
+	if (First>Last)
+		return false;
+	for (int i=First;i<=Last;i++)
+		CheckItem(i,i==Check);
+	return true;
+}
+
+
+bool CSideBar::IsItemChecked(int Command) const
+{
+	int Index=CommandToIndex(Command);
+
+	if (Index<0)
+		return false;
+	return (m_ItemList[Index].Flags&ITEM_FLAG_CHECKED)!=0;
+}
 
 
 bool CSideBar::SetTheme(const ThemeInfo *pTheme)
@@ -468,12 +517,14 @@ void CSideBar::GetItemRect(int Item,RECT *pRect) const
 }
 
 
-void CSideBar::UpdateItem(int Item) const
+void CSideBar::UpdateItem(int Item)
 {
-	RECT rc;
+	if (m_hwnd!=NULL) {
+		RECT rc;
 
-	GetItemRect(Item,&rc);
-	::InvalidateRect(m_hwnd,&rc,TRUE);
+		GetItemRect(Item,&rc);
+		Invalidate(&rc);
+	}
 }
 
 
@@ -549,10 +600,20 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 				Theme::Style Style=m_Theme.HighlightItemStyle;
 				Style.Gradient.Direction=
 					GetGradientDirection(m_fVertical,Style.Gradient.Direction);
+				if ((m_ItemList[i].Flags&ITEM_FLAG_CHECKED)!=0)
+					Style.Border=m_Theme.CheckItemStyle.Border;
 				Theme::DrawStyleBackground(hdc,&rc,&Style);
 				ForeColor=m_Theme.HighlightItemStyle.TextColor;
 			} else {
-				ForeColor=m_Theme.ItemStyle.TextColor;
+				if ((m_ItemList[i].Flags&ITEM_FLAG_CHECKED)!=0) {
+					Theme::Style Style=m_Theme.CheckItemStyle;
+					Style.Gradient.Direction=
+						GetGradientDirection(m_fVertical,Style.Gradient.Direction);
+					Theme::DrawStyleBackground(hdc,&rc,&Style);
+					ForeColor=m_Theme.CheckItemStyle.TextColor;
+				} else {
+					ForeColor=m_Theme.ItemStyle.TextColor;
+				}
 				if ((m_ItemList[i].Flags&ITEM_FLAG_DISABLED)!=0)
 					ForeColor=MixColor(ForeColor,
 									   MixColor(m_Theme.ItemStyle.Gradient.Color1,

@@ -300,6 +300,15 @@ bool CSplitter::SetPane(int Index,CContainer *pContainer)
 }
 
 
+bool CSplitter::ReplacePane(int Index,CContainer *pContainer)
+{
+	if (Index<0 || Index>1)
+		return false;
+	m_PaneList[Index].pContainer=pContainer;
+	return true;
+}
+
+
 CContainer *CSplitter::GetPane(int Index) const
 {
 	if (Index<0 || Index>1)

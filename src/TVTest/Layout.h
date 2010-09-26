@@ -94,6 +94,7 @@ public:
 	void OnMouseMove(int x,int y);
 // CSplitter
 	bool SetPane(int Index,CContainer *pContainer);
+	bool ReplacePane(int Index,CContainer *pContainer);
 	CContainer *GetPane(int Index) const;
 	CContainer *GetPaneByID(int ID) const;
 	void SwapPane();

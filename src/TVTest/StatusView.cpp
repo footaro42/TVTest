@@ -177,7 +177,7 @@ bool CStatusView::Initialize(HINSTANCE hinst)
 	if (m_hinst==NULL) {
 		WNDCLASS wc;
 
-		wc.style=CS_HREDRAW | CS_VREDRAW;
+		wc.style=CS_HREDRAW | CS_VREDRAW | CS_DBLCLKS;
 		wc.lpfnWndProc=WndProc;
 		wc.cbClsExtra=0;
 		wc.cbWndExtra=0;
@@ -417,6 +417,7 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
+	case WM_LBUTTONDBLCLK:
 		{
 			CStatusView *pStatus=GetStatusView(hwnd);
 
@@ -427,10 +428,17 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				pStatus->GetItemRect(pStatus->IndexToID(pStatus->m_HotItem),&rc);
 				x-=rc.left;
 				pStatus->m_fOnButtonDown=true;
-				if (uMsg==WM_LBUTTONDOWN)
+				switch (uMsg) {
+				case WM_LBUTTONDOWN:
 					pStatus->m_ItemList[pStatus->m_HotItem]->OnLButtonDown(x,y);
-				else
+					break;
+				case WM_RBUTTONDOWN:
 					pStatus->m_ItemList[pStatus->m_HotItem]->OnRButtonDown(x,y);
+					break;
+				case WM_LBUTTONDBLCLK:
+					pStatus->m_ItemList[pStatus->m_HotItem]->OnLButtonDoubleClick(x,y);
+					break;
+				}
 				pStatus->m_fOnButtonDown=false;
 				if (!pStatus->m_fTrackMouseEvent) {
 					POINT pt;
@@ -627,27 +635,15 @@ void CStatusView::SetSingleText(LPCTSTR pszText)
 }
 
 
-/*
-void CStatusView::SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-						   const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText)
-{
-	m_BackGradient=*pBackGradient;
-	m_crTextColor=crText;
-	m_HighlightBackGradient=*pHighlightBackGradient;
-	m_crHighlightTextColor=crHighlightText;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-*/
-
-
 bool CStatusView::SetTheme(const ThemeInfo *pTheme)
 {
 	if (pTheme==NULL)
 		return false;
 	m_Theme=*pTheme;
-	if (m_hwnd!=NULL)
+	if (m_hwnd!=NULL) {
+		AdjustSize();
 		Invalidate();
+	}
 	return true;
 }
 
@@ -661,38 +657,13 @@ bool CStatusView::GetTheme(ThemeInfo *pTheme) const
 }
 
 
-/*
-void CStatusView::SetBorder(const Theme::BorderInfo *pInfo)
-{
-	if (m_BorderInfo!=*pInfo) {
-		m_BorderInfo=*pInfo;
-		if (m_hwnd!=NULL)
-			Invalidate();
-	}
-}
-*/
-
-
 bool CStatusView::SetFont(const LOGFONT *pFont)
 {
 	if (!m_Font.Create(pFont))
 		return false;
 	m_FontHeight=m_Font.GetHeight(false);
 	if (m_hwnd!=NULL) {
-		RECT rcWindow,rc;
-
-		GetPosition(&rcWindow);
-		::SetRectEmpty(&rc);
-		rc.bottom=m_FontHeight+STATUS_MARGIN*2;
-		Theme::AddBorderRect(&m_Theme.Border,&rc);
-		CalcPositionFromClientRect(&rc);
-		int Height=rc.bottom-rc.top;
-		if (Height!=rcWindow.bottom-rcWindow.top) {
-			::SetWindowPos(m_hwnd,NULL,0,0,rcWindow.right-rcWindow.left,Height,
-						   SWP_NOZORDER | SWP_NOMOVE);
-			if (m_pEventHandler!=NULL)
-				m_pEventHandler->OnHeightChanged(Height);
-		}
+		AdjustSize();
 		Invalidate();
 	}
 	return true;
@@ -890,4 +861,23 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 	::SetTextColor(hdcDst,crOldTextColor);
 	::SetBkMode(hdcDst,OldBkMode);
 	::SelectObject(hdcDst,hfontOld);
+}
+
+
+void CStatusView::AdjustSize()
+{
+	RECT rcWindow,rc;
+
+	GetPosition(&rcWindow);
+	::SetRectEmpty(&rc);
+	rc.bottom=m_FontHeight+STATUS_MARGIN*2;
+	Theme::AddBorderRect(&m_Theme.Border,&rc);
+	CalcPositionFromClientRect(&rc);
+	int Height=rc.bottom-rc.top;
+	if (Height!=rcWindow.bottom-rcWindow.top) {
+		::SetWindowPos(m_hwnd,NULL,0,0,rcWindow.right-rcWindow.left,Height,
+					   SWP_NOZORDER | SWP_NOMOVE | SWP_NOACTIVATE);
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnHeightChanged(Height);
+	}
 }

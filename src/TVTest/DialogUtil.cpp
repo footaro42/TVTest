@@ -39,7 +39,15 @@ void ShowDlgItem(HWND hDlg,int ID,bool fShow)
 
 void InvalidateDlgItem(HWND hDlg,int ID,bool fErase)
 {
-	InvalidateRect(GetDlgItem(hDlg,ID),NULL,fErase);
+	InvalidateDlgItem(hDlg,ID,NULL,fErase);
+}
+
+
+void InvalidateDlgItem(HWND hDlg,int ID,const RECT *pRect,bool fErase)
+{
+	HWND hwnd=GetDlgItem(hDlg,ID);
+	if (hwnd!=NULL)
+		InvalidateRect(hwnd,pRect,fErase);
 }
 
 

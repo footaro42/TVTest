@@ -823,11 +823,11 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 	for (;;pThis->m_ScanChannel++) {
 		LPCTSTR pszName=pDtvEngine->m_BonSrcDecoder.GetChannelName(
 									pThis->m_ScanSpace,pThis->m_ScanChannel);
-
 		if (pszName==NULL) {
 			fComplete=true;
 			break;
 		}
+
 		::PostMessage(pThis->m_hScanDlg,WM_APP_BEGINSCAN,pThis->m_ScanChannel,0);
 		pDtvEngine->SetChannel(pThis->m_ScanSpace,pThis->m_ScanChannel);
 		if (::WaitForSingleObject(pThis->m_hCancelEvent,
@@ -903,23 +903,28 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 				}
 			}
 		}
-		if (!fFound)
+		if (!fFound) {
+			TRACE(TEXT("Channel scan [%2d] Service not found.\n"),
+				  pThis->m_ScanChannel);
 			continue;
+		}
 
 		WORD TransportStreamID=pTsAnalyzer->GetTransportStreamID();
 		WORD NetworkID=pTsAnalyzer->GetNetworkID();
 		if (NetworkID==0) {
 			// ネットワークIDが取得できるまで待つ
-			int i;
-			for (i=6;i>0;i--) {
+			for (int i=20;i>0;i--) {
 				if (::WaitForSingleObject(pThis->m_hCancelEvent,500)==WAIT_OBJECT_0)
 					goto End;
 				NetworkID=pTsAnalyzer->GetNetworkID();
 				if (NetworkID!=0)
 					break;
 			}
-			if (i==0)
+			if (NetworkID==0) {
+				TRACE(TEXT("Channel scan [%2d] Can't acquire Network ID.\n"),
+					  pThis->m_ScanChannel);
 				continue;
+			}
 		}
 
 		// 見付かったチャンネルを追加する

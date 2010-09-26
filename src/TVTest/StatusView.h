@@ -48,6 +48,7 @@ public:
 	virtual void DrawPreview(HDC hdc,const RECT *pRect) { Draw(hdc,pRect); }
 	virtual void OnLButtonDown(int x,int y) {}
 	virtual void OnRButtonDown(int x,int y) { OnLButtonDown(x,y); }
+	virtual void OnLButtonDoubleClick(int x,int y) { OnLButtonDown(x,y); }
 	virtual void OnMouseMove(int x,int y) {}
 	virtual void OnVisibleChange(bool fVisible) {}
 	virtual void OnFocus(bool fFocus) {}
@@ -76,37 +77,6 @@ public:
 		Theme::BorderInfo Border;
 	};
 
-private:
-	static HINSTANCE m_hinst;
-	DrawUtil::CFont m_Font;
-	int m_FontHeight;
-	/*
-	Theme::GradientInfo m_BackGradient;
-	COLORREF m_crTextColor;
-	Theme::GradientInfo m_HighlightBackGradient;
-	COLORREF m_crHighlightTextColor;
-	Theme::BorderInfo m_BorderInfo;
-	*/
-	ThemeInfo m_Theme;
-	CPointerVector<CStatusItem> m_ItemList;
-	int m_NumItems;
-	bool m_fSingleMode;
-	LPTSTR m_pszSingleText;
-	int m_HotItem;
-	bool m_fTrackMouseEvent;
-	bool m_fOnButtonDown;
-	CEventHandler *m_pEventHandler;
-	DrawUtil::COffscreen m_Offscreen;
-	bool m_fBufferedPaint;
-	CBufferedPaint m_BufferedPaint;
-
-	void SetHotItem(int Item);
-	void Draw(HDC hdc,const RECT *pPaintRect);
-
-	static CStatusView *GetStatusView(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-public:
 	static bool Initialize(HINSTANCE hinst);
 	CStatusView();
 	~CStatusView();
@@ -129,10 +99,6 @@ public:
 	int GetFontHeight() const { return m_FontHeight; }
 	int GetIntegralWidth() const;
 	void SetSingleText(LPCTSTR pszText);
-	/*
-	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightText);
-	*/
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
@@ -144,6 +110,30 @@ public:
 	bool EnableBufferedPaint(bool fEnable);
 // CTracer
 	void OnTrace(LPCTSTR pszOutput);
+
+private:
+	static HINSTANCE m_hinst;
+	DrawUtil::CFont m_Font;
+	int m_FontHeight;
+	ThemeInfo m_Theme;
+	CPointerVector<CStatusItem> m_ItemList;
+	int m_NumItems;
+	bool m_fSingleMode;
+	LPTSTR m_pszSingleText;
+	int m_HotItem;
+	bool m_fTrackMouseEvent;
+	bool m_fOnButtonDown;
+	CEventHandler *m_pEventHandler;
+	DrawUtil::COffscreen m_Offscreen;
+	bool m_fBufferedPaint;
+	CBufferedPaint m_BufferedPaint;
+
+	void SetHotItem(int Item);
+	void Draw(HDC hdc,const RECT *pPaintRect);
+	void AdjustSize();
+
+	static CStatusView *GetStatusView(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

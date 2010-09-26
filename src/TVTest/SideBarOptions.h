@@ -20,6 +20,11 @@ public:
 		PLACE_LAST=PLACE_BOTTOM
 	};
 
+	class ABSTRACT_CLASS(CEventHandler) {
+	public:
+		virtual void OnItemChanged() {}
+	};
+
 protected:
 	enum { ITEM_SEPARATOR=0 };
 	CSideBar *m_pSideBar;
@@ -29,6 +34,7 @@ protected:
 	bool m_fShowToolTips;
 	PlaceType m_Place;
 	HIMAGELIST m_himlIcons;
+	CEventHandler *m_pEventHandler;
 
 	HBITMAP CreateImage();
 	void ApplyItemList() const;
@@ -47,6 +53,7 @@ public:
 	bool ShowPopup() const { return m_fShowPopup; }
 	PlaceType GetPlace() const { return m_Place; }
 	bool SetPlace(PlaceType Place);
+	void SetEventHandler(CEventHandler *pHandler) { m_pEventHandler=pHandler; }
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

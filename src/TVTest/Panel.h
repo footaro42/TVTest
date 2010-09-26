@@ -52,6 +52,7 @@ private:
 	bool m_fEnableFloating;
 	ThemeInfo m_Theme;
 	CEventHandler *m_pEventHandler;
+	bool m_fCloseButtonPushed;
 	POINT m_ptDragStartPos;
 	POINT m_ptMovingWindowPos;
 

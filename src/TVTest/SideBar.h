@@ -29,6 +29,7 @@ public:
 	struct ThemeInfo {
 		Theme::Style ItemStyle;
 		Theme::Style HighlightItemStyle;
+		Theme::Style CheckItemStyle;
 		Theme::BorderInfo Border;
 	};
 
@@ -44,38 +45,6 @@ public:
 		friend class CSideBar;
 	};
 
-protected:
-	CTooltip m_Tooltip;
-	bool m_fShowTooltips;
-	HBITMAP m_hbmIcons;
-	COLORREF m_IconTransparentColor;
-	bool m_fVertical;
-	/*
-	Theme::GradientInfo m_BackGradient;
-	COLORREF m_ForeColor;
-	Theme::GradientInfo m_HighlightBackGradient;
-	COLORREF m_HighlightForeColor;
-	Theme::BorderInfo m_BorderInfo;
-	*/
-	ThemeInfo m_Theme;
-	std::vector<SideBarItem> m_ItemList;
-	int m_HotItem;
-	int m_ClickItem;
-	bool m_fTrackMouseEvent;
-	CEventHandler *m_pEventHandler;
-	const CCommandList *m_pCommandList;
-
-	void GetItemRect(int Item,RECT *pRect) const;
-	void UpdateItem(int Item) const;
-	int HitTest(int x,int y) const;
-	void UpdateTooltipsRect();
-	void Draw(HDC hdc,const RECT &PaintRect);
-
-	static HINSTANCE m_hinst;
-	static CSideBar *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-public:
 	static bool Initialize(HINSTANCE hinst);
 	CSideBar(const CCommandList *pCommandList);
 	~CSideBar();
@@ -87,17 +56,42 @@ public:
 	void DeleteAllItems();
 	bool AddItem(const SideBarItem *pItem);
 	bool AddItems(const SideBarItem *pItemList,int NumItems);
-	/*
-	void SetColor(const Theme::GradientInfo *pBackGradient,COLORREF crFore,
-				  const Theme::GradientInfo *pHighlightBackGradient,COLORREF crHighlightFore);
-	void SetBorder(const Theme::BorderInfo *pInfo);
-	*/
+	int CommandToIndex(int Command) const;
+	bool EnableItem(int Command,bool fEnable);
+	bool IsItemEnabled(int Command) const;
+	bool CheckItem(int Command,bool fCheck);
+	bool CheckRadioItem(int First,int Last,int Check);
+	bool IsItemChecked(int Command) const;
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
 	void ShowToolTips(bool fShow);
 	void SetVertical(bool fVertical);
 	void SetEventHandler(CEventHandler *pHandler);
 	const CCommandList *GetCommandList() const { return m_pCommandList; }
+
+protected:
+	CTooltip m_Tooltip;
+	bool m_fShowTooltips;
+	HBITMAP m_hbmIcons;
+	COLORREF m_IconTransparentColor;
+	bool m_fVertical;
+	ThemeInfo m_Theme;
+	std::vector<SideBarItem> m_ItemList;
+	int m_HotItem;
+	int m_ClickItem;
+	bool m_fTrackMouseEvent;
+	CEventHandler *m_pEventHandler;
+	const CCommandList *m_pCommandList;
+
+	void GetItemRect(int Item,RECT *pRect) const;
+	void UpdateItem(int Item);
+	int HitTest(int x,int y) const;
+	void UpdateTooltipsRect();
+	void Draw(HDC hdc,const RECT &PaintRect);
+
+	static HINSTANCE m_hinst;
+	static CSideBar *GetThis(HWND hwnd);
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

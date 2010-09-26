@@ -52,9 +52,6 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 	case WM_INITDIALOG:
 		{
 			CMessageDialog *pThis=reinterpret_cast<CMessageDialog*>(lParam);
-			HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
-			CHARFORMAT cf;
-			CHARFORMAT cfBold;
 
 			::SetProp(hDlg,TEXT("This"),pThis);
 			pThis->m_hDlg=hDlg;
@@ -68,6 +65,9 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					pThis->m_MessageType==TYPE_WARNING?IDI_WARNING:IDI_ERROR)),0);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_SETBKGNDCOLOR,0,::GetSysColor(COLOR_WINDOW));
 
+			HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
+			CHARFORMAT cf,cfBold;
+
 			NONCLIENTMETRICS ncm;
 #if WINVER<0x0600
 			ncm.cbSize=sizeof(ncm);
@@ -76,6 +76,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 #endif
 			::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 			pThis->LogFontToCharFormat(&ncm.lfMessageFont,&cf);
+
 			cfBold=cf;
 			cfBold.dwMask|=CFM_BOLD;
 			cfBold.dwEffects|=CFE_BOLD;
@@ -91,9 +92,13 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszSystemMessage,&cf);
 			}
 			int MaxWidth=CRichEditUtil::GetMaxLineWidth(hwndEdit)+8;
-			RECT rcEdit,rcDlg,rcClient,rcOK;
+			RECT rcEdit,rcIcon,rcDlg,rcClient,rcOK;
 			::GetWindowRect(hwndEdit,&rcEdit);
 			::OffsetRect(&rcEdit,-rcEdit.left,-rcEdit.top);
+			::GetWindowRect(::GetDlgItem(hDlg,IDC_ERROR_ICON),&rcIcon);
+			rcIcon.bottom-=rcIcon.top;
+			if (rcEdit.bottom<rcIcon.bottom)
+				rcEdit.bottom=rcIcon.bottom;
 			::SetWindowPos(hwndEdit,NULL,0,0,MaxWidth,rcEdit.bottom,
 						   SWP_NOMOVE | SWP_NOZORDER);
 			::GetWindowRect(hDlg,&rcDlg);
@@ -222,6 +227,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			SAFE_DELETE_ARRAY(pThis->m_pszTitle);
 			SAFE_DELETE_ARRAY(pThis->m_pszSystemMessage);
 			SAFE_DELETE_ARRAY(pThis->m_pszCaption);
+			pThis->m_hDlg=NULL;
 			::RemoveProp(hDlg,TEXT("This"));
 		}
 		return TRUE;
@@ -256,6 +262,7 @@ bool CMessageDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTST
 							 Type==TYPE_WARNING?MB_ICONEXCLAMATION:
 							 Type==TYPE_ERROR?MB_ICONSTOP:0))==IDOK;
 	}
+
 	ReplaceString(&m_pszText,pszText);
 	ReplaceString(&m_pszTitle,pszTitle);
 	ReplaceString(&m_pszSystemMessage,pszSystemMessage);

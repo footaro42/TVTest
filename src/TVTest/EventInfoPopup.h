@@ -12,7 +12,7 @@
 class CEventInfoPopup : protected CBasicWindow
 {
 public:
-	class ABSTRACT_DECL CEventHandler
+	class ABSTRACT_CLASS(CEventHandler)
 	{
 	protected:
 		CEventInfoPopup *m_pPopup;
@@ -66,6 +66,7 @@ private:
 	void SetEventInfo(const CEventInfoData *pEventInfo);
 	void CalcTitleHeight();
 	void GetCloseButtonRect(RECT *pRect) const;
+	bool CopyText(LPCWSTR pszText) const;
 	static CEventInfoPopup *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
@@ -73,7 +74,7 @@ private:
 class CEventInfoPopupManager
 {
 public:
-	class ABSTRACT_DECL CEventHandler
+	class ABSTRACT_CLASS(CEventHandler)
 	{
 	protected:
 		CEventInfoPopup *m_pPopup;

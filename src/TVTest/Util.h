@@ -12,6 +12,12 @@ LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
 
+inline bool IsStringEmpty(LPCSTR pszString) {
+	return pszString==NULL || pszString[0]=='\0';
+}
+inline bool IsStringEmpty(LPCWSTR pszString) {
+	return pszString==NULL || pszString[0]=='\0';
+}
 inline LPCSTR NullToEmptyString(LPCSTR pszString) {
 	return pszString!=NULL?pszString:"";
 }
