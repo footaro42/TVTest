@@ -5,13 +5,15 @@
 #include "Help/HelpID.h"
 
 
-class CHtmlHelp {
+class CHtmlHelp
+{
 	typedef HWND (WINAPI *HtmlHelpFunc)(HWND hwndCaller,LPCTSTR pszFile,
-												UINT uCommand,DWORD dwData);
+										UINT uCommand,DWORD_PTR dwData);
 	TCHAR m_szFileName[MAX_PATH];
 	HMODULE m_hLib;
 	HtmlHelpFunc m_pHtmlHelp;
 	DWORD m_Cookie;
+
 public:
 	CHtmlHelp();
 	~CHtmlHelp();

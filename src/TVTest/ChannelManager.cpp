@@ -15,14 +15,7 @@ static char THIS_FILE[]=__FILE__;
 
 CChannelManager::CChannelManager()
 {
-	m_CurrentSpace=SPACE_INVALID;
-	m_CurrentChannel=-1;
-	m_CurrentServiceID=-1;
-	m_ChangingChannel=-1;
-	m_fUseDriverChannelList=false;
-	m_fNetworkRemocon=false;
-	m_pNetworkRemoconChannelList=NULL;
-	m_NetworkRemoconCurrentChannel=-1;
+	Clear();
 }
 
 
@@ -269,12 +262,12 @@ bool CChannelManager::MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecode
 			LPCTSTR p=pszName;
 			int Channel=0;
 
-			while (*p!='\0') {
-				if (*p>='0' && *p<='9') {
+			while (*p!=_T('\0')) {
+				if (*p>=_T('0') && *p<=_T('9')) {
 					do {
-						Channel=Channel*10+(*p-'0');
+						Channel=Channel*10+(*p-_T('0'));
 						p++;
-					} while (*p>='0' && *p<='9');
+					} while (*p>=_T('0') && *p<=_T('9'));
 					if (::_tcsnicmp(p,TEXT("ch"),2)!=0)
 						Channel=0;
 				} else {
@@ -301,14 +294,18 @@ bool CChannelManager::SetUseDriverChannelList(bool fUse)
 bool CChannelManager::SetCurrentChannel(int Space,int Channel)
 {
 	if (!m_fNetworkRemocon) {
-		if (Space!=SPACE_ALL) {
+		if (Space!=SPACE_ALL && Space!=SPACE_INVALID) {
 			if (Space<0 || Space>=NumSpaces())
 				return false;
 		}
 	}
-	const CChannelList *pList=GetChannelList(Space);
-	if (pList==NULL || Channel<-1 || Channel>=pList->NumChannels())
-		return false;
+	if (Space!=SPACE_INVALID) {
+		const CChannelList *pList=GetChannelList(Space);
+		if (pList==NULL || Channel<-1 || Channel>=pList->NumChannels())
+			return false;
+	} else {
+		Channel=-1;
+	}
 	m_CurrentSpace=Space;
 	m_CurrentChannel=Channel;
 	return true;

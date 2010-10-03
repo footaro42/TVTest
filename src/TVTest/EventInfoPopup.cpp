@@ -91,21 +91,21 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		BYTE ComponentType;
 		LPCTSTR pszText;
 	} VideoComponentTypeList[] = {
-		{0x01,TEXT("480i(4:3)")},
-		{0x03,TEXT("480i(16:9)")},
-		{0x04,TEXT("480i(>16:9)")},
-		{0xA1,TEXT("480p(4:3)")},
-		{0xA3,TEXT("480p(16:9)")},
-		{0xA4,TEXT("480p(>16:9)")},
-		{0xB1,TEXT("1080i(4:3)")},
-		{0xB3,TEXT("1080i(16:9)")},
-		{0xB4,TEXT("1080i(>16:9)")},
-		{0xC1,TEXT("720p(4:3)")},
-		{0xC3,TEXT("720p(16:9)")},
-		{0xC4,TEXT("720p(>16:9)")},
-		{0xD1,TEXT("240p(4:3)")},
-		{0xD3,TEXT("240p(16:9)")},
-		{0xD4,TEXT("240p(>16:9)")},
+		{0x01,TEXT("480i[4:3]")},
+		{0x03,TEXT("480i[16:9]")},
+		{0x04,TEXT("480i[>16:9]")},
+		{0xA1,TEXT("480p[4:3]")},
+		{0xA3,TEXT("480p[16:9]")},
+		{0xA4,TEXT("480p[>16:9]")},
+		{0xB1,TEXT("1080i[4:3]")},
+		{0xB3,TEXT("1080i[16:9]")},
+		{0xB4,TEXT("1080i[>16:9]")},
+		{0xC1,TEXT("720p[4:3]")},
+		{0xC3,TEXT("720p[16:9]")},
+		{0xC4,TEXT("720p[>16:9]")},
+		{0xD1,TEXT("240p[4:3]")},
+		{0xD3,TEXT("240p[16:9]")},
+		{0xD4,TEXT("240p[>16:9]")},
 	};
 	for (int i=0;i<lengthof(VideoComponentTypeList);i++) {
 		if (VideoComponentTypeList[i].ComponentType==m_EventInfo.m_ComponentType) {
@@ -115,7 +115,7 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 	}
 
 	TCHAR szAudioComponent[64];
-	szAudioComponent[0]='\0';
+	szAudioComponent[0]=_T('\0');
 	if (m_EventInfo.m_AudioList.size()>0) {
 		static const struct {
 			BYTE ComponentType;
@@ -151,35 +151,40 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		}
 
 		LPCTSTR p=pAudioInfo->szText;
-		if (*p!='\0') {
-			szAudioComponent[0]=' ';
-			szAudioComponent[1]='(';
+		if (*p!=_T('\0')) {
+			szAudioComponent[0]=_T(' ');
+			szAudioComponent[1]=_T('[');
 			size_t i;
-			for (i=2;*p!='\0' && i<lengthof(szAudioComponent)-2;i++) {
-				if (*p=='\r' || *p=='\n') {
-					szAudioComponent[i]='/';
+			for (i=2;*p!=_T('\0') && i<lengthof(szAudioComponent)-2;i++) {
+				if (*p==_T('\r') || *p==_T('\n')) {
+					szAudioComponent[i]=_T('/');
 					p++;
-					if (*p=='\n')
+					if (*p==_T('\n'))
 						p++;
 				} else {
 					szAudioComponent[i]=*p++;
 				}
 			}
-			szAudioComponent[i]=')';
-			szAudioComponent[i+1]='\0';
+			szAudioComponent[i+0]=_T(']');
+			szAudioComponent[i+1]=_T('\0');
 		}
 	}
 
-	::wnsprintf(szText,lengthof(szText)-1,
-		TEXT("%s%s%s%s‰f‘œ: %s / ‰¹º: %s%s"),
+	int Length=::wnsprintf(szText,lengthof(szText)-1,
+		TEXT("%s%s%s"),
 		NullToEmptyString(m_EventInfo.GetEventText()),
-		m_EventInfo.GetEventText()!=NULL?TEXT("\r\n\r\n"):TEXT(""),
-		NullToEmptyString(m_EventInfo.GetEventExtText()),
-		m_EventInfo.GetEventExtText()!=NULL?TEXT("\r\n\r\n"):TEXT(""),
-		pszVideo,
-		pszAudio,
-		szAudioComponent);
-	szText[lengthof(szText)-1]='\0';
+		!IsStringEmpty(m_EventInfo.GetEventText())?TEXT("\r\n\r\n"):TEXT(""),
+		NullToEmptyString(m_EventInfo.GetEventExtText()));
+	Length-=RemoveTrailingWhitespace(szText);
+	if (*pszVideo!='?' || *pszAudio!='?') {
+		::wnsprintf(szText+Length,lengthof(szText)-1-Length,
+					TEXT("%s(‰f‘œ: %s / ‰¹º: %s%s)"),
+					Length>0?TEXT("\r\n\r\n"):TEXT(""),
+					pszVideo,
+					pszAudio,
+					szAudioComponent);
+	}
+	szText[lengthof(szText)-1]=_T('\0');
 
 	LOGFONT lf;
 	CHARFORMAT cf;

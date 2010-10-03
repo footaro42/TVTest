@@ -29,7 +29,7 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	bool SetChannelList(const CChannelList *pChannelList,bool fSetEvent=true);
-	bool UpdateChannelList();
+	bool UpdateChannelList(bool fUpdateProgramList);
 	bool UpdateChannel(int ChannelIndex);
 	void ClearChannelList() { SetChannelList(NULL); }
 	bool IsChannelListEmpty() const;
@@ -135,7 +135,7 @@ private:
 	};
 	int HitTest(int x,int y,HitType *pType=NULL) const;
 	bool CreateTooltip();
-	void SetTooltips();
+	void SetTooltips(bool fRectOnly=false);
 	bool EventInfoPopupHitTest(int x,int y,LPARAM *pParam);
 	bool GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
 };

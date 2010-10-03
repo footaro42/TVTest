@@ -18,13 +18,17 @@ class CStatusOptions : public COptions
 	};
 	StatusItemInfo m_ItemList[NUM_STATUS_ITEMS];
 	StatusItemInfo m_ItemListCur[NUM_STATUS_ITEMS];
+	LOGFONT m_lfItemFont;
+	bool m_fMultiRow;
+	int m_MaxRows;
+
+	LOGFONT m_CurSettingFont;
 	WNDPROC m_pOldListProc;
 	int m_ItemHeight;
 	int m_TextWidth;
 	int m_DropInsertPos;
 	UINT m_DragTimerID;
 	bool m_fDragResize;
-	LOGFONT m_lfItemFont;
 
 	bool m_fShowTOTTime;
 	bool m_fEnablePopupProgramInfo;

@@ -5,6 +5,12 @@
 #include "DialogUtil.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -57,7 +63,7 @@ INT_PTR CAboutDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 	case WM_CTLCOLORSTATIC:
 		if (reinterpret_cast<HWND>(lParam)==::GetDlgItem(hDlg,IDC_ABOUT_LOGO))
-			return reinterpret_cast<BOOL>(::GetStockObject(WHITE_BRUSH));
+			return reinterpret_cast<INT_PTR>(::GetStockObject(WHITE_BRUSH));
 		break;
 
 	case WM_COMMAND:

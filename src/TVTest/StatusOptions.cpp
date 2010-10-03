@@ -25,6 +25,8 @@ CStatusOptions::CStatusOptions(CStatusView *pStatusView)
 	: m_pStatusView(pStatusView)
 	, m_fShowTOTTime(false)
 	, m_fEnablePopupProgramInfo(true)
+	, m_fMultiRow(false)
+	, m_MaxRows(2)
 {
 	SetDefaultItemList();
 	m_pStatusView->GetFont(&m_lfItemFont);
@@ -109,6 +111,9 @@ bool CStatusOptions::Load(LPCTSTR pszFileName)
 	if (Settings.Read(TEXT("FontItalic"),&Value))
 		m_lfItemFont.lfItalic=Value;
 
+	Settings.Read(TEXT("MultiRow"),&m_fMultiRow);
+	Settings.Read(TEXT("MaxRows"),&m_MaxRows);
+
 	Settings.Read(TEXT("TOTTime"),&m_fShowTOTTime);
 	Settings.Read(TEXT("PopupProgramInfo"),&m_fEnablePopupProgramInfo);
 
@@ -141,6 +146,9 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 	Settings.Write(TEXT("FontSize"),(int)m_lfItemFont.lfHeight);
 	Settings.Write(TEXT("FontWeight"),(int)m_lfItemFont.lfWeight);
 	Settings.Write(TEXT("FontItalic"),(int)m_lfItemFont.lfItalic);
+
+	Settings.Write(TEXT("MultiRow"),m_fMultiRow);
+	Settings.Write(TEXT("MaxRows"),m_MaxRows);
 
 	Settings.Write(TEXT("TOTTime"),m_fShowTOTTime);
 	Settings.Write(TEXT("PopupProgramInfo"),m_fEnablePopupProgramInfo);
@@ -190,8 +198,7 @@ void CStatusOptions::InitListBox(HWND hDlg)
 
 	for (i=0;i<NUM_STATUS_ITEMS;i++) {
 		m_ItemListCur[i]=m_ItemList[i];
-		SendDlgItemMessage(hDlg,IDC_STATUSOPTIONS_ITEMLIST,LB_ADDSTRING,
-								0,reinterpret_cast<LPARAM>(&m_ItemListCur[i]));
+		DlgListBox_AddString(hDlg,IDC_STATUSOPTIONS_ITEMLIST,&m_ItemListCur[i]);
 	}
 }
 
@@ -217,8 +224,6 @@ CStatusOptions *CStatusOptions::GetThis(HWND hDlg)
 
 INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	static LOGFONT lfCurFont;
-
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
@@ -228,27 +233,21 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			pThis->m_DragTimerID=0;
 			pThis->InitListBox(hDlg);
 			pThis->m_pOldListProc=SubclassWindow(GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST),ItemListProc);
-			pThis->m_ItemHeight=pThis->m_pStatusView->GetItemHeight()+1*2+ITEM_MARGIN*2;
-			SendDlgItemMessage(hDlg,IDC_STATUSOPTIONS_ITEMLIST,LB_SETITEMHEIGHT,
-														0,pThis->m_ItemHeight);
+			pThis->m_ItemHeight=pThis->m_pStatusView->GetItemHeight()+(1+ITEM_MARGIN)*2;
+			DlgListBox_SetItemHeight(hDlg,IDC_STATUSOPTIONS_ITEMLIST,0,pThis->m_ItemHeight);
 			pThis->CalcTextWidth(hDlg);
 			pThis->SetListHExtent(hDlg);
-			lfCurFont=pThis->m_lfItemFont;
-			SetFontInfo(hDlg,&lfCurFont);
+			pThis->m_CurSettingFont=pThis->m_lfItemFont;
+			SetFontInfo(hDlg,&pThis->m_CurSettingFont);
+			DlgCheckBox_Check(hDlg,IDC_STATUSOPTIONS_MULTIROW,pThis->m_fMultiRow);
+			::SetDlgItemInt(hDlg,IDC_STATUSOPTIONS_MAXROWS,pThis->m_MaxRows,TRUE);
+			DlgUpDown_SetRange(hDlg,IDC_STATUSOPTIONS_MAXROWS_UPDOWN,1,UD_MAXVAL);
+			EnableDlgItems(hDlg,
+						   IDC_STATUSOPTIONS_MAXROWS_LABEL,
+						   IDC_STATUSOPTIONS_MAXROWS_UPDOWN,
+						   pThis->m_fMultiRow);
 		}
 		return TRUE;
-
-	/*
-	// WM_INITDIALOGより前に来てしまうため不可
-	case WM_MEASUREITEM:
-		{
-			CStatusOptions *pThis=GetThis(hDlg);
-			LPMEASUREITEMSTRUCT pmis=reinterpret_cast<LPMEASUREITEMSTRUCT>(lParam);
-
-			pmis->itemHeight=pThis->m_pStatusView->GetItemHeight()+ITEM_MARGIN*2;
-		}
-		return TRUE;
-	*/
 
 	case WM_DRAWITEM:
 		{
@@ -306,7 +305,9 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					SelectBrush(pdis->hDC,hbrOld);
 					SelectPen(pdis->hDC,hpenOld);
 					::DeleteObject(hpen);
-					pThis->m_pStatusView->DrawItemPreview(pItem,pdis->hDC,&rc);
+					HFONT hfont=::CreateFontIndirect(&pThis->m_CurSettingFont);
+					pThis->m_pStatusView->DrawItemPreview(pItem,pdis->hDC,&rc,false,hfont);
+					::DeleteObject(hfont);
 					::SetBkMode(pdis->hDC,OldBkMode);
 					::SetTextColor(pdis->hDC,crOldTextColor);
 					if ((int)pdis->itemID==pThis->m_DropInsertPos
@@ -332,17 +333,41 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				CStatusOptions *pThis=GetThis(hDlg);
 
 				pThis->SetDefaultItemList();
-				SendDlgItemMessage(hDlg,IDC_STATUSOPTIONS_ITEMLIST,LB_RESETCONTENT,0,0);
+				DlgListBox_Clear(hDlg,IDC_STATUSOPTIONS_ITEMLIST);
 				pThis->InitListBox(hDlg);
 				pThis->SetListHExtent(hDlg);
 			}
 			return TRUE;
 
 		case IDC_STATUSOPTIONS_CHOOSEFONT:
-			if (ChooseFontDialog(hDlg,&lfCurFont)) {
-				SetFontInfo(hDlg,&lfCurFont);
-				// TODO: フォントの設定をプレビューに適用する
+			{
+				CStatusOptions *pThis=GetThis(hDlg);
+				LOGFONT lf=pThis->m_CurSettingFont;
+
+				if (ChooseFontDialog(hDlg,&lf)
+						&& !CompareLogFont(&pThis->m_CurSettingFont,&lf)) {
+					DrawUtil::CFont Font(lf);
+					RECT rc;
+
+					pThis->m_CurSettingFont=lf;
+					SetFontInfo(hDlg,&lf);
+					pThis->m_pStatusView->GetItemMargin(&rc);
+					HWND hwndList=::GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST);
+					HDC hdc=::GetDC(hwndList);
+					pThis->m_ItemHeight=(Font.GetHeight(hdc,false)+rc.top+rc.bottom)+(1+ITEM_MARGIN)*2;
+					::ReleaseDC(hwndList,hdc);
+					DlgListBox_SetItemHeight(hDlg,IDC_STATUSOPTIONS_ITEMLIST,0,pThis->m_ItemHeight);
+					::InvalidateRect(hwndList,NULL,TRUE);
+				}
 			}
+			return TRUE;
+
+		case IDC_STATUSOPTIONS_MULTIROW:
+			EnableDlgItemsSyncCheckBox(hDlg,
+									   IDC_STATUSOPTIONS_MAXROWS_LABEL,
+									   IDC_STATUSOPTIONS_MAXROWS_UPDOWN,
+									   IDC_STATUSOPTIONS_MULTIROW);
+			return TRUE;
 		}
 		return TRUE;
 
@@ -351,40 +376,33 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		case PSN_APPLY:
 			{
 				CStatusOptions *pThis=GetThis(hDlg);
-				int i;
 
-				for (i=0;i<NUM_STATUS_ITEMS;i++)
+				pThis->m_pStatusView->EnableSizeAdjustment(false);
+
+				for (int i=0;i<NUM_STATUS_ITEMS;i++)
 					pThis->m_ItemList[i]=*reinterpret_cast<StatusItemInfo*>(
-						SendDlgItemMessage(hDlg,IDC_STATUSOPTIONS_ITEMLIST,LB_GETITEMDATA,i,0));
+						DlgListBox_GetItemData(hDlg,IDC_STATUSOPTIONS_ITEMLIST,i));
 				pThis->ApplyItemList();
 
-				// Font
-				if (memcmp(&pThis->m_lfItemFont,&lfCurFont,28/*offsetof(LOGFONT,lfFaceName)*/)!=0
-						|| lstrcmp(pThis->m_lfItemFont.lfFaceName,lfCurFont.lfFaceName)!=0) {
-					//int OldHeight=pThis->m_pStatusView->GetHeight(),NewHeight;
-
-					pThis->m_lfItemFont=lfCurFont;
-					pThis->m_pStatusView->SetFont(&lfCurFont);
-					/*
-					NewHeight=pThis->m_pStatusView->GetHeight();
-					if (NewHeight!=OldHeight) {
-						HWND hwnd=GetAppClass().GetUICore()->GetMainWindow();
-						RECT rc;
-
-						::GetClientRect(hwnd,&rc);
-						if (::IsZoomed(hwnd)) {
-							::SendMessage(hwnd,WM_SIZE,0,MAKELPARAM(rc.right,rc.bottom));
-						} else {
-							RECT rcWindow;
-
-							::GetWindowRect(hwnd,&rcWindow);
-							::SetWindowPos(hwnd,NULL,0,0,rc.right-rc.left,
-								(rcWindow.bottom-rcWindow.top)+(NewHeight-OldHeight),
-								SWP_NOZORDER | SWP_NOMOVE);
-						}
-					}
-					*/
+				if (!CompareLogFont(&pThis->m_lfItemFont,&pThis->m_CurSettingFont)) {
+					pThis->m_lfItemFont=pThis->m_CurSettingFont;
+					pThis->m_pStatusView->SetFont(&pThis->m_lfItemFont);
 				}
+
+				bool fMultiRow=DlgCheckBox_IsChecked(hDlg,IDC_STATUSOPTIONS_MULTIROW);
+				if (pThis->m_fMultiRow!=fMultiRow) {
+					pThis->m_fMultiRow=fMultiRow;
+					pThis->m_pStatusView->SetMultiRow(fMultiRow);
+				}
+				int MaxRows=::GetDlgItemInt(hDlg,IDC_STATUSOPTIONS_MAXROWS,NULL,TRUE);
+				if (MaxRows<1)
+					MaxRows=1;
+				if (pThis->m_MaxRows!=MaxRows) {
+					pThis->m_MaxRows=MaxRows;
+					pThis->m_pStatusView->SetMaxRows(MaxRows);
+				}
+
+				pThis->m_pStatusView->EnableSizeAdjustment(true);
 			}
 			break;
 		}
@@ -724,7 +742,11 @@ bool CStatusOptions::ApplyItemList()
 
 bool CStatusOptions::ApplyOptions()
 {
-	ApplyItemList();
+	m_pStatusView->EnableSizeAdjustment(false);
+	m_pStatusView->SetMultiRow(m_fMultiRow);
+	m_pStatusView->SetMaxRows(m_MaxRows);
 	m_pStatusView->SetFont(&m_lfItemFont);
+	ApplyItemList();
+	m_pStatusView->EnableSizeAdjustment(true);
 	return true;
 }

@@ -469,8 +469,8 @@ bool CChannelMenu::OnMenuSelect(HWND hwnd,WPARAM wParam,LPARAM lParam)
 				Length=GetEventText(pEventInfo1,szText,lengthof(szText)/2);
 				pEventInfo2=pItem->GetEventInfo(m_pProgramList,1);
 				if (pEventInfo2!=NULL) {
-					szText[Length++]='\r';
-					szText[Length++]='\n';
+					szText[Length++]=_T('\r');
+					szText[Length++]=_T('\n');
 					GetEventText(pEventInfo2,szText+Length,lengthof(szText)/2);
 				}
 				m_Tooltip.SetText(1,szText);

@@ -210,7 +210,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 }
 
 
-bool CChannelPanel::UpdateChannelList()
+bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
 {
 	if (m_pProgramList!=NULL && m_ChannelList.Length()>0) {
 		SYSTEMTIME stCurrent;
@@ -219,7 +219,14 @@ bool CChannelPanel::UpdateChannelList()
 		::GetSystemTime(&m_UpdatedTime);
 		::SystemTimeToTzSpecificLocalTime(NULL,&m_UpdatedTime,&stCurrent);
 		for (int i=0;i<m_ChannelList.Length();i++) {
-			if (UpdateEvents(m_ChannelList[i],&stCurrent))
+			CChannelEventInfo *pInfo=m_ChannelList[i];
+
+			if (fUpdateProgramList) {
+				const CChannelInfo *pChannelInfo=pInfo->GetChannelInfo();
+				m_pProgramList->UpdateService(pChannelInfo->GetTransportStreamID(),
+											  pChannelInfo->GetServiceID());
+			}
+			if (UpdateEvents(pInfo,&stCurrent))
 				fChanged=true;
 		}
 		if (m_hwnd!=NULL && fChanged) {
@@ -350,7 +357,7 @@ bool CChannelPanel::SetEventsPerChannel(int Events)
 		}
 		if (m_hwnd!=NULL)
 			CalcItemHeight();
-		UpdateChannelList();
+		UpdateChannelList(false);
 		if (m_hwnd!=NULL) {
 			m_ScrollPos=0;
 			SetScrollBar();
@@ -461,7 +468,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			if (pThis->m_ScrollPos>Max) {
 				pThis->m_ScrollPos=Max;
 				pThis->Invalidate();
-				pThis->SetTooltips();
+				pThis->SetTooltips(true);
 			}
 			pThis->SetScrollBar();
 		}
@@ -550,6 +557,7 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 					static TCHAR szText[1024];
 
 					pThis->m_ChannelList[Channel]->FormatEventText(szText,lengthof(szText),Event);
+					RemoveTrailingWhitespace(szText);
 					pnmtdi->lpszText=szText;
 				} else {
 					pnmtdi->lpszText=TEXT("");
@@ -653,8 +661,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 									   Style.TextColor);
 		}
 
-		int NumEvents=
-				pChannelInfo->IsExpanded()?m_ExpandEvents:m_EventsPerChannel;
+		int NumEvents=pChannelInfo->IsExpanded()?m_ExpandEvents:m_EventsPerChannel;
 		rc.left=0;
 		rc.right=rcClient.right;
 		for (int j=0;j<NumEvents;j++) {
@@ -720,7 +727,7 @@ void CChannelPanel::SetScrollPos(int Pos)
 			Invalidate();
 		}
 		SetScrollBar();
-		SetTooltips();
+		SetTooltips(true);
 	}
 }
 
@@ -834,10 +841,17 @@ bool CChannelPanel::CreateTooltip()
 }
 
 
-void CChannelPanel::SetTooltips()
+void CChannelPanel::SetTooltips(bool fRectOnly)
 {
 	if (m_Tooltip.IsCreated()) {
-		int NumTools=m_Tooltip.NumTools();
+		int NumTools;
+		if (fRectOnly) {
+			NumTools=m_Tooltip.NumTools();
+		} else {
+			m_Tooltip.DeleteAllTools();
+			NumTools=0;
+		}
+
 		int ToolCount;
 		RECT rc;
 
@@ -853,15 +867,14 @@ void CChannelPanel::SetTooltips()
 				if (ToolCount<NumTools)
 					m_Tooltip.SetToolRect(ToolCount,rc);
 				else
-					m_Tooltip.AddTool(ToolCount,rc,LPSTR_TEXTCALLBACK,i);
+					m_Tooltip.AddTool(ToolCount,rc,LPSTR_TEXTCALLBACK,MAKELPARAM(i,j));
 				ToolCount++;
 				rc.top=rc.bottom;
 			}
 		}
 		if (NumTools>ToolCount) {
-			for (int i=NumTools-1;i>=ToolCount;i--) {
+			for (int i=NumTools-1;i>=ToolCount;i--)
 				m_Tooltip.DeleteTool(i);
-			}
 		}
 	}
 }

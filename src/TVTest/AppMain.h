@@ -74,6 +74,7 @@ public:
 	LPCTSTR GetDefaultRecordFolder() const;
 
 	bool ShowHelpContent(int ID);
+	void BeginChannelScan(int Space);
 	bool IsChannelScanning() const;
 	bool IsDriverNoSignalLevel(LPCTSTR pszFileName) const;
 	void SetProgress(int Pos,int Max);

@@ -29,6 +29,10 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 	{HEXRGB(0x222222),	TEXT("StatusBack2"),						TEXT("ステータスバー背景2")},
 	{HEXRGB(0xBBBBBB),	TEXT("StatusText"),							TEXT("ステータスバー文字")},
 	{HEXRGB(0x777777),	TEXT("StatusItemBorder"),					TEXT("ステータスバー項目外枠")},
+	{HEXRGB(0x222222),	TEXT("StatusBottomItemBack"),				TEXT("ステータスバー下段背景1")},
+	{HEXRGB(0x222222),	TEXT("StatusBottomItemBack2"),				TEXT("ステータスバー下段背景2")},
+	{HEXRGB(0xBBBBBB),	TEXT("StatusBottomItemText"),				TEXT("ステータスバー下段文字")},
+	{HEXRGB(0x222222),	TEXT("StatusBottomItemBorder"),				TEXT("ステータスバー下段外枠")},
 	{HEXRGB(0x3384FF),	TEXT("StatusHighlightBack"),				TEXT("ステータスバー選択背景1")},
 	{HEXRGB(0x33D6FF),	TEXT("StatusHighlightBack2"),				TEXT("ステータスバー選択背景2")},
 	{HEXRGB(0x333333),	TEXT("StatusHighlightText"),				TEXT("ステータスバー選択文字")},
@@ -186,6 +190,8 @@ const CColorScheme::ColorInfo CColorScheme::m_ColorInfoList[NUM_COLORS] = {
 const CColorScheme::GradientInfo CColorScheme::m_GradientInfoList[NUM_GRADIENTS] = {
 	{TEXT("StatusBackGradient"),						Theme::DIRECTION_VERT,	false,
 		COLOR_STATUSBACK1,						COLOR_STATUSBACK2},
+	{TEXT("StatusBottomItemBackGradient"),				Theme::DIRECTION_VERT,	false,
+		COLOR_STATUSBOTTOMITEMBACK1,			COLOR_STATUSBOTTOMITEMBACK2},
 	{TEXT("StatusHighlightBackGradient"),				Theme::DIRECTION_VERT,	true,
 		COLOR_STATUSHIGHLIGHTBACK1,				COLOR_STATUSHIGHLIGHTBACK2},
 	{TEXT("PanelTabBackGradient"),						Theme::DIRECTION_VERT,	true,
@@ -265,6 +271,8 @@ const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
 		COLOR_STATUSBORDER,							false},
 	{TEXT("StatusItemBorder"),					Theme::BORDER_NONE,
 		COLOR_STATUSITEMBORDER,						false},
+	{TEXT("StatusBottomItemBorder"),			Theme::BORDER_NONE,
+		COLOR_STATUSBOTTOMITEMBORDER,				false},
 	{TEXT("StatusHighlightBorder"),				Theme::BORDER_NONE,
 		COLOR_STATUSHIGHLIGHTBORDER,				false},
 	{TEXT("TitleBarBorder"),					Theme::BORDER_RAISED,
@@ -322,6 +330,8 @@ const CColorScheme::BorderInfo CColorScheme::m_BorderInfoList[NUM_BORDERS] = {
 const CColorScheme::StyleInfo CColorScheme::m_StyleList[NUM_STYLES] = {
 	{GRADIENT_STATUSBACK,						BORDER_STATUSITEM,
 		COLOR_STATUSTEXT},
+	{GRADIENT_STATUSBOTTOMITEMBACK,				BORDER_STATUSBOTTOMITEM,
+		COLOR_STATUSBOTTOMITEMTEXT},
 	{GRADIENT_STATUSHIGHLIGHTBACK,				BORDER_STATUSHIGHLIGHT,
 		COLOR_STATUSHIGHLIGHTTEXT},
 	{GRADIENT_TITLEBARBACK,						BORDER_TITLEBARCAPTION,
@@ -567,6 +577,10 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 				int To,From;
 			} Map[] = {
 				{COLOR_STATUSBORDER,						COLOR_STATUSBACK1},
+				{COLOR_STATUSBOTTOMITEMBACK1,				COLOR_STATUSBACK2},
+				{COLOR_STATUSBOTTOMITEMBACK2,				COLOR_STATUSBOTTOMITEMBACK1},
+				{COLOR_STATUSBOTTOMITEMTEXT,				COLOR_STATUSTEXT},
+				{COLOR_STATUSBOTTOMITEMBORDER,				COLOR_STATUSBOTTOMITEMBACK1},
 				{COLOR_PROGRAMLISTPANEL_CUREVENTBACK1,		COLOR_PROGRAMLISTPANEL_EVENTBACK1},
 				{COLOR_PROGRAMLISTPANEL_CUREVENTBACK2,		COLOR_PROGRAMLISTPANEL_EVENTBACK2},
 				{COLOR_PROGRAMLISTPANEL_CUREVENTTEXT,		COLOR_PROGRAMLISTPANEL_EVENTTEXT},

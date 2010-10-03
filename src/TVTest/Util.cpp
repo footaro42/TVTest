@@ -27,8 +27,8 @@ ULONGLONG StringToUInt64(LPCTSTR pszString)
 	LPCTSTR p;
 
 	p=pszString;
-	while (*p>='0' && *p<='9') {
-		Value=Value*10+(*p-'0');
+	while (*p>=_T('0') && *p<=_T('9')) {
+		Value=Value*10+(*p-_T('0'));
 		p++;
 	}
 	return Value;
@@ -91,6 +91,28 @@ bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString)
 }
 
 
+int RemoveTrailingWhitespace(LPTSTR pszString)
+{
+	if (pszString==NULL)
+		return false;
+	LPTSTR pSpace=NULL;
+	LPTSTR p=pszString;
+	while (*p!=_T('\0')) {
+		if (*p==_T(' ') || *p==_T('\r') || *p==_T('\n') || *p==_T('\t')) {
+			if (pSpace==NULL)
+				pSpace=p;
+		} else if (pSpace!=NULL) {
+			pSpace=NULL;
+		}
+		p++;
+	}
+	if (pSpace==NULL)
+		return 0;
+	*pSpace=_T('\0');
+	return (int)(p-pSpace);
+}
+
+
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2)
 {
 	return pRect1->left<pRect2->right && pRect1->right>pRect2->left
@@ -102,8 +124,10 @@ float LevelToDeciBel(int Level)
 {
 	float Volume;
 
-	if (Level==0)
+	if (Level<=0)
 		Volume=-100.0f;
+	else if (Level>=100)
+		Volume=0.0f;
 	else
 		Volume=(float)(20.0*log10((double)Level/100.0));
 	return Volume;
@@ -252,10 +276,10 @@ int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength)
 			continue;
 		}
 #endif
-		if (pszSrcText[i]=='&') {
+		if (pszSrcText[i]==_T('&')) {
 			if (j+1>=MaxLength)
 				break;
-			pszDstText[j++]='&';
+			pszDstText[j++]=_T('&');
 		}
 		i++;
 	}
@@ -270,9 +294,9 @@ void InitOpenFileName(OPENFILENAME *pofn)
 	OSVERSIONINFO osvi;
 
 	osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
-	if (GetVersionEx(&osvi) && (osvi.dwMajorVersion>=5
-												|| osvi.dwMinorVersion==90)) {
-		/* Windows 2000/XP/Vista or Me */
+	if (GetVersionEx(&osvi)
+			&& (osvi.dwMajorVersion>=5 || osvi.dwMinorVersion==90)) {
+		/* Windows 2000/XP/Vista/7 or Me */
 		pofn->lStructSize=sizeof(OPENFILENAME);
 		pofn->pvReserved=NULL;
 		pofn->dwReserved=0;
@@ -767,7 +791,7 @@ void CDynamicString::Clear()
 
 bool CDynamicString::IsEmpty() const
 {
-	return m_pszString==NULL || m_pszString[0]=='\0';
+	return IsStringEmpty(m_pszString);
 }
 
 

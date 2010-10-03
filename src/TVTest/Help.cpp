@@ -9,9 +9,9 @@
 
 
 CHtmlHelp::CHtmlHelp()
+	: m_hLib(NULL)
+	, m_pHtmlHelp(NULL)
 {
-	m_hLib=NULL;
-	m_pHtmlHelp=NULL;
 }
 
 
@@ -40,7 +40,7 @@ bool CHtmlHelp::Initialize()
 		m_hLib=NULL;
 		return false;
 	}
-	(*m_pHtmlHelp)(NULL,NULL,HH_INITIALIZE,(DWORD)&m_Cookie);
+	(*m_pHtmlHelp)(NULL,NULL,HH_INITIALIZE,reinterpret_cast<DWORD_PTR>(&m_Cookie));
 	::GetModuleFileName(NULL,m_szFileName,lengthof(m_szFileName));
 	::PathRenameExtension(m_szFileName,TEXT(".chm"));
 	return true;
@@ -79,5 +79,6 @@ bool CHtmlHelp::ShowContent(int ID)
 
 bool CHtmlHelp::PreTranslateMessage(MSG *pmsg)
 {
-	return m_pHtmlHelp!=NULL && (*m_pHtmlHelp)(NULL,NULL,HH_PRETRANSLATEMESSAGE,(DWORD)pmsg);
+	return m_pHtmlHelp!=NULL
+		&& (*m_pHtmlHelp)(NULL,NULL,HH_PRETRANSLATEMESSAGE,reinterpret_cast<DWORD_PTR>(pmsg));
 }

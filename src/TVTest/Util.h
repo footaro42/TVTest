@@ -11,12 +11,13 @@ LPSTR DuplicateString(LPCSTR pszString);
 LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
+int RemoveTrailingWhitespace(LPTSTR pszString);
 
 inline bool IsStringEmpty(LPCSTR pszString) {
 	return pszString==NULL || pszString[0]=='\0';
 }
 inline bool IsStringEmpty(LPCWSTR pszString) {
-	return pszString==NULL || pszString[0]=='\0';
+	return pszString==NULL || pszString[0]==L'\0';
 }
 inline LPCSTR NullToEmptyString(LPCSTR pszString) {
 	return pszString!=NULL?pszString:"";
@@ -102,7 +103,7 @@ public:
 	CFilePath(const CFilePath &Path);
 	CFilePath(LPCTSTR pszPath);
 	~CFilePath();
-	bool IsEmpty() const { return m_szPath[0]=='\0'; }
+	bool IsEmpty() const { return m_szPath[0]==_T('\0'); }
 	bool SetPath(LPCTSTR pszPath);
 	LPCTSTR GetPath() const { return m_szPath; }
 	void GetPath(LPTSTR pszPath) const;

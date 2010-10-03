@@ -21,6 +21,8 @@ protected:
 	int m_Width;
 	int m_MinWidth;
 	bool m_fVisible;
+	bool m_fBreak;
+
 	bool GetMenuPos(POINT *pPos,UINT *pFlags);
 	enum {
 		DRAWTEXT_HCENTER = 0x00000001UL
@@ -54,6 +56,7 @@ public:
 	virtual void OnFocus(bool fFocus) {}
 	virtual bool OnMouseHover(int x,int y) { return false; }
 	virtual LRESULT OnNotifyMessage(LPNMHDR pnmh) { return 0; }
+
 	friend CStatusView;
 };
 
@@ -74,6 +77,7 @@ public:
 	struct ThemeInfo {
 		Theme::Style ItemStyle;
 		Theme::Style HighlightItemStyle;
+		Theme::Style BottomItemStyle;
 		Theme::BorderInfo Border;
 	};
 
@@ -84,7 +88,7 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void SetVisible(bool fVisible);
 // CStatusView
-	int NumItems() const { return m_NumItems; }
+	int NumItems() const { return m_ItemList.Length(); }
 	const CStatusItem *GetItem(int Index) const;
 	CStatusItem *GetItem(int Index);
 	const CStatusItem *GetItemByID(int ID) const;
@@ -94,8 +98,10 @@ public:
 	int IndexToID(int Index) const;
 	void UpdateItem(int ID);
 	bool GetItemRect(int ID,RECT *pRect) const;
+	bool GetItemRectByIndex(int Index,RECT *pRect) const;
 	bool GetItemClientRect(int ID,RECT *pRect) const;
 	int GetItemHeight() const;
+	void GetItemMargin(RECT *pRect) const;
 	int GetFontHeight() const { return m_FontHeight; }
 	int GetIntegralWidth() const;
 	void SetSingleText(LPCTSTR pszText);
@@ -103,11 +109,16 @@ public:
 	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
 	bool GetFont(LOGFONT *pFont) const;
+	bool SetMultiRow(bool fMultiRow);
+	bool SetMaxRows(int MaxRows);
+	int CalcHeight(int Width) const;
 	int GetCurItem() const;
 	bool SetEventHandler(CEventHandler *pEventHandler);
 	bool SetItemOrder(const int *pOrderList);
-	bool DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,bool fHighlight=false) const;
+	bool DrawItemPreview(CStatusItem *pItem,HDC hdc,const RECT *pRect,
+						 bool fHighlight=false,HFONT hfont=NULL) const;
 	bool EnableBufferedPaint(bool fEnable);
+	void EnableSizeAdjustment(bool fEnable);
 // CTracer
 	void OnTrace(LPCTSTR pszOutput);
 
@@ -115,9 +126,12 @@ private:
 	static HINSTANCE m_hinst;
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
+	int m_ItemHeight;
+	bool m_fMultiRow;
+	int m_MaxRows;
+	int m_Rows;
 	ThemeInfo m_Theme;
 	CPointerVector<CStatusItem> m_ItemList;
-	int m_NumItems;
 	bool m_fSingleMode;
 	LPTSTR m_pszSingleText;
 	int m_HotItem;
@@ -127,10 +141,12 @@ private:
 	DrawUtil::COffscreen m_Offscreen;
 	bool m_fBufferedPaint;
 	CBufferedPaint m_BufferedPaint;
+	bool m_fAdjustSize;
 
 	void SetHotItem(int Item);
 	void Draw(HDC hdc,const RECT *pPaintRect);
 	void AdjustSize();
+	void CalcRows();
 
 	static CStatusView *GetStatusView(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);

@@ -457,6 +457,7 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 									pThis->m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(Space));
 							}
 							SetListViewSortMark(hwndList,pThis->m_SortColumn,!pThis->m_fSortDescending);
+							ListView_EnsureVisible(hwndList,0,FALSE);
 						} else {
 							// ƒ`ƒƒƒ“ƒlƒ‹‚ªŒŸo‚Å‚«‚È‚©‚Á‚½
 							TCHAR szText[1024];
@@ -681,9 +682,11 @@ INT_PTR CALLBACK CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			CChannelScan *pThis=GetThis(hDlg);
 			const CChannelInfo *pChInfo=reinterpret_cast<const CChannelInfo*>(lParam);
 			HWND hwndList=::GetDlgItem(hDlg,IDC_CHANNELSCAN_CHANNELLIST);
+			int Index=ListView_GetItemCount(hwndList);
 
 			pThis->m_fChanging=true;
-			pThis->InsertChannelInfo(ListView_GetItemCount(hwndList),pChInfo);
+			pThis->InsertChannelInfo(Index,pChInfo);
+			ListView_EnsureVisible(hwndList,Index,FALSE);
 			pThis->m_fChanging=false;
 			::UpdateWindow(hwndList);
 		}
@@ -717,9 +720,9 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 								 pThis->m_ScanChannel,i);
 			::SendDlgItemMessage(hDlg,IDC_CHANNELSCAN_PROGRESS,PBM_SETPOS,
 								 pThis->m_ScanChannel,0);
+			GetAppClass().BeginChannelScan(pThis->m_ScanSpace);
 			pThis->m_fOK=false;
 			pThis->m_hCancelEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
-			//GetAppClass().BeginChannelScan();
 			pThis->m_hScanThread=::CreateThread(NULL,0,ScanProc,pThis,0,NULL);
 			pThis->m_fScaned=true;
 			::SetTimer(hDlg,1,500,NULL);
