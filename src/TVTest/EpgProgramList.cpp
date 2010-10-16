@@ -2,6 +2,9 @@
 #include "TVTest.h"
 #include "EpgProgramList.h"
 #include "HelperClass/NFile.h"
+#ifdef MOVE_SEMANTICS_SUPPORTED
+#include <utility>
+#endif
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -68,14 +71,14 @@ CEventInfoData::CEventInfoData(const CEventInfoData &Info)
 }
 
 
-#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 CEventInfoData::CEventInfoData(CEventInfoData &&Info)
 	: m_pszEventName(NULL)
 	, m_pszEventText(NULL)
 	, m_pszEventExtText(NULL)
 	, m_pszComponentTypeText(NULL)
 {
-	*this=std::move<Info>;
+	*this=std::move(Info);
 }
 #endif
 
@@ -125,8 +128,8 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 }
 
 
-#ifdef MOVE_ASSIGNMENT_SUPPORTED
-CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info);
+#ifdef MOVE_SEMANTICS_SUPPORTED
+CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 {
 	if (&Info!=this) {
 		m_OriginalNID=Info.m_OriginalNID;
@@ -134,7 +137,7 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info);
 		m_ServiceID=Info.m_ServiceID;
 		m_EventID=Info.m_EventID;
 		m_pszEventName=Info.m_pszEventName;
-		m_pszEventTextInfo.m_pszEventText;
+		m_pszEventText=Info.m_pszEventText;
 		m_pszEventExtText=Info.m_pszEventExtText;
 		m_fValidStartTime=Info.m_fValidStartTime;
 		if (m_fValidStartTime)
@@ -142,8 +145,8 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info);
 		m_DurationSec=Info.m_DurationSec;
 		m_ComponentType=Info.m_ComponentType;
 		m_pszComponentTypeText=Info.m_pszComponentTypeText;
-		m_AudioList=Info.m_AudioList;
-		m_NibbleList=Info.m_NibbleList;
+		m_AudioList=std::move(Info.m_AudioList);
+		m_NibbleList=std::move(Info.m_NibbleList);
 		m_fCommonEvent=Info.m_fCommonEvent;
 		m_CommonEventInfo=Info.m_CommonEventInfo;
 		m_UpdateTime=Info.m_UpdateTime;
@@ -254,25 +257,24 @@ bool CEventInfoData::SetComponentTypeText(LPCWSTR pszText)
 
 bool CEventInfoData::GetStartTime(SYSTEMTIME *pTime) const
 {
-	if (!m_fValidStartTime) {
-		::ZeroMemory(pTime,sizeof(SYSTEMTIME));
-		return false;
+	if (m_fValidStartTime) {
+		*pTime=m_stStartTime;
+		return true;
 	}
-	*pTime=m_stStartTime;
-	return true;
+	::ZeroMemory(pTime,sizeof(SYSTEMTIME));
+	return false;
 }
 
 
 bool CEventInfoData::GetEndTime(SYSTEMTIME *pTime) const
 {
-	FILETIME ft;
-
-	if (!m_fValidStartTime || !::SystemTimeToFileTime(&m_stStartTime,&ft)) {
-		::ZeroMemory(pTime,sizeof(SYSTEMTIME));
-		return false;
+	if (m_fValidStartTime) {
+		*pTime=m_stStartTime;
+		if (OffsetSystemTime(pTime,(LONGLONG)m_DurationSec*1000))
+			return true;
 	}
-	ft+=(LONGLONG)m_DurationSec*FILETIME_SECOND;
-	return ::FileTimeToSystemTime(&ft,pTime)!=FALSE;
+	::ZeroMemory(pTime,sizeof(SYSTEMTIME));
+	return false;
 }
 
 
@@ -507,8 +509,9 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 #endif
 
 	// 既存のイベントで新しいリストに無いものを追加する
-	ServiceMapKey Key=GetServiceMapKey(ServiceData.m_OriginalNID,
-								ServiceData.m_TSID,ServiceData.m_ServiceID);
+	const ServiceMapKey Key=GetServiceMapKey(ServiceData.m_OriginalNID,
+											 ServiceData.m_TSID,
+											 ServiceData.m_ServiceID);
 	ServiceMap::iterator itrService=m_ServiceMap.find(Key);
 	if (itrService!=m_ServiceMap.end()) {
 		CEventInfoList::EventMap::iterator itrEvent;
@@ -789,7 +792,7 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 		CEventManager::CEventInfo EventInfo;
 		if (m_pEventManager->GetEventInfo(pInfo->m_OriginalNID,
 										  pInfo->m_TSID,
-										  pInfo->m_ServiceID,
+										  pInfo->m_CommonEventInfo.ServiceID,
 										  pInfo->m_CommonEventInfo.EventID,
 										  &EventInfo)) {
 			pInfo->SetEventName(EventInfo.GetEventName());
@@ -818,10 +821,9 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 				Nibble.m_UserNibbleLv2=ContentNibble.NibbleList[k].UserNibble2;
 			}
 		} else {
-			const CEventInfoData *pCommonEvent=
-				GetEventInfo(pInfo->m_TSID,
-							 pInfo->m_CommonEventInfo.ServiceID,
-							 pInfo->m_CommonEventInfo.EventID);
+			const CEventInfoData *pCommonEvent=GetEventInfo(pInfo->m_TSID,
+															pInfo->m_CommonEventInfo.ServiceID,
+															pInfo->m_CommonEventInfo.EventID);
 			if (pCommonEvent==NULL)
 				return false;
 			pInfo->SetEventName(pCommonEvent->GetEventName());

@@ -455,28 +455,27 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				FillRandomData(Data,sizeof(Data));
 				Multi2Decoder.Initialize(SystemKey,InitialCbc);
 				NormalTime=SSE2Time=0;
-			Again:
-				StartTime=::timeGetTime();
-				for (int i=0;i<BENCHMARK_COUNT;i++) {
-					if (i%10000==0) {
-						FillRandomData(ScrambleKey,sizeof(ScrambleKey));
-						Multi2Decoder.SetScrambleKey(ScrambleKey);
+				do {
+					StartTime=::timeGetTime();
+					for (int i=0;i<BENCHMARK_COUNT;i++) {
+						if (i%10000==0) {
+							FillRandomData(ScrambleKey,sizeof(ScrambleKey));
+							Multi2Decoder.SetScrambleKey(ScrambleKey);
+						}
+						Multi2Decoder.Decode(Data,sizeof(Data),2);
 					}
-					Multi2Decoder.Decode(Data,sizeof(Data),2);
-				}
-				NormalTime+=DiffTime(StartTime,::timeGetTime());
-				StartTime=::timeGetTime();
-				for (int i=0;i<BENCHMARK_COUNT;i++) {
-					if (i%10000==0) {
-						FillRandomData(ScrambleKey,sizeof(ScrambleKey));
-						Multi2Decoder.SetScrambleKey(ScrambleKey);
+					NormalTime+=DiffTime(StartTime,::timeGetTime());
+					StartTime=::timeGetTime();
+					for (int i=0;i<BENCHMARK_COUNT;i++) {
+						if (i%10000==0) {
+							FillRandomData(ScrambleKey,sizeof(ScrambleKey));
+							Multi2Decoder.SetScrambleKey(ScrambleKey);
+						}
+						Multi2Decoder.DecodeSSE2(Data,sizeof(Data),2);
 					}
-					Multi2Decoder.DecodeSSE2(Data,sizeof(Data),2);
-				}
-				SSE2Time+=DiffTime(StartTime,::timeGetTime());
-				BenchmarkCount+=BENCHMARK_COUNT;
-				if (NormalTime<1000 && SSE2Time<1000)
-					goto Again;
+					SSE2Time+=DiffTime(StartTime,::timeGetTime());
+					BenchmarkCount+=BENCHMARK_COUNT;
+				} while (NormalTime<1000 && SSE2Time<1000);
 
 				::SetCursor(hcurOld);
 				int Percentage;
@@ -484,8 +483,14 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 					Percentage=(int)(NormalTime*100/SSE2Time)-100;
 				else
 					Percentage=-(int)((SSE2Time*100/NormalTime)-100);
+				// 表示されるメッセージに深い意味はない
 				TCHAR szText[256];
-				::wsprintf(szText,TEXT("%lu 回の実行に掛かった時間\nSSE2不使用 : %lu ms\nSSE2使用 : %lu ms\nSSE2で高速化される割合 : %d %%\n\n%s"),
+				::wsprintf(szText,
+						   TEXT("%lu 回の実行に掛かった時間\n")
+						   TEXT("SSE2不使用 : %lu ms\n")
+						   TEXT("SSE2使用 : %lu ms\n")
+						   TEXT("SSE2で高速化される割合 : %d %%\n")
+						   TEXT("\n%s"),
 						   BenchmarkCount,NormalTime,SSE2Time,Percentage,
 						   Percentage<=5?
 								TEXT("SSE2を無効にすることをお勧めします。"):

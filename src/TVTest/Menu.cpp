@@ -219,6 +219,7 @@ bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,UINT C
 	m_LastCommand=Command+pChannelList->NumChannels()-1;
 	m_Flags=Flags;
 	m_hwnd=hwnd;
+	m_fFlatMenu=false;
 
 	m_Margins.cxLeftWidth=2;
 	m_Margins.cxRightWidth=2;
@@ -231,6 +232,10 @@ bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,UINT C
 			m_Margins.cxLeftWidth=2;
 		if (m_Margins.cxRightWidth<2)
 			m_Margins.cxRightWidth=2;
+	} else {
+		BOOL fFlatMenu=FALSE;
+		if (::SystemParametersInfo(SPI_GETFLATMENU,0,&fFlatMenu,0) && fFlatMenu)
+			m_fFlatMenu=true;
 	}
 
 	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
@@ -384,8 +389,15 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 								 MENU_POPUPBACKGROUND,0,&pdis->rcItem);
 		m_UxTheme.GetColor(MENU_POPUPITEM,StateID,TMT_TEXTCOLOR,&crTextColor);
 	} else {
-		::FillRect(pdis->hDC,&pdis->rcItem,
-			reinterpret_cast<HBRUSH>(fSelected?COLOR_HIGHLIGHT+1:COLOR_MENU+1));
+		if (m_fFlatMenu) {
+			::FillRect(pdis->hDC,&pdis->rcItem,
+				reinterpret_cast<HBRUSH>(fSelected?COLOR_MENUHILIGHT+1:COLOR_MENU+1));
+			if (fSelected)
+				::FrameRect(pdis->hDC,&pdis->rcItem,::GetSysColorBrush(COLOR_HIGHLIGHT));
+		} else {
+			::FillRect(pdis->hDC,&pdis->rcItem,
+				reinterpret_cast<HBRUSH>(fSelected?COLOR_HIGHLIGHT+1:COLOR_MENU+1));
+		}
 		crTextColor=::GetSysColor(fSelected?COLOR_HIGHLIGHTTEXT:COLOR_MENUTEXT);
 	}
 

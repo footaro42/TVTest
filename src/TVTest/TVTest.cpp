@@ -79,6 +79,11 @@ static CTaskbarManager TaskbarManager;
 static CChannelDisplayMenu ChannelDisplayMenu(&EpgProgramList);
 static CBalloonTip NotifyBalloonTip;
 
+#ifndef _DEBUG
+#include "DebugHelper.h"
+static CDebugHelper DebugHelper;
+#endif
+
 static bool fIncrementUDPPort=true;
 
 static CCommandLineParser CmdLineParser;
@@ -422,9 +427,19 @@ void CAppMain::OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle)
 }
 
 
+void CAppMain::SetSilent(bool fSilent)
+{
+	m_fSilent=fSilent;
+#ifndef _DEBUG
+	DebugHelper.SetExceptionFilterMode(
+		fSilent?CDebugHelper::EXCEPTION_FILTER_NONE:CDebugHelper::EXCEPTION_FILTER_DIALOG);
+#endif
+}
+
+
 bool CAppMain::InitializeChannel()
 {
-	bool fNetworkDriver=CoreEngine.IsNetworkDriver();
+	const bool fNetworkDriver=CoreEngine.IsNetworkDriver();
 	CFilePath ChannelFilePath;
 	TCHAR szNetworkDriverName[MAX_PATH];
 
@@ -432,7 +447,8 @@ bool CAppMain::InitializeChannel()
 	ChannelManager.MakeDriverTuningSpaceList(&CoreEngine.m_DtvEngine.m_BonSrcDecoder);
 	if (!fNetworkDriver) {
 		ChannelFilePath.SetPath(CoreEngine.GetDriverFileName());
-		if (ChannelFilePath.IsRelative()) {
+		const bool fRelative=ChannelFilePath.IsRelative();
+		if (fRelative) {
 			TCHAR szDir[MAX_PATH];
 			GetAppDirectory(szDir);
 			ChannelFilePath.RemoveDirectory();
@@ -450,6 +466,23 @@ bool CAppMain::InitializeChannel()
 				ChannelFilePath.SetExtension(TEXT(".ch"));
 		}
 #endif
+		if (fRelative && !ChannelFilePath.IsExists()
+				&& !IsStringEmpty(CoreEngine.GetDriverDirectory())) {
+			ChannelFilePath.RemoveDirectory();
+			ChannelFilePath.SetDirectory(CoreEngine.GetDriverDirectory());
+#ifndef TVH264
+			ChannelFilePath.SetExtension(TEXT(".ch2"));
+			if (!ChannelFilePath.IsExists())
+				ChannelFilePath.SetExtension(TEXT(".ch"));
+#else
+			ChannelFilePath.SetExtension(TEXT(".ch1"));
+			if (!ChannelFilePath.IsExists()) {
+				ChannelFilePath.SetExtension(TEXT(".ch2"));
+				if (!ChannelFilePath.IsExists())
+					ChannelFilePath.SetExtension(TEXT(".ch"));
+			}
+#endif
+		}
 	} else {
 		bool fOK=false;
 
@@ -458,7 +491,7 @@ bool CAppMain::InitializeChannel()
 				GetDriverReceiver.Initialize();
 				if (pNetworkRemocon->GetDriverList(&GetDriverReceiver)
 						&& GetDriverReceiver.Wait(2000)
-						&& GetDriverReceiver.GetCurDriver()[0]!='\0') {
+						&& GetDriverReceiver.GetCurDriver()[0]!=_T('\0')) {
 					TCHAR szFileName[MAX_PATH];
 
 					if (NetworkRemoconOptions.FindChannelFile(
@@ -467,9 +500,9 @@ bool CAppMain::InitializeChannel()
 
 						NetworkRemoconOptions.SetDefaultChannelFileName(szFileName);
 						p=szFileName;
-						while (*p!='(')
+						while (*p!=_T('('))
 							p++;
-						*p='\0';
+						*p=_T('\0');
 						::wsprintf(szNetworkDriverName,TEXT("%s.dll"),szFileName);
 						::lstrcpy(p,CHANNEL_FILE_EXTENSION);
 						ChannelFilePath.SetPath(szFileName);
@@ -492,7 +525,7 @@ bool CAppMain::InitializeChannel()
 					}
 				}
 			}
-			if (!fOK && NetworkRemoconOptions.GetChannelFileName()[0]!='\0') {
+			if (!fOK && NetworkRemoconOptions.GetChannelFileName()[0]!=_T('\0')) {
 				TCHAR szFileName[MAX_PATH],*q;
 				LPCTSTR p;
 
@@ -500,14 +533,14 @@ bool CAppMain::InitializeChannel()
 				ChannelFilePath.SetPath(szFileName);
 				p=NetworkRemoconOptions.GetChannelFileName();
 				q=szFileName;
-				for (int i=0;*p!='(' && *p!='\0';i++) {
+				for (int i=0;*p!=_T('(') && *p!=_T('\0');i++) {
 #ifndef UNICODE
 					if (::IsDBCSLeadByteEx(CP_ACP,*p))
 						*q++=*p++;
 #endif
 					*q++=*p++;
 				}
-				*q='\0';
+				*q=_T('\0');
 				::wsprintf(szNetworkDriverName,TEXT("%s.dll"),szFileName);
 				::lstrcpy(q,CHANNEL_FILE_EXTENSION);
 				ChannelFilePath.Append(szFileName);
@@ -528,9 +561,9 @@ bool CAppMain::InitializeChannel()
 			}
 		}
 		if (!fOK)
-			szNetworkDriverName[0]='\0';
+			szNetworkDriverName[0]=_T('\0');
 	}
-	if (ChannelFilePath.GetPath()[0]=='\0' || !ChannelFilePath.IsExists()) {
+	if (ChannelFilePath.GetPath()[0]==_T('\0') || !ChannelFilePath.IsExists()) {
 		ChannelFilePath.SetPath(m_szDefaultChannelFileName);
 		if (!ChannelFilePath.IsExists())
 			ChannelFilePath.SetExtension(TEXT(".ch"));
@@ -543,7 +576,7 @@ bool CAppMain::InitializeChannel()
 	if (!fNetworkDriver) {
 		::lstrcpy(szFileName,CoreEngine.GetDriverFileName());
 	} else {
-		if (szNetworkDriverName[0]!='\0') {
+		if (szNetworkDriverName[0]!=_T('\0')) {
 			::lstrcpy(szFileName,szNetworkDriverName);
 		} else {
 			fLoadChannelSettings=false;
@@ -1009,7 +1042,7 @@ bool CAppMain::OpenBcasCard(bool fRetry)
 				Logger.AddLog(TEXT("(B-CASカードID %s / メーカ識別 %c / バージョン %d)"),
 					szCardID,
 					CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardManufacturerID(),
-				CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardVersion());
+					CoreEngine.m_DtvEngine.m_TsDescrambler.GetBcasCardVersion());
 			}
 		}
 	}
@@ -1028,7 +1061,7 @@ bool CAppMain::LoadSettings()
 		bool f;
 
 		if (Setting.Read(TEXT("Volume"),&Value))
-			CoreEngine.SetVolume(Value<0?0:Value>CCoreEngine::MAX_VOLUME?CCoreEngine::MAX_VOLUME:Value);
+			CoreEngine.SetVolume(CLAMP(Value,0,CCoreEngine::MAX_VOLUME));
 		int Gain=100,SurroundGain;
 		Setting.Read(TEXT("VolumeNormalizeLevel"),&Gain);
 		if (!Setting.Read(TEXT("SurroundGain"),&SurroundGain))
@@ -1697,7 +1730,7 @@ bool CTunerSelectMenu::Create(HWND hwnd)
 	pChannelList=ChannelManager.GetAllChannelList();
 	if (ChannelManager.NumSpaces()>1) {
 		hmenuSpace=::CreatePopupMenu();
-		::AppendMenu(m_hmenu,MF_POPUP | MFS_ENABLED,
+		::AppendMenu(m_hmenu,MF_POPUP | MF_ENABLED,
 					 reinterpret_cast<UINT_PTR>(hmenuSpace),TEXT("&A: すべて"));
 	}
 	Command+=pChannelList->NumChannels();
@@ -1710,7 +1743,8 @@ bool CTunerSelectMenu::Create(HWND hwnd)
 			CopyToMenuText(pszName,szText+Length,lengthof(szText)-Length);
 		else
 			::wsprintf(szText+Length,TEXT("チューニング空間%d"),i);
-		::AppendMenu(m_hmenu,MF_POPUP | MFS_ENABLED,
+		::AppendMenu(m_hmenu,
+					 MF_POPUP | (pChannelList->NumEnableChannels()>0?MF_ENABLED:MF_GRAYED),
 					 reinterpret_cast<UINT_PTR>(hmenuSpace),szText);
 		Command+=pChannelList->NumChannels();
 	}
@@ -1751,7 +1785,7 @@ bool CTunerSelectMenu::Create(HWND hwnd)
 						CopyToMenuText(pszName,szText+Length,lengthof(szText)-Length);
 					else
 						::wsprintf(szText,TEXT("チューニング空間%d"),j);
-					::AppendMenu(hmenuDriver,MF_POPUP | MFS_ENABLED,
+					::AppendMenu(hmenuDriver,MF_POPUP | MF_ENABLED,
 								 reinterpret_cast<UINT_PTR>(hmenuSpace),szText);
 				}
 			}
@@ -1765,11 +1799,11 @@ bool CTunerSelectMenu::Create(HWND hwnd)
 			} else {
 				CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
 			}
-			::AppendMenu(m_hmenu,MF_POPUP | MFS_ENABLED,
+			::AppendMenu(m_hmenu,MF_POPUP | MF_ENABLED,
 						 reinterpret_cast<UINT_PTR>(hmenuDriver),szText);
 		} else {
 			CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
-			::AppendMenu(m_hmenu,MFT_STRING | MFS_ENABLED,CM_DRIVER_FIRST+i,szText);
+			::AppendMenu(m_hmenu,MF_STRING | MF_ENABLED,CM_DRIVER_FIRST+i,szText);
 		}
 	}
 	return true;
@@ -4539,7 +4573,7 @@ LRESULT CFullscreen::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				POINT pt;
 				RECT rc;
 				::GetCursorPos(&pt);
-				m_ViewWindow.GetPosition(&rc);
+				m_ViewWindow.GetScreenPosition(&rc);
 				if (::PtInRect(&rc,pt)) {
 					ShowCursor(false);
 					::SetCursor(NULL);
@@ -5735,7 +5769,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return 0;
 
 	case WM_MOUSEMOVE:
-		if (GetCapture()==hwnd) {
+		if (::GetCapture()==hwnd) {
 			POINT pt;
 			RECT rcOld,rc;
 
@@ -7406,8 +7440,13 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				pChannel=ChannelHistory.Backward();
 			else
 				pChannel=ChannelHistory.Forward();
-			if (pChannel!=NULL)
+			if (pChannel!=NULL) {
+				if (RecordManager.IsRecording()) {
+					if (!RecordOptions.ConfirmChannelChange(GetVideoHostWindow()))
+						return;
+				}
 				AppMain.SetDriverAndChannel(pChannel->GetDriverFileName(),pChannel);
+			}
 		}
 		return;
 
@@ -8278,7 +8317,7 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 			szAudio1[0]='\0';
 			szAudio2[0]='\0';
 			if (AudioInfo.szText[0]!='\0') {
-				LPTSTR pszDelimiter=::StrChr(AudioInfo.szText,'\r');
+				LPTSTR pszDelimiter=::StrChr(AudioInfo.szText,_T('\r'));
 				if (pszDelimiter!=NULL) {
 					*pszDelimiter='\0';
 					::lstrcpyn(szAudio1,AudioInfo.szText,lengthof(szAudio1));
@@ -8323,9 +8362,9 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 				if (NumAudioStreams>1
 						&& CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo,i)) {
 					if (AudioInfo.szText[0]!='\0') {
-						LPTSTR p=::StrChr(AudioInfo.szText,'\r');
+						LPTSTR p=::StrChr(AudioInfo.szText,_T('\r'));
 						if (p!=NULL)
-							*p='/';
+							*p=_T('/');
 						::wsprintf(szText+Length,TEXT(" (%s)"),AudioInfo.szText);
 					} else {
 						::wsprintf(szText+Length,TEXT(" (%s)"),GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG));
@@ -8416,10 +8455,12 @@ void CMainWindow::OnTunerClosed()
 
 void CMainWindow::OnChannelListChanged()
 {
-	if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
+	if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL) {
 		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList());
-	else
+		ChannelPanel.SetCurrentChannel(ChannelManager.GetCurrentChannel());
+	} else {
 		ChannelPanel.ClearChannelList();
+	}
 }
 
 
@@ -9156,7 +9197,7 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 	SendCommand(CM_SHOW);
 	PluginList.SendExecuteEvent(pszCmdLine);
 	CmdLine.Parse(pszCmdLine);
-	if (CmdLine.m_fSilent)
+	if (CmdLine.m_fSilent || CmdLine.m_TvRockDID>=0)
 		AppMain.SetSilent(true);
 	if (CmdLine.m_fSaveLog)
 		CmdLineParser.m_fSaveLog=true;
@@ -9173,6 +9214,10 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 						  CmdLine.m_RecordDelay,CmdLine.m_RecordDuration);
 	} else if (CmdLine.m_fRecordStop)
 		AppMain.StopRecord();
+	if (CmdLine.m_Volume>=0)
+		m_pCore->SetVolume(min(CmdLine.m_Volume,CCoreEngine::MAX_VOLUME),false);
+	if (CmdLine.m_fMute)
+		m_pCore->SetMute(true);
 	return true;
 }
 
@@ -9460,11 +9505,6 @@ static bool IsNoAcceleratorMessage(const MSG *pmsg)
 }
 
 
-#ifndef _DEBUG
-#include "DebugHelper.h"
-static CDebugHelper DebugHelper;
-#endif
-
 static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 {
 	hInst=hInstance;
@@ -9475,12 +9515,8 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		// 暫定措置
 		if (CmdLineParser.m_TvRockDID>=0)
 			CmdLineParser.m_fSilent=true;
-		if (CmdLineParser.m_fSilent) {
+		if (CmdLineParser.m_fSilent)
 			AppMain.SetSilent(true);
-#ifndef _DEBUG
-			DebugHelper.SetExceptionFilterMode(CDebugHelper::EXCEPTION_FILTER_NONE);
-#endif
-		}
 		if (CmdLineParser.m_fMaximize && !CmdLineParser.m_fMinimize)
 			MainWindow.SetMaximize(true);
 	}
@@ -9563,6 +9599,9 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 	}
 
 	GeneralOptions.SetTemporaryNoDescramble(CmdLineParser.m_fNoDescramble);
+
+	if (CmdLineParser.m_Volume>=0)
+		CoreEngine.SetVolume(min(CmdLineParser.m_Volume,CCoreEngine::MAX_VOLUME));
 
 	ColorSchemeOptions.SetApplyCallback(ColorSchemeApplyProc);
 	ColorSchemeOptions.ApplyColorScheme();
@@ -9748,7 +9787,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		}
 	}
 
-	if (PlaybackOptions.GetRestoreMute() && fMuteStatus)
+	if ((PlaybackOptions.GetRestoreMute() && fMuteStatus) || CmdLineParser.m_fMute)
 		AppMain.GetUICore()->SetMute(true);
 	if ((!PlaybackOptions.GetRestorePlayStatus() || fEnablePlay)
 			&& CoreEngine.m_DtvEngine.m_MediaViewer.IsOpen()) {

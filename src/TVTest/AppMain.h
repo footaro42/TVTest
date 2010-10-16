@@ -36,7 +36,7 @@ public:
 	LPCTSTR GetIniFileName() const { return m_szIniFileName; }
 	void AddLog(LPCTSTR pszText, ...);
 	void OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
-	void SetSilent(bool fSilent) { m_fSilent=fSilent; }
+	void SetSilent(bool fSilent);
 	bool IsSilent() const { return m_fSilent; }
 	bool LoadSettings();
 	bool SaveSettings();

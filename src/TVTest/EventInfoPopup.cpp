@@ -54,7 +54,17 @@ CEventInfoPopup::CEventInfoPopup()
 	, m_ButtonSize(14)
 	, m_ButtonMargin(3)
 	, m_pEventHandler(NULL)
+	, m_fDetailInfo(
+#ifdef _DEBUG
+		true
+#else
+		false
+#endif
+		)
 {
+	m_WindowPosition.Width=320;
+	m_WindowPosition.Height=320;
+
 	LOGFONT lf;
 	DrawUtil::GetSystemFont(DrawUtil::FONT_MESSAGE,&lf);
 	m_Font.Create(&lf);
@@ -177,12 +187,21 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		NullToEmptyString(m_EventInfo.GetEventExtText()));
 	Length-=RemoveTrailingWhitespace(szText);
 	if (*pszVideo!='?' || *pszAudio!='?') {
-		::wnsprintf(szText+Length,lengthof(szText)-1-Length,
-					TEXT("%s(映像: %s / 音声: %s%s)"),
-					Length>0?TEXT("\r\n\r\n"):TEXT(""),
-					pszVideo,
-					pszAudio,
-					szAudioComponent);
+		Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
+							TEXT("%s(映像: %s / 音声: %s%s)"),
+							Length>0?TEXT("\r\n\r\n"):TEXT(""),
+							pszVideo,
+							pszAudio,
+							szAudioComponent);
+	}
+	if (m_fDetailInfo) {
+		Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
+							TEXT("\r\nイベントID 0x%04X"),m_EventInfo.m_EventID);
+		if (m_EventInfo.m_fCommonEvent)
+			::wnsprintf(szText+Length,lengthof(szText)-1-Length,
+						TEXT(" (イベント共有 サービスID 0x%04X / イベントID 0x%04X)"),
+						m_EventInfo.m_CommonEventInfo.ServiceID,
+						m_EventInfo.m_CommonEventInfo.EventID);
 	}
 	szText[lengthof(szText)-1]=_T('\0');
 
@@ -247,9 +266,13 @@ bool CEventInfoPopup::Show(const CEventInfoData *pEventInfo,const RECT *pPos)
 		if (!GetVisible())
 			SetPosition(pPos);
 	} else if (!IsVisible() || m_EventInfo!=*pEventInfo) {
+		RECT rc;
 		POINT pt;
-		int Width=320,Height=320;
+		int Width,Height;
 
+		GetPosition(&rc);
+		Width=rc.right-rc.left;
+		Height=rc.bottom-rc.top;
 		::GetCursorPos(&pt);
 		pt.y+=16;
 		HMONITOR hMonitor=::MonitorFromPoint(pt,MONITOR_DEFAULTTONEAREST);

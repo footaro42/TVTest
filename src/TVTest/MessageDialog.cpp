@@ -65,7 +65,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					pThis->m_MessageType==TYPE_WARNING?IDI_WARNING:IDI_ERROR)),0);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_SETBKGNDCOLOR,0,::GetSysColor(COLOR_WINDOW));
 
-			HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
+			const HWND hwndEdit=::GetDlgItem(hDlg,IDC_ERROR_MESSAGE);
 			CHARFORMAT cf,cfBold;
 
 			NONCLIENTMETRICS ncm;
@@ -91,7 +91,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				CRichEditUtil::AppendText(hwndEdit,TEXT("\n\nWindowsのエラーメッセージ :\n"),&cfBold);
 				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszSystemMessage,&cf);
 			}
-			int MaxWidth=CRichEditUtil::GetMaxLineWidth(hwndEdit)+8;
+			const int MaxWidth=CRichEditUtil::GetMaxLineWidth(hwndEdit)+8;
 			RECT rcEdit,rcIcon,rcDlg,rcClient,rcOK;
 			::GetWindowRect(hwndEdit,&rcEdit);
 			::OffsetRect(&rcEdit,-rcEdit.left,-rcEdit.top);
@@ -105,11 +105,12 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			::GetClientRect(hDlg,&rcClient);
 			::GetWindowRect(::GetDlgItem(hDlg,IDOK),&rcOK);
 			MapWindowRect(NULL,hDlg,&rcOK);
-			int Offset=MaxWidth-rcEdit.right;
+			const int Offset=MaxWidth-rcEdit.right;
 			::SetWindowPos(::GetDlgItem(hDlg,IDOK),NULL,
 						   rcOK.left+Offset,rcOK.top,0,0,
 						   SWP_NOSIZE | SWP_NOZORDER);
-			::SetWindowPos(hDlg,NULL,0,0,(rcDlg.right-rcDlg.left)+Offset,rcDlg.bottom-rcDlg.top,SWP_NOMOVE | SWP_NOZORDER);
+			::SetWindowPos(hDlg,NULL,0,0,(rcDlg.right-rcDlg.left)+Offset,rcDlg.bottom-rcDlg.top,
+						   SWP_NOMOVE | SWP_NOZORDER);
 			::SendMessage(hwndEdit,EM_SETEVENTMASK,0,ENM_REQUESTRESIZE | ENM_MOUSEEVENTS);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_REQUESTRESIZE,0,0);
 
@@ -148,7 +149,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		case EN_REQUESTRESIZE:
 			{
 				REQRESIZE *prr=reinterpret_cast<REQRESIZE*>(lParam);
-				RECT rcEdit,rcDialog,rcClient,rcOK;
+				RECT rcEdit,rcDialog,rcClient,rcOK,rcIcon;
 				int Width,Height,MinWidth;
 				int XOffset,YOffset;
 				HWND hwndOK;
@@ -164,6 +165,10 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				if (Width<MinWidth)
 					Width=MinWidth;
 				Height=prr->rc.bottom-prr->rc.top;
+				::GetWindowRect(::GetDlgItem(hDlg,IDC_ERROR_ICON),&rcIcon);
+				rcIcon.bottom-=rcIcon.top;
+				if (Height<rcIcon.bottom)
+					Height=rcIcon.bottom;
 				if (Width==rcEdit.right-rcEdit.left
 						&& Height==rcEdit.bottom-rcEdit.top)
 					break;

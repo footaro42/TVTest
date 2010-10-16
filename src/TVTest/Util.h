@@ -7,8 +7,8 @@ ULONGLONG StringToUInt64(LPCTSTR pszString);
 bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
 bool UInt64ToString(ULONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
 
-LPSTR DuplicateString(LPCSTR pszString);
-LPWSTR DuplicateString(LPCWSTR pszString);
+__declspec(restrict) LPSTR DuplicateString(LPCSTR pszString);
+__declspec(restrict) LPWSTR DuplicateString(LPCWSTR pszString);
 bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
 bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
 int RemoveTrailingWhitespace(LPTSTR pszString);
@@ -73,13 +73,13 @@ protected:
 public:
 	CDynamicString();
 	CDynamicString(const CDynamicString &String);
-#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 	CDynamicString(CDynamicString &&String);
 #endif
 	explicit CDynamicString(LPCTSTR pszString);
 	virtual ~CDynamicString();
 	CDynamicString &operator=(const CDynamicString &String);
-#ifdef MOVE_ASSIGNMENT_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 	CDynamicString &operator=(CDynamicString &&String);
 #endif
 	CDynamicString &operator+=(const CDynamicString &String);
@@ -101,7 +101,7 @@ class CFilePath {
 public:
 	CFilePath();
 	CFilePath(const CFilePath &Path);
-	CFilePath(LPCTSTR pszPath);
+	explicit CFilePath(LPCTSTR pszPath);
 	~CFilePath();
 	bool IsEmpty() const { return m_szPath[0]==_T('\0'); }
 	bool SetPath(LPCTSTR pszPath);

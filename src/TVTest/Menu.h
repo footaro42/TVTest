@@ -66,6 +66,7 @@ class CChannelMenu
 	int m_LogoWidth;
 	int m_LogoHeight;
 	CUxTheme m_UxTheme;
+	bool m_fFlatMenu;
 	MARGINS m_Margins;
 	int m_MenuLogoMargin;
 	CTooltip m_Tooltip;

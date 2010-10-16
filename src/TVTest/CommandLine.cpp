@@ -1,6 +1,7 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "CommandLine.h"
+//#include "AppMain.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -11,10 +12,12 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-class CArgsParser {
+class CArgsParser
+{
 	LPWSTR *m_ppszArgList;
 	int m_Args;
 	int m_CurPos;
+
 public:
 	CArgsParser(LPCWSTR pszCmdLine);
 	~CArgsParser();
@@ -56,7 +59,8 @@ bool CArgsParser::IsSwitch() const
 {
 	if (IsEnd())
 		return false;
-	return m_ppszArgList[m_CurPos][0]=='-' || m_ppszArgList[m_CurPos][0]=='/';
+	return m_ppszArgList[m_CurPos][0]==L'-'
+		|| m_ppszArgList[m_CurPos][0]==L'/';
 }
 
 
@@ -138,7 +142,7 @@ bool CArgsParser::Next()
 LPCWSTR CArgsParser::GetText() const
 {
 	if (IsEnd())
-		return TEXT("");
+		return L"";
 	return m_ppszArgList[m_CurPos];
 }
 
@@ -182,15 +186,15 @@ bool CArgsParser::GetDurationValue(DWORD *pValue) const
 	LPCWSTR p=m_ppszArgList[m_CurPos];
 	DWORD DurationSec=0,Duration=0;
 
-	while (*p!='\0') {
-		if (*p>='0' && *p<='9') {
-			Duration=Duration*10+(*p-'0');
+	while (*p!=L'\0') {
+		if (*p>=L'0' && *p<=L'9') {
+			Duration=Duration*10+(*p-L'0');
 		} else {
-			if (*p=='h') {
+			if (*p==L'h') {
 				DurationSec+=Duration*(60*60);
-			} else if (*p=='m') {
+			} else if (*p==L'm') {
 				DurationSec+=Duration*60;
-			} else if (*p=='s') {
+			} else if (*p==L's') {
 				DurationSec+=Duration;
 			}
 			Duration=0;
@@ -236,7 +240,9 @@ CCommandLineParser::CCommandLineParser()
 	, m_fSaveLog(false)
 	, m_fRecordOnly(false)
 	, m_fNoEpg(false)
-	, m_TvRockDID(0)
+	, m_TvRockDID(-1)
+	, m_Volume(-1)
+	, m_fMute(false)
 {
 }
 
@@ -253,6 +259,7 @@ CCommandLineParser::CCommandLineParser()
 	/log			終了時にログを保存する
 	/max			最大化状態で起動
 	/min			最小化状態で起動
+	/mute			消音
 	/nd				スクランブル解除しない
 	/nid			ネットワークID
 	/nodriver		BonDriverを読み込まない
@@ -278,6 +285,7 @@ CCommandLineParser::CCommandLineParser()
 	/silent			エラー時にダイアログを表示しない
 	/standby		待機状態で起動
 	/tsid			トランスポートストリームID
+	/volume			音量
 */
 void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 {
@@ -297,6 +305,7 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("log"),&m_fSaveLog)
 					&& !Args.GetOption(TEXT("max"),&m_fMaximize)
 					&& !Args.GetOption(TEXT("min"),&m_fMinimize)
+					&& !Args.GetOption(TEXT("mute"),&m_fMute)
 					&& !Args.GetOption(TEXT("nd"),&m_fNoDescramble)
 					&& !Args.GetOption(TEXT("nodriver"),&m_fNoDriver)
 					&& !Args.GetOption(TEXT("nodshow"),&m_fNoDirectShow)
@@ -322,7 +331,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("sid"),&m_ServiceID)
 					&& !Args.GetOption(TEXT("silent"),&m_fSilent)
 					&& !Args.GetOption(TEXT("standby"),&m_fStandby)
-					&& !Args.GetOption(TEXT("tsid"),&m_TransportStreamID)) {
+					&& !Args.GetOption(TEXT("tsid"),&m_TransportStreamID)
+					&& !Args.GetOption(TEXT("volume"),&m_Volume)) {
 				if (Args.IsOption(TEXT("plugin-"))) {
 					if (Args.Next()) {
 						TCHAR szPlugin[MAX_PATH];
@@ -331,17 +341,19 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					}
 				} else if (Args.IsOption(TEXT("did"))) {
 					if (Args.Next()) {
-						const TCHAR DID=Args.GetText()[0];
+						const WCHAR DID=Args.GetText()[0];
 
-						if (DID>='A' && DID<='Z')
-							m_TvRockDID=DID-'A';
-						else if (DID>='a' && DID<='z')
-							m_TvRockDID=DID-'a';
+						if (DID>=L'A' && DID<=L'Z')
+							m_TvRockDID=DID-L'A';
+						else if (DID>=L'a' && DID<=L'z')
+							m_TvRockDID=DID-L'a';
 					}
 				}
 #ifdef _DEBUG
 				else {
 					TRACE(TEXT("Unknown command line option %s\n"),Args.GetText());
+					// プラグインで解釈するオプションもあるので…
+					//GetAppClass().AddLong(TEXT("不明なコマンドラインオプション %s を無視します。"),Args.GetText());
 				}
 #endif
 			}

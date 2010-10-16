@@ -47,27 +47,27 @@ bool UInt64ToString(ULONGLONG Value,LPTSTR pszString,int MaxLength,int Radix)
 }
 
 
-LPSTR DuplicateString(LPCSTR pszString)
+__declspec(restrict) LPSTR DuplicateString(LPCSTR pszString)
 {
-	LPSTR p;
-
 	if (pszString==NULL)
 		return NULL;
-	p=new char[lstrlenA(pszString)+1];
-	lstrcpyA(p,pszString);
-	return p;
+
+	const size_t Length=lstrlenA(pszString)+1;
+	LPSTR pszNewString=new char[Length];
+	::CopyMemory(pszNewString,pszString,Length);
+	return pszNewString;
 }
 
 
-LPWSTR DuplicateString(LPCWSTR pszString)
+__declspec(restrict) LPWSTR DuplicateString(LPCWSTR pszString)
 {
-	LPWSTR p;
-
 	if (pszString==NULL)
 		return NULL;
-	p=new WCHAR[lstrlenW(pszString)+1];
-	lstrcpyW(p,pszString);
-	return p;
+
+	const size_t Length=lstrlenW(pszString)+1;
+	LPWSTR pszNewString=new WCHAR[Length];
+	::CopyMemory(pszNewString,pszString,Length*sizeof(WCHAR));
+	return pszNewString;
 }
 
 
@@ -265,7 +265,7 @@ int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength)
 	int i,j;
 
 	i=j=0;
-	while (pszSrcText[i]!='\0' && j+1<MaxLength) {
+	while (pszSrcText[i]!=_T('\0') && j+1<MaxLength) {
 		pszDstText[j++]=pszSrcText[i];
 #ifndef UNICODE
 		if (::IsDBCSLeadByteEx(CP_ACP,pszSrcText[i])) {
@@ -283,7 +283,7 @@ int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength)
 		}
 		i++;
 	}
-	pszDstText[j]='\0';
+	pszDstText[j]=_T('\0');
 	return j;
 }
 
@@ -373,7 +373,7 @@ int CALLBACK BrowseFolderCallback(HWND hwnd,UINT uMsg,LPARAM lpData,
 {
 	switch (uMsg) {
 	case BFFM_INITIALIZED:
-		if (((LPTSTR)lParam)[0]!='\0') {
+		if (((LPTSTR)lParam)[0]!=_T('\0')) {
 			TCHAR szDirectory[MAX_PATH];
 
 			lstrcpy(szDirectory,(LPTSTR)lParam);
@@ -448,14 +448,14 @@ int GetErrorText(DWORD ErrorCode,LPTSTR pszText,int MaxLength)
 		ErrorCode,MAKELANGID(LANG_NEUTRAL,SUBLANG_DEFAULT),
 		pszText,MaxLength,NULL);
 	if (Length==0)
-		pszText[0]='\0';
+		pszText[0]=_T('\0');
 	return Length;
 }
 
 
 bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard,LPTSTR pszMessage,int MaxMessage)
 {
-	if (pszFileName==NULL || pszFileName[0]=='\0') {
+	if (pszFileName==NULL || pszFileName[0]==_T('\0')) {
 		if (pszMessage!=NULL)
 			lstrcpyn(pszMessage,TEXT("ファイル名が指定されていません。"),MaxMessage);
 		return false;
@@ -498,22 +498,27 @@ bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard,LPTSTR pszMessage,int Ma
 		}
 	}
 	LPCTSTR p=pszFileName;
-	while (*p!='\0') {
-		if (*p<=31 || *p=='<' || *p=='>' || *p==':' || *p=='"'
-				|| *p=='/' || *p=='\\' || *p=='|'
-				|| (!fWildcard && (*p=='*' || *p=='?'))) {
+	while (*p!=_T('\0')) {
+		if (*p<=31 || *p==_T('<') || *p==_T('>') || *p==_T(':') || *p==_T('"')
+				|| *p==_T('/') || *p==_T('\\') || *p==_T('|')
+				|| (!fWildcard && (*p==_T('*') || *p==_T('?')))) {
 			if (pszMessage!=NULL)
 				lstrcpyn(pszMessage,TEXT("ファイル名に使用できない文字が含まれています。"),MaxMessage);
 			return false;
 		}
-		if ((*p==' ' || *p=='.') && *(p+1)=='\0') {
+		if ((*p==_T(' ') || *p==_T('.')) && *(p+1)==_T('\0')) {
 			if (pszMessage!=NULL)
 				lstrcpyn(pszMessage,TEXT("ファイル名の末尾に半角空白及び . は使用できません。"),MaxMessage);
 			return false;
 		}
 #ifndef UNICODE
-		if (IsDBCSLeadByteEx(CP_ACP,*p) && *(p+1)!='\0')
+		if (IsDBCSLeadByteEx(CP_ACP,*p)) {
+			if (*(p+1)==_T('\0')) {
+				lstrcpyn(pszMessage,TEXT("2バイト文字の2バイト目が欠けています。"),MaxMessage);
+				return false;
+			}
 			p++;
+		}
 #endif
 		p++;
 	}
@@ -525,8 +530,8 @@ bool GetAbsolutePath(LPCTSTR pszFilePath,LPTSTR pszAbsolutePath,int MaxLength)
 {
 	if (pszAbsolutePath==NULL || MaxLength<1)
 		return false;
-	pszAbsolutePath[0]='\0';
-	if (pszFilePath==NULL || pszFilePath[0]=='\0')
+	pszAbsolutePath[0]=_T('\0');
+	if (pszFilePath==NULL || pszFilePath[0]==_T('\0'))
 		return false;
 	if (::PathIsRelative(pszFilePath)) {
 		TCHAR szTemp[MAX_PATH],*p;
@@ -674,7 +679,7 @@ CDynamicString::CDynamicString(const CDynamicString &String)
 }
 
 
-#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 CDynamicString::CDynamicString(CDynamicString &&String)
 	: m_pszString(String.m_pszString)
 {
@@ -705,7 +710,7 @@ CDynamicString &CDynamicString::operator=(const CDynamicString &String)
 }
 
 
-#ifdef MOVE_ASSIGNMENT_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 CDynamicString &CDynamicString::operator=(CDynamicString &&String)
 {
 	if (&String!=this) {

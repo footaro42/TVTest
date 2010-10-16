@@ -484,6 +484,11 @@ bool CEventManager::IsServiceUpdated(const WORD NetworkID, const WORD TransportS
 }
 
 
+static bool IsEventValid(const CEventManager::CEventInfo &Event)
+{
+	return Event.GetEventName()!=NULL || Event.IsCommonEvent();
+}
+
 bool CEventManager::GetEventList(const WORD NetworkID, const WORD TransportStreamID, const WORD ServiceID, EventList *pList)
 {
 	if (!pList)
@@ -502,9 +507,8 @@ bool CEventManager::GetEventList(const WORD NetworkID, const WORD TransportStrea
 	EventMap::iterator itrEvent = itrService->second.EventMap.begin();
 	size_t i;
 	for (i = 0; itrEvent != itrService->second.EventMap.end(); itrEvent++) {
-		if (!itrEvent->second.m_pszEventName && !itrEvent->second.m_bCommonEvent)
-			continue;
-		(*pList)[i++] = itrEvent->second;
+		if (IsEventValid(itrEvent->second))
+			(*pList)[i++] = itrEvent->second;
 	}
 	if (i < pList->size())
 		pList->resize(i);
@@ -527,7 +531,8 @@ bool CEventManager::GetEventInfo(const WORD NetworkID, const WORD TransportStrea
 		m_ServiceMap.find(GetServiceMapKey(NetworkID, TransportStreamID, ServiceID));
 	if (itrService != m_ServiceMap.end()) {
 		EventMap::iterator itrEvent = itrService->second.EventMap.find(EventID);
-		if (itrEvent != itrService->second.EventMap.end()) {
+		if (itrEvent != itrService->second.EventMap.end()
+				&& IsEventValid(itrEvent->second)) {
 			*pInfo = itrEvent->second;
 			return true;
 		}
@@ -565,7 +570,8 @@ bool CEventManager::GetEventInfo(const WORD NetworkID, const WORD TransportStrea
 		}
 		if (EventID != 0) {
 			EventMap::iterator itrEvent = itrService->second.EventMap.find(EventID);
-			if (itrEvent != itrService->second.EventMap.end()) {
+			if (itrEvent != itrService->second.EventMap.end()
+					&& IsEventValid(itrEvent->second)) {
 				*pInfo = itrEvent->second;
 				bFound = true;
 			}
@@ -584,7 +590,7 @@ bool CEventManager::RemoveEvent(EventMap *pMap, const WORD EventID)
 	if (itr == pMap->end())
 		return false;
 	pMap->erase(itr);
-	TRACE(TEXT("CEventManager::RemoveEvent() : Event removed\n"));
+	TRACE(TEXT("CEventManager::RemoveEvent() : Event removed [%04x]\n"), EventID);
 	return true;
 }
 
@@ -643,6 +649,7 @@ void CEventManager::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSecti
 				|| itrCur->Duration != TimeEvent.Duration
 				|| itrCur->EventID != TimeEvent.EventID) {
 			if (!TimeResult.second) {
+				// 既存のデータの方が新しい場合は除外する
 				if (itrCur->UpdateTime > TimeEvent.UpdateTime)
 					continue;
 			}

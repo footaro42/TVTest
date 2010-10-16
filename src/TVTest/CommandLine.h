@@ -5,7 +5,8 @@
 #include <vector>
 
 
-class CCommandLineParser {
+class CCommandLineParser
+{
 public:
 	CCommandLineParser();
 	void Parse(LPCWSTR pszCmdLine);
@@ -46,6 +47,8 @@ public:
 	bool m_fRecordOnly;
 	bool m_fNoEpg;
 	int m_TvRockDID;
+	int m_Volume;
+	bool m_fMute;
 };
 
 

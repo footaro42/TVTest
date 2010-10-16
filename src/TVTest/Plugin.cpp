@@ -196,9 +196,25 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		Free();
 	hLib=::LoadLibrary(pszFileName);
 	if (hLib==NULL) {
-		SetError(TEXT("DLLがロードできません。"));
-		if (::GetLastError()==ERROR_SXS_CANT_GEN_ACTCTX)
+		const int ErrorCode=::GetLastError();
+		TCHAR szText[256];
+
+		::wsprintf(szText,TEXT("DLLがロードできません。(エラーコード %#lx)"),ErrorCode);
+		SetError(szText);
+		switch (ErrorCode) {
+		case ERROR_BAD_EXE_FORMAT:
+			SetErrorAdvise(
+#ifndef _WIN64
+				TEXT("32")
+#else
+				TEXT("64")
+#endif
+				TEXT("ビット用のプラグインではないか、ファイルが破損している可能性があります。"));
+			break;
+		case ERROR_SXS_CANT_GEN_ACTCTX:
 			SetErrorAdvise(TEXT("必要なランタイムがインストールされていない可能性があります。"));
+			break;
+		}
 		return false;
 	}
 	TVTest::GetVersionFunc pGetVersion=
@@ -912,7 +928,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				break;
 			case TVTest::PANSCAN_SUPERFRAME:
 				if (pInfo->XAspect==16 && pInfo->YAspect==9)
-					Command=CM_ASPECTRATIO_LETTERBOX;
+					Command=CM_ASPECTRATIO_SUPERFRAME;
 				else
 					return FALSE;
 				break;
@@ -1703,11 +1719,19 @@ int CPluginList::CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,voi
 
 bool CPluginList::LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR> *pExcludePlugins)
 {
+	if (pszDirectory==NULL)
+		return false;
+	const int DirectoryLength=::lstrlen(pszDirectory);
+	if (DirectoryLength+7>=MAX_PATH)	// +7 = "\\*.tvtp"
+		return false;
+
+	FreePlugins();
+
+	CAppMain &App=GetAppClass();
 	TCHAR szFileName[MAX_PATH];
 	HANDLE hFind;
 	WIN32_FIND_DATA wfd;
 
-	FreePlugins();
 	::PathCombine(szFileName,pszDirectory,TEXT("*.tvtp"));
 	hFind=::FindFirstFile(szFileName,&wfd);
 	if (hFind!=INVALID_HANDLE_VALUE) {
@@ -1721,22 +1745,29 @@ bool CPluginList::LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR> *p
 					}
 				}
 				if (fExclude) {
-					GetAppClass().AddLog(TEXT("%s は除外指定されているため読み込まれません。"),wfd.cFileName);
+					App.AddLog(TEXT("%s は除外指定されているため読み込まれません。"),
+							   wfd.cFileName);
 					continue;
 				}
 			}
+
+			if (DirectoryLength+1+::lstrlen(wfd.cFileName)>=MAX_PATH)
+				continue;
 
 			CPlugin *pPlugin=new CPlugin;
 
 			::PathCombine(szFileName,pszDirectory,wfd.cFileName);
 			if (pPlugin->Load(szFileName)) {
-				GetAppClass().AddLog(TEXT("%s を読み込みました。"),wfd.cFileName);
+				App.AddLog(TEXT("%s を読み込みました。"),wfd.cFileName);
 				m_PluginList.Add(pPlugin);
 			} else {
-				if (pPlugin->GetLastErrorText()!=NULL) {
-					GetAppClass().AddLog(TEXT("%s : %s"),
-										 wfd.cFileName,pPlugin->GetLastErrorText());
-				}
+				App.AddLog(TEXT("%s : %s"),
+						   wfd.cFileName,
+						   !IsStringEmpty(pPlugin->GetLastErrorText())?
+						   pPlugin->GetLastErrorText():
+						   TEXT("プラグインを読み込めません。"));
+				if (!IsStringEmpty(pPlugin->GetLastErrorAdvise()))
+					App.AddLog(TEXT("(%s)"),pPlugin->GetLastErrorAdvise());
 				delete pPlugin;
 			}
 		} while (::FindNextFile(hFind,&wfd));
@@ -1831,9 +1862,9 @@ bool CPluginList::OnPluginCommand(LPCTSTR pszCommand)
 	TCHAR szFileName[MAX_PATH];
 	int Length;
 
-	for (Length=0;pszCommand[Length]!=':';Length++)
+	for (Length=0;pszCommand[Length]!=_T(':');Length++)
 		szFileName[Length]=pszCommand[Length];
-	szFileName[Length]='\0';
+	szFileName[Length]=_T('\0');
 	for (int i=0;i<NumPlugins();i++) {
 		CPlugin *pPlugin=GetPlugin(i);
 

@@ -13,6 +13,7 @@ public:
 	WORD m_OriginalNID;
 	WORD m_TSID;
 	WORD m_ServiceID;
+
 	CServiceInfoData();
 	CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID);
 	bool operator==(const CServiceInfoData &Info) const;
@@ -21,12 +22,6 @@ public:
 
 class CEventInfoData
 {
-	LPWSTR m_pszEventName;
-	LPWSTR m_pszEventText;
-	LPWSTR m_pszEventExtText;
-	LPWSTR m_pszComponentTypeText;
-	friend class CEpgProgramList;
-
 public:
 	struct AudioInfo {
 		enum { MAX_TEXT=CEventManager::CEventInfo::AudioInfo::MAX_TEXT };
@@ -109,15 +104,16 @@ public:
 	bool m_fCommonEvent;
 	CommonEventInfo m_CommonEventInfo;
 	ULONGLONG m_UpdateTime;
+
 	CEventInfoData();
 	CEventInfoData(const CEventInfoData &Info);
-#ifdef MOVE_CONSTRUCTOR_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 	CEventInfoData(CEventInfoData &&Info);
 #endif
 	CEventInfoData(const CEventManager::CEventInfo &Info);
 	~CEventInfoData();
 	CEventInfoData &operator=(const CEventInfoData &Info);
-#ifdef MOVE_ASSIGNMENT_SUPPORTED
+#ifdef MOVE_SEMANTICS_SUPPORTED
 	CEventInfoData &operator=(CEventInfoData &&Info);
 #endif
 	CEventInfoData &operator=(const CEventManager::CEventInfo &Info);
@@ -133,6 +129,13 @@ public:
 	bool SetComponentTypeText(LPCWSTR pszText);
 	bool GetStartTime(SYSTEMTIME *pTime) const;
 	bool GetEndTime(SYSTEMTIME *pTime) const;
+
+private:
+	LPWSTR m_pszEventName;
+	LPWSTR m_pszEventText;
+	LPWSTR m_pszEventExtText;
+	LPWSTR m_pszComponentTypeText;
+	friend class CEpgProgramList;
 };
 
 class CEventInfoList
@@ -141,6 +144,7 @@ public:
 	typedef std::map<WORD,CEventInfoData> EventMap;
 	typedef std::map<WORD,CEventInfoData>::iterator EventIterator;
 	EventMap EventDataMap; //ÉLÅ[ EventID
+
 	CEventInfoList();
 	CEventInfoList(const CEventInfoList &List);
 	~CEventInfoList();
@@ -154,6 +158,7 @@ class CEpgServiceInfo
 public:
 	CServiceInfoData m_ServiceData;
 	CEventInfoList m_EventList;
+
 	CEpgServiceInfo();
 	CEpgServiceInfo(const CEpgServiceInfo &Info);
 	CEpgServiceInfo(const CServiceInfoData &ServiceData);
@@ -170,6 +175,7 @@ class CEpgProgramList
 	ServiceMap m_ServiceMap;
 	mutable CCriticalLock m_Lock;
 	FILETIME m_LastWriteTime;
+
 	static ServiceMapKey GetServiceMapKey(WORD OriginalNID,WORD TSID,WORD ServiceID) {
 		return ((ULONGLONG)OriginalNID<<32) | ((ULONGLONG)TSID<<16) | (ULONGLONG)ServiceID;
 	}

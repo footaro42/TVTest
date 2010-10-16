@@ -875,7 +875,7 @@ bool CDropHelper::Initialize(HINSTANCE hinst)
 		wc.hbrBackground=NULL;
 		wc.lpszMenuName=NULL;
 		wc.lpszClassName=DROP_HELPER_WINDOW_CLASS;
-		if (RegisterClass(&wc)==0)
+		if (::RegisterClass(&wc)==0)
 			return false;
 		m_hinst=hinst;
 	}
@@ -891,6 +891,7 @@ CDropHelper::CDropHelper()
 
 CDropHelper::~CDropHelper()
 {
+	Destroy();
 }
 
 
@@ -926,6 +927,10 @@ bool CDropHelper::Hide()
 LRESULT CALLBACK CDropHelper::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
+	case WM_CREATE:
+		OnCreate(hwnd,lParam);
+		return 0;
+
 	case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
@@ -933,8 +938,17 @@ LRESULT CALLBACK CDropHelper::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			::BeginPaint(hwnd,&ps);
 			::FillRect(ps.hdc,&ps.rcPaint,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
 			::EndPaint(hwnd,&ps);
-			return 0;
 		}
+		return 0;
+
+	case WM_DESTROY:
+		{
+			CDropHelper *pThis=static_cast<CDropHelper*>(GetBasicWindow(hwnd));
+
+			if (pThis!=NULL)
+				pThis->OnDestroy();
+		}
+		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }

@@ -235,8 +235,10 @@ public:
 
 class CUxTheme
 {
-	HMODULE m_hLib;
 	HTHEME m_hTheme;
+#ifdef WINDOWS2000_SUPPORT
+	HMODULE m_hLib;
+#endif
 
 public:
 	CUxTheme();

@@ -8,9 +8,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	7
-#define VERSION_BUILD	11
+#define VERSION_BUILD	12
 
-#define VERSION_TEXT_A	"0.7.11"
+#define VERSION_TEXT_A	"0.7.12"
 
 #else
 
@@ -18,9 +18,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	5
-#define VERSION_BUILD	1
+#define VERSION_BUILD	2
 
-#define VERSION_TEXT_A	"0.5.1"
+#define VERSION_TEXT_A	"0.5.2"
 
 // ÉèÉìÉZÉOå¸ÇØ
 #if !defined(TVH264_FOR_1SEG) && defined(BONTSENGINE_1SEG_SUPPORT)

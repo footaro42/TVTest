@@ -91,14 +91,27 @@
 	#define TRACE __noop
 #endif
 
+// コンパイラ別設定
+#if _MSC_VER < 1400
+	#define __restrict
+#endif
+#if _MSC_VER >= 1600	// VC2010
+	#define MOVE_SEMANTICS_SUPPORTED
+#else
+	#define nullptr NULL
+	#ifndef _WIN64
+	#define WINDOWS2000_SUPPORT	// Windows 2000 対応
+	#endif
+#endif
+
 
 // BonTsEngine の設定
 #ifdef TVH264
-#ifndef TVH264_FOR_HD
-#define BONTSENGINE_1SEG_SUPPORT	// ワンセグ対応
-#define BONTSENGINE_RADIO_SUPPORT	// 音声放送対応
-#endif
-#define BONTSENGINE_H264_SUPPORT	// H.264 対応
+	#ifndef TVH264_FOR_HD
+	#define BONTSENGINE_1SEG_SUPPORT	// ワンセグ対応
+	#define BONTSENGINE_RADIO_SUPPORT	// 音声放送対応
+	#endif
+	#define BONTSENGINE_H264_SUPPORT	// H.264 対応
 #else	// TVH264
-#define BONTSENGINE_MPEG2_SUPPORT	// MPEG-2 対応
+	#define BONTSENGINE_MPEG2_SUPPORT	// MPEG-2 対応
 #endif

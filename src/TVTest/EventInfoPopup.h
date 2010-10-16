@@ -57,6 +57,7 @@ private:
 	int m_TitleHeight;
 	int m_ButtonSize;
 	int m_ButtonMargin;
+	bool m_fDetailInfo;
 	CEventHandler *m_pEventHandler;
 
 	static const LPCTSTR m_pszWindowClass;
