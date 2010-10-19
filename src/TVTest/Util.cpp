@@ -941,16 +941,18 @@ bool CFilePath::GetDirectory(LPTSTR pszDirectory) const
 
 bool CFilePath::SetDirectory(LPCTSTR pszDirectory)
 {
-	if (pszDirectory[0]=='\0') {
+	if (IsStringEmpty(pszDirectory)) {
 		RemoveDirectory();
 	} else {
 		TCHAR szPath[MAX_PATH];
 
 		if (IsRelative()) {
-			::PathCombine(szPath,pszDirectory,m_szPath);
-			::PathCanonicalize(m_szPath,szPath);
+			if (::PathCombine(szPath,pszDirectory,m_szPath)==NULL
+					|| !::PathCanonicalize(m_szPath,szPath))
+				return false;
 		} else {
-			::PathCombine(szPath,pszDirectory,GetFileName());
+			if (::PathCombine(szPath,pszDirectory,GetFileName())==NULL)
+				return false;
 			::lstrcpy(m_szPath,szPath);
 		}
 	}

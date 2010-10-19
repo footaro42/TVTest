@@ -58,10 +58,6 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL 0x020E
-#endif
-
 
 static HINSTANCE hInst;
 static CAppMain AppMain;
@@ -445,44 +441,11 @@ bool CAppMain::InitializeChannel()
 
 	ChannelManager.Clear();
 	ChannelManager.MakeDriverTuningSpaceList(&CoreEngine.m_DtvEngine.m_BonSrcDecoder);
+
 	if (!fNetworkDriver) {
-		ChannelFilePath.SetPath(CoreEngine.GetDriverFileName());
-		const bool fRelative=ChannelFilePath.IsRelative();
-		if (fRelative) {
-			TCHAR szDir[MAX_PATH];
-			GetAppDirectory(szDir);
-			ChannelFilePath.RemoveDirectory();
-			ChannelFilePath.SetDirectory(szDir);
-		}
-#ifndef TVH264
-		ChannelFilePath.SetExtension(TEXT(".ch2"));
-		if (!ChannelFilePath.IsExists())
-			ChannelFilePath.SetExtension(TEXT(".ch"));
-#else
-		ChannelFilePath.SetExtension(TEXT(".ch1"));
-		if (!ChannelFilePath.IsExists()) {
-			ChannelFilePath.SetExtension(TEXT(".ch2"));
-			if (!ChannelFilePath.IsExists())
-				ChannelFilePath.SetExtension(TEXT(".ch"));
-		}
-#endif
-		if (fRelative && !ChannelFilePath.IsExists()
-				&& !IsStringEmpty(CoreEngine.GetDriverDirectory())) {
-			ChannelFilePath.RemoveDirectory();
-			ChannelFilePath.SetDirectory(CoreEngine.GetDriverDirectory());
-#ifndef TVH264
-			ChannelFilePath.SetExtension(TEXT(".ch2"));
-			if (!ChannelFilePath.IsExists())
-				ChannelFilePath.SetExtension(TEXT(".ch"));
-#else
-			ChannelFilePath.SetExtension(TEXT(".ch1"));
-			if (!ChannelFilePath.IsExists()) {
-				ChannelFilePath.SetExtension(TEXT(".ch2"));
-				if (!ChannelFilePath.IsExists())
-					ChannelFilePath.SetExtension(TEXT(".ch"));
-			}
-#endif
-		}
+		TCHAR szPath[MAX_PATH];
+		GetChannelFileName(CoreEngine.GetDriverFileName(),szPath,MAX_PATH);
+		ChannelFilePath.SetPath(szPath);
 	} else {
 		bool fOK=false;
 
@@ -612,6 +575,57 @@ bool CAppMain::InitializeChannel()
 											 &CoreEngine,&ChannelManager);
 	m_UICore.OnChannelListChanged();
 	ChannelScan.SetTuningSpaceList(ChannelManager.GetTuningSpaceList());
+	return true;
+}
+
+
+bool CAppMain::GetChannelFileName(LPCTSTR pszDriverFileName,
+								  LPTSTR pszChannelFileName,int MaxChannelFileName)
+{
+	if (IsStringEmpty(pszDriverFileName) || pszChannelFileName==NULL)
+		return false;
+
+	CFilePath ChannelFilePath;
+	ChannelFilePath.SetPath(pszDriverFileName);
+	const bool fRelative=ChannelFilePath.IsRelative();
+	if (fRelative) {
+		TCHAR szDir[MAX_PATH];
+		GetAppDirectory(szDir);
+		ChannelFilePath.RemoveDirectory();
+		ChannelFilePath.SetDirectory(szDir);
+	}
+#ifndef TVH264
+	ChannelFilePath.SetExtension(TEXT(".ch2"));
+	if (!ChannelFilePath.IsExists())
+		ChannelFilePath.SetExtension(TEXT(".ch"));
+#else
+	ChannelFilePath.SetExtension(TEXT(".ch1"));
+	if (!ChannelFilePath.IsExists()) {
+		ChannelFilePath.SetExtension(TEXT(".ch2"));
+		if (!ChannelFilePath.IsExists())
+			ChannelFilePath.SetExtension(TEXT(".ch"));
+	}
+#endif
+	if (fRelative && !ChannelFilePath.IsExists()
+			&& !IsStringEmpty(CoreEngine.GetDriverDirectory())) {
+		ChannelFilePath.RemoveDirectory();
+		ChannelFilePath.SetDirectory(CoreEngine.GetDriverDirectory());
+#ifndef TVH264
+		ChannelFilePath.SetExtension(TEXT(".ch2"));
+		if (!ChannelFilePath.IsExists())
+			ChannelFilePath.SetExtension(TEXT(".ch"));
+#else
+		ChannelFilePath.SetExtension(TEXT(".ch1"));
+		if (!ChannelFilePath.IsExists()) {
+			ChannelFilePath.SetExtension(TEXT(".ch2"));
+			if (!ChannelFilePath.IsExists())
+				ChannelFilePath.SetExtension(TEXT(".ch"));
+		}
+#endif
+	}
+	if (ChannelFilePath.GetLength()>=MaxChannelFileName)
+		return false;
+	ChannelFilePath.GetPath(pszChannelFileName);
 	return true;
 }
 
@@ -1279,7 +1293,7 @@ bool CAppMain::SaveSettings()
 
 bool CAppMain::SaveCurrentChannel()
 {
-	if (*CoreEngine.GetDriverFileName()!='\0') {
+	if (!IsStringEmpty(CoreEngine.GetDriverFileName())) {
 		const CChannelInfo *pInfo=ChannelManager.GetCurrentRealChannelInfo();
 		CDriverOptions::ChannelInfo ChInfo;
 
@@ -1371,7 +1385,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 	OpenTuner();
 
 	TCHAR szFileName[MAX_PATH*2];
-	if (pszFileName==NULL) {
+	if (IsStringEmpty(pszFileName)) {
 		LPCTSTR pszErrorMessage;
 
 		if (!RecordOptions.GenerateFilePath(szFileName,lengthof(szFileName),
@@ -1381,7 +1395,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 		}
 		RecordManager.SetFileName(szFileName);
 	}
-	if (!GenerateRecordFileName(szFileName,MAX_PATH))
+	if (!GenerateRecordFileName(szFileName,lengthof(szFileName)))
 		return false;
 	PluginList.SendStartRecordEvent(&RecordManager,szFileName,lengthof(szFileName));
 	CoreEngine.ResetErrorCount();
@@ -1419,7 +1433,7 @@ bool CAppMain::StartReservedRecord()
 	if (!RecordManager.IsReserved())
 		return false;
 	*/
-	if (RecordManager.GetFileName()!=NULL) {
+	if (!IsStringEmpty(RecordManager.GetFileName())) {
 		if (!GenerateRecordFileName(szFileName,MAX_PATH))
 			return false;
 		/*
@@ -1490,7 +1504,7 @@ bool CAppMain::StopRecord()
 
 bool CAppMain::RelayRecord(LPCTSTR pszFileName)
 {
-	if (pszFileName==NULL || !RecordManager.IsRecording())
+	if (IsStringEmpty(pszFileName) || !RecordManager.IsRecording())
 		return false;
 	if (!RecordManager.RelayFile(pszFileName)) {
 		OnError(&RecordManager,TEXT("録画ファイルを切り替えできません。"));
@@ -3174,10 +3188,9 @@ INT_PTR CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_SETCURSEL,pThis->m_CurrentPage,0);
 			pThis->m_hbmIcons=::LoadBitmap(hInst,MAKEINTRESOURCE(IDB_OPTIONS));
 			if (!pThis->m_TitleFont.IsCreated()) {
-				HFONT hfont;
+				HFONT hfont=reinterpret_cast<HFONT>(::SendMessage(hDlg,WM_GETFONT,0,0));
 				LOGFONT lf;
 
-				hfont=(HFONT)::SendMessage(hDlg,WM_GETFONT,0,0);
 				::GetObject(hfont,sizeof(LOGFONT),&lf);
 				lf.lfWeight=FW_BOLD;
 				pThis->m_TitleFont.Create(&lf);
@@ -4530,13 +4543,15 @@ CFullscreen::~CFullscreen()
 
 LRESULT CALLBACK CFullscreen::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
+	CFullscreen *pThis;
+
 	if (uMsg==WM_CREATE) {
-		CFullscreen *pThis=static_cast<CFullscreen*>(CBasicWindow::OnCreate(hwnd,lParam));
+		pThis=static_cast<CFullscreen*>(CBasicWindow::OnCreate(hwnd,lParam));
 
 		return pThis->OnCreate()?0:-1;
 	}
 
-	CFullscreen *pThis=static_cast<CFullscreen*>(GetBasicWindow(hwnd));
+	pThis=static_cast<CFullscreen*>(GetBasicWindow(hwnd));
 	if (pThis==NULL)
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 
@@ -5383,7 +5398,7 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 	RECT rcOld,rc;
 	GetPosition(&rcOld);
 
-	HMONITOR hMonitor=::MonitorFromRect(&rcOld,MONITOR_DEFAULTTONEAREST);
+	const HMONITOR hMonitor=::MonitorFromRect(&rcOld,MONITOR_DEFAULTTONEAREST);
 	MONITORINFO mi;
 	mi.cbSize=sizeof(mi);
 	::GetMonitorInfo(hMonitor,&mi);

@@ -6,17 +6,20 @@
 #include "PointerArray.h"
 
 
-class CDriverInfo {
+class CDriverInfo
+{
 	LPTSTR m_pszFileName;
 	LPTSTR m_pszTunerName;
 	bool m_fChannelFileLoaded;
 	CTuningSpaceList m_TuningSpaceList;
 	bool m_fDriverSpaceLoaded;
 	CTuningSpaceList m_DriverSpaceList;
+
 public:
 	CDriverInfo(LPCTSTR pszFileName);
 	CDriverInfo(const CDriverInfo &Info);
 	~CDriverInfo();
+	CDriverInfo &operator=(const CDriverInfo &Src);
 	LPCTSTR GetFileName() const { return m_pszFileName; }
 	LPCTSTR GetTunerName() const { return m_pszTunerName; }
 	enum LoadTuningSpaceListMode {
@@ -38,10 +41,12 @@ public:
 	int NumDriverSpaces() const { return m_DriverSpaceList.NumSpaces(); }
 };
 
-class CDriverManager {
+class CDriverManager
+{
 	CPointerVector<CDriverInfo> m_DriverList;
 	LPTSTR m_pszBaseDirectory;
 	static int CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2,void *pParam);
+
 public:
 	CDriverManager();
 	~CDriverManager();

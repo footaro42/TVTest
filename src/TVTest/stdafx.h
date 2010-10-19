@@ -36,6 +36,10 @@
 #include <shlwapi.h>
 #include <streams.h>	// DirectShow BaseClasses
 
+#ifndef WM_MOUSEHWHEEL
+#define WM_MOUSEHWHEEL 0x020E
+#endif
+
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
 #include <crtdbg.h>
@@ -89,6 +93,10 @@
 	void DebugTrace(LPCTSTR szFormat, ...);
 #else
 	#define TRACE __noop
+#endif
+
+#ifndef _DEBUG
+	#define _SECURE_SCL 0
 #endif
 
 // ÉRÉìÉpÉCÉâï ê›íË

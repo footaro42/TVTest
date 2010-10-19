@@ -1,14 +1,6 @@
 #include "stdafx.h"
-#include <tlhelp32.h>
 #include "TVTest.h"
 #include "DebugHelper.h"
-
-
-#ifdef UNICODE
-#undef Module32First
-#undef Module32Next
-#undef MODULEENTRY32
-#endif
 
 
 #define MAX_MODULE_ENTRIES 128
@@ -75,12 +67,12 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 		return EXCEPTION_EXECUTE_HANDLER;
 
 #ifdef ENABLE_DEBUG_HELPER
-	if (m_ExceptionFilterMode==EXCEPTION_FILTER_DIALOG && m_hDbgHelp!=NULL) {
+	if (m_hDbgHelp!=NULL) {
 		static struct {
 			HANDLE hProcess;
 			HANDLE hThread;
-			int i;
-			char szText[32*1024];
+			int i,j;
+			char szText[16*1024];
 			int Length;
 			MODULEENTRY32 ModuleEntries[MAX_MODULE_ENTRIES];
 			int NumModuleEntries;
@@ -93,10 +85,6 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 					CONTEXT Context;
 					BYTE SymbolInfoBuffer[sizeof(SYMBOL_INFO)+256];
 					PSYMBOL_INFO pSymbol;
-					LPCSTR pszModule;
-					DWORD64 ModuleBase;
-					IMAGEHLP_MODULE64 ModuleInfo;
-					DWORD64 Displacement;
 				} Stack;
 				struct {
 					TCHAR szFileName[MAX_PATH];
@@ -135,7 +123,8 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 		}
 
 		s.Length=::wsprintfA(s.szText,
-							 APP_NAME_A "で例外が発生しました。\r\n\r\nCode %08x (%s) / Address %p\r\n"
+							 APP_NAME_A "で例外が発生しました。\r\n\r\n"
+							 "Code %08x (%s) / Address %p\r\n"
 #if defined(_M_IX86)
 							 "EAX %08x / EBX %08x / ECX %08x / EDX %08x\r\n"
 							 "ESI %08x / EDI %08x / EBP %08x / ESP %08x / EIP %08x\r\n"
@@ -227,6 +216,13 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 		s.Stack.pSymbol->SizeOfStruct=sizeof(SYMBOL_INFO);
 		s.Stack.pSymbol->MaxNameLen=sizeof(s.Stack.SymbolInfoBuffer)-sizeof(SYMBOL_INFO);
 
+		s.szText[s.Length++]='>';
+		s.Length+=FormatSymbolFromAddress(s.hProcess,
+										  (DWORD64)ExceptionInfo->ExceptionRecord->ExceptionAddress,
+										  s.ModuleEntries,s.NumModuleEntries,
+										  s.Stack.pSymbol,
+										  s.szText+s.Length);
+
 		// スタックトレース
 		for (s.i=0;s.i<10;s.i++) {
 			if (!m_pStackWalk(
@@ -248,57 +244,27 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 					|| s.Stack.StackFrame.AddrPC.Offset==s.Stack.StackFrame.AddrReturn.Offset)
 				break;
 
-			s.Stack.pszModule="???";
-#if 0
-			if (m_pSymGetModuleBase!=NULL && m_pSymGetModuleInfo!=NULL) {
-				s.Stack.ModuleBase=m_pSymGetModuleBase(s.hProcess,s.Stack.StackFrame.AddrReturn.Offset);
-				if (s.Stack.ModuleBase!=0) {
-					s.Stack.ModuleInfo.SizeOfStruct=CCSIZEOF_STRUCT(IMAGEHLP_MODULE64,LoadedImageName);
-					if (m_pSymGetModuleInfo(s.hProcess,
-											s.Stack.ModuleBase,
-											&s.Stack.ModuleInfo)) {
-						s.Stack.pszModule=::PathFindFileNameA(s.Stack.ModuleInfo.ImageName);
-					}
-				}
-			}
-#else
-			for (int j=0;j<s.NumModuleEntries;j++) {
-				if (s.Stack.StackFrame.AddrReturn.Offset>=(DWORD64)s.ModuleEntries[j].modBaseAddr
-						&& s.Stack.StackFrame.AddrReturn.Offset<
-							(DWORD64)s.ModuleEntries[j].modBaseAddr+s.ModuleEntries[j].modBaseSize) {
-					s.Stack.pszModule=s.ModuleEntries[j].szModule;
-					break;
-				}
-			}
-#endif
-
-			if (m_pSymFromAddr(s.hProcess,
-							   s.Stack.StackFrame.AddrReturn.Offset,
-							   &s.Stack.Displacement,s.Stack.pSymbol)) {
-				s.Length+=::wsprintfA(s.szText+s.Length,"%p %s : %s + %08x\r\n",
-									  (void*)s.Stack.StackFrame.AddrReturn.Offset,
-									  s.Stack.pszModule,
-									  s.Stack.pSymbol->Name,
-									  (DWORD)s.Stack.Displacement);
-			} else {
-				s.Length+=::wsprintfA(s.szText+s.Length,"%p %s\r\n",
-									  (void*)s.Stack.StackFrame.AddrReturn.Offset,
-									  s.Stack.pszModule);
-			}
+			s.Length+=FormatSymbolFromAddress(s.hProcess,
+											  s.Stack.StackFrame.AddrReturn.Offset,
+											  s.ModuleEntries,s.NumModuleEntries,
+											  s.Stack.pSymbol,
+											  s.szText+s.Length);
 		}
 
 		m_pSymCleanup(s.hProcess);
 
 		// メッセージ表示
 		s.fContinueExecution=false;
-		if (ExceptionInfo->ExceptionRecord->ExceptionFlags==EXCEPTION_NONCONTINUABLE) {
-			::MessageBoxA(NULL,s.szText,NULL,MB_OK | MB_ICONSTOP);
-		} else {
-			::lstrcpyA(s.szText+s.Length,
-					   "\n再試行しますか?\n"
-					   "[いいえ] を選択するとプログラムが終了します。");
-			if (::MessageBoxA(NULL,s.szText,NULL,MB_YESNO | MB_ICONSTOP | MB_DEFBUTTON2)==IDYES)
-				s.fContinueExecution=true;
+		if (m_ExceptionFilterMode==EXCEPTION_FILTER_DIALOG) {
+			if (ExceptionInfo->ExceptionRecord->ExceptionFlags==EXCEPTION_NONCONTINUABLE) {
+				::MessageBoxA(NULL,s.szText,NULL,MB_OK | MB_ICONSTOP);
+			} else {
+				::lstrcpyA(s.szText+s.Length,
+						   "\r\n再試行しますか？\r\n"
+						   "[いいえ] を選択するとプログラムが終了します。");
+				if (::MessageBoxA(NULL,s.szText,NULL,MB_YESNO | MB_ICONSTOP | MB_DEFBUTTON2)==IDYES)
+					s.fContinueExecution=true;
+			}
 		}
 
 		// ログ保存
@@ -307,6 +273,16 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 		s.File.hFile=::CreateFile(s.File.szFileName,GENERIC_WRITE,0,NULL,
 								  CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
 		if (s.File.hFile!=INVALID_HANDLE_VALUE) {
+			static const char szHeader[]=APP_NAME_A " ver." VERSION_TEXT_A
+#if defined(_M_IX86)
+				" (x86)"
+#elif defined(_M_AMD64)
+				" (x64)"
+#elif defined(_M_IA64)
+				" (IA64)"
+#endif
+				"\r\n\r\n";
+			::WriteFile(s.File.hFile,szHeader,(DWORD)(sizeof(szHeader)-1),&s.File.WroteSize,NULL);
 			::WriteFile(s.File.hFile,s.szText,s.Length,&s.File.WroteSize,NULL);
 			if (s.NumModuleEntries>0) {
 				s.Length=::wsprintfA(s.szText,"\r\nModules (%d Modules)\r\n",s.NumModuleEntries);
@@ -329,4 +305,52 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 #endif	// ENABLE_DEBUG_HELPER
 
 	return EXCEPTION_CONTINUE_SEARCH;
+}
+
+
+int CDebugHelper::FormatSymbolFromAddress(HANDLE hProcess,DWORD64 Address,
+	const MODULEENTRY32 *pModuleEntries,int NumModuleEntries,
+	PSYMBOL_INFO pSymbolInfo,char *pszText)
+{
+	const char *pszModule;
+
+	pszModule="???";
+#if 0
+	if (m_pSymGetModuleBase!=NULL && m_pSymGetModuleInfo!=NULL) {
+		DWORD64 ModuleBase=m_pSymGetModuleBase(s.hProcess,s.Stack.StackFrame.AddrReturn.Offset);
+		if (ModuleBase!=0) {
+			IMAGEHLP_MODULE64 ModuleInfo;
+
+			ModuleInfo.SizeOfStruct=CCSIZEOF_STRUCT(IMAGEHLP_MODULE64,LoadedImageName);
+			if (m_pSymGetModuleInfo(hProcess,ModuleBase,&ModuleInfo)) {
+				pszModule=::PathFindFileNameA(ModuleInfo.ImageName);
+			}
+		}
+	}
+#else
+	int i;
+	for (i=0;i<NumModuleEntries;i++) {
+		if (Address>=(DWORD64)pModuleEntries[i].modBaseAddr
+				&& Address<(DWORD64)pModuleEntries[i].modBaseAddr+pModuleEntries[i].modBaseSize) {
+			pszModule=pModuleEntries[i].szModule;
+			break;
+		}
+	}
+#endif
+
+	DWORD64 Displacement;
+	int Length;
+	if (m_pSymFromAddr(hProcess,Address,&Displacement,pSymbolInfo)) {
+		Length=::wsprintfA(pszText,"%p %s : %s + %08x\r\n",
+						   (void*)Address,pszModule,
+						   pSymbolInfo->Name,(DWORD)Displacement);
+	} else if (i<NumModuleEntries) {
+		Length=::wsprintfA(pszText,"%p %s + %08x\r\n",
+						   (void*)Address,pszModule,
+						   (DWORD)(Address-(DWORD64)pModuleEntries[i].modBaseAddr));
+	} else {
+		Length=::wsprintfA(pszText,"%p %s\r\n",
+						   (void*)Address,pszModule);
+	}
+	return Length;
 }

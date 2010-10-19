@@ -26,13 +26,10 @@ CDriverInfo::CDriverInfo(LPCTSTR pszFileName)
 
 
 CDriverInfo::CDriverInfo(const CDriverInfo &Info)
-	: m_pszFileName(DuplicateString(Info.m_pszFileName))
-	, m_pszTunerName(DuplicateString(Info.m_pszTunerName))
-	, m_fChannelFileLoaded(Info.m_fChannelFileLoaded)
-	, m_TuningSpaceList(Info.m_TuningSpaceList)
-	, m_fDriverSpaceLoaded(Info.m_fDriverSpaceLoaded)
-	, m_DriverSpaceList(Info.m_DriverSpaceList)
+	: m_pszFileName(NULL)
+	, m_pszTunerName(NULL)
 {
+	*this=Info;
 }
 
 
@@ -43,8 +40,24 @@ CDriverInfo::~CDriverInfo()
 }
 
 
+CDriverInfo &CDriverInfo::operator=(const CDriverInfo &Src)
+{
+	if (&Src!=this) {
+		ReplaceString(&m_pszFileName,Src.m_pszFileName);
+		ReplaceString(&m_pszTunerName,Src.m_pszTunerName);
+		m_fChannelFileLoaded=Src.m_fChannelFileLoaded;
+		m_TuningSpaceList=Src.m_TuningSpaceList;
+		m_fDriverSpaceLoaded=Src.m_fDriverSpaceLoaded;
+		m_DriverSpaceList=Src.m_DriverSpaceList;
+	}
+	return *this;
+}
+
+
 bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 {
+	CAppMain &App=GetAppClass();
+
 	bool fUseDriver;
 	if (Mode==LOADTUNINGSPACE_NOLOADDRIVER) {
 		fUseDriver=false;
@@ -54,23 +67,18 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 		// チューナを開かずにチューニング空間とチャンネルを取得できない
 		// ドライバはロードしないようにする
 		fUseDriver=!::PathMatchSpec(m_pszFileName,TEXT("BonDriver_Spinel*.dll"))
-			&& !PathMatchSpec(m_pszFileName,TEXT("BonDriver_Friio*.dll"));
+				&& !::PathMatchSpec(m_pszFileName,TEXT("BonDriver_Friio*.dll"));
 	}
 
 	if (!m_fChannelFileLoaded) {
 		TCHAR szFileName[MAX_PATH];
 
-		if (::PathIsFileSpec(m_pszFileName)) {
-			GetAppClass().GetAppDirectory(szFileName);
-			::PathAppend(szFileName,m_pszFileName);
-		} else {
-			::lstrcpy(szFileName,m_pszFileName);
-		}
-		::PathRenameExtension(szFileName,TEXT(".ch2"));
+		App.GetChannelFileName(m_pszFileName,szFileName,lengthof(szFileName));
 		if (m_TuningSpaceList.LoadFromFile(szFileName)) {
 #if 0
 			if (fUseDriver && Mode==LOADTUNINGSPACE_DEFAULT) {
-				int NumSpaces=m_TuningSpaceList.NumSpaces(),i;
+				const int NumSpaces=m_TuningSpaceList.NumSpaces();
+				int i;
 				for (i=0;i<NumSpaces;i++) {
 					if (m_TuningSpaceList.GetTuningSpaceName(i)==NULL
 							|| m_TuningSpaceList.GetChannelList(i)->NumChannels()==0)
@@ -92,9 +100,11 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 	if (fUseDriver && !m_fDriverSpaceLoaded) {
 		TCHAR szFileName[MAX_PATH];
 
-		if (::PathIsFileSpec(m_pszFileName)) {
-			GetAppClass().GetDriverDirectory(szFileName);
-			::PathAppend(szFileName,m_pszFileName);
+		if (::PathIsRelative(m_pszFileName)) {
+			TCHAR szTemp[MAX_PATH];
+			GetAppClass().GetDriverDirectory(szTemp);
+			::PathAppend(szTemp,m_pszFileName);
+			::PathCanonicalize(szFileName,szTemp);
 		} else {
 			::lstrcpy(szFileName,m_pszFileName);
 		}
@@ -103,13 +113,14 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 		if (hLib!=NULL) {
 			TCHAR szCurDriverPath[MAX_PATH];
 
-			if (GetAppClass().GetCoreEngine()->GetDriverPath(szCurDriverPath)
+			if (App.GetCoreEngine()->GetDriverPath(szCurDriverPath)
 					&& ::lstrcmpi(szFileName,szCurDriverPath)==0) {
-				m_DriverSpaceList=*GetAppClass().GetChannelManager()->GetDriverTuningSpaceList();
+				m_DriverSpaceList=*App.GetChannelManager()->GetDriverTuningSpaceList();
 				m_fDriverSpaceLoaded=true;
 			}
 		} else if ((hLib=::LoadLibrary(szFileName))!=NULL) {
-			CreateBonDriverFunc pCreate=reinterpret_cast<CreateBonDriverFunc>(::GetProcAddress(hLib,"CreateBonDriver"));
+			CreateBonDriverFunc pCreate=
+				reinterpret_cast<CreateBonDriverFunc>(::GetProcAddress(hLib,"CreateBonDriver"));
 			IBonDriver *pBonDriver;
 
 			if (pCreate!=NULL && (pBonDriver=pCreate())!=NULL) {

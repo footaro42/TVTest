@@ -45,6 +45,8 @@ public:
 
 	bool SaveChannelSettings();
 	bool InitializeChannel();
+	bool GetChannelFileName(LPCTSTR pszDriverFileName,
+							LPTSTR pszChannelFileName,int MaxChannelFileName);
 	bool RestoreChannel();
 	bool UpdateChannelList(const CTuningSpaceList *pList);
 	const CChannelInfo *GetCurrentChannelInfo() const;

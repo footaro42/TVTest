@@ -107,6 +107,7 @@ public:
 	bool SetPath(LPCTSTR pszPath);
 	LPCTSTR GetPath() const { return m_szPath; }
 	void GetPath(LPTSTR pszPath) const;
+	int GetLength() const { return ::lstrlen(m_szPath); }
 	LPCTSTR GetFileName() const;
 	bool SetFileName(LPCTSTR pszFileName);
 	bool RemoveFileName();

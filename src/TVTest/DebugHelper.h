@@ -8,6 +8,12 @@
 
 #ifdef ENABLE_DEBUG_HELPER
 #include <dbghelp.h>
+#include <tlhelp32.h>
+#ifdef UNICODE
+#undef Module32First
+#undef Module32Next
+#undef MODULEENTRY32
+#endif
 #endif
 
 
@@ -50,6 +56,9 @@ private:
 	static StackWalkFunc m_pStackWalk;
 	//static SymGetModuleBaseFunc m_pSymGetModuleBase;
 	//static SymGetModuleInfoFunc m_pSymGetModuleInfo;
+	static int FormatSymbolFromAddress(HANDLE hProcess,DWORD64 Address,
+		const MODULEENTRY32 *pModuleEntries,int NumModuleEntries,
+		PSYMBOL_INFO pSymbolInfo,char *pszText);
 #endif
 	static ExceptionFilterMode m_ExceptionFilterMode;
 	static LONG WINAPI ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo);
