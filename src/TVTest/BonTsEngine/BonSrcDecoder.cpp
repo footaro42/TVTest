@@ -444,14 +444,15 @@ DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 
 	while (!pThis->m_bKillSignal) {
 		// 処理簡略化のためポーリング方式を採用する
-		DWORD dwStreamRemain = 0UL;
+		DWORD dwStreamRemain;
 
 		do {
 			BYTE *pStreamData = NULL;
-			DWORD dwStreamSize = 0UL;
+			DWORD dwStreamSize = 0;
+			dwStreamRemain = 0;
 
 			pThis->m_StreamLock.Lock();
-			if (pThis->m_pBonDriver->GetTsStream(&pStreamData,&dwStreamSize,&dwStreamRemain)
+			if (pThis->m_pBonDriver->GetTsStream(&pStreamData, &dwStreamSize, &dwStreamRemain)
 					&& pStreamData && dwStreamSize) {
 				if (pThis->m_bIsPlaying) {
 					// 最上位デコーダに入力する
@@ -554,7 +555,8 @@ bool CBonSrcDecoder::SetStreamThreadPriority(int Priority)
 
 void CBonSrcDecoder::SetPurgeStreamOnChannelChange(bool bPurge)
 {
-	TRACE(TEXT("CBonSrcDecoder::SetPurgeStreamOnChannelChange(%s)\n"), bPurge ? TEXT("true") : TEXT("false"));
+	TRACE(TEXT("CBonSrcDecoder::SetPurgeStreamOnChannelChange(%s)\n"),
+		  bPurge ? TEXT("true") : TEXT("false"));
 	m_bPurgeStreamOnChannelChange = bPurge;
 }
 

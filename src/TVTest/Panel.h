@@ -7,7 +7,7 @@
 #include "Theme.h"
 
 
-class CPanel : public CBasicWindow
+class CPanel : public CCustomWindow
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler) {
@@ -28,9 +28,12 @@ public:
 	};
 
 	static bool Initialize(HINSTANCE hinst);
+
 	CPanel();
 	~CPanel();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CPanel
 	bool SetWindow(CBasicWindow *pWindow,LPCTSTR pszTitle);
 	void ShowTitle(bool fShow);
 	void EnableFloating(bool fEnable);
@@ -56,31 +59,35 @@ private:
 	POINT m_ptDragStartPos;
 	POINT m_ptMovingWindowPos;
 
+	static HINSTANCE m_hinst;
+
 	void Draw(HDC hdc,const RECT &PaintRect) const;
 	void OnSize(int Width,int Height);
 	void GetCloseButtonRect(RECT *pRect) const;
-
-	static HINSTANCE m_hinst;
-	static CPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
-class CDropHelper : public CBasicWindow
+class CDropHelper : public CCustomWindow
 {
 	int m_Opacity;
 	static HINSTANCE m_hinst;
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	static bool Initialize(HINSTANCE hinst);
+
 	CDropHelper();
 	~CDropHelper();
 	bool Show(const RECT *pRect);
 	bool Hide();
 };
 
-class CPanelFrame : public CBasicWindow, public CPanel::CEventHandler
+class CPanelFrame : public CCustomWindow, public CPanel::CEventHandler
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler) {
@@ -97,6 +104,7 @@ public:
 	};
 
 	static bool Initialize(HINSTANCE hinst);
+
 	CPanelFrame();
 	~CPanelFrame();
 	bool Create(HWND hwndOwner,Layout::CSplitter *pSplitter,int PanelID,
@@ -130,19 +138,22 @@ private:
 	DockingPlace m_DragDockingTarget;
 	bool m_fDragMoving;
 	CEventHandler *m_pEventHandler;
-	bool Create(HWND hwndParent,DWORD Sytle,DWORD ExStyle=0,int ID=0);
+
 	static HINSTANCE m_hinst;
-	static CPanelFrame *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Sytle,DWORD ExStyle=0,int ID=0) override;
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 // CPanel::CEventHandler
-	bool OnFloating();
-	bool OnClose();
-	bool OnEnterSizeMove();
-	bool OnMoving(RECT *pRect);
-	bool OnKeyDown(UINT KeyCode,UINT Flags);
-	void OnSizeChanged(int Width,int Height);
-	bool OnMenuPopup(HMENU hmenu);
-	bool OnMenuSelected(int Command);
+	bool OnFloating() override;
+	bool OnClose() override;
+	bool OnEnterSizeMove() override;
+	bool OnMoving(RECT *pRect) override;
+	bool OnKeyDown(UINT KeyCode,UINT Flags) override;
+	void OnSizeChanged(int Width,int Height) override;
+	bool OnMenuPopup(HMENU hmenu) override;
+	bool OnMenuSelected(int Command) override;
 };
 
 

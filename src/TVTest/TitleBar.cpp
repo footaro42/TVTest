@@ -200,177 +200,150 @@ void CTitleBar::SetIcon(HICON hIcon)
 }
 
 
-CTitleBar *CTitleBar::GetThis(HWND hwnd)
-{
-	return static_cast<CTitleBar*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CTitleBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CTitleBar *pThis=dynamic_cast<CTitleBar*>(OnCreate(hwnd,lParam));
 			LPCREATESTRUCT pcs=reinterpret_cast<LPCREATESTRUCT>(lParam);
 			RECT rc;
 
 			rc.left=0;
 			rc.top=0;
 			rc.right=0;
-			rc.bottom=max(pThis->m_FontHeight,TITLE_BUTTON_ICON_HEIGHT)+TITLE_MARGIN*2+TITLE_BORDER*2;
+			rc.bottom=max(m_FontHeight,TITLE_BUTTON_ICON_HEIGHT)+TITLE_MARGIN*2+TITLE_BORDER*2;
 			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
 			::MoveWindow(hwnd,0,0,0,rc.bottom-rc.top,FALSE);
 
-			if (pThis->m_hbmIcons==NULL)
-				pThis->m_hbmIcons=static_cast<HBITMAP>(::LoadImage(
+			if (m_hbmIcons==NULL)
+				m_hbmIcons=static_cast<HBITMAP>(::LoadImage(
 					GetAppClass().GetResourceInstance(),
 					MAKEINTRESOURCE(IDB_TITLEBAR),IMAGE_BITMAP,0,0,
 					LR_DEFAULTCOLOR | LR_CREATEDIBSECTION));
 
-			pThis->m_Tooltip.Create(hwnd);
+			m_Tooltip.Create(hwnd);
 			for (int i=ITEM_BUTTON_FIRST;i<=ITEM_LAST;i++) {
 				RECT rc;
-				pThis->GetItemRect(i,&rc);
-				pThis->m_Tooltip.AddTool(i,rc);
+				GetItemRect(i,&rc);
+				m_Tooltip.AddTool(i,rc);
 			}
 
-			pThis->m_HotItem=-1;
-			pThis->m_fTrackMouseEvent=false;
+			m_HotItem=-1;
+			m_fTrackMouseEvent=false;
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CTitleBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
-				pThis->UpdateItem(pThis->m_HotItem);
-				pThis->m_HotItem=-1;
-			}
-			pThis->UpdateTooltipsRect();
+		if (m_HotItem>=0) {
+			UpdateItem(m_HotItem);
+			m_HotItem=-1;
 		}
+		UpdateTooltipsRect();
 		return 0;
 
 	case WM_PAINT:
 		{
-			CTitleBar *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,ps.rcPaint);
+			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CTitleBar *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-			int HotItem=pThis->HitTest(x,y);
+			int HotItem=HitTest(x,y);
 
 			if (GetCapture()==hwnd) {
-				if (HotItem!=pThis->m_ClickItem)
+				if (HotItem!=m_ClickItem)
 					HotItem=-1;
-				if (HotItem!=pThis->m_HotItem) {
+				if (HotItem!=m_HotItem) {
 					int OldHotItem;
 
-					OldHotItem=pThis->m_HotItem;
-					pThis->m_HotItem=HotItem;
+					OldHotItem=m_HotItem;
+					m_HotItem=HotItem;
 					if (OldHotItem>=0)
-						pThis->UpdateItem(OldHotItem);
-					if (pThis->m_HotItem>=0)
-						pThis->UpdateItem(pThis->m_HotItem);
+						UpdateItem(OldHotItem);
+					if (m_HotItem>=0)
+						UpdateItem(m_HotItem);
 				}
 			} else {
-				if (HotItem!=pThis->m_HotItem) {
+				if (HotItem!=m_HotItem) {
 					int OldHotItem;
 
-					OldHotItem=pThis->m_HotItem;
-					pThis->m_HotItem=HotItem;
+					OldHotItem=m_HotItem;
+					m_HotItem=HotItem;
 					if (OldHotItem>=0)
-						pThis->UpdateItem(OldHotItem);
-					if (pThis->m_HotItem>=0)
-						pThis->UpdateItem(pThis->m_HotItem);
+						UpdateItem(OldHotItem);
+					if (m_HotItem>=0)
+						UpdateItem(m_HotItem);
 				}
-				if (!pThis->m_fTrackMouseEvent) {
+				// WM_MOUSELEAVE が送られなくても無効にされる事があるようだ
+				/*if (!m_fTrackMouseEvent)*/ {
 					TRACKMOUSEEVENT tme;
 
 					tme.cbSize=sizeof(TRACKMOUSEEVENT);
 					tme.dwFlags=TME_LEAVE;
 					tme.hwndTrack=hwnd;
 					if (::TrackMouseEvent(&tme))
-						pThis->m_fTrackMouseEvent=true;
+						m_fTrackMouseEvent=true;
 				}
 			}
 		}
 		return 0;
 
 	case WM_MOUSELEAVE:
-		{
-			CTitleBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
-				pThis->UpdateItem(pThis->m_HotItem);
-				pThis->m_HotItem=-1;
-			}
-			pThis->m_fTrackMouseEvent=false;
-			if (pThis->m_pEventHandler)
-				pThis->m_pEventHandler->OnMouseLeave();
+		if (m_HotItem>=0) {
+			UpdateItem(m_HotItem);
+			m_HotItem=-1;
 		}
+		m_fTrackMouseEvent=false;
+		if (m_pEventHandler)
+			m_pEventHandler->OnMouseLeave();
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		{
-			CTitleBar *pThis=GetThis(hwnd);
+		m_ClickItem=m_HotItem;
+		if (m_ClickItem==ITEM_LABEL) {
+			if (m_pEventHandler!=NULL) {
+				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
-			pThis->m_ClickItem=pThis->m_HotItem;
-			if (pThis->m_ClickItem==ITEM_LABEL) {
-				if (pThis->m_pEventHandler!=NULL) {
-					int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-
-					if (x<16)
-						pThis->m_pEventHandler->OnIconLButtonDown(x,y);
-					else
-						pThis->m_pEventHandler->OnLabelLButtonDown(x,y);
-				}
-			} else {
-				::SetCapture(hwnd);
+				if (x<16)
+					m_pEventHandler->OnIconLButtonDown(x,y);
+				else
+					m_pEventHandler->OnLabelLButtonDown(x,y);
 			}
+		} else {
+			::SetCapture(hwnd);
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
-		{
-			CTitleBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem==ITEM_LABEL) {
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnLabelRButtonDown(
-									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
-			}
+		if (m_HotItem==ITEM_LABEL) {
+			if (m_pEventHandler!=NULL)
+				m_pEventHandler->OnLabelRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		}
 		return 0;
 
 	case WM_LBUTTONUP:
 		if (GetCapture()==hwnd) {
-			CTitleBar *pThis=GetThis(hwnd);
-
 			::ReleaseCapture();
-			if (pThis->m_HotItem>=0) {
-				if (pThis->m_pEventHandler!=NULL) {
-					switch (pThis->m_HotItem) {
+			if (m_HotItem>=0) {
+				if (m_pEventHandler!=NULL) {
+					switch (m_HotItem) {
 					case ITEM_MINIMIZE:
-						pThis->m_pEventHandler->OnMinimize();
+						m_pEventHandler->OnMinimize();
 						break;
 					case ITEM_MAXIMIZE:
-						pThis->m_pEventHandler->OnMaximize();
+						m_pEventHandler->OnMaximize();
 						break;
 					case ITEM_FULLSCREEN:
-						pThis->m_pEventHandler->OnFullscreen();
+						m_pEventHandler->OnFullscreen();
 						break;
 					case ITEM_CLOSE:
-						pThis->m_pEventHandler->OnClose();
+						m_pEventHandler->OnClose();
 						break;
 					}
 				}
@@ -380,18 +353,17 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 	case WM_LBUTTONDBLCLK:
 		{
-			CTitleBar *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
-			if (pThis->m_HotItem<0 && pThis->HitTest(x,y)==ITEM_LABEL)
-				pThis->m_HotItem=ITEM_LABEL;
-			if (pThis->m_HotItem==ITEM_LABEL) {
-				if (pThis->m_pEventHandler!=NULL) {
+			if (m_HotItem<0 && HitTest(x,y)==ITEM_LABEL)
+				m_HotItem=ITEM_LABEL;
+			if (m_HotItem==ITEM_LABEL) {
+				if (m_pEventHandler!=NULL) {
 					if (x>=TITLE_BORDER+TITLE_MARGIN
 							&& x<TITLE_BORDER+TITLE_MARGIN+TITLE_ICON_WIDTH)
-						pThis->m_pEventHandler->OnIconLButtonDoubleClick(x,y);
+						m_pEventHandler->OnIconLButtonDoubleClick(x,y);
 					else
-						pThis->m_pEventHandler->OnLabelLButtonDoubleClick(x,y);
+						m_pEventHandler->OnLabelLButtonDoubleClick(x,y);
 				}
 			}
 		}
@@ -399,9 +371,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
-			CTitleBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>0) {
+			if (m_HotItem>0) {
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
 				return TRUE;
 			}
@@ -418,12 +388,11 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 					TEXT("全画面表示"),
 					TEXT("閉じる"),
 				};
-				CTitleBar *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pnmttdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 
-				if (pThis->m_fMaximized && pnmttdi->hdr.idFrom==ITEM_MAXIMIZE)
+				if (m_fMaximized && pnmttdi->hdr.idFrom==ITEM_MAXIMIZE)
 					pnmttdi->lpszText=TEXT("元のサイズに戻す");
-				else if (pThis->m_fFullscreen && pnmttdi->hdr.idFrom==ITEM_FULLSCREEN)
+				else if (m_fFullscreen && pnmttdi->hdr.idFrom==ITEM_FULLSCREEN)
 					pnmttdi->lpszText=TEXT("全画面表示解除");
 				else
 					pnmttdi->lpszText=pszToolTip[pnmttdi->hdr.idFrom-ITEM_BUTTON_FIRST];
@@ -434,12 +403,7 @@ LRESULT CALLBACK CTitleBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPa
 		break;
 
 	case WM_DESTROY:
-		{
-			CTitleBar *pThis=GetThis(hwnd);
-
-			pThis->m_Tooltip.Destroy();
-			pThis->OnDestroy();
-		}
+		m_Tooltip.Destroy();
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);

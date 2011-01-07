@@ -41,6 +41,7 @@ class CChannelScan : public COptions
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
 	CChannelInfo *GetSelectedChannelInfo() const;
+	bool LoadPreset(LPCTSTR pszFileName,CChannelList *pChannelList,int Space);
 	float GetSignalLevel();
 	static DWORD WINAPI ScanProc(LPVOID lpParameter);
 	static INT_PTR CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);

@@ -28,14 +28,16 @@ public:
 	bool GetOption(LPCWSTR pszOption,LPTSTR pszValue,int MaxLength);
 	bool GetOption(LPCWSTR pszOption,int *pValue);
 	bool GetOption(LPCWSTR pszOption,DWORD *pValue);
-	bool GetDurationOption(LPCWSTR pszOption,DWORD *pValue);
+	bool GetOption(LPCWSTR pszOption,FILETIME *pValue);
+	bool GetDurationOption(LPCWSTR pszOption,int *pValue);
 	bool IsEnd() const { return m_CurPos>=m_Args; }
 	bool Next();
 	LPCWSTR GetText() const;
 	bool GetText(LPWSTR pszText,int MaxLength) const;
 	bool GetValue(int *pValue) const;
 	bool GetValue(DWORD *pValue) const;
-	bool GetDurationValue(DWORD *pValue) const;
+	bool GetValue(FILETIME *pValue) const;
+	bool GetDurationValue(int *pValue) const;
 };
 
 
@@ -122,7 +124,17 @@ bool CArgsParser::GetOption(LPCWSTR pszOption,DWORD *pValue)
 }
 
 
-bool CArgsParser::GetDurationOption(LPCWSTR pszOption,DWORD *pValue)
+bool CArgsParser::GetOption(LPCWSTR pszOption,FILETIME *pValue)
+{
+	if (IsOption(pszOption)) {
+		if (Next())
+			return GetValue(pValue);
+	}
+	return false;
+}
+
+
+bool CArgsParser::GetDurationOption(LPCWSTR pszOption,int *pValue)
 {
 	if (IsOption(pszOption)) {
 		if (Next())
@@ -171,12 +183,126 @@ bool CArgsParser::GetValue(DWORD *pValue) const
 {
 	if (IsEnd())
 		return false;
-	*pValue=_wtoi(m_ppszArgList[m_CurPos]);
+	*pValue=wcstoul(m_ppszArgList[m_CurPos],NULL,0);
 	return true;
 }
 
 
-bool CArgsParser::GetDurationValue(DWORD *pValue) const
+bool CArgsParser::GetValue(FILETIME *pValue) const
+{
+	if (IsEnd())
+		return false;
+
+	/*
+		日付と時刻のパースを行う
+		Y-M-DTh:m:s や Y/M/D-h:m:s などをアバウトに受け付ける
+		Y、M、sは省略可能
+		日付のみを指定した場合、その日の0時0分0秒からとする
+		時刻のみを指定した場合、次にその時刻が来る時とする
+	*/
+	SYSTEMTIME CurTime,Time;
+	::GetLocalTime(&CurTime);
+	::ZeroMemory(&Time,sizeof(Time));
+
+	WORD Date[3],TimeValue[3];
+	int DateCount=0,TimeCount=0;
+	UINT Value=0;
+	for (LPCWSTR p=m_ppszArgList[m_CurPos];;p++) {
+		if (*p>=L'0' && *p<=L'9') {
+			Value=Value*10+(*p-L'0');
+			if (Value>0xFFFF)
+				return false;
+		} else {
+			if (*p==L'/' || *p==L'-' || *p==L'T') {
+				if (DateCount==3)
+					return false;
+				Date[DateCount++]=(WORD)Value;
+			} else if (*p==L':' || *p==L'\0') {
+				if (TimeCount==3)
+					return false;
+				TimeValue[TimeCount++]=(WORD)Value;
+				if (*p==L'\0')
+					break;
+			}
+			Value=0;
+		}
+	}
+
+	if ((DateCount==0 && TimeCount<2) || TimeCount==1)
+		return false;
+
+	int i=0;
+	if (DateCount>2) {
+		Time.wYear=Date[i++];
+		if (Time.wYear<100)
+			Time.wYear+=CurTime.wYear/100*100;
+	}
+	if (DateCount>1) {
+		Time.wMonth=Date[i++];
+		if (Time.wMonth<1 || Time.wMonth>12)
+			return false;
+	}
+	if (DateCount>0) {
+		Time.wDay=Date[i];
+		if (Time.wDay<1 || Time.wDay>31)
+			return false;
+	}
+	if (Time.wYear==0) {
+		Time.wYear=CurTime.wYear;
+		if (Time.wMonth==0) {
+			Time.wMonth=CurTime.wMonth;
+			if (Time.wDay==0) {
+				Time.wDay=CurTime.wDay;
+			} else if (Time.wDay<CurTime.wDay) {
+				Time.wMonth++;
+				if (Time.wMonth>12) {
+					Time.wMonth=1;
+					Time.wYear++;
+				}
+			}
+		} else if (Time.wMonth<CurTime.wMonth) {
+			Time.wYear++;
+		}
+	}
+
+	if (TimeCount>0) {
+		Time.wHour=TimeValue[0];
+		if (TimeCount>1) {
+			Time.wMinute=TimeValue[1];
+			if (Time.wMinute>59)
+				return false;
+			if (TimeCount>2) {
+				Time.wSecond=TimeValue[2];
+				if (Time.wSecond>59)	// Windowsに閏秒は無いらしい
+					return false;
+			}
+		}
+	}
+	if (DateCount==0) {
+		if (Time.wHour<CurTime.wHour)
+			Time.wHour+=24;
+	}
+
+	SYSTEMTIME st;
+	FILETIME ft;
+	::ZeroMemory(&st,sizeof(st));
+	st.wYear=Time.wYear;
+	st.wMonth=Time.wMonth;
+	st.wDay=Time.wDay;
+	if (!::SystemTimeToFileTime(&st,&ft))
+		return false;
+
+	ft+=(LONGLONG)Time.wHour*FILETIME_HOUR+
+		(LONGLONG)Time.wMinute*FILETIME_MINUTE+
+		(LONGLONG)Time.wSecond*FILETIME_SECOND;
+
+	*pValue=ft;
+
+	return true;
+}
+
+
+bool CArgsParser::GetDurationValue(int *pValue) const
 {
 	if (IsEnd())
 		return false;
@@ -184,22 +310,28 @@ bool CArgsParser::GetDurationValue(DWORD *pValue) const
 	// ?h?m?s 形式の時間指定をパースする
 	// 単位の指定が無い場合は秒単位と解釈する
 	LPCWSTR p=m_ppszArgList[m_CurPos];
-	DWORD DurationSec=0,Duration=0;
+	int DurationSec=0,Duration=0;
 
 	while (*p!=L'\0') {
-		if (*p>=L'0' && *p<=L'9') {
-			Duration=Duration*10+(*p-L'0');
+		if (*p==L'-' || (*p>=L'0' && *p<=L'9')) {
+			Duration=wcstol(p,(wchar_t**)&p,10);
+			if (Duration==LONG_MAX || Duration==LONG_MIN)
+				return false;
 		} else {
-			if (*p==L'h') {
+			switch (*p) {
+			case L'h': case L'H':
 				DurationSec+=Duration*(60*60);
-			} else if (*p==L'm') {
+				break;
+			case L'm': case L'M':
 				DurationSec+=Duration*60;
-			} else if (*p==L's') {
+				break;
+			case L's': case L'S':
 				DurationSec+=Duration;
+				break;
 			}
 			Duration=0;
+			p++;
 		}
-		p++;
 	}
 	DurationSec+=Duration;
 	*pValue=DurationSec;
@@ -222,6 +354,7 @@ CCommandLineParser::CCommandLineParser()
 	, m_TransportStreamID(0)
 	, m_fRecord(false)
 	, m_fRecordStop(false)
+	, m_RecordStartTime(FILETIME_NULL)
 	, m_RecordDelay(0)
 	, m_RecordDuration(0)
 	, m_fRecordCurServiceOnly(false)
@@ -274,8 +407,9 @@ CCommandLineParser::CCommandLineParser()
 	/rch			リモコンチャンネル
 	/rec			録画
 	/reccurservice	現在のサービスのみ録画
-	/recdelay		録画までの時間(秒)
-	/recduration	録画時間(秒)
+	/recstarttime	録画開始日時
+	/recdelay		録画までの時間
+	/recduration	録画時間
 	/recexit		録画終了時にプログラムを終了
 	/recfile		録画ファイル名
 	/reconly		録画専用モード
@@ -320,6 +454,7 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("pluginsdir"),&m_PluginsDirectory)
 					&& !Args.GetOption(TEXT("rec"),&m_fRecord)
 					&& !Args.GetOption(TEXT("reccurservice"),&m_fRecordCurServiceOnly)
+					&& !Args.GetOption(TEXT("recstarttime"),&m_RecordStartTime)
 					&& !Args.GetDurationOption(TEXT("recdelay"),&m_RecordDelay)
 					&& !Args.GetDurationOption(TEXT("recduration"),&m_RecordDuration)
 					&& !Args.GetOption(TEXT("recexit"),&m_fExitOnRecordEnd)
@@ -366,6 +501,31 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 	if (m_fRecordOnly) {
 		m_fNoDirectShow=true;
 	}
+
+/*
+#ifdef _DEBUG
+	// コマンドラインの解析のテスト
+	{
+		CArgsParser Args(L"/d 120 /d -45 /d 1h30m5s /t 2011/12/25-1:30:25 /t 1:30 /t 12/25 /t 12/25-1:30 /t 12/25-26:25");
+		do {
+			if (Args.IsSwitch()) {
+				int Duration;
+				FILETIME Time;
+				if (Args.GetDurationOption(L"d",&Duration)) {
+					TRACE(L"Commandline parse test : \"%s\" %d\n",
+						  Args.GetText(),Duration);
+				} else if (Args.GetOption(L"t",&Time)) {
+					SYSTEMTIME st;
+					::FileTimeToSystemTime(&Time,&st);
+					TRACE(L"Commandline parse test : \"%s\" %d/%d/%d %d:%d:%d\n",
+						  Args.GetText(),
+						  st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
+				}
+			}
+		} while (Args.Next());
+	}
+#endif
+*/
 }
 
 

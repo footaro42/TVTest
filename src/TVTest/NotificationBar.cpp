@@ -12,7 +12,8 @@ static char THIS_FILE[]=__FILE__;
 
 #define NOTIFICATION_BAR_WINDOW_CLASS APP_NAME TEXT(" Notification Bar")
 
-#define BAR_MARGIN 4
+#define BAR_MARGIN			4
+#define ICON_TEXT_MARGIN	4
 
 #define TIMER_ID_HIDE 1
 
@@ -76,10 +77,26 @@ bool CNotificationBar::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 }
 
 
-bool CNotificationBar::Show(DWORD Timeout)
+bool CNotificationBar::Show(LPCTSTR pszText,MessageType Type,DWORD Timeout)
 {
-	if (m_hwnd==NULL)
+	if (m_hwnd==NULL || pszText==NULL)
 		return false;
+
+	MessageInfo Info;
+	Info.Text.Set(pszText);
+	Info.Type=Type;
+	if (Type==MESSAGE_WARNING || Type==MESSAGE_ERROR) {
+		Info.hIcon=static_cast<HICON>(
+			::LoadImage(NULL,Type==MESSAGE_WARNING?IDI_WARNING:IDI_ERROR,
+						IMAGE_ICON,
+						::GetSystemMetrics(SM_CXSMICON),
+						::GetSystemMetrics(SM_CYSMICON),
+						LR_SHARED));
+	} else {
+		Info.hIcon=NULL;
+	}
+	Info.Timeout=Timeout;
+	m_MessageQueue.push_back(Info);
 
 	if (!GetVisible()) {
 		RECT rc;
@@ -93,7 +110,8 @@ bool CNotificationBar::Show(DWORD Timeout)
 				if (i==0)
 					SetVisible(true);
 				Update();
-				::Sleep(50);
+				if (i<3)
+					::Sleep(50);
 			}
 		} else {
 			rc.bottom=m_BarHeight;
@@ -101,9 +119,9 @@ bool CNotificationBar::Show(DWORD Timeout)
 			SetVisible(true);
 			Update();
 		}
+		if (Timeout!=0)
+			::SetTimer(m_hwnd,TIMER_ID_HIDE,Timeout,NULL);
 	}
-	if (Timeout!=0)
-		::SetTimer(m_hwnd,TIMER_ID_HIDE,Timeout,NULL);
 	return true;
 }
 
@@ -125,16 +143,8 @@ bool CNotificationBar::Hide()
 		}
 	}
 	SetVisible(false);
-	return true;
-}
+	m_MessageQueue.clear();
 
-
-bool CNotificationBar::SetText(LPCTSTR pszText,MessageType Type)
-{
-	m_Text.Set(pszText);
-	m_MessageType=Type;
-	if (m_hwnd!=NULL)
-		Invalidate();
 	return true;
 }
 
@@ -156,13 +166,21 @@ bool CNotificationBar::SetFont(const LOGFONT *pFont)
 {
 	if (!m_Font.Create(pFont))
 		return false;
-	if (m_hwnd!=NULL) {
-		HDC hdc=::GetDC(m_hwnd);
-
-		m_BarHeight=m_Font.GetHeight(hdc,false)+BAR_MARGIN*2;
-		::ReleaseDC(m_hwnd,hdc);
-	}
+	if (m_hwnd!=NULL)
+		CalcBarHeight();
 	return true;
+}
+
+
+void CNotificationBar::CalcBarHeight()
+{
+	HDC hdc=::GetDC(m_hwnd);
+
+	m_BarHeight=m_Font.GetHeight(hdc,false)+BAR_MARGIN*2;
+	::ReleaseDC(m_hwnd,hdc);
+	int IconHeight=::GetSystemMetrics(SM_CYSMICON);
+	if (m_BarHeight<IconHeight+2)
+		m_BarHeight=IconHeight+2;
 }
 
 
@@ -179,9 +197,7 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 		{
 			CNotificationBar *pThis=static_cast<CNotificationBar*>(OnCreate(hwnd,lParam));
 
-			HDC hdc=::GetDC(hwnd);
-			pThis->m_BarHeight=pThis->m_Font.GetHeight(hdc,false)+BAR_MARGIN*2;
-			::ReleaseDC(hwnd,hdc);
+			pThis->CalcBarHeight();
 		}
 		return 0;
 
@@ -194,13 +210,22 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 			::BeginPaint(hwnd,&ps);
 			::GetClientRect(hwnd,&rc);
 			Theme::FillGradient(ps.hdc,&rc,&pThis->m_BackGradient);
-			if (!pThis->m_Text.IsEmpty()) {
+			if (!pThis->m_MessageQueue.empty()) {
+				const MessageInfo &Info=pThis->m_MessageQueue.front();
+
 				rc.left+=BAR_MARGIN;
 				rc.right-=BAR_MARGIN;
 				if (rc.left<rc.right) {
-					DrawUtil::DrawText(ps.hdc,pThis->m_Text.Get(),rc,
+					if (Info.hIcon!=NULL) {
+						int IconWidth=::GetSystemMetrics(SM_CXSMICON);
+						int IconHeight=::GetSystemMetrics(SM_CYSMICON);
+						::DrawIconEx(ps.hdc,rc.left,(rc.bottom-IconHeight)/2,
+									 Info.hIcon,IconWidth,IconHeight,0,NULL,DI_NORMAL);
+						rc.left+=IconWidth+ICON_TEXT_MARGIN;
+					}
+					DrawUtil::DrawText(ps.hdc,Info.Text.Get(),rc,
 						DT_SINGLELINE | DT_LEFT | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS,
-						&pThis->m_Font,pThis->m_TextColor[pThis->m_MessageType]);
+						&pThis->m_Font,pThis->m_TextColor[Info.Type]);
 				}
 			}
 			::EndPaint(hwnd,&ps);
@@ -211,8 +236,19 @@ LRESULT CALLBACK CNotificationBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPA
 		{
 			CNotificationBar *pThis=GetThis(hwnd);
 
-			pThis->Hide();
-			::KillTimer(hwnd,TIMER_ID_HIDE);
+			if (!pThis->m_MessageQueue.empty())
+				pThis->m_MessageQueue.pop_front();
+			if (pThis->m_MessageQueue.empty()) {
+				::KillTimer(hwnd,TIMER_ID_HIDE);
+				pThis->Hide();
+			} else {
+				pThis->Redraw();
+				DWORD Timeout=pThis->m_MessageQueue.front().Timeout;
+				if (Timeout>0)
+					::SetTimer(hwnd,TIMER_ID_HIDE,Timeout,NULL);
+				else
+					::KillTimer(hwnd,TIMER_ID_HIDE);
+			}
 		}
 		return 0;
 

@@ -49,6 +49,7 @@ public:
 		virtual void OnVideoSizeChanged(CMediaViewer *pMediaViewer) {}
 		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
 		virtual void OnEcmError(LPCTSTR pszText) {}
+		virtual void OnEcmRefused() {}
 	};
 
 	CDtvEngine(void);

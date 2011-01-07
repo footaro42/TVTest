@@ -541,6 +541,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\EpgUtil.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\EventInfoPopup.cpp"
 				>
 			</File>
@@ -916,6 +920,10 @@
 			</File>
 			<File
 				RelativePath=".\EpgProgramList.h"
+				>
+			</File>
+			<File
+				RelativePath=".\EpgUtil.h"
 				>
 			</File>
 			<File

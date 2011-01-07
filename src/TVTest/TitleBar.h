@@ -8,7 +8,7 @@
 #include "Tooltip.h"
 
 
-class CTitleBar : public CBasicWindow
+class CTitleBar : public CCustomWindow
 {
 public:
 	struct ThemeInfo {
@@ -38,11 +38,12 @@ public:
 	};
 
 	static bool Initialize(HINSTANCE hinst);
+
 	CTitleBar();
 	~CTitleBar();
 // CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void SetVisible(bool fVisible);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+	void SetVisible(bool fVisible) override;
 // CTitleBar
 	bool SetLabel(LPCTSTR pszLabel);
 	LPCTSTR GetLabel() const { return m_Label.Get(); }
@@ -78,15 +79,16 @@ private:
 	bool m_fFullscreen;
 	CEventHandler *m_pEventHandler;
 
+	static HINSTANCE m_hinst;
+
 	bool GetItemRect(int Item,RECT *pRect) const;
 	bool UpdateItem(int Item);
 	int HitTest(int x,int y) const;
 	void UpdateTooltipsRect();
 	void Draw(HDC hdc,const RECT &PaintRect);
 
-	static HINSTANCE m_hinst;
-	static CTitleBar *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

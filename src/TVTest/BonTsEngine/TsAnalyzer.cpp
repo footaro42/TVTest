@@ -1143,11 +1143,35 @@ bool CTsAnalyzer::GetEventInfo(const int ServiceIndex, EventInfo *pInfo, const b
 
 	CBlockLock Lock(&m_DecoderLock);
 
-	pInfo->EventID = GetEventID(ServiceIndex, bNext);
-	if (pInfo->EventID == 0)
+	if (ServiceIndex < 0 || (size_t)ServiceIndex >= m_ServiceList.size())
 		return false;
-	pInfo->bValidStartTime = GetEventStartTime(ServiceIndex, &pInfo->StartTime, bNext);
-	pInfo->Duration = GetEventDuration(ServiceIndex, bNext);
+
+	const CEitPfTable *pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_HEIT));
+#ifdef TS_ANALYZER_L_EIT_SUPPORT
+	if (pEitTable == NULL)
+		pEitTable = dynamic_cast<const CEitPfTable*>(m_PidMapManager.GetMapTarget(PID_LEIT));
+#endif
+	if (pEitTable == NULL)
+		return false;
+
+	const int Service = pEitTable->GetServiceIndexByID(m_ServiceList[ServiceIndex].ServiceID);
+	if (Service < 0)
+		return false;
+
+	const DWORD EventIndex = bNext ? 1 : 0;
+
+	pInfo->EventID = pEitTable->GetEventID(Service, EventIndex);
+	const SYSTEMTIME *pStartTime = pEitTable->GetStartTime(Service, EventIndex);
+	if (pStartTime != NULL) {
+		pInfo->bValidStartTime = true;
+		pInfo->StartTime = *pStartTime;
+	} else {
+		pInfo->bValidStartTime = false;
+		::ZeroMemory(&pInfo->StartTime, sizeof(SYSTEMTIME));
+	}
+	pInfo->Duration = pEitTable->GetDuration(Service, EventIndex);
+	pInfo->RunningStatus = pEitTable->GetRunningStatus(Service, EventIndex);
+	pInfo->bFreeCaMode = pEitTable->GetFreeCaMode(Service, EventIndex);
 	if (pInfo->pszEventName != NULL && pInfo->MaxEventName > 0) {
 		pInfo->pszEventName[0] = '\0';
 		GetEventName(ServiceIndex, pInfo->pszEventName, pInfo->MaxEventName, bNext);

@@ -137,12 +137,13 @@ bool CTaskbarManager::Initialize(HWND hwnd)
 #define MSGFLT_ADD 1
 #endif
 		typedef BOOL (WINAPI *ChangeWindowMessageFilterFunc)(UINT,DWORD);
-		HMODULE hLib=::LoadLibrary(TEXT("user32.dll"));
-		ChangeWindowMessageFilterFunc pChangeFilter=(ChangeWindowMessageFilterFunc)
-			::GetProcAddress(hLib,"ChangeWindowMessageFilter");
-		if (pChangeFilter!=NULL)
-			pChangeFilter(m_TaskbarButtonCreatedMessage,MSGFLT_ADD);
-		::FreeLibrary(hLib);
+		HMODULE hLib=::GetModuleHandle(TEXT("user32.dll"));
+		if (hLib!=NULL) {
+			ChangeWindowMessageFilterFunc pChangeFilter=
+				reinterpret_cast<ChangeWindowMessageFilterFunc>(::GetProcAddress(hLib,"ChangeWindowMessageFilter"));
+			if (pChangeFilter!=NULL)
+				pChangeFilter(m_TaskbarButtonCreatedMessage,MSGFLT_ADD);
+		}
 
 		m_hwnd=hwnd;
 	}

@@ -33,13 +33,20 @@ float LevelToDeciBel(int Level);
 COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio=128);
 
 DWORD DiffTime(DWORD Start,DWORD End);
+extern __declspec(selectany) const FILETIME FILETIME_NULL={0,0};
 #define FILETIME_MILLISECOND	10000LL
 #define FILETIME_SECOND			(1000LL*FILETIME_MILLISECOND)
 #define FILETIME_MINUTE			(60LL*FILETIME_SECOND)
 #define FILETIME_HOUR			(60LL*FILETIME_MINUTE)
 FILETIME &operator+=(FILETIME &ft,LONGLONG Offset);
 LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2);
+bool SystemTimeToLocalTimeNoDST(const SYSTEMTIME *pUTCTime,SYSTEMTIME *pLocalTime);
 void GetLocalTimeAsFileTime(FILETIME *pTime);
+void GetLocalTimeNoDST(SYSTEMTIME *pTime);
+void GetLocalTimeNoDST(FILETIME *pTime);
+bool UTCToJST(const SYSTEMTIME *pUTCTime,SYSTEMTIME *pJST);
+void GetCurrentJST(SYSTEMTIME *pTime);
+void GetCurrentJST(FILETIME *pTime);
 int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2);
 bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset);
 LONGLONG DiffSystemTime(const SYSTEMTIME *pStartTime,const SYSTEMTIME *pEndTime);

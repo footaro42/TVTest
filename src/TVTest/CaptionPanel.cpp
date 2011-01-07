@@ -172,78 +172,63 @@ void CCaptionPanel::AppendText(LPCTSTR pszText)
 }
 
 
-CCaptionPanel *CCaptionPanel::GetThis(HWND hwnd)
-{
-	return static_cast<CCaptionPanel*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CCaptionPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CCaptionPanel *pThis=static_cast<CCaptionPanel*>(OnCreate(hwnd,lParam));
+			if (!m_BackBrush.IsCreated())
+				m_BackBrush.Create(m_BackColor);
+			if (!m_Font.IsCreated())
+				CreateDefaultFont(&m_Font);
 
-			if (!pThis->m_BackBrush.IsCreated())
-				pThis->m_BackBrush.Create(pThis->m_BackColor);
-			if (!pThis->m_Font.IsCreated())
-				CreateDefaultFont(&pThis->m_Font);
-
-			pThis->m_hwndEdit=CreateWindowEx(0,TEXT("EDIT"),TEXT(""),
+			m_hwndEdit=CreateWindowEx(0,TEXT("EDIT"),TEXT(""),
 				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 				0,0,0,0,hwnd,(HMENU)IDC_EDIT,m_hinst,NULL);
-			SetWindowFont(pThis->m_hwndEdit,pThis->m_Font.GetHandle(),FALSE);
-			::SetProp(pThis->m_hwndEdit,m_pszPropName,pThis);
-			pThis->m_pOldEditProc=SubclassWindow(pThis->m_hwndEdit,EditWndProc);
+			SetWindowFont(m_hwndEdit,m_Font.GetHandle(),FALSE);
+			::SetProp(m_hwndEdit,m_pszPropName,this);
+			m_pOldEditProc=SubclassWindow(m_hwndEdit,EditWndProc);
 
-			pThis->m_fClearLast=true;
-			pThis->m_fContinue=false;
+			m_fClearLast=true;
+			m_fContinue=false;
 
 			CCaptionDecoder *pCaptionDecoder=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_CaptionDecoder;
-			pCaptionDecoder->SetCaptionHandler(pThis);
-			pCaptionDecoder->SetDRCSMap(&pThis->m_DRCSMap);
+			pCaptionDecoder->SetCaptionHandler(this);
+			pCaptionDecoder->SetDRCSMap(&m_DRCSMap);
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CCaptionPanel *pThis=GetThis(hwnd);
-
-			::MoveWindow(pThis->m_hwndEdit,0,0,LOWORD(lParam),HIWORD(lParam),TRUE);
-		}
+		::MoveWindow(m_hwndEdit,0,0,LOWORD(lParam),HIWORD(lParam),TRUE);
 		return 0;
 
 	case WM_CTLCOLORSTATIC:
 		{
-			CCaptionPanel *pThis=GetThis(hwnd);
-
 			HDC hdc=reinterpret_cast<HDC>(wParam);
 
-			::SetTextColor(hdc,pThis->m_TextColor);
-			::SetBkColor(hdc,pThis->m_BackColor);
-			return reinterpret_cast<LRESULT>(pThis->m_BackBrush.GetHandle());
+			::SetTextColor(hdc,m_TextColor);
+			::SetBkColor(hdc,m_BackColor);
+			return reinterpret_cast<LRESULT>(m_BackBrush.GetHandle());
 		}
 
 	case WM_APP:
 		{
-			CCaptionPanel *pThis=GetThis(hwnd);
 			LPTSTR pszText=reinterpret_cast<LPTSTR>(lParam);
 
 			if (pszText!=NULL) {
-				if (pThis->m_fEnable) {
-					if (pThis->GetVisible()) {
-						::SendMessage(pThis->m_hwndEdit,WM_SETREDRAW,FALSE,0);
-						pThis->AppendText(pszText);
-						::SendMessage(pThis->m_hwndEdit,WM_SETREDRAW,TRUE,0);
+				if (m_fEnable) {
+					if (GetVisible()) {
+						::SendMessage(m_hwndEdit,WM_SETREDRAW,FALSE,0);
+						AppendText(pszText);
+						::SendMessage(m_hwndEdit,WM_SETREDRAW,TRUE,0);
 					} else {
 						// ”ñ•\Ž¦‚Ìê‡‚ÍƒLƒ…[‚É—­‚ß‚é
-						if (pThis->m_CaptionList.size()>=MAX_QUEUE_TEXT) {
-							delete [] pThis->m_CaptionList.front();
-							pThis->m_CaptionList.pop_front();
-							::SetWindowText(pThis->m_hwndEdit,TEXT(""));
+						if (m_CaptionList.size()>=MAX_QUEUE_TEXT) {
+							delete [] m_CaptionList.front();
+							m_CaptionList.pop_front();
+							::SetWindowText(m_hwndEdit,TEXT(""));
 						}
-						pThis->m_CaptionList.push_back(pszText);
+						m_CaptionList.push_back(pszText);
 						pszText=NULL;
 					}
 				}
@@ -253,71 +238,64 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		return 0;
 
 	case WM_COMMAND:
-		{
-			CCaptionPanel *pThis=GetThis(hwnd);
+		switch (LOWORD(wParam)) {
+		case CM_CAPTIONPANEL_COPY:
+			{
+				HWND hwndEdit=m_hwndEdit;
+				DWORD Start,End;
 
-			switch (LOWORD(wParam)) {
-			case CM_CAPTIONPANEL_COPY:
-				{
-					HWND hwndEdit=pThis->m_hwndEdit;
-					DWORD Start,End;
+				::SendMessage(hwndEdit,WM_SETREDRAW,FALSE,0);
+				::SendMessage(hwndEdit,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
+				if (Start==End)
+					::SendMessage(hwndEdit,EM_SETSEL,0,-1);
+				::SendMessage(hwndEdit,WM_COPY,0,0);
+				if (Start==End)
+					::SendMessage(hwndEdit,EM_SETSEL,Start,End);
+				::SendMessage(hwndEdit,WM_SETREDRAW,TRUE,0);
+			}
+			break;
 
-					::SendMessage(hwndEdit,WM_SETREDRAW,FALSE,0);
-					::SendMessage(hwndEdit,EM_GETSEL,(WPARAM)&Start,(LPARAM)&End);
-					if (Start==End)
-						::SendMessage(hwndEdit,EM_SETSEL,0,-1);
-					::SendMessage(hwndEdit,WM_COPY,0,0);
-					if (Start==End)
-						::SendMessage(hwndEdit,EM_SETSEL,Start,End);
-					::SendMessage(hwndEdit,WM_SETREDRAW,TRUE,0);
-				}
-				break;
+		case CM_CAPTIONPANEL_SELECTALL:
+			::SendMessage(m_hwndEdit,EM_SETSEL,0,-1);
+			break;
 
-			case CM_CAPTIONPANEL_SELECTALL:
-				::SendMessage(pThis->m_hwndEdit,EM_SETSEL,0,-1);
-				break;
+		case CM_CAPTIONPANEL_CLEAR:
+			::SetWindowText(m_hwndEdit,TEXT(""));
+			break;
 
-			case CM_CAPTIONPANEL_CLEAR:
-				::SetWindowText(pThis->m_hwndEdit,TEXT(""));
-				break;
+		case CM_CAPTIONPANEL_ENABLE:
+			m_Lock.Lock();
+			m_fEnable=!m_fEnable;
+			m_fClearLast=false;
+			m_fContinue=false;
+			m_Lock.Unlock();
+			break;
 
-			case CM_CAPTIONPANEL_ENABLE:
-				pThis->m_Lock.Lock();
-				pThis->m_fEnable=!pThis->m_fEnable;
-				pThis->m_fClearLast=false;
-				pThis->m_fContinue=false;
-				pThis->m_Lock.Unlock();
-				break;
-
-			case CM_CAPTIONPANEL_AUTOSCROLL:
-				pThis->m_fAutoScroll=!pThis->m_fAutoScroll;
-				break;
+		case CM_CAPTIONPANEL_AUTOSCROLL:
+			m_fAutoScroll=!m_fAutoScroll;
+			break;
 
 #ifndef TVH264_FOR_1SEG
-			case CM_CAPTIONPANEL_IGNORESMALL:
-				pThis->m_Lock.Lock();
-				pThis->m_fIgnoreSmall=!pThis->m_fIgnoreSmall;
-				pThis->m_Lock.Unlock();
-				break;
+		case CM_CAPTIONPANEL_IGNORESMALL:
+			m_Lock.Lock();
+			m_fIgnoreSmall=!m_fIgnoreSmall;
+			m_Lock.Unlock();
+			break;
 #endif
-			}
 		}
 		return 0;
 
 	case WM_DESTROY:
 		{
-			CCaptionPanel *pThis=GetThis(hwnd);
-
 			CCaptionDecoder *pCaptionDecoder=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_CaptionDecoder;
 			pCaptionDecoder->SetCaptionHandler(NULL);
 			pCaptionDecoder->SetDRCSMap(NULL);
 
-			pThis->ClearCaptionList();
-			SubclassWindow(pThis->m_hwndEdit,pThis->m_pOldEditProc);
-			::RemoveProp(pThis->m_hwndEdit,m_pszPropName);
-			pThis->m_hwndEdit=NULL;
-			pThis->m_pOldEditProc=NULL;
-			pThis->OnDestroy();
+			ClearCaptionList();
+			SubclassWindow(m_hwndEdit,m_pOldEditProc);
+			::RemoveProp(m_hwndEdit,m_pszPropName);
+			m_hwndEdit=NULL;
+			m_pOldEditProc=NULL;
 		}
 		return 0;
 	}
@@ -327,7 +305,7 @@ LRESULT CALLBACK CCaptionPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 LRESULT CALLBACK CCaptionPanel::EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	CCaptionPanel *pThis=(CCaptionPanel*)::GetProp(hwnd,m_pszPropName);
+	CCaptionPanel *pThis=static_cast<CCaptionPanel*>(::GetProp(hwnd,m_pszPropName));
 
 	if (pThis==NULL)
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);

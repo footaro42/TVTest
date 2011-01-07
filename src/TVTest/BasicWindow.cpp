@@ -30,8 +30,10 @@ CBasicWindow::~CBasicWindow()
 
 void CBasicWindow::Destroy()
 {
-	if (m_hwnd!=NULL)
+	if (m_hwnd!=NULL) {
 		::DestroyWindow(m_hwnd);
+		m_hwnd=NULL;
+	}
 }
 
 
@@ -402,4 +404,43 @@ bool CBasicWindow::SendSizeMessage()
 		return false;
 	::SendMessage(m_hwnd,WM_SIZE,0,MAKELONG(rc.right,rc.bottom));
 	return true;
+}
+
+
+
+
+CCustomWindow::CCustomWindow()
+{
+}
+
+
+CCustomWindow::~CCustomWindow()
+{
+	Destroy();
+}
+
+
+LRESULT CALLBACK CCustomWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	CCustomWindow *pThis;
+
+	if (uMsg==WM_CREATE) {
+		pThis=static_cast<CCustomWindow*>(OnCreate(hwnd,lParam));
+	} else {
+		pThis=static_cast<CCustomWindow*>(GetBasicWindow(hwnd));
+		if (pThis==NULL)
+			return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+		if (uMsg==WM_DESTROY) {
+			pThis->OnMessage(hwnd,uMsg,wParam,lParam);
+			pThis->OnDestroy();
+			return 0;
+		}
+	}
+	return pThis->OnMessage(hwnd,uMsg,wParam,lParam);
+}
+
+
+LRESULT CCustomWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }

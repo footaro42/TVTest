@@ -6,7 +6,8 @@
 #include "StatusView.h"
 
 
-class CCaptureImage {
+class CCaptureImage
+{
 	HGLOBAL m_hData;
 	bool m_fLocked;
 	SYSTEMTIME m_stCaptureTime;
@@ -25,9 +26,10 @@ public:
 	LPCTSTR GetComment() const { return m_pszComment; }
 };
 
-class CCapturePreview : public CBasicWindow {
+class CCapturePreview : public CCustomWindow
+{
 public:
-	class CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		CCapturePreview *m_pCapturePreview;
 	public:
@@ -38,10 +40,14 @@ public:
 		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
 		friend class CCapturePreview;
 	};
+
 	static bool Initialize(HINSTANCE hinst);
+
 	CCapturePreview();
 	~CCapturePreview();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CCapturePreview
 	bool SetImage(CCaptureImage *pImage);
 	bool ClearImage();
 	bool HasImage() const;
@@ -49,16 +55,19 @@ public:
 
 private:
 	static HINSTANCE m_hinst;
+
 	CCaptureImage *m_pImage;
 	COLORREF m_crBackColor;
 	CEventHandler *m_pEventHandler;
-	static CCapturePreview *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
-class CCaptureWindow : public CBasicWindow {
+class CCaptureWindow : public CCustomWindow
+{
 public:
-	class CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler) {
 	protected:
 		CCaptureWindow *m_pCaptureWindow;
 	public:
@@ -70,10 +79,14 @@ public:
 		virtual bool OnActivate(bool fActive) { return false; }
 		friend class CCaptureWindow;
 	};
+
 	static bool Initialize(HINSTANCE hinst);
+
 	CCaptureWindow();
 	~CCaptureWindow();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CCustomWindow
 	bool SetImage(const BITMAPINFO *pbmi,const void *pBits);
 	bool SetImage(CCaptureImage *pImage);
 	bool ClearImage();
@@ -85,6 +98,7 @@ public:
 
 private:
 	static HINSTANCE m_hinst;
+
 	CCapturePreview m_Preview;
 	class CPreviewEventHandler : public CCapturePreview::CEventHandler {
 		CCaptureWindow *m_pCaptureWindow;
@@ -96,7 +110,7 @@ private:
 	CPreviewEventHandler m_PreviewEventHandler;
 	CStatusView m_Status;
 	bool m_fShowStatusBar;
-	HBITMAP m_hbmStatusIcons;
+	DrawUtil::CBitmap m_StatusIcons;
 	enum {
 		STATUS_ITEM_CAPTURE,
 		//STATUS_ITEM_CONTINUOUS,
@@ -143,9 +157,10 @@ private:
 	};
 	CCaptureImage *m_pImage;
 	CEventHandler *m_pEventHandler;
-	static CCaptureWindow *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void SetTitle();
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 /*

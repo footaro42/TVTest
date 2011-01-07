@@ -128,7 +128,7 @@
       <CompileAs>Default</CompileAs>
       <StringPooling>true</StringPooling>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
     </ClCompile>
     <ResourceCompile>
@@ -214,7 +214,7 @@
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <FunctionLevelLinking>true</FunctionLevelLinking>
-      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <WarningLevel>Level3</WarningLevel>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
@@ -372,6 +372,7 @@
     <ClCompile Include="EpgDataLoader.cpp" />
     <ClCompile Include="EpgOptions.cpp" />
     <ClCompile Include="EpgProgramList.cpp" />
+    <ClCompile Include="EpgUtil.cpp" />
     <ClCompile Include="EventInfoPopup.cpp" />
     <ClCompile Include="GeneralOptions.cpp" />
     <ClCompile Include="Help.cpp" />
@@ -508,6 +509,7 @@
     <ClInclude Include="EpgDataLoader.h" />
     <ClInclude Include="EpgOptions.h" />
     <ClInclude Include="EpgProgramList.h" />
+    <ClInclude Include="EpgUtil.h" />
     <ClInclude Include="EventInfoPopup.h" />
     <ClInclude Include="GeneralOptions.h" />
     <ClInclude Include="Help.h" />

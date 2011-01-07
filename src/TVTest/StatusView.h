@@ -60,12 +60,14 @@ public:
 	friend CStatusView;
 };
 
-class CStatusView : public CBasicWindow, public CTracer
+class CStatusView : public CCustomWindow, public CTracer
 {
 public:
-	class ABSTRACT_CLASS(CEventHandler) {
+	class ABSTRACT_CLASS(CEventHandler)
+	{
 	protected:
 		CStatusView *m_pStatusView;
+
 	public:
 		CEventHandler();
 		virtual ~CEventHandler();
@@ -85,8 +87,8 @@ public:
 	CStatusView();
 	~CStatusView();
 // CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void SetVisible(bool fVisible);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+	void SetVisible(bool fVisible) override;
 // CStatusView
 	int NumItems() const { return m_ItemList.Length(); }
 	const CStatusItem *GetItem(int Index) const;
@@ -120,7 +122,7 @@ public:
 	bool EnableBufferedPaint(bool fEnable);
 	void EnableSizeAdjustment(bool fEnable);
 // CTracer
-	void OnTrace(LPCTSTR pszOutput);
+	void OnTrace(LPCTSTR pszOutput) override;
 
 private:
 	static HINSTANCE m_hinst;
@@ -148,8 +150,8 @@ private:
 	void AdjustSize();
 	void CalcRows();
 
-	static CStatusView *GetStatusView(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

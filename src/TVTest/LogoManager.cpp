@@ -483,7 +483,7 @@ CLogoManager::CLogoData *CLogoManager::LoadLogoData(WORD NetworkID,WORD LogoID,B
 	if (!GetAbsolutePath(m_szLogoDirectory,szDirectory,lengthof(szDirectory)))
 		return false;
 	// Å‚àƒo[ƒWƒ‡ƒ“‚ªV‚µ‚¢ƒƒS‚ð’T‚·
-	::wsprintf(szMask,TEXT("%04X_%03X_???_%02X"),NetworkID,LogoID,LogoType);
+	::wsprintf(szMask,TEXT("%04X_%03X_\?\?\?_%02X"),NetworkID,LogoID,LogoType);
 	if (::lstrlen(szDirectory)+1+::lstrlen(szMask)>=lengthof(szFileName))
 		return false;
 	::PathCombine(szFileName,szDirectory,szMask);

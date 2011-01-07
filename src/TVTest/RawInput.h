@@ -2,7 +2,8 @@
 #define RAW_INPUT_H
 
 
-class CRawInput {
+class CRawInput
+{
 public:
 	class CEventHandler {
 	public:
@@ -15,7 +16,6 @@ public:
 protected:
 	typedef BOOL (WINAPI *RegisterRawInputDevicesFunc)(PCRAWINPUTDEVICE pRawInputDevices,UINT uiNumDevices,UINT cbSize);
 	typedef UINT (WINAPI *GetRawInputDataFunc)(HRAWINPUT hRawInput,UINT uiCommand,LPVOID pData,PUINT pcbSize,UINT cbSizeHeader);
-	HMODULE m_hLib;
 	RegisterRawInputDevicesFunc m_pRegisterRawInputDevices;
 	GetRawInputDataFunc m_pGetRawInputData;
 	CEventHandler *m_pEventHandler;

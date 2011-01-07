@@ -33,9 +33,11 @@ void CChannelManager::Clear()
 	m_CurrentServiceID=-1;
 	m_ChangingChannel=-1;
 	m_fUseDriverChannelList=false;
+#ifdef NETWORK_REMOCON_SUPPORT
 	m_fNetworkRemocon=false;
 	m_pNetworkRemoconChannelList=NULL;
 	m_NetworkRemoconCurrentChannel=-1;
+#endif
 }
 
 
@@ -293,7 +295,10 @@ bool CChannelManager::SetUseDriverChannelList(bool fUse)
 
 bool CChannelManager::SetCurrentChannel(int Space,int Channel)
 {
-	if (!m_fNetworkRemocon) {
+#ifdef NETWORK_REMOCON_SUPPORT
+	if (!m_fNetworkRemocon)
+#endif
+	{
 		if (Space!=SPACE_ALL && Space!=SPACE_INVALID) {
 			if (Space<0 || Space>=NumSpaces())
 				return false;
@@ -332,7 +337,11 @@ const CChannelInfo *CChannelManager::GetCurrentChannelInfo() const
 
 	if (pList==NULL)
 		return NULL;
-	return pList->GetChannelInfo(m_fNetworkRemocon?m_NetworkRemoconCurrentChannel:m_CurrentChannel);
+	return pList->GetChannelInfo(
+#ifdef NETWORK_REMOCON_SUPPORT
+		m_fNetworkRemocon?m_NetworkRemoconCurrentChannel:
+#endif
+		m_CurrentChannel);
 }
 
 
@@ -363,6 +372,7 @@ const CChannelInfo *CChannelManager::GetNextChannelInfo(bool fNext) const
 
 	if (m_ChangingChannel>=0)
 		Channel=m_ChangingChannel;
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (m_fNetworkRemocon) {
 		if (Channel<0) {
 			if (m_NetworkRemoconCurrentChannel<0)
@@ -376,7 +386,9 @@ const CChannelInfo *CChannelManager::GetNextChannelInfo(bool fNext) const
 			No=m_pNetworkRemoconChannelList->GetPrevChannelNo(No,true);
 		pInfo=m_pNetworkRemoconChannelList->GetChannelInfo(
 							m_pNetworkRemoconChannelList->FindChannelNo(No));
-	} else {
+	} else
+#endif
+	{
 		const CChannelList *pList=GetCurrentChannelList();
 		int i;
 
@@ -420,8 +432,10 @@ const CChannelInfo *CChannelManager::GetNextChannelInfo(bool fNext) const
 
 const CChannelList *CChannelManager::GetCurrentChannelList() const
 {
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (m_fNetworkRemocon)
 		return m_pNetworkRemoconChannelList;
+#endif
 	return GetChannelList(m_CurrentSpace);
 }
 
@@ -517,6 +531,8 @@ int CChannelManager::NumSpaces() const
 }
 
 
+#ifdef NETWORK_REMOCON_SUPPORT
+
 bool CChannelManager::SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList)
 {
 	if (fNetworkRemocon && pList==NULL)
@@ -537,14 +553,19 @@ bool CChannelManager::SetNetworkRemoconCurrentChannel(int Channel)
 	return true;
 }
 
+#endif	// NETWORK_REMOCON_SUPPORT
+
 
 bool CChannelManager::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 						WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
 {
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (m_fNetworkRemocon) {
 		m_pNetworkRemoconChannelList->UpdateStreamInfo(Space,ChannelIndex,Service,
 										NetworkID,TransportStreamID,ServiceID);
-	} else {
+	} else
+#endif
+	{
 		m_TuningSpaceList.UpdateStreamInfo(Space,ChannelIndex,Service,
 										NetworkID,TransportStreamID,ServiceID);
 	}

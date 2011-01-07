@@ -271,157 +271,128 @@ void CSideBar::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-CSideBar *CSideBar::GetThis(HWND hwnd)
-{
-	return static_cast<CSideBar*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CSideBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CSideBar *pThis=static_cast<CSideBar*>(OnCreate(hwnd,lParam));
 			LPCREATESTRUCT pcs=reinterpret_cast<LPCREATESTRUCT>(lParam);
 
-			pThis->m_Tooltip.Create(hwnd);
-			pThis->m_Tooltip.Enable(pThis->m_fShowTooltips);
-			for (int i=0;i<(int)pThis->m_ItemList.size();i++) {
-				if (pThis->m_ItemList[i].Command!=ITEM_SEPARATOR) {
+			m_Tooltip.Create(hwnd);
+			m_Tooltip.Enable(m_fShowTooltips);
+			for (int i=0;i<(int)m_ItemList.size();i++) {
+				if (m_ItemList[i].Command!=ITEM_SEPARATOR) {
 					RECT rc;
-					pThis->GetItemRect(i,&rc);
-					pThis->m_Tooltip.AddTool(i,rc);
+					GetItemRect(i,&rc);
+					m_Tooltip.AddTool(i,rc);
 				}
 			}
 
-			pThis->m_HotItem=-1;
-			pThis->m_fTrackMouseEvent=false;
+			m_HotItem=-1;
+			m_fTrackMouseEvent=false;
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CSideBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
-				pThis->UpdateItem(pThis->m_HotItem);
-				pThis->m_HotItem=-1;
-			}
-			pThis->UpdateTooltipsRect();
+		if (m_HotItem>=0) {
+			UpdateItem(m_HotItem);
+			m_HotItem=-1;
 		}
+		UpdateTooltipsRect();
 		return 0;
 
 	case WM_PAINT:
 		{
-			CSideBar *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,ps.rcPaint);
+			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CSideBar *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-			int HotItem=pThis->HitTest(x,y);
+			int HotItem=HitTest(x,y);
 
 			if (HotItem>=0
-					&& (pThis->m_ItemList[HotItem].Command==ITEM_SEPARATOR
-						|| (pThis->m_ItemList[HotItem].Flags&ITEM_FLAG_DISABLED)!=0))
+					&& (m_ItemList[HotItem].Command==ITEM_SEPARATOR
+						|| (m_ItemList[HotItem].Flags&ITEM_FLAG_DISABLED)!=0))
 				HotItem=-1;
 			if (GetCapture()==hwnd) {
-				if (HotItem!=pThis->m_ClickItem)
+				if (HotItem!=m_ClickItem)
 					HotItem=-1;
-				if (HotItem!=pThis->m_HotItem) {
+				if (HotItem!=m_HotItem) {
 					int OldHotItem;
 
-					OldHotItem=pThis->m_HotItem;
-					pThis->m_HotItem=HotItem;
+					OldHotItem=m_HotItem;
+					m_HotItem=HotItem;
 					if (OldHotItem>=0)
-						pThis->UpdateItem(OldHotItem);
-					if (pThis->m_HotItem>=0)
-						pThis->UpdateItem(pThis->m_HotItem);
+						UpdateItem(OldHotItem);
+					if (m_HotItem>=0)
+						UpdateItem(m_HotItem);
 				}
 			} else {
-				if (HotItem!=pThis->m_HotItem) {
+				if (HotItem!=m_HotItem) {
 					int OldHotItem;
 
-					OldHotItem=pThis->m_HotItem;
-					pThis->m_HotItem=HotItem;
+					OldHotItem=m_HotItem;
+					m_HotItem=HotItem;
 					if (OldHotItem>=0)
-						pThis->UpdateItem(OldHotItem);
-					if (pThis->m_HotItem>=0)
-						pThis->UpdateItem(pThis->m_HotItem);
+						UpdateItem(OldHotItem);
+					if (m_HotItem>=0)
+						UpdateItem(m_HotItem);
 				}
-				if (!pThis->m_fTrackMouseEvent) {
+				// WM_MOUSELEAVE ‚ª‘—‚ç‚ê‚È‚­‚Ä‚à–³Œø‚É‚³‚ê‚éŽ–‚ª‚ ‚é‚æ‚¤‚¾
+				/*if (!m_fTrackMouseEvent)*/ {
 					TRACKMOUSEEVENT tme;
 
 					tme.cbSize=sizeof(TRACKMOUSEEVENT);
 					tme.dwFlags=TME_LEAVE;
 					tme.hwndTrack=hwnd;
 					if (::TrackMouseEvent(&tme))
-						pThis->m_fTrackMouseEvent=true;
+						m_fTrackMouseEvent=true;
 				}
 			}
 		}
 		return 0;
 
 	case WM_MOUSELEAVE:
-		{
-			CSideBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
-				pThis->UpdateItem(pThis->m_HotItem);
-				pThis->m_HotItem=-1;
-			}
-			pThis->m_fTrackMouseEvent=false;
-			if (pThis->m_pEventHandler)
-				pThis->m_pEventHandler->OnMouseLeave();
+		if (m_HotItem>=0) {
+			UpdateItem(m_HotItem);
+			m_HotItem=-1;
 		}
+		m_fTrackMouseEvent=false;
+		if (m_pEventHandler)
+			m_pEventHandler->OnMouseLeave();
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		{
-			CSideBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
-				pThis->m_ClickItem=pThis->m_HotItem;
-				::SetCapture(hwnd);
-			}
+		if (m_HotItem>=0) {
+			m_ClickItem=m_HotItem;
+			::SetCapture(hwnd);
 		}
 		return 0;
 
 	case WM_LBUTTONUP:
-		if (GetCapture()==hwnd) {
-			CSideBar *pThis=GetThis(hwnd);
-
+		if (::GetCapture()==hwnd) {
 			::ReleaseCapture();
-			if (pThis->m_HotItem>=0) {
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnCommand(
-						pThis->m_ItemList[pThis->m_HotItem].Command);
+			if (m_HotItem>=0) {
+				if (m_pEventHandler!=NULL)
+					m_pEventHandler->OnCommand(m_ItemList[m_HotItem].Command);
 			}
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
-		{
-			CSideBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
-		}
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		return 0;
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
-			CSideBar *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
+			if (m_HotItem>=0) {
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
 				return TRUE;
 			}
@@ -432,11 +403,10 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 		switch (reinterpret_cast<NMHDR*>(lParam)->code) {
 		case TTN_NEEDTEXT:
 			{
-				CSideBar *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pnmttdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 
-				pThis->m_pCommandList->GetCommandName(
-					pThis->m_pCommandList->IDToIndex(pThis->m_ItemList[pnmttdi->hdr.idFrom].Command),
+				m_pCommandList->GetCommandName(
+					m_pCommandList->IDToIndex(m_ItemList[pnmttdi->hdr.idFrom].Command),
 					pnmttdi->szText,lengthof(pnmttdi->szText));
 				pnmttdi->lpszText=pnmttdi->szText;
 				pnmttdi->hinst=NULL;
@@ -444,48 +414,39 @@ LRESULT CALLBACK CSideBar::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 			return 0;
 
 		case TTN_SHOW:
-			{
-				CSideBar *pThis=GetThis(hwnd);
+			if (m_fVertical) {
+				LPNMHDR pnmh=reinterpret_cast<LPNMHDR>(lParam);
+				RECT rcBar,rcTip;
+				int x,y;
 
-				if (pThis->m_fVertical) {
-					LPNMHDR pnmh=reinterpret_cast<LPNMHDR>(lParam);
-					RECT rcBar,rcTip;
-					int x,y;
+				::GetWindowRect(hwnd,&rcBar);
+				::GetWindowRect(pnmh->hwndFrom,&rcTip);
+				x=rcBar.right-PADDING_WIDTH;
+				y=rcTip.top;
+				HMONITOR hMonitor=::MonitorFromRect(&rcTip,MONITOR_DEFAULTTONULL);
+				if (hMonitor!=NULL) {
+					MONITORINFO mi;
 
-					::GetWindowRect(hwnd,&rcBar);
-					::GetWindowRect(pnmh->hwndFrom,&rcTip);
-					x=rcBar.right-PADDING_WIDTH;
-					y=rcTip.top;
-					HMONITOR hMonitor=::MonitorFromRect(&rcTip,MONITOR_DEFAULTTONULL);
-					if (hMonitor!=NULL) {
-						MONITORINFO mi;
-
-						mi.cbSize=sizeof(mi);
-						if (::GetMonitorInfo(hMonitor,&mi)) {
-							if (x>=mi.rcMonitor.right-16)
-								x=(rcBar.left+PADDING_WIDTH)-(rcTip.right-rcTip.left);
-						}
+					mi.cbSize=sizeof(mi);
+					if (::GetMonitorInfo(hMonitor,&mi)) {
+						if (x>=mi.rcMonitor.right-16)
+							x=(rcBar.left+PADDING_WIDTH)-(rcTip.right-rcTip.left);
 					}
-					::SetWindowPos(pnmh->hwndFrom,HWND_TOPMOST,
-								   x,y,rcTip.right-rcTip.left,rcTip.bottom-rcTip.top,
-								   SWP_NOACTIVATE);
-					return TRUE;
 				}
+				::SetWindowPos(pnmh->hwndFrom,HWND_TOPMOST,
+							   x,y,rcTip.right-rcTip.left,rcTip.bottom-rcTip.top,
+							   SWP_NOACTIVATE);
+				return TRUE;
 			}
 			break;
 		}
 		break;
 
 	case WM_DESTROY:
-		{
-			CSideBar *pThis=GetThis(hwnd);
-
-			pThis->m_Tooltip.Destroy();
-			pThis->OnDestroy();
-		}
+		m_Tooltip.Destroy();
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 

@@ -152,6 +152,8 @@ public:
 		bool bValidStartTime;
 		SYSTEMTIME StartTime;
 		DWORD Duration;
+		BYTE RunningStatus;
+		bool bFreeCaMode;
 		LPTSTR pszEventName;
 		int MaxEventName;
 		LPTSTR pszEventText;

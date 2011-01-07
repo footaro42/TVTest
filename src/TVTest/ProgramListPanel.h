@@ -4,6 +4,7 @@
 
 #include "PanelForm.h"
 #include "EpgProgramList.h"
+#include "EpgUtil.h"
 #include "Theme.h"
 #include "DrawUtil.h"
 #include "EventInfoPopup.h"
@@ -43,25 +44,22 @@ public:
 	};
 
 	static bool Initialize(HINSTANCE hinst);
+
 	CProgramListPanel();
 	~CProgramListPanel();
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CProgramListPanel
 	void SetEpgProgramList(CEpgProgramList *pList) { m_pProgramList=pList; }
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	bool UpdateProgramList(WORD TransportStreamID,WORD ServiceID);
+	bool UpdateProgramList(WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool OnProgramListChanged();
 	void ClearProgramList();
 	void SetCurrentEventID(int EventID);
-	/*
-	void SetColors(const Theme::GradientInfo *pEventBackGradient,COLORREF EventTextColor,
-		const Theme::GradientInfo *pCurEventBackGradient,COLORREF CurEventTextColor,
-		const Theme::GradientInfo *pTitleBackGradient,COLORREF TitleTextColor,
-		const Theme::GradientInfo *pCurTitleBackGradient,COLORREF CurTitleTextColor,
-		COLORREF MarginColor);
-	*/
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
 	bool SetEventInfoFont(const LOGFONT *pFont);
+	void ShowRetrievingMessage(bool fShow);
 
 private:
 	CEpgProgramList *m_pProgramList;
@@ -70,18 +68,8 @@ private:
 	int m_FontHeight;
 	int m_LineMargin;
 	int m_TitleMargin;
-	/*
-	Theme::GradientInfo m_EventBackGradient;
-	COLORREF m_EventTextColor;
-	Theme::GradientInfo m_CurEventBackGradient;
-	COLORREF m_CurEventTextColor;
-	Theme::GradientInfo m_TitleBackGradient;
-	COLORREF m_TitleTextColor;
-	Theme::GradientInfo m_CurTitleBackGradient;
-	COLORREF m_CurTitleTextColor;
-	COLORREF m_MarginColor;
-	*/
 	ThemeInfo m_Theme;
+	CEpgIcons m_EpgIcons;
 	int m_TotalLines;
 	CProgramItemList m_ItemList;
 	int m_CurEventID;
@@ -99,19 +87,21 @@ private:
 	};
 	friend CEventInfoPopupHandler;
 	CEventInfoPopupHandler m_EventInfoPopupHandler;
+	bool m_fShowRetrievingMessage;
 
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
-	static CProgramListPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void DrawProgramList(HDC hdc,const RECT *prcPaint);
-	bool UpdateListInfo(WORD TransportStreamID,WORD ServiceID);
+	bool UpdateListInfo(WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	void CalcDimensions();
 	void SetScrollPos(int Pos);
 	void SetScrollBar();
 	void CalcFontHeight();
 	int HitTest(int x,int y) const;
 	//void SetToolTip();
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

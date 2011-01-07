@@ -10,12 +10,12 @@
 class CServiceInfoData
 {
 public:
-	WORD m_OriginalNID;
+	WORD m_NetworkID;
 	WORD m_TSID;
 	WORD m_ServiceID;
 
 	CServiceInfoData();
-	CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID);
+	CServiceInfoData(WORD NetworkID,WORD TSID,WORD ServiceID);
 	bool operator==(const CServiceInfoData &Info) const;
 	bool operator!=(const CServiceInfoData &Info) const { return !(*this==Info); }
 };
@@ -23,39 +23,24 @@ public:
 class CEventInfoData
 {
 public:
-	struct AudioInfo {
-		enum { MAX_TEXT=CEventManager::CEventInfo::AudioInfo::MAX_TEXT };
-		BYTE ComponentType;
-		bool fESMultiLingualFlag;
-		bool fMainComponentFlag;
-		BYTE SamplingRate;
-		DWORD LanguageCode;
-		DWORD LanguageCode2;
-		TCHAR szText[MAX_TEXT];
-		bool operator==(const AudioInfo &Op) const {
-			return ComponentType==Op.ComponentType
-				&& fESMultiLingualFlag==Op.fESMultiLingualFlag
-				&& fMainComponentFlag==Op.fMainComponentFlag
-				&& SamplingRate==Op.SamplingRate
-				&& LanguageCode==Op.LanguageCode
-				&& LanguageCode2==Op.LanguageCode2
-				&& ::lstrcmp(szText,Op.szText)==0;
-		}
-		bool operator!=(const AudioInfo &Op) const { return !(*this==Op); }
+	typedef CEventManager::CEventInfo::VideoInfo VideoInfo;
+	typedef CEventManager::CEventInfo::AudioInfo AudioInfo;
+	typedef CEventManager::CEventInfo::AudioList AudioList;
+	typedef CContentDesc::Nibble NibbleData;
+	typedef CEventManager::CEventInfo::ContentNibble ContentNibble;
+	typedef CEventManager::CEventInfo::EventGroupInfo EventGroupInfo;
+	typedef CEventManager::CEventInfo::EventGroupList EventGroupList;
+	typedef CEventManager::CEventInfo::CommonEventInfo CommonEventInfo;
+
+	enum {
+		AUDIOCOMPONENT_MONO=1,
+		AUDIOCOMPONENT_DUALMONO,
+		AUDIOCOMPONENT_STEREO,
+		AUDIOCOMPONENT_3_1,
+		AUDIOCOMPONENT_3_2,
+		AUDIOCOMPONENT_3_2_1
 	};
-	struct NibbleData {
-		BYTE m_ContentNibbleLv1;	//content_nibble_level_1
-		BYTE m_ContentNibbleLv2;	//content_nibble_level_2
-		BYTE m_UserNibbleLv1;		//user_nibble
-		BYTE m_UserNibbleLv2;		//user_nibble
-		bool operator==(const NibbleData &Data) const {
-			return m_ContentNibbleLv1==Data.m_ContentNibbleLv1
-				&& m_ContentNibbleLv2==Data.m_ContentNibbleLv2
-				&& m_UserNibbleLv1==Data.m_UserNibbleLv1
-				&& m_UserNibbleLv2==Data.m_UserNibbleLv2;
-		}
-		bool operator!=(const NibbleData &Data) const { return !(*this==Data); }
-	};
+
 	enum {
 		CONTENT_NEWS,
 		CONTENT_SPORTS,
@@ -71,36 +56,27 @@ public:
 		CONTENT_WELFARE,
 		CONTENT_LAST=CONTENT_WELFARE
 	};
+
 	enum {
-		AUDIOCOMPONENT_MONO=1,
-		AUDIOCOMPONENT_DUALMONO,
-		AUDIOCOMPONENT_STEREO,
-		AUDIOCOMPONENT_3_1,
-		AUDIOCOMPONENT_3_2,
-		AUDIOCOMPONENT_3_2_1
-	};
-	struct CommonEventInfo {
-		WORD ServiceID;
-		WORD EventID;
-		bool operator==(const CommonEventInfo &Op) const {
-			return ServiceID==Op.ServiceID
-				&& EventID==Op.EventID;
-		}
-		bool operator!=(const CommonEventInfo &Op) const {
-			return !(*this==Op);
-		}
+		FREE_CA_MODE_UNKNOWN,
+		FREE_CA_MODE_UNSCRAMBLED,
+		FREE_CA_MODE_SCRAMBLED
 	};
 
-	WORD m_OriginalNID;
+	WORD m_NetworkID;
 	WORD m_TSID;
 	WORD m_ServiceID;
 	WORD m_EventID;
 	bool m_fValidStartTime;
 	SYSTEMTIME m_stStartTime;
 	DWORD m_DurationSec;
-	BYTE m_ComponentType;
-	std::vector<AudioInfo> m_AudioList;
-	std::vector<NibbleData> m_NibbleList;
+	BYTE m_RunningStatus;
+	//bool m_fFreeCaMode;
+	BYTE m_FreeCaMode;
+	VideoInfo m_VideoInfo;
+	AudioList m_AudioList;
+	ContentNibble m_ContentNibble;
+	EventGroupList m_EventGroupList;
 	bool m_fCommonEvent;
 	CommonEventInfo m_CommonEventInfo;
 	ULONGLONG m_UpdateTime;
@@ -125,16 +101,16 @@ public:
 	bool SetEventText(LPCWSTR pszEventText);
 	LPCWSTR GetEventExtText() const { return m_pszEventExtText; }
 	bool SetEventExtText(LPCWSTR pszEventExtText);
-	LPCWSTR GetComponentTypeText() const { return m_pszComponentTypeText; }
-	bool SetComponentTypeText(LPCWSTR pszText);
 	bool GetStartTime(SYSTEMTIME *pTime) const;
 	bool GetEndTime(SYSTEMTIME *pTime) const;
+	int GetMainAudioIndex() const;
+	const AudioInfo *GetMainAudioInfo() const;
 
 private:
 	LPWSTR m_pszEventName;
 	LPWSTR m_pszEventText;
 	LPWSTR m_pszEventExtText;
-	LPWSTR m_pszComponentTypeText;
+
 	friend class CEpgProgramList;
 };
 
@@ -176,10 +152,10 @@ class CEpgProgramList
 	mutable CCriticalLock m_Lock;
 	FILETIME m_LastWriteTime;
 
-	static ServiceMapKey GetServiceMapKey(WORD OriginalNID,WORD TSID,WORD ServiceID) {
-		return ((ULONGLONG)OriginalNID<<32) | ((ULONGLONG)TSID<<16) | (ULONGLONG)ServiceID;
+	static ServiceMapKey GetServiceMapKey(WORD NetworkID,WORD TSID,WORD ServiceID) {
+		return ((ULONGLONG)NetworkID<<32) | ((ULONGLONG)TSID<<16) | (ULONGLONG)ServiceID;
 	}
-	const CEventInfoData *GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID);
+	const CEventInfoData *GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID);
 	bool SetCommonEventInfo(CEventInfoData *pInfo);
 	bool Merge(CEpgProgramList *pSrcList);
 
@@ -189,16 +165,19 @@ public:
 	bool UpdateService(const CEventManager::ServiceInfo *pService);
 	bool UpdateService(CEventManager *pEventManager,
 					   const CEventManager::ServiceInfo *pService);
-	bool UpdateService(WORD TSID,WORD ServiceID);
+	bool UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID);
+	bool UpdateServices(WORD NetworkID,WORD TSID);
 	bool UpdateProgramList();
 	void Clear();
 	int NumServices() const;
 	CEpgServiceInfo *EnumService(int ServiceIndex);
-	CEpgServiceInfo *GetServiceInfo(WORD OriginalNID,WORD TSID,WORD ServiceID);
-	CEpgServiceInfo *GetServiceInfo(WORD TSID,WORD ServiceID);
-	bool GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID,CEventInfoData *pInfo);
-	bool GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo);
-	bool GetNextEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo);
+	CEpgServiceInfo *GetServiceInfo(WORD NetworkID,WORD TSID,WORD ServiceID);
+	bool GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
+					  WORD EventID,CEventInfoData *pInfo);
+	bool GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
+					  const SYSTEMTIME *pTime,CEventInfoData *pInfo);
+	bool GetNextEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
+						  const SYSTEMTIME *pTime,CEventInfoData *pInfo);
 	bool LoadFromFile(LPCTSTR pszFileName);
 	bool SaveToFile(LPCTSTR pszFileName);
 };

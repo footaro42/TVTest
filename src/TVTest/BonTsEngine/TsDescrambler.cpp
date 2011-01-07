@@ -43,15 +43,16 @@ private:
 #ifdef MULTI2_SSE2
 	CMulti2Decoder::DecodeFunc m_pDecodeFunc;
 #endif
+	WORD m_EcmPID;
 	bool m_bInQueue;
 	CLocalEvent m_SetScrambleKeyEvent;
 	volatile bool m_bSetScrambleKey;
 	CCriticalLock m_Multi2Lock;
 
 	bool m_bLastEcmSucceed;
+	bool m_bEcmErrorSent;
 
 	static DWORD m_EcmErrorCount;
-	static bool m_bEcmErrorSent;
 };
 
 // EMM処理内部クラス
@@ -447,6 +448,16 @@ bool CTsDescrambler::SetTargetServiceID(WORD ServiceID)
 	return true;
 }
 
+WORD CTsDescrambler::GetEcmPIDByServiceID(const WORD ServiceID) const
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	int Index = GetServiceIndexByID(ServiceID);
+	if (Index < 0)
+		return 0xFFFF;
+	return m_ServiceList[Index].EcmPID;
+}
+
 bool CTsDescrambler::IsSSE2Available()
 {
 #ifdef MULTI2_SSE2
@@ -773,13 +784,14 @@ void CDescramblePmtTable::OnPidUnmapped(const WORD wPID)
 //////////////////////////////////////////////////////////////////////
 
 DWORD CEcmProcessor::m_EcmErrorCount = 0;
-bool CEcmProcessor::m_bEcmErrorSent = false;
 
 CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 	: CPsiSingleTable(true)
 	, m_pDescrambler(pDescrambler)
+	, m_EcmPID(0xFFFF)
 	, m_bInQueue(false)
 	, m_bLastEcmSucceed(true)
+	, m_bEcmErrorSent(false)
 {
 #ifdef MULTI2_SSE2
 	if (pDescrambler->m_bEnableSSE2)
@@ -799,6 +811,7 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 void CEcmProcessor::OnPidMapped(const WORD wPID, const PVOID pParam)
 {
 	TRACE(TEXT("CEcmProcessor::OnPidMapped() PID = %d (0x%04x)\n"), wPID, wPID);
+	m_EcmPID = wPID;
 	AddRef();
 }
 
@@ -895,10 +908,16 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 
 		// 連続してエラーが起きたら通知
 		if (!pKsData && !m_bLastEcmSucceed
-				&& ErrorCode != CBcasCard::ERR_CARDNOTOPEN
-				&& ErrorCode != CBcasCard::ERR_ECMREFUSED) {
-			if (!m_bEcmErrorSent) {
-				m_pDescrambler->SendDecoderEvent(CTsDescrambler::EVENT_ECM_ERROR, (PVOID)m_pDescrambler->m_BcasCard.GetLastErrorText());
+				&& ErrorCode != CBcasCard::ERR_CARDNOTOPEN) {
+			if (!m_bEcmErrorSent && m_EcmPID < 0x1FFF) {
+				CTsDescrambler::EcmErrorInfo Info;
+
+				Info.EcmPID = m_EcmPID;
+				Info.pszText = m_pDescrambler->m_BcasCard.GetLastErrorText();
+				m_pDescrambler->SendDecoderEvent(
+					ErrorCode == CBcasCard::ERR_ECMREFUSED ?
+						CTsDescrambler::EVENT_ECM_REFUSED : CTsDescrambler::EVENT_ECM_ERROR,
+					&Info);
 				m_bEcmErrorSent = true;
 			}
 		}

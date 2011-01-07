@@ -24,6 +24,29 @@ public:
 			BYTE ComponentTag;
 			DWORD LanguageCode;
 			TCHAR szText[MAX_TEXT];
+
+			VideoInfo()
+				: StreamContent(0)
+				, ComponentType(0)
+				, ComponentTag(0)
+				, LanguageCode(0)
+			{
+				szText[0]='\0';
+			}
+
+			bool operator==(const VideoInfo &Op) const
+			{
+				return StreamContent == Op.StreamContent
+					&& ComponentType == Op.ComponentType
+					&& ComponentTag == Op.ComponentTag
+					&& LanguageCode == Op.LanguageCode
+					&& ::lstrcmp(szText, Op.szText) == 0;
+			}
+
+			bool operator!=(const VideoInfo &Op) const
+			{
+				return !(*this==Op);
+			}
 		};
 
 		struct AudioInfo {
@@ -39,17 +62,86 @@ public:
 			DWORD LanguageCode;
 			DWORD LanguageCode2;
 			TCHAR szText[MAX_TEXT];
+
+			AudioInfo() { szText[0]='\0'; }
+
+			bool operator==(const AudioInfo &Op) const
+			{
+				return StreamContent == Op.StreamContent
+					&& ComponentType == Op.ComponentType
+					&& ComponentTag == Op.ComponentTag
+					&& SimulcastGroupTag == Op.SimulcastGroupTag
+					&& bESMultiLingualFlag == Op.bESMultiLingualFlag
+					&& bMainComponentFlag == Op.bMainComponentFlag
+					&& QualityIndicator == Op.QualityIndicator
+					&& SamplingRate == Op.SamplingRate
+					&& LanguageCode == Op.LanguageCode
+					&& LanguageCode2 == Op.LanguageCode2
+					&& ::lstrcmp(szText, Op.szText) == 0;
+			}
+
+			bool operator!=(const AudioInfo &Op) const
+			{
+				return !(*this == Op);
+			}
 		};
 		typedef std::vector<AudioInfo> AudioList;
 
 		struct ContentNibble {
 			int NibbleCount;
 			CContentDesc::Nibble NibbleList[7];
+
+			ContentNibble() : NibbleCount(0) {}
+
+			bool operator==(const ContentNibble &Operand) const
+			{
+				if (NibbleCount == Operand.NibbleCount) {
+					for (int i = 0; i < NibbleCount; i++) {
+						if (NibbleList[i] != Operand.NibbleList[i])
+							return false;
+					}
+					return true;
+				}
+				return false;
+			}
+
+			bool operator!=(const ContentNibble &Operand) const
+			{
+				return !(*this == Operand);
+			}
 		};
+
+		struct EventGroupInfo {
+			BYTE GroupType;
+			std::vector<CEventGroupDesc::EventInfo> EventList;
+
+			bool operator==(const EventGroupInfo &Operand) const
+			{
+				return GroupType == Operand.GroupType
+					&& EventList == Operand.EventList;
+			}
+
+			bool operator!=(const EventGroupInfo &Operand) const
+			{
+				return !(*this == Operand);
+			}
+		};
+		typedef std::vector<EventGroupInfo> EventGroupList;
 
 		struct CommonEventInfo {
 			WORD ServiceID;
 			WORD EventID;
+
+			bool operator==(const CommonEventInfo &Op) const
+			{
+				return ServiceID==Op.ServiceID
+					&& EventID==Op.EventID;
+			}
+
+			bool operator!=(const CommonEventInfo &Op) const
+			{
+				return !(*this==Op);
+			}
 		};
 
 		CEventInfo();
@@ -72,6 +164,7 @@ public:
 		const VideoInfo &GetVideoInfo() const { return m_VideoInfo; }
 		const AudioList &GetAudioList() const { return m_AudioList; }
 		const ContentNibble &GetContentNibble() const { return m_ContentNibble; }
+		const EventGroupList &GetEventGroupList() const { return m_EventGroupList; }
 		bool IsCommonEvent() const { return m_bCommonEvent; }
 		const CommonEventInfo &GetCommonEvent() const { return m_CommonEventInfo; }
 
@@ -88,6 +181,7 @@ public:
 		VideoInfo m_VideoInfo;
 		AudioList m_AudioList;
 		ContentNibble m_ContentNibble;
+		EventGroupList m_EventGroupList;
 		bool m_bCommonEvent;
 		CommonEventInfo m_CommonEventInfo;
 		void SetText(LPTSTR *ppszText, LPCTSTR pszNewText);

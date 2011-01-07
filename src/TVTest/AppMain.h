@@ -12,6 +12,7 @@ class CCommandList;
 class CDriverManager;
 class CLogoManager;
 class CControllerManager;
+class CEpgProgramList;
 
 class CAppMain
 {
@@ -90,6 +91,7 @@ public:
 	const CChannelManager *GetChannelManager() const;
 	const CRecordManager *GetRecordManager() const;
 	const CDriverManager *GetDriverManager() const;
+	CEpgProgramList *GetEpgProgramList() const;
 	CLogoManager *GetLogoManager() const;
 	CControllerManager *GetControllerManager() const;
 };

@@ -66,7 +66,13 @@ class CTsDescrambler : public CMediaDecoder
 public:
 	enum {
 		EVENT_EMM_PROCESSED	= 0x00000001UL,
-		EVENT_ECM_ERROR		= 0x00000002UL
+		EVENT_ECM_ERROR		= 0x00000002UL,
+		EVENT_ECM_REFUSED	= 0x00000004UL
+	};
+
+	struct EcmErrorInfo {
+		WORD EcmPID;
+		LPCTSTR pszText;
 	};
 
 	CTsDescrambler(IEventHandler *pEventHandler = NULL);
@@ -92,7 +98,8 @@ public:
 	const DWORD GetInputPacketCount(void) const;
 	const DWORD GetScramblePacketCount(void) const;
 	void ResetScramblePacketCount(void);
-	bool SetTargetServiceID(WORD ServiceID=0);
+	bool SetTargetServiceID(WORD ServiceID = 0);
+	WORD GetEcmPIDByServiceID(const WORD ServiceID) const;
 	static bool IsSSE2Available();
 	bool EnableSSE2(bool bEnable);
 	bool SendBcasCommand(const BYTE *pSendData, DWORD SendSize, BYTE *pRecvData, DWORD *pRecvSize);

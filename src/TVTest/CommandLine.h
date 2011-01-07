@@ -25,8 +25,9 @@ public:
 	int m_TransportStreamID;
 	bool m_fRecord;
 	bool m_fRecordStop;
-	DWORD m_RecordDelay;
-	DWORD m_RecordDuration;
+	FILETIME m_RecordStartTime;
+	int m_RecordDelay;
+	int m_RecordDuration;
 	CDynamicString m_RecordFileName;
 	bool m_fRecordCurServiceOnly;
 	bool m_fExitOnRecordEnd;

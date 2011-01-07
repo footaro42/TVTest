@@ -9,7 +9,7 @@
 #include "Tooltip.h"
 
 
-class CSideBar : public CBasicWindow
+class CSideBar : public CCustomWindow
 {
 public:
 	enum {
@@ -46,10 +46,11 @@ public:
 	};
 
 	static bool Initialize(HINSTANCE hinst);
+
 	CSideBar(const CCommandList *pCommandList);
 	~CSideBar();
 // CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
 // CSideBar
 	int GetBarWidth() const;
 	bool SetIconImage(HBITMAP hbm,COLORREF crTransparent);
@@ -83,15 +84,16 @@ protected:
 	CEventHandler *m_pEventHandler;
 	const CCommandList *m_pCommandList;
 
+	static HINSTANCE m_hinst;
+
 	void GetItemRect(int Item,RECT *pRect) const;
 	void UpdateItem(int Item);
 	int HitTest(int x,int y) const;
 	void UpdateTooltipsRect();
 	void Draw(HDC hdc,const RECT &PaintRect);
 
-	static HINSTANCE m_hinst;
-	static CSideBar *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

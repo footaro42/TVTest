@@ -31,6 +31,7 @@ CVideoContainerWindow::CVideoContainerWindow()
 
 CVideoContainerWindow::~CVideoContainerWindow()
 {
+	Destroy();
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pVideoContainer=NULL;
 }
@@ -59,33 +60,22 @@ bool CVideoContainerWindow::Initialize(HINSTANCE hinst)
 }
 
 
-CVideoContainerWindow *CVideoContainerWindow::GetThis(HWND hwnd)
-{
-	return static_cast<CVideoContainerWindow*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CVideoContainerWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
-	case WM_CREATE:
-		OnCreate(hwnd,lParam);
-		return 0;
-
 	case WM_PAINT:
 		{
-			CVideoContainerWindow *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			RECT rcDest,rc;
 			HBRUSH hbr;
 
 			::BeginPaint(hwnd,&ps);
 			hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
-			if (!pThis->m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest)
+			if (!m_pDtvEngine->m_MediaViewer.GetDestRect(&rcDest)
 					|| ::IsRectEmpty(&rcDest)) {
 				::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			} else {
-				pThis->m_pDtvEngine->m_MediaViewer.RepaintVideo(hwnd,ps.hdc);
+				m_pDtvEngine->m_MediaViewer.RepaintVideo(hwnd,ps.hdc);
 				::GetClientRect(hwnd,&rc);
 				if (!::EqualRect(&rc,&rcDest))
 					DrawUtil::FillBorder(ps.hdc,&rc,&rcDest,&ps.rcPaint,hbr);
@@ -96,9 +86,8 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 
 	case WM_MOVE:
 		{
-			CVideoContainerWindow *pThis=GetThis(hwnd);
 			CVideoRenderer::RendererType Renderer=
-				pThis->m_pDtvEngine->m_MediaViewer.GetVideoRendererType();
+				m_pDtvEngine->m_MediaViewer.GetVideoRendererType();
 
 			if (Renderer!=CVideoRenderer::RENDERER_VMR7
 					&& Renderer!=CVideoRenderer::RENDERER_VMR9)
@@ -106,18 +95,17 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 		}
 	case WM_SIZE:
 		{
-			CVideoContainerWindow *pThis=GetThis(hwnd);
 			int Width=LOWORD(lParam),Height=HIWORD(lParam);
 
-			pThis->m_pDtvEngine->SetViewSize(Width,Height);
-			if (pThis->m_pDisplayBase!=NULL)
-				pThis->m_pDisplayBase->AdjustPosition();
+			m_pDtvEngine->SetViewSize(Width,Height);
+			if (m_pDisplayBase!=NULL)
+				m_pDisplayBase->AdjustPosition();
 			if (uMsg==WM_SIZE
-					&& (Width!=pThis->m_ClientSize.cx || Height!=pThis->m_ClientSize.cy)) {
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnSizeChanged(Width,Height);
-				pThis->m_ClientSize.cx=Width;
-				pThis->m_ClientSize.cy=Height;
+					&& (Width!=m_ClientSize.cx || Height!=m_ClientSize.cy)) {
+				if (m_pEventHandler!=NULL)
+					m_pEventHandler->OnSizeChanged(Width,Height);
+				m_ClientSize.cx=Width;
+				m_ClientSize.cy=Height;
 			}
 		}
 		return 0;
@@ -148,14 +136,6 @@ LRESULT CALLBACK CVideoContainerWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wPara
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
 		return ::SendMessage(::GetParent(hwnd),uMsg,wParam,lParam);
-
-	case WM_DESTROY:
-		{
-			CVideoContainerWindow *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
@@ -251,6 +231,7 @@ CViewWindow::CViewWindow()
 
 CViewWindow::~CViewWindow()
 {
+	Destroy();
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pView=NULL;
 	if (m_hbmLogo!=NULL)
@@ -349,68 +330,53 @@ bool CViewWindow::CalcWindowRect(RECT *pRect) const
 }
 
 
-CViewWindow *CViewWindow::GetThis(HWND hwnd)
-{
-	return static_cast<CViewWindow*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CViewWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
-	case WM_CREATE:
-		{
-			//CViewWindow *pThis=dynamic_cast<CViewWindow*>(OnCreate(hwnd,lParam));
-			OnCreate(hwnd,lParam);
-		}
-		return 0;
-
 	case WM_SIZE:
 		{
-			CViewWindow *pThis=GetThis(hwnd);
 			const int Width=LOWORD(lParam),Height=HIWORD(lParam);
 
-			if (pThis->m_pVideoContainer!=NULL
-					&& pThis->m_pVideoContainer->GetParent()==hwnd) {
+			if (m_pVideoContainer!=NULL
+					&& m_pVideoContainer->GetParent()==hwnd) {
 				RECT rc;
 
 				::SetRect(&rc,0,0,Width,Height);
-				pThis->CalcClientRect(&rc);
-				pThis->m_pVideoContainer->SetPosition(rc.left,rc.top,
-													  max(rc.right-rc.left,0),
-													  max(rc.bottom-rc.top,0));
+				CalcClientRect(&rc);
+				m_pVideoContainer->SetPosition(rc.left,rc.top,
+											   max(rc.right-rc.left,0),
+											   max(rc.bottom-rc.top,0));
 			}
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnSizeChanged(Width,Height);
+			if (m_pEventHandler!=NULL)
+				m_pEventHandler->OnSizeChanged(Width,Height);
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CViewWindow *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			RECT rcClient;
 			HBRUSH hbr=static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH));
 
 			::BeginPaint(hwnd,&ps);
 			::GetClientRect(hwnd,&rcClient);
-			if (pThis->m_hbmLogo) {
+			if (m_hbmLogo) {
 				RECT rcImage;
 				BITMAP bm;
 
-				::GetObject(pThis->m_hbmLogo,sizeof(BITMAP),&bm);
+				::GetObject(m_hbmLogo,sizeof(BITMAP),&bm);
 				rcImage.left=(rcClient.right-bm.bmWidth)/2;
 				rcImage.top=(rcClient.bottom-bm.bmHeight)/2;
 				rcImage.right=rcImage.left+bm.bmWidth;
 				rcImage.bottom=rcImage.top+bm.bmHeight;
 				DrawUtil::DrawBitmap(ps.hdc,
 									 rcImage.left,rcImage.top,bm.bmWidth,bm.bmHeight,
-									 pThis->m_hbmLogo);
+									 m_hbmLogo);
 				DrawUtil::FillBorder(ps.hdc,&rcClient,&rcImage,&ps.rcPaint,hbr);
 			} else {
 				::FillRect(ps.hdc,&ps.rcPaint,hbr);
 			}
-			Theme::DrawBorder(ps.hdc,rcClient,&pThis->m_BorderInfo);
+			Theme::DrawBorder(ps.hdc,rcClient,&m_BorderInfo);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
@@ -425,17 +391,13 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 	case WM_MBUTTONUP:
 	case WM_MBUTTONDBLCLK:
 	case WM_MOUSEMOVE:
-		{
-			CViewWindow *pThis=GetThis(hwnd);
+		if (m_hwndMessage!=NULL) {
+			POINT pt;
 
-			if (pThis->m_hwndMessage!=NULL) {
-				POINT pt;
-
-				pt.x=GET_X_LPARAM(lParam);
-				pt.y=GET_Y_LPARAM(lParam);
-				::MapWindowPoints(hwnd,pThis->m_hwndMessage,&pt,1);
-				return ::SendMessage(pThis->m_hwndMessage,uMsg,wParam,MAKELONG(pt.x,pt.y));
-			}
+			pt.x=GET_X_LPARAM(lParam);
+			pt.y=GET_Y_LPARAM(lParam);
+			::MapWindowPoints(hwnd,m_hwndMessage,&pt,1);
+			return ::SendMessage(m_hwndMessage,uMsg,wParam,MAKELONG(pt.x,pt.y));
 		}
 		break;
 
@@ -443,35 +405,22 @@ LRESULT CALLBACK CViewWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 	case WM_KEYUP:
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
-		{
-			CViewWindow *pThis=GetThis(hwnd);
-
-			if (pThis->m_hwndMessage!=NULL)
-				return ::SendMessage(pThis->m_hwndMessage,uMsg,wParam,lParam);
-		}
+		if (m_hwndMessage!=NULL)
+			return ::SendMessage(m_hwndMessage,uMsg,wParam,lParam);
 		break;
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
 			HWND hwndCursor=reinterpret_cast<HWND>(wParam);
-			CViewWindow *pThis=GetThis(hwnd);
 
 			if (hwndCursor==hwnd
-					|| (pThis->m_pVideoContainer!=NULL
-						&& hwndCursor==pThis->m_pVideoContainer->GetHandle())) {
-				::SetCursor(pThis->m_fShowCursor?::LoadCursor(NULL,IDC_ARROW):NULL);
+					|| (m_pVideoContainer!=NULL
+						&& hwndCursor==m_pVideoContainer->GetHandle())) {
+				::SetCursor(m_fShowCursor?::LoadCursor(NULL,IDC_ARROW):NULL);
 				return TRUE;
 			}
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CViewWindow *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }

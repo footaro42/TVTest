@@ -35,7 +35,9 @@ public:
 
 	CChannelDisplayMenu(CEpgProgramList *pEpgProgramList);
 	~CChannelDisplayMenu();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CChannelDisplayMenu
 	void Clear();
 	bool SetDriverManager(CDriverManager *pDriverManager);
 	void SetLogoManager(CLogoManager *pLogoManager);
@@ -141,6 +143,9 @@ private:
 	};
 	std::vector<TunerInfo> m_TunerInfoList;
 
+	static const LPCTSTR m_pszWindowClass;
+	static HINSTANCE m_hinst;
+
 	void LoadSettings();
 	void Layout();
 	const CTuningSpaceInfo *GetTuningSpaceInfo(int Index) const;
@@ -161,11 +166,8 @@ private:
 	void DrawClock(HDC hdc) const;
 	void NotifyTunerSelect() const;
 	void NotifyChannelSelect() const;
-
-	static const LPCTSTR m_pszWindowClass;
-	static HINSTANCE m_hinst;
-	static CChannelDisplayMenu *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

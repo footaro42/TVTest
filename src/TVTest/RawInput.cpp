@@ -46,8 +46,7 @@ static const struct {
 
 
 CRawInput::CRawInput()
-	: m_hLib(NULL)
-	, m_pRegisterRawInputDevices(NULL)
+	: m_pRegisterRawInputDevices(NULL)
 	, m_pGetRawInputData(NULL)
 	, m_pEventHandler(NULL)
 {
@@ -56,27 +55,28 @@ CRawInput::CRawInput()
 
 CRawInput::~CRawInput()
 {
-	if (m_hLib!=NULL)
-		::FreeLibrary(m_hLib);
 }
 
 
 bool CRawInput::Initialize(HWND hwnd)
 {
-	RAWINPUTDEVICE rid[2];
+	if (m_pRegisterRawInputDevices==NULL || m_pGetRawInputData==NULL) {
+		HMODULE hLib=::GetModuleHandle(TEXT("user32.dll"));
+		if (hLib==NULL)
+			return false;
 
-	if (m_hLib==NULL) {
-		m_hLib=::LoadLibrary(TEXT("user32.dll"));
-		m_pRegisterRawInputDevices=(RegisterRawInputDevicesFunc)::GetProcAddress(m_hLib,"RegisterRawInputDevices");
-		m_pGetRawInputData=(GetRawInputDataFunc)::GetProcAddress(m_hLib,"GetRawInputData");
+		m_pRegisterRawInputDevices=
+			reinterpret_cast<RegisterRawInputDevicesFunc>(::GetProcAddress(hLib,"RegisterRawInputDevices"));
+		m_pGetRawInputData=
+			reinterpret_cast<GetRawInputDataFunc>(::GetProcAddress(hLib,"GetRawInputData"));
 		if (m_pRegisterRawInputDevices==NULL || m_pGetRawInputData==NULL) {
-			::FreeLibrary(m_hLib);
-			m_hLib=NULL;
 			m_pRegisterRawInputDevices=NULL;
 			m_pGetRawInputData=NULL;
 			return false;
 		}
 	}
+
+	RAWINPUTDEVICE rid[2];
 
 	rid[0].usUsagePage=0xFFBC;
 	rid[0].usUsage=0x88;

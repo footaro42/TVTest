@@ -163,12 +163,13 @@ const CEventInfoData *CChannelMenuItem::GetEventInfo(CEpgProgramList *pProgramLi
 			if (pCurTime!=NULL)
 				st=*pCurTime;
 			else
-				::GetLocalTime(&st);
+				GetCurrentJST(&st);
 		} else {
 			if (!m_EventList[Index-1].EventInfo.GetEndTime(&st))
 				return NULL;
 		}
-		if (!pProgramList->GetEventInfo(m_pChannelInfo->GetTransportStreamID(),
+		if (!pProgramList->GetEventInfo(m_pChannelInfo->GetNetworkID(),
+										m_pChannelInfo->GetTransportStreamID(),
 										m_pChannelInfo->GetServiceID(),
 										&st,&m_EventList[Index].EventInfo))
 			return NULL;
@@ -468,10 +469,7 @@ bool CChannelMenu::OnMenuSelect(HWND hwnd,WPARAM wParam,LPARAM lParam)
 			const CEventInfoData *pEventInfo1,*pEventInfo2;
 			pEventInfo1=pItem->GetEventInfo(0);
 			if (pEventInfo1==NULL) {
-				SYSTEMTIME st;
-
-				::GetLocalTime(&st);
-				pEventInfo1=pItem->GetEventInfo(m_pProgramList,0,&st);
+				pEventInfo1=pItem->GetEventInfo(m_pProgramList,0);
 			}
 			if (pEventInfo1!=NULL) {
 				TCHAR szText[256*2+1];
@@ -555,12 +553,8 @@ void CChannelMenu::CreateFont(HDC hdc)
 
 void CChannelMenu::GetBaseTime(SYSTEMTIME *pTime)
 {
-	FILETIME ft;
-
-	::GetLocalTime(pTime);
-	::SystemTimeToFileTime(pTime,&ft);
-	ft+=120LL*FILETIME_SECOND;
-	::FileTimeToSystemTime(&ft,pTime);
+	GetCurrentJST(pTime);
+	OffsetSystemTime(pTime,120*1000);
 }
 
 
@@ -728,14 +722,16 @@ bool CIconMenu::OnInitMenuPopup(HWND hwnd,HMENU hmenu)
 	MENUITEMINFO mii;
 	mii.cbSize=sizeof(mii);
 	int Count=::GetMenuItemCount(hmenu);
+	int j=0;
 	for (int i=0;i<Count;i++) {
 		mii.fMask=MIIM_ID;
 		::GetMenuItemInfo(hmenu,i,TRUE,&mii);
 		if (mii.wID>=m_FirstID && mii.wID<=m_LastID) {
 			mii.fMask=MIIM_BITMAP | MIIM_DATA;
 			mii.hbmpItem=HBMMENU_CALLBACK;
-			mii.dwItemData=i;
+			mii.dwItemData=j;
 			::SetMenuItemInfo(hmenu,i,TRUE,&mii);
+			j++;
 		}
 	}
 

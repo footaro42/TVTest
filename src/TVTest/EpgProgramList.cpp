@@ -24,15 +24,15 @@ static bool CompareText(LPCTSTR pszText1,LPCTSTR pszText2)
 
 
 CServiceInfoData::CServiceInfoData()
-	: m_OriginalNID(0)
+	: m_NetworkID(0)
 	, m_TSID(0)
 	, m_ServiceID(0)
 {
 }
 
 
-CServiceInfoData::CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID)
-	: m_OriginalNID(OriginalNID)
+CServiceInfoData::CServiceInfoData(WORD NetworkID,WORD TSID,WORD ServiceID)
+	: m_NetworkID(NetworkID)
 	, m_TSID(TSID)
 	, m_ServiceID(ServiceID)
 {
@@ -41,7 +41,7 @@ CServiceInfoData::CServiceInfoData(WORD OriginalNID,WORD TSID,WORD ServiceID)
 
 bool CServiceInfoData::operator==(const CServiceInfoData &Info) const
 {
-	return m_OriginalNID==Info.m_OriginalNID
+	return m_NetworkID==Info.m_NetworkID
 		&& m_TSID==Info.m_TSID
 		&& m_ServiceID==Info.m_ServiceID;
 }
@@ -53,7 +53,6 @@ CEventInfoData::CEventInfoData()
 	: m_pszEventName(NULL)
 	, m_pszEventText(NULL)
 	, m_pszEventExtText(NULL)
-	, m_pszComponentTypeText(NULL)
 	, m_fValidStartTime(false)
 	, m_fCommonEvent(false)
 	, m_UpdateTime(0)
@@ -65,7 +64,6 @@ CEventInfoData::CEventInfoData(const CEventInfoData &Info)
 	: m_pszEventName(NULL)
 	, m_pszEventText(NULL)
 	, m_pszEventExtText(NULL)
-	, m_pszComponentTypeText(NULL)
 {
 	*this=Info;
 }
@@ -76,7 +74,6 @@ CEventInfoData::CEventInfoData(CEventInfoData &&Info)
 	: m_pszEventName(NULL)
 	, m_pszEventText(NULL)
 	, m_pszEventExtText(NULL)
-	, m_pszComponentTypeText(NULL)
 {
 	*this=std::move(Info);
 }
@@ -87,7 +84,6 @@ CEventInfoData::CEventInfoData(const CEventManager::CEventInfo &Info)
 	: m_pszEventName(NULL)
 	, m_pszEventText(NULL)
 	, m_pszEventExtText(NULL)
-	, m_pszComponentTypeText(NULL)
 {
 	*this=Info;
 }
@@ -98,14 +94,13 @@ CEventInfoData::~CEventInfoData()
 	delete [] m_pszEventName;
 	delete [] m_pszEventText;
 	delete [] m_pszEventExtText;
-	delete [] m_pszComponentTypeText;
 }
 
 
 CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 {
 	if (&Info!=this) {
-		m_OriginalNID=Info.m_OriginalNID;
+		m_NetworkID=Info.m_NetworkID;
 		m_TSID=Info.m_TSID;
 		m_ServiceID=Info.m_ServiceID;
 		m_EventID=Info.m_EventID;
@@ -116,10 +111,12 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 		if (m_fValidStartTime)
 			m_stStartTime=Info.m_stStartTime;
 		m_DurationSec=Info.m_DurationSec;
-		m_ComponentType=Info.m_ComponentType;
-		SetComponentTypeText(Info.m_pszComponentTypeText);
+		m_RunningStatus=Info.m_RunningStatus;
+		m_FreeCaMode=Info.m_FreeCaMode;
+		m_VideoInfo=Info.m_VideoInfo;
 		m_AudioList=Info.m_AudioList;
-		m_NibbleList=Info.m_NibbleList;
+		m_ContentNibble=Info.m_ContentNibble;
+		m_EventGroupList=Info.m_EventGroupList;
 		m_fCommonEvent=Info.m_fCommonEvent;
 		m_CommonEventInfo=Info.m_CommonEventInfo;
 		m_UpdateTime=Info.m_UpdateTime;
@@ -132,7 +129,7 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 {
 	if (&Info!=this) {
-		m_OriginalNID=Info.m_OriginalNID;
+		m_NetworkID=Info.m_NetworkID;
 		m_TSID=Info.m_TSID;
 		m_ServiceID=Info.m_ServiceID;
 		m_EventID=Info.m_EventID;
@@ -143,17 +140,18 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 		if (m_fValidStartTime)
 			m_stStartTime=Info.m_stStartTime;
 		m_DurationSec=Info.m_DurationSec;
-		m_ComponentType=Info.m_ComponentType;
-		m_pszComponentTypeText=Info.m_pszComponentTypeText;
+		m_RunningStatus=Info.m_RunningStatus;
+		m_FreeCaMode=Info.m_FreeCaMode;
+		m_VideoInfo=Info.m_VideoInfo;
 		m_AudioList=std::move(Info.m_AudioList);
-		m_NibbleList=std::move(Info.m_NibbleList);
+		m_ContentNibble=Info.m_ContentNibble;
+		m_EventGroupList=std::move(Info.m_EventGroupList);
 		m_fCommonEvent=Info.m_fCommonEvent;
 		m_CommonEventInfo=Info.m_CommonEventInfo;
 		m_UpdateTime=Info.m_UpdateTime;
 		Info.m_pszEventName=NULL;
 		Info.m_pszEventText=NULL;
 		Info.m_pszEventExtText=NULL;
-		Info.m_pszComponentTypeText=NULL;
 	}
 	return *this;
 }
@@ -172,36 +170,15 @@ CEventInfoData &CEventInfoData::operator=(const CEventManager::CEventInfo &Info)
 										   m_stStartTime.wMonth,
 										   m_stStartTime.wDay);
 	m_DurationSec=Info.GetDuration();
-	m_ComponentType=Info.GetVideoInfo().ComponentType;
-	SetComponentTypeText(Info.GetVideoInfo().szText[0]!='\0'?Info.GetVideoInfo().szText:NULL);
-	const CEventManager::CEventInfo::AudioList &AudioList=Info.GetAudioList();
-	m_AudioList.resize(AudioList.size());
-	for (size_t i=0;i<AudioList.size();i++) {
-		const CEventManager::CEventInfo::AudioInfo &Audio=AudioList[i];
-		m_AudioList[i].ComponentType=Audio.ComponentType;
-		m_AudioList[i].fESMultiLingualFlag=Audio.bESMultiLingualFlag;
-		m_AudioList[i].fMainComponentFlag=Audio.bMainComponentFlag;
-		m_AudioList[i].SamplingRate=Audio.SamplingRate;
-		m_AudioList[i].LanguageCode=Audio.LanguageCode;
-		m_AudioList[i].LanguageCode2=Audio.LanguageCode2;
-		::lstrcpy(m_AudioList[i].szText,Audio.szText);
-	}
-	const CEventManager::CEventInfo::ContentNibble &ContentNibble=Info.GetContentNibble();
-	m_NibbleList.resize(ContentNibble.NibbleCount);
-	for (int i=0;i<ContentNibble.NibbleCount;i++) {
-		CEventInfoData::NibbleData &Nibble=m_NibbleList[i];
-
-		Nibble.m_ContentNibbleLv1=ContentNibble.NibbleList[i].ContentNibbleLevel1;
-		Nibble.m_ContentNibbleLv2=ContentNibble.NibbleList[i].ContentNibbleLevel2;
-		Nibble.m_UserNibbleLv1=ContentNibble.NibbleList[i].UserNibble1;
-		Nibble.m_UserNibbleLv2=ContentNibble.NibbleList[i].UserNibble2;
-	}
+	m_RunningStatus=Info.GetRunningStatus();
+	m_FreeCaMode=Info.GetFreeCaMode()?FREE_CA_MODE_SCRAMBLED:FREE_CA_MODE_UNSCRAMBLED;
+	m_VideoInfo=Info.GetVideoInfo();
+	m_AudioList=Info.GetAudioList();
+	m_ContentNibble=Info.GetContentNibble();
+	m_EventGroupList=Info.GetEventGroupList();
 	m_fCommonEvent=Info.IsCommonEvent();
-	if (m_fCommonEvent) {
-		const CEventManager::CEventInfo::CommonEventInfo &CommonInfo=Info.GetCommonEvent();
-		m_CommonEventInfo.ServiceID=CommonInfo.ServiceID;
-		m_CommonEventInfo.EventID=CommonInfo.EventID;
-	}
+	if (m_fCommonEvent)
+		m_CommonEventInfo=Info.GetCommonEvent();
 	m_UpdateTime=Info.GetUpdateTime();
 
 	return *this;
@@ -210,7 +187,7 @@ CEventInfoData &CEventInfoData::operator=(const CEventManager::CEventInfo &Info)
 
 bool CEventInfoData::operator==(const CEventInfoData &Info) const
 {
-	return m_OriginalNID==Info.m_OriginalNID
+	return m_NetworkID==Info.m_NetworkID
 		&& m_TSID==Info.m_TSID
 		&& m_ServiceID==Info.m_ServiceID
 		&& m_EventID==Info.m_EventID
@@ -221,10 +198,12 @@ bool CEventInfoData::operator==(const CEventInfoData &Info) const
 		&& (!m_fValidStartTime
 			|| ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0)
 		&& m_DurationSec==Info.m_DurationSec
-		&& m_ComponentType==Info.m_ComponentType
-		&& CompareText(m_pszComponentTypeText,Info.m_pszComponentTypeText)
+		&& m_RunningStatus==Info.m_RunningStatus
+		&& m_FreeCaMode==Info.m_FreeCaMode
+		&& m_VideoInfo==Info.m_VideoInfo
 		&& m_AudioList==Info.m_AudioList
-		&& m_NibbleList==Info.m_NibbleList
+		&& m_ContentNibble==Info.m_ContentNibble
+		&& m_EventGroupList==Info.m_EventGroupList
 		&& m_fCommonEvent==Info.m_fCommonEvent
 		&& (!m_fCommonEvent
 			|| m_CommonEventInfo==Info.m_CommonEventInfo);
@@ -249,12 +228,6 @@ bool CEventInfoData::SetEventExtText(LPCWSTR pszEventExtText)
 }
 
 
-bool CEventInfoData::SetComponentTypeText(LPCWSTR pszText)
-{
-	return ReplaceString(&m_pszComponentTypeText,pszText);
-}
-
-
 bool CEventInfoData::GetStartTime(SYSTEMTIME *pTime) const
 {
 	if (m_fValidStartTime) {
@@ -275,6 +248,29 @@ bool CEventInfoData::GetEndTime(SYSTEMTIME *pTime) const
 	}
 	::ZeroMemory(pTime,sizeof(SYSTEMTIME));
 	return false;
+}
+
+
+int CEventInfoData::GetMainAudioIndex() const
+{
+	for (size_t i=0;i<m_AudioList.size();i++) {
+		if (m_AudioList[i].bMainComponentFlag)
+			return (int)i;
+	}
+	return -1;
+}
+
+
+const CEventInfoData::AudioInfo *CEventInfoData::GetMainAudioInfo() const
+{
+	if (m_AudioList.size()==0)
+		return NULL;
+
+	const int MainAudioIndex=GetMainAudioIndex();
+	if (MainAudioIndex>=0)
+		return &m_AudioList[MainAudioIndex];
+
+	return &m_AudioList[0];
 }
 
 
@@ -484,7 +480,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 				std::pair<WORD,CEventInfoData>(Event.GetEventID(),CEventInfoData())).first->second;
 
 		EventData=Event;
-		EventData.m_OriginalNID=ServiceData.m_OriginalNID;
+		EventData.m_NetworkID=ServiceData.m_NetworkID;
 		EventData.m_TSID=ServiceData.m_TSID;
 		EventData.m_ServiceID=ServiceData.m_ServiceID;
 
@@ -509,7 +505,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 #endif
 
 	// 既存のイベントで新しいリストに無いものを追加する
-	const ServiceMapKey Key=GetServiceMapKey(ServiceData.m_OriginalNID,
+	const ServiceMapKey Key=GetServiceMapKey(ServiceData.m_NetworkID,
 											 ServiceData.m_TSID,
 											 ServiceData.m_ServiceID);
 	ServiceMap::iterator itrService=m_ServiceMap.find(Key);
@@ -588,21 +584,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 }
 
 
-bool CEpgProgramList::UpdateProgramList()
-{
-	CBlockLock Lock(&m_Lock);
-
-	CEventManager::ServiceList ServiceList;
-	if (!m_pEventManager->GetServiceList(&ServiceList))
-		return false;
-	for (size_t i=0;i<ServiceList.size();i++) {
-		UpdateService(&ServiceList[i]);
-	}
-	return true;
-}
-
-
-bool CEpgProgramList::UpdateService(WORD TSID,WORD ServiceID)
+bool CEpgProgramList::UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID)
 {
 	CBlockLock Lock(&m_Lock);
 
@@ -615,6 +597,42 @@ bool CEpgProgramList::UpdateService(WORD TSID,WORD ServiceID)
 			return UpdateService(&ServiceList[i]);
 	}
 	return false;
+}
+
+
+bool CEpgProgramList::UpdateServices(WORD NetworkID,WORD TSID)
+{
+	if (NetworkID==0 && TSID==0)
+		return false;
+
+	CBlockLock Lock(&m_Lock);
+
+	CEventManager::ServiceList ServiceList;
+	if (!m_pEventManager->GetServiceList(&ServiceList))
+		return false;
+	bool fUpdated=false;
+	for (size_t i=0;i<ServiceList.size();i++) {
+		if ((NetworkID==0 || ServiceList[i].OriginalNetworkID==NetworkID)
+				&& (TSID==0 || ServiceList[i].TransportStreamID==TSID)) {
+			if (UpdateService(&ServiceList[i]))
+				fUpdated=true;
+		}
+	}
+	return fUpdated;
+}
+
+
+bool CEpgProgramList::UpdateProgramList()
+{
+	CBlockLock Lock(&m_Lock);
+
+	CEventManager::ServiceList ServiceList;
+	if (!m_pEventManager->GetServiceList(&ServiceList))
+		return false;
+	for (size_t i=0;i<ServiceList.size();i++) {
+		UpdateService(&ServiceList[i]);
+	}
+	return true;
 }
 
 
@@ -651,51 +669,41 @@ CEpgServiceInfo *CEpgProgramList::EnumService(int ServiceIndex)
 }
 
 
-CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD OriginalNID,WORD TSID,WORD ServiceID)
+CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD NetworkID,WORD TSID,WORD ServiceID)
 {
 	CBlockLock Lock(&m_Lock);
 	ServiceMap::iterator itrService;
 
-	itrService=m_ServiceMap.find(GetServiceMapKey(OriginalNID,TSID,ServiceID));
-	if (itrService==m_ServiceMap.end())
-		return NULL;
-	return itrService->second;
-}
-
-
-CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD TSID,WORD ServiceID)
-{
-	CBlockLock Lock(&m_Lock);
-	ServiceMap::iterator itrService;
-
-	for (itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
-		if ((TSID==0 || itrService->second->m_ServiceData.m_TSID==TSID)
-				&& itrService->second->m_ServiceData.m_ServiceID==ServiceID)
+	if (NetworkID!=0 && TSID!=0) {
+		itrService=m_ServiceMap.find(GetServiceMapKey(NetworkID,TSID,ServiceID));
+		if (itrService!=m_ServiceMap.end())
 			return itrService->second;
+	} else {
+		for (itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
+			if ((NetworkID==0 || itrService->second->m_ServiceData.m_NetworkID==NetworkID)
+					&& (TSID==0 || itrService->second->m_ServiceData.m_TSID==TSID)
+					&& itrService->second->m_ServiceData.m_ServiceID==ServiceID)
+				return itrService->second;
+		}
 	}
 	return NULL;
 }
 
 
-bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID,CEventInfoData *pInfo)
+bool CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
+								   WORD EventID,CEventInfoData *pInfo)
 {
 	CBlockLock Lock(&m_Lock);
 
-	CEpgServiceInfo *pServiceInfo=GetServiceInfo(TSID,ServiceID);
-	if (pServiceInfo==NULL)
-		return false;
-
 	CEventManager::CEventInfo EventInfo;
-	if (m_pEventManager->GetEventInfo(pServiceInfo->m_ServiceData.m_OriginalNID,
-									  pServiceInfo->m_ServiceData.m_TSID,
-									  pServiceInfo->m_ServiceData.m_ServiceID,
-									  EventID, &EventInfo)) {
+	if (m_pEventManager->GetEventInfo(NetworkID,TSID,ServiceID,
+									  EventID,&EventInfo)) {
 		*pInfo=EventInfo;
-		pInfo->m_OriginalNID=pServiceInfo->m_ServiceData.m_OriginalNID;
-		pInfo->m_TSID=pServiceInfo->m_ServiceData.m_TSID;
-		pInfo->m_ServiceID=pServiceInfo->m_ServiceData.m_ServiceID;
+		pInfo->m_NetworkID=NetworkID;
+		pInfo->m_TSID=TSID;
+		pInfo->m_ServiceID=ServiceID;
 	} else {
-		const CEventInfoData *pEventInfo=pServiceInfo->GetEventInfo(EventID);
+		const CEventInfoData *pEventInfo=GetEventInfo(NetworkID,TSID,ServiceID,EventID);
 		if (pEventInfo==NULL)
 			return false;
 		*pInfo=*pEventInfo;
@@ -706,26 +714,25 @@ bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID,CEventI
 }
 
 
-bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo)
+bool CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
+								   const SYSTEMTIME *pTime,CEventInfoData *pInfo)
 {
 	CBlockLock Lock(&m_Lock);
 
-	CEpgServiceInfo *pServiceInfo=GetServiceInfo(TSID,ServiceID);
-	if (pServiceInfo==NULL)
-		return NULL;
-
 	CEventManager::CEventInfo EventInfo;
-	if (m_pEventManager->GetEventInfo(pServiceInfo->m_ServiceData.m_OriginalNID,
-									  pServiceInfo->m_ServiceData.m_TSID,
-									  pServiceInfo->m_ServiceData.m_ServiceID,
-									  pTime, &EventInfo)) {
+	if (m_pEventManager->GetEventInfo(NetworkID,TSID,ServiceID,
+									  pTime,&EventInfo)) {
 		*pInfo=EventInfo;
-		pInfo->m_OriginalNID=pServiceInfo->m_ServiceData.m_OriginalNID;
-		pInfo->m_TSID=pServiceInfo->m_ServiceData.m_TSID;
-		pInfo->m_ServiceID=pServiceInfo->m_ServiceData.m_ServiceID;
+		pInfo->m_NetworkID=NetworkID;
+		pInfo->m_TSID=TSID;
+		pInfo->m_ServiceID=ServiceID;
 		SetCommonEventInfo(pInfo);
 		return true;
 	}
+
+	CEpgServiceInfo *pServiceInfo=GetServiceInfo(NetworkID,TSID,ServiceID);
+	if (pServiceInfo==NULL)
+		return NULL;
 
 	CEventInfoList::EventMap::iterator itrEvent;
 	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
@@ -745,11 +752,12 @@ bool CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pT
 }
 
 
-bool CEpgProgramList::GetNextEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME *pTime,CEventInfoData *pInfo)
+bool CEpgProgramList::GetNextEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
+									   const SYSTEMTIME *pTime,CEventInfoData *pInfo)
 {
 	CBlockLock Lock(&m_Lock);
 
-	CEpgServiceInfo *pServiceInfo=GetServiceInfo(TSID,ServiceID);
+	CEpgServiceInfo *pServiceInfo=GetServiceInfo(NetworkID,TSID,ServiceID);
 	if (pServiceInfo==NULL)
 		return NULL;
 
@@ -776,9 +784,9 @@ bool CEpgProgramList::GetNextEventInfo(WORD TSID,WORD ServiceID,const SYSTEMTIME
 }
 
 
-const CEventInfoData *CEpgProgramList::GetEventInfo(WORD TSID,WORD ServiceID,WORD EventID)
+const CEventInfoData *CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID)
 {
-	CEpgServiceInfo *pServiceInfo=GetServiceInfo(TSID,ServiceID);
+	CEpgServiceInfo *pServiceInfo=GetServiceInfo(NetworkID,TSID,ServiceID);
 
 	if (pServiceInfo==NULL)
 		return NULL;
@@ -790,7 +798,7 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 {
 	if (pInfo->m_fCommonEvent) {
 		CEventManager::CEventInfo EventInfo;
-		if (m_pEventManager->GetEventInfo(pInfo->m_OriginalNID,
+		if (m_pEventManager->GetEventInfo(pInfo->m_NetworkID,
 										  pInfo->m_TSID,
 										  pInfo->m_CommonEventInfo.ServiceID,
 										  pInfo->m_CommonEventInfo.EventID,
@@ -798,30 +806,12 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 			pInfo->SetEventName(EventInfo.GetEventName());
 			pInfo->SetEventText(EventInfo.GetEventText());
 			pInfo->SetEventExtText(EventInfo.GetEventExtendedText());
-			pInfo->m_ComponentType=EventInfo.GetVideoInfo().ComponentType;
-			const CEventManager::CEventInfo::AudioList &AudioList=EventInfo.GetAudioList();
-			pInfo->m_AudioList.resize(AudioList.size());
-			for (size_t i=0;i<AudioList.size();i++) {
-				const CEventManager::CEventInfo::AudioInfo &Audio=AudioList[0];
-				pInfo->m_AudioList[i].ComponentType=Audio.ComponentType;
-				pInfo->m_AudioList[i].fESMultiLingualFlag=Audio.bESMultiLingualFlag;
-				pInfo->m_AudioList[i].fMainComponentFlag=Audio.bMainComponentFlag;
-				pInfo->m_AudioList[i].SamplingRate=Audio.SamplingRate;
-				pInfo->m_AudioList[i].LanguageCode=Audio.LanguageCode;
-				pInfo->m_AudioList[i].LanguageCode2=Audio.LanguageCode2;
-				::lstrcpy(pInfo->m_AudioList[i].szText,Audio.szText);
-			}
-			const CEventManager::CEventInfo::ContentNibble &ContentNibble=EventInfo.GetContentNibble();
-			pInfo->m_NibbleList.resize(ContentNibble.NibbleCount);
-			for (int k=0;k<ContentNibble.NibbleCount;k++) {
-				CEventInfoData::NibbleData &Nibble=pInfo->m_NibbleList[k];
-				Nibble.m_ContentNibbleLv1=ContentNibble.NibbleList[k].ContentNibbleLevel1;
-				Nibble.m_ContentNibbleLv2=ContentNibble.NibbleList[k].ContentNibbleLevel2;
-				Nibble.m_UserNibbleLv1=ContentNibble.NibbleList[k].UserNibble1;
-				Nibble.m_UserNibbleLv2=ContentNibble.NibbleList[k].UserNibble2;
-			}
+			pInfo->m_VideoInfo=EventInfo.GetVideoInfo();
+			pInfo->m_AudioList=EventInfo.GetAudioList();
+			pInfo->m_ContentNibble=EventInfo.GetContentNibble();
 		} else {
-			const CEventInfoData *pCommonEvent=GetEventInfo(pInfo->m_TSID,
+			const CEventInfoData *pCommonEvent=GetEventInfo(pInfo->m_NetworkID,
+															pInfo->m_TSID,
 															pInfo->m_CommonEventInfo.ServiceID,
 															pInfo->m_CommonEventInfo.EventID);
 			if (pCommonEvent==NULL)
@@ -829,9 +819,9 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 			pInfo->SetEventName(pCommonEvent->GetEventName());
 			pInfo->SetEventText(pCommonEvent->GetEventText());
 			pInfo->SetEventExtText(pCommonEvent->GetEventExtText());
-			pInfo->m_ComponentType=pCommonEvent->m_ComponentType;
+			pInfo->m_VideoInfo=pCommonEvent->m_VideoInfo;
 			pInfo->m_AudioList=pCommonEvent->m_AudioList;
-			pInfo->m_NibbleList=pCommonEvent->m_NibbleList;
+			pInfo->m_ContentNibble=pCommonEvent->m_ContentNibble;
 		}
 	}
 	return true;
@@ -888,14 +878,14 @@ struct EpgListFileHeader {
 
 struct ServiceInfoHeader {
 	DWORD NumEvents;
-	WORD OriginalNID;
+	WORD NetworkID;
 	WORD TSID;
 	WORD ServiceID;
 	WORD ServiceType;
 	ServiceInfoHeader() {}
 	ServiceInfoHeader(const CServiceInfoData &Data)
 		: NumEvents(0)
-		, OriginalNID(Data.m_OriginalNID)
+		, NetworkID(Data.m_NetworkID)
 		, TSID(Data.m_TSID)
 		, ServiceID(Data.m_ServiceID)
 		, ServiceType(0)
@@ -918,14 +908,14 @@ struct EventInfoHeader {
 };
 
 struct ServiceInfoHeader2 {
-	WORD OriginalNetworkID;
+	WORD NetworkID;
 	WORD TransportStreamID;
 	WORD ServiceID;
 	WORD NumEvents;
 	DWORD CRC;
 	ServiceInfoHeader2() {}
 	ServiceInfoHeader2(const CServiceInfoData &Data)
-		: OriginalNetworkID(Data.m_OriginalNID)
+		: NetworkID(Data.m_NetworkID)
 		, TransportStreamID(Data.m_TSID)
 		, ServiceID(Data.m_ServiceID)
 		, NumEvents(0)
@@ -933,37 +923,52 @@ struct ServiceInfoHeader2 {
 	}
 };
 
-#define TEXT_FLAG_EVENTNAME		0x80
-#define TEXT_FLAG_EVENTTEXT		0x40
-#define TEXT_FLAG_EVENTEXTTEXT	0x20
+#define MAX_EPG_TEXT_LENGTH 1024
+#define MAX_CONTENT_NIBBLE_COUNT 7
+
+#define EVENTINFO_FLAG_RUNNINGSTATUSMASK	0x07
+#define EVENTINFO_FLAG_FREECAMODE_MASK		0x18
+#define EVENTINFO_FLAG_FREECAMODE_SHIFT		3
+
+#define DATA_FLAG_EVENTNAME		0x80
+#define DATA_FLAG_EVENTTEXT		0x40
+#define DATA_FLAG_EVENTEXTTEXT	0x20
+#define DATA_FLAG_AUDIOINFO		0x10
+#define DATA_FLAG_VIDEOINFO		0x08
+#define DATA_FLAG_GROUPINFO		0x04
 
 struct EventInfoHeader2 {
 	WORD EventID;
 	WORD CommonServiceID;
 	WORD CommonEventID;
-	WORD Reserved1;
+	BYTE Flags;
+	BYTE VideoListCount;
 	ULONGLONG UpdateTime;
 	SYSTEMTIME StartTime;
 	DWORD Duration;
 	BYTE ComponentType;
 	BYTE AudioListCount;
 	BYTE ContentNibbleListCount;
-	BYTE TextFlags;
+	BYTE DataFlags;
 	EventInfoHeader2() {}
 	EventInfoHeader2(const CEventInfoData &Data)
 		: EventID(Data.m_EventID)
 		, CommonServiceID(Data.m_fCommonEvent?Data.m_CommonEventInfo.ServiceID:0)
 		, CommonEventID(Data.m_fCommonEvent?Data.m_CommonEventInfo.EventID:0)
-		, Reserved1(0)
+		, Flags(Data.m_RunningStatus | (Data.m_FreeCaMode<<EVENTINFO_FLAG_FREECAMODE_SHIFT))
+		, VideoListCount(1)
 		, UpdateTime(Data.m_UpdateTime)
 		, StartTime(Data.m_stStartTime)
 		, Duration(Data.m_DurationSec)
-		, ComponentType(Data.m_ComponentType)
+		, ComponentType(Data.m_VideoInfo.ComponentType)
 		, AudioListCount((BYTE)Data.m_AudioList.size())
-		, ContentNibbleListCount((BYTE)Data.m_NibbleList.size())
-		, TextFlags((Data.GetEventName()!=NULL?TEXT_FLAG_EVENTNAME:0) |
-					(Data.GetEventText()!=NULL?TEXT_FLAG_EVENTTEXT:0) |
-					(Data.GetEventExtText()!=NULL?TEXT_FLAG_EVENTEXTTEXT:0))
+		, ContentNibbleListCount((BYTE)min(Data.m_ContentNibble.NibbleCount,MAX_CONTENT_NIBBLE_COUNT))
+		, DataFlags((Data.GetEventName()!=NULL?DATA_FLAG_EVENTNAME:0) |
+					(Data.GetEventText()!=NULL?DATA_FLAG_EVENTTEXT:0) |
+					(Data.GetEventExtText()!=NULL?DATA_FLAG_EVENTEXTTEXT:0) |
+					(Data.m_AudioList.size()>0?DATA_FLAG_AUDIOINFO:0) |
+					DATA_FLAG_VIDEOINFO |
+					(Data.m_EventGroupList.size()>0?DATA_FLAG_GROUPINFO:0))
 	{
 	}
 };
@@ -980,8 +985,25 @@ struct EventAudioHeader {
 #define AUDIO_FLAG_MULTILINGUAL		0x01
 #define AUDIO_FLAG_MAINCOMPONENT	0x02
 
-#define MAX_EPG_TEXT_LENGTH 1024
-#define MAX_CONTENT_NIBBLE_COUNT 7
+struct EventVideoInfo {
+	BYTE StreamContent;
+	BYTE ComponentType;
+	BYTE ComponentTag;
+	BYTE Reserved;
+	DWORD LanguageCode;
+};
+
+struct EventAudioExInfo {
+	BYTE StreamContent;
+	BYTE ComponentTag;
+	BYTE SimulcastGroupTag;
+	BYTE QualityIndicator;
+};
+
+struct EventGroupHeader {
+	BYTE GroupType;
+	BYTE EventCount;
+};
 
 #include <poppack.h>
 
@@ -1098,7 +1120,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			delete [] pszText;
 			if (ServiceHeader.NumEvents>0xFFFF)
 				goto OnError;
-			ServiceHeader2.OriginalNetworkID=ServiceHeader.OriginalNID;
+			ServiceHeader2.NetworkID=ServiceHeader.NetworkID;
 			ServiceHeader2.TransportStreamID=ServiceHeader.TSID;
 			ServiceHeader2.ServiceID=ServiceHeader.ServiceID;
 			ServiceHeader2.NumEvents=(WORD)ServiceHeader.NumEvents;
@@ -1111,14 +1133,14 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			}
 		}
 
-		CServiceInfoData ServiceData(ServiceHeader2.OriginalNetworkID,
+		CServiceInfoData ServiceData(ServiceHeader2.NetworkID,
 									 ServiceHeader2.TransportStreamID,
 									 ServiceHeader2.ServiceID);
 
 		CEpgServiceInfo *pServiceInfo=new CEpgServiceInfo(ServiceData);
 		if (!m_ServiceMap.insert(
 				std::pair<ServiceMapKey,CEpgServiceInfo*>(
-					GetServiceMapKey(ServiceData.m_OriginalNID,
+					GetServiceMapKey(ServiceData.m_NetworkID,
 									 ServiceData.m_TSID,
 									 ServiceData.m_ServiceID),
 					pServiceInfo)).second) {
@@ -1140,19 +1162,22 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 					&pServiceInfo->m_EventList.EventDataMap.insert(
 						std::pair<WORD,CEventInfoData>(EventHeader.EventID,CEventInfoData())).first->second;
 
-				pEventData->m_OriginalNID=ServiceHeader2.OriginalNetworkID;
+				pEventData->m_NetworkID=ServiceHeader2.NetworkID;
 				pEventData->m_TSID=ServiceHeader2.TransportStreamID;
 				pEventData->m_ServiceID=EventHeader.ServiceID;
 				pEventData->m_EventID=EventHeader.EventID;
 				pEventData->m_fValidStartTime=true;
 				pEventData->m_stStartTime=EventHeader.StartTime;
 				pEventData->m_DurationSec=EventHeader.DurationSec;
-				pEventData->m_ComponentType=EventHeader.ComponentType;
+				pEventData->m_RunningStatus=0;
+				pEventData->m_FreeCaMode=CEventInfoData::FREE_CA_MODE_UNKNOWN;
+				::ZeroMemory(&pEventData->m_VideoInfo,sizeof(CEventInfoData::VideoInfo));
+				pEventData->m_VideoInfo.ComponentType=EventHeader.ComponentType;
 				pEventData->m_AudioList.resize(1);
 				pEventData->m_AudioList[0].ComponentType=EventHeader.AudioComponentType;
-				pEventData->m_AudioList[0].fESMultiLingualFlag=EventHeader.ESMultiLangFlag!=0;
-				//pEventData->m_AudioList[0].fMainComponentFlag=EventHeader.MainComponentFlag!=0;
-				pEventData->m_AudioList[0].fMainComponentFlag=true;
+				pEventData->m_AudioList[0].bESMultiLingualFlag=EventHeader.ESMultiLangFlag!=0;
+				//pEventData->m_AudioList[0].bMainComponentFlag=EventHeader.MainComponentFlag!=0;
+				pEventData->m_AudioList[0].bMainComponentFlag=true;
 				pEventData->m_AudioList[0].SamplingRate=EventHeader.SamplingRate;
 				pEventData->m_AudioList[0].LanguageCode=0;
 				pEventData->m_AudioList[0].LanguageCode2=0;
@@ -1160,21 +1185,23 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				if (EventHeader.ContentNibbleListCount>0) {
 					if (EventHeader.ContentNibbleListCount>MAX_CONTENT_NIBBLE_COUNT)
 						goto OnError;
-					pEventData->m_NibbleList.resize(EventHeader.ContentNibbleListCount);
+					pEventData->m_ContentNibble.NibbleCount=EventHeader.ContentNibbleListCount;
 					for (DWORD k=0;k<EventHeader.ContentNibbleListCount;k++) {
 						CEventInfoData::NibbleData Nibble;
 						if (File.Read(&Nibble,sizeof(Nibble))!=sizeof(Nibble))
 							goto OnError;
-						pEventData->m_NibbleList[k]=Nibble;
+						pEventData->m_ContentNibble.NibbleList[k]=Nibble;
 					}
 				}
 				pEventData->m_fCommonEvent=false;
 				pEventData->m_UpdateTime=0;
 				if (!ReadString(&File,&pEventData->m_pszEventName)
 						|| !ReadString(&File,&pEventData->m_pszEventText)
-						|| !ReadString(&File,&pEventData->m_pszEventExtText)
-						|| !ReadString(&File,&pEventData->m_pszComponentTypeText))
+						|| !ReadString(&File,&pEventData->m_pszEventExtText))
 					goto OnError;
+				if (!ReadString(&File,&pszText))	// Component type text
+					goto OnError;
+				delete [] pszText;
 				if (!ReadString(&File,&pszText))
 					goto OnError;
 				if (pszText!=NULL) {
@@ -1192,28 +1219,34 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 						std::pair<WORD,CEventInfoData>(EventHeader2.EventID,CEventInfoData())).first;
 				pEventData=&itrEvent->second;
 
-				pEventData->m_OriginalNID=ServiceHeader2.OriginalNetworkID;
+				pEventData->m_NetworkID=ServiceHeader2.NetworkID;
 				pEventData->m_TSID=ServiceHeader2.TransportStreamID;
 				pEventData->m_ServiceID=ServiceHeader2.ServiceID;
 				pEventData->m_EventID=EventHeader2.EventID;
 				pEventData->m_fValidStartTime=true;
 				pEventData->m_stStartTime=EventHeader2.StartTime;
 				pEventData->m_DurationSec=EventHeader2.Duration;
-				pEventData->m_ComponentType=EventHeader2.ComponentType;
+				pEventData->m_RunningStatus=EventHeader2.Flags&EVENTINFO_FLAG_RUNNINGSTATUSMASK;
+				pEventData->m_FreeCaMode=
+					(EventHeader2.Flags&EVENTINFO_FLAG_FREECAMODE_MASK)>>EVENTINFO_FLAG_FREECAMODE_SHIFT;
+				::ZeroMemory(&pEventData->m_VideoInfo,sizeof(CEventInfoData::VideoInfo));
+				pEventData->m_VideoInfo.ComponentType=EventHeader2.ComponentType;
+
 				pEventData->m_AudioList.resize(EventHeader2.AudioListCount);
 				if (EventHeader2.AudioListCount>0) {
 					for (int k=0;k<EventHeader2.AudioListCount;k++) {
 						EventAudioHeader AudioHeader;
+
 						if (!ReadData(&File,&AudioHeader,sizeof(AudioHeader),&CRC))
 							goto OnError;
 						CEventInfoData::AudioInfo &AudioInfo=pEventData->m_AudioList[k];
+						::ZeroMemory(&AudioInfo,sizeof(AudioInfo));
 						AudioInfo.ComponentType=AudioHeader.ComponentType;
-						AudioInfo.fESMultiLingualFlag=(AudioHeader.Flags&AUDIO_FLAG_MULTILINGUAL)!=0;
-						AudioInfo.fMainComponentFlag=(AudioHeader.Flags&AUDIO_FLAG_MAINCOMPONENT)!=0;
+						AudioInfo.bESMultiLingualFlag=(AudioHeader.Flags&AUDIO_FLAG_MULTILINGUAL)!=0;
+						AudioInfo.bMainComponentFlag=(AudioHeader.Flags&AUDIO_FLAG_MAINCOMPONENT)!=0;
 						AudioInfo.SamplingRate=AudioHeader.SamplingRate;
 						AudioInfo.LanguageCode=AudioHeader.LanguageCode;
 						AudioInfo.LanguageCode2=AudioHeader.LanguageCode2;
-						AudioInfo.szText[0]='\0';
 						if (!ReadString(&File,&pszText,&CRC))
 							goto OnError;
 						if (pszText!=NULL) {
@@ -1222,38 +1255,112 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 						}
 					}
 				}
+
 				if (EventHeader2.ContentNibbleListCount>0) {
 					if (EventHeader2.ContentNibbleListCount>MAX_CONTENT_NIBBLE_COUNT)
 						goto OnError;
-					pEventData->m_NibbleList.resize(EventHeader2.ContentNibbleListCount);
+					pEventData->m_ContentNibble.NibbleCount=EventHeader2.ContentNibbleListCount;
 					for (int k=0;k<EventHeader2.ContentNibbleListCount;k++) {
 						CEventInfoData::NibbleData Nibble;
 						if (!ReadData(&File,&Nibble,sizeof(Nibble),&CRC))
 							goto OnError;
-						pEventData->m_NibbleList[k]=Nibble;
+						pEventData->m_ContentNibble.NibbleList[k]=Nibble;
 					}
+				} else {
+					pEventData->m_ContentNibble.NibbleCount=0;
 				}
+
 				pEventData->m_fCommonEvent=EventHeader2.CommonServiceID!=0
 											&& EventHeader2.CommonEventID!=0;
 				if (pEventData->m_fCommonEvent) {
 					pEventData->m_CommonEventInfo.ServiceID=EventHeader2.CommonServiceID;
 					pEventData->m_CommonEventInfo.EventID=EventHeader2.CommonEventID;
 				}
+
 				pEventData->m_UpdateTime=EventHeader2.UpdateTime;
-				for (int k=0;k<8;k++) {
-					if ((EventHeader2.TextFlags&(0x80>>k))!=0) {
-						if (!ReadString(&File,&pszText,&CRC))
-							goto OnError;
-						if (pszText!=NULL) {
-							switch (k) {
-							case 0: pEventData->m_pszEventName=pszText;		break;
-							case 1: pEventData->m_pszEventText=pszText;		break;
-							case 2: pEventData->m_pszEventExtText=pszText;	break;
-							default: delete [] pszText;
+
+				for (BYTE Flag=0x80;Flag!=0;Flag>>=1) {
+					if ((EventHeader2.DataFlags&Flag)!=0) {
+						if (Flag==DATA_FLAG_AUDIOINFO) {
+							WORD Size;
+							if (!ReadData(&File,&Size,sizeof(WORD),&CRC)
+									|| Size!=EventHeader2.AudioListCount*sizeof(EventAudioExInfo))
+								goto OnError;
+							for (int k=0;k<(int)EventHeader2.AudioListCount;k++) {
+								EventAudioExInfo AudioInfo;
+
+								if (!ReadData(&File,&AudioInfo,sizeof(AudioInfo),&CRC))
+									goto OnError;
+								CEventInfoData::AudioInfo &Audio=pEventData->m_AudioList[k];
+								Audio.StreamContent=AudioInfo.StreamContent;
+								Audio.ComponentTag=AudioInfo.ComponentTag;
+								Audio.SimulcastGroupTag=AudioInfo.SimulcastGroupTag;
+								Audio.QualityIndicator=AudioInfo.QualityIndicator;
+							}
+						} else if (Flag==DATA_FLAG_VIDEOINFO) {
+							WORD Size;
+							if (!ReadData(&File,&Size,sizeof(WORD),&CRC)
+									|| Size<EventHeader2.VideoListCount*(sizeof(EventVideoInfo)+sizeof(WORD)))
+								goto OnError;
+							for (int k=0;k<(int)EventHeader2.VideoListCount;k++) {
+								EventVideoInfo VideoInfo;
+								if (!ReadData(&File,&VideoInfo,sizeof(VideoInfo),&CRC)
+										|| !ReadString(&File,&pszText,&CRC))
+									goto OnError;
+								if (k==0) {
+									pEventData->m_VideoInfo.StreamContent=VideoInfo.StreamContent;
+									pEventData->m_VideoInfo.ComponentType=VideoInfo.ComponentType;
+									pEventData->m_VideoInfo.ComponentTag=VideoInfo.ComponentTag;
+									pEventData->m_VideoInfo.LanguageCode=VideoInfo.LanguageCode;
+									if (pszText!=NULL)
+										::lstrcpyn(pEventData->m_VideoInfo.szText,pszText,
+												   CEventInfoData::VideoInfo::MAX_TEXT);
+								}
+								delete [] pszText;
+							}
+						} else if (Flag==DATA_FLAG_GROUPINFO) {
+							WORD Size,GroupCount;
+
+							if (!ReadData(&File,&Size,sizeof(WORD),&CRC)
+									|| !ReadData(&File,&GroupCount,sizeof(WORD),&CRC)
+									|| Size<GroupCount*sizeof(EventGroupHeader))
+								goto OnError;
+							pEventData->m_EventGroupList.resize(GroupCount);
+							for (int k=0;k<(int)GroupCount;k++) {
+								EventGroupHeader GroupHeader;
+
+								if (!ReadData(&File,&GroupHeader,sizeof(GroupHeader),&CRC))
+									goto OnError;
+								CEventInfoData::EventGroupInfo &Group=pEventData->m_EventGroupList[k];
+								Group.GroupType=GroupHeader.GroupType;
+								Group.EventList.resize(GroupHeader.EventCount);
+								if (!ReadData(&File,&Group.EventList[0],
+											  sizeof(CEventGroupDesc::EventInfo)*GroupHeader.EventCount,
+											  &CRC))
+									goto OnError;
+							}
+						} else {
+							if (!ReadString(&File,&pszText,&CRC))
+								goto OnError;
+							if (pszText!=NULL) {
+								switch (Flag) {
+								case DATA_FLAG_EVENTNAME:
+									pEventData->m_pszEventName=pszText;
+									break;
+								case DATA_FLAG_EVENTTEXT:
+									pEventData->m_pszEventText=pszText;
+									break;
+								case DATA_FLAG_EVENTEXTTEXT:
+									pEventData->m_pszEventExtText=pszText;
+									break;
+								default:
+									delete [] pszText;
+								}
 							}
 						}
 					}
 				}
+
 				DWORD CRC32;
 				if (File.Read(&CRC32,sizeof(DWORD))!=sizeof(DWORD))
 					goto OnError;
@@ -1275,6 +1382,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 	return true;
 
 OnError:
+	TRACE(TEXT("CEpgProgramList::LoadFromFile() : Load error\n"));
 	Clear();
 	return false;
 }
@@ -1321,12 +1429,14 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 	}
 
 	SYSTEMTIME stCurrent,st;
-	::GetLocalTime(&stCurrent);
+	GetCurrentJST(&stCurrent);
 
 	WORD *pNumEvents=new WORD[m_ServiceMap.size()];
 	DWORD NumServices=0;
 	size_t ServiceIndex=0;
-	for (ServiceMap::iterator itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
+	for (ServiceMap::iterator itrService=m_ServiceMap.begin();
+			itrService!=m_ServiceMap.end();
+			itrService++) {
 		const CEpgServiceInfo *pServiceInfo=itrService->second;
 		CEventInfoList::EventMap::const_iterator itrEvent;
 		WORD NumEvents=0;
@@ -1361,61 +1471,118 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 		const CEpgServiceInfo *pServiceInfo=itrService->second;
 		ServiceInfoHeader2 ServiceHeader2(pServiceInfo->m_ServiceData);
 		ServiceHeader2.NumEvents=pNumEvents[ServiceIndex];
-		ServiceHeader2.CRC=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,sizeof(ServiceInfoHeader2)-sizeof(DWORD));
+		ServiceHeader2.CRC=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,
+													 sizeof(ServiceInfoHeader2)-sizeof(DWORD));
 		if (!File.Write(&ServiceHeader2,sizeof(ServiceInfoHeader2)))
 			goto OnError;
 
-		if (ServiceHeader2.NumEvents>0) {
-			CEventInfoList::EventMap::const_iterator itrEvent;
+		CEventInfoList::EventMap::const_iterator itrEvent;
+		for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
+				itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
+				itrEvent++) {
+			const CEventInfoData &EventInfo=itrEvent->second;
 
-			for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
-					itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
-					itrEvent++) {
-				EventInfoHeader2 EventHeader2(itrEvent->second);
+			if (EventInfo.GetEndTime(&st)
+					&& CompareSystemTime(&st,&stCurrent)>0) {
+				CCrc32 CRC;
 
-				if (itrEvent->second.GetEndTime(&st)
-						&& CompareSystemTime(&st,&stCurrent)>0) {
-					CCrc32 CRC;
-					if (!WriteData(&File,&EventHeader2,sizeof(EventInfoHeader2),&CRC))
-						goto OnError;
-					if (EventHeader2.AudioListCount>0) {
-						for (size_t i=0;i<itrEvent->second.m_AudioList.size();i++) {
-							const CEventInfoData::AudioInfo &Audio=itrEvent->second.m_AudioList[i];
-							EventAudioHeader AudioHeader;
-							AudioHeader.Flags=0;
-							if (Audio.fESMultiLingualFlag)
-								AudioHeader.Flags|=AUDIO_FLAG_MULTILINGUAL;
-							if (Audio.fMainComponentFlag)
-								AudioHeader.Flags|=AUDIO_FLAG_MAINCOMPONENT;
-							AudioHeader.ComponentType=Audio.ComponentType;
-							AudioHeader.SamplingRate=Audio.SamplingRate;
-							AudioHeader.LanguageCode=Audio.LanguageCode;
-							AudioHeader.LanguageCode2=Audio.LanguageCode2;
-							AudioHeader.Reserved=0;
-							if (!WriteData(&File,&AudioHeader,sizeof(EventAudioHeader),&CRC)
-									|| !WriteString(&File,Audio.szText,&CRC))
-								goto OnError;
-						}
+				EventInfoHeader2 EventHeader2(EventInfo);
+				if (!WriteData(&File,&EventHeader2,sizeof(EventInfoHeader2),&CRC))
+					goto OnError;
+
+				if (EventHeader2.AudioListCount>0) {
+					for (size_t i=0;i<EventInfo.m_AudioList.size();i++) {
+						const CEventInfoData::AudioInfo &Audio=EventInfo.m_AudioList[i];
+						EventAudioHeader AudioHeader;
+
+						AudioHeader.Flags=0;
+						if (Audio.bESMultiLingualFlag)
+							AudioHeader.Flags|=AUDIO_FLAG_MULTILINGUAL;
+						if (Audio.bMainComponentFlag)
+							AudioHeader.Flags|=AUDIO_FLAG_MAINCOMPONENT;
+						AudioHeader.ComponentType=Audio.ComponentType;
+						AudioHeader.SamplingRate=Audio.SamplingRate;
+						AudioHeader.LanguageCode=Audio.LanguageCode;
+						AudioHeader.LanguageCode2=Audio.LanguageCode2;
+						AudioHeader.Reserved=0;
+						if (!WriteData(&File,&AudioHeader,sizeof(EventAudioHeader),&CRC)
+								|| !WriteString(&File,Audio.szText,&CRC))
+							goto OnError;
 					}
-					if (EventHeader2.ContentNibbleListCount>0) {
-						if (EventHeader2.ContentNibbleListCount>MAX_CONTENT_NIBBLE_COUNT)
-							EventHeader2.ContentNibbleListCount=MAX_CONTENT_NIBBLE_COUNT;
-						for (int i=0;i<EventHeader2.ContentNibbleListCount;i++) {
-							CEventInfoData::NibbleData Nibble=itrEvent->second.m_NibbleList[i];
-							if (!WriteData(&File,&Nibble,sizeof(Nibble),&CRC))
-								goto OnError;
-						}
-					}
-					if (((EventHeader2.TextFlags&TEXT_FLAG_EVENTNAME)!=0
-								&& !WriteString(&File,itrEvent->second.GetEventName(),&CRC))
-							|| ((EventHeader2.TextFlags&TEXT_FLAG_EVENTTEXT)!=0
-								&& !WriteString(&File,itrEvent->second.GetEventText(),&CRC))
-							|| ((EventHeader2.TextFlags&TEXT_FLAG_EVENTEXTTEXT)!=0
-								&& !WriteString(&File,itrEvent->second.GetEventExtText(),&CRC)))
-						goto OnError;
-					if (!WriteCRC(&File,&CRC))
-						goto OnError;
 				}
+
+				if (EventHeader2.ContentNibbleListCount>0) {
+					for (int i=0;i<EventHeader2.ContentNibbleListCount;i++) {
+						if (!WriteData(&File,&EventInfo.m_ContentNibble.NibbleList[i],
+									   sizeof(CEventInfoData::NibbleData),&CRC))
+							goto OnError;
+					}
+				}
+
+				if (((EventHeader2.DataFlags&DATA_FLAG_EVENTNAME)!=0
+							&& !WriteString(&File,EventInfo.GetEventName(),&CRC))
+						|| ((EventHeader2.DataFlags&DATA_FLAG_EVENTTEXT)!=0
+							&& !WriteString(&File,EventInfo.GetEventText(),&CRC))
+						|| ((EventHeader2.DataFlags&DATA_FLAG_EVENTEXTTEXT)!=0
+							&& !WriteString(&File,EventInfo.GetEventExtText(),&CRC)))
+					goto OnError;
+
+				if (EventHeader2.AudioListCount>0) {
+					WORD Size=(WORD)(EventHeader2.AudioListCount*sizeof(EventAudioExInfo));
+					if (!WriteData(&File,&Size,sizeof(WORD),&CRC))
+						goto OnError;
+					for (size_t i=0;i<EventInfo.m_AudioList.size();i++) {
+						const CEventInfoData::AudioInfo &Audio=EventInfo.m_AudioList[i];
+						EventAudioExInfo AudioInfo;
+
+						AudioInfo.StreamContent=Audio.StreamContent;
+						AudioInfo.ComponentTag=Audio.ComponentTag;
+						AudioInfo.SimulcastGroupTag=Audio.SimulcastGroupTag;
+						AudioInfo.QualityIndicator=Audio.QualityIndicator;
+						if (!WriteData(&File,&AudioInfo,sizeof(AudioInfo),&CRC))
+							goto OnError;
+					}
+				}
+
+				WORD Size=(WORD)(sizeof(EventVideoInfo)+
+								 sizeof(WORD)+::lstrlenW(EventInfo.m_VideoInfo.szText)*sizeof(WCHAR));
+				if (!WriteData(&File,&Size,sizeof(WORD),&CRC))
+					goto OnError;
+				EventVideoInfo VideoInfo;
+				VideoInfo.StreamContent=EventInfo.m_VideoInfo.StreamContent;
+				VideoInfo.ComponentType=EventInfo.m_VideoInfo.ComponentType;
+				VideoInfo.ComponentTag=EventInfo.m_VideoInfo.ComponentTag;
+				VideoInfo.Reserved=0;
+				VideoInfo.LanguageCode=EventInfo.m_VideoInfo.LanguageCode;
+				if (!WriteData(&File,&VideoInfo,sizeof(VideoInfo),&CRC)
+						|| !WriteString(&File,EventInfo.m_VideoInfo.szText,&CRC))
+					goto OnError;
+
+				if (EventInfo.m_EventGroupList.size()>0) {
+					WORD Size=sizeof(WORD);
+					for (size_t i=0;i<EventInfo.m_EventGroupList.size();i++)
+						Size+=(WORD)(sizeof(EventGroupHeader)+
+							EventInfo.m_EventGroupList[i].EventList.size()*sizeof(CEventGroupDesc::EventInfo));
+					if (!WriteData(&File,&Size,sizeof(Size),&CRC))
+						goto OnError;
+					WORD GroupCount=(WORD)EventInfo.m_EventGroupList.size();
+					if (!WriteData(&File,&GroupCount,sizeof(GroupCount),&CRC))
+						goto OnError;
+					for (size_t i=0;i<EventInfo.m_EventGroupList.size();i++) {
+						const CEventInfoData::EventGroupInfo &Group=EventInfo.m_EventGroupList[i];
+						EventGroupHeader GroupHeader;
+
+						GroupHeader.GroupType=Group.GroupType;
+						GroupHeader.EventCount=(BYTE)Group.EventList.size();
+						if (!WriteData(&File,&GroupHeader,sizeof(GroupHeader),&CRC)
+								|| !WriteData(&File,&Group.EventList[0],
+										(DWORD)(sizeof(CEventGroupDesc::EventInfo)*Group.EventList.size()),&CRC))
+							goto OnError;
+					}
+				}
+
+				if (!WriteCRC(&File,&CRC))
+					goto OnError;
 			}
 		}
 	}
@@ -1434,6 +1601,7 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 	return true;
 
 OnError:
+	TRACE(TEXT("CEpgProgramList::SaveToFile() : Write error\n"));
 	delete [] pNumEvents;
 	File.Close();
 	::DeleteFile(pszFileName);
@@ -1450,7 +1618,7 @@ bool CEpgProgramList::Merge(CEpgProgramList *pSrcList)
 			itrSrcService!=pSrcList->m_ServiceMap.end();) {
 		CEpgServiceInfo *pSrcServiceInfo=itrSrcService->second;
 		ServiceMapKey Key=GetServiceMapKey(
-			pSrcServiceInfo->m_ServiceData.m_OriginalNID,
+			pSrcServiceInfo->m_ServiceData.m_NetworkID,
 			pSrcServiceInfo->m_ServiceData.m_TSID,
 			pSrcServiceInfo->m_ServiceData.m_ServiceID);
 		ServiceMap::iterator itrDstService=m_ServiceMap.find(Key);

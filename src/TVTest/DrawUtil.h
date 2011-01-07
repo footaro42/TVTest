@@ -86,11 +86,31 @@ public:
 	HBRUSH GetHandle() const { return m_hbr; }
 };
 
+class CBitmap {
+	HBITMAP m_hbm;
+public:
+	CBitmap();
+	CBitmap(const CBitmap &Src);
+	~CBitmap();
+	CBitmap &operator=(const CBitmap &Src);
+	bool Load(HINSTANCE hinst,LPCTSTR pszName,UINT Flags=LR_CREATEDIBSECTION);
+	bool Load(HINSTANCE hinst,int ID,UINT Flags=LR_CREATEDIBSECTION) {
+		return Load(hinst,MAKEINTRESOURCE(ID),Flags);
+	}
+	bool IsCreated() const { return m_hbm!=NULL; }
+	void Destroy();
+	HBITMAP GetHandle() const { return m_hbm; }
+	bool IsDIB() const;
+};
+
 inline HFONT SelectObject(HDC hdc,const CFont &Font) {
 	return static_cast<HFONT>(::SelectObject(hdc,Font.GetHandle()));
 }
 inline HBRUSH SelectObject(HDC hdc,const CBrush &Brush) {
 	return static_cast<HBRUSH>(::SelectObject(hdc,Brush.GetHandle()));
+}
+inline HBITMAP SelectObject(HDC hdc,const CBitmap &Bitmap) {
+	return static_cast<HBITMAP>(::SelectObject(hdc,Bitmap.GetHandle()));
 }
 
 class COffscreen {

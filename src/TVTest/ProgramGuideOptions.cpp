@@ -20,6 +20,7 @@ CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
 	, m_ViewHours(26)
 	, m_ItemWidth(pProgramGuide->GetItemWidth())
 	, m_LinesPerHour(pProgramGuide->GetLinesPerHour())
+	, m_LineMargin(1)
 	, m_WheelScrollLines(pProgramGuide->GetWheelScrollLines())
 {
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
@@ -54,7 +55,9 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 				&& Value>=CProgramGuide::MIN_LINES_PER_HOUR
 				&& Value<=CProgramGuide::MAX_LINES_PER_HOUR)
 			m_LinesPerHour=Value;
-		m_pProgramGuide->SetUIOptions(m_LinesPerHour,m_ItemWidth);
+		if (Settings.Read(TEXT("LineMargin"),&Value))
+			m_LineMargin=max(Value,0);
+		m_pProgramGuide->SetUIOptions(m_LinesPerHour,m_ItemWidth,m_LineMargin);
 
 		if (Settings.Read(TEXT("WheelScrollLines"),&Value))
 			m_WheelScrollLines=Value;
@@ -92,6 +95,16 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 		if (Settings.Read(TEXT("DragScroll"),&fDragScroll))
 			m_pProgramGuide->SetDragScroll(fDragScroll);
 
+		unsigned int Filter;
+		if (Settings.Read(TEXT("Filter"),&Filter))
+			m_pProgramGuide->SetFilter(Filter);
+
+		int Width,Height;
+		m_pProgramGuide->GetInfoPopupSize(&Width,&Height);
+		if (Settings.Read(TEXT("InfoPopupWidth"),&Width)
+				|| Settings.Read(TEXT("InfoPopupHeight"),&Height))
+			m_pProgramGuide->SetInfoPopupSize(Width,Height);
+
 		CProgramSearch *pProgramSearch=m_pProgramGuide->GetProgramSearch();
 		int NumSearchKeywords;
 		if (Settings.Read(TEXT("NumSearchKeywords"),&NumSearchKeywords)
@@ -122,7 +135,7 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 			if (Settings.Read(szName,&Value))
 				pProgramSearch->SetColumnWidth(i,Value);
 		}
-		int Left,Top,Width,Height;
+		int Left,Top;
 		pProgramSearch->GetPosition(&Left,&Top,&Width,&Height);
 		Settings.Read(TEXT("SearchLeft"),&Left);
 		Settings.Read(TEXT("SearchTop"),&Top);
@@ -171,6 +184,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
 		Settings.Write(TEXT("ItemWidth"),m_ItemWidth);
 		Settings.Write(TEXT("LinesPerHour"),m_LinesPerHour);
+		Settings.Write(TEXT("LineMargin"),m_LineMargin);
 		Settings.Write(TEXT("WheelScrollLines"),m_WheelScrollLines);
 
 		// Font
@@ -181,6 +195,12 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 
 		Settings.Write(TEXT("DragScroll"),m_pProgramGuide->GetDragScroll());
 		Settings.Write(TEXT("ShowToolTip"),m_pProgramGuide->GetShowToolTip());
+		Settings.Write(TEXT("Filter"),m_pProgramGuide->GetFilter());
+
+		int Width,Height;
+		m_pProgramGuide->GetInfoPopupSize(&Width,&Height);
+		Settings.Write(TEXT("InfoPopupWidth"),Width);
+		Settings.Write(TEXT("InfoPopupHeight"),Height);
 
 		const CProgramSearch *pProgramSearch=m_pProgramGuide->GetProgramSearch();
 		int NumSearchKeywords=pProgramSearch->GetKeywordHistoryCount();
@@ -197,7 +217,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 			::wsprintf(szName,TEXT("SearchColumn%d_Width"),i);
 			Settings.Write(szName,pProgramSearch->GetColumnWidth(i));
 		}
-		int Left,Top,Width,Height;
+		int Left,Top;
 		pProgramSearch->GetPosition(&Left,&Top,&Width,&Height);
 		Settings.Write(TEXT("SearchLeft"),Left);
 		Settings.Write(TEXT("SearchTop"),Top);
@@ -288,6 +308,8 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,pThis->m_LinesPerHour,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR_UD,
 				UDM_SETRANGE32,CProgramGuide::MIN_LINES_PER_HOUR,CProgramGuide::MAX_LINES_PER_HOUR);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN,pThis->m_LineMargin,TRUE);
+			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN_UD,UDM_SETRANGE32,0,100);
 			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,pThis->m_WheelScrollLines,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES_UD,
 				UDM_SETRANGE,0,MAKELONG(UD_MAXVAL,UD_MINVAL));
@@ -564,7 +586,8 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,NULL,TRUE);
 				pThis->m_LinesPerHour=CLAMP(Value,
 					(int)CProgramGuide::MIN_LINES_PER_HOUR,(int)CProgramGuide::MAX_LINES_PER_HOUR);
-				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth);
+				pThis->m_LineMargin=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN,NULL,TRUE);
+				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth,pThis->m_LineMargin);
 
 				pThis->m_WheelScrollLines=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,NULL,TRUE);
 				pThis->m_pProgramGuide->SetWheelScrollLines(pThis->m_WheelScrollLines);

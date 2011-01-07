@@ -26,11 +26,14 @@ public:
 
 	CChannelPanel();
 	~CChannelPanel();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CChannelPanel
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	bool SetChannelList(const CChannelList *pChannelList,bool fSetEvent=true);
 	bool UpdateChannelList(bool fUpdateProgramList);
 	bool UpdateChannel(int ChannelIndex);
+	bool UpdateChannels(WORD NetworkID,WORD TransportStreamID);
 	void ClearChannelList() { SetChannelList(NULL); }
 	bool IsChannelListEmpty() const;
 	bool SetCurrentChannel(int CurChannel);
@@ -52,6 +55,7 @@ public:
 	bool ExpandChannel(int Channel,bool fExpand);
 	void SetLogoManager(CLogoManager *pLogoManager);
 	bool QueryUpdate() const;
+
 	static bool Initialize(HINSTANCE hinst);
 
 private:
@@ -65,7 +69,7 @@ private:
 	int m_ItemHeight;
 	int m_ExpandedItemHeight;
 	ThemeInfo m_Theme;
-	HBITMAP m_hbmChevron;
+	DrawUtil::CBitmap m_Chevron;
 	int m_EventsPerChannel;
 	int m_ExpandEvents;
 	int m_ScrollPos;
@@ -84,8 +88,8 @@ private:
 		int NumEvents() const { return (int)m_EventList.size(); }
 		void SetMaxEvents(int Events);
 		bool IsEventEnabled(int Index) const;
-		WORD GetTransportStreamID() const { return m_ChannelInfo.GetTransportStreamID(); }
 		WORD GetNetworkID() const { return m_ChannelInfo.GetNetworkID(); }
+		WORD GetTransportStreamID() const { return m_ChannelInfo.GetTransportStreamID(); }
 		WORD GetServiceID() const { return m_ChannelInfo.GetServiceID(); }
 		int FormatEventText(LPTSTR pszText,int MaxLength,int Index) const;
 		void DrawChannelName(HDC hdc,const RECT *pRect);
@@ -118,8 +122,6 @@ private:
 
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
-	static CChannelPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 	bool UpdateEvents(CChannelEventInfo *pInfo,const SYSTEMTIME *pTime=NULL);
 	void Draw(HDC hdc,const RECT *prcPaint);
@@ -138,6 +140,8 @@ private:
 	void SetTooltips(bool fRectOnly=false);
 	bool EventInfoPopupHitTest(int x,int y,LPARAM *pParam);
 	bool GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

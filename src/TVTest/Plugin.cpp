@@ -5,6 +5,8 @@
 #include "Image.h"
 #include "DialogUtil.h"
 #include "Command.h"
+#include "EpgProgramList.h"
+#include "DriverManager.h"
 #include "LogoManager.h"
 #include "Controller.h"
 #include "BonTsEngine/TsEncode.h"
@@ -153,6 +155,315 @@ HBITMAP CControllerPlugin::GetImage(ImageType Type) const
 											MAKEINTRESOURCE(ID),
 											IMAGE_BITMAP,0,0,
 											LR_CREATEDIBSECTION));
+}
+
+
+
+static void ConvertChannelInfo(const CChannelInfo *pChInfo,TVTest::ChannelInfo *pChannelInfo)
+{
+	pChannelInfo->Space=pChInfo->GetSpace();
+	pChannelInfo->Channel=pChInfo->GetChannelIndex();
+	pChannelInfo->RemoteControlKeyID=pChInfo->GetChannelNo();
+	pChannelInfo->NetworkID=pChInfo->GetNetworkID();
+	pChannelInfo->TransportStreamID=pChInfo->GetTransportStreamID();
+	pChannelInfo->szNetworkName[0]='\0';
+	pChannelInfo->szTransportStreamName[0]='\0';
+	::lstrcpyn(pChannelInfo->szChannelName,pChInfo->GetName(),lengthof(pChannelInfo->szChannelName));
+	if (pChannelInfo->Size>=TVTest::CHANNELINFO_SIZE_V2) {
+		pChannelInfo->PhysicalChannel=pChInfo->GetChannel();
+		pChannelInfo->ServiceIndex=pChInfo->GetService();
+		pChannelInfo->ServiceID=pChInfo->GetServiceID();
+		if (pChannelInfo->Size==sizeof(TVTest::ChannelInfo)) {
+			pChannelInfo->Flags=0;
+			if (!pChInfo->IsEnabled())
+				pChannelInfo->Flags|=TVTest::CHANNEL_FLAG_DISABLED;
+		}
+	}
+}
+
+
+
+
+class CEpgDataConverter
+{
+	static void GetEventInfoSize(const CEventInfoData &EventInfo,SIZE_T *pInfoSize,SIZE_T *pStringSize);
+	static void ConvertEventInfo(const CEventInfoData &EventData,
+								 TVTest::EpgEventInfo **ppEventInfo,LPWSTR *ppStringBuffer);
+	static void SortEventList(TVTest::EpgEventInfo **ppFirst,TVTest::EpgEventInfo **ppLast);
+	static LPWSTR CopyString(LPWSTR pDstString,LPCWSTR pSrcString)
+	{
+		LPCWSTR p=pSrcString;
+		LPWSTR q=pDstString;
+
+		while ((*q=*p)!=L'\0') {
+			p++;
+			q++;
+		}
+		return q+1;
+	}
+
+public:
+	TVTest::EpgEventInfo *Convert(const CEventInfoData &EventData) const;
+	TVTest::EpgEventInfo **Convert(const CEventInfoList &EventList) const;
+	static void FreeEventInfo(TVTest::EpgEventInfo *pEventInfo);
+	static void FreeEventList(TVTest::EpgEventInfo **ppEventList);
+};
+
+
+void CEpgDataConverter::GetEventInfoSize(const CEventInfoData &EventInfo,
+										 SIZE_T *pInfoSize,SIZE_T *pStringSize)
+{
+	SIZE_T InfoSize=sizeof(TVTest::EpgEventInfo);
+	SIZE_T StringSize=0;
+
+	if (!IsStringEmpty(EventInfo.GetEventName()))
+		StringSize+=::lstrlenW(EventInfo.GetEventName())+1;
+	if (!IsStringEmpty(EventInfo.GetEventText()))
+		StringSize+=::lstrlenW(EventInfo.GetEventText())+1;
+	if (!IsStringEmpty(EventInfo.GetEventExtText()))
+		StringSize+=::lstrlenW(EventInfo.GetEventExtText())+1;
+	InfoSize+=sizeof(TVTest::EpgEventVideoInfo*)+sizeof(TVTest::EpgEventVideoInfo);
+	if (EventInfo.m_VideoInfo.szText[0]!='\0')
+		StringSize+=::lstrlenW(EventInfo.m_VideoInfo.szText)+1;
+	InfoSize+=(sizeof(TVTest::EpgEventAudioInfo)+sizeof(TVTest::EpgEventAudioInfo*))*EventInfo.m_AudioList.size();
+	for (size_t i=0;i<EventInfo.m_AudioList.size();i++) {
+		if (EventInfo.m_AudioList[i].szText[0]!='\0')
+			StringSize+=::lstrlenW(EventInfo.m_AudioList[i].szText)+1;
+	}
+	InfoSize+=sizeof(TVTest::EpgEventContentInfo)*EventInfo.m_ContentNibble.NibbleCount;
+	InfoSize+=(sizeof(TVTest::EpgEventGroupInfo)+sizeof(TVTest::EpgEventGroupInfo*))*EventInfo.m_EventGroupList.size();
+	for (size_t i=0;i<EventInfo.m_EventGroupList.size();i++)
+		InfoSize+=sizeof(TVTest::EpgGroupEventInfo)*EventInfo.m_EventGroupList[i].EventList.size();
+
+	*pInfoSize=InfoSize;
+	*pStringSize=StringSize*sizeof(WCHAR);
+}
+
+
+void CEpgDataConverter::ConvertEventInfo(const CEventInfoData &EventData,
+										 TVTest::EpgEventInfo **ppEventInfo,LPWSTR *ppStringBuffer)
+{
+	LPWSTR pString=*ppStringBuffer;
+
+	TVTest::EpgEventInfo *pEventInfo=*ppEventInfo;
+	pEventInfo->EventID=EventData.m_EventID;
+	pEventInfo->RunningStatus=EventData.m_RunningStatus;
+	pEventInfo->FreeCaMode=EventData.m_FreeCaMode==CEventInfoData::FREE_CA_MODE_SCRAMBLED;
+	pEventInfo->Reserved=0;
+	pEventInfo->StartTime=EventData.m_stStartTime;
+	pEventInfo->Duration=EventData.m_DurationSec;
+	pEventInfo->VideoListLength=1;
+	pEventInfo->AudioListLength=(BYTE)EventData.m_AudioList.size();
+	pEventInfo->ContentListLength=(BYTE)EventData.m_ContentNibble.NibbleCount;
+	pEventInfo->EventGroupListLength=(BYTE)EventData.m_EventGroupList.size();
+	if (!IsStringEmpty(EventData.GetEventName())) {
+		pEventInfo->pszEventName=pString;
+		pString=CopyString(pString,EventData.GetEventName());
+	} else {
+		pEventInfo->pszEventName=NULL;
+	}
+	if (!IsStringEmpty(EventData.GetEventText())) {
+		pEventInfo->pszEventText=pString;
+		pString=CopyString(pString,EventData.GetEventText());
+	} else {
+		pEventInfo->pszEventText=NULL;
+	}
+	if (!IsStringEmpty(EventData.GetEventExtText())) {
+		pEventInfo->pszEventExtendedText=pString;
+		pString=CopyString(pString,EventData.GetEventExtText());
+	} else {
+		pEventInfo->pszEventExtendedText=NULL;
+	}
+
+	BYTE *p=(BYTE*)(pEventInfo+1);
+	pEventInfo->VideoList=(TVTest::EpgEventVideoInfo**)p;
+	p+=sizeof(TVTest::EpgEventVideoInfo*);
+	pEventInfo->VideoList[0]=(TVTest::EpgEventVideoInfo*)p;
+	pEventInfo->VideoList[0]->StreamContent=EventData.m_VideoInfo.StreamContent;
+	pEventInfo->VideoList[0]->ComponentType=EventData.m_VideoInfo.ComponentType;
+	pEventInfo->VideoList[0]->ComponentTag=EventData.m_VideoInfo.ComponentTag;
+	pEventInfo->VideoList[0]->Reserved=0;
+	pEventInfo->VideoList[0]->LanguageCode=EventData.m_VideoInfo.LanguageCode;
+	p+=sizeof(TVTest::EpgEventVideoInfo);
+	if (EventData.m_VideoInfo.szText[0]!='\0') {
+		pEventInfo->VideoList[0]->pszText=pString;
+		pString=CopyString(pString,EventData.m_VideoInfo.szText);
+	} else {
+		pEventInfo->VideoList[0]->pszText=NULL;
+	}
+
+	if (EventData.m_AudioList.size()>0) {
+		pEventInfo->AudioList=(TVTest::EpgEventAudioInfo**)p;
+		p+=sizeof(TVTest::EpgEventAudioInfo*)*EventData.m_AudioList.size();
+		for (size_t i=0;i<EventData.m_AudioList.size();i++) {
+			const CEventInfoData::AudioInfo &Audio=EventData.m_AudioList[i];
+			TVTest::EpgEventAudioInfo *pAudioInfo=(TVTest::EpgEventAudioInfo*)p;
+			pEventInfo->AudioList[i]=pAudioInfo;
+			pAudioInfo->Flags=0;
+			if (Audio.bESMultiLingualFlag)
+				pAudioInfo->Flags|=TVTest::EPG_EVENT_AUDIO_FLAG_MULTILINGUAL;
+			if (Audio.bMainComponentFlag)
+				pAudioInfo->Flags|=TVTest::EPG_EVENT_AUDIO_FLAG_MAINCOMPONENT;
+			pAudioInfo->StreamContent=Audio.StreamContent;
+			pAudioInfo->ComponentType=Audio.ComponentType;
+			pAudioInfo->ComponentTag=Audio.ComponentTag;
+			pAudioInfo->SimulcastGroupTag=Audio.SimulcastGroupTag;
+			pAudioInfo->QualityIndicator=Audio.QualityIndicator;
+			pAudioInfo->SamplingRate=Audio.SamplingRate;
+			pAudioInfo->Reserved=0;
+			pAudioInfo->LanguageCode=Audio.LanguageCode;
+			pAudioInfo->LanguageCode2=Audio.LanguageCode2;
+			p+=sizeof(TVTest::EpgEventAudioInfo);
+			if (Audio.szText[0]!='\0') {
+				pAudioInfo->pszText=pString;
+				pString=CopyString(pString,Audio.szText);
+			} else {
+				pAudioInfo->pszText=NULL;
+			}
+		}
+	} else {
+		pEventInfo->AudioList=NULL;
+	}
+
+	if (EventData.m_ContentNibble.NibbleCount>0) {
+		pEventInfo->ContentList=(TVTest::EpgEventContentInfo*)p;
+		p+=sizeof(TVTest::EpgEventContentInfo)*EventData.m_ContentNibble.NibbleCount;
+		for (int i=0;i<EventData.m_ContentNibble.NibbleCount;i++) {
+			pEventInfo->ContentList[i].ContentNibbleLevel1=
+				EventData.m_ContentNibble.NibbleList[i].ContentNibbleLevel1;
+			pEventInfo->ContentList[i].ContentNibbleLevel2=
+				EventData.m_ContentNibble.NibbleList[i].ContentNibbleLevel2;
+			pEventInfo->ContentList[i].UserNibble1=
+				EventData.m_ContentNibble.NibbleList[i].UserNibble1;
+			pEventInfo->ContentList[i].UserNibble2=
+				EventData.m_ContentNibble.NibbleList[i].UserNibble2;
+		}
+	} else {
+		pEventInfo->ContentList=NULL;
+	}
+
+	if (EventData.m_EventGroupList.size()>0) {
+		pEventInfo->EventGroupList=(TVTest::EpgEventGroupInfo**)p;
+		p+=sizeof(TVTest::EpgEventGroupInfo*)*EventData.m_EventGroupList.size();
+		for (size_t i=0;i<EventData.m_EventGroupList.size();i++) {
+			const CEventInfoData::EventGroupInfo &Group=EventData.m_EventGroupList[i];
+			TVTest::EpgEventGroupInfo *pGroupInfo=(TVTest::EpgEventGroupInfo*)p;
+			p+=sizeof(TVTest::EpgEventGroupInfo);
+			pEventInfo->EventGroupList[i]=pGroupInfo;
+			pGroupInfo->GroupType=Group.GroupType;
+			pGroupInfo->EventListLength=(BYTE)Group.EventList.size();
+			::ZeroMemory(pGroupInfo->Reserved,sizeof(pGroupInfo->Reserved));
+			pGroupInfo->EventList=(TVTest::EpgGroupEventInfo*)p;
+			for (size_t j=0;j<Group.EventList.size();j++) {
+				pGroupInfo->EventList[j].NetworkID=Group.EventList[j].OriginalNetworkID;
+				pGroupInfo->EventList[j].TransportStreamID=Group.EventList[j].TransportStreamID;
+				pGroupInfo->EventList[j].ServiceID=Group.EventList[j].ServiceID;
+				pGroupInfo->EventList[j].EventID=Group.EventList[j].EventID;
+			}
+			p+=sizeof(TVTest::EpgGroupEventInfo)*Group.EventList.size();
+		}
+	} else {
+		pEventInfo->EventGroupList=NULL;
+	}
+
+	*ppEventInfo=(TVTest::EpgEventInfo*)p;
+	*ppStringBuffer=pString;
+}
+
+
+void CEpgDataConverter::SortEventList(TVTest::EpgEventInfo **ppFirst,TVTest::EpgEventInfo **ppLast)
+{
+	SYSTEMTIME stKey=ppFirst[(ppLast-ppFirst)/2]->StartTime;
+	TVTest::EpgEventInfo **p,**q;
+
+	p=ppFirst;
+	q=ppLast;
+	while (p<=q) {
+		while (CompareSystemTime(&(*p)->StartTime,&stKey)<0)
+			p++;
+		while (CompareSystemTime(&(*q)->StartTime,&stKey)>0)
+			q--;
+		if (p<=q) {
+			TVTest::EpgEventInfo *pTemp;
+
+			pTemp=*p;
+			*p=*q;
+			*q=pTemp;
+			p++;
+			q--;
+		}
+	}
+	if (q>ppFirst)
+		SortEventList(ppFirst,q);
+	if (p<ppLast)
+		SortEventList(p,ppLast);
+}
+
+
+TVTest::EpgEventInfo *CEpgDataConverter::Convert(const CEventInfoData &EventData) const
+{
+	SIZE_T InfoSize,StringSize;
+
+	GetEventInfoSize(EventData,&InfoSize,&StringSize);
+	BYTE *pBuffer=(BYTE*)malloc(InfoSize+StringSize);
+	if (pBuffer==NULL)
+		return NULL;
+	TVTest::EpgEventInfo *pEventInfo=(TVTest::EpgEventInfo*)pBuffer;
+	LPWSTR pString=(LPWSTR)(pBuffer+InfoSize);
+	ConvertEventInfo(EventData,&pEventInfo,&pString);
+#ifdef _DEBUG
+	if ((BYTE*)pEventInfo-pBuffer!=InfoSize
+			|| (BYTE*)pString-(pBuffer+InfoSize)!=StringSize)
+		::DebugBreak();
+#endif
+	return (TVTest::EpgEventInfo*)pBuffer;
+}
+
+
+TVTest::EpgEventInfo **CEpgDataConverter::Convert(const CEventInfoList &EventList) const
+{
+	const SIZE_T ListSize=EventList.EventDataMap.size()*sizeof(TVTest::EpgEventInfo*);
+	CEventInfoList::EventMap::const_iterator i;
+	SIZE_T InfoSize=0,StringSize=0;
+
+	for (i=EventList.EventDataMap.begin();i!=EventList.EventDataMap.end();i++) {
+		SIZE_T Info,String;
+
+		GetEventInfoSize(i->second,&Info,&String);
+		InfoSize+=Info;
+		StringSize+=String;
+	}
+	BYTE *pBuffer=(BYTE*)malloc(ListSize+InfoSize+StringSize);
+	if (pBuffer==NULL)
+		return NULL;
+	TVTest::EpgEventInfo **ppEventList=(TVTest::EpgEventInfo**)pBuffer;
+	TVTest::EpgEventInfo *pEventInfo=(TVTest::EpgEventInfo*)(pBuffer+ListSize);
+	LPWSTR pString=(LPWSTR)(pBuffer+ListSize+InfoSize);
+	int j=0;
+	for (i=EventList.EventDataMap.begin();i!=EventList.EventDataMap.end();i++) {
+		ppEventList[j++]=pEventInfo;
+		ConvertEventInfo(i->second,&pEventInfo,&pString);
+	}
+#ifdef _DEBUG
+	if ((BYTE*)pEventInfo-(pBuffer+ListSize)!=InfoSize
+			|| (BYTE*)pString-(pBuffer+ListSize+InfoSize)!=StringSize)
+		::DebugBreak();
+#endif
+	if (j>1)
+		SortEventList(&ppEventList[0],&ppEventList[j-1]);
+	return ppEventList;
+}
+
+
+void CEpgDataConverter::FreeEventInfo(TVTest::EpgEventInfo *pEventInfo)
+{
+	free(pEventInfo);
+}
+
+
+void CEpgDataConverter::FreeEventList(TVTest::EpgEventInfo **ppEventList)
+{
+	free(ppEventList);
 }
 
 
@@ -514,29 +825,20 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 			if (pChannelInfo==NULL
 					|| (pChannelInfo->Size!=sizeof(TVTest::ChannelInfo)
-						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V1))
+						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V1
+						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V2))
 				return FALSE;
 			const CChannelInfo *pChInfo=GetAppClass().GetCurrentChannelInfo();
 			if (pChInfo==NULL)
 				return FALSE;
+			ConvertChannelInfo(pChInfo,pChannelInfo);
 			CTsAnalyzer *pTsAnalyzer=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsAnalyzer;
-			pChannelInfo->Space=pChInfo->GetSpace();
-			pChannelInfo->Channel=pChInfo->GetChannelIndex();
-			pChannelInfo->RemoteControlKeyID=pChInfo->GetChannelNo();
-			pChannelInfo->NetworkID=pTsAnalyzer->GetNetworkID();
 			if (!pTsAnalyzer->GetNetworkName(pChannelInfo->szNetworkName,
-										lengthof(pChannelInfo->szNetworkName)))
+											 lengthof(pChannelInfo->szNetworkName)))
 				pChannelInfo->szNetworkName[0]='\0';
-			pChannelInfo->TransportStreamID=pTsAnalyzer->GetTransportStreamID();
 			if (!pTsAnalyzer->GetTsName(pChannelInfo->szTransportStreamName,
-								lengthof(pChannelInfo->szTransportStreamName)))
+										lengthof(pChannelInfo->szTransportStreamName)))
 				pChannelInfo->szTransportStreamName[0]='\0';
-			::lstrcpy(pChannelInfo->szChannelName,pChInfo->GetName());
-			if (pChannelInfo->Size==sizeof(TVTest::ChannelInfo)) {
-				pChannelInfo->PhysicalChannel=pChInfo->GetChannel();
-				pChannelInfo->ServiceIndex=pChInfo->GetService();
-				pChannelInfo->ServiceID=pChInfo->GetServiceID();
-			}
 		}
 		return TRUE;
 
@@ -600,32 +902,19 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 			if (pChannelInfo==NULL
 					|| (pChannelInfo->Size!=sizeof(TVTest::ChannelInfo)
-						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V1)
+						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V1
+						&& pChannelInfo->Size!=TVTest::CHANNELINFO_SIZE_V2)
 					|| Space<0 || Channel<0)
 				return FALSE;
 
 			const CChannelManager *pChannelManager=GetAppClass().GetChannelManager();
 			const CChannelList *pChannelList=pChannelManager->GetChannelList(Space);
-			const CChannelInfo *pChInfo;
-
 			if (pChannelList==NULL)
 				return FALSE;
-			pChInfo=pChannelList->GetChannelInfo(Channel);
+			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(Channel);
 			if (pChInfo==NULL)
 				return FALSE;
-			pChannelInfo->Space=pChInfo->GetSpace();
-			pChannelInfo->Channel=pChInfo->GetChannelIndex();
-			pChannelInfo->RemoteControlKeyID=pChInfo->GetChannelNo();
-			pChannelInfo->NetworkID=pChInfo->GetNetworkID();
-			pChannelInfo->szNetworkName[0]='\0';
-			pChannelInfo->TransportStreamID=pChInfo->GetTransportStreamID();
-			pChannelInfo->szTransportStreamName[0]='\0';
-			::lstrcpy(pChannelInfo->szChannelName,pChInfo->GetName());
-			if (pChannelInfo->Size==sizeof(TVTest::ChannelInfo)) {
-				pChannelInfo->PhysicalChannel=pChInfo->GetChannel();
-				pChannelInfo->ServiceIndex=pChInfo->GetService();
-				pChannelInfo->ServiceID=pChInfo->GetServiceID();
-			}
+			ConvertChannelInfo(pChInfo,pChannelInfo);
 		}
 		return TRUE;
 
@@ -878,19 +1167,15 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				return FALSE;
 			const CMediaViewer *pMediaViewer=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer;
 			pMediaViewer->GetForceAspectRatio(&pInfo->XAspect,&pInfo->YAspect);
-			BYTE PanScan=pMediaViewer->GetPanAndScan();
-			switch (PanScan) {
-			case CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_NONE:
-				pInfo->Type=TVTest::PANSCAN_SIDECUT;
-				break;
-			case CMediaViewer::PANANDSCAN_HORZ_NONE | CMediaViewer::PANANDSCAN_VERT_CUT:
+			const CMediaViewer::ClippingInfo &Clipping=pMediaViewer->GetClippingInfo();
+			pInfo->Type=TVTest::PANSCAN_NONE;
+			if (Clipping.HorzFactor>1) {
+				if (Clipping.VertFactor>1)
+					pInfo->Type=TVTest::PANSCAN_SUPERFRAME;
+				else
+					pInfo->Type=TVTest::PANSCAN_SIDECUT;
+			} else if (Clipping.VertFactor>1) {
 				pInfo->Type=TVTest::PANSCAN_LETTERBOX;
-				break;
-			case CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_CUT:
-				pInfo->Type=TVTest::PANSCAN_SUPERFRAME;
-				break;
-			default:
-				pInfo->Type=TVTest::PANSCAN_NONE;
 			}
 		}
 		return TRUE;
@@ -1619,6 +1904,198 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			}
 		}
 		return TRUE;
+
+	case TVTest::MESSAGE_GETEPGEVENTINFO:
+		{
+			const TVTest::EpgEventQueryInfo *pQueryInfo=
+				reinterpret_cast<const TVTest::EpgEventQueryInfo*>(lParam1);
+			if (pQueryInfo==NULL)
+				return NULL;
+
+			CEpgProgramList *pEpgProgramList=GetAppClass().GetEpgProgramList();
+			CEventInfoData EventData;
+			if (pQueryInfo->Type==TVTest::EPG_EVENT_QUERY_EVENTID) {
+				if (!pEpgProgramList->GetEventInfo(pQueryInfo->NetworkID,
+												   pQueryInfo->TransportStreamID,
+												   pQueryInfo->ServiceID,
+												   pQueryInfo->EventID,
+												   &EventData))
+					return NULL;
+			} else if (pQueryInfo->Type==TVTest::EPG_EVENT_QUERY_TIME) {
+				SYSTEMTIME stUTC,stLocal;
+
+				if (!::FileTimeToSystemTime(&pQueryInfo->Time,&stUTC)
+						|| !UTCToJST(&stUTC,&stLocal))
+					return NULL;
+				if (!pEpgProgramList->GetEventInfo(pQueryInfo->NetworkID,
+												   pQueryInfo->TransportStreamID,
+												   pQueryInfo->ServiceID,
+												   &stLocal,
+												   &EventData))
+					return NULL;
+			} else {
+				return NULL;
+			}
+
+			CEpgDataConverter Converter;
+			return reinterpret_cast<LRESULT>(Converter.Convert(EventData));
+		}
+
+	case TVTest::MESSAGE_FREEEPGEVENTINFO:
+		{
+			TVTest::EpgEventInfo *pEventInfo=reinterpret_cast<TVTest::EpgEventInfo*>(lParam1);
+
+			if (pEventInfo!=NULL)
+				CEpgDataConverter::FreeEventInfo(pEventInfo);
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_GETEPGEVENTLIST:
+		{
+			TVTest::EpgEventList *pEventList=reinterpret_cast<TVTest::EpgEventList*>(lParam1);
+			if (pEventList==NULL)
+				return FALSE;
+
+			pEventList->NumEvents=0;
+			pEventList->EventList=NULL;
+
+			CEpgProgramList *pEpgProgramList=GetAppClass().GetEpgProgramList();
+			pEpgProgramList->UpdateService(pEventList->NetworkID,
+										   pEventList->TransportStreamID,
+										   pEventList->ServiceID);
+			const CEpgServiceInfo *pServiceInfo=
+				pEpgProgramList->GetServiceInfo(pEventList->NetworkID,
+												pEventList->TransportStreamID,
+												pEventList->ServiceID);
+			if (pServiceInfo==NULL || pServiceInfo->m_EventList.EventDataMap.size()==0)
+				return FALSE;
+
+			CEpgDataConverter Converter;
+			pEventList->EventList=Converter.Convert(pServiceInfo->m_EventList);
+			if (pEventList->EventList==NULL)
+				return FALSE;
+			pEventList->NumEvents=(WORD)pServiceInfo->m_EventList.EventDataMap.size();
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_FREEEPGEVENTLIST:
+		{
+			TVTest::EpgEventList *pEventList=reinterpret_cast<TVTest::EpgEventList*>(lParam1);
+
+			if (pEventList!=NULL) {
+				CEpgDataConverter::FreeEventList(pEventList->EventList);
+				pEventList->NumEvents=0;
+				pEventList->EventList=NULL;
+			}
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_ENUMDRIVER:
+		{
+			LPWSTR pszFileName=reinterpret_cast<LPWSTR>(lParam1);
+			const int Index=LOWORD(lParam2);
+			const int MaxLength=HIWORD(lParam2);
+
+			const CDriverManager *pDriverManager=GetAppClass().GetDriverManager();
+			const CDriverInfo *pDriverInfo=pDriverManager->GetDriverInfo(Index);
+			if (pDriverInfo!=NULL) {
+				if (pszFileName!=NULL)
+					::lstrcpyn(pszFileName,pDriverInfo->GetFileName(),MaxLength);
+				return ::lstrlen(pDriverInfo->GetFileName());
+			}
+		}
+		return 0;
+
+	case TVTest::MESSAGE_GETDRIVERTUNINGSPACELIST:
+		{
+			LPCWSTR pszDriverName=reinterpret_cast<LPCWSTR>(lParam1);
+			TVTest::DriverTuningSpaceList *pList=
+				reinterpret_cast<TVTest::DriverTuningSpaceList*>(lParam2);
+
+			if (pszDriverName==NULL || pList==NULL)
+				return FALSE;
+
+			pList->NumSpaces=0;
+			pList->SpaceList=NULL;
+
+			CDriverInfo DriverInfo(pszDriverName);
+			if (!DriverInfo.LoadTuningSpaceList())
+				return FALSE;
+
+			const CTuningSpaceList *pTuningSpaceList=DriverInfo.GetTuningSpaceList();
+			if (pTuningSpaceList->NumSpaces()==0)
+				return FALSE;
+
+			const int NumSpaces=pTuningSpaceList->NumSpaces();
+			SIZE_T BufferSize=NumSpaces*
+				(sizeof(TVTest::DriverTuningSpaceInfo)+sizeof(TVTest::DriverTuningSpaceInfo*)+
+				 sizeof(TVTest::TuningSpaceInfo));
+			for (int i=0;i<NumSpaces;i++) {
+				const CChannelList *pChannelList=pTuningSpaceList->GetChannelList(i);
+				BufferSize+=pChannelList->NumChannels()*
+					(sizeof(TVTest::ChannelInfo)+sizeof(TVTest::ChannelInfo*));
+			}
+			BYTE *pBuffer=(BYTE*)malloc(BufferSize);
+			if (pBuffer==NULL)
+				return FALSE;
+			BYTE *p=pBuffer;
+			pList->NumSpaces=NumSpaces;
+			pList->SpaceList=(TVTest::DriverTuningSpaceInfo**)p;
+			p+=NumSpaces*sizeof(TVTest::DriverTuningSpaceInfo*);
+			for (int i=0;i<NumSpaces;i++) {
+				const CTuningSpaceInfo *pSpaceInfo=pTuningSpaceList->GetTuningSpaceInfo(i);
+				const CChannelList *pChannelList=pSpaceInfo->GetChannelList();
+				const int NumChannels=pChannelList->NumChannels();
+				TVTest::DriverTuningSpaceInfo *pDriverSpaceInfo=(TVTest::DriverTuningSpaceInfo*)p;
+
+				p+=sizeof(TVTest::DriverTuningSpaceInfo);
+				pList->SpaceList[i]=pDriverSpaceInfo;
+				pDriverSpaceInfo->Flags=0;
+				pDriverSpaceInfo->NumChannels=NumChannels;
+				pDriverSpaceInfo->pInfo=(TVTest::TuningSpaceInfo*)p;
+				pDriverSpaceInfo->pInfo->Size=sizeof(TVTest::TuningSpaceInfo);
+				pDriverSpaceInfo->pInfo->Space=(int)pSpaceInfo->GetType();
+				if (pSpaceInfo->GetName()!=NULL)
+					::lstrcpyn(pDriverSpaceInfo->pInfo->szName,pSpaceInfo->GetName(),
+							   lengthof(pDriverSpaceInfo->pInfo->szName));
+				else
+					pDriverSpaceInfo->pInfo->szName[0]='\0';
+				p+=sizeof(TVTest::TuningSpaceInfo);
+				pDriverSpaceInfo->ChannelList=(TVTest::ChannelInfo**)p;
+				p+=NumChannels*sizeof(TVTest::ChannelInfo*);
+				for (int j=0;j<NumChannels;j++) {
+					TVTest::ChannelInfo *pChannelInfo=(TVTest::ChannelInfo*)p;
+					p+=sizeof(TVTest::ChannelInfo);
+					pDriverSpaceInfo->ChannelList[i]=pChannelInfo;
+					pChannelInfo->Size=sizeof(TVTest::ChannelInfo);
+					ConvertChannelInfo(pChannelList->GetChannelInfo(j),pChannelInfo);
+				}
+			}
+#ifdef _DEBUG
+			if (p-pBuffer!=BufferSize)
+				::DebugBreak();
+#endif
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_FREEDRIVERTUNINGSPACELIST:
+		{
+			TVTest::DriverTuningSpaceList *pList=
+				reinterpret_cast<TVTest::DriverTuningSpaceList*>(lParam1);
+
+			if (pList!=NULL) {
+				free(pList->SpaceList);
+				pList->NumSpaces=0;
+				pList->SpaceList=NULL;
+			}
+		}
+		return TRUE;
+
+#ifdef _DEBUG
+	default:
+		TRACE(TEXT("CPluign::Callback() : Unknown message %u\n"),Message);
+		break;
+#endif
 	}
 	return 0;
 }

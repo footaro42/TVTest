@@ -60,7 +60,6 @@ CChannelPanel::CChannelPanel()
 	, m_ItemHeight(0)
 	, m_ExpandedItemHeight(0)
 
-	, m_hbmChevron(NULL)
 	, m_EventsPerChannel(2)
 	, m_ExpandEvents(m_EventsPerChannel+EXPAND_INCREASE_EVENTS)
 	, m_ScrollPos(0)
@@ -120,9 +119,9 @@ bool CChannelPanel::SetEpgProgramList(CEpgProgramList *pList)
 
 bool CChannelPanel::UpdateEvents(CChannelEventInfo *pInfo,const SYSTEMTIME *pTime)
 {
+	const WORD NetworkID=pInfo->GetNetworkID();
 	const WORD TransportStreamID=pInfo->GetTransportStreamID();
 	const WORD ServiceID=pInfo->GetServiceID();
-	int NumEvents;
 	SYSTEMTIME st;
 	CEventInfoData EventInfo;
 	bool fChanged=false;
@@ -130,10 +129,10 @@ bool CChannelPanel::UpdateEvents(CChannelEventInfo *pInfo,const SYSTEMTIME *pTim
 	if (pTime!=NULL)
 		st=*pTime;
 	else
-		::GetLocalTime(&st);
-	NumEvents=pInfo->IsExpanded()?m_ExpandEvents:m_EventsPerChannel;
+		GetCurrentJST(&st);
+	const int NumEvents=pInfo->IsExpanded()?m_ExpandEvents:m_EventsPerChannel;
 	for (int i=0;i<NumEvents;i++) {
-		if (m_pProgramList->GetEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)) {
+		if (m_pProgramList->GetEventInfo(NetworkID,TransportStreamID,ServiceID,&st,&EventInfo)) {
 			if (pInfo->SetEventInfo(i,&EventInfo))
 				fChanged=true;
 		} else {
@@ -144,8 +143,8 @@ bool CChannelPanel::UpdateEvents(CChannelEventInfo *pInfo,const SYSTEMTIME *pTim
 					break;
 				i++;
 			}
-			if (m_pProgramList->GetNextEventInfo(TransportStreamID,ServiceID,&st,&EventInfo)
-					&& DiffSystemTime(&EventInfo.m_stStartTime,&st)<8*60*60*1000) {
+			if (m_pProgramList->GetNextEventInfo(NetworkID,TransportStreamID,ServiceID,&st,&EventInfo)
+					&& DiffSystemTime(&st,&EventInfo.m_stStartTime)<8*60*60*1000) {
 				if (pInfo->SetEventInfo(i,&EventInfo))
 					fChanged=true;
 			} else {
@@ -170,7 +169,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 	if (pChannelList!=NULL) {
 		SYSTEMTIME stCurrent;
 
-		::GetLocalTime(&stCurrent);
+		GetCurrentJST(&stCurrent);
 		for (int i=0;i<pChannelList->NumChannels();i++) {
 			const CChannelInfo *pChInfo=pChannelList->GetChannelInfo(i);
 
@@ -213,25 +212,22 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
 {
 	if (m_pProgramList!=NULL && m_ChannelList.Length()>0) {
-		SYSTEMTIME stCurrent;
 		bool fChanged=false;
 
-		::GetSystemTime(&m_UpdatedTime);
-		::SystemTimeToTzSpecificLocalTime(NULL,&m_UpdatedTime,&stCurrent);
+		GetCurrentJST(&m_UpdatedTime);
 		for (int i=0;i<m_ChannelList.Length();i++) {
 			CChannelEventInfo *pInfo=m_ChannelList[i];
 
 			if (fUpdateProgramList) {
-				const CChannelInfo *pChannelInfo=pInfo->GetChannelInfo();
-				m_pProgramList->UpdateService(pChannelInfo->GetTransportStreamID(),
-											  pChannelInfo->GetServiceID());
+				m_pProgramList->UpdateService(pInfo->GetNetworkID(),
+											  pInfo->GetTransportStreamID(),
+											  pInfo->GetServiceID());
 			}
-			if (UpdateEvents(pInfo,&stCurrent))
+			if (UpdateEvents(pInfo,&m_UpdatedTime))
 				fChanged=true;
 		}
 		if (m_hwnd!=NULL && fChanged) {
-			Invalidate();
-			Update();
+			Redraw();
 		}
 	}
 	return true;
@@ -252,9 +248,36 @@ bool CChannelPanel::UpdateChannel(int ChannelIndex)
 					Invalidate(&rc);
 					Update();
 				}
-				break;
+				return true;
 			}
 		}
+	}
+	return false;
+}
+
+
+bool CChannelPanel::UpdateChannels(WORD NetworkID,WORD TransportStreamID)
+{
+	if (NetworkID==0 && TransportStreamID==0)
+		return false;
+	if (m_pProgramList==NULL)
+		return false;
+
+	SYSTEMTIME st;
+	bool fChanged=false;
+
+	GetCurrentJST(&st);
+	for (int i=0;i<m_ChannelList.Length();i++) {
+		CChannelEventInfo *pInfo=m_ChannelList[i];
+
+		if ((NetworkID==0 || pInfo->GetNetworkID()==NetworkID)
+				&& (TransportStreamID==0 || pInfo->GetTransportStreamID()==TransportStreamID)) {
+			if (UpdateEvents(pInfo,&st))
+				fChanged=true;
+		}
+	}
+	if (m_hwnd!=NULL && fChanged) {
+		Redraw();
 	}
 	return true;
 }
@@ -414,7 +437,7 @@ bool CChannelPanel::QueryUpdate() const
 {
 	SYSTEMTIME st;
 
-	::GetSystemTime(&st);
+	GetCurrentJST(&st);
 	return m_UpdatedTime.wMinute!=st.wMinute
 		|| m_UpdatedTime.wHour!=st.wHour
 		|| m_UpdatedTime.wDay!=st.wDay
@@ -423,79 +446,62 @@ bool CChannelPanel::QueryUpdate() const
 }
 
 
-CChannelPanel *CChannelPanel::GetThis(HWND hwnd)
-{
-	return static_cast<CChannelPanel*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CChannelPanel *pThis=static_cast<CChannelPanel*>(OnCreate(hwnd,lParam));
-
-			pThis->CalcItemHeight();
-			pThis->m_ScrollPos=0;
-			if (pThis->m_fDetailToolTip)
-				pThis->m_EventInfoPopupManager.Initialize(hwnd,&pThis->m_EventInfoPopupHandler);
+			CalcItemHeight();
+			m_ScrollPos=0;
+			if (m_fDetailToolTip)
+				m_EventInfoPopupManager.Initialize(hwnd,&m_EventInfoPopupHandler);
 			else
-				pThis->CreateTooltip();
-			pThis->m_hbmChevron=(HBITMAP)::LoadImage(m_hinst,MAKEINTRESOURCE(IDB_CHEVRON),
-													 IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
+				CreateTooltip();
+			m_Chevron.Load(m_hinst,MAKEINTRESOURCE(IDB_CHEVRON),LR_CREATEDIBSECTION);
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CChannelPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,&ps.rcPaint);
+			Draw(ps.hdc,&ps.rcPaint);
 			EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_SIZE:
 		{
-			CChannelPanel *pThis=GetThis(hwnd);
 			int Height=HIWORD(lParam),Max;
-			int TotalHeight=pThis->CalcHeight();
+			int TotalHeight=CalcHeight();
 
 			Max=max(TotalHeight-Height,0);
-			if (pThis->m_ScrollPos>Max) {
-				pThis->m_ScrollPos=Max;
-				pThis->Invalidate();
-				pThis->SetTooltips(true);
+			if (m_ScrollPos>Max) {
+				m_ScrollPos=Max;
+				Invalidate();
+				SetTooltips(true);
 			}
-			pThis->SetScrollBar();
+			SetScrollBar();
 		}
 		return 0;
 
 	case WM_MOUSEWHEEL:
-		{
-			CChannelPanel *pThis=GetThis(hwnd);
-
-			pThis->SetScrollPos(pThis->m_ScrollPos-
-								GET_WHEEL_DELTA_WPARAM(wParam)*pThis->m_FontHeight/WHEEL_DELTA);
-		}
+		SetScrollPos(m_ScrollPos-GET_WHEEL_DELTA_WPARAM(wParam)*m_FontHeight/WHEEL_DELTA);
 		return 0;
 
 	case WM_VSCROLL:
 		{
-			CChannelPanel *pThis=GetThis(hwnd);
-			int Height=pThis->CalcHeight();
+			int Height=CalcHeight();
 			int Pos,Page;
 			RECT rc;
 
-			Pos=pThis->m_ScrollPos;
-			pThis->GetClientRect(&rc);
+			Pos=m_ScrollPos;
+			GetClientRect(&rc);
 			Page=rc.bottom;
 			switch (LOWORD(wParam)) {
-			case SB_LINEUP:		Pos-=pThis->m_FontHeight;	break;
-			case SB_LINEDOWN:	Pos+=pThis->m_FontHeight;	break;
+			case SB_LINEUP:		Pos-=m_FontHeight;	break;
+			case SB_LINEDOWN:	Pos+=m_FontHeight;	break;
 			case SB_PAGEUP:		Pos-=Page;					break;
 			case SB_PAGEDOWN:	Pos+=Page;					break;
 			case SB_THUMBTRACK:	Pos=HIWORD(wParam);			break;
@@ -503,42 +509,36 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 			case SB_BOTTOM:		Pos=max(Height-Page,0);		break;
 			default:	return 0;
 			}
-			pThis->SetScrollPos(Pos);
+			SetScrollPos(Pos);
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
 		{
-			CChannelPanel *pThis=GetThis(hwnd);
 			HitType Type;
 			int Channel;
 
 			SetFocus(hwnd);
-			Channel=pThis->HitTest(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam),&Type);
+			Channel=HitTest(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam),&Type);
 			if (Channel>=0) {
 				if (Type==HIT_CHEVRON)
-					pThis->ExpandChannel(Channel,!pThis->m_ChannelList[Channel]->IsExpanded());
-				else if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnChannelClick(pThis->m_ChannelList[Channel]->GetChannelInfo());
+					ExpandChannel(Channel,!m_ChannelList[Channel]->IsExpanded());
+				else if (m_pEventHandler!=NULL)
+					m_pEventHandler->OnChannelClick(m_ChannelList[Channel]->GetChannelInfo());
 			}
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
-		{
-			CChannelPanel *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnRButtonDown();
-		}
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnRButtonDown();
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CChannelPanel *pThis=GetThis(hwnd);
 			int y=GET_Y_LPARAM(lParam);
 
-			if (y>=0 && y<pThis->CalcHeight()-pThis->m_ScrollPos)
+			if (y>=0 && y<CalcHeight()-m_ScrollPos)
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
 			else
 				::SetCursor(::LoadCursor(NULL,IDC_ARROW));
@@ -549,14 +549,13 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		switch (reinterpret_cast<LPNMHDR>(lParam)->code) {
 		case TTN_NEEDTEXT:
 			{
-				CChannelPanel *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pnmtdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 				int Channel=LOWORD(pnmtdi->lParam),Event=HIWORD(pnmtdi->lParam);
 
-				if (Channel>=0 && Channel<pThis->m_ChannelList.Length()) {
+				if (Channel>=0 && Channel<m_ChannelList.Length()) {
 					static TCHAR szText[1024];
 
-					pThis->m_ChannelList[Channel]->FormatEventText(szText,lengthof(szText),Event);
+					m_ChannelList[Channel]->FormatEventText(szText,lengthof(szText),Event);
 					RemoveTrailingWhitespace(szText);
 					pnmtdi->lpszText=szText;
 				} else {
@@ -603,15 +602,9 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		break;
 
 	case WM_DESTROY:
-		{
-			CChannelPanel *pThis=GetThis(hwnd);
-
-			pThis->m_EventInfoPopupManager.Finalize();
-			pThis->m_Tooltip.Destroy();
-			::DeleteObject(pThis->m_hbmChevron);
-			pThis->m_hbmChevron=NULL;
-			pThis->OnDestroy();
-		}
+		m_EventInfoPopupManager.Finalize();
+		m_Tooltip.Destroy();
+		m_Chevron.Destroy();
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
@@ -620,20 +613,14 @@ LRESULT CALLBACK CChannelPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 {
-	HFONT hfontOld;
-	COLORREF crOldTextColor;
-	int OldBkMode;
-	HDC hdcMem;
-	HBITMAP hbmOld;
+	HFONT hfontOld=static_cast<HFONT>(::GetCurrentObject(hdc,OBJ_FONT));
+	COLORREF crOldTextColor=::GetTextColor(hdc);
+	int OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+
+	HDC hdcMem=::CreateCompatibleDC(hdc);
+	HBITMAP hbmOld=DrawUtil::SelectObject(hdcMem,m_Chevron);
+
 	RECT rcClient,rc;
-
-	hfontOld=static_cast<HFONT>(::GetCurrentObject(hdc,OBJ_FONT));
-	crOldTextColor=::GetTextColor(hdc);
-	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
-
-	hdcMem=::CreateCompatibleDC(hdc);
-	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,m_hbmChevron));
-
 	GetClientRect(&rcClient);
 	rc.top=-m_ScrollPos;
 	for (int i=0;i<m_ChannelList.Length() && rc.top<prcPaint->bottom;i++) {

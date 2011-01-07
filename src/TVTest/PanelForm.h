@@ -7,10 +7,10 @@
 #include "DrawUtil.h"
 
 
-class CPanelForm : public CBasicWindow
+class CPanelForm : public CCustomWindow
 {
 public:
-	class ABSTRACT_CLASS(CPage) : public CBasicWindow {
+	class ABSTRACT_CLASS(CPage) : public CCustomWindow {
 	protected:
 		static bool GetDefaultFont(LOGFONT *pFont);
 		static HFONT CreateDefaultFont();
@@ -58,16 +58,6 @@ private:
 	CWindowInfo *m_pWindowList[MAX_WINDOWS];
 	int m_NumWindows;
 	int m_TabOrder[MAX_WINDOWS];
-	/*
-	COLORREF m_crBackColor;
-	COLORREF m_crMarginColor;
-	Theme::GradientInfo m_TabBackGradient;
-	COLORREF m_crTabTextColor;
-	COLORREF m_crTabBorderColor;
-	Theme::GradientInfo m_CurTabBackGradient;
-	COLORREF m_crCurTabTextColor;
-	COLORREF m_crCurTabBorderColor;
-	*/
 	ThemeInfo m_Theme;
 	DrawUtil::CFont m_Font;
 	int m_TabHeight;
@@ -79,21 +69,22 @@ private:
 
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
-	static CPanelForm *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	bool SetCurTab(int Index);
 	void CalcTabSize();
 	int GetRealTabWidth() const;
 	int HitTest(int x,int y) const;
 	void Draw(HDC hdc,const RECT &PaintRect);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	static bool Initialize(HINSTANCE hinst);
 	CPanelForm();
 	~CPanelForm();
 // CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void SetVisible(bool fVisible);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+	void SetVisible(bool fVisible) override;
 // CPanelForm
 	bool AddWindow(CPage *pWindow,int ID,LPCTSTR pszTitle);
 	int NumPages() const { return m_NumWindows; }
@@ -107,11 +98,6 @@ public:
 	bool SetTabOrder(const int *pOrder);
 	bool GetTabInfo(int Index,TabInfo *pInfo) const;
 	void SetEventHandler(CEventHandler *pHandler);
-	/*
-	void SetBackColors(COLORREF crBack,COLORREF crMargin);
-	void SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder);
-	void SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder);
-	*/
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetTabFont(const LOGFONT *pFont);

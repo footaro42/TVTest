@@ -310,162 +310,139 @@ int CStatusView::IndexToID(int Index) const
 }
 
 
-CStatusView *CStatusView::GetStatusView(HWND hwnd)
-{
-	return reinterpret_cast<CStatusView*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
-																LPARAM lParam)
+LRESULT CStatusView::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
 			LPCREATESTRUCT pcs=reinterpret_cast<LPCREATESTRUCT>(lParam);
-			CStatusView *pThis=static_cast<CStatusView*>(OnCreate(hwnd,lParam));
 			RECT rc;
 
 			::SetRectEmpty(&rc);
-			rc.bottom=pThis->m_ItemHeight;
-			Theme::AddBorderRect(&pThis->m_Theme.Border,&rc);
+			rc.bottom=m_ItemHeight;
+			Theme::AddBorderRect(&m_Theme.Border,&rc);
 			::AdjustWindowRectEx(&rc,pcs->style,FALSE,pcs->dwExStyle);
 			::SetWindowPos(hwnd,NULL,0,0,pcs->cx,rc.bottom-rc.top,
 						   SWP_NOZORDER | SWP_NOMOVE);
 
-			pThis->m_HotItem=-1;
-			pThis->m_fTrackMouseEvent=false;
+			m_HotItem=-1;
+			m_fTrackMouseEvent=false;
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CStatusView *pThis=GetStatusView(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			if (pThis->m_fBufferedPaint) {
-				HDC hdc=pThis->m_BufferedPaint.Begin(ps.hdc,&ps.rcPaint,true);
+			if (m_fBufferedPaint) {
+				HDC hdc=m_BufferedPaint.Begin(ps.hdc,&ps.rcPaint,true);
 
 				if (hdc!=NULL) {
-					pThis->Draw(hdc,&ps.rcPaint);
-					pThis->m_BufferedPaint.SetOpaque();
-					pThis->m_BufferedPaint.End();
+					Draw(hdc,&ps.rcPaint);
+					m_BufferedPaint.SetOpaque();
+					m_BufferedPaint.End();
 				} else {
-					pThis->Draw(ps.hdc,&ps.rcPaint);
+					Draw(ps.hdc,&ps.rcPaint);
 				}
 			} else {
-				pThis->Draw(ps.hdc,&ps.rcPaint);
+				Draw(ps.hdc,&ps.rcPaint);
 			}
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
-
-			if (pThis->m_fMultiRow)
-				pThis->AdjustSize();
-		}
+		if (m_fMultiRow)
+			AdjustSize();
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CStatusView *pThis=GetStatusView(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 			RECT rc;
 
 			if (::GetCapture()==hwnd) {
-				pThis->GetItemRectByIndex(pThis->m_HotItem,&rc);
+				GetItemRectByIndex(m_HotItem,&rc);
 				x-=rc.left;
-				pThis->m_ItemList[pThis->m_HotItem]->OnMouseMove(x,y);
+				m_ItemList[m_HotItem]->OnMouseMove(x,y);
 			} else {
-				CStatusView *pThis=GetStatusView(hwnd);
-
-				if (pThis->m_fSingleMode)
+				if (m_fSingleMode)
 					break;
 
 				POINT pt;
 				pt.x=x;
 				pt.y=y;
 				int i;
-				for (i=0;i<pThis->m_ItemList.Length();i++) {
-					if (!pThis->m_ItemList[i]->GetVisible())
+				for (i=0;i<m_ItemList.Length();i++) {
+					if (!m_ItemList[i]->GetVisible())
 						continue;
-					pThis->GetItemRectByIndex(i,&rc);
+					GetItemRectByIndex(i,&rc);
 					if (::PtInRect(&rc,pt))
 						break;
 				}
-				if (i==pThis->m_ItemList.Length())
+				if (i==m_ItemList.Length())
 					i=-1;
-				if (i!=pThis->m_HotItem)
-					pThis->SetHotItem(i);
-				if (!pThis->m_fTrackMouseEvent) {
+				if (i!=m_HotItem)
+					SetHotItem(i);
+				// WM_MOUSELEAVE ‚ª‘—‚ç‚ê‚È‚­‚Ä‚à–³Œø‚É‚³‚ê‚éŽ–‚ª‚ ‚é‚æ‚¤‚¾
+				/*if (!m_fTrackMouseEvent)*/ {
 					TRACKMOUSEEVENT tme;
 
 					tme.cbSize=sizeof(TRACKMOUSEEVENT);
 					tme.dwFlags=TME_LEAVE;
 					tme.hwndTrack=hwnd;
 					if (TrackMouseEvent(&tme))
-						pThis->m_fTrackMouseEvent=true;
+						m_fTrackMouseEvent=true;
 				}
 			}
 		}
 		return 0;
 
 	case WM_MOUSELEAVE:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
-
-			pThis->m_fTrackMouseEvent=false;
-			if (!pThis->m_fOnButtonDown) {
-				if (pThis->m_HotItem>=0)
-					pThis->SetHotItem(-1);
-				if (pThis->m_pEventHandler)
-					pThis->m_pEventHandler->OnMouseLeave();
-			}
+		m_fTrackMouseEvent=false;
+		if (!m_fOnButtonDown) {
+			if (m_HotItem>=0)
+				SetHotItem(-1);
+			if (m_pEventHandler)
+				m_pEventHandler->OnMouseLeave();
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 	case WM_LBUTTONDBLCLK:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
+		if (m_HotItem>=0) {
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+			RECT rc;
 
-			if (pThis->m_HotItem>=0) {
-				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-				RECT rc;
+			GetItemRectByIndex(m_HotItem,&rc);
+			x-=rc.left;
+			m_fOnButtonDown=true;
+			switch (uMsg) {
+			case WM_LBUTTONDOWN:
+				m_ItemList[m_HotItem]->OnLButtonDown(x,y);
+				break;
+			case WM_RBUTTONDOWN:
+				m_ItemList[m_HotItem]->OnRButtonDown(x,y);
+				break;
+			case WM_LBUTTONDBLCLK:
+				m_ItemList[m_HotItem]->OnLButtonDoubleClick(x,y);
+				break;
+			}
+			m_fOnButtonDown=false;
+			if (!m_fTrackMouseEvent) {
+				POINT pt;
 
-				pThis->GetItemRectByIndex(pThis->m_HotItem,&rc);
-				x-=rc.left;
-				pThis->m_fOnButtonDown=true;
-				switch (uMsg) {
-				case WM_LBUTTONDOWN:
-					pThis->m_ItemList[pThis->m_HotItem]->OnLButtonDown(x,y);
-					break;
-				case WM_RBUTTONDOWN:
-					pThis->m_ItemList[pThis->m_HotItem]->OnRButtonDown(x,y);
-					break;
-				case WM_LBUTTONDBLCLK:
-					pThis->m_ItemList[pThis->m_HotItem]->OnLButtonDoubleClick(x,y);
-					break;
-				}
-				pThis->m_fOnButtonDown=false;
-				if (!pThis->m_fTrackMouseEvent) {
-					POINT pt;
-
-					::GetCursorPos(&pt);
-					::ScreenToClient(hwnd,&pt);
-					::GetClientRect(hwnd,&rc);
-					if (::PtInRect(&rc,pt)) {
-						::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
-					} else {
-						pThis->SetHotItem(-1);
-						if (pThis->m_pEventHandler)
-							pThis->m_pEventHandler->OnMouseLeave();
-					}
+				::GetCursorPos(&pt);
+				::ScreenToClient(hwnd,&pt);
+				::GetClientRect(hwnd,&rc);
+				if (::PtInRect(&rc,pt)) {
+					::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
+				} else {
+					SetHotItem(-1);
+					if (m_pEventHandler)
+						m_pEventHandler->OnMouseLeave();
 				}
 			}
 		}
@@ -478,32 +455,26 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		return 0;
 
 	case WM_MOUSEHOVER:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
+		if (m_HotItem>=0) {
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+			RECT rc;
 
-			if (pThis->m_HotItem>=0) {
-				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-				RECT rc;
-
-				pThis->GetItemRectByIndex(pThis->m_HotItem,&rc);
-				x-=rc.left;
-				if (pThis->m_ItemList[pThis->m_HotItem]->OnMouseHover(x,y)) {
-					TRACKMOUSEEVENT tme;
-					tme.cbSize=sizeof(TRACKMOUSEEVENT);
-					tme.dwFlags=TME_HOVER;
-					tme.hwndTrack=hwnd;
-					tme.dwHoverTime=HOVER_DEFAULT;
-					::TrackMouseEvent(&tme);
-				}
+			GetItemRectByIndex(m_HotItem,&rc);
+			x-=rc.left;
+			if (m_ItemList[m_HotItem]->OnMouseHover(x,y)) {
+				TRACKMOUSEEVENT tme;
+				tme.cbSize=sizeof(TRACKMOUSEEVENT);
+				tme.dwFlags=TME_HOVER;
+				tme.hwndTrack=hwnd;
+				tme.dwHoverTime=HOVER_DEFAULT;
+				::TrackMouseEvent(&tme);
 			}
 		}
 		return 0;
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
-			CStatusView *pThis=GetStatusView(hwnd);
-
-			if (pThis->m_HotItem>=0) {
+			if (m_HotItem>=0) {
 				SetCursor(LoadCursor(NULL,IDC_HAND));
 				return TRUE;
 			}
@@ -511,32 +482,19 @@ LRESULT CALLBACK CStatusView::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		break;
 
 	case WM_NOTIFY:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
-
-			if (pThis->m_HotItem>=0)
-				return pThis->m_ItemList[pThis->m_HotItem]->OnNotifyMessage(reinterpret_cast<LPNMHDR>(lParam));
-		}
+		if (m_HotItem>=0)
+			return m_ItemList[m_HotItem]->OnNotifyMessage(reinterpret_cast<LPNMHDR>(lParam));
 		break;
 
 	case WM_DISPLAYCHANGE:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
-
-			pThis->m_Offscreen.Destroy();
-		}
+		m_Offscreen.Destroy();
 		return 0;
 
 	case WM_DESTROY:
-		{
-			CStatusView *pThis=GetStatusView(hwnd);
-
-			pThis->m_Offscreen.Destroy();
-			pThis->OnDestroy();
-		}
+		m_Offscreen.Destroy();
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 

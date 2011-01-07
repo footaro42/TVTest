@@ -644,7 +644,7 @@ bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool 
 			|| !m_DtvEngine.m_TsAnalyzer.GetEventInfo(ServiceIndex ,&EventInfo, true, fNext))
 		return false;
 
-	pInfo->m_OriginalNID=m_DtvEngine.m_TsAnalyzer.GetNetworkID();
+	pInfo->m_NetworkID=m_DtvEngine.m_TsAnalyzer.GetNetworkID();
 	pInfo->m_TSID=m_DtvEngine.m_TsAnalyzer.GetTransportStreamID();
 	m_DtvEngine.GetServiceID(&pInfo->m_ServiceID);
 	pInfo->m_EventID=EventInfo.EventID;
@@ -652,12 +652,23 @@ bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool 
 	if (EventInfo.bValidStartTime)
 		pInfo->m_stStartTime=EventInfo.StartTime;
 	pInfo->m_DurationSec=EventInfo.Duration;
-	pInfo->m_ComponentType=EventInfo.Video.ComponentType;
+	pInfo->m_RunningStatus=EventInfo.RunningStatus;
+	pInfo->m_FreeCaMode=EventInfo.bFreeCaMode?
+		CEventInfoData::FREE_CA_MODE_SCRAMBLED:CEventInfoData::FREE_CA_MODE_UNSCRAMBLED;
+	pInfo->m_VideoInfo.StreamContent=EventInfo.Video.StreamContent;
+	pInfo->m_VideoInfo.ComponentType=EventInfo.Video.ComponentType;
+	pInfo->m_VideoInfo.ComponentTag=EventInfo.Video.ComponentTag;
+	pInfo->m_VideoInfo.LanguageCode=EventInfo.Video.LanguageCode;
+	::lstrcpyn(pInfo->m_VideoInfo.szText,EventInfo.Video.szText,CEventInfoData::VideoInfo::MAX_TEXT);
 	pInfo->m_AudioList.resize(EventInfo.Audio.size());
 	for (size_t i=0;i<EventInfo.Audio.size();i++) {
+		pInfo->m_AudioList[i].StreamContent=EventInfo.Audio[i].StreamContent;
 		pInfo->m_AudioList[i].ComponentType=EventInfo.Audio[i].ComponentType;
-		pInfo->m_AudioList[i].fESMultiLingualFlag=EventInfo.Audio[i].bESMultiLingualFlag;
-		pInfo->m_AudioList[i].fMainComponentFlag=EventInfo.Audio[i].bMainComponentFlag;
+		pInfo->m_AudioList[i].ComponentTag=EventInfo.Audio[i].ComponentTag;
+		pInfo->m_AudioList[i].SimulcastGroupTag=EventInfo.Audio[i].SimulcastGroupTag;
+		pInfo->m_AudioList[i].bESMultiLingualFlag=EventInfo.Audio[i].bESMultiLingualFlag;
+		pInfo->m_AudioList[i].bMainComponentFlag=EventInfo.Audio[i].bMainComponentFlag;
+		pInfo->m_AudioList[i].QualityIndicator=EventInfo.Audio[i].QualityIndicator;
 		pInfo->m_AudioList[i].SamplingRate=EventInfo.Audio[i].SamplingRate;
 		pInfo->m_AudioList[i].LanguageCode=EventInfo.Audio[i].LanguageCode;
 		pInfo->m_AudioList[i].LanguageCode2=EventInfo.Audio[i].LanguageCode2;
@@ -666,15 +677,9 @@ bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool 
 	pInfo->SetEventName(szEventName[0]!='\0'?szEventName:NULL);
 	pInfo->SetEventText(szEventText[0]!='\0'?szEventText:NULL);
 	pInfo->SetEventExtText(szEventExtText[0]!='\0'?szEventExtText:NULL);
-	pInfo->m_NibbleList.resize(EventInfo.ContentNibble.NibbleCount);
-	for (int i=0;i<EventInfo.ContentNibble.NibbleCount;i++) {
-		const CContentDesc::Nibble &ContentNibble=EventInfo.ContentNibble.NibbleList[i];
-		CEventInfoData::NibbleData &Nibble=pInfo->m_NibbleList[i];
-		Nibble.m_ContentNibbleLv1=ContentNibble.ContentNibbleLevel1;
-		Nibble.m_ContentNibbleLv2=ContentNibble.ContentNibbleLevel2;
-		Nibble.m_UserNibbleLv1=ContentNibble.UserNibble1;
-		Nibble.m_UserNibbleLv2=ContentNibble.UserNibble2;
-	}
+	pInfo->m_ContentNibble.NibbleCount=EventInfo.ContentNibble.NibbleCount;
+	for (int i=0;i<EventInfo.ContentNibble.NibbleCount;i++)
+		pInfo->m_ContentNibble.NibbleList[i]=EventInfo.ContentNibble.NibbleList[i];
 
 	return true;
 }

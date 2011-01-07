@@ -20,19 +20,17 @@ public:
 	};
 
 	static bool Initialize(HINSTANCE hinst);
+
 	CControlPanel();
 	~CControlPanel();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CControlPanel
 	bool AddItem(CControlPanelItem *pItem);
 	CControlPanelItem *GetItem(int Index) const;
 	bool UpdateItem(int Index);
 	bool GetItemPosition(int Index,RECT *pRect) const;
 	void UpdateLayout();
-	/*
-	void SetColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-				   const Theme::GradientInfo *pOverBackGradient,COLORREF crOverText,
-				   COLORREF crMargin);
-	*/
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
 	bool SetFont(const LOGFONT *pFont);
@@ -47,13 +45,6 @@ private:
 	int m_MarginSize;
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
-	/*
-	Theme::GradientInfo m_BackGradient;
-	COLORREF m_crTextColor;
-	Theme::GradientInfo m_OverBackGradient;
-	COLORREF m_crOverTextColor;
-	COLORREF m_crMarginColor;
-	*/
 	ThemeInfo m_Theme;
 	DrawUtil::COffscreen m_Offscreen;
 	HWND m_hwndMessage;
@@ -64,9 +55,9 @@ private:
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
 
-	static CControlPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+// CControlPanel
 	void Draw(HDC hdc,const RECT &PaintRect);
 	void SendCommand(int Command);
 	bool CalcTextSize(LPCTSTR pszText,SIZE *pSize);

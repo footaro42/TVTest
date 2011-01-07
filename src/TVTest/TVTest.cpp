@@ -30,7 +30,9 @@
 #include "EpgOptions.h"
 #include "ProgramGuideOptions.h"
 #include "Plugin.h"
+#ifdef NETWORK_REMOCON_SUPPORT
 #include "NetworkRemocon.h"
+#endif
 #include "Logger.h"
 #include "CommandLine.h"
 #include "InitialSettings.h"
@@ -51,6 +53,8 @@
 #include "ToolTip.h"
 #include "HelperClass/StdUtil.h"
 #include "resource.h"
+
+#pragma comment(lib,"imm32.lib")	// for ImmAssociateContext(Ex)
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -85,7 +89,9 @@ static bool fIncrementUDPPort=true;
 static CCommandLineParser CmdLineParser;
 
 static CChannelManager ChannelManager;
+#ifdef NETWORK_REMOCON_SUPPORT
 static CNetworkRemocon *pNetworkRemocon=NULL;
+#endif
 static CResidentManager ResidentManager;
 static CDriverManager DriverManager;
 static CLogoManager LogoManager;
@@ -100,9 +106,9 @@ static CChannelPanel ChannelPanel;
 static CCaptionPanel CaptionPanel;
 static CControlPanel ControlPanel;
 
-static CProgramGuide ProgramGuide;
-static CProgramGuideFrame ProgramGuideFrame(&ProgramGuide);
-static CProgramGuideDisplay ProgramGuideDisplay(&ProgramGuide);
+static CProgramGuide g_ProgramGuide;
+static CProgramGuideFrame ProgramGuideFrame(&g_ProgramGuide);
+static CProgramGuideDisplay ProgramGuideDisplay(&g_ProgramGuide);
 static bool fShowProgramGuide=false;
 
 static CStreamInfo StreamInfo;
@@ -128,10 +134,12 @@ static CRecordManager RecordManager;
 static CCaptureOptions CaptureOptions;
 static CChannelScan ChannelScan(&CoreEngine);
 static CEpgOptions EpgOptions(&CoreEngine,&LogoManager);
-static CProgramGuideOptions ProgramGuideOptions(&ProgramGuide);
+static CProgramGuideOptions ProgramGuideOptions(&g_ProgramGuide);
 static CPluginList PluginList;
 static CPluginOptions PluginOptions(&PluginList);
+#ifdef NETWORK_REMOCON_SUPPORT
 static CNetworkRemoconOptions NetworkRemoconOptions;
+#endif
 static CLogger Logger;
 static CRecentChannelList RecentChannelList;
 static CChannelHistory ChannelHistory;
@@ -164,6 +172,8 @@ static const struct {
 	{CMediaViewer::PROPERTY_FILTER_MPEG2DEMULTIPLEXER,	CM_DEMULTIPLEXERPROPERTY},
 };
 
+
+#ifdef NETWORK_REMOCON_SUPPORT
 
 class CMyGetChannelReceiver : public CNetworkRemoconReceiver {
 public:
@@ -243,6 +253,8 @@ End:
 static CMyGetChannelReceiver GetChannelReceiver;
 static CMyGetDriverReceiver GetDriverReceiver;
 
+#endif	// NETWORK_REMOCON_SUPPORT
+
 
 class CTotTimeAdjuster {
 	bool m_fEnable;
@@ -277,7 +289,7 @@ public:
 		if (m_PrevTime.wYear==0) {
 			m_PrevTime=st;
 			return false;
-		} else if (memcmp(&m_PrevTime,&st,sizeof(SYSTEMTIME))==0) {
+		} else if (CompareSystemTime(&m_PrevTime,&st)==0) {
 			return false;
 		}
 
@@ -295,7 +307,7 @@ public:
 					// バッファがあるので少し時刻を戻す
 					OffsetSystemTime(&st,-2000);
 					if (::SetLocalTime(&st)) {
-						Logger.AddLog(TEXT("TOTで時刻合わせを行いました。(%d/%d/%d %d/%02d/%02d)"),
+						Logger.AddLog(TEXT("TOTで時刻合わせを行いました。(%d/%d/%d %d:%02d:%02d)"),
 									  st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
 						fOK=true;
 					}
@@ -437,7 +449,9 @@ bool CAppMain::InitializeChannel()
 {
 	const bool fNetworkDriver=CoreEngine.IsNetworkDriver();
 	CFilePath ChannelFilePath;
+#ifdef NETWORK_REMOCON_SUPPORT
 	TCHAR szNetworkDriverName[MAX_PATH];
+#endif
 
 	ChannelManager.Clear();
 	ChannelManager.MakeDriverTuningSpaceList(&CoreEngine.m_DtvEngine.m_BonSrcDecoder);
@@ -446,7 +460,9 @@ bool CAppMain::InitializeChannel()
 		TCHAR szPath[MAX_PATH];
 		GetChannelFileName(CoreEngine.GetDriverFileName(),szPath,MAX_PATH);
 		ChannelFilePath.SetPath(szPath);
-	} else {
+	}
+#ifdef NETWORK_REMOCON_SUPPORT
+	else {
 		bool fOK=false;
 
 		if (NetworkRemoconOptions.IsEnable()) {
@@ -526,6 +542,7 @@ bool CAppMain::InitializeChannel()
 		if (!fOK)
 			szNetworkDriverName[0]=_T('\0');
 	}
+#endif	// NETWORK_REMOCON_SUPPORT
 	if (ChannelFilePath.GetPath()[0]==_T('\0') || !ChannelFilePath.IsExists()) {
 		ChannelFilePath.SetPath(m_szDefaultChannelFileName);
 		if (!ChannelFilePath.IsExists())
@@ -539,9 +556,12 @@ bool CAppMain::InitializeChannel()
 	if (!fNetworkDriver) {
 		::lstrcpy(szFileName,CoreEngine.GetDriverFileName());
 	} else {
+#ifdef NETWORK_REMOCON_SUPPORT
 		if (szNetworkDriverName[0]!=_T('\0')) {
 			::lstrcpy(szFileName,szNetworkDriverName);
-		} else {
+		} else
+#endif
+		{
 			fLoadChannelSettings=false;
 		}
 	}
@@ -571,8 +591,10 @@ bool CAppMain::InitializeChannel()
 		RestoreChannelInfo.fAllChannels?CChannelManager::SPACE_ALL:max(RestoreChannelInfo.Space,0),
 		-1);
 	ChannelManager.SetCurrentServiceID(0);
+#ifdef NETWORK_REMOCON_SUPPORT
 	NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
 											 &CoreEngine,&ChannelManager);
+#endif
 	m_UICore.OnChannelListChanged();
 	ChannelScan.SetTuningSpaceList(ChannelManager.GetTuningSpaceList());
 	return true;
@@ -677,14 +699,16 @@ bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 		}
 	}
 	ChannelManager.SetCurrentChannel(
-					fAllChannels?CChannelManager::SPACE_ALL:(Space>=0?Space:0),
-					CoreEngine.IsUDPDriver()?0:-1);
+		fAllChannels?CChannelManager::SPACE_ALL:(Space>=0?Space:0),
+		/*CoreEngine.IsUDPDriver()?0:*/-1);
 	ChannelManager.SetCurrentServiceID(0);
 	WORD ServiceID;
 	if (CoreEngine.m_DtvEngine.GetServiceID(&ServiceID))
 		FollowChannelChange(CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID(),ServiceID);
+#ifdef NETWORK_REMOCON_SUPPORT
 	NetworkRemoconOptions.InitNetworkRemocon(&pNetworkRemocon,
 											 &CoreEngine,&ChannelManager);
+#endif
 	m_UICore.OnChannelListChanged();
 	return true;
 }
@@ -725,7 +749,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 
 		LPCTSTR pszTuningSpace=ChannelManager.GetDriverTuningSpaceList()->GetTuningSpaceName(pChInfo->GetSpace());
 		AddLog(TEXT("BonDriverにチャンネル変更を要求しました。(チューニング空間 %d[%s] / Ch %d[%s] / Sv %d)"),
-			   pChInfo->GetSpace(),pszTuningSpace!=NULL?pszTuningSpace:TEXT("???"),
+			   pChInfo->GetSpace(),pszTuningSpace!=NULL?pszTuningSpace:TEXT("\?\?\?"),
 			   pChInfo->GetChannelIndex(),pChInfo->GetName(),ServiceID);
 
 		if (!CoreEngine.m_DtvEngine.SetChannel(
@@ -818,8 +842,10 @@ bool CAppMain::SetService(int Service)
 	if (Service<0 || Service>=NumServices
 			|| !CoreEngine.m_DtvEngine.SetService(Service))
 		return false;
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (pNetworkRemocon!=NULL)
 		pNetworkRemocon->SetService(Service);
+#endif
 	WORD ServiceID=0;
 	CoreEngine.m_DtvEngine.GetServiceID(&ServiceID);
 	AddLog(TEXT("サービスを変更しました。(%d: SID %d)"),Service,ServiceID);
@@ -1152,7 +1178,9 @@ bool CAppMain::LoadSettings()
 		ChannelScan.Read(&Setting);
 		PluginOptions.Read(&Setting);
 		EpgOptions.Read(&Setting);
+#ifdef NETWORK_REMOCON_SUPPORT
 		NetworkRemoconOptions.Read(&Setting);
+#endif
 		Logger.Read(&Setting);
 		ZoomOptions.Read(&Setting);
 		Setting.Close();
@@ -1272,7 +1300,9 @@ bool CAppMain::SaveSettings()
 		ChannelScan.Write(&Setting);
 		PluginOptions.Write(&Setting);
 		EpgOptions.Write(&Setting);
+#ifdef NETWORK_REMOCON_SUPPORT
 		NetworkRemoconOptions.Write(&Setting);
+#endif
 		Logger.Write(&Setting);
 		ZoomOptions.Write(&Setting);
 		Setting.Close();
@@ -1346,7 +1376,7 @@ bool CAppMain::GenerateRecordFileName(LPTSTR pszFileName,int MaxFileName) const
 		bool fNext=false;
 		SYSTEMTIME stCur,stStart;
 		if (!CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTotTime(&stCur))
-			::GetLocalTime(&stCur);
+			GetCurrentJST(&stCur);
 		if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,NULL,true)) {
 			LONGLONG Diff=DiffSystemTime(&stCur,&stStart);
 			if (Diff>=0 && Diff<60*1000)
@@ -1604,6 +1634,12 @@ const CDriverManager *CAppMain::GetDriverManager() const
 CControllerManager *CAppMain::GetControllerManager() const
 {
 	return &ControllerManager;
+}
+
+
+CEpgProgramList *CAppMain::GetEpgProgramList() const
+{
+	return &EpgProgramList;
 }
 
 
@@ -2465,10 +2501,12 @@ bool CUICore::ShowSpecialMenu(MenuType Menu,const POINT *pPos,UINT Flags)
 
 void CUICore::InitChannelMenu(HMENU hmenu)
 {
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (pNetworkRemocon!=NULL) {
 		InitNetworkRemoconChannelMenu(hmenu);
 		return;
 	}
+#endif
 
 	const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 
@@ -2509,6 +2547,7 @@ void CUICore::InitChannelMenu(HMENU hmenu)
 	}
 }
 
+#ifdef NETWORK_REMOCON_SUPPORT
 void CUICore::InitNetworkRemoconChannelMenu(HMENU hmenu)
 {
 	const CChannelList &RemoconChList=pNetworkRemocon->GetChannelList();
@@ -2559,6 +2598,7 @@ void CUICore::InitNetworkRemoconChannelMenu(HMENU hmenu)
 			CM_CHANNEL_FIRST+ChannelManager.GetCurrentChannel(),
 			MF_BYCOMMAND);
 }
+#endif	// NETWORK_REMOCON_SUPPORT
 
 void CUICore::InitTunerMenu(HMENU hmenu)
 {
@@ -2971,17 +3011,17 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 		{CColorScheme::COLOR_PROGRAMGUIDECURTIMELINE,		CProgramGuide::COLOR_CURTIMELINE},
 	};
 	for (int i=0;i<lengthof(ProgramGuideColorMap);i++)
-		ProgramGuide.SetColor(ProgramGuideColorMap[i].To,
-							  pColorScheme->GetColor(ProgramGuideColorMap[i].From));
+		g_ProgramGuide.SetColor(ProgramGuideColorMap[i].To,
+								pColorScheme->GetColor(ProgramGuideColorMap[i].From));
 	for (int i=CProgramGuide::COLOR_CONTENT_FIRST,j=0;i<=CProgramGuide::COLOR_CONTENT_LAST;i++,j++)
-		ProgramGuide.SetColor(i,pColorScheme->GetColor(CColorScheme::COLOR_PROGRAMGUIDE_CONTENT_FIRST+j));
+		g_ProgramGuide.SetColor(i,pColorScheme->GetColor(CColorScheme::COLOR_PROGRAMGUIDE_CONTENT_FIRST+j));
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDECHANNELBACK,&Gradient1);
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDECURCHANNELBACK,&Gradient2);
 	pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIMEBACK,&Gradient3);
 	Theme::GradientInfo TimeGradients[CProgramGuide::TIME_BAR_BACK_COLORS];
 	for (int i=0;i<CProgramGuide::TIME_BAR_BACK_COLORS;i++)
 		pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIME0TO2BACK+i,&TimeGradients[i]);
-	ProgramGuide.SetBackColors(&Gradient1,&Gradient2,&Gradient3,TimeGradients);
+	g_ProgramGuide.SetBackColors(&Gradient1,&Gradient2,&Gradient3,TimeGradients);
 
 	PluginList.SendColorChangeEvent();
 
@@ -2993,7 +3033,7 @@ static void ApplyEventInfoFont()
 {
 	ProgramListPanel.SetEventInfoFont(EpgOptions.GetEventInfoFont());
 	ChannelPanel.SetEventInfoFont(EpgOptions.GetEventInfoFont());
-	ProgramGuide.SetEventInfoFont(EpgOptions.GetEventInfoFont());
+	g_ProgramGuide.SetEventInfoFont(EpgOptions.GetEventInfoFont());
 	CProgramInfoStatusItem *pProgramInfo=dynamic_cast<CProgramInfoStatusItem*>(StatusView.GetItemByID(STATUS_ITEM_PROGRAMINFO));
 	if (pProgramInfo!=NULL)
 		pProgramInfo->SetEventInfoFont(EpgOptions.GetEventInfoFont());
@@ -3024,7 +3064,9 @@ public:
 		PAGE_EPG,
 		PAGE_PROGRAMGUIDE,
 		PAGE_PLUGIN,
+#ifdef NETWORK_REMOCON_SUPPORT
 		PAGE_NETWORKREMOCON,
+#endif
 		PAGE_LOG,
 		PAGE_LAST=PAGE_LOG
 	};
@@ -3039,7 +3081,7 @@ private:
 		LPCTSTR pszTemplate;
 		DLGPROC pfnDlgProc;
 		COptions *pOptions;
-		COLORREF crTitleColor;
+		int HelpID;
 	};
 	static const PageInfo m_PageList[NUM_PAGES];
 	int m_CurrentPage;
@@ -3052,54 +3094,59 @@ private:
 
 	void CreatePage(int Page);
 	void SetPage(int Page);
+	COLORREF GetTitleColor(int Page) const;
+
+// COptionFrame
+	void OnSettingError(COptions *pOptions) override;
+
 	static COptionDialog *GetThis(HWND hDlg);
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-// COptionFrame
-	void OnSettingError(COptions *pOptions);
 };
 
 
 const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 	{TEXT("一般"),					MAKEINTRESOURCE(IDD_OPTIONS_GENERAL),
-		CGeneralOptions::DlgProc,		&GeneralOptions,	RGB(128,0,0)},
+		CGeneralOptions::DlgProc,		&GeneralOptions,	HELP_ID_OPTIONS_GENERAL},
 	{TEXT("表示"),					MAKEINTRESOURCE(IDD_OPTIONS_VIEW),
-		CViewOptions::DlgProc,			&ViewOptions,		RGB(32,192,64)},
+		CViewOptions::DlgProc,			&ViewOptions,		HELP_ID_OPTIONS_VIEW},
 	{TEXT("OSD"),					MAKEINTRESOURCE(IDD_OPTIONS_OSD),
-		COSDOptions::DlgProc,			&OSDOptions,		RGB(0,128,0)},
+		COSDOptions::DlgProc,			&OSDOptions,		HELP_ID_OPTIONS_OSD},
 	{TEXT("ステータスバー"),		MAKEINTRESOURCE(IDD_OPTIONS_STATUS),
-		CStatusOptions::DlgProc,		&StatusOptions,		RGB(0,0,128)},
+		CStatusOptions::DlgProc,		&StatusOptions,		HELP_ID_OPTIONS_STATUSBAR},
 	{TEXT("サイドバー"),			MAKEINTRESOURCE(IDD_OPTIONS_SIDEBAR),
-		CSideBarOptions::DlgProc,		&SideBarOptions,	RGB(192,64,128)},
+		CSideBarOptions::DlgProc,		&SideBarOptions,	HELP_ID_OPTIONS_SIDEBAR},
 	{TEXT("パネル"),				MAKEINTRESOURCE(IDD_OPTIONS_PANEL),
-		CPanelOptions::DlgProc,			&PanelOptions,		RGB(0,255,128)},
+		CPanelOptions::DlgProc,			&PanelOptions,		HELP_ID_OPTIONS_PANEL},
 	{TEXT("配色"),					MAKEINTRESOURCE(IDD_OPTIONS_COLORSCHEME),
-		CColorSchemeOptions::DlgProc,	&ColorSchemeOptions,RGB(0,128,255)},
+		CColorSchemeOptions::DlgProc,	&ColorSchemeOptions,HELP_ID_OPTIONS_COLORSCHEME},
 	{TEXT("操作"),					MAKEINTRESOURCE(IDD_OPTIONS_OPERATION),
-		COperationOptions::DlgProc,		&OperationOptions,	RGB(128,128,0)},
+		COperationOptions::DlgProc,		&OperationOptions,	HELP_ID_OPTIONS_OPERATION},
 	{TEXT("キー割り当て"),			MAKEINTRESOURCE(IDD_OPTIONS_ACCELERATOR),
-		CAccelerator::DlgProc,			&Accelerator,		RGB(128,255,64)},
+		CAccelerator::DlgProc,			&Accelerator,		HELP_ID_OPTIONS_ACCELERATOR},
 	{TEXT("リモコン"),				MAKEINTRESOURCE(IDD_OPTIONS_CONTROLLER),
-		CControllerManager::DlgProc,	&ControllerManager,	RGB(255,255,128)},
+		CControllerManager::DlgProc,	&ControllerManager,	HELP_ID_OPTIONS_CONTROLLER},
 	{TEXT("ドライバ別設定"),		MAKEINTRESOURCE(IDD_OPTIONS_DRIVER),
-		CDriverOptions::DlgProc,		&DriverOptions,		RGB(128,255,128)},
+		CDriverOptions::DlgProc,		&DriverOptions,		HELP_ID_OPTIONS_DRIVER},
 	{TEXT("再生"),					MAKEINTRESOURCE(IDD_OPTIONS_PLAYBACK),
-		CPlaybackOptions::DlgProc,		&PlaybackOptions,	RGB(32,64,192)},
+		CPlaybackOptions::DlgProc,		&PlaybackOptions,	HELP_ID_OPTIONS_PLAYBACK},
 	{TEXT("録画"),					MAKEINTRESOURCE(IDD_OPTIONS_RECORD),
-		CRecordOptions::DlgProc,		&RecordOptions,		RGB(128,0,160)},
+		CRecordOptions::DlgProc,		&RecordOptions,		HELP_ID_OPTIONS_RECORD},
 	{TEXT("キャプチャ"),			MAKEINTRESOURCE(IDD_OPTIONS_CAPTURE),
-		CCaptureOptions::DlgProc,		&CaptureOptions,	RGB(0,128,128)},
+		CCaptureOptions::DlgProc,		&CaptureOptions,	HELP_ID_OPTIONS_CAPTURE},
 	{TEXT("チャンネルスキャン"),	MAKEINTRESOURCE(IDD_OPTIONS_CHANNELSCAN),
-		CChannelScan::DlgProc,			&ChannelScan,		RGB(0,160,255)},
+		CChannelScan::DlgProc,			&ChannelScan,		HELP_ID_OPTIONS_CHANNELSCAN},
 	{TEXT("EPG/番組情報"),			MAKEINTRESOURCE(IDD_OPTIONS_EPG),
-		CEpgOptions::DlgProc,			&EpgOptions,		RGB(128,0,255)},
+		CEpgOptions::DlgProc,			&EpgOptions,		HELP_ID_OPTIONS_EPG},
 	{TEXT("EPG番組表"),				MAKEINTRESOURCE(IDD_OPTIONS_PROGRAMGUIDE),
-		CProgramGuideOptions::DlgProc,	&ProgramGuideOptions,RGB(160,255,0)},
+		CProgramGuideOptions::DlgProc,	&ProgramGuideOptions,HELP_ID_OPTIONS_PROGRAMGUIDE},
 	{TEXT("プラグイン"),			MAKEINTRESOURCE(IDD_OPTIONS_PLUGIN),
-		CPluginOptions::DlgProc,	&PluginOptions,			RGB(255,0,160)},
+		CPluginOptions::DlgProc,	&PluginOptions,			HELP_ID_OPTIONS_PLUGIN},
+#ifdef NETWORK_REMOCON_SUPPORT
 	{TEXT("ネットワークリモコン"),	MAKEINTRESOURCE(IDD_OPTIONS_NETWORKREMOCON),
-		CNetworkRemoconOptions::DlgProc,&NetworkRemoconOptions,	RGB(255,128,0)},
+		CNetworkRemoconOptions::DlgProc,&NetworkRemoconOptions,HELP_ID_OPTIONS_NETWORKREMOCON},
+#endif
 	{TEXT("ログ"),					MAKEINTRESOURCE(IDD_OPTIONS_LOG),
-		CLogger::DlgProc,				&Logger,			RGB(255,0,128)},
+		CLogger::DlgProc,				&Logger,			HELP_ID_OPTIONS_LOG},
 };
 
 
@@ -3150,6 +3197,43 @@ void COptionDialog::SetPage(int Page)
 		DlgListBox_SetCurSel(m_hDlg,IDC_OPTIONS_LIST,Page);
 		InvalidateDlgItem(m_hDlg,IDC_OPTIONS_TITLE);
 	}
+}
+
+
+static COLORREF HSVToRGB(double Hue,double Saturation,double Value)
+{
+	double r,g,b;
+
+	if (Saturation==0.0) {
+		r=g=b=Value;
+	} else {
+		double h,s,v;
+		double f,p,q,t;
+
+		h=Hue*6.0;
+		if (h>=6.0)
+			h-=6.0;
+		s=Saturation;
+		v=Value;
+		f=h-(int)h;
+		p=v*(1.0-s);
+		q=v*(1.0-s*f);
+		t=v*(1.0-s*(1.0-f));
+		switch ((int)h) {
+		case 0: r=v; g=t; b=p; break;
+		case 1: r=q; g=v; b=p; break;
+		case 2: r=p; g=v; b=t; break;
+		case 3: r=p; g=q; b=v; break;
+		case 4: r=t; g=p; b=v; break;
+		case 5: r=v; g=p; b=q; break;
+		}
+	}
+	return RGB((BYTE)(r*255.0+0.5),(BYTE)(g*255.0+0.5),(BYTE)(b*255.0+0.5));
+}
+
+COLORREF COptionDialog::GetTitleColor(int Page) const
+{
+	return HSVToRGB(1.0*(double)Page/(double)NUM_PAGES,0.8,1.0);
 }
 
 
@@ -3227,7 +3311,7 @@ INT_PTR CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					rc=pdis->rcItem;
 					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
 					DrawUtil::FillGradient(pdis->hDC,&rc,
-						RGB(0,0,0),pThis->m_PageList[pdis->itemData].crTitleColor);
+										   RGB(0,0,0),pThis->GetTitleColor(pdis->itemData));
 					crText=RGB(255,255,255);
 				} else {
 					::FillRect(pdis->hDC,&pdis->rcItem,
@@ -3263,7 +3347,7 @@ INT_PTR CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				RECT rc;
 
 				DrawUtil::FillGradient(pdis->hDC,&pdis->rcItem,
-					RGB(0,0,0),pThis->m_PageList[pThis->m_CurrentPage].crTitleColor);
+									   RGB(0,0,0),pThis->GetTitleColor(pThis->m_CurrentPage));
 				hfontOld=SelectFont(pdis->hDC,pThis->m_TitleFont.GetHandle());
 				crOldText=::SetTextColor(pdis->hDC,RGB(255,255,255));
 				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
@@ -3296,7 +3380,7 @@ INT_PTR CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			{
 				COptionDialog *pThis=GetThis(hDlg);
 
-				HtmlHelpClass.ShowContent(HELP_ID_OPTIONS_FIRST+pThis->m_CurrentPage);
+				HtmlHelpClass.ShowContent(pThis->m_PageList[pThis->m_CurrentPage].HelpID);
 			}
 			return TRUE;
 
@@ -3377,11 +3461,13 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_EVENTINFOFONT)!=0) {
 		ApplyEventInfoFont();
 	}
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (NetworkRemoconOptions.GetUpdateFlags()!=0) {
 		AppMain.InitializeChannel();
 		if (pNetworkRemocon!=NULL)
 			pNetworkRemocon->GetChannel(&GetChannelReceiver);
 	}
+#endif
 	ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
 	AppMain.SaveSettings();
 	PluginList.SendSettingsChangeEvent();
@@ -3748,9 +3834,12 @@ class CMyChannelPanelEventHandler : public CChannelPanel::CEventHandler
 		const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 
 		if (pList!=NULL) {
+#ifdef NETWORK_REMOCON_SUPPORT
 			if (pNetworkRemocon!=NULL) {
 				MainWindow.PostCommand(CM_CHANNELNO_FIRST+pChannelInfo->GetChannelNo()-1);
-			} else {
+			} else
+#endif
+			{
 				int Index=pList->Find(pChannelInfo->GetSpace(),
 									  pChannelInfo->GetChannelIndex(),
 									  pChannelInfo->GetServiceID());
@@ -3839,25 +3928,48 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 		m_pProgramGuide->Clear();
 	}
 
+	int FindChannel(const CChannelList *pChannelList,const CServiceInfoData *pServiceInfo)
+	{
+		for (int i=0;i<pChannelList->NumChannels();i++) {
+			const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(i);
+
+			if (pChannelInfo->GetTransportStreamID()==pServiceInfo->m_TSID
+					&& pChannelInfo->GetServiceID()==pServiceInfo->m_ServiceID)
+				return i;
+		}
+		return -1;
+	}
+
 	void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo)
 	{
 		if (!AppMain.SetDriver(pszDriverFileName))
 			return;
 
-		const CChannelList *pList=ChannelManager.GetCurrentChannelList();
-
-		if (pList!=NULL) {
-			int Index=pList->FindServiceID(pServiceInfo->m_ServiceID);
-
+		const CChannelList *pChannelList=ChannelManager.GetCurrentChannelList();
+		if (pChannelList!=NULL) {
+			int Index=FindChannel(pChannelList,pServiceInfo);
 			if (Index>=0) {
-				const CChannelInfo *pChInfo=pList->GetChannelInfo(Index);
-
-				if (pChInfo!=NULL) {
-					if (pNetworkRemocon==NULL) {
-						MainWindow.PostCommand(CM_CHANNEL_FIRST+Index);
-					} else {
-						MainWindow.PostCommand(CM_CHANNELNO_FIRST+pChInfo->GetChannelNo()-1);
+#ifdef NETWORK_REMOCON_SUPPORT
+				if (pNetworkRemocon==NULL) {
+					MainWindow.PostCommand(CM_CHANNEL_FIRST+Index);
+				} else
+#endif
+				{
+					MainWindow.PostCommand(CM_CHANNELNO_FIRST+
+										   pChannelList->GetChannelInfo(Index)->GetChannelNo()-1);
+				}
+			}
+		}
+		for (int i=0;i<ChannelManager.NumSpaces();i++) {
+			pChannelList=ChannelManager.GetChannelList(i);
+			if (pChannelList!=NULL) {
+				int Index=FindChannel(pChannelList,pServiceInfo);
+				if (Index>=0) {
+					if (RecordManager.IsRecording()) {
+						if (!RecordOptions.ConfirmChannelChange(MainWindow.GetVideoHostWindow()))
+							return;
 					}
+					AppMain.SetChannel(i,Index);
 				}
 			}
 		}
@@ -4541,27 +4653,12 @@ CFullscreen::~CFullscreen()
 }
 
 
-LRESULT CALLBACK CFullscreen::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	CFullscreen *pThis;
-
-	if (uMsg==WM_CREATE) {
-		pThis=static_cast<CFullscreen*>(CBasicWindow::OnCreate(hwnd,lParam));
-
-		return pThis->OnCreate()?0:-1;
-	}
-
-	pThis=static_cast<CFullscreen*>(GetBasicWindow(hwnd));
-	if (pThis==NULL)
-		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
-
-	return pThis->OnMessage(hwnd,uMsg,wParam,lParam);
-}
-
-
 LRESULT CFullscreen::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
+	case WM_CREATE:
+		return OnCreate()?0:-1;
+
 	case WM_SIZE:
 		m_LayoutBase.SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
 		return 0;
@@ -4693,7 +4790,6 @@ LRESULT CFullscreen::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		ShowStatusView(false);
 		ShowSideBar(false);
 		ShowPanel(false);
-		OnDestroy();
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
@@ -5108,12 +5204,13 @@ CServiceUpdateInfo::~CServiceUpdateInfo()
 class CMyDtvEngineHandler : public CDtvEngine::CEventHandler
 {
 // CEventHandler
-	void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer,bool bStreamChanged);
-	void OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer);
-	void OnFileWriteError(CBufferedFileWriter *pFileWriter);
-	void OnVideoSizeChanged(CMediaViewer *pMediaViewer);
-	void OnEmmProcessed(const BYTE *pEmmData);
-	void OnEcmError(LPCTSTR pszText);
+	void OnServiceListUpdated(CTsAnalyzer *pTsAnalyzer,bool bStreamChanged) override;
+	void OnServiceInfoUpdated(CTsAnalyzer *pTsAnalyzer) override;
+	void OnFileWriteError(CBufferedFileWriter *pFileWriter) override;
+	void OnVideoSizeChanged(CMediaViewer *pMediaViewer) override;
+	void OnEmmProcessed(const BYTE *pEmmData) override;
+	void OnEcmError(LPCTSTR pszText) override;
+	void OnEcmRefused() override;
 // CMyDtvEngineHandler
 	void OnServiceUpdated(CTsAnalyzer *pTsAnalyzer,bool fListUpdated,bool fStreamChanged);
 };
@@ -5159,6 +5256,11 @@ void CMyDtvEngineHandler::OnEmmProcessed(const BYTE *pEmmData)
 void CMyDtvEngineHandler::OnEcmError(LPCTSTR pszText)
 {
 	MainWindow.PostMessage(WM_APP_ECMERROR,0,(LPARAM)DuplicateString(pszText));
+}
+
+void CMyDtvEngineHandler::OnEcmRefused()
+{
+	MainWindow.PostMessage(WM_APP_ECMREFUSED,0,0);
 }
 
 
@@ -5385,8 +5487,7 @@ void CMainWindow::ShowNotificationBar(LPCTSTR pszText,
 									  CNotificationBar::MessageType Type,DWORD Duration)
 {
 	NotificationBar.SetFont(OSDOptions.GetNotificationBarFont());
-	NotificationBar.SetText(pszText,Type);
-	NotificationBar.Show(max((DWORD)OSDOptions.GetNotificationBarDuration(),Duration));
+	NotificationBar.Show(pszText,Type,max((DWORD)OSDOptions.GetNotificationBarDuration(),Duration));
 }
 
 
@@ -5925,7 +6026,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		{
 			LPMEASUREITEMSTRUCT pmis=reinterpret_cast<LPMEASUREITEMSTRUCT>(lParam);
 
-			if (pmis->itemID>=CM_ASPECTRATIO_FIRST && pmis->itemID<=CM_ASPECTRATIO_LAST) {
+			if (pmis->itemID>=CM_ASPECTRATIO_FIRST && pmis->itemID<=CM_ASPECTRATIO_3D_LAST) {
 				if (AspectRatioIconMenu.OnMeasureItem(hwnd,wParam,lParam))
 					return TRUE;
 				break;
@@ -6209,11 +6310,14 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			}
 
 			delete pInfo;
+#ifdef NETWORK_REMOCON_SUPPORT
 			if (pNetworkRemocon!=NULL)
 				pNetworkRemocon->GetChannel(&GetChannelReceiver);
+#endif
 		}
 		return 0;
 
+#ifdef NETWORK_REMOCON_SUPPORT
 	case WM_APP_CHANNELCHANGE:
 		{
 			const CChannelList &List=pNetworkRemocon->GetChannelList();
@@ -6228,6 +6332,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 								   CM_CHANNELNO_FIRST+ChannelNo-1);
 		}
 		return 0;
+#endif
 
 	/*
 	case WM_APP_IMAGESAVE:
@@ -6277,6 +6382,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return 0;
 
 	case WM_APP_QUERYPORT:
+#ifdef NETWORK_REMOCON_SUPPORT
 		// 使っているポートを返す
 		if (!m_fClosing && CoreEngine.IsNetworkDriver()) {
 			WORD Port=ChannelManager.GetCurrentChannel()+
@@ -6284,6 +6390,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			WORD RemoconPort=pNetworkRemocon!=NULL?pNetworkRemocon->GetPort():0;
 			return MAKELRESULT(Port,RemoconPort);
 		}
+#endif
 		return 0;
 
 	case WM_APP_FILEWRITEERROR:
@@ -6298,7 +6405,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			表示されるまでにはタイムラグがあるため、後で調整を行う
 		*/
 		m_VideoSizeChangedTimerCount=0;
-		::SetTimer(hwnd,TIMER_ID_VIDEOSIZECHANGED,1000,NULL);
+		::SetTimer(hwnd,TIMER_ID_VIDEOSIZECHANGED,500,NULL);
 		if (m_AspectRatioResetTime!=0
 				&& !m_pCore->GetFullscreen() && !::IsZoomed(hwnd)
 				&& IsViewerEnabled()
@@ -6338,6 +6445,13 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				Logger.AddLog(TEXT("ECM処理でエラーが発生しました。"));
 			}
 		}
+		return 0;
+
+	case WM_APP_ECMREFUSED:
+		// ECM が受け付けられない
+		if (OSDOptions.IsNotifyEnabled(COSDOptions::NOTIFY_ECMERROR))
+			ShowNotificationBar(TEXT("契約されていないため視聴できません"),
+								CNotificationBar::MESSAGE_WARNING,6000);
 		return 0;
 
 	case WM_APP_EPGLOADED:
@@ -6405,7 +6519,9 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			hThread=::CreateThread(NULL,0,ExitWatchThread,hEvent,0,NULL);
 #endif
 
+#ifdef NETWORK_REMOCON_SUPPORT
 		SAFE_DELETE(pNetworkRemocon);
+#endif
 		ResidentManager.Finalize();
 		ChannelMenu.Destroy();
 		MainMenu.Destroy();
@@ -6429,8 +6545,10 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		// 終了時の負荷で他のプロセスの録画がドロップすることがあるらしい...
 		::SetPriorityClass(::GetCurrentProcess(),BELOW_NORMAL_PRIORITY_CLASS);
 
-		if (!CmdLineParser.m_fNoEpg)
+		if (!CmdLineParser.m_fNoEpg) {
+			EpgProgramList.UpdateProgramList();
 			EpgOptions.SaveEpgFile(&EpgProgramList);
+		}
 		EpgOptions.SaveLogoFile();
 		EpgOptions.Finalize();
 
@@ -6614,6 +6732,9 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 		Aero.EnableNcRendering(m_hwnd,false);
 	}
 
+	::ImmAssociateContext(m_hwnd,NULL);
+	::ImmAssociateContextEx(m_hwnd,NULL,IACE_CHILDREN);
+
 	MainMenu.Create(hInst);
 	/*
 	MainMenu.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
@@ -6656,7 +6777,7 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 
 	AspectRatioIconMenu.Initialize(MainMenu.GetSubMenu(CMainMenu::SUBMENU_ASPECTRATIO),
 								   hInst,MAKEINTRESOURCE(IDB_PANSCAN),16,RGB(192,192,192),
-								   CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST);
+								   CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_3D_LAST);
 	AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_FIRST+m_AspectRatioType);
 
 	TaskbarManager.Initialize(m_hwnd);
@@ -6669,6 +6790,7 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 									CMediaViewer::STRETCH_KEEPASPECTRATIO);
 
 	::SetTimer(m_hwnd,TIMER_ID_UPDATE,UPDATE_TIMER_INTERVAL,NULL);
+
 	return true;
 }
 
@@ -6826,8 +6948,17 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		return;
 
 	case CM_ASPECTRATIO:
-		SendCommand(CM_ASPECTRATIO_FIRST+
-			(m_AspectRatioType+1)%(CM_ASPECTRATIO_LAST-CM_ASPECTRATIO_FIRST+1));
+		{
+			int Command;
+
+			if (m_AspectRatioType<ASPECTRATIO_32x9)
+				Command=CM_ASPECTRATIO_FIRST+
+					(m_AspectRatioType+1)%(CM_ASPECTRATIO_LAST-CM_ASPECTRATIO_FIRST+1);
+			else
+				Command=CM_ASPECTRATIO_3D_FIRST+
+					(m_AspectRatioType-ASPECTRATIO_32x9+1)%(CM_ASPECTRATIO_3D_LAST-CM_ASPECTRATIO_3D_FIRST+1);
+			SendCommand(Command);
+		}
 		return;
 
 	case CM_ASPECTRATIO_DEFAULT:
@@ -6836,7 +6967,11 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_ASPECTRATIO_SUPERFRAME:
 	case CM_ASPECTRATIO_SIDECUT:
 	case CM_ASPECTRATIO_4x3:
+	case CM_ASPECTRATIO_32x9:
+	case CM_ASPECTRATIO_16x9_LEFT:
+	case CM_ASPECTRATIO_16x9_RIGHT:
 		{
+			/*
 			static const struct {
 				BYTE XAspect,YAspect;
 				BYTE PanAndScan;
@@ -6848,11 +6983,26 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				{ 4,3,CMediaViewer::PANANDSCAN_HORZ_CUT | CMediaViewer::PANANDSCAN_VERT_NONE},
 				{ 4,3,CMediaViewer::PANANDSCAN_HORZ_NONE | CMediaViewer::PANANDSCAN_VERT_NONE},
 			};
+			*/
+			static const struct {
+				BYTE XAspect,YAspect;
+				CMediaViewer::ClippingInfo Clipping;
+			} AspectRatioList[] = {
+				{ 0,0,{0,0, 0,0,0, 0}},
+				{16,9,{0,0, 1,0,0, 1}},
+				{16,9,{0,0, 1,3,3,24}},
+				{16,9,{2,2,16,3,3,24}},
+				{ 4,3,{2,2,16,0,0, 1}},
+				{ 4,3,{0,0, 1,0,0, 1}},
+				{32,9,{0,0, 1,0,0, 1}},
+				{16,9,{0,1, 2,0,0, 1}},
+				{16,9,{1,0, 2,0,0, 1}},
+			};
 			int i=id-CM_ASPECTRATIO_FIRST;
 
 			CoreEngine.m_DtvEngine.m_MediaViewer.SetPanAndScan(
 				AspectRatioList[i].XAspect,AspectRatioList[i].YAspect,
-				AspectRatioList[i].PanAndScan);
+				&AspectRatioList[i].Clipping);
 			if (!m_pCore->GetFullscreen() && !::IsZoomed(hwnd)) {
 				if (!ViewOptions.GetPanScanNoResizeWindow()) {
 					int ZoomNum,ZoomDenom;
@@ -7317,8 +7467,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			}
 			SYSTEMTIME stFirst,stLast;
 			ProgramGuideOptions.GetTimeRange(&stFirst,&stLast);
-			ProgramGuide.SetTimeRange(&stFirst,&stLast);
-			ProgramGuide.SetViewDay(CProgramGuide::DAY_TODAY);
+			g_ProgramGuide.SetTimeRange(&stFirst,&stLast);
+			g_ProgramGuide.SetViewDay(CProgramGuide::DAY_TODAY);
 			if (fOnScreen)
 				m_Viewer.GetDisplayBase().SetVisible(true);
 			else
@@ -7329,8 +7479,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				Space=ChannelManager.GetCurrentSpace();
 			else
 				Space=-1;
-			ProgramGuide.SetTuningSpaceList(CoreEngine.GetDriverFileName(),pList,Space);
-			ProgramGuide.UpdateProgramGuide(true);
+			g_ProgramGuide.SetTuningSpaceList(CoreEngine.GetDriverFileName(),pList,Space);
+			g_ProgramGuide.UpdateProgramGuide(true);
 			::SetCursor(hcurOld);
 		} else {
 			if (ProgramGuideFrame.IsCreated()) {
@@ -7719,6 +7869,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		if (id>=CM_CHANNELNO_FIRST && id<=CM_CHANNELNO_LAST) {
 			int No=id-CM_CHANNELNO_FIRST;
 
+#ifdef NETWORK_REMOCON_SUPPORT
 			if (pNetworkRemocon!=NULL) {
 				if (RecordManager.IsRecording()) {
 					if (!RecordOptions.ConfirmChannelChange(GetVideoHostWindow()))
@@ -7730,7 +7881,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				OnChannelChanged(false);
 				PluginList.SendChannelChangeEvent();
 				return;
-			} else {
+			} else
+#endif
+			{
 				const CChannelList *pList=ChannelManager.GetCurrentChannelList();
 				if (pList==NULL)
 					return;
@@ -8077,8 +8230,8 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		break;
 
 	case TIMER_ID_PROGRAMLISTUPDATE:
-		// サービスとロゴを関連付ける
 		if (m_ProgramListUpdateTimerCount==0) {
+			// サービスとロゴを関連付ける
 			CTsAnalyzer *pAnalyzer=&CoreEngine.m_DtvEngine.m_TsAnalyzer;
 			const WORD NetworkID=pAnalyzer->GetNetworkID();
 			if (NetworkID!=0) {
@@ -8095,51 +8248,42 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 		}
 
 		// EPG情報の同期
-		if (EpgLoadEventHandler.IsEpgFileLoading()
-				|| EpgOptions.IsEDCBDataLoading())
-			break;
-		{
-			const HANDLE hThread=::GetCurrentThread();
-			int OldPriority=::GetThreadPriority(hThread);
-			::SetThreadPriority(hThread,THREAD_PRIORITY_BELOW_NORMAL);
+		if (!EpgLoadEventHandler.IsEpgFileLoading()
+				&& !EpgOptions.IsEDCBDataLoading()) {
+			WORD NetworkID=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetNetworkID();
+			WORD TransportStreamID=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID();
+
 			if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_PROGRAMLIST) {
 				int ServiceID=ChannelManager.GetCurrentServiceID();
-
 				if (ServiceID<=0) {
 					WORD SID;
 					if (CoreEngine.m_DtvEngine.GetServiceID(&SID))
 						ServiceID=SID;
 				}
-				if (ServiceID>0)
-					ProgramListPanel.UpdateProgramList(
-						CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID(),
-						(WORD)ServiceID);
-			} else if ((fShowPanelWindow
-						&& PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
-					|| m_ProgramListUpdateTimerCount>=1) {
-				const CChannelInfo *pChannelInfo=ChannelManager.GetCurrentChannelInfo();
+				if (ServiceID>0) {
+					const HANDLE hThread=::GetCurrentThread();
+					const int OldPriority=::GetThreadPriority(hThread);
+					::SetThreadPriority(hThread,THREAD_PRIORITY_BELOW_NORMAL);
 
-				if (pChannelInfo!=NULL) {
-					EpgProgramList.UpdateService(
-						pChannelInfo->GetTransportStreamID(),
-						pChannelInfo->GetServiceID());
-					if (fShowPanelWindow
-							&& PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
-						ChannelPanel.UpdateChannel(ChannelManager.GetCurrentChannel());
+					EpgProgramList.UpdateService(NetworkID,TransportStreamID,(WORD)ServiceID);
+					ProgramListPanel.UpdateProgramList(NetworkID,TransportStreamID,(WORD)ServiceID);
+
+					::SetThreadPriority(hThread,OldPriority);
 				}
+			} else if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL) {
+				ChannelPanel.UpdateChannels(NetworkID,TransportStreamID);
 			}
-			::SetThreadPriority(hThread,OldPriority);
+			m_ProgramListUpdateTimerCount++;
+			// 更新頻度を下げる
+			if (m_ProgramListUpdateTimerCount>=6 && m_ProgramListUpdateTimerCount<=10)
+				::SetTimer(hwnd,TIMER_ID_PROGRAMLISTUPDATE,(m_ProgramListUpdateTimerCount-5)*(60*1000),NULL);
 		}
-		m_ProgramListUpdateTimerCount++;
-		// 更新頻度を下げる
-		if (m_ProgramListUpdateTimerCount>=6 && m_ProgramListUpdateTimerCount<=10)
-			::SetTimer(hwnd,TIMER_ID_PROGRAMLISTUPDATE,(m_ProgramListUpdateTimerCount-5)*(60*1000),NULL);
 		break;
 
 	case TIMER_ID_PROGRAMGUIDEUPDATE:
 		// 番組表の取得
 		if (!m_pCore->GetStandby())
-			ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_REFRESH,0);
+			g_ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_REFRESH,0);
 		{
 			const CChannelList *pList=ChannelManager.GetCurrentRealChannelList();
 			int i;
@@ -8161,7 +8305,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 				}
 			}
 			if (i==pList->NumChannels()) {
-				ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
+				g_ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
 			} else {
 				// TODO: 現在の取得状況に応じて待ち時間を変える
 				AppMain.SetChannel(ChannelManager.GetCurrentSpace(),i);
@@ -8179,7 +8323,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 													 MAKELPARAM(rc.right,rc.bottom));
 			StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
 			ControlPanel.UpdateItem(CONTROLPANEL_ITEM_VIDEO);
-			if (m_VideoSizeChangedTimerCount==1)
+			if (m_VideoSizeChangedTimerCount==3)
 				::KillTimer(hwnd,TIMER_ID_VIDEOSIZECHANGED);
 			else
 				m_VideoSizeChangedTimerCount++;
@@ -8445,7 +8589,7 @@ void CMainWindow::OnTunerChanged()
 		ChannelPanel.ClearChannelList();
 	*/
 	CaptionPanel.Clear();
-	ProgramGuide.ClearCurrentService();
+	g_ProgramGuide.ClearCurrentService();
 	ClearMenu(MainMenu.GetSubMenu(CMainMenu::SUBMENU_SERVICE));
 	SetTitleText(false);
 	m_ResetErrorCountTimer.End();
@@ -8500,6 +8644,7 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 	::SetTimer(m_hwnd,TIMER_ID_PROGRAMLISTUPDATE,10000,NULL);
 	m_ProgramListUpdateTimerCount=0;
 	InfoPanel.ResetStatistics();
+	ProgramListPanel.ShowRetrievingMessage(true);
 	if (fSpaceChanged) {
 		if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
 			ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList());
@@ -8510,11 +8655,11 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 			ChannelPanel.SetCurrentChannel(ChannelManager.GetCurrentChannel());
 	}
 	if (pCurChannel!=NULL) {
-		ProgramGuide.SetCurrentService(pCurChannel->GetNetworkID(),
-									   pCurChannel->GetTransportStreamID(),
-									   pCurChannel->GetServiceID());
+		g_ProgramGuide.SetCurrentService(pCurChannel->GetNetworkID(),
+										 pCurChannel->GetTransportStreamID(),
+										 pCurChannel->GetServiceID());
 	} else {
-		ProgramGuide.ClearCurrentService();
+		g_ProgramGuide.ClearCurrentService();
 	}
 	int ChannelNo;
 	if (pCurChannel!=NULL)
@@ -9143,15 +9288,26 @@ bool CMainWindow::ConfirmExit()
 }
 
 
-bool CMainWindow::CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration)
+bool CMainWindow::CommandLineRecord(LPCTSTR pszFileName,const FILETIME *pStartTime,int Delay,int Duration)
 {
 	CRecordManager::TimeSpecInfo StartTime,StopTime;
 
-	if (Delay>0) {
+	if (pStartTime!=NULL && (pStartTime->dwLowDateTime!=0 || pStartTime->dwHighDateTime!=0)) {
+		StartTime.Type=CRecordManager::TIME_DATETIME;
+		StartTime.Time.DateTime=*pStartTime;
+		if (Delay!=0)
+			StartTime.Time.DateTime+=(LONGLONG)Delay*FILETIME_SECOND;
+		SYSTEMTIME st;
+		::FileTimeToSystemTime(pStartTime,&st);
+		AppMain.AddLog(TEXT("コマンドラインから録画指定されました。(%d/%d/%d %d:%02d:%02d 開始)"),
+					   st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
+	} else if (Delay>0) {
 		StartTime.Type=CRecordManager::TIME_DURATION;
 		StartTime.Time.Duration=Delay*1000;
+		AppMain.AddLog(TEXT("コマンドラインから録画指定されました。(%d 秒後開始)"),Delay);
 	} else {
 		StartTime.Type=CRecordManager::TIME_NOTSPECIFIED;
+		AppMain.AddLog(TEXT("コマンドラインから録画指定されました。"));
 	}
 	if (Duration>0) {
 		StopTime.Type=CRecordManager::TIME_DURATION;
@@ -9160,7 +9316,7 @@ bool CMainWindow::CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Durati
 		StopTime.Type=CRecordManager::TIME_NOTSPECIFIED;
 	}
 	return AppMain.StartRecord(
-		pszFileName!=NULL && pszFileName[0]!='\0'?pszFileName:NULL,
+		IsStringEmpty(pszFileName)?NULL:pszFileName,
 		&StartTime,&StopTime,
 		CRecordManager::CLIENT_COMMANDLINE);
 }
@@ -9168,6 +9324,7 @@ bool CMainWindow::CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Durati
 
 static bool SetCommandLineChannel(const CCommandLineParser *pCmdLine)
 {
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (ChannelManager.IsNetworkRemoconMode()) {
 		if (pCmdLine->m_ControllerChannel==0)
 			return false;
@@ -9177,6 +9334,7 @@ static bool SetCommandLineChannel(const CCommandLineParser *pCmdLine)
 		}
 		return false;
 	}
+#endif
 
 	const CChannelList *pChannelList;
 	int i,j;
@@ -9226,7 +9384,9 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 		if (CmdLine.m_fRecordCurServiceOnly)
 			CmdLineParser.m_fRecordCurServiceOnly=true;
 		CommandLineRecord(CmdLine.m_RecordFileName.Get(),
-						  CmdLine.m_RecordDelay,CmdLine.m_RecordDuration);
+						  &CmdLine.m_RecordStartTime,
+						  CmdLine.m_RecordDelay,
+						  CmdLine.m_RecordDuration);
 	} else if (CmdLine.m_fRecordStop)
 		AppMain.StopRecord();
 	if (CmdLine.m_Volume>=0)
@@ -9303,7 +9463,7 @@ void CMainWindow::OnProgramGuideUpdateEnd(bool fRelease/*=true*/)
 		EpgProgramList.UpdateProgramList();
 		EpgOptions.SaveEpgFile(&EpgProgramList);
 		if (m_pCore->GetStandby()) {
-			ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_REFRESH,0);
+			g_ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_REFRESH,0);
 			::SetThreadPriority(hThread,OldPriority);
 			if (fRelease)
 				AppMain.CloseTuner();
@@ -9322,8 +9482,8 @@ void CMainWindow::OnProgramGuideUpdateEnd(bool fRelease/*=true*/)
 
 void CMainWindow::EndProgramGuideUpdate(bool fRelease/*=true*/)
 {
-	if (ProgramGuide.GetVisible()) {
-		ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
+	if (g_ProgramGuide.GetVisible()) {
+		g_ProgramGuide.SendMessage(WM_COMMAND,CM_PROGRAMGUIDE_ENDUPDATE,0);
 	} else {
 		OnProgramGuideUpdateEnd(fRelease);
 	}
@@ -9360,8 +9520,13 @@ void CMainWindow::UpdatePanel()
 				if (CoreEngine.m_DtvEngine.GetServiceID(&SID))
 					ServiceID=SID;
 			}
-			if (ServiceID>0)
-				ProgramListPanel.UpdateProgramList(CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID(),(WORD)ServiceID);
+			if (ServiceID>0) {
+				WORD NetworkID=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetNetworkID();
+				WORD TransportStreamID=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetTransportStreamID();
+
+				EpgProgramList.UpdateService(NetworkID,TransportStreamID,(WORD)ServiceID);
+				ProgramListPanel.UpdateProgramList(NetworkID,TransportStreamID,(WORD)ServiceID);
+			}
 		}
 		break;
 
@@ -9815,15 +9980,25 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 			CPortQuery PortQuery;
 			WORD UDPPort=CmdLineParser.m_UDPPort>0?(WORD)CmdLineParser.m_UDPPort:
 											CoreEngine.IsUDPDriver()?1234:2230;
+#ifdef NETWORK_REMOCON_SUPPORT
 			WORD RemoconPort=NetworkRemoconOptions.GetPort();
+#endif
 
 			StatusView.SetSingleText(TEXT("空きポートを検索しています..."));
-			PortQuery.Query(MainWindow.GetHandle(),&UDPPort,CoreEngine.IsUDPDriver()?1243:2239,&RemoconPort);
+			PortQuery.Query(MainWindow.GetHandle(),&UDPPort,CoreEngine.IsUDPDriver()?1243:2239
+#ifdef NETWORK_REMOCON_SUPPORT
+							,&RemoconPort
+#endif
+							);
 			CmdLineParser.m_UDPPort=UDPPort;
+#ifdef NETWORK_REMOCON_SUPPORT
 			NetworkRemoconOptions.SetTempPort(RemoconPort);
+#endif
 		}
+#ifdef NETWORK_REMOCON_SUPPORT
 		if (CmdLineParser.m_fUseNetworkRemocon)
 			NetworkRemoconOptions.SetTempEnable(true);
+#endif
 	}
 
 	StatusView.SetSingleText(TEXT("チャンネル設定を読み込んでいます..."));
@@ -9878,10 +10053,9 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		EpgOptions.AsyncLoadEpgFile(&EpgProgramList,&EpgLoadEventHandler);
 	}
 
-	ProgramGuide.SetEpgProgramList(&EpgProgramList);
-	ProgramGuide.SetEventHandler(&ProgramGuideEventHandler);
-	ProgramGuide.SetDriverList(&DriverManager);
-	ProgramGuide.SetLogoManager(&LogoManager);
+	g_ProgramGuide.SetEpgProgramList(&EpgProgramList);
+	g_ProgramGuide.SetEventHandler(&ProgramGuideEventHandler);
+	g_ProgramGuide.SetDriverList(&DriverManager);
 
 	CaptureWindow.SetEventHandler(&CaptureWindowEventHandler);
 
@@ -9937,7 +10111,9 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 		if (CmdLineParser.m_fRecord)
 			MainWindow.CommandLineRecord(CmdLineParser.m_RecordFileName.Get(),
-				CmdLineParser.m_RecordDelay,CmdLineParser.m_RecordDuration);
+										 &CmdLineParser.m_RecordStartTime,
+										 CmdLineParser.m_RecordDelay,
+										 CmdLineParser.m_RecordDuration);
 	}
 	if (CmdLineParser.m_fStandby)
 		MainWindow.InitStandby();
@@ -9979,9 +10155,20 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 int APIENTRY _tWinMain(HINSTANCE hInstance,HINSTANCE /*hPrevInstance*/,
 												LPTSTR pszCmdLine,int nCmdShow)
 {
+	// 一応例の脆弱性対策をしておく
+	HMODULE hKernel=GetModuleHandle(TEXT("kernel32.dll"));
+	if (hKernel!=NULL) {
+		typedef BOOL (WINAPI *SetDllDirectoryFunc)(LPCWSTR);
+		SetDllDirectoryFunc pSetDllDirectory=
+			reinterpret_cast<SetDllDirectoryFunc>(GetProcAddress(hKernel,"SetDllDirectoryW"));
+		if (pSetDllDirectory!=NULL)
+			pSetDllDirectory(L"");
+	}
+
 #ifdef _DEBUG
 	_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF/* | _CRTDBG_CHECK_ALWAYS_DF*/);
 #else
+	DebugHelper.Initialize();
 	DebugHelper.SetExceptionFilterMode(CDebugHelper::EXCEPTION_FILTER_DIALOG);
 #endif
 

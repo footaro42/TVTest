@@ -7,7 +7,7 @@
 #include "Theme.h"
 
 
-class ABSTRACT_CLASS(CDisplayView) : public CBasicWindow
+class ABSTRACT_CLASS(CDisplayView) : public CCustomWindow
 {
 	friend class CDisplayBase;
 
@@ -25,7 +25,7 @@ public:
 	CDisplayView();
 	virtual ~CDisplayView()=0;
 // CBasicWindow
-	void SetVisible(bool fVisible);
+	void SetVisible(bool fVisible) override;
 };
 
 class CDisplayBase
@@ -58,7 +58,7 @@ private:
 	bool m_fVisible;
 };
 
-class CVideoContainerWindow : public CBasicWindow
+class CVideoContainerWindow : public CCustomWindow
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler) {
@@ -78,21 +78,24 @@ public:
 	const CDtvEngine *GetDtvEngine() const { return m_pDtvEngine; }
 	void SetDisplayBase(CDisplayBase *pDisplayBase);
 	void SetEventHandler(CEventHandler *pEventHandler);
+
 	static bool Initialize(HINSTANCE hinst);
 
 private:
+	static HINSTANCE m_hinst;
+
 	CDtvEngine *m_pDtvEngine;
 	CDisplayBase *m_pDisplayBase;
 	CEventHandler *m_pEventHandler;
 	SIZE m_ClientSize;
 
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	static HINSTANCE m_hinst;
-	static CVideoContainerWindow *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
-class CViewWindow : public CBasicWindow
+class CViewWindow : public CCustomWindow
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler) {
@@ -107,7 +110,9 @@ public:
 
 	CViewWindow();
 	~CViewWindow();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CViewWindow
 	void SetVideoContainer(CVideoContainerWindow *pVideoContainer);
 	void SetMessageWindow(HWND hwnd);
 	void SetEventHandler(CEventHandler *pEventHandler);
@@ -116,10 +121,12 @@ public:
 	void ShowCursor(bool fShow);
 	bool CalcClientRect(RECT *pRect) const;
 	bool CalcWindowRect(RECT *pRect) const;
+
 	static bool Initialize(HINSTANCE hinst);
 
 private:
 	static HINSTANCE m_hinst;
+
 	CVideoContainerWindow *m_pVideoContainer;
 	HWND m_hwndMessage;
 	CEventHandler *m_pEventHandler;
@@ -127,8 +134,8 @@ private:
 	Theme::BorderInfo m_BorderInfo;
 	bool m_fShowCursor;
 
-	static CViewWindow *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 

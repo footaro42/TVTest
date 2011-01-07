@@ -24,7 +24,7 @@ public:
 	CBufferedPaint();
 	~CBufferedPaint();
 	HDC Begin(HDC hdc,const RECT *pRect,bool fErase=false);
-	void End();
+	void End(bool fUpdate=true);
 	bool Clear(const RECT *pRect=NULL);
 	bool SetAlpha(BYTE Alpha);
 	bool SetOpaque() { return SetAlpha(255); }

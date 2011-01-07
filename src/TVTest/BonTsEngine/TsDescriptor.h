@@ -504,7 +504,16 @@ public:
 		BYTE ContentNibbleLevel2;
 		BYTE UserNibble1;
 		BYTE UserNibble2;
+
+		bool operator==(const Nibble &Operand) const {
+			return ContentNibbleLevel1 == Operand.ContentNibbleLevel1
+				&& ContentNibbleLevel2 == Operand.ContentNibbleLevel2
+				&& UserNibble1 == Operand.UserNibble1
+				&& UserNibble2 == Operand.UserNibble2;
+		}
+		bool operator!=(const Nibble &Operand) const { return !(*this==Operand); }
 	};
+
 	int GetNibbleCount() const;
 	bool GetNibble(int Index, Nibble *pNibble) const;
 
@@ -646,11 +655,25 @@ public:
 		GROUPTYPE_RELAY_TO_OTHER_NETWORK,
 		GROUPTYPE_MOVEMENT_FROM_OTHER_NETWORK
 	};
+
 	struct EventInfo {
 		WORD ServiceID;
 		WORD EventID;
 		WORD OriginalNetworkID;
 		WORD TransportStreamID;
+
+		bool operator==(const EventInfo &Operand) const
+		{
+			return ServiceID == Operand.ServiceID
+				&& EventID == Operand.EventID
+				&& OriginalNetworkID == Operand.OriginalNetworkID
+				&& TransportStreamID == Operand.TransportStreamID;
+		}
+
+		bool operator!=(const EventInfo &Operand) const
+		{
+			return !(*this==Operand);
+		}
 	};
 
 	BYTE GetGroupType() const;

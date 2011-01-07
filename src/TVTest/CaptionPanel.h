@@ -31,8 +31,8 @@ class CCaptionDRCSMap : public CCaptionDecoder::IDRCSMap
 	static bool SaveRaw(const CCaptionParser::DRCSBitmap *pBitmap,LPCTSTR pszFileName);
 
 // CCaptionDecoder::IDRCSMap
-	LPCTSTR GetString(WORD Code);
-	bool SetDRCS(WORD Code, const CCaptionParser::DRCSBitmap *pBitmap);
+	LPCTSTR GetString(WORD Code) override;
+	bool SetDRCS(WORD Code, const CCaptionParser::DRCSBitmap *pBitmap) override;
 
 public:
 	CCaptionDRCSMap();
@@ -64,8 +64,9 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 	CCaptionDRCSMap m_DRCSMap;
 
 // CCaptionDecoder::IHandler
-	virtual void OnLanguageUpdate(CCaptionDecoder *pDecoder);
-	virtual void OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR pszText,const CAribString::FormatList *pFormatList);
+	virtual void OnLanguageUpdate(CCaptionDecoder *pDecoder) override;
+	virtual void OnCaption(CCaptionDecoder *pDecoder,BYTE Language,LPCTSTR pszText,
+						   const CAribString::FormatList *pFormatList) override;
 
 	void ClearCaptionList();
 	void AppendText(LPCTSTR pszText);
@@ -73,16 +74,18 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 	static const LPCTSTR m_pszClassName;
 	static const LPCTSTR m_pszPropName;
 	static HINSTANCE m_hinst;
-	static CCaptionPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	static LRESULT CALLBACK EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	CCaptionPanel();
 	~CCaptionPanel();
 // CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void SetVisible(bool fVisible);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+	void SetVisible(bool fVisible) override;
 // CCaptionPanel
 	void SetColor(COLORREF BackColor,COLORREF TextColor);
 	bool SetFont(const LOGFONT *pFont);

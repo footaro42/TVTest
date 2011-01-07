@@ -104,8 +104,8 @@ public:
 	CDateTime &operator=(const FILETIME &Time);
 	void LocalTime();
 	void UTCTime();
-	bool LocalToUTC();
-	bool UTCToLocal();
+	//bool LocalToUTC();
+	//bool UTCToLocal();
 	bool Offset(LONGLONG Milliseconds);
 	void Set(const SYSTEMTIME &Time) { m_Time = Time; }
 	const SYSTEMTIME &Get() const { return m_Time; }

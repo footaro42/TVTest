@@ -614,7 +614,20 @@ void CEventManager::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSecti
 	}
 
 	SYSTEMTIME CurSysTime;
+#if 0
 	::GetLocalTime(&CurSysTime);
+#else
+	// UTC+9‚ÌŒ»Ý“úŽž‚ðŽæ“¾
+	FILETIME ft;
+	ULARGE_INTEGER uli;
+	::GetSystemTimeAsFileTime(&ft);
+	uli.LowPart=ft.dwLowDateTime;
+	uli.HighPart=ft.dwHighDateTime;
+	uli.QuadPart+=9LL*60LL*60LL*10000000LL;
+	ft.dwLowDateTime=uli.LowPart;
+	ft.dwHighDateTime=uli.HighPart;
+	::FileTimeToSystemTime(&ft,&CurSysTime);
+#endif
 
 	const ULONGLONG CurTotTime = m_CurTotTime;
 	bool bUpdated = false;
@@ -797,15 +810,23 @@ void CEventManager::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSecti
 				pContentDesc->GetNibble(i, &pEvent->m_ContentNibble.NibbleList[i]);
 		}
 
-		if (!pEvent->m_pszEventName) {
+		/*if (!pEvent->m_pszEventName)*/ {
 			const CEventGroupDesc *pGroupDesc =
 				dynamic_cast<const CEventGroupDesc*>(pDescBlock->GetDescByTag(CEventGroupDesc::DESC_TAG));
 			if (pGroupDesc) {
-				if (pGroupDesc->GetGroupType() == CEventGroupDesc::GROUPTYPE_COMMON
-						&& pGroupDesc->GetEventNum() == 1) {
-					CEventGroupDesc::EventInfo Info;
-					if (pGroupDesc->GetEventInfo(0, &Info)
-							&& Info.ServiceID != pEitTable->GetServiceID()) {
+				pEvent->m_EventGroupList.resize(1);
+				CEventInfo::EventGroupInfo &GroupInfo = pEvent->m_EventGroupList[0];
+
+				GroupInfo.GroupType = pGroupDesc->GetGroupType();
+				const int NumEvents = pGroupDesc->GetEventNum();
+				GroupInfo.EventList.resize(NumEvents);
+				for (int i = 0; i < NumEvents; i++)
+					pGroupDesc->GetEventInfo(i, &GroupInfo.EventList[i]);
+
+				if (GroupInfo.GroupType == CEventGroupDesc::GROUPTYPE_COMMON
+						&& NumEvents == 1) {
+					const CEventGroupDesc::EventInfo &Info = GroupInfo.EventList[0];
+					if (Info.ServiceID != pEitTable->GetServiceID()) {
 						pEvent->m_bCommonEvent = true;
 						pEvent->m_CommonEventInfo.ServiceID = Info.ServiceID;
 						pEvent->m_CommonEventInfo.EventID = Info.EventID;
@@ -880,6 +901,7 @@ CEventManager::CEventInfo &CEventManager::CEventInfo::operator=(const CEventInfo
 		m_VideoInfo = Src.m_VideoInfo;
 		m_AudioList = Src.m_AudioList;
 		m_ContentNibble = Src.m_ContentNibble;
+		m_EventGroupList = Src.m_EventGroupList;
 		m_bCommonEvent = Src.m_bCommonEvent;
 		m_CommonEventInfo = Src.m_CommonEventInfo;
 	}

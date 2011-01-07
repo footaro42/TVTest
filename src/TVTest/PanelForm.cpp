@@ -74,6 +74,7 @@ CPanelForm::CPanelForm()
 
 CPanelForm::~CPanelForm()
 {
+	Destroy();
 	for (int i=0;i<m_NumWindows;i++)
 		delete m_pWindowList[i];
 }
@@ -241,37 +242,6 @@ void CPanelForm::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-/*
-void CPanelForm::SetBackColors(COLORREF crBack,COLORREF crMargin)
-{
-	m_crBackColor=crBack;
-	m_crMarginColor=crMargin;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-
-
-void CPanelForm::SetTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
-{
-	m_TabBackGradient=*pBackGradient;
-	m_crTabTextColor=crText;
-	m_crTabBorderColor=crBorder;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-
-
-void CPanelForm::SetCurTabColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,COLORREF crBorder)
-{
-	m_CurTabBackGradient=*pBackGradient;
-	m_crCurTabTextColor=crText;
-	m_crCurTabBorderColor=crBorder;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-*/
-
-
 bool CPanelForm::SetTheme(const ThemeInfo *pTheme)
 {
 	if (pTheme==NULL)
@@ -315,95 +285,74 @@ bool CPanelForm::SetPageFont(const LOGFONT *pFont)
 }
 
 
-CPanelForm *CPanelForm::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CPanelForm*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CPanelForm::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
-		{
-			CPanelForm *pThis=static_cast<CPanelForm*>(OnCreate(hwnd,lParam));
-
-			pThis->CalcTabSize();
-		}
+		CalcTabSize();
 		return 0;
 
 	case WM_PAINT:
 		{
-			CPanelForm *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,ps.rcPaint);
+			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CPanelForm *pThis=GetThis(hwnd);
-
-			if (pThis->m_fFitTabWidth) {
-				RECT rc;
-				::SetRect(&rc,0,0,LOWORD(lParam),pThis->m_TabHeight);
-				::InvalidateRect(hwnd,&rc,FALSE);
-			}
-			if (pThis->m_CurTab>=0) {
-				pThis->m_pWindowList[pThis->m_CurTab]->m_pWindow->SetPosition(
-					pThis->m_ClientMargin,pThis->m_TabHeight+pThis->m_ClientMargin,
-					LOWORD(lParam)-pThis->m_ClientMargin*2,
-					HIWORD(lParam)-pThis->m_TabHeight-pThis->m_ClientMargin*2);
-			}
+		if (m_fFitTabWidth) {
+			RECT rc;
+			::SetRect(&rc,0,0,LOWORD(lParam),m_TabHeight);
+			::InvalidateRect(hwnd,&rc,FALSE);
+		}
+		if (m_CurTab>=0) {
+			m_pWindowList[m_CurTab]->m_pWindow->SetPosition(
+				m_ClientMargin,m_TabHeight+m_ClientMargin,
+				LOWORD(lParam)-m_ClientMargin*2,
+				HIWORD(lParam)-m_TabHeight-m_ClientMargin*2);
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
 		{
-			CPanelForm *pThis=GetThis(hwnd);
-			int Index=pThis->HitTest(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
+			int Index=HitTest(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 
-			if (Index>=0 && Index!=pThis->m_CurTab) {
-				pThis->SetCurTab(Index);
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnSelChange();
+			if (Index>=0 && Index!=m_CurTab) {
+				SetCurTab(Index);
+				if (m_pEventHandler!=NULL)
+					m_pEventHandler->OnSelChange();
 			}
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
-		{
-			CPanelForm *pThis=GetThis(hwnd);
+		if (m_pEventHandler!=NULL) {
+			POINT pt;
+			RECT rc;
 
-			if (pThis->m_pEventHandler!=NULL) {
-				POINT pt;
-				RECT rc;
-
-				pt.x=GET_X_LPARAM(lParam);
-				pt.y=GET_Y_LPARAM(lParam);
-				pThis->GetClientRect(&rc);
-				if (::PtInRect(&rc,pt)) {
-					if (pt.y<pThis->m_TabHeight)
-						pThis->m_pEventHandler->OnTabRButtonDown(pt.x,pt.y);
-					else
-						pThis->m_pEventHandler->OnRButtonDown();
-					return 0;
-				}
+			pt.x=GET_X_LPARAM(lParam);
+			pt.y=GET_Y_LPARAM(lParam);
+			GetClientRect(&rc);
+			if (::PtInRect(&rc,pt)) {
+				if (pt.y<m_TabHeight)
+					m_pEventHandler->OnTabRButtonDown(pt.x,pt.y);
+				else
+					m_pEventHandler->OnRButtonDown();
+				return 0;
 			}
 		}
 		break;
 
 	case WM_SETCURSOR:
 		{
-			CPanelForm *pThis=GetThis(hwnd);
 			POINT pt;
 
 			::GetCursorPos(&pt);
 			::ScreenToClient(hwnd,&pt);
-			int Index=pThis->HitTest(pt.x,pt.y);
+			int Index=HitTest(pt.x,pt.y);
 			if (Index>=0) {
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
 				return TRUE;
@@ -412,24 +361,12 @@ LRESULT CALLBACK CPanelForm::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 		break;
 
 	case WM_KEYDOWN:
-		{
-			CPanelForm *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
+			return 0;
 		break;
-
-	case WM_DESTROY:
-		{
-			CPanelForm *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 

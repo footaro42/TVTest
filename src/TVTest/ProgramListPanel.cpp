@@ -10,7 +10,11 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define TEXT_LEFT_MARGIN 8
+#define ICON_MARGIN_LEFT	1
+#define ICON_MARGIN_RIGHT	0
+#define ICON_MARGIN_TOP		1
+#define ICON_MARGIN			1
+#define TEXT_LEFT_MARGIN (CEpgIcons::ICON_WIDTH+ICON_MARGIN_LEFT+ICON_MARGIN_RIGHT)
 
 
 
@@ -284,6 +288,7 @@ CProgramListPanel::CProgramListPanel()
 	, m_CurEventID(-1)
 	, m_ScrollPos(0)
 	//, m_hwndToolTip(NULL)
+	, m_fShowRetrievingMessage(false)
 {
 	m_Theme.EventNameStyle.Gradient.Type=Theme::GRADIENT_NORMAL;
 	m_Theme.EventNameStyle.Gradient.Direction=Theme::DIRECTION_VERT;
@@ -316,16 +321,20 @@ bool CProgramListPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 }
 
 
-bool CProgramListPanel::UpdateProgramList(WORD TransportStreamID,WORD ServiceID)
+bool CProgramListPanel::UpdateProgramList(WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_pProgramList==NULL)
 		return false;
-	m_pProgramList->UpdateService(TransportStreamID,ServiceID);
 	if (m_hwnd!=NULL) {
-		if (UpdateListInfo(TransportStreamID,ServiceID)) {
+		const bool fRetrieving=m_fShowRetrievingMessage;
+
+		m_fShowRetrievingMessage=false;
+		if (UpdateListInfo(NetworkID,TransportStreamID,ServiceID)) {
 			CalcDimensions();
 			SetScrollBar();
 			//SetToolTip();
+			Invalidate();
+		} else if (fRetrieving) {
 			Invalidate();
 		}
 	}
@@ -348,7 +357,7 @@ bool CProgramListPanel::OnProgramListChanged()
 }
 
 
-bool CProgramListPanel::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
+bool CProgramListPanel::UpdateListInfo(WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
 {
 	if (m_pProgramList==NULL)
 		return false;
@@ -361,7 +370,7 @@ bool CProgramListPanel::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
 	SYSTEMTIME stFirst,stLast;
 	bool fChanged;
 
-	pServiceInfo=m_pProgramList->GetServiceInfo(TransportStreamID,ServiceID);
+	pServiceInfo=m_pProgramList->GetServiceInfo(NetworkID,TransportStreamID,ServiceID);
 	if (pServiceInfo==NULL)
 		return false;
 	NumEvents=(int)pServiceInfo->m_EventList.EventDataMap.size();
@@ -373,7 +382,7 @@ bool CProgramListPanel::UpdateListInfo(WORD TransportStreamID,WORD ServiceID)
 		return false;
 	}
 	NewItemList.Reserve(NumEvents);
-	::GetLocalTime(&stFirst);
+	GetCurrentJST(&stFirst);
 	stFirst.wSecond=0;
 	stFirst.wMilliseconds=0;
 	stLast=stFirst;
@@ -591,6 +600,16 @@ void CProgramListPanel::CalcFontHeight()
 }
 
 
+void CProgramListPanel::ShowRetrievingMessage(bool fShow)
+{
+	if (m_fShowRetrievingMessage!=fShow) {
+		m_fShowRetrievingMessage=fShow;
+		if (m_hwnd!=NULL)
+			Invalidate();
+	}
+}
+
+
 int CProgramListPanel::HitTest(int x,int y) const
 {
 	POINT pt;
@@ -658,80 +677,63 @@ void CProgramListPanel::SetToolTip()
 */
 
 
-CProgramListPanel *CProgramListPanel::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CProgramListPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CProgramListPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CProgramListPanel *pThis=static_cast<CProgramListPanel*>(OnCreate(hwnd,lParam));
-
-			if (!pThis->m_Font.IsCreated()) {
+			if (!m_Font.IsCreated()) {
 				LOGFONT lf;
 				GetDefaultFont(&lf);
-				pThis->m_Font.Create(&lf);
+				m_Font.Create(&lf);
 				lf.lfWeight=FW_BOLD;
-				pThis->m_TitleFont.Create(&lf);
+				m_TitleFont.Create(&lf);
 			}
-			pThis->CalcFontHeight();
+			CalcFontHeight();
+			m_EpgIcons.Load();
 			/*
-			pThis->m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
+			m_hwndToolTip=::CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
 				WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,0,0,0,0,
 				hwnd,NULL,m_hinst,NULL);
-			::SendMessage(pThis->m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,320);
-			::SendMessage(pThis->m_hwndToolTip,TTM_SETDELAYTIME,TTDT_AUTOPOP,30000);
+			::SendMessage(m_hwndToolTip,TTM_SETMAXTIPWIDTH,0,320);
+			::SendMessage(m_hwndToolTip,TTM_SETDELAYTIME,TTDT_AUTOPOP,30000);
 			*/
-			pThis->m_EventInfoPopupManager.Initialize(hwnd,&pThis->m_EventInfoPopupHandler);
+			m_EventInfoPopupManager.Initialize(hwnd,&m_EventInfoPopupHandler);
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CProgramListPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			BeginPaint(hwnd,&ps);
-			pThis->DrawProgramList(ps.hdc,&ps.rcPaint);
+			DrawProgramList(ps.hdc,&ps.rcPaint);
 			EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CProgramListPanel *pThis=GetThis(hwnd);
-
-			pThis->CalcDimensions();
-			pThis->SetScrollBar();
-			//pThis->SetToolTip();
-		}
+		CalcDimensions();
+		SetScrollBar();
+		//SetToolTip();
 		return 0;
 
 	case WM_MOUSEWHEEL:
-		{
-			CProgramListPanel *pThis=GetThis(hwnd);
-
-			pThis->SetScrollPos(pThis->m_ScrollPos-
-				GET_WHEEL_DELTA_WPARAM(wParam)*(pThis->m_FontHeight+pThis->m_LineMargin)/WHEEL_DELTA);
-		}
+		SetScrollPos(m_ScrollPos-
+			GET_WHEEL_DELTA_WPARAM(wParam)*(m_FontHeight+m_LineMargin)/WHEEL_DELTA);
 		return 0;
 
 	case WM_VSCROLL:
 		{
-			CProgramListPanel *pThis=GetThis(hwnd);
-			const int LineHeight=pThis->m_FontHeight+pThis->m_LineMargin;
+			const int LineHeight=m_FontHeight+m_LineMargin;
 			int Pos,Page,Max;
 			RECT rc;
 
-			Pos=pThis->m_ScrollPos;
-			pThis->GetClientRect(&rc);
+			Pos=m_ScrollPos;
+			GetClientRect(&rc);
 			Page=rc.bottom;
-			Max=pThis->m_TotalLines*LineHeight+
-				pThis->m_ItemList.NumItems()*(pThis->m_TitleMargin*2-pThis->m_LineMargin)-Page;
+			Max=m_TotalLines*LineHeight+
+				m_ItemList.NumItems()*(m_TitleMargin*2-m_LineMargin)-Page;
 			if (Max<0)
 				Max=0;
 			switch (LOWORD(wParam)) {
@@ -744,7 +746,7 @@ LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 			case SB_BOTTOM:		Pos=Max;			break;
 			default:	return 0;
 			}
-			pThis->SetScrollPos(Pos);
+			SetScrollPos(Pos);
 		}
 		return 0;
 
@@ -757,9 +759,8 @@ LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 		switch (reinterpret_cast<LPNMHDR>(lParam)->code) {
 		case TTN_NEEDTEXT:
 			{
-				CProgramListPanel *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pnmtdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
-				const CProgramItemInfo *pItem=pThis->m_ItemList.GetItem((int)pnmtdi->lParam);
+				const CProgramItemInfo *pItem=m_ItemList.GetItem((int)pnmtdi->lParam);
 
 				if (pItem!=NULL) {
 					static TCHAR szText[1024];
@@ -829,85 +830,117 @@ LRESULT CALLBACK CProgramListPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 #endif
 
 	case WM_DESTROY:
-		{
-			CProgramListPanel *pThis=GetThis(hwnd);
-
-			//pThis->m_hwndToolTip=NULL;
-			pThis->OnDestroy();
-		}
+		m_EpgIcons.Destroy();
+		//m_hwndToolTip=NULL;
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 
 void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 {
-	HBRUSH hbr;
-	HFONT hfontOld;
-	COLORREF crOldTextColor;
-	int OldBkMode;
+	const int LineHeight=m_FontHeight+m_LineMargin;
 	RECT rc,rcMargin;
 
-	hbr=::CreateSolidBrush(m_Theme.MarginColor);
-	hfontOld=static_cast<HFONT>(::GetCurrentObject(hdc,OBJ_FONT));
-	crOldTextColor=::GetTextColor(hdc);
-	OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+	HBRUSH hbr=::CreateSolidBrush(m_Theme.MarginColor);
+	HFONT hfontOld=static_cast<HFONT>(::GetCurrentObject(hdc,OBJ_FONT));
+	COLORREF crOldTextColor=::GetTextColor(hdc);
+	int OldBkMode=::SetBkMode(hdc,TRANSPARENT);
+
+	HDC hdcIcons=::CreateCompatibleDC(hdc);
+	HBITMAP hbmOld=DrawUtil::SelectObject(hdcIcons,m_EpgIcons);
+
 	GetClientRect(&rc);
-	rc.top=-m_ScrollPos;
-	for (int i=0;i<m_ItemList.NumItems();i++) {
-		CProgramItemInfo *pItem=m_ItemList.GetItem(i);
-		bool fCur=pItem->GetEventID()==m_CurEventID;
 
-		rc.bottom=rc.top+pItem->GetTitleLines()*(m_FontHeight+m_LineMargin)+
-												(m_TitleMargin*2-m_LineMargin);
-		if (rc.bottom>prcPaint->top) {
-			const Theme::Style &Style=
-				fCur?m_Theme.CurEventNameStyle:m_Theme.EventNameStyle;
+	if (m_fShowRetrievingMessage && m_ItemList.NumItems()==0) {
+		::FillRect(hdc,prcPaint,hbr);
+		DrawUtil::SelectObject(hdc,m_Font);
+		::SetTextColor(hdc,m_Theme.EventTextStyle.TextColor);
+		::InflateRect(&rc,-m_TitleMargin,-m_TitleMargin);
+		DrawUtil::DrawWrapText(hdc,TEXT("”Ô‘g•\‚ÌŽæ“¾’†‚Å‚·..."),&rc,LineHeight);
+	} else {
+		rc.top=-m_ScrollPos;
+		for (int i=0;i<m_ItemList.NumItems();i++) {
+			CProgramItemInfo *pItem=m_ItemList.GetItem(i);
+			bool fCur=pItem->GetEventID()==m_CurEventID;
 
-			DrawUtil::SelectObject(hdc,m_TitleFont);
-			::SetTextColor(hdc,Style.TextColor);
-			rc.left=0;
-			Theme::DrawStyleBackground(hdc,&rc,&Style);
-			RECT rcTitle=rc;
-			rcTitle.top+=m_TitleMargin;
-			rcTitle.bottom-=m_TitleMargin;
-			pItem->DrawTitle(hdc,&rcTitle,m_FontHeight+m_LineMargin);
-		}
-		rc.top=rc.bottom;
-		rc.bottom=rc.top+pItem->GetTextLines()*(m_FontHeight+m_LineMargin);
-		if (rc.bottom>prcPaint->top) {
-			const Theme::Style &Style=
-				fCur?m_Theme.CurEventTextStyle:m_Theme.EventTextStyle;
+			rc.bottom=rc.top+pItem->GetTitleLines()*LineHeight+
+													(m_TitleMargin*2-m_LineMargin);
+			if (rc.bottom>prcPaint->top) {
+				const Theme::Style &Style=
+					fCur?m_Theme.CurEventNameStyle:m_Theme.EventNameStyle;
 
-			/*
-			rc.left=TEXT_LEFT_MARGIN;
-			if (prcPaint->left<rc.left) {
-				rcMargin.left=prcPaint->left;
-				rcMargin.top=rc.top;
-				rcMargin.right=min(rc.left,prcPaint->right);
-				rcMargin.bottom=rc.bottom;
-				::FillRect(hdc,&rcMargin,hbr);
+				DrawUtil::SelectObject(hdc,m_TitleFont);
+				::SetTextColor(hdc,Style.TextColor);
+				rc.left=0;
+				Theme::DrawStyleBackground(hdc,&rc,&Style);
+				RECT rcTitle=rc;
+				rcTitle.top+=m_TitleMargin;
+				rcTitle.bottom-=m_TitleMargin;
+				pItem->DrawTitle(hdc,&rcTitle,LineHeight);
 			}
-			*/
-			DrawUtil::SelectObject(hdc,m_Font);
-			::SetTextColor(hdc,Style.TextColor);
-			rc.left=0;
-			Theme::DrawStyleBackground(hdc,&rc,&Style);
-			rc.left=TEXT_LEFT_MARGIN;
-			pItem->DrawText(hdc,&rc,m_FontHeight+m_LineMargin);
+
+			rc.top=rc.bottom;
+			rc.bottom=rc.top+pItem->GetTextLines()*LineHeight;
+			if (rc.bottom>prcPaint->top) {
+				const Theme::Style &Style=
+					fCur?m_Theme.CurEventTextStyle:m_Theme.EventTextStyle;
+
+				/*
+				rc.left=TEXT_LEFT_MARGIN;
+				if (prcPaint->left<rc.left) {
+					rcMargin.left=prcPaint->left;
+					rcMargin.top=rc.top;
+					rcMargin.right=min(rc.left,prcPaint->right);
+					rcMargin.bottom=rc.bottom;
+					::FillRect(hdc,&rcMargin,hbr);
+				}
+				*/
+				DrawUtil::SelectObject(hdc,m_Font);
+				::SetTextColor(hdc,Style.TextColor);
+				rc.left=0;
+				Theme::DrawStyleBackground(hdc,&rc,&Style);
+				rc.left=TEXT_LEFT_MARGIN;
+				pItem->DrawText(hdc,&rc,LineHeight);
+
+				const unsigned int ShowIcons=CEpgIcons::GetEventIcons(&pItem->GetEventInfo());
+				if (ShowIcons!=0) {
+					int y=rc.top+ICON_MARGIN_TOP;
+					int Icon=0;
+					for (unsigned int Flag=ShowIcons;Flag!=0;Flag>>=1) {
+						if (y>=rc.bottom)
+							break;
+						if ((Flag&1)!=0) {
+							CEpgIcons::Draw(hdc,ICON_MARGIN_LEFT,y,
+											hdcIcons,Icon,
+											CEpgIcons::ICON_WIDTH,
+											min(CEpgIcons::ICON_HEIGHT,rc.bottom-y),
+											192);
+							y+=CEpgIcons::ICON_HEIGHT+ICON_MARGIN;
+						}
+						Icon++;
+					}
+				}
+			}
+
+			rc.top=rc.bottom;
+			if (rc.top>=prcPaint->bottom)
+				break;
 		}
-		rc.top=rc.bottom;
-		if (rc.top>=prcPaint->bottom)
-			break;
+
+		if (rc.top<prcPaint->bottom) {
+			rcMargin.left=prcPaint->left;
+			rcMargin.top=max(rc.top,prcPaint->top);
+			rcMargin.right=prcPaint->right;
+			rcMargin.bottom=prcPaint->bottom;
+			::FillRect(hdc,&rcMargin,hbr);
+		}
 	}
-	if (rc.top<prcPaint->bottom) {
-		rcMargin.left=prcPaint->left;
-		rcMargin.top=max(rc.top,prcPaint->top);
-		rcMargin.right=prcPaint->right;
-		rcMargin.bottom=prcPaint->bottom;
-		::FillRect(hdc,&rcMargin,hbr);
-	}
+
+	::SelectObject(hdcIcons,hbmOld);
+	::DeleteDC(hdcIcons);
+
 	::SetTextColor(hdc,crOldTextColor);
 	::SetBkMode(hdc,OldBkMode);
 	::SelectObject(hdc,hfontOld);

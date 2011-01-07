@@ -9,7 +9,7 @@
 #include "RichEditUtil.h"
 
 
-class CEventInfoPopup : protected CBasicWindow
+class CEventInfoPopup : protected CCustomWindow
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler)
@@ -33,6 +33,8 @@ public:
 	bool Hide();
 	bool IsVisible();
 	bool IsHandle(HWND hwnd) const { return m_hwnd==hwnd; }
+	void GetSize(int *pWidth,int *pHeight);
+	bool SetSize(int Width,int Height);
 	void SetColor(COLORREF BackColor,COLORREF TextColor);
 	void SetTitleColor(Theme::GradientInfo *pBackGradient,COLORREF TextColor);
 	bool SetFont(const LOGFONT *pFont);
@@ -63,13 +65,14 @@ private:
 	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
 
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID);
 	void SetEventInfo(const CEventInfoData *pEventInfo);
 	void CalcTitleHeight();
 	void GetCloseButtonRect(RECT *pRect) const;
 	bool CopyText(LPCWSTR pszText) const;
-	static CEventInfoPopup *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 class CEventInfoPopupManager

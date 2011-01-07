@@ -774,8 +774,22 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 
 		case CTsDescrambler::EVENT_ECM_ERROR:
 			// ECMˆ—‚ÅƒGƒ‰[‚ª”­¶‚µ‚½
-			if (m_pEventHandler)
-				m_pEventHandler->OnEcmError(static_cast<LPCTSTR>(pParam));
+			if (m_pEventHandler) {
+				CTsDescrambler::EcmErrorInfo *pInfo = static_cast<CTsDescrambler::EcmErrorInfo*>(pParam);
+
+				if (m_TsDescrambler.GetEcmPIDByServiceID(m_CurServiceID) == pInfo->EcmPID)
+					m_pEventHandler->OnEcmError(pInfo->pszText);
+			}
+			return 0UL;
+
+		case CTsDescrambler::EVENT_ECM_REFUSED:
+			// ECM‚ªŽó‚¯•t‚¯‚ç‚ê‚È‚¢
+			if (m_pEventHandler) {
+				CTsDescrambler::EcmErrorInfo *pInfo = static_cast<CTsDescrambler::EcmErrorInfo*>(pParam);
+
+				if (m_TsDescrambler.GetEcmPIDByServiceID(m_CurServiceID) == pInfo->EcmPID)
+					m_pEventHandler->OnEcmRefused();
+			}
 			return 0UL;
 		}
 	}

@@ -57,5 +57,17 @@ public:
 	bool SendSizeMessage();
 };
 
+class ABSTRACT_CLASS(CCustomWindow) : public CBasicWindow
+{
+protected:
+	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+	virtual LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+public:
+	CCustomWindow();
+	virtual ~CCustomWindow();
+};
+
 
 #endif

@@ -118,7 +118,7 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		{0xD4,TEXT("240p[>16:9]")},
 	};
 	for (int i=0;i<lengthof(VideoComponentTypeList);i++) {
-		if (VideoComponentTypeList[i].ComponentType==m_EventInfo.m_ComponentType) {
+		if (VideoComponentTypeList[i].ComponentType==m_EventInfo.m_VideoInfo.ComponentType) {
 			pszVideo=VideoComponentTypeList[i].pszText;
 			break;
 		}
@@ -140,16 +140,10 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		};
 
 		// TODO:複数音声対応
-		const CEventInfoData::AudioInfo *pAudioInfo=&m_EventInfo.m_AudioList[0];
-		for (size_t i=0;i<m_EventInfo.m_AudioList.size();i++) {
-			if (m_EventInfo.m_AudioList[i].fMainComponentFlag) {
-				pAudioInfo=&m_EventInfo.m_AudioList[i];
-				break;
-			}
-		}
+		const CEventInfoData::AudioInfo *pAudioInfo=m_EventInfo.GetMainAudioInfo();
 
 		if (pAudioInfo->ComponentType==0x02
-				&& pAudioInfo->fESMultiLingualFlag) {
+				&& pAudioInfo->bESMultiLingualFlag) {
 			pszAudio=TEXT("Mono 2カ国語");
 		} else {
 			for (int i=0;i<lengthof(AudioComponentTypeList);i++) {
@@ -198,10 +192,15 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
 							TEXT("\r\nイベントID 0x%04X"),m_EventInfo.m_EventID);
 		if (m_EventInfo.m_fCommonEvent)
+			Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
+								TEXT(" (イベント共有 サービスID 0x%04X / イベントID 0x%04X)"),
+								m_EventInfo.m_CommonEventInfo.ServiceID,
+								m_EventInfo.m_CommonEventInfo.EventID);
+		if (m_EventInfo.m_ContentNibble.NibbleCount>0)
 			::wnsprintf(szText+Length,lengthof(szText)-1-Length,
-						TEXT(" (イベント共有 サービスID 0x%04X / イベントID 0x%04X)"),
-						m_EventInfo.m_CommonEventInfo.ServiceID,
-						m_EventInfo.m_CommonEventInfo.EventID);
+						TEXT("\r\nジャンル %d - %d"),
+						m_EventInfo.m_ContentNibble.NibbleList[0].ContentNibbleLevel1,
+						m_EventInfo.m_ContentNibble.NibbleList[0].ContentNibbleLevel2);
 	}
 	szText[lengthof(szText)-1]=_T('\0');
 
@@ -232,21 +231,19 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 
 void CEventInfoPopup::CalcTitleHeight()
 {
-	HDC hdc;
-	HFONT hfontOld;
 	TEXTMETRIC tm;
-	int FontHeight;
 	RECT rc;
 
-	hdc=::GetDC(m_hwnd);
+	HDC hdc=::GetDC(m_hwnd);
 	if (hdc==NULL)
 		return;
-	hfontOld=DrawUtil::SelectObject(hdc,m_TitleFont);
+	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_TitleFont);
 	::GetTextMetrics(hdc,&tm);
 	//FontHeight=tm.tmHeight-tm.tmInternalLeading;
-	FontHeight=tm.tmHeight;
+	int FontHeight=tm.tmHeight;
 	m_TitleLineHeight=FontHeight+m_TitleLineMargin;
 	GetClientRect(&rc);
+	rc.right-=m_ButtonSize+m_ButtonMargin*2;
 	m_TitleHeight=(DrawUtil::CalcWrapTextLines(hdc,m_EventInfo.GetEventName(),rc.right)+1)*m_TitleLineHeight;
 	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(m_hwnd,hdc);
@@ -309,6 +306,30 @@ bool CEventInfoPopup::Hide()
 bool CEventInfoPopup::IsVisible()
 {
 	return m_hwnd!=NULL && GetVisible();
+}
+
+
+void CEventInfoPopup::GetSize(int *pWidth,int *pHeight)
+{
+	RECT rc;
+
+	GetPosition(&rc);
+	if (pWidth!=NULL)
+		*pWidth=rc.right-rc.left;
+	if (pHeight!=NULL)
+		*pHeight=rc.bottom-rc.top;
+}
+
+
+bool CEventInfoPopup::SetSize(int Width,int Height)
+{
+	if (Width<0 || Height<0)
+		return false;
+	RECT rc;
+	GetPosition(&rc);
+	rc.right=rc.left+Width;
+	rc.bottom=rc.top+Height;
+	return SetPosition(&rc);
 }
 
 
@@ -379,42 +400,27 @@ LPTSTR CEventInfoPopup::GetSelectedText() const
 }
 
 
-CEventInfoPopup *CEventInfoPopup::GetThis(HWND hwnd)
-{
-	return static_cast<CEventInfoPopup*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CEventInfoPopup::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
-		{
-			CEventInfoPopup *pThis=static_cast<CEventInfoPopup*>(OnCreate(hwnd,lParam));
-
-			pThis->m_RichEditUtil.LoadRichEditLib();
-			pThis->m_hwndEdit=::CreateWindowEx(0,TEXT("RichEdit20W"),TEXT(""),
-				WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | ES_NOHIDESEL,0,0,0,0,
-				hwnd,(HMENU)1,m_hinst,NULL);
-			SetWindowFont(pThis->m_hwndEdit,pThis->m_Font.GetHandle(),FALSE);
-			::SendMessage(pThis->m_hwndEdit,EM_SETEVENTMASK,0,ENM_MOUSEEVENTS | ENM_LINK);
-			::SendMessage(pThis->m_hwndEdit,EM_SETBKGNDCOLOR,0,pThis->m_BackColor);
-		}
+		m_RichEditUtil.LoadRichEditLib();
+		m_hwndEdit=::CreateWindowEx(0,TEXT("RichEdit20W"),TEXT(""),
+			WS_CHILD | WS_VISIBLE | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL | ES_NOHIDESEL,
+			0,0,0,0,hwnd,(HMENU)1,m_hinst,NULL);
+		SetWindowFont(m_hwndEdit,m_Font.GetHandle(),FALSE);
+		::SendMessage(m_hwndEdit,EM_SETEVENTMASK,0,ENM_MOUSEEVENTS | ENM_LINK);
+		::SendMessage(m_hwndEdit,EM_SETBKGNDCOLOR,0,m_BackColor);
 		return 0;
 
 	case WM_SIZE:
-		{
-			CEventInfoPopup *pThis=GetThis(hwnd);
-
-			pThis->CalcTitleHeight();
-			::MoveWindow(pThis->m_hwndEdit,0,pThis->m_TitleHeight,
-						 LOWORD(lParam),max(HIWORD(lParam)-pThis->m_TitleHeight,0),TRUE);
-		}
+		CalcTitleHeight();
+		::MoveWindow(m_hwndEdit,0,m_TitleHeight,
+					 LOWORD(lParam),max(HIWORD(lParam)-m_TitleHeight,0),TRUE);
 		return 0;
 
 	case WM_PAINT:
 		{
-			CEventInfoPopup *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			RECT rc;
 			HFONT hfontOld;
@@ -425,31 +431,32 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 
 			::BeginPaint(hwnd,&ps);
 			::GetClientRect(hwnd,&rc);
-			rc.bottom=pThis->m_TitleHeight;
-			Theme::FillGradient(ps.hdc,&rc,&pThis->m_TitleBackGradient);
-			hfontOld=DrawUtil::SelectObject(ps.hdc,pThis->m_TitleFont);
+			rc.bottom=m_TitleHeight;
+			Theme::FillGradient(ps.hdc,&rc,&m_TitleBackGradient);
+			hfontOld=DrawUtil::SelectObject(ps.hdc,m_TitleFont);
 			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
-			OldTextColor=::SetTextColor(ps.hdc,pThis->m_TitleTextColor);
-			if (pThis->m_EventInfo.m_fValidStartTime) {
+			OldTextColor=::SetTextColor(ps.hdc,m_TitleTextColor);
+			if (m_EventInfo.m_fValidStartTime) {
 				Length=::wsprintf(szText,TEXT("%d/%d/%d(%s) %d:%02d"),
-					pThis->m_EventInfo.m_stStartTime.wYear,
-					pThis->m_EventInfo.m_stStartTime.wMonth,
-					pThis->m_EventInfo.m_stStartTime.wDay,
-					GetDayOfWeekText(pThis->m_EventInfo.m_stStartTime.wDayOfWeek),
-					pThis->m_EventInfo.m_stStartTime.wHour,
-					pThis->m_EventInfo.m_stStartTime.wMinute);
+					m_EventInfo.m_stStartTime.wYear,
+					m_EventInfo.m_stStartTime.wMonth,
+					m_EventInfo.m_stStartTime.wDay,
+					GetDayOfWeekText(m_EventInfo.m_stStartTime.wDayOfWeek),
+					m_EventInfo.m_stStartTime.wHour,
+					m_EventInfo.m_stStartTime.wMinute);
 				SYSTEMTIME stEnd;
-				if (pThis->m_EventInfo.m_DurationSec>0
-						&& pThis->m_EventInfo.GetEndTime(&stEnd))
+				if (m_EventInfo.m_DurationSec>0
+						&& m_EventInfo.GetEndTime(&stEnd))
 					Length+=::wsprintf(szText+Length,TEXT("～%d:%02d"),stEnd.wHour,stEnd.wMinute);
 				::TextOut(ps.hdc,0,0,szText,Length);
 			}
-			rc.top+=pThis->m_TitleLineHeight;
-			DrawUtil::DrawWrapText(ps.hdc,pThis->m_EventInfo.GetEventName(),&rc,pThis->m_TitleLineHeight);
+			rc.top+=m_TitleLineHeight;
+			rc.right-=m_ButtonSize+m_ButtonMargin*2;
+			DrawUtil::DrawWrapText(ps.hdc,m_EventInfo.GetEventName(),&rc,m_TitleLineHeight);
 			::SelectObject(ps.hdc,hfontOld);
 			::SetBkMode(ps.hdc,OldBkMode);
 			::SetTextColor(ps.hdc,OldTextColor);
-			pThis->GetCloseButtonRect(&rc);
+			GetCloseButtonRect(&rc);
 			::DrawFrameControl(ps.hdc,&rc,DFC_CAPTION,DFCS_CAPTIONCLOSE | DFCS_MONO);
 			::EndPaint(hwnd,&ps);
 		}
@@ -457,34 +464,29 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 
 	case WM_ACTIVATE:
 		if (LOWORD(wParam)==WA_INACTIVE) {
-			CEventInfoPopup *pThis=GetThis(hwnd);
-
-			pThis->Hide();
+			Hide();
 		}
 		return 0;
 
 	case WM_ACTIVATEAPP:
 		if (wParam==0) {
-			CEventInfoPopup *pThis=GetThis(hwnd);
-
-			pThis->Hide();
+			Hide();
 		}
 		return 0;
 
 	case WM_NCHITTEST:
 		{
-			CEventInfoPopup *pThis=GetThis(hwnd);
 			POINT pt;
 			RECT rc;
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
 			::ScreenToClient(hwnd,&pt);
-			pThis->GetCloseButtonRect(&rc);
+			GetCloseButtonRect(&rc);
 			if (::PtInRect(&rc,pt))
 				return HTCLOSE;
 			::GetClientRect(hwnd,&rc);
-			rc.bottom=pThis->m_TitleHeight;
+			rc.bottom=m_TitleHeight;
 			if (::PtInRect(&rc,pt))
 				return HTCAPTION;
 		}
@@ -499,7 +501,6 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 
 	case WM_NCRBUTTONDOWN:
 		if (wParam==HTCAPTION) {
-			CEventInfoPopup *pThis=GetThis(hwnd);
 			POINT pt={GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam)};
 			HMENU hmenu=::CreatePopupMenu();
 
@@ -508,7 +509,7 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 			::DestroyMenu(hmenu);
 			switch (Command) {
 			case 1:
-				pThis->CopyText(pThis->m_EventInfo.GetEventName());
+				CopyText(m_EventInfo.GetEventName());
 				break;
 			}
 			return 0;
@@ -516,41 +517,63 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 		break;
 
 	case WM_MOUSEWHEEL:
-		return ::SendMessage(GetThis(hwnd)->m_hwndEdit,uMsg,wParam,lParam);
+		return ::SendMessage(m_hwndEdit,uMsg,wParam,lParam);
+
+	case WM_NCMOUSEMOVE:
+		{
+			TRACKMOUSEEVENT tme;
+
+			tme.cbSize=sizeof(TRACKMOUSEEVENT);
+			tme.dwFlags=TME_LEAVE | TME_NONCLIENT;
+			tme.hwndTrack=hwnd;
+			::TrackMouseEvent(&tme);
+		}
+		return 0;
+
+	case WM_NCMOUSELEAVE:
+		{
+			POINT pt;
+			RECT rc;
+
+			::GetCursorPos(&pt);
+			::GetWindowRect(hwnd,&rc);
+			if (!::PtInRect(&rc,pt))
+				Hide();
+		}
+		return 0;
 
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
 		case EN_MSGFILTER:
 			if (reinterpret_cast<MSGFILTER*>(lParam)->msg==WM_RBUTTONDOWN) {
-				CEventInfoPopup *pThis=GetThis(hwnd);
 				HMENU hmenu=::CreatePopupMenu();
 
 				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,1,TEXT("コピー(&C)"));
 				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,2,TEXT("すべて選択(&A)"));
 				::AppendMenu(hmenu,MF_STRING | MF_ENABLED,3,TEXT("番組名をコピー(&E)"));
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnMenuPopup(hmenu);
+				if (m_pEventHandler!=NULL)
+					m_pEventHandler->OnMenuPopup(hmenu);
 				POINT pt;
 				::GetCursorPos(&pt);
 				int Command=::TrackPopupMenu(hmenu,TPM_RIGHTBUTTON | TPM_RETURNCMD,pt.x,pt.y,0,hwnd,NULL);
 				::DestroyMenu(hmenu);
 				switch (Command) {
 				case 1:
-					if (::SendMessage(pThis->m_hwndEdit,EM_SELECTIONTYPE,0,0)==SEL_EMPTY) {
-						CRichEditUtil::CopyAllText(pThis->m_hwndEdit);
+					if (::SendMessage(m_hwndEdit,EM_SELECTIONTYPE,0,0)==SEL_EMPTY) {
+						CRichEditUtil::CopyAllText(m_hwndEdit);
 					} else {
-						::SendMessage(pThis->m_hwndEdit,WM_COPY,0,0);
+						::SendMessage(m_hwndEdit,WM_COPY,0,0);
 					}
 					break;
 				case 2:
-					CRichEditUtil::SelectAll(pThis->m_hwndEdit);
+					CRichEditUtil::SelectAll(m_hwndEdit);
 					break;
 				case 3:
-					pThis->CopyText(pThis->m_EventInfo.GetEventName());
+					CopyText(m_EventInfo.GetEventName());
 					break;
 				default:
 					if (Command>=CEventHandler::COMMAND_FIRST)
-						pThis->m_pEventHandler->OnMenuSelected(Command);
+						m_pEventHandler->OnMenuSelected(Command);
 					break;
 				}
 			}
@@ -568,19 +591,7 @@ LRESULT CALLBACK CEventInfoPopup::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPAR
 		break;
 
 	case WM_CLOSE:
-		{
-			CEventInfoPopup *pThis=GetThis(hwnd);
-
-			pThis->Hide();
-		}
-		return 0;
-
-	case WM_DESTROY:
-		{
-			CEventInfoPopup *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
+		Hide();
 		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);

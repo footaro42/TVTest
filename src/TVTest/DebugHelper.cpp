@@ -24,9 +24,29 @@ CDebugHelper::CDebugHelper()
 {
 #ifdef ENABLE_DEBUG_HELPER
 	::SetUnhandledExceptionFilter(ExceptionFilter);
+#endif
+}
 
-	m_hDbgHelp=::LoadLibrary(TEXT("dbghelp.dll"));
+
+CDebugHelper::~CDebugHelper()
+{
+#ifdef ENABLE_DEBUG_HELPER
 	if (m_hDbgHelp!=NULL) {
+		::FreeLibrary(m_hDbgHelp);
+		m_hDbgHelp=NULL;
+	}
+#endif
+}
+
+
+bool CDebugHelper::Initialize()
+{
+#ifdef ENABLE_DEBUG_HELPER
+	if (m_hDbgHelp==NULL) {
+		m_hDbgHelp=::LoadLibrary(TEXT("dbghelp.dll"));
+		if (m_hDbgHelp==NULL)
+			return false;
+
 		m_pSymInitialize=reinterpret_cast<SymInitializeFunc>(::GetProcAddress(m_hDbgHelp,"SymInitialize"));
 		m_pSymCleanup=reinterpret_cast<SymCleanupFunc>(::GetProcAddress(m_hDbgHelp,"SymCleanup"));
 		m_pSymFromAddr=reinterpret_cast<SymFromAddrFunc>(::GetProcAddress(m_hDbgHelp,"SymFromAddr"));
@@ -39,18 +59,11 @@ CDebugHelper::CDebugHelper()
 				|| m_pSymSetOptions==NULL || m_pStackWalk==NULL) {
 			::FreeLibrary(m_hDbgHelp);
 			m_hDbgHelp=NULL;
+			return false;
 		}
 	}
 #endif	// ENABLE_DEBUG_HELPER
-}
-
-
-CDebugHelper::~CDebugHelper()
-{
-#ifdef ENABLE_DEBUG_HELPER
-	if (m_hDbgHelp!=NULL)
-		::FreeLibrary(m_hDbgHelp);
-#endif
+	return true;
 }
 
 
@@ -308,13 +321,15 @@ LONG WINAPI CDebugHelper::ExceptionFilter(EXCEPTION_POINTERS *ExceptionInfo)
 }
 
 
+#ifdef ENABLE_DEBUG_HELPER
+
 int CDebugHelper::FormatSymbolFromAddress(HANDLE hProcess,DWORD64 Address,
 	const MODULEENTRY32 *pModuleEntries,int NumModuleEntries,
 	PSYMBOL_INFO pSymbolInfo,char *pszText)
 {
 	const char *pszModule;
 
-	pszModule="???";
+	pszModule="\?\?\?";
 #if 0
 	if (m_pSymGetModuleBase!=NULL && m_pSymGetModuleInfo!=NULL) {
 		DWORD64 ModuleBase=m_pSymGetModuleBase(s.hProcess,s.Stack.StackFrame.AddrReturn.Offset);
@@ -354,3 +369,5 @@ int CDebugHelper::FormatSymbolFromAddress(HANDLE hProcess,DWORD64 Address,
 	}
 	return Length;
 }
+
+#endif	// ENABLE_DEBUG_HELPER

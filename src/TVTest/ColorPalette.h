@@ -3,9 +3,11 @@
 
 
 #include "BasicWindow.h"
+#include "Tooltip.h"
 
 
-class CColorPalette : public CBasicWindow {
+class CColorPalette : public CCustomWindow
+{
 	int m_NumColors;
 	RGBQUAD *m_pPalette;
 	int m_SelColor;
@@ -14,19 +16,25 @@ class CColorPalette : public CBasicWindow {
 	int m_Top;
 	int m_ItemWidth;
 	int m_ItemHeight;
-	HWND m_hwndToolTip;
+	CTooltip m_Tooltip;
+
+	static HINSTANCE m_hinst;
+
 	void GetItemRect(int Index,RECT *pRect) const;
 	void DrawSelRect(HDC hdc,int Sel,bool fSel);
 	void DrawNewSelHighlight(int OldSel,int NewSel);
 	void SetToolTip();
 	void SendNotify(int Code);
-	static HINSTANCE m_hinst;
-	static CColorPalette *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+
 public:
 	CColorPalette();
 	~CColorPalette();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CColorPalette
 	bool GetPalette(RGBQUAD *pPalette);
 	bool SetPalette(const RGBQUAD *pPalette,int NumColors);
 	COLORREF GetColor(int Index) const;

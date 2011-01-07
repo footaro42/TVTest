@@ -13,17 +13,17 @@ static char THIS_FILE[]=__FILE__;
 
 
 CChannelInfo::CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName)
+	: m_Space(Space)
+	, m_Channel(Channel)
+	, m_ChannelIndex(Index)
+	, m_ChannelNo(No)
+	, m_Service(Service)
+	, m_NetworkID(0)
+	, m_TransportStreamID(0)
+	, m_ServiceID(0)
+	, m_fEnabled(true)
 {
-	m_Space=Space;
-	m_Channel=Channel;
-	m_ChannelIndex=Index;
-	m_ChannelNo=No;
-	m_Service=Service;
 	::lstrcpyn(m_szName,pszName,MAX_CHANNEL_NAME);
-	m_NetworkID=0;
-	m_TransportStreamID=0;
-	m_ServiceID=0;
-	m_fEnabled=true;
 }
 
 
@@ -107,10 +107,10 @@ bool CChannelInfo::SetServiceID(WORD ServiceID)
 
 
 CChannelList::CChannelList()
+	: m_NumChannels(0)
+	, m_ppList(NULL)
+	, m_ListLength(0)
 {
-	m_NumChannels=0;
-	m_ppList=NULL;
-	m_ListLength=0;
 }
 
 
@@ -519,6 +519,24 @@ bool CChannelList::HasRemoteControlKeyID() const
 	for (int i=0;i<m_NumChannels;i++) {
 		if (m_ppList[i]->GetChannelNo()!=0)
 			return true;
+	}
+	return false;
+}
+
+
+bool CChannelList::HasMultiService() const
+{
+	for (int i=0;i<m_NumChannels-1;i++) {
+		const CChannelInfo *pChannelInfo1=m_ppList[i];
+
+		for (int j=i+1;j<m_NumChannels;j++) {
+			const CChannelInfo *pChannelInfo2=m_ppList[j];
+
+			if (pChannelInfo1->GetNetworkID()==pChannelInfo2->GetNetworkID()
+					&& pChannelInfo1->GetTransportStreamID()==pChannelInfo2->GetTransportStreamID()
+					&& pChannelInfo1->GetServiceID()!=pChannelInfo2->GetServiceID())
+				return true;
+		}
 	}
 	return false;
 }

@@ -28,6 +28,7 @@ public:
 
 	CDebugHelper();
 	~CDebugHelper();
+	static bool Initialize();
 	static bool SetExceptionFilterMode(ExceptionFilterMode Mode);
 
 private:

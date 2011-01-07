@@ -89,16 +89,12 @@ public:
 	const bool ForceAspectRatio(int AspectX,int AspectY);
 	const bool GetForceAspectRatio(int *pAspectX,int *pAspectY) const;
 	const bool GetEffectiveAspectRatio(BYTE *pAspectX,BYTE *pAspectY);
-	enum {
-		PANANDSCAN_HORZ_DEFAULT	= 0x00,
-		PANANDSCAN_HORZ_NONE	= 0x01,
-		PANANDSCAN_HORZ_CUT		= 0x02,
-		PANANDSCAN_VERT_DEFAULT	= 0x00,
-		PANANDSCAN_VERT_NONE	= 0x04,
-		PANANDSCAN_VERT_CUT		= 0x08
+	struct ClippingInfo {
+		int Left,Right,HorzFactor;
+		int Top,Bottom,VertFactor;
 	};
-	const bool SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags = 0);
-	BYTE GetPanAndScan() const { return m_PanAndScan; }
+	const bool SetPanAndScan(int AspectX,int AspectY,const ClippingInfo *pClipping = NULL);
+	const ClippingInfo &GetClippingInfo() const { return m_Clipping; }
 	enum ViewStretchMode {
 		STRETCH_KEEPASPECTRATIO,	// アスペクト比保持
 		STRETCH_CUTFRAME,			// 全体表示(収まらない分はカット)
@@ -197,7 +193,7 @@ protected:
 	CVideoRenderer::RendererType m_VideoRendererType;
 	LPWSTR m_pszAudioRendererName;
 	int m_ForceAspectX,m_ForceAspectY;
-	BYTE m_PanAndScan;
+	ClippingInfo m_Clipping;
 	ViewStretchMode m_ViewStretchMode;
 	bool m_bNoMaskSideCut;
 	bool m_bIgnoreDisplayExtension;

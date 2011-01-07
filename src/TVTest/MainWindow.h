@@ -19,18 +19,20 @@
 
 #define MAIN_TITLE_TEXT APP_NAME
 
+// (*) が付いたものは、変えると異なるバージョン間での互換性が無くなるので注意
 #define WM_APP_SERVICEUPDATE	(WM_APP+0)
 #define WM_APP_CHANNELCHANGE	(WM_APP+1)
 #define WM_APP_IMAGESAVE		(WM_APP+2)
 #define WM_APP_TRAYICON			(WM_APP+3)
 #define WM_APP_EXECUTE			(WM_APP+4)
-#define WM_APP_QUERYPORT		(WM_APP+5)
+#define WM_APP_QUERYPORT		(WM_APP+5)	// (*)
 #define WM_APP_FILEWRITEERROR	(WM_APP+6)
 #define WM_APP_VIDEOSIZECHANGED	(WM_APP+7)
 #define WM_APP_EMMPROCESSED		(WM_APP+8)
 #define WM_APP_ECMERROR			(WM_APP+9)
-#define WM_APP_EPGLOADED		(WM_APP+10)
-#define WM_APP_CONTROLLERFOCUS	(WM_APP+11)
+#define WM_APP_ECMREFUSED		(WM_APP+10)
+#define WM_APP_CONTROLLERFOCUS	(WM_APP+11)	// (*)
+#define WM_APP_EPGLOADED		(WM_APP+12)
 
 enum {
 	CONTAINER_ID_VIEW=1,
@@ -66,7 +68,7 @@ public:
 	CDisplayBase &GetDisplayBase() { return m_DisplayBase; }
 };
 
-class CFullscreen : public CBasicWindow
+class CFullscreen : public CCustomWindow
 {
 	Layout::CLayoutBase m_LayoutBase;
 	CViewWindow m_ViewWindow;
@@ -92,7 +94,6 @@ class CFullscreen : public CBasicWindow
 		HIDE_CURSOR_DELAY=1000UL
 	};
 
-	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	bool OnCreate();
 	void OnMouseCommand(int Command);
 	void OnLButtonDoubleClick();
@@ -100,8 +101,10 @@ class CFullscreen : public CBasicWindow
 	void ShowStatusView(bool fShow);
 	void ShowTitleBar(bool fShow);
 	void ShowSideBar(bool fShow);
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	CFullscreen();
@@ -112,6 +115,7 @@ public:
 	void OnRButtonDown();
 	void OnMButtonDown();
 	void OnMouseMove();
+
 	static bool Initialize();
 };
 
@@ -153,7 +157,10 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 		ASPECTRATIO_LETTERBOX,
 		ASPECTRATIO_SUPERFRAME,
 		ASPECTRATIO_SIDECUT,
-		ASPECTRATIO_4x3
+		ASPECTRATIO_4x3,
+		ASPECTRATIO_32x9,
+		ASPECTRATIO_16x9_LEFT,
+		ASPECTRATIO_16x9_RIGHT
 	};
 	int m_AspectRatioType;
 	DWORD m_AspectRatioResetTime;
@@ -277,7 +284,7 @@ public:
 	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz);
 	void SendCommand(int Command) { SendMessage(WM_COMMAND,Command,0); }
 	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
-	bool CommandLineRecord(LPCTSTR pszFileName,DWORD Delay,DWORD Duration);
+	bool CommandLineRecord(LPCTSTR pszFileName,const FILETIME *pStartTime,int Delay,int Duration);
 	bool BeginProgramGuideUpdate(bool fStandby=false);
 	void OnProgramGuideUpdateEnd(bool fRelease=true);
 	void EndProgramGuideUpdate(bool fRelease=true);

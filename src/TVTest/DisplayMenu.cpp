@@ -75,6 +75,7 @@ CChannelDisplayMenu::CChannelDisplayMenu(CEpgProgramList *pEpgProgramList)
 
 CChannelDisplayMenu::~CChannelDisplayMenu()
 {
+	Destroy();
 	Clear();
 }
 
@@ -515,7 +516,7 @@ bool CChannelDisplayMenu::SetCurTuner(int Index,bool fUpdate)
 		}
 		m_CurChannel=-1;
 		m_ChannelScrollPos=0;
-		::GetLocalTime(&m_EpgBaseTime);
+		GetCurrentJST(&m_EpgBaseTime);
 		m_EpgBaseTime.wSecond=0;
 		m_EpgBaseTime.wMilliseconds=0;
 		UpdateChannelInfo(Index);
@@ -538,6 +539,7 @@ bool CChannelDisplayMenu::UpdateChannelInfo(int Index)
 
 		CEventInfoData EventInfo;
 		if (m_pEpgProgramList->GetEventInfo(
+				pChannel->GetNetworkID(),
 				pChannel->GetTransportStreamID(),
 				pChannel->GetServiceID(),
 				&m_EpgBaseTime,&EventInfo)) {
@@ -547,6 +549,7 @@ bool CChannelDisplayMenu::UpdateChannelInfo(int Index)
 					&& EventInfo.m_DurationSec>0
 					&& EventInfo.GetEndTime(&st)
 					&& m_pEpgProgramList->GetEventInfo(
+						pChannel->GetNetworkID(),
 						pChannel->GetTransportStreamID(),
 						pChannel->GetServiceID(),
 						&st,&EventInfo)) {
@@ -556,7 +559,16 @@ bool CChannelDisplayMenu::UpdateChannelInfo(int Index)
 			}
 		} else {
 			pChannel->SetEvent(0,NULL);
-			pChannel->SetEvent(1,NULL);
+			if (m_pEpgProgramList->GetNextEventInfo(
+						pChannel->GetNetworkID(),
+						pChannel->GetTransportStreamID(),
+						pChannel->GetServiceID(),
+						&m_EpgBaseTime,&EventInfo)
+					&& DiffSystemTime(&m_EpgBaseTime,&EventInfo.m_stStartTime)<8*60*60*1000) {
+				pChannel->SetEvent(1,&EventInfo);
+			} else {
+				pChannel->SetEvent(1,NULL);
+			}
 		}
 		if (m_pLogoManager!=NULL) {
 			HBITMAP hbmLogo=m_pLogoManager->GetAssociatedLogoBitmap(
@@ -770,24 +782,10 @@ void CChannelDisplayMenu::Draw(HDC hdc,const RECT *pPaintRect)
 					rc=rcItem;
 					rc.left+=m_ChannelNameWidth;
 					rc.bottom=(rc.top+rc.bottom)/2;
-					const CEventInfoData *pEventInfo=pChannel->GetEvent(0);
-					if (pEventInfo!=NULL) {
-						int Length=0;
-						if (pEventInfo->m_fValidStartTime)
-							Length+=::wsprintf(szText,TEXT("%02d:%02d "),
-								pEventInfo->m_stStartTime.wHour,
-								pEventInfo->m_stStartTime.wMinute);
-						if (pEventInfo->GetEventName()!=NULL)
-							Length+=::wsprintf(szText+Length,TEXT("%s"),
-											   pEventInfo->GetEventName());
-						if (Length>0)
-							::DrawText(hdc,szText,Length,&rc,
-								DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
-						pEventInfo=pChannel->GetEvent(1);
+					for (int j=0;j<2;j++) {
+						const CEventInfoData *pEventInfo=pChannel->GetEvent(j);
 						if (pEventInfo!=NULL) {
-							rc.top=rc.bottom;
-							rc.bottom=rcItem.bottom;
-							Length=0;
+							int Length=0;
 							if (pEventInfo->m_fValidStartTime)
 								Length+=::wsprintf(szText,TEXT("%02d:%02d "),
 									pEventInfo->m_stStartTime.wHour,
@@ -799,6 +797,8 @@ void CChannelDisplayMenu::Draw(HDC hdc,const RECT *pPaintRect)
 								::DrawText(hdc,szText,Length,&rc,
 									DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 						}
+						rc.top=rc.bottom;
+						rc.bottom=rcItem.bottom;
 					}
 				}
 			}
@@ -878,168 +878,140 @@ void CChannelDisplayMenu::NotifyChannelSelect() const
 }
 
 
-CChannelDisplayMenu *CChannelDisplayMenu::GetThis(HWND hwnd)
-{
-	return static_cast<CChannelDisplayMenu*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CChannelDisplayMenu::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CChannelDisplayMenu *pThis=static_cast<CChannelDisplayMenu*>(OnCreate(hwnd,lParam));
-
-			if (!pThis->m_Font.IsCreated())
-				pThis->m_Font.Create(/*DrawUtil::FONT_DEFAULT*/DrawUtil::FONT_MESSAGE);
-			pThis->m_hwndTunerScroll=::CreateWindowEx(0,TEXT("SCROLLBAR"),TEXT(""),
+			if (!m_Font.IsCreated())
+				m_Font.Create(/*DrawUtil::FONT_DEFAULT*/DrawUtil::FONT_MESSAGE);
+			m_hwndTunerScroll=::CreateWindowEx(0,TEXT("SCROLLBAR"),TEXT(""),
 				WS_CHILD | SBS_VERT,0,0,0,0,hwnd,NULL,m_hinst,NULL);
-			pThis->m_hwndChannelScroll=::CreateWindowEx(0,TEXT("SCROLLBAR"),TEXT(""),
+			m_hwndChannelScroll=::CreateWindowEx(0,TEXT("SCROLLBAR"),TEXT(""),
 				WS_CHILD | SBS_VERT,0,0,0,0,hwnd,NULL,m_hinst,NULL);
-			pThis->m_TunerScrollPos=0;
-			pThis->m_ChannelScrollPos=0;
-			pThis->m_CurTuner=-1;
-			pThis->m_CurChannel=-1;
-			pThis->m_LastCursorPos.x=-1;
-			pThis->m_LastCursorPos.y=-1;
+			m_TunerScrollPos=0;
+			m_ChannelScrollPos=0;
+			m_CurTuner=-1;
+			m_CurChannel=-1;
+			m_LastCursorPos.x=-1;
+			m_LastCursorPos.y=-1;
 			::SetTimer(hwnd,TIMER_CLOCK,1000,NULL);
-			::GetLocalTime(&pThis->m_ClockTime);
+			::GetLocalTime(&m_ClockTime);
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
-
-			pThis->Layout();
-		}
+		Layout();
 		return 0;
 
 	case WM_PAINT:
 		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,&ps.rcPaint);
+			Draw(ps.hdc,&ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_VSCROLL:
 		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			HWND hwndScroll=reinterpret_cast<HWND>(lParam);
 			int Pos;
 
-			if (hwndScroll==pThis->m_hwndTunerScroll) {
-				Pos=pThis->m_TunerScrollPos;
+			if (hwndScroll==m_hwndTunerScroll) {
+				Pos=m_TunerScrollPos;
 				switch (LOWORD(wParam)) {
 				case SB_LINEUP:		Pos--;	break;
 				case SB_LINEDOWN:	Pos++;	break;
-				case SB_PAGEUP:		Pos-=pThis->m_VisibleTunerItems;	break;
-				case SB_PAGEDOWN:	Pos+=pThis->m_VisibleTunerItems;	break;
+				case SB_PAGEUP:		Pos-=m_VisibleTunerItems;	break;
+				case SB_PAGEDOWN:	Pos+=m_VisibleTunerItems;	break;
 				case SB_TOP:		Pos=0;	break;
-				case SB_BOTTOM:		Pos=pThis->m_TotalTuningSpaces-pThis->m_VisibleTunerItems;	break;
+				case SB_BOTTOM:		Pos=m_TotalTuningSpaces-m_VisibleTunerItems;	break;
 				case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
 				default:	return 0;
 				}
-				pThis->SetTunerScrollPos(Pos,true);
-			} else if (hwndScroll==pThis->m_hwndChannelScroll) {
-				Pos=pThis->m_ChannelScrollPos;
+				SetTunerScrollPos(Pos,true);
+			} else if (hwndScroll==m_hwndChannelScroll) {
+				Pos=m_ChannelScrollPos;
 				switch (LOWORD(wParam)) {
 				case SB_LINEUP:		Pos--;	break;
 				case SB_LINEDOWN:	Pos++;	break;
-				case SB_PAGEUP:		Pos-=pThis->m_VisibleChannelItems;	break;
-				case SB_PAGEDOWN:	Pos+=pThis->m_VisibleChannelItems;	break;
+				case SB_PAGEUP:		Pos-=m_VisibleChannelItems;	break;
+				case SB_PAGEDOWN:	Pos+=m_VisibleChannelItems;	break;
 				case SB_TOP:		Pos=0;	break;
 				case SB_BOTTOM:		Pos=1000;	break;
 				case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
 				default:	return 0;
 				}
-				pThis->SetChannelScrollPos(Pos,true);
+				SetChannelScrollPos(Pos,true);
 			}
 		}
 		return 0;
 
 	case WM_MOUSEWHEEL:
 		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 			int Delta=GET_WHEEL_DELTA_WPARAM(wParam)<=0?1:-1;
 
-			if (pThis->TunerItemHitTest(x,y)>=0) {
-				pThis->SetTunerScrollPos(pThis->m_TunerScrollPos+Delta,true);
-			} else if (pThis->ChannelItemHitTest(x,y)>=0) {
-				pThis->SetChannelScrollPos(pThis->m_ChannelScrollPos+Delta,true);
+			if (TunerItemHitTest(x,y)>=0) {
+				SetTunerScrollPos(m_TunerScrollPos+Delta,true);
+			} else if (ChannelItemHitTest(x,y)>=0) {
+				SetChannelScrollPos(m_ChannelScrollPos+Delta,true);
 			}
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
+		::SetFocus(hwnd);
+		if (m_pEventHandler!=NULL) {
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
-			::SetFocus(hwnd);
-			if (pThis->m_pEventHandler!=NULL) {
-				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-
-				if (pThis->CloseButtonHitTest(x,y)) {
-					pThis->m_pEventHandler->OnClose();
+			if (CloseButtonHitTest(x,y)) {
+				m_pEventHandler->OnClose();
+				return 0;
+			}
+			if (m_CurTuner>=0) {
+				if (TunerItemHitTest(x,y)==m_CurTuner) {
+					NotifyTunerSelect();
 					return 0;
 				}
-				if (pThis->m_CurTuner>=0) {
-					if (pThis->TunerItemHitTest(x,y)==pThis->m_CurTuner) {
-						pThis->NotifyTunerSelect();
-						return 0;
-					}
-				}
-				if (pThis->m_CurChannel>=0) {
-					if (pThis->ChannelItemHitTest(x,y)==pThis->m_CurChannel) {
-						pThis->NotifyChannelSelect();
-					}
+			}
+			if (m_CurChannel>=0) {
+				if (ChannelItemHitTest(x,y)==m_CurChannel) {
+					NotifyChannelSelect();
 				}
 			}
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
-		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
-		}
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		return 0;
 
 	case WM_LBUTTONDBLCLK:
-		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnLButtonDoubleClick(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
-		}
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnLButtonDoubleClick(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-			if (pThis->m_LastCursorPos.x==x && pThis->m_LastCursorPos.y==y)
+			if (m_LastCursorPos.x==x && m_LastCursorPos.y==y)
 				return 0;
-			pThis->m_LastCursorPos.x=x;
-			pThis->m_LastCursorPos.y=y;
+			m_LastCursorPos.x=x;
+			m_LastCursorPos.y=y;
 			int Index;
 
-			Index=pThis->TunerItemHitTest(x,y);
-			if (Index>=0 && Index!=pThis->m_CurTuner) {
-				pThis->SetCurTuner(Index);
+			Index=TunerItemHitTest(x,y);
+			if (Index>=0 && Index!=m_CurTuner) {
+				SetCurTuner(Index);
 			}
 			if (Index<0) {
-				Index=pThis->ChannelItemHitTest(x,y);
-				if (Index!=pThis->m_CurChannel) {
-					pThis->SetCurChannel(Index);
+				Index=ChannelItemHitTest(x,y);
+				if (Index!=m_CurChannel) {
+					SetCurChannel(Index);
 				}
 			}
 		}
@@ -1048,7 +1020,6 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 	case WM_SETCURSOR:
 		if (reinterpret_cast<HWND>(wParam)==hwnd
 				&& LOWORD(lParam)==HTCLIENT) {
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			DWORD Pos=::GetMessagePos();
 			POINT pt;
 			LPCTSTR pszCursor;
@@ -1056,9 +1027,9 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 			pt.x=(SHORT)LOWORD(Pos);
 			pt.y=(SHORT)HIWORD(Pos);
 			::ScreenToClient(hwnd,&pt);
-			if (pThis->TunerItemHitTest(pt.x,pt.y)>=0
-					|| pThis->ChannelItemHitTest(pt.x,pt.y)>=0
-					|| pThis->CloseButtonHitTest(pt.x,pt.y)) {
+			if (TunerItemHitTest(pt.x,pt.y)>=0
+					|| ChannelItemHitTest(pt.x,pt.y)>=0
+					|| CloseButtonHitTest(pt.x,pt.y)) {
 				pszCursor=IDC_HAND;
 			} else {
 				pszCursor=IDC_ARROW;
@@ -1069,104 +1040,90 @@ LRESULT CALLBACK CChannelDisplayMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		break;
 
 	case WM_KEYDOWN:
-		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
-
-			switch (wParam) {
-			case VK_UP:
-			case VK_DOWN:
-				if (pThis->m_CurChannel>=0) {
-					if (wParam==VK_DOWN || pThis->m_CurChannel>0)
-						pThis->SetCurChannel(wParam==VK_UP?pThis->m_CurChannel-1:pThis->m_CurChannel+1);
-				} else {
-					if (wParam==VK_DOWN || pThis->m_CurTuner>0)
-						pThis->SetCurTuner(wParam==VK_UP?pThis->m_CurTuner-1:pThis->m_CurTuner+1);
-				}
-				break;
-			case VK_LEFT:
-				if (pThis->m_CurChannel>=0) {
-					pThis->SetCurChannel(-1);
-				}
-				break;
-			case VK_RIGHT:
-				if (pThis->m_CurTuner>=0 && pThis->m_CurChannel<0) {
-					const CTuningSpaceInfo *pTuningSpace=pThis->GetTuningSpaceInfo(pThis->m_CurTuner);
-
-					if (pTuningSpace!=NULL && pTuningSpace->NumChannels()>0) {
-						pThis->SetCurChannel(0);
-					}
-				}
-				break;
-			case VK_RETURN:
-			case VK_SPACE:
-				if (pThis->m_CurChannel>=0) {
-					pThis->NotifyChannelSelect();
-				} else if (pThis->m_CurTuner>=0) {
-					pThis->NotifyTunerSelect();
-				}
-				break;
-			case VK_PRIOR:
-			case VK_NEXT:
-			case VK_HOME:
-			case VK_END:
-				{
-					static const struct {
-						WORD KeyCode;
-						WORD Scroll;
-					} KeyMap[] = {
-						{VK_PRIOR,	SB_PAGEUP},
-						{VK_NEXT,	SB_PAGEDOWN},
-						{VK_HOME,	SB_TOP},
-						{VK_END,	SB_BOTTOM},
-					};
-					int i;
-					for (i=0;KeyMap[i].KeyCode!=wParam;i++);
-					::SendMessage(hwnd,WM_VSCROLL,KeyMap[i].Scroll,
-								  reinterpret_cast<LPARAM>(pThis->m_CurChannel>=0?pThis->m_hwndChannelScroll:pThis->m_hwndTunerScroll));
-				}
-				break;
-			case VK_ESCAPE:
-				if (pThis->m_pEventHandler!=NULL)
-					pThis->m_pEventHandler->OnClose();
-				break;
+		switch (wParam) {
+		case VK_UP:
+		case VK_DOWN:
+			if (m_CurChannel>=0) {
+				if (wParam==VK_DOWN || m_CurChannel>0)
+					SetCurChannel(wParam==VK_UP?m_CurChannel-1:m_CurChannel+1);
+			} else {
+				if (wParam==VK_DOWN || m_CurTuner>0)
+					SetCurTuner(wParam==VK_UP?m_CurTuner-1:m_CurTuner+1);
 			}
+			break;
+		case VK_LEFT:
+			if (m_CurChannel>=0) {
+				SetCurChannel(-1);
+			}
+			break;
+		case VK_RIGHT:
+			if (m_CurTuner>=0 && m_CurChannel<0) {
+				const CTuningSpaceInfo *pTuningSpace=GetTuningSpaceInfo(m_CurTuner);
+
+				if (pTuningSpace!=NULL && pTuningSpace->NumChannels()>0) {
+					SetCurChannel(0);
+				}
+			}
+			break;
+		case VK_RETURN:
+		case VK_SPACE:
+			if (m_CurChannel>=0) {
+				NotifyChannelSelect();
+			} else if (m_CurTuner>=0) {
+				NotifyTunerSelect();
+			}
+			break;
+		case VK_PRIOR:
+		case VK_NEXT:
+		case VK_HOME:
+		case VK_END:
+			{
+				static const struct {
+					WORD KeyCode;
+					WORD Scroll;
+				} KeyMap[] = {
+					{VK_PRIOR,	SB_PAGEUP},
+					{VK_NEXT,	SB_PAGEDOWN},
+					{VK_HOME,	SB_TOP},
+					{VK_END,	SB_BOTTOM},
+				};
+				int i;
+				for (i=0;KeyMap[i].KeyCode!=wParam;i++);
+				::SendMessage(hwnd,WM_VSCROLL,KeyMap[i].Scroll,
+							  reinterpret_cast<LPARAM>(m_CurChannel>=0?m_hwndChannelScroll:m_hwndTunerScroll));
+			}
+			break;
+		case VK_ESCAPE:
+			if (m_pEventHandler!=NULL)
+				m_pEventHandler->OnClose();
+			break;
 		}
 		return 0;
 
 	case WM_SHOWWINDOW:
 		if (wParam) {
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			POINT pt;
 
 			::GetCursorPos(&pt);
 			::ScreenToClient(hwnd,&pt);
-			pThis->m_LastCursorPos=pt;
+			m_LastCursorPos=pt;
 		}
 		break;
 
 	case WM_TIMER:
 		if (wParam==TIMER_CLOCK) {
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
 			SYSTEMTIME CurTime;
 
 			::GetLocalTime(&CurTime);
-			if (pThis->m_ClockTime.wHour!=CurTime.wHour
-					|| pThis->m_ClockTime.wMinute!=CurTime.wMinute) {
+			if (m_ClockTime.wHour!=CurTime.wHour
+					|| m_ClockTime.wMinute!=CurTime.wMinute) {
 				HDC hdc;
 
-				pThis->m_ClockTime=CurTime;
+				m_ClockTime=CurTime;
 				hdc=GetDC(hwnd);
-				pThis->DrawClock(hdc);
+				DrawClock(hdc);
 				ReleaseDC(hwnd,hdc);
 			}
-		}
-		return 0;
-
-	case WM_DESTROY:
-		{
-			CChannelDisplayMenu *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
 		}
 		return 0;
 	}

@@ -8,9 +8,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	7
-#define VERSION_BUILD	13
+#define VERSION_BUILD	14
 
-#define VERSION_TEXT_A	"0.7.13"
+#define VERSION_TEXT_A	"0.7.14"
 
 #else
 
@@ -48,6 +48,10 @@
 #endif
 
 #define ABOUT_VERSION_TEXT	APP_NAME TEXT(" ver.") VERSION_TEXT
+
+#ifndef NO_NETWORK_REMOCON
+#define NETWORK_REMOCON_SUPPORT
+#endif
 
 #ifdef BONTSENGINE_RADIO_SUPPORT
 #define TVTEST_RADIO_SUPPORT

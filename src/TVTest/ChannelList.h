@@ -9,17 +9,19 @@
 #define MAX_CHANNEL_NAME 64
 
 
-class CChannelInfo {
-	int m_Space;				// チューニング空間
-	int m_Channel;				// 物理チャンネル番号
-	int m_ChannelIndex;			// チャンネルインデックス(BonDriverでの番号)
-	int m_ChannelNo;			// リモコンチャンネル番号
-	int m_Service;				// サービス
-	TCHAR m_szName[MAX_CHANNEL_NAME];
-	WORD m_NetworkID;			// ネットワークID
-	WORD m_TransportStreamID;	// トランスポートストリームID
-	WORD m_ServiceID;			// サービスID
-	bool m_fEnabled;			// 有効
+class CChannelInfo
+{
+	int m_Space;						// チューニング空間
+	int m_Channel;						// 物理チャンネル番号
+	int m_ChannelIndex;					// チャンネルインデックス(BonDriverでの番号)
+	int m_ChannelNo;					// リモコンチャンネル番号
+	int m_Service;						// サービス
+	TCHAR m_szName[MAX_CHANNEL_NAME];	// チャンネル名
+	WORD m_NetworkID;					// ネットワークID
+	WORD m_TransportStreamID;			// トランスポートストリームID
+	WORD m_ServiceID;					// サービスID
+	bool m_fEnabled;					// 有効
+
 public:
 	CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName);
 	CChannelInfo(const CChannelInfo &Info);
@@ -45,10 +47,12 @@ public:
 	bool IsEnabled() const { return m_fEnabled; }
 };
 
-class CChannelList {
+class CChannelList
+{
 	int m_NumChannels;
 	class CChannelInfo **m_ppList;
 	int m_ListLength;
+
 public:
 	CChannelList();
 	CChannelList(const CChannelList &List);
@@ -92,11 +96,14 @@ public:
 	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool HasRemoteControlKeyID() const;
+	bool HasMultiService() const;
+
 private:
 	void SortSub(SortType Type,bool fDescending,int First,int Last,CChannelInfo **ppTemp);
 };
 
-class CTuningSpaceInfo {
+class CTuningSpaceInfo
+{
 public:
 	enum TuningSpaceType {
 		SPACE_ERROR=-1,
@@ -105,10 +112,12 @@ public:
 		SPACE_BS,
 		SPACE_110CS
 	};
+
 private:
 	CChannelList *m_pChannelList;
 	LPTSTR m_pszName;
 	TuningSpaceType m_Space;
+
 public:
 	CTuningSpaceInfo();
 	CTuningSpaceInfo(const CTuningSpaceInfo &Info);
@@ -123,10 +132,12 @@ public:
 	int NumChannels() const;
 };
 
-class CTuningSpaceList {
+class CTuningSpaceList
+{
 	CPointerVector<CTuningSpaceInfo> m_TuningSpaceList;
 	CChannelList m_AllChannelList;
 	bool MakeTuningSpaceList(const CChannelList *pList,int Spaces=0);
+
 public:
 	CTuningSpaceList();
 	CTuningSpaceList(const CTuningSpaceList &List);

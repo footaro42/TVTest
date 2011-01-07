@@ -155,23 +155,6 @@ void CControlPanel::UpdateLayout()
 }
 
 
-/*
-void CControlPanel::SetColors(const Theme::GradientInfo *pBackGradient,COLORREF crText,
-	const Theme::GradientInfo *pOverBackGradient,COLORREF crOverText,
-	COLORREF crMargin)
-
-{
-	m_BackGradient=*pBackGradient;
-	m_crTextColor=crText;
-	m_OverBackGradient=*pOverBackGradient;
-	m_crOverTextColor=crOverText;
-	m_crMarginColor=crMargin;
-	if (m_hwnd!=NULL)
-		Invalidate();
-}
-*/
-
-
 bool CControlPanel::SetTheme(const ThemeInfo *pTheme)
 {
 	if (pTheme==NULL)
@@ -355,64 +338,47 @@ void CControlPanel::Draw(HDC hdc,const RECT &PaintRect)
 }
 
 
-CControlPanel *CControlPanel::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CControlPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
-																LPARAM lParam)
+LRESULT CControlPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
-		{
-			CControlPanel *pThis=dynamic_cast<CControlPanel*>(OnCreate(hwnd,lParam));
-
-			pThis->m_HotItem=-1;
-			pThis->m_fTrackMouseEvent=false;
-			pThis->m_fOnButtonDown=false;
-		}
+		m_HotItem=-1;
+		m_fTrackMouseEvent=false;
+		m_fOnButtonDown=false;
 		return 0;
 
 	case WM_SIZE:
-		{
-			CControlPanel *pThis=GetThis(hwnd);
-
-			pThis->UpdateLayout();
-		}
+		UpdateLayout();
 		return 0;
 
 	case WM_PAINT:
 		{
-			CControlPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,ps.rcPaint);
+			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CControlPanel *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 			RECT rc;
 
 			if (::GetCapture()==hwnd) {
-				pThis->m_ItemList[pThis->m_HotItem]->GetPosition(&rc);
+				m_ItemList[m_HotItem]->GetPosition(&rc);
 				x-=rc.left;
 				y-=rc.top;
-				pThis->m_ItemList[pThis->m_HotItem]->OnMouseMove(x,y);
+				m_ItemList[m_HotItem]->OnMouseMove(x,y);
 			} else {
 				int i;
 				POINT pt;
 
 				pt.x=x;
 				pt.y=y;
-				for (i=(int)pThis->m_ItemList.size()-1;i>=0;i--) {
-					const CControlPanelItem *pItem=pThis->m_ItemList[i];
+				for (i=(int)m_ItemList.size()-1;i>=0;i--) {
+					const CControlPanelItem *pItem=m_ItemList[i];
 
 					if (pItem->GetVisible() && pItem->GetEnable()) {
 						pItem->GetPosition(&rc);
@@ -420,64 +386,59 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 							break;
 					}
 				}
-				if (i!=pThis->m_HotItem) {
+				if (i!=m_HotItem) {
 					int OldHotItem;
 
-					OldHotItem=pThis->m_HotItem;
-					pThis->m_HotItem=i;
+					OldHotItem=m_HotItem;
+					m_HotItem=i;
 					if (OldHotItem>=0)
-						pThis->UpdateItem(OldHotItem);
-					if (pThis->m_HotItem>=0)
-						pThis->UpdateItem(pThis->m_HotItem);
+						UpdateItem(OldHotItem);
+					if (m_HotItem>=0)
+						UpdateItem(m_HotItem);
 				}
-				if (!pThis->m_fTrackMouseEvent) {
+				if (!m_fTrackMouseEvent) {
 					TRACKMOUSEEVENT tme;
 
 					tme.cbSize=sizeof(TRACKMOUSEEVENT);
 					tme.dwFlags=TME_LEAVE;
 					tme.hwndTrack=hwnd;
 					if (::TrackMouseEvent(&tme))
-						pThis->m_fTrackMouseEvent=true;
+						m_fTrackMouseEvent=true;
 				}
 			}
 		}
 		return 0;
 
 	case WM_MOUSELEAVE:
-		{
-			CControlPanel *pThis=GetThis(hwnd);
+		if (!m_fOnButtonDown) {
+			if (m_HotItem>=0) {
+				int i=m_HotItem;
 
-			if (!pThis->m_fOnButtonDown) {
-				if (pThis->m_HotItem>=0) {
-					int i=pThis->m_HotItem;
-
-					pThis->m_HotItem=-1;
-					pThis->UpdateItem(i);
-				}
+				m_HotItem=-1;
+				UpdateItem(i);
 			}
-			pThis->m_fTrackMouseEvent=false;
 		}
+		m_fTrackMouseEvent=false;
 		return 0;
 
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
 		{
-			CControlPanel *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
-			if (pThis->m_HotItem>=0) {
+			if (m_HotItem>=0) {
 				RECT rc;
 
-				pThis->m_ItemList[pThis->m_HotItem]->GetPosition(&rc);
+				m_ItemList[m_HotItem]->GetPosition(&rc);
 				x-=rc.left;
 				y-=rc.top;
-				pThis->m_fOnButtonDown=true;
+				m_fOnButtonDown=true;
 				if (uMsg==WM_LBUTTONDOWN)
-					pThis->m_ItemList[pThis->m_HotItem]->OnLButtonDown(x,y);
+					m_ItemList[m_HotItem]->OnLButtonDown(x,y);
 				else
-					pThis->m_ItemList[pThis->m_HotItem]->OnRButtonDown(x,y);
-				pThis->m_fOnButtonDown=false;
-				if (!pThis->m_fTrackMouseEvent) {
+					m_ItemList[m_HotItem]->OnRButtonDown(x,y);
+				m_fOnButtonDown=false;
+				if (!m_fTrackMouseEvent) {
 					POINT pt;
 
 					::GetCursorPos(&pt);
@@ -494,8 +455,8 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 				pt.x=x;
 				pt.y=y;
-				::MapWindowPoints(hwnd,pThis->GetParent(),&pt,1);
-				::SendMessage(pThis->GetParent(),uMsg,wParam,MAKELPARAM(pt.x,pt.y));
+				::MapWindowPoints(hwnd,GetParent(),&pt,1);
+				::SendMessage(GetParent(),uMsg,wParam,MAKELPARAM(pt.x,pt.y));
 			}
 		}
 		return 0;
@@ -508,9 +469,7 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
-			CControlPanel *pThis=GetThis(hwnd);
-
-			if (pThis->m_HotItem>=0) {
+			if (m_HotItem>=0) {
 				::SetCursor(LoadCursor(NULL,IDC_HAND));
 				return TRUE;
 			}
@@ -518,22 +477,10 @@ LRESULT CALLBACK CControlPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		break;
 
 	case WM_DISPLAYCHANGE:
-		{
-			CControlPanel *pThis=GetThis(hwnd);
-
-			pThis->m_Offscreen.Destroy();
-		}
-		return 0;
-
-	case WM_DESTROY:
-		{
-			CControlPanel *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
+		m_Offscreen.Destroy();
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 

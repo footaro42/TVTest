@@ -29,10 +29,16 @@ public:
 class CPortQuery {
 	HWND m_hwndSelf;
 	std::vector<WORD> m_UDPPortList;
+#ifdef NETWORK_REMOCON_SUPPORT
 	std::vector<WORD> m_RemoconPortList;
+#endif
 	static BOOL CALLBACK EnumProc(HWND hwnd,LPARAM lParam);
 public:
-	bool Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort);
+	bool Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort
+#ifdef NETWORK_REMOCON_SUPPORT
+			   ,WORD *pRemoconPort
+#endif
+			   );
 };
 
 

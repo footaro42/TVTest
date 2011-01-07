@@ -68,6 +68,7 @@ CPanel::CPanel()
 
 CPanel::~CPanel()
 {
+	Destroy();
 }
 
 
@@ -223,66 +224,51 @@ void CPanel::GetCloseButtonRect(RECT *pRect) const
 }
 
 
-CPanel *CPanel::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CPanel*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CPanel *pThis=dynamic_cast<CPanel*>(OnCreate(hwnd,lParam));
-
 			HDC hdc=::GetDC(hwnd);
-			int FontHeight=pThis->m_Font.GetHeight(hdc,false);
-			pThis->m_TitleHeight=
-				max(FontHeight,pThis->m_ButtonSize)+pThis->m_TitleMargin*2;
+			int FontHeight=m_Font.GetHeight(hdc,false);
+			m_TitleHeight=max(FontHeight,m_ButtonSize)+m_TitleMargin*2;
 			::ReleaseDC(hwnd,hdc);
-			pThis->m_fCloseButtonPushed=false;
+			m_fCloseButtonPushed=false;
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CPanel *pThis=GetThis(hwnd);
-
-			pThis->OnSize(LOWORD(lParam),HIWORD(lParam));
-		}
+		OnSize(LOWORD(lParam),HIWORD(lParam));
 		return 0;
 
 	case WM_PAINT:
 		{
-			CPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,ps.rcPaint);
+			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
 		{
-			CPanel *pThis=GetThis(hwnd);
 			POINT pt;
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
-			if (pThis->m_fShowTitle && pt.y<pThis->m_TitleHeight) {
+			if (m_fShowTitle && pt.y<m_TitleHeight) {
 				RECT rc;
 
-				pThis->GetCloseButtonRect(&rc);
+				GetCloseButtonRect(&rc);
 				if (::PtInRect(&rc,pt)) {
-					pThis->m_fCloseButtonPushed=true;
+					m_fCloseButtonPushed=true;
 					::SetCapture(hwnd);
 					::InvalidateRect(hwnd,&rc,FALSE);
-				} else if (pThis->m_fEnableFloating) {
+				} else if (m_fEnableFloating) {
 					::ClientToScreen(hwnd,&pt);
-					pThis->m_fCloseButtonPushed=false;
-					pThis->m_ptDragStartPos=pt;
+					m_fCloseButtonPushed=false;
+					m_ptDragStartPos=pt;
 					::SetCapture(hwnd);
 				}
 			}
@@ -291,8 +277,7 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 	case WM_LBUTTONUP:
 		if (::GetCapture()==hwnd) {
-			CPanel *pThis=GetThis(hwnd);
-			bool fCloseButtonPushed=pThis->m_fCloseButtonPushed;
+			bool fCloseButtonPushed=m_fCloseButtonPushed;
 
 			::ReleaseCapture();
 			if (fCloseButtonPushed) {
@@ -301,10 +286,10 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 				pt.x=GET_X_LPARAM(lParam);
 				pt.y=GET_Y_LPARAM(lParam);
-				pThis->GetCloseButtonRect(&rc);
+				GetCloseButtonRect(&rc);
 				if (::PtInRect(&rc,pt)) {
-					if (pThis->m_pEventHandler!=NULL)
-						pThis->m_pEventHandler->OnClose();
+					if (m_pEventHandler!=NULL)
+						m_pEventHandler->OnClose();
 				}
 			}
 		}
@@ -312,20 +297,18 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 	case WM_MOUSEMOVE:
 		if (::GetCapture()==hwnd) {
-			CPanel *pThis=GetThis(hwnd);
-
-			if (!pThis->m_fCloseButtonPushed) {
+			if (!m_fCloseButtonPushed) {
 				POINT pt;
 
 				pt.x=GET_X_LPARAM(lParam);
 				pt.y=GET_Y_LPARAM(lParam);
 				::ClientToScreen(hwnd,&pt);
-				if (abs(pt.x-pThis->m_ptDragStartPos.x)>=4
-						|| abs(pt.y-pThis->m_ptDragStartPos.y)>=4) {
+				if (abs(pt.x-m_ptDragStartPos.x)>=4
+						|| abs(pt.y-m_ptDragStartPos.y)>=4) {
 					::ReleaseCapture();
-					if (pThis->m_pEventHandler!=NULL
-							&& pThis->m_pEventHandler->OnFloating()) {
-						::SendMessage(pThis->GetParent(),WM_NCLBUTTONDOWN,
+					if (m_pEventHandler!=NULL
+							&& m_pEventHandler->OnFloating()) {
+						::SendMessage(GetParent(),WM_NCLBUTTONDOWN,
 									  HTCAPTION,MAKELONG(pt.x,pt.y));
 					}
 				}
@@ -334,34 +317,29 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 		return 0;
 
 	case WM_CAPTURECHANGED:
-		{
-			CPanel *pThis=GetThis(hwnd);
+		if (m_fCloseButtonPushed) {
+			RECT rc;
 
-			if (pThis->m_fCloseButtonPushed) {
-				RECT rc;
-
-				pThis->m_fCloseButtonPushed=false;
-				pThis->GetCloseButtonRect(&rc);
-				::InvalidateRect(hwnd,&rc,FALSE);
-			}
+			m_fCloseButtonPushed=false;
+			GetCloseButtonRect(&rc);
+			::InvalidateRect(hwnd,&rc,FALSE);
 		}
 		return 0;
 
 	case WM_RBUTTONDOWN:
 		{
-			CPanel *pThis=GetThis(hwnd);
 			POINT pt;
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
-			if (pThis->m_fShowTitle && pt.y<pThis->m_TitleHeight
-					&& pThis->m_pEventHandler!=NULL) {
+			if (m_fShowTitle && pt.y<m_TitleHeight
+					&& m_pEventHandler!=NULL) {
 				HMENU hmenu=::CreatePopupMenu();
 
 				::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,1,TEXT("閉じる(&C)"));
-				if (pThis->m_fEnableFloating)
+				if (m_fEnableFloating)
 					::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,2,TEXT("フローティング(&F)"));
-				pThis->m_pEventHandler->OnMenuPopup(hmenu);
+				m_pEventHandler->OnMenuPopup(hmenu);
 				::ClientToScreen(hwnd,&pt);
 				int Command=::TrackPopupMenu(hmenu,
 											 TPM_RIGHTBUTTON | TPM_RETURNCMD,
@@ -370,13 +348,13 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				case 0:
 					break;
 				case 1:
-					pThis->m_pEventHandler->OnClose();
+					m_pEventHandler->OnClose();
 					break;
 				case 2:
-					pThis->m_pEventHandler->OnFloating();
+					m_pEventHandler->OnFloating();
 					break;
 				default:
-					pThis->m_pEventHandler->OnMenuSelected(Command);
+					m_pEventHandler->OnMenuSelected(Command);
 					break;
 				}
 			}
@@ -384,22 +362,10 @@ LRESULT CALLBACK CPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 		return 0;
 
 	case WM_KEYDOWN:
-		{
-			CPanel *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
+			return 0;
 		break;
-
-	case WM_DESTROY:
-		{
-			CPanel *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
@@ -449,6 +415,7 @@ CPanelFrame::CPanelFrame()
 
 CPanelFrame::~CPanelFrame()
 {
+	Destroy();
 }
 
 
@@ -604,20 +571,12 @@ bool CPanelFrame::SetOpacity(int Opacity)
 }
 
 
-CPanelFrame *CPanelFrame::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CPanelFrame*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CPanelFrame::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CPanelFrame *pThis=dynamic_cast<CPanelFrame*>(OnCreate(hwnd,lParam));
-
-			pThis->m_fDragMoving=false;
+			m_fDragMoving=false;
 			HMENU hmenu=GetSystemMenu(hwnd,FALSE);
 			InsertMenu(hmenu,0,MF_BYPOSITION | MFT_STRING | MFS_ENABLED,SC_DOCKING,TEXT("ドッキング(&D)"));
 			InsertMenu(hmenu,1,MF_BYPOSITION | MFT_SEPARATOR,0,NULL);
@@ -625,66 +584,44 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 		return 0;
 
 	case WM_SIZE:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			if (pThis->m_fFloating)
-				pThis->m_Panel.SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
-		}
+		if (m_fFloating)
+			m_Panel.SetPosition(0,0,LOWORD(lParam),HIWORD(lParam));
 		return 0;
 
 	case WM_KEYDOWN:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
+			return 0;
 		break;
 
 	case WM_MOUSEWHEEL:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnMouseWheel(wParam,lParam))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnMouseWheel(wParam,lParam))
+			return 0;
 		break;
 
 	case WM_ACTIVATE:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnActivate(LOWORD(wParam)!=WA_INACTIVE))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnActivate(LOWORD(wParam)!=WA_INACTIVE))
+			return 0;
 		break;
 
 	case WM_MOVING:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnMoving(
-											reinterpret_cast<LPRECT>(lParam)))
-				return TRUE;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnMoving(reinterpret_cast<LPRECT>(lParam)))
+			return TRUE;
 		break;
 
 	case WM_MOVE:
 		{
-			CPanelFrame *pThis=GetThis(hwnd);
 			POINT pt;
 			RECT rcTarget,rc;
 			DockingPlace Target;
 
-			if (!pThis->m_fDragMoving)
+			if (!m_fDragMoving)
 				break;
 			::GetCursorPos(&pt);
-			pThis->m_pSplitter->GetLayoutBase()->GetScreenPosition(&rcTarget);
+			m_pSplitter->GetLayoutBase()->GetScreenPosition(&rcTarget);
 			Target=DOCKING_NONE;
 			rc=rcTarget;
 			rc.right=rc.left+16;
@@ -696,91 +633,67 @@ LRESULT CALLBACK CPanelFrame::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 				if (PtInRect(&rc,pt))
 					Target=DOCKING_RIGHT;
 			}
-			if (Target!=pThis->m_DragDockingTarget) {
+			if (Target!=m_DragDockingTarget) {
 				if (Target==DOCKING_NONE) {
-					pThis->m_DropHelper.Hide();
+					m_DropHelper.Hide();
 				} else{
 					if (Target==DOCKING_LEFT) {
 						rc.right=rcTarget.left;
-						rc.left=rc.right-pThis->m_DockingWidth;
+						rc.left=rc.right-m_DockingWidth;
 					} else if (Target==DOCKING_RIGHT) {
 						rc.left=rcTarget.right;
-						rc.right=rc.left+pThis->m_DockingWidth;
+						rc.right=rc.left+m_DockingWidth;
 					}
-					pThis->m_DropHelper.Show(&rc);
+					m_DropHelper.Show(&rc);
 				}
-				pThis->m_DragDockingTarget=Target;
+				m_DragDockingTarget=Target;
 			}
 		}
 		break;
 
 	case WM_EXITSIZEMOVE:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
+		if (m_DragDockingTarget!=DOCKING_NONE) {
+			int Index;
 
-			if (pThis->m_DragDockingTarget!=DOCKING_NONE) {
-				int Index;
-
-				pThis->m_DropHelper.Hide();
-				if (pThis->m_DragDockingTarget==DOCKING_LEFT)
-					Index=0;
-				else
-					Index=1;
-				//if (pThis->m_pSplitter->IDToIndex(pThis->m_PanelID)!=Index)
-				if (pThis->m_pSplitter->GetPane(Index)->GetID()!=pThis->m_PanelID)
-					pThis->m_pSplitter->SwapPane();
-				::SendMessage(hwnd,WM_SYSCOMMAND,SC_DOCKING,0);
-			}
-			pThis->m_fDragMoving=false;
+			m_DropHelper.Hide();
+			if (m_DragDockingTarget==DOCKING_LEFT)
+				Index=0;
+			else
+				Index=1;
+			//if (m_pSplitter->IDToIndex(m_PanelID)!=Index)
+			if (m_pSplitter->GetPane(Index)->GetID()!=m_PanelID)
+				m_pSplitter->SwapPane();
+			::SendMessage(hwnd,WM_SYSCOMMAND,SC_DOCKING,0);
 		}
+		m_fDragMoving=false;
 		return 0;
 
 	case WM_ENTERSIZEMOVE:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			pThis->m_DragDockingTarget=DOCKING_NONE;
-			pThis->m_fDragMoving=true;
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnEnterSizeMove())
-				return 0;
-		}
+		m_DragDockingTarget=DOCKING_NONE;
+		m_fDragMoving=true;
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnEnterSizeMove())
+			return 0;
 		break;
 
 	case WM_SYSCOMMAND:
 		switch (wParam) {
 		case SC_DOCKING:
-			{
-				CPanelFrame *pThis=GetThis(hwnd);
-
-				if (pThis->m_pEventHandler!=NULL
-						&& !pThis->m_pEventHandler->OnFloatingChange(false))
-					return 0;
-				pThis->SetFloating(false);
-			}
+			if (m_pEventHandler!=NULL
+					&& !m_pEventHandler->OnFloatingChange(false))
+				return 0;
+			SetFloating(false);
 			return 0;
 		}
 		break;
 
 	case WM_CLOSE:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& !pThis->m_pEventHandler->OnClose())
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& !m_pEventHandler->OnClose())
+			return 0;
 		break;
-
-	case WM_DESTROY:
-		{
-			CPanelFrame *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 
@@ -924,13 +837,9 @@ bool CDropHelper::Hide()
 }
 
 
-LRESULT CALLBACK CDropHelper::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CDropHelper::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
-	case WM_CREATE:
-		OnCreate(hwnd,lParam);
-		return 0;
-
 	case WM_PAINT:
 		{
 			PAINTSTRUCT ps;
@@ -938,15 +847,6 @@ LRESULT CALLBACK CDropHelper::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 			::BeginPaint(hwnd,&ps);
 			::FillRect(ps.hdc,&ps.rcPaint,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
 			::EndPaint(hwnd,&ps);
-		}
-		return 0;
-
-	case WM_DESTROY:
-		{
-			CDropHelper *pThis=static_cast<CDropHelper*>(GetBasicWindow(hwnd));
-
-			if (pThis!=NULL)
-				pThis->OnDestroy();
 		}
 		return 0;
 	}

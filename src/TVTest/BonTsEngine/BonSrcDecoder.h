@@ -67,7 +67,9 @@ public:
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
 	bool SetStreamThreadPriority(int Priority);
+	int GetStreamThreadPriority() const { return m_StreamThreadPriority; }
 	void SetPurgeStreamOnChannelChange(bool bPurge);
+	bool IsPurgeStreamOnChannelChange() const { return m_bPurgeStreamOnChannelChange; }
 
 private:
 	static DWORD WINAPI StreamRecvThread(LPVOID pParam);

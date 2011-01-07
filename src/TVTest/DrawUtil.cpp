@@ -703,6 +703,59 @@ void CBrush::Destroy()
 }
 
 
+CBitmap::CBitmap()
+	: m_hbm(NULL)
+{
+}
+
+CBitmap::CBitmap(const CBitmap &Src)
+	: m_hbm(NULL)
+{
+	*this=Src;
+}
+
+CBitmap::~CBitmap()
+{
+	Destroy();
+}
+
+CBitmap &CBitmap::operator=(const CBitmap &Src)
+{
+	if (&Src!=this) {
+		Destroy();
+		if (Src.m_hbm!=NULL)
+			m_hbm=static_cast<HBITMAP>(::CopyImage(Src.m_hbm,IMAGE_BITMAP,0,0,
+												   Src.IsDIB()?LR_CREATEDIBSECTION:0));
+	}
+	return *this;
+}
+
+bool CBitmap::Load(HINSTANCE hinst,LPCTSTR pszName,UINT Flags)
+{
+	Destroy();
+	m_hbm=static_cast<HBITMAP>(::LoadImage(hinst,pszName,IMAGE_BITMAP,0,0,Flags));
+	return m_hbm!=NULL;
+}
+
+void CBitmap::Destroy()
+{
+	if (m_hbm!=NULL) {
+		::DeleteObject(m_hbm);
+		m_hbm=NULL;
+	}
+}
+
+bool CBitmap::IsDIB() const
+{
+	if (m_hbm!=NULL) {
+		DIBSECTION ds;
+		if (::GetObject(m_hbm,sizeof(ds),&ds)==sizeof(ds))
+			return true;
+	}
+	return false;
+}
+
+
 COffscreen::COffscreen()
 	: m_hdc(NULL)
 	, m_hbm(NULL)

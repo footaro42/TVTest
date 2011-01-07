@@ -74,8 +74,6 @@ private:
 
 	static const LPCTSTR m_pszItemNameList[];
 
-	static CInformationPanel *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static LRESULT CALLBACK ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void GetItemRect(int Item,RECT *pRect) const;
 	void UpdateItem(int Item);
@@ -83,12 +81,17 @@ private:
 	void Draw(HDC hdc,const RECT &PaintRect);
 	bool GetDrawItemRect(int Item,RECT *pRect,const RECT &PaintRect) const;
 	void DrawItem(HDC hdc,LPCTSTR pszText,const RECT &Rect);
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	static bool Initialize(HINSTANCE hinst);
+
 	CInformationPanel();
 	~CInformationPanel();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CInformationPanel
 	void ResetStatistics();
 	bool IsVisible() const;
 	void SetColor(COLORREF crBackColor,COLORREF crTextColor);

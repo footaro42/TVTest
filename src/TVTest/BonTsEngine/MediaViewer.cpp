@@ -97,7 +97,6 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pszAudioRendererName(NULL)
 	, m_ForceAspectX(0)
 	, m_ForceAspectY(0)
-	, m_PanAndScan(0)
 	, m_ViewStretchMode(STRETCH_KEEPASPECTRATIO)
 	, m_bNoMaskSideCut(false)
 	, m_bIgnoreDisplayExtension(false)
@@ -112,6 +111,8 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pAudioStreamCallbackParam(NULL)
 	, m_pImageMixer(NULL)
 {
+	::ZeroMemory(&m_Clipping, sizeof(m_Clipping));
+
 	// COMÉâÉCÉuÉâÉäèâä˙âª
 	//::CoInitialize(NULL);
 }
@@ -1399,15 +1400,17 @@ const bool CMediaViewer::GetEffectiveAspectRatio(BYTE *pAspectX, BYTE *pAspectY)
 }
 
 
-const bool CMediaViewer::SetPanAndScan(int AspectX,int AspectY,BYTE PanScanFlags)
+const bool CMediaViewer::SetPanAndScan(int AspectX,int AspectY,const ClippingInfo *pClipping)
 {
-	if (m_ForceAspectX!=AspectX || m_ForceAspectY!=AspectY
-			|| m_PanAndScan!=PanScanFlags) {
+	if (m_ForceAspectX!=AspectX || m_ForceAspectY!=AspectY || pClipping!=NULL) {
 		CBlockLock Lock(&m_ResizeLock);
 
 		m_ForceAspectX=AspectX;
 		m_ForceAspectY=AspectY;
-		m_PanAndScan=PanScanFlags;
+		if (pClipping!=NULL)
+			m_Clipping=*pClipping;
+		else
+			::ZeroMemory(&m_Clipping,sizeof(m_Clipping));
 		AdjustVideoPosition();
 	}
 	return true;
@@ -1502,12 +1505,10 @@ const bool CMediaViewer::CalcSourceRect(RECT *pRect)
 
 	if (m_VideoInfo.m_OrigWidth==0 || m_VideoInfo.m_OrigHeight==0)
 		return false;
-	if (m_PanAndScan&PANANDSCAN_HORZ_NONE) {
-		SrcWidth=m_VideoInfo.m_OrigWidth;
-		SrcX=0;
-	} else if (m_PanAndScan&PANANDSCAN_HORZ_CUT) {
-		SrcWidth=m_VideoInfo.m_OrigWidth*12/16;
-		SrcX=(m_VideoInfo.m_OrigWidth-SrcWidth)/2;
+	if (m_Clipping.HorzFactor!=0) {
+		SrcWidth=m_VideoInfo.m_OrigWidth-
+			m_VideoInfo.m_OrigWidth*(m_Clipping.Left+m_Clipping.Right)/m_Clipping.HorzFactor;
+		SrcX=m_VideoInfo.m_OrigWidth*m_Clipping.Left/m_Clipping.HorzFactor;
 	} else if (m_bIgnoreDisplayExtension) {
 		SrcWidth=m_VideoInfo.m_OrigWidth;
 		SrcX=0;
@@ -1515,12 +1516,10 @@ const bool CMediaViewer::CalcSourceRect(RECT *pRect)
 		SrcWidth=m_VideoInfo.m_DisplayWidth;
 		SrcX=m_VideoInfo.m_PosX;
 	}
-	if (m_PanAndScan&PANANDSCAN_VERT_NONE) {
-		SrcHeight=m_VideoInfo.m_OrigHeight;
-		SrcY=0;
-	} else if (m_PanAndScan&PANANDSCAN_VERT_CUT) {
-		SrcHeight=m_VideoInfo.m_OrigHeight*9/12;
-		SrcY=(m_VideoInfo.m_OrigHeight-SrcHeight)/2;
+	if (m_Clipping.VertFactor!=0) {
+		SrcHeight=m_VideoInfo.m_OrigHeight-
+			m_VideoInfo.m_OrigHeight*(m_Clipping.Top+m_Clipping.Bottom)/m_Clipping.VertFactor;
+		SrcY=m_VideoInfo.m_OrigHeight*m_Clipping.Top/m_Clipping.VertFactor;
 	} else if (m_bIgnoreDisplayExtension) {
 		SrcHeight=m_VideoInfo.m_OrigHeight;
 		SrcY=0;

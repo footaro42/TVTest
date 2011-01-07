@@ -6,7 +6,8 @@
 #include "BonSrcDecoder.h"
 
 
-class CChannelManager {
+class CChannelManager
+{
 	int m_CurrentSpace;
 	int m_CurrentChannel;
 	int m_CurrentServiceID;
@@ -14,10 +15,14 @@ class CChannelManager {
 	CTuningSpaceList m_TuningSpaceList;
 	CTuningSpaceList m_DriverTuningSpaceList;
 	bool m_fUseDriverChannelList;
+#ifdef NETWORK_REMOCON_SUPPORT
 	bool m_fNetworkRemocon;
 	CChannelList *m_pNetworkRemoconChannelList;
 	int m_NetworkRemoconCurrentChannel;
+#endif
+
 	bool LoadOldChannelFile(LPCTSTR pszFileName);
+
 public:
 	enum {
 		SPACE_INVALID=-2,
@@ -54,20 +59,24 @@ public:
 	LPCTSTR GetTuningSpaceName(int Space) const;
 	int FindChannelInfo(const CChannelInfo *pInfo) const;
 	int NumSpaces() const;
+#ifdef NETWORK_REMOCON_SUPPORT
 	bool SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList=NULL);
 	bool IsNetworkRemoconMode() const { return m_fNetworkRemocon; }
 	int GetNetworkRemoconCurrentChannel() const { return m_NetworkRemoconCurrentChannel; }
 	bool SetNetworkRemoconCurrentChannel(int Channel);
+#endif
 	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
 						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
 	bool SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
 };
 
-class CChannelSpec {
+class CChannelSpec
+{
 	int m_Space;
 	int m_Channel;
 	int m_ServiceID;
+
 public:
 	CChannelSpec();
 	~CChannelSpec();

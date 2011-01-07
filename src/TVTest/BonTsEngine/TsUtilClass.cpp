@@ -254,19 +254,21 @@ void CDateTime::UTCTime()
 	::GetSystemTime(&m_Time);
 }
 
+/*
 bool CDateTime::LocalToUTC()
 {
-#if 1
+#ifdef WINDOWS2000_SUPPORT
 	FILETIME ftLocal, ftUTC;
 
 	return ::SystemTimeToFileTime(&m_Time, &ftLocal)
 		&& ::LocalFileTimeToFileTime(&ftLocal, &ftUTC)
 		&& ::FileTimeToSystemTime(&ftUTC, &m_Time);
 #else
-	// TzSpecificLocalTimeToSystemTime ÇÕ XP à»ç~ÇÃëŒâûÇ»ÇÃÇ≈égÇ¢Ç√ÇÁÇ¢Åc
 	TIME_ZONE_INFORMATION tzi;
 	if (::GetTimeZoneInformation(&tzi) == TIME_ZONE_ID_INVALID)
 		return false;
+	tzi.StandardDate.wMonth = 0;
+	tzi.DaylightDate.wMonth = 0;
 	SYSTEMTIME st = m_Time;
 	return ::TzSpecificLocalTimeToSystemTime(&tzi, &st, &m_Time) != FALSE;
 #endif
@@ -281,10 +283,16 @@ bool CDateTime::UTCToLocal()
 		&& ::FileTimeToLocalFileTime(&ftUTC, &ftLocal)
 		&& ::FileTimeToSystemTime(&ftLocal, &m_Time);
 #else
+	TIME_ZONE_INFORMATION tzi;
+	if (::GetTimeZoneInformation(&tzi) == TIME_ZONE_ID_INVALID)
+		return false;
+	tzi.StandardDate.wMonth = 0;
+	tzi.DaylightDate.wMonth = 0;
 	SYSTEMTIME st = m_Time;
-	return ::SystemTimeToTzSpecificLocalTime(NULL, &st, &m_Time) != FALSE;
+	return ::SystemTimeToTzSpecificLocalTime(&tzi, &st, &m_Time) != FALSE;
 #endif
 }
+*/
 
 bool CDateTime::Offset(LONGLONG Milliseconds)
 {

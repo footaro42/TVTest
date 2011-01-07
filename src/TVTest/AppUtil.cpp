@@ -134,7 +134,11 @@ BOOL CALLBACK CTVTestWindowFinder::FindWindowCallback(HWND hwnd,LPARAM lParam)
 
 
 
-bool CPortQuery::Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort)
+bool CPortQuery::Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort
+#ifdef NETWORK_REMOCON_SUPPORT
+					   ,WORD *pRemoconPort
+#endif
+					   )
 {
 	size_t i;
 
@@ -157,6 +161,7 @@ bool CPortQuery::Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort)
 			UDPPort=0;
 		*pUDPPort=UDPPort;
 	}
+#ifdef NETWORK_REMOCON_SUPPORT
 	if (m_RemoconPortList.size()>0) {
 		WORD RemoconPort;
 
@@ -170,6 +175,7 @@ bool CPortQuery::Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort,WORD *pRemoconPort)
 		}
 		*pRemoconPort=RemoconPort;
 	}
+#endif
 	return true;
 }
 
@@ -189,8 +195,10 @@ BOOL CALLBACK CPortQuery::EnumProc(HWND hwnd,LPARAM lParam)
 
 			TRACE(TEXT("CPortQuery::EnumProc %d %d\n"),UDPPort,RemoconPort);
 			pThis->m_UDPPortList.push_back(UDPPort);
+#ifdef NETWORK_REMOCON_SUPPORT
 			if (RemoconPort>0)
 				pThis->m_RemoconPortList.push_back(RemoconPort);
+#endif
 			GetAppClass().AddLog(TEXT("既に起動している") APP_NAME TEXT("が見付かりました。(UDPポート %d / リモコンポート %d)"),UDPPort,RemoconPort);
 		}
 	}

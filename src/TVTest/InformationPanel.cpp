@@ -313,95 +313,79 @@ bool CInformationPanel::SetEventHandler(CEventHandler *pHandler)
 }
 
 
-CInformationPanel *CInformationPanel::GetThis(HWND hwnd)
-{
-	return static_cast<CInformationPanel*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
-																LPARAM lParam)
+LRESULT CInformationPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CInformationPanel *pThis=static_cast<CInformationPanel*>(OnCreate(hwnd,lParam));
+			if (!m_Font.IsCreated())
+				CreateDefaultFont(&m_Font);
+			m_BackBrush.Create(m_crBackColor);
+			m_ProgramInfoBackBrush.Create(m_crProgramInfoBackColor);
+			CalcFontHeight();
 
-			if (!pThis->m_Font.IsCreated())
-				CreateDefaultFont(&pThis->m_Font);
-			pThis->m_BackBrush.Create(pThis->m_crBackColor);
-			pThis->m_ProgramInfoBackBrush.Create(pThis->m_crProgramInfoBackColor);
-			pThis->CalcFontHeight();
-
-			pThis->m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
-				pThis->m_ProgramInfo.GetSafe(),
-				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
+			m_hwndProgramInfo=CreateWindowEx(0,TEXT("EDIT"),
+				m_ProgramInfo.GetSafe(),
+				WS_CHILD | (IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | WS_VSCROLL | ES_MULTILINE | ES_READONLY | ES_AUTOVSCROLL,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFO,m_hinst,NULL);
-			SetWindowFont(pThis->m_hwndProgramInfo,pThis->m_Font.GetHandle(),FALSE);
-			::SetProp(pThis->m_hwndProgramInfo,APP_NAME TEXT("This"),pThis);
-			pThis->m_pOldProgramInfoProc=SubclassWindow(pThis->m_hwndProgramInfo,ProgramInfoHookProc);
-			pThis->m_hwndProgramInfoPrev=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
-				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?0:WS_DISABLED)
+			SetWindowFont(m_hwndProgramInfo,m_Font.GetHandle(),FALSE);
+			::SetProp(m_hwndProgramInfo,APP_NAME TEXT("This"),this);
+			m_pOldProgramInfoProc=SubclassWindow(m_hwndProgramInfo,ProgramInfoHookProc);
+			m_hwndProgramInfoPrev=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
+				WS_CHILD | (IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (m_fNextProgramInfo?0:WS_DISABLED)
 												| BS_PUSHBUTTON | BS_OWNERDRAW,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFOPREV,m_hinst,NULL);
-			pThis->m_hwndProgramInfoNext=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
-				WS_CHILD | (pThis->IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (pThis->m_fNextProgramInfo?WS_DISABLED:0)
+			m_hwndProgramInfoNext=CreateWindowEx(0,TEXT("BUTTON"),TEXT(""),
+				WS_CHILD | (IsItemVisible(ITEM_PROGRAMINFO)?WS_VISIBLE:0) | WS_CLIPSIBLINGS | (m_fNextProgramInfo?WS_DISABLED:0)
 												| BS_PUSHBUTTON | BS_OWNERDRAW,
 				0,0,0,0,hwnd,(HMENU)IDC_PROGRAMINFONEXT,m_hinst,NULL);
 		}
 		return 0;
 
 	case WM_SIZE:
-		{
-			CInformationPanel *pThis=GetThis(hwnd);
+		if (IsItemVisible(ITEM_PROGRAMINFO)) {
+			RECT rc;
 
-			if (pThis->IsItemVisible(ITEM_PROGRAMINFO)) {
-				RECT rc;
-
-				pThis->GetItemRect(ITEM_PROGRAMINFO,&rc);
-				MoveWindow(pThis->m_hwndProgramInfo,rc.left,rc.top,
-							rc.right-rc.left,rc.bottom-rc.top,TRUE);
-				MoveWindow(pThis->m_hwndProgramInfoPrev,
-							rc.right-PROGRAMINFO_BUTTON_SIZE*2,rc.bottom,
-							PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
-				MoveWindow(pThis->m_hwndProgramInfoNext,
-							rc.right-PROGRAMINFO_BUTTON_SIZE,rc.bottom,
-							PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
-			}
+			GetItemRect(ITEM_PROGRAMINFO,&rc);
+			MoveWindow(m_hwndProgramInfo,rc.left,rc.top,
+						rc.right-rc.left,rc.bottom-rc.top,TRUE);
+			MoveWindow(m_hwndProgramInfoPrev,
+						rc.right-PROGRAMINFO_BUTTON_SIZE*2,rc.bottom,
+						PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
+			MoveWindow(m_hwndProgramInfoNext,
+						rc.right-PROGRAMINFO_BUTTON_SIZE,rc.bottom,
+						PROGRAMINFO_BUTTON_SIZE,PROGRAMINFO_BUTTON_SIZE,TRUE);
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CInformationPanel *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			pThis->Draw(ps.hdc,ps.rcPaint);
+			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_CTLCOLORSTATIC:
 		{
-			CInformationPanel *pThis=GetThis(hwnd);
 			HDC hdc=reinterpret_cast<HDC>(wParam);
 
-			SetTextColor(hdc,pThis->m_crProgramInfoTextColor);
-			SetBkColor(hdc,pThis->m_crProgramInfoBackColor);
-			return reinterpret_cast<LRESULT>(pThis->m_ProgramInfoBackBrush.GetHandle());
+			SetTextColor(hdc,m_crProgramInfoTextColor);
+			SetBkColor(hdc,m_crProgramInfoBackColor);
+			return reinterpret_cast<LRESULT>(m_ProgramInfoBackBrush.GetHandle());
 		}
 
 	case WM_DRAWITEM:
 		{
-			CInformationPanel *pThis=GetThis(hwnd);
 			LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
 			HBRUSH hbrOld,hbr;
 			HPEN hpen,hpenOld;
 			POINT Points[3];
 
-			hpen=CreatePen(PS_SOLID,1,pThis->m_crTextColor);
-			hbrOld=DrawUtil::SelectObject(pdis->hDC,pThis->m_BackBrush);
+			hpen=CreatePen(PS_SOLID,1,m_crTextColor);
+			hbrOld=DrawUtil::SelectObject(pdis->hDC,m_BackBrush);
 			hpenOld=SelectPen(pdis->hDC,hpen);
 			Rectangle(pdis->hDC,pdis->rcItem.left,pdis->rcItem.top,
 								pdis->rcItem.right,pdis->rcItem.bottom);
@@ -421,9 +405,9 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 				Points[2].y=pdis->rcItem.top+(pdis->rcItem.bottom-pdis->rcItem.top)/2;
 			}
 			if ((pdis->itemState&ODS_DISABLED)!=0) {
-				hbr=CreateSolidBrush(MixColor(pThis->m_crBackColor,pThis->m_crTextColor));
+				hbr=CreateSolidBrush(MixColor(m_crBackColor,m_crTextColor));
 			} else {
-				hbr=CreateSolidBrush(pThis->m_crTextColor);
+				hbr=CreateSolidBrush(m_crTextColor);
 			}
 			SelectBrush(pdis->hDC,hbr);
 			SelectObject(pdis->hDC,GetStockObject(NULL_PEN));
@@ -437,14 +421,13 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 
 	case WM_RBUTTONDOWN:
 		{
-			CInformationPanel *pThis=GetThis(hwnd);
 			HMENU hmenu;
 			POINT pt;
 
 			hmenu=::LoadMenu(m_hinst,MAKEINTRESOURCE(IDM_INFORMATIONPANEL));
 			for (int i=0;i<NUM_ITEMS;i++)
 				CheckMenuItem(hmenu,CM_INFORMATIONPANEL_ITEM_FIRST+i,
-							  MF_BYCOMMAND | (pThis->IsItemVisible(i)?MFS_CHECKED:MFS_UNCHECKED));
+							  MF_BYCOMMAND | (IsItemVisible(i)?MFS_CHECKED:MFS_UNCHECKED));
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
 			::ClientToScreen(hwnd,&pt);
@@ -465,28 +448,26 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		case CM_INFORMATIONPANEL_ITEM_RECORD:
 		case CM_INFORMATIONPANEL_ITEM_PROGRAMINFO:
 			{
-				CInformationPanel *pThis=GetThis(hwnd);
 				int Item=LOWORD(wParam)-CM_INFORMATIONPANEL_ITEM_FIRST;
 
-				pThis->SetItemVisible(Item,!pThis->IsItemVisible(Item));
+				SetItemVisible(Item,!IsItemVisible(Item));
 			}
 			return 0;
 
 		case IDC_PROGRAMINFOPREV:
 		case IDC_PROGRAMINFONEXT:
 			{
-				CInformationPanel *pThis=GetThis(hwnd);
 				bool fNext=LOWORD(wParam)==IDC_PROGRAMINFONEXT;
 
-				if (fNext!=pThis->m_fNextProgramInfo) {
-					pThis->m_fNextProgramInfo=fNext;
-					pThis->m_ProgramInfo.Clear();
-					EnableWindow(pThis->m_hwndProgramInfoPrev,fNext);
-					EnableWindow(pThis->m_hwndProgramInfoNext,!fNext);
-					if (pThis->m_pEventHandler!=NULL)
-						pThis->m_pEventHandler->OnProgramInfoUpdate(fNext);
-					if (pThis->m_ProgramInfo.IsEmpty())
-						SetWindowText(pThis->m_hwndProgramInfo,TEXT(""));
+				if (fNext!=m_fNextProgramInfo) {
+					m_fNextProgramInfo=fNext;
+					m_ProgramInfo.Clear();
+					EnableWindow(m_hwndProgramInfoPrev,fNext);
+					EnableWindow(m_hwndProgramInfoNext,!fNext);
+					if (m_pEventHandler!=NULL)
+						m_pEventHandler->OnProgramInfoUpdate(fNext);
+					if (m_ProgramInfo.IsEmpty())
+						SetWindowText(m_hwndProgramInfo,TEXT(""));
 				}
 			}
 			return 0;
@@ -494,38 +475,25 @@ LRESULT CALLBACK CInformationPanel::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,
 		return 0;
 
 	case WM_SETCURSOR:
-		{
-			CInformationPanel *pThis=GetThis(hwnd);
-
-			if ((HWND)wParam==pThis->m_hwndProgramInfoPrev
-					|| (HWND)wParam==pThis->m_hwndProgramInfoNext) {
-				::SetCursor(::LoadCursor(NULL,IDC_HAND));
-				return TRUE;
-			}
+		if ((HWND)wParam==m_hwndProgramInfoPrev
+				|| (HWND)wParam==m_hwndProgramInfoNext) {
+			::SetCursor(::LoadCursor(NULL,IDC_HAND));
+			return TRUE;
 		}
 		break;
 
 	case WM_DISPLAYCHANGE:
-		{
-			CInformationPanel *pThis=GetThis(hwnd);
-
-			pThis->m_Offscreen.Destroy();
-		}
+		m_Offscreen.Destroy();
 		return 0;
 
 	case WM_DESTROY:
-		{
-			CInformationPanel *pThis=GetThis(hwnd);
-
-			SubclassWindow(pThis->m_hwndProgramInfo,pThis->m_pOldProgramInfoProc);
-			pThis->m_BackBrush.Destroy();
-			pThis->m_ProgramInfoBackBrush.Destroy();
-			pThis->m_Offscreen.Destroy();
-			pThis->m_hwndProgramInfo=NULL;
-			pThis->m_hwndProgramInfoPrev=NULL;
-			pThis->m_hwndProgramInfoNext=NULL;
-			pThis->OnDestroy();
-		}
+		SubclassWindow(m_hwndProgramInfo,m_pOldProgramInfoProc);
+		m_BackBrush.Destroy();
+		m_ProgramInfoBackBrush.Destroy();
+		m_Offscreen.Destroy();
+		m_hwndProgramInfo=NULL;
+		m_hwndProgramInfoPrev=NULL;
+		m_hwndProgramInfoNext=NULL;
 		return 0;
 	}
 	return DefWindowProc(hwnd,uMsg,wParam,lParam);

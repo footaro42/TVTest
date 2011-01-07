@@ -21,10 +21,10 @@ static char THIS_FILE[]=__FILE__;
 
 
 CCaptureImage::CCaptureImage(HGLOBAL hData)
+	: m_hData(hData)
+	, m_fLocked(false)
+	, m_pszComment(NULL)
 {
-	m_hData=hData;
-	m_fLocked=false;
-	m_pszComment=NULL;
 	::GetLocalTime(&m_stCaptureTime);
 }
 
@@ -145,8 +145,8 @@ bool CCaptureImage::SetComment(LPCTSTR pszComment)
 
 
 CCapturePreview::CEventHandler::CEventHandler()
+	: m_pCapturePreview(NULL)
 {
-	m_pCapturePreview=NULL;
 }
 
 
@@ -184,15 +184,16 @@ bool CCapturePreview::Initialize(HINSTANCE hinst)
 
 
 CCapturePreview::CCapturePreview()
+	: m_pImage(NULL)
+	, m_crBackColor(RGB(0,0,0))
+	, m_pEventHandler(NULL)
 {
-	m_pImage=NULL;
-	m_crBackColor=RGB(0,0,0);
-	m_pEventHandler=NULL;
 }
 
 
 CCapturePreview::~CCapturePreview()
 {
+	Destroy();
 }
 
 
@@ -244,25 +245,11 @@ bool CCapturePreview::SetEventHandler(CEventHandler *pEventHandler)
 }
 
 
-CCapturePreview *CCapturePreview::GetThis(HWND hwnd)
-{
-	return static_cast<CCapturePreview*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
-												WPARAM wParam,LPARAM lParam)
+LRESULT CCapturePreview::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
-	case WM_CREATE:
-		{
-			CCapturePreview *pThis=static_cast<CCapturePreview*>(OnCreate(hwnd,lParam));
-		}
-		return 0;
-
 	case WM_PAINT:
 		{
-			CCapturePreview *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 			HBRUSH hbr;
 			RECT rc;
@@ -270,19 +257,16 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 			BYTE *pBits;
 
 			::BeginPaint(hwnd,&ps);
-			hbr=::CreateSolidBrush(pThis->m_crBackColor);
-			pThis->GetClientRect(&rc);
-			if (pThis->m_pImage!=NULL
-					&& pThis->m_pImage->LockData(&pbmi,&pBits)) {
+			hbr=::CreateSolidBrush(m_crBackColor);
+			GetClientRect(&rc);
+			if (m_pImage!=NULL && m_pImage->LockData(&pbmi,&pBits)) {
 				int DstX,DstY,DstWidth,DstHeight;
 				RECT rcDest;
 
-				DstWidth=pbmi->bmiHeader.biWidth*rc.bottom/
-												abs(pbmi->bmiHeader.biHeight);
+				DstWidth=pbmi->bmiHeader.biWidth*rc.bottom/abs(pbmi->bmiHeader.biHeight);
 				if (DstWidth>rc.right)
 					DstWidth=rc.right;
-				DstHeight=pbmi->bmiHeader.biHeight*rc.right/
-												pbmi->bmiHeader.biWidth;
+				DstHeight=pbmi->bmiHeader.biHeight*rc.right/pbmi->bmiHeader.biWidth;
 				if (DstHeight>rc.bottom)
 					DstHeight=rc.bottom;
 				DstX=(rc.right-DstWidth)/2;
@@ -296,7 +280,7 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 						pBits,pbmi,DIB_RGB_COLORS,SRCCOPY);
 					::SetStretchBltMode(ps.hdc,OldStretchBltMode);
 				}
-				pThis->m_pImage->UnlockData();
+				m_pImage->UnlockData();
 				rcDest.left=DstX;
 				rcDest.top=DstY;
 				rcDest.right=DstX+DstWidth;
@@ -309,42 +293,20 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		{
-			CCapturePreview *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnLButtonDown(
-									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
-		}
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnLButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		return TRUE;
 
 	case WM_RBUTTONDOWN:
-		{
-			CCapturePreview *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL)
-				pThis->m_pEventHandler->OnRButtonDown(
-									GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
-		}
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnRButtonDown(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		return TRUE;
 
 	case WM_KEYDOWN:
-		{
-			CCapturePreview *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
+			return 0;
 		break;
-
-	case WM_DESTROY:
-		{
-			CCapturePreview *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
@@ -353,8 +315,8 @@ LRESULT CALLBACK CCapturePreview::WndProc(HWND hwnd,UINT uMsg,
 
 
 CCaptureWindow::CEventHandler::CEventHandler()
+	: m_pCaptureWindow(NULL)
 {
-	m_pCaptureWindow=NULL;
 }
 
 
@@ -385,34 +347,32 @@ bool CCaptureWindow::Initialize(HINSTANCE hinst)
 		wc.lpszClassName=CAPTURE_WINDOW_CLASS;
 		if (::RegisterClass(&wc)==0)
 			return false;
-		if (!CCapturePreview::Initialize(hinst))
-			return false;
 		m_hinst=hinst;
 	}
+	if (!CCapturePreview::Initialize(hinst))
+		return false;
 	return true;
 }
 
 
 CCaptureWindow::CCaptureWindow()
 	: m_PreviewEventHandler(this)
+	, m_fShowStatusBar(true)
+	, m_pImage(NULL)
+	, m_pEventHandler(NULL)
 {
 	m_WindowPosition.Left=0;
 	m_WindowPosition.Top=0;
 	m_WindowPosition.Width=320;
 	m_WindowPosition.Height=240;
-	m_fShowStatusBar=true;
-	m_pImage=NULL;
-	m_pEventHandler=NULL;
-	m_hbmStatusIcons=NULL;
 }
 
 
 CCaptureWindow::~CCaptureWindow()
 {
+	Destroy();
 	if (m_pImage!=NULL)
 		delete m_pImage;
-	if (m_hbmStatusIcons!=NULL)
-		::DeleteObject(m_hbmStatusIcons);
 }
 
 
@@ -519,140 +479,88 @@ void CCaptureWindow::SetTitle()
 }
 
 
-CCaptureWindow *CCaptureWindow::GetThis(HWND hwnd)
-{
-	return static_cast<CCaptureWindow*>(GetBasicWindow(hwnd));
-}
-
-
-LRESULT CALLBACK CCaptureWindow::WndProc(HWND hwnd,UINT uMsg,
-												WPARAM wParam,LPARAM lParam)
+LRESULT CCaptureWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
-		{
-			CCaptureWindow *pThis=dynamic_cast<CCaptureWindow*>(OnCreate(hwnd,lParam));
-
-			pThis->m_Preview.Create(hwnd,WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,
-									WS_EX_CLIENTEDGE);
-			pThis->m_Preview.SetEventHandler(&pThis->m_PreviewEventHandler);
-			pThis->m_Status.Create(hwnd,WS_CHILD | WS_CLIPSIBLINGS |
-								   (pThis->m_fShowStatusBar?WS_VISIBLE:0),
-								   /*WS_EX_STATICEDGE*/0);
-			//pThis->m_Status.SetEventHandler(pThis);
-			if (pThis->m_Status.NumItems()==0) {
-				if (pThis->m_hbmStatusIcons==NULL)
-					pThis->m_hbmStatusIcons=
-						static_cast<HBITMAP>(::LoadImage(GetAppClass().GetResourceInstance(),
-						MAKEINTRESOURCE(IDB_CAPTURE),IMAGE_BITMAP,0,0,
-						LR_DEFAULTCOLOR | LR_CREATEDIBSECTION));
-				pThis->m_Status.AddItem(new CCaptureStatusItem(pThis->m_hbmStatusIcons));
-				//pThis->m_Status.AddItem(new CContinuousStatusItem(pThis->m_hbmStatusIcons));
-				pThis->m_Status.AddItem(new CSaveStatusItem(pThis,pThis->m_hbmStatusIcons));
-				pThis->m_Status.AddItem(new CCopyStatusItem(pThis,pThis->m_hbmStatusIcons));
+		m_Preview.Create(hwnd,WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS,WS_EX_CLIENTEDGE);
+		m_Preview.SetEventHandler(&m_PreviewEventHandler);
+		m_Status.Create(hwnd,
+						WS_CHILD | WS_CLIPSIBLINGS | (m_fShowStatusBar?WS_VISIBLE:0),
+						/*WS_EX_STATICEDGE*/0);
+		//m_Status.SetEventHandler(pThis);
+		if (m_Status.NumItems()==0) {
+			if (!m_StatusIcons.IsCreated()) {
+				m_StatusIcons.Load(GetAppClass().GetResourceInstance(),
+								   MAKEINTRESOURCE(IDB_CAPTURE),
+								   LR_CREATEDIBSECTION);
 			}
-			if (pThis->m_pImage!=NULL) {
-				pThis->m_Preview.SetImage(pThis->m_pImage);
-				pThis->SetTitle();
-			}
+			m_Status.AddItem(new CCaptureStatusItem(m_StatusIcons.GetHandle()));
+			//m_Status.AddItem(new CContinuousStatusItem(m_StatusIcons.GetHandle()));
+			m_Status.AddItem(new CSaveStatusItem(this,m_StatusIcons.GetHandle()));
+			m_Status.AddItem(new CCopyStatusItem(this,m_StatusIcons.GetHandle()));
+		}
+		if (m_pImage!=NULL) {
+			m_Preview.SetImage(m_pImage);
+			SetTitle();
 		}
 		return 0;
 
 	case WM_SIZE:
 		{
-			CCaptureWindow *pThis=GetThis(hwnd);
 			int Width=LOWORD(lParam),Height=HIWORD(lParam);
 
-			if (pThis->m_fShowStatusBar) {
-				Height-=pThis->m_Status.GetHeight();
-				pThis->m_Status.SetPosition(0,Height,Width,pThis->m_Status.GetHeight());
+			if (m_fShowStatusBar) {
+				Height-=m_Status.GetHeight();
+				m_Status.SetPosition(0,Height,Width,m_Status.GetHeight());
 			}
-			pThis->m_Preview.SetPosition(0,0,Width,Height);
+			m_Preview.SetPosition(0,0,Width,Height);
 		}
 		return 0;
 
 	case WM_KEYDOWN:
-		{
-			CCaptureWindow *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnKeyDown((UINT)wParam,(UINT)lParam))
+			return 0;
 		break;
 
 	case WM_ACTIVATE:
-		{
-			CCaptureWindow *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& pThis->m_pEventHandler->OnActivate(LOWORD(wParam)!=WA_INACTIVE))
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& m_pEventHandler->OnActivate(LOWORD(wParam)!=WA_INACTIVE))
+			return 0;
 		break;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case CM_SAVEIMAGE:
-			{
-				CCaptureWindow *pThis=GetThis(hwnd);
-
-				if (pThis->m_pImage!=NULL && pThis->m_pEventHandler!=NULL) {
-					if (!pThis->m_pEventHandler->OnSave(pThis->m_pImage)) {
-						::MessageBox(hwnd,TEXT("画像の保存ができません。"),NULL,
-									 MB_OK | MB_ICONEXCLAMATION);
-					}
+			if (m_pImage!=NULL && m_pEventHandler!=NULL) {
+				if (!m_pEventHandler->OnSave(m_pImage)) {
+					::MessageBox(hwnd,TEXT("画像の保存ができません。"),NULL,
+								 MB_OK | MB_ICONEXCLAMATION);
 				}
 			}
 			return 0;
 
 		case CM_COPY:
-			{
-				CCaptureWindow *pThis=GetThis(hwnd);
-
-				if (pThis->m_pImage!=NULL) {
-					if (!pThis->m_pImage->SetClipboard(hwnd)) {
-						::MessageBox(hwnd,TEXT("クリップボードにデータを設定できません。"),NULL,
-									 MB_OK | MB_ICONEXCLAMATION);
-					}
+			if (m_pImage!=NULL) {
+				if (!m_pImage->SetClipboard(hwnd)) {
+					::MessageBox(hwnd,TEXT("クリップボードにデータを設定できません。"),NULL,
+								 MB_OK | MB_ICONEXCLAMATION);
 				}
 			}
 			return 0;
 
 		case CM_CAPTURESTATUSBAR:
-			{
-				CCaptureWindow *pThis=GetThis(hwnd);
-
-				pThis->ShowStatusBar(!pThis->m_fShowStatusBar);
-			}
+			ShowStatusBar(!m_fShowStatusBar);
 			return 0;
 		}
 		return 0;
 
-	/*
-	case WM_NCHITTEST:
-		if (::DefWindowProc(hwnd,uMsg,wParam,lParam)==HTCLIENT)
-			return HTCAPTION;
-		break;
-	*/
-
 	case WM_CLOSE:
-		{
-			CCaptureWindow *pThis=GetThis(hwnd);
-
-			if (pThis->m_pEventHandler!=NULL
-					&& !pThis->m_pEventHandler->OnClose())
-				return 0;
-		}
+		if (m_pEventHandler!=NULL
+				&& !m_pEventHandler->OnClose())
+			return 0;
 		break;
-
-	case WM_DESTROY:
-		{
-			CCaptureWindow *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
@@ -661,8 +569,8 @@ LRESULT CALLBACK CCaptureWindow::WndProc(HWND hwnd,UINT uMsg,
 
 
 CCaptureWindow::CPreviewEventHandler::CPreviewEventHandler(CCaptureWindow *pCaptureWindow)
+	: m_pCaptureWindow(pCaptureWindow)
 {
-	m_pCaptureWindow=pCaptureWindow;
 }
 
 

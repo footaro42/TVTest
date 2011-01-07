@@ -446,6 +446,9 @@
     <ClCompile Include="HelperClass\StdUtil.cpp">
       <Filter>HelperClass\Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="EpgUtil.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Accelerator.h">
@@ -867,6 +870,9 @@
     </ClInclude>
     <ClInclude Include="HelperClass\StdUtil.h">
       <Filter>HelperClass\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="EpgUtil.h">
+      <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

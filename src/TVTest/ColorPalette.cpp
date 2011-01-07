@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <commctrl.h>
 #include "TVTest.h"
 #include "ColorPalette.h"
 
@@ -36,9 +35,9 @@ bool CColorPalette::Initialize(HINSTANCE hinst)
 
 
 CColorPalette::CColorPalette()
+	: m_NumColors(0)
+	, m_pPalette(NULL)
 {
-	m_NumColors=0;
-	m_pPalette=NULL;
 }
 
 
@@ -190,36 +189,20 @@ void CColorPalette::DrawNewSelHighlight(int OldSel,int NewSel)
 void CColorPalette::SetToolTip()
 {
 	int NumTools,i;
-	TOOLINFO ti;
+	RECT rc;
 
-	if (m_hwndToolTip==NULL)
-		return;
-	NumTools=(int)::SendMessage(m_hwndToolTip,TTM_GETTOOLCOUNT,0,0);
-	ti.cbSize=TTTOOLINFO_V1_SIZE;
-	ti.uFlags=0;
-	ti.hwnd=m_hwnd;
+	NumTools=m_Tooltip.NumTools();
 	if (NumTools>m_NumColors) {
 		do {
-			ti.uId=--NumTools;
-			::SendMessage(m_hwndToolTip,TTM_DELTOOL,0,(LPARAM)&ti);
+			m_Tooltip.DeleteTool(--NumTools);
 		} while (NumTools>m_NumColors);
 	}
-	if (NumTools>0) {
-		for (i=0;i<NumTools;i++) {
-			ti.uId=i;
-			GetItemRect(i,&ti.rect);
-			::SendMessage(m_hwndToolTip,TTM_NEWTOOLRECT,0,(LPARAM)&ti);
-		}
-	}
-	if (NumTools<m_NumColors) {
-		ti.uFlags=TTF_SUBCLASS;
-		ti.hinst=NULL;
-		ti.lpszText=LPSTR_TEXTCALLBACK;
-		for (i=NumTools;i<m_NumColors;i++) {
-			ti.uId=i;
-			GetItemRect(i,&ti.rect);
-			::SendMessage(m_hwndToolTip,TTM_ADDTOOL,0,(LPARAM)&ti);
-		}
+	for (i=0;i<m_NumColors;i++) {
+		GetItemRect(i,&rc);
+		if (i<NumTools)
+			m_Tooltip.SetToolRect(i,rc);
+		else
+			m_Tooltip.AddTool(i,rc);
 	}
 }
 
@@ -231,162 +214,138 @@ void CColorPalette::SendNotify(int Code)
 }
 
 
-CColorPalette *CColorPalette::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CColorPalette*>(GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CColorPalette::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CColorPalette::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
-		{
-			CColorPalette *pThis=dynamic_cast<CColorPalette*>(OnCreate(hwnd,lParam));
-
-			pThis->m_SelColor=-1;
-			pThis->m_HotColor=-1;
-			pThis->m_hwndToolTip=CreateWindowEx(WS_EX_TOPMOST,TOOLTIPS_CLASS,NULL,
-						WS_POPUP | TTS_ALWAYSTIP,0,0,0,0,hwnd,NULL,m_hinst,NULL);
-		}
+		m_SelColor=-1;
+		m_HotColor=-1;
+		m_Tooltip.Create(hwnd);
 		return 0;
 
 	case WM_SIZE:
 		{
-			CColorPalette *pThis=GetThis(hwnd);
 			int sx=LOWORD(lParam),sy=HIWORD(lParam);
 
-			pThis->m_ItemWidth=max(sx/16,6);
-			pThis->m_ItemHeight=max(sy/16,6);
-			pThis->m_Left=(sx-pThis->m_ItemWidth*16)/2;
-			pThis->m_Top=(sy-pThis->m_ItemHeight*16)/2;
-			if (pThis->m_hwndToolTip!=NULL && pThis->m_pPalette!=NULL)
-				pThis->SetToolTip();
+			m_ItemWidth=max(sx/16,6);
+			m_ItemHeight=max(sy/16,6);
+			m_Left=(sx-m_ItemWidth*16)/2;
+			m_Top=(sy-m_ItemHeight*16)/2;
+			if (m_pPalette!=NULL)
+				SetToolTip();
 		}
 		return 0;
 
 	case WM_PAINT:
-		{
-			CColorPalette *pThis=GetThis(hwnd);
+		if (m_pPalette!=NULL) {
 			PAINTSTRUCT ps;
 			int x,y;
 			int i;
 			HBRUSH hbr;
 			RECT rc;
 
-			if (pThis->m_pPalette==NULL)
-				break;
-			BeginPaint(hwnd,&ps);
-			for (i=0;i<pThis->m_NumColors;i++) {
+			::BeginPaint(hwnd,&ps);
+			for (i=0;i<m_NumColors;i++) {
 				x=i%16;
 				y=i/16;
-				rc.left=pThis->m_Left+x*pThis->m_ItemWidth+2;
-				rc.top=pThis->m_Top+y*pThis->m_ItemHeight+2;
-				rc.right=rc.left+pThis->m_ItemWidth-4;
-				rc.bottom=rc.top+pThis->m_ItemHeight-4;
+				rc.left=m_Left+x*m_ItemWidth+2;
+				rc.top=m_Top+y*m_ItemHeight+2;
+				rc.right=rc.left+m_ItemWidth-4;
+				rc.bottom=rc.top+m_ItemHeight-4;
 				if (rc.left<ps.rcPaint.right && rc.top<ps.rcPaint.bottom
 						&& rc.right>ps.rcPaint.left && rc.bottom>ps.rcPaint.top) {
-					hbr=CreateSolidBrush(RGB(pThis->m_pPalette[i].rgbRed,
-											 pThis->m_pPalette[i].rgbGreen,
-											 pThis->m_pPalette[i].rgbBlue));
-					FillRect(ps.hdc,&rc,hbr);
-					DeleteObject(hbr);
+					hbr=::CreateSolidBrush(RGB(m_pPalette[i].rgbRed,
+											   m_pPalette[i].rgbGreen,
+											   m_pPalette[i].rgbBlue));
+					::FillRect(ps.hdc,&rc,hbr);
+					::DeleteObject(hbr);
 				}
 			}
-			if (pThis->m_SelColor>=0)
-				pThis->DrawSelRect(ps.hdc,pThis->m_SelColor,true);
-			EndPaint(hwnd,&ps);
+			if (m_SelColor>=0)
+				DrawSelRect(ps.hdc,m_SelColor,true);
+			::EndPaint(hwnd,&ps);
+			return 0;
 		}
-		return 0;
+		break;
 
 	case WM_MOUSEMOVE:
-		{
-			CColorPalette *pThis=GetThis(hwnd);
+		if (m_pPalette!=NULL) {
 			POINT ptCursor;
 			int Hot;
 
-			if (pThis->m_pPalette==NULL)
-				return 0;
 			ptCursor.x=GET_X_LPARAM(lParam);
 			ptCursor.y=GET_Y_LPARAM(lParam);
-			Hot=(ptCursor.y-pThis->m_Top)/pThis->m_ItemHeight*16+
-				(ptCursor.x-pThis->m_Left)/pThis->m_ItemWidth;
-			if (ptCursor.x<pThis->m_Left
-					|| ptCursor.x>=pThis->m_Left+pThis->m_ItemWidth*16
-					|| ptCursor.y<pThis->m_Top
-					|| ptCursor.y>=pThis->m_Top+pThis->m_ItemHeight*16
-					|| Hot>=pThis->m_NumColors)
+			Hot=(ptCursor.y-m_Top)/m_ItemHeight*16+
+				(ptCursor.x-m_Left)/m_ItemWidth;
+			if (ptCursor.x<m_Left
+					|| ptCursor.x>=m_Left+m_ItemWidth*16
+					|| ptCursor.y<m_Top
+					|| ptCursor.y>=m_Top+m_ItemHeight*16
+					|| Hot>=m_NumColors)
 				Hot=-1;
-			if (Hot==pThis->m_HotColor)
+			if (Hot==m_HotColor)
 				return 0;
-			pThis->m_HotColor=Hot;
-			pThis->SendNotify(NOTIFY_HOTCHANGE);
+			m_HotColor=Hot;
+			SendNotify(NOTIFY_HOTCHANGE);
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
 	case WM_RBUTTONDOWN:
-		{
-			CColorPalette *pThis=GetThis(hwnd);
+		if (m_pPalette!=NULL) {
 			POINT ptCursor;
 			int Sel;
 
-			if (pThis->m_pPalette==NULL)
-				return 0;
 			ptCursor.x=GET_X_LPARAM(lParam);
 			ptCursor.y=GET_Y_LPARAM(lParam);
-			Sel=(ptCursor.y-pThis->m_Top)/pThis->m_ItemHeight*16+
-				(ptCursor.x-pThis->m_Left)/pThis->m_ItemWidth;
-			if (ptCursor.x<pThis->m_Left
-					|| ptCursor.x>=pThis->m_Left+pThis->m_ItemWidth*16
-					|| ptCursor.y<pThis->m_Top
-					|| ptCursor.y>=pThis->m_Top+pThis->m_ItemHeight*16
-					|| Sel>=pThis->m_NumColors || Sel==pThis->m_SelColor)
+			Sel=(ptCursor.y-m_Top)/m_ItemHeight*16+
+				(ptCursor.x-m_Left)/m_ItemWidth;
+			if (ptCursor.x<m_Left
+					|| ptCursor.x>=m_Left+m_ItemWidth*16
+					|| ptCursor.y<m_Top
+					|| ptCursor.y>=m_Top+m_ItemHeight*16
+					|| Sel>=m_NumColors || Sel==m_SelColor)
 				return 0;
-			pThis->DrawNewSelHighlight(pThis->m_SelColor,Sel);
-			pThis->m_SelColor=Sel;
-			pThis->SendNotify(NOTIFY_SELCHANGE);
+			DrawNewSelHighlight(m_SelColor,Sel);
+			m_SelColor=Sel;
+			SendNotify(NOTIFY_SELCHANGE);
 			if (uMsg==WM_RBUTTONDOWN)
-				pThis->SendNotify(NOTIFY_RBUTTONDOWN);
+				SendNotify(NOTIFY_RBUTTONDOWN);
 		}
 		return 0;
 
 	case WM_LBUTTONDBLCLK:
-		{
-			CColorPalette *pThis=GetThis(hwnd);
-
-			if (pThis->m_SelColor>=0)
-				pThis->SendNotify(NOTIFY_DOUBLECLICK);
-		}
+		if (m_SelColor>=0)
+			SendNotify(NOTIFY_DOUBLECLICK);
 		return 0;
 
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
 		case TTN_NEEDTEXT:
 			{
-				CColorPalette *pThis=GetThis(hwnd);
 				LPNMTTDISPINFO pttdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 				int Index=(int)pttdi->hdr.idFrom;
-				int r,g,b;
 
 				pttdi->lpszText=pttdi->szText;
 				pttdi->hinst=NULL;
-				r=pThis->m_pPalette[Index].rgbRed;
-				g=pThis->m_pPalette[Index].rgbGreen;
-				b=pThis->m_pPalette[Index].rgbBlue;
-				wsprintf(pttdi->szText,TEXT("%d,%d,%d #%02X%02X%02X"),r,g,b,r,g,b);
+				if (Index>=0 && Index<m_NumColors) {
+					int r,g,b;
+
+					r=m_pPalette[Index].rgbRed;
+					g=m_pPalette[Index].rgbGreen;
+					b=m_pPalette[Index].rgbBlue;
+					::wsprintf(pttdi->szText,TEXT("%d,%d,%d #%02X%02X%02X"),r,g,b,r,g,b);
+				} else {
+					pttdi->szText[0]='\0';
+				}
 			}
 			return 0;
 		}
 		break;
 
 	case WM_DESTROY:
-		{
-			CColorPalette *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
+		m_Tooltip.Destroy();
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
