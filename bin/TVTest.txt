@@ -1,6 +1,6 @@
 
 
-    TVTest ver.0.7.14
+    TVTest ver.0.7.15
 
 
 ◆ はじめに
@@ -39,7 +39,7 @@
   ・TVTest.sample.ch         チャンネル設定ファイルのサンプル
   ・TVTest_Image.dll         画像保存用 DLL
   ・TVTest_Logo.bmp          ロゴ画像
-  ・TVTest_0.7.14_Src.zip    ソースファイル
+  ・TVTest_0.7.15_Src.zip    ソースファイル
   ・TVTest_SDK_110108.zip    プラグイン開発用 SDK
   ・Tuner.dll                各チューナー用アイコンの DLL
   ・Tuner.ini                チューナーの表示設定ファイル
@@ -480,6 +480,11 @@
 
 
 ◆ 更新履歴
+
+  ver.0.7.15
+    ・ver.0.7.14 で、iEPG 関連付けや外部ツールの実行をした時に番組がずれる不具合を修正
+    ・プラグインからの一部メッセージがメインスレッド以外から送られると問題が出る
+      ことがあったのを修正
 
   ver.0.7.14
     ・EPG 番組表に以下の機能追加をした

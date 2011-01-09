@@ -6,7 +6,7 @@
 
 
 class CDriverManager;
-class CPluginList;
+class CPluginManager;
 class CZoomOptions;
 
 class CCommandList
@@ -24,7 +24,7 @@ public:
 	CCommandList();
 	~CCommandList();
 	bool Initialize(const CDriverManager *pDriverManager,
-					const CPluginList *pPluginList,
+					const CPluginManager *pPluginManager,
 					const CZoomOptions *pZoomOptions);
 	int NumCommands() const;
 	int GetCommandID(int Index) const;

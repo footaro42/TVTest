@@ -285,10 +285,13 @@ void CEventItem::DrawText(HDC hdc,const RECT *pRect,int LineHeight) const
 
 class CEventLayout
 {
+	const CServiceInfo *m_pServiceInfo;
 	std::vector<CEventItem*> m_EventList;
 
 public:
+	CEventLayout(const CServiceInfo *pServiceInfo);
 	~CEventLayout();
+	const CServiceInfo *GetServiceInfo() const { return m_pServiceInfo; }
 	void Clear();
 	size_t NumItems() const { return m_EventList.size(); }
 	void AddItem(CEventItem *pItem) { m_EventList.push_back(pItem); }
@@ -297,6 +300,12 @@ public:
 	const CEventItem *GetItem(size_t Index) const;
 	void InsertNullItems(const SYSTEMTIME &FirstTime,const SYSTEMTIME &LastTime);
 };
+
+
+CEventLayout::CEventLayout(const CServiceInfo *pServiceInfo)
+	: m_pServiceInfo(pServiceInfo)
+{
+}
 
 
 CEventLayout::~CEventLayout()
@@ -463,7 +472,7 @@ public:
 	void CalcLayout(CEventLayout *pEventList,const CServiceList *pServiceList,
 		HDC hdc,const SYSTEMTIME &FirstTime,const SYSTEMTIME &LastTime,int LinesPerHour,
 		HFONT hfontTitle,int TitleWidth,HFONT hfontText,int TextWidth);
-	bool SaveiEpgFile(int Program,LPCTSTR pszFileName,bool fVersion2) const;
+	bool SaveiEpgFile(const CEventInfoData *pEventInfo,LPCTSTR pszFileName,bool fVersion2) const;
 };
 
 
@@ -723,12 +732,11 @@ void CServiceInfo::CalcLayout(CEventLayout *pEventList,const CServiceList *pServ
 }
 
 
-bool CServiceInfo::SaveiEpgFile(int Program,LPCTSTR pszFileName,bool fVersion2) const
+bool CServiceInfo::SaveiEpgFile(const CEventInfoData *pEventInfo,LPCTSTR pszFileName,bool fVersion2) const
 {
-	if (Program<0 || (size_t)Program>=m_EventList.size())
+	if (pEventInfo==NULL)
 		return false;
 
-	const CEventInfoData &EventData=*m_EventList[Program];
 	HANDLE hFile;
 	char szText[2048],szServiceName[64],szEventName[256];
 	SYSTEMTIME stStart,stEnd;
@@ -738,15 +746,15 @@ bool CServiceInfo::SaveiEpgFile(int Program,LPCTSTR pszFileName,bool fVersion2) 
 					   CREATE_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
 	if (hFile==INVALID_HANDLE_VALUE)
 		return false;
-	if (m_pszServiceName!=NULL)
+	if (!IsStringEmpty(m_pszServiceName))
 		::WideCharToMultiByte(CP_ACP,0,m_pszServiceName,-1,
 							  szServiceName,sizeof(szServiceName),NULL,NULL);
 	else
 		szServiceName[0]='\0';
-	EventData.GetStartTime(&stStart);
-	EventData.GetEndTime(&stEnd);
-	if (EventData.GetEventName()!=NULL)
-		::WideCharToMultiByte(CP_ACP,0,EventData.GetEventName(),-1,
+	pEventInfo->GetStartTime(&stStart);
+	pEventInfo->GetEndTime(&stEnd);
+	if (!IsStringEmpty(pEventInfo->GetEventName()))
+		::WideCharToMultiByte(CP_ACP,0,pEventInfo->GetEventName(),-1,
 							  szEventName,sizeof(szEventName),NULL,NULL);
 	else
 		szEventName[0]='\0';
@@ -767,7 +775,7 @@ bool CServiceInfo::SaveiEpgFile(int Program,LPCTSTR pszFileName,bool fVersion2) 
 			stStart.wYear,stStart.wMonth,stStart.wDay,
 			stStart.wHour,stStart.wMinute,
 			stEnd.wHour,stEnd.wMinute,
-			szEventName,EventData.m_EventID);
+			szEventName,pEventInfo->m_EventID);
 	} else {
 		Length=::wnsprintfA(szText,sizeof(szText),
 			"Content-type: application/x-tv-program-digital-info; charset=shift_jis\r\n"
@@ -1149,9 +1157,10 @@ void CProgramGuide::CalcLayout()
 	m_EventLayoutList.Clear();
 	if (m_ListMode==LIST_SERVICES) {
 		for (size_t i=0;i<m_ServiceList.NumServices();i++) {
-			ProgramGuide::CEventLayout *pLayout=new ProgramGuide::CEventLayout;
+			ProgramGuide::CServiceInfo *pService=m_ServiceList.GetItem(i);
+			ProgramGuide::CEventLayout *pLayout=new ProgramGuide::CEventLayout(pService);
 
-			m_ServiceList.GetItem(i)->CalcLayout(
+			pService->CalcLayout(
 				pLayout,&m_ServiceList,
 				hdc,stFirst,stLast,m_LinesPerHour,
 				m_TitleFont.GetHandle(),m_ItemWidth,
@@ -1161,17 +1170,19 @@ void CProgramGuide::CalcLayout()
 	} else if (m_ListMode==LIST_WEEK) {
 		ProgramGuide::CServiceInfo *pCurService=m_ServiceList.GetItem(m_WeekListService);
 
-		for (int i=0;i<7;i++) {
-			ProgramGuide::CEventLayout *pLayout=new ProgramGuide::CEventLayout;
+		if (pCurService!=NULL) {
+			for (int i=0;i<7;i++) {
+				ProgramGuide::CEventLayout *pLayout=new ProgramGuide::CEventLayout(pCurService);
 
-			pCurService->CalcLayout(
-				pLayout,&m_ServiceList,
-				hdc,stFirst,stLast,m_LinesPerHour,
-				m_TitleFont.GetHandle(),m_ItemWidth,
-				m_Font.GetHandle(),m_ItemWidth-m_TextLeftMargin);
-			m_EventLayoutList.Add(pLayout);
-			OffsetSystemTime(&stFirst,24*60*60*1000);
-			OffsetSystemTime(&stLast,24*60*60*1000);
+				pCurService->CalcLayout(
+					pLayout,&m_ServiceList,
+					hdc,stFirst,stLast,m_LinesPerHour,
+					m_TitleFont.GetHandle(),m_ItemWidth,
+					m_Font.GetHandle(),m_ItemWidth-m_TextLeftMargin);
+				m_EventLayoutList.Add(pLayout);
+				OffsetSystemTime(&stFirst,24*60*60*1000);
+				OffsetSystemTime(&stLast,24*60*60*1000);
+			}
 		}
 	}
 	SelectFont(hdc,hfontOld);
@@ -2623,7 +2634,7 @@ LRESULT CProgramGuide::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
 			m_CurItem.fValid=
-				EventHitTest(pt.x,pt.y,&m_CurItem.Service,&m_CurItem.Program);
+				EventHitTest(pt.x,pt.y,&m_CurItem.ListIndex,&m_CurItem.EventIndex);
 			::SetFocus(hwnd);
 			hmenu=::LoadMenu(m_hinst,MAKEINTRESOURCE(IDM_PROGRAMGUIDE));
 			hmenuPopup=::GetSubMenu(hmenu,0);
@@ -2918,17 +2929,20 @@ void CProgramGuide::OnCommand(int id)
 
 	case CM_PROGRAMGUIDE_IEPGASSOCIATE:
 		if (m_CurItem.fValid) {
-			const ProgramGuide::CServiceInfo *pServiceInfo=
-				m_ServiceList.GetItem(m_CurItem.Service);
+			const ProgramGuide::CEventLayout *pLayout=m_EventLayoutList[m_CurItem.ListIndex];
 
-			if (pServiceInfo!=NULL) {
-				TCHAR szFileName[MAX_PATH];
+			if (pLayout!=NULL) {
+				const ProgramGuide::CEventItem *pEvent=pLayout->GetItem(m_CurItem.EventIndex);
 
-				GetAppClass().GetAppDirectory(szFileName);
-				::PathAppend(szFileName,TEXT("iepg.tvpid"));
-				if (!pServiceInfo->SaveiEpgFile(m_CurItem.Program,szFileName,true))
-					return;
-				::ShellExecute(NULL,NULL,szFileName,NULL,NULL,SW_SHOWNORMAL);
+				if (pEvent!=NULL) {
+					TCHAR szFileName[MAX_PATH];
+
+					GetAppClass().GetAppDirectory(szFileName);
+					::PathAppend(szFileName,TEXT("iepg.tvpid"));
+					if (!pLayout->GetServiceInfo()->SaveiEpgFile(pEvent->GetEventInfo(),szFileName,true))
+						return;
+					::ShellExecute(NULL,NULL,szFileName,NULL,NULL,SW_SHOWNORMAL);
+				}
 			}
 		}
 		return;
@@ -3024,14 +3038,18 @@ void CProgramGuide::OnCommand(int id)
 		if (id>=CM_PROGRAMGUIDETOOL_FIRST
 				&& id<=CM_PROGRAMGUIDETOOL_LAST) {
 			if (m_CurItem.fValid) {
-				const ProgramGuide::CServiceInfo *pServiceInfo=
-					m_ServiceList.GetItem(m_CurItem.Service);
+				const ProgramGuide::CEventLayout *pLayout=m_EventLayoutList[m_CurItem.ListIndex];
 
-				if (pServiceInfo!=NULL) {
-					CProgramGuideTool *pTool=m_ToolList.GetTool(id-CM_PROGRAMGUIDETOOL_FIRST);
+				if (pLayout!=NULL) {
+					const ProgramGuide::CEventItem *pEvent=pLayout->GetItem(m_CurItem.EventIndex);
 
-					pTool->Execute(pServiceInfo,m_CurItem.Program,
-								   ::GetAncestor(m_hwnd,GA_ROOT));
+					if (pEvent!=NULL) {
+						CProgramGuideTool *pTool=m_ToolList.GetTool(id-CM_PROGRAMGUIDETOOL_FIRST);
+
+						if (pTool!=NULL)
+							pTool->Execute(pLayout->GetServiceInfo(),pEvent->GetEventInfo(),
+										   ::GetAncestor(m_hwnd,GA_ROOT));
+					}
 				}
 			}
 			return;
@@ -4109,10 +4127,9 @@ HICON CProgramGuideTool::GetIcon()
 
 
 bool CProgramGuideTool::Execute(const ProgramGuide::CServiceInfo *pServiceInfo,
-								int Event,HWND hwnd)
+								const CEventInfoData *pEventInfo,HWND hwnd)
 {
-	const CEventInfoData *pEventInfo=pServiceInfo->GetEvent(Event);
-	if (pEventInfo==NULL)
+	if (pServiceInfo==NULL || pEventInfo==NULL)
 		return false;
 
 	SYSTEMTIME stStart,stEnd;
@@ -4153,7 +4170,7 @@ bool CProgramGuideTool::Execute(const ProgramGuide::CServiceInfo *pServiceInfo,
 
 					GetAppClass().GetAppDirectory(sziEpgFileName);
 					::PathAppend(sziEpgFileName,TEXT("iepg.tvpid"));
-					pServiceInfo->SaveiEpgFile(Event,sziEpgFileName,true);
+					pServiceInfo->SaveiEpgFile(pEventInfo,sziEpgFileName,true);
 					::lstrcpy(q,sziEpgFileName);
 					q+=::lstrlen(q);
 				} else if (::lstrcmpi(szKeyword,TEXT("eid"))==0) {
@@ -4204,10 +4221,7 @@ bool CProgramGuideTool::Execute(const ProgramGuide::CServiceInfo *pServiceInfo,
 		}
 	}
 	*q='\0';
-#ifdef _DEBUG
-	if (::MessageBox(hwnd,szCommand,szFileName,MB_OKCANCEL)!=IDOK)
-		return false;
-#endif
+	TRACE(TEXT("外部ツール実行 : %s, %s\n"),szFileName,szCommand);
 	return ::ShellExecute(NULL,NULL,szFileName,szCommand,NULL,SW_SHOWNORMAL)>=(HINSTANCE)32;
 }
 

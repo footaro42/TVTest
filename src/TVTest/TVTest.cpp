@@ -135,8 +135,8 @@ static CCaptureOptions CaptureOptions;
 static CChannelScan ChannelScan(&CoreEngine);
 static CEpgOptions EpgOptions(&CoreEngine,&LogoManager);
 static CProgramGuideOptions ProgramGuideOptions(&g_ProgramGuide);
-static CPluginList PluginList;
-static CPluginOptions PluginOptions(&PluginList);
+static CPluginManager PluginManager;
+static CPluginOptions PluginOptions(&PluginManager);
 #ifdef NETWORK_REMOCON_SUPPORT
 static CNetworkRemoconOptions NetworkRemoconOptions;
 #endif
@@ -767,7 +767,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 		}
 #endif
 		ChannelManager.SetCurrentServiceID(ServiceID);
-		PluginList.SendChannelChangeEvent();
+		PluginManager.SendChannelChangeEvent();
 	} else {
 		ChannelManager.SetCurrentServiceID(ServiceID);
 		if (ServiceID>0) {
@@ -830,7 +830,7 @@ bool CAppMain::FollowChannelChange(WORD TransportStreamID,WORD ServiceID)
 		return false;
 	ChannelManager.SetCurrentServiceID(0);
 	m_UICore.OnChannelChanged(fSpaceChanged);
-	PluginList.SendChannelChangeEvent();
+	PluginManager.SendChannelChangeEvent();
 	return true;
 }
 
@@ -901,7 +901,7 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 	CoreEngine.SetDriverFileName(pszFileName);
 	fOK=CoreEngine.LoadDriver();
 	if (!fOK) {
-		PluginList.SendDriverChangeEvent();
+		PluginManager.SendDriverChangeEvent();
 		::SetCursor(hcurOld);
 		OnError(&CoreEngine);
 	}
@@ -932,10 +932,10 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 			if (i>=0)
 				MainWindow.PostCommand(CM_CHANNEL_FIRST+i);
 			*/
-			PluginList.SendDriverChangeEvent();
+			PluginManager.SendDriverChangeEvent();
 			::SetCursor(hcurOld);
 		} else {
-			PluginList.SendDriverChangeEvent();
+			PluginManager.SendDriverChangeEvent();
 			::SetCursor(hcurOld);
 			OnError(&CoreEngine,TEXT("BonDriverの初期化ができません。"));
 		}
@@ -1427,7 +1427,7 @@ bool CAppMain::StartRecord(LPCTSTR pszFileName,
 	}
 	if (!GenerateRecordFileName(szFileName,lengthof(szFileName)))
 		return false;
-	PluginList.SendStartRecordEvent(&RecordManager,szFileName,lengthof(szFileName));
+	PluginManager.SendStartRecordEvent(&RecordManager,szFileName,lengthof(szFileName));
 	CoreEngine.ResetErrorCount();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,szFileName,fTimeShift)) {
 		OnError(&RecordManager,TEXT("録画を開始できません。"));
@@ -1483,7 +1483,7 @@ bool CAppMain::StartReservedRecord()
 			return false;
 	}
 	OpenTuner();
-	PluginList.SendStartRecordEvent(&RecordManager,szFileName,lengthof(szFileName));
+	PluginManager.SendStartRecordEvent(&RecordManager,szFileName,lengthof(szFileName));
 	CoreEngine.ResetErrorCount();
 	if (!RecordManager.StartRecord(&CoreEngine.m_DtvEngine,szFileName)) {
 		RecordManager.CancelReserve();
@@ -1541,7 +1541,7 @@ bool CAppMain::RelayRecord(LPCTSTR pszFileName)
 		return false;
 	}
 	Logger.AddLog(TEXT("録画ファイルを切り替えました %s"),pszFileName);
-	PluginList.SendRelayRecordEvent(pszFileName);
+	PluginManager.SendRelayRecordEvent(pszFileName);
 	return true;
 }
 
@@ -2092,7 +2092,7 @@ bool CUICore::SetVolume(int Volume,bool fOSD)
 		return false;
 	if (m_pSkin!=NULL)
 		m_pSkin->OnVolumeChanged(fOSD);
-	PluginList.SendVolumeChangeEvent(Volume,false);
+	PluginManager.SendVolumeChangeEvent(Volume,false);
 	return true;
 }
 
@@ -2108,7 +2108,7 @@ bool CUICore::SetMute(bool fMute)
 			return false;
 		if (m_pSkin!=NULL)
 			m_pSkin->OnMuteChanged();
-		PluginList.SendVolumeChangeEvent(GetVolume(),fMute);
+		PluginManager.SendVolumeChangeEvent(GetVolume(),fMute);
 	}
 	return true;
 }
@@ -2125,7 +2125,7 @@ bool CUICore::SetStereoMode(int StereoMode)
 			return false;
 		if (m_pSkin!=NULL)
 			m_pSkin->OnStereoModeChanged();
-		PluginList.SendStereoModeChangeEvent(StereoMode);
+		PluginManager.SendStereoModeChangeEvent(StereoMode);
 	}
 	return true;
 }
@@ -2147,7 +2147,7 @@ bool CUICore::SetAudioStream(int Stream)
 			return false;
 		if (m_pSkin!=NULL)
 			m_pSkin->OnAudioStreamChanged();
-		PluginList.SendAudioStreamChangeEvent(Stream);
+		PluginManager.SendAudioStreamChangeEvent(Stream);
 	}
 	return true;
 }
@@ -2278,7 +2278,7 @@ bool CUICore::SetFullscreen(bool fFullscreen)
 		if (!m_pSkin->OnFullscreenChange(fFullscreen))
 			return false;
 		m_fFullscreen=fFullscreen;
-		PluginList.SendFullscreenChangeEvent(fFullscreen);
+		PluginManager.SendFullscreenChangeEvent(fFullscreen);
 	}
 	return true;
 }
@@ -2819,21 +2819,21 @@ void CUICore::OnServiceChanged()
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnServiceChanged();
-	PluginList.SendServiceChangeEvent();
+	PluginManager.SendServiceChangeEvent();
 }
 
 void CUICore::OnRecordingStarted()
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnRecordingStarted();
-	PluginList.SendRecordStatusChangeEvent();
+	PluginManager.SendRecordStatusChangeEvent();
 }
 
 void CUICore::OnRecordingStopped()
 {
 	if (m_pSkin!=NULL)
 		m_pSkin->OnRecordingStopped();
-	PluginList.SendRecordStatusChangeEvent();
+	PluginManager.SendRecordStatusChangeEvent();
 }
 
 
@@ -3023,7 +3023,7 @@ static bool ColorSchemeApplyProc(const CColorScheme *pColorScheme)
 		pColorScheme->GetGradientInfo(CColorScheme::GRADIENT_PROGRAMGUIDETIME0TO2BACK+i,&TimeGradients[i]);
 	g_ProgramGuide.SetBackColors(&Gradient1,&Gradient2,&Gradient3,TimeGradients);
 
-	PluginList.SendColorChangeEvent();
+	PluginManager.SendColorChangeEvent();
 
 	return true;
 }
@@ -3470,7 +3470,7 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 #endif
 	ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
 	AppMain.SaveSettings();
-	PluginList.SendSettingsChangeEvent();
+	PluginManager.SendSettingsChangeEvent();
 	return true;
 }
 
@@ -4587,7 +4587,7 @@ bool CBasicViewer::EnableViewer(bool fEnable)
 		if (PlaybackOptions.GetMinTimerResolution())
 			CoreEngine.SetMinTimerResolution(fEnable);
 		m_fEnabled=fEnable;
-		PluginList.SendPreviewChangeEvent(fEnable);
+		PluginManager.SendPreviewChangeEvent(fEnable);
 	}
 	return true;
 }
@@ -6301,7 +6301,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 						}
 					}
 				}
-				PluginList.SendServiceUpdateEvent();
+				PluginManager.SendServiceUpdateEvent();
 			} else if (pInfo->m_fServiceListEmpty && pInfo->m_fStreamChanged
 					&& !AppMain.IsChannelScanning()
 					&& !m_fProgramGuideUpdating) {
@@ -6468,6 +6468,10 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		ControllerManager.OnFocusChange(hwnd,wParam!=0);
 		return 0;
 
+	case WM_APP_PLUGINMESSAGE:
+		// プラグインのメッセージの処理
+		return CPlugin::OnPluginMessage(wParam,lParam);
+
 	case WM_ACTIVATEAPP:
 		{
 			bool fActive=wParam!=FALSE;
@@ -6500,7 +6504,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 		//CoreEngine.m_DtvEngine.EnablePreview(false);
 
-		PluginList.SendCloseEvent();
+		PluginManager.SendCloseEvent();
 
 		m_Fullscreen.Destroy();
 
@@ -6540,7 +6544,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 		if (!CmdLineParser.m_fNoPlugin)
 			PluginOptions.StorePluginOptions();
-		PluginList.FreePlugins();
+		PluginManager.FreePlugins();
 
 		// 終了時の負荷で他のプロセスの録画がドロップすることがあるらしい...
 		::SetPriorityClass(::GetCurrentProcess(),BELOW_NORMAL_PRIORITY_CLASS);
@@ -7262,7 +7266,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_RESET:
 		CoreEngine.m_DtvEngine.ResetEngine();
-		PluginList.SendResetEvent();
+		PluginManager.SendResetEvent();
 		return;
 
 	case CM_RESETVIEWER:
@@ -7316,7 +7320,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			RecordManager.PauseRecord();
 			StatusView.UpdateItem(STATUS_ITEM_RECORD);
 			Logger.AddLog(RecordManager.IsPaused()?TEXT("録画一時停止"):TEXT("録画再開"));
-			PluginList.SendRecordStatusChangeEvent();
+			PluginManager.SendRecordStatusChangeEvent();
 		}
 		return;
 
@@ -7685,7 +7689,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		CoreEngine.ResetErrorCount();
 		StatusView.UpdateItem(STATUS_ITEM_ERROR);
 		InfoPanel.UpdateErrorCount();
-		PluginList.SendStatusResetEvent();
+		PluginManager.SendStatusResetEvent();
 		return;
 
 	case CM_SHOWRECORDREMAINTIME:
@@ -7879,7 +7883,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				ChannelManager.SetNetworkRemoconCurrentChannel(
 					ChannelManager.GetCurrentChannelList()->FindChannelNo(No+1));
 				OnChannelChanged(false);
-				PluginList.SendChannelChangeEvent();
+				PluginManager.SendChannelChangeEvent();
 				return;
 			} else
 #endif
@@ -7963,7 +7967,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		}
 
 		if (id>=CM_PLUGIN_FIRST && id<=CM_PLUGIN_LAST) {
-			CPlugin *pPlugin=PluginList.GetPlugin(PluginList.FindPluginByCommand(id));
+			CPlugin *pPlugin=PluginManager.GetPlugin(PluginManager.FindPluginByCommand(id));
 
 			if (pPlugin!=NULL)
 				pPlugin->Enable(!pPlugin->IsEnabled());
@@ -7989,7 +7993,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		}
 
 		if (id>=CM_PLUGINCOMMAND_FIRST && id<=CM_PLUGINCOMMAND_LAST) {
-			PluginList.OnPluginCommand(CommandList.GetCommandText(CommandList.IDToIndex(id)));
+			PluginManager.OnPluginCommand(CommandList.GetCommandText(CommandList.IDToIndex(id)));
 			return;
 		}
 	}
@@ -8420,7 +8424,7 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_SPACE)) {
 		m_pCore->InitTunerMenu(hmenu);
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_PLUGIN)) {
-		PluginList.SetMenu(hmenu);
+		PluginManager.SetMenu(hmenu);
 		Accelerator.SetMenuAccel(hmenu);
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_CHANNELHISTORY)) {
 		RecentChannelList.SetMenu(hmenu);
@@ -9035,8 +9039,7 @@ DWORD WINAPI CMainWindow::ExitWatchThread(LPVOID lpParameter)
 }
 
 
-LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
-												WPARAM wParam,LPARAM lParam)
+LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	if (uMsg==WM_CREATE) {
 		CMainWindow *pThis=static_cast<CMainWindow*>(CBasicWindow::OnCreate(hwnd,lParam));
@@ -9061,7 +9064,7 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,
 	}
 
 	LRESULT Result=0;
-	if (PluginList.OnMessage(hwnd,uMsg,wParam,lParam,&Result))
+	if (PluginManager.OnMessage(hwnd,uMsg,wParam,lParam,&Result))
 		return Result;
 
 	if (uMsg==WM_DESTROY) {
@@ -9164,7 +9167,7 @@ bool CMainWindow::OnStandbyChange(bool fStandby)
 			m_pCore->SetFullscreen(false);
 		ShowFloatingWindows(false);
 		SetVisible(false);
-		PluginList.SendStandbyEvent(true);
+		PluginManager.SendStandbyEvent(true);
 		m_RestoreChannelSpec.Store(&ChannelManager);
 		if (EpgOptions.GetUpdateWhenStandby()
 				&& CoreEngine.m_DtvEngine.IsSrcFilterOpen()
@@ -9190,7 +9193,7 @@ bool CMainWindow::OnStandbyChange(bool fStandby)
 			m_pCore->SetFullscreen(true);
 		ShowFloatingWindows(true);
 		ForegroundWindow(m_hwnd);
-		PluginList.SendStandbyEvent(false);
+		PluginManager.SendStandbyEvent(false);
 		OpenTuner();
 		if (m_fRestorePreview)
 			m_pCore->EnableViewer(true);
@@ -9368,7 +9371,7 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 	CCommandLineParser CmdLine;
 
 	SendCommand(CM_SHOW);
-	PluginList.SendExecuteEvent(pszCmdLine);
+	PluginManager.SendExecuteEvent(pszCmdLine);
 	CmdLine.Parse(pszCmdLine);
 	if (CmdLine.m_fSilent || CmdLine.m_TvRockDID>=0)
 		AppMain.SetSilent(true);
@@ -9890,6 +9893,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		TCHAR szPluginDir[MAX_PATH];
 		std::vector<LPCTSTR> ExcludePlugins;
 
+		CPlugin::SetMessageWindow(MainWindow.GetHandle(),WM_APP_PLUGINMESSAGE);
 		StatusView.SetSingleText(TEXT("プラグインを読み込んでいます..."));
 		AppMain.GetAppDirectory(szPluginDir);
 		if (!CmdLineParser.m_PluginsDirectory.IsEmpty()) {
@@ -9915,10 +9919,10 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 			for (size_t i=0;i<CmdLineParser.m_NoLoadPlugins.size();i++)
 				ExcludePlugins.push_back(CmdLineParser.m_NoLoadPlugins[i].Get());
 		}
-		PluginList.LoadPlugins(szPluginDir,&ExcludePlugins);
+		PluginManager.LoadPlugins(szPluginDir,&ExcludePlugins);
 	}
 
-	CommandList.Initialize(&DriverManager,&PluginList,&ZoomOptions);
+	CommandList.Initialize(&DriverManager,&PluginManager,&ZoomOptions);
 
 	if (!CmdLineParser.m_fNoPlugin)
 		PluginOptions.RestorePluginOptions();

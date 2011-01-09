@@ -33,6 +33,7 @@
 #define WM_APP_ECMREFUSED		(WM_APP+10)
 #define WM_APP_CONTROLLERFOCUS	(WM_APP+11)	// (*)
 #define WM_APP_EPGLOADED		(WM_APP+12)
+#define WM_APP_PLUGINMESSAGE	(WM_APP+13)
 
 enum {
 	CONTAINER_ID_VIEW=1,
@@ -195,7 +196,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 
 	class CDisplayBaseEventHandler : public CDisplayBase::CEventHandler {
 		CMainWindow *m_pMainWindow;
-		bool OnVisibleChange(bool fVisible);
+		bool OnVisibleChange(bool fVisible) override;
 	public:
 		CDisplayBaseEventHandler(CMainWindow *pMainWindow);
 	};
@@ -203,32 +204,32 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	friend CDisplayBaseEventHandler;
 
 // CUISkin
-	virtual HWND GetMainWindow() const { return m_hwnd; }
-	virtual bool InitializeViewer();
-	virtual bool FinalizeViewer();
-	virtual bool EnableViewer(bool fEnable);
-	virtual bool IsViewerEnabled() const;
-	virtual bool SetZoomRate(int Rate,int Factor);
-	virtual bool GetZoomRate(int *pRate,int *pFactor);
-	virtual void OnVolumeChanged(bool fOSD);
-	virtual void OnMuteChanged();
-	virtual void OnStereoModeChanged();
-	virtual void OnAudioStreamChanged();
-	virtual bool OnStandbyChange(bool fStandby);
-	virtual bool OnFullscreenChange(bool fFullscreen);
-	virtual bool SetAlwaysOnTop(bool fTop);
-	virtual void OnTunerChanged();
-	virtual void OnTunerOpened();
-	virtual void OnTunerClosed();
-	virtual void OnChannelListChanged();
-	virtual void OnChannelChanged(bool fSpaceChanged);
-	virtual void OnServiceChanged();
-	virtual void OnRecordingStarted();
-	virtual void OnRecordingStopped();
+	HWND GetMainWindow() const override { return m_hwnd; }
+	bool InitializeViewer() override;
+	bool FinalizeViewer() override;
+	bool EnableViewer(bool fEnable) override;
+	bool IsViewerEnabled() const override;
+	bool SetZoomRate(int Rate,int Factor) override;
+	bool GetZoomRate(int *pRate,int *pFactor) override;
+	void OnVolumeChanged(bool fOSD) override;
+	void OnMuteChanged() override;
+	void OnStereoModeChanged() override;
+	void OnAudioStreamChanged() override;
+	bool OnStandbyChange(bool fStandby) override;
+	bool OnFullscreenChange(bool fFullscreen) override;
+	bool SetAlwaysOnTop(bool fTop) override;
+	void OnTunerChanged() override;
+	void OnTunerOpened() override;
+	void OnTunerClosed() override;
+	void OnChannelListChanged() override;
+	void OnChannelChanged(bool fSpaceChanged) override;
+	void OnServiceChanged() override;
+	void OnRecordingStarted() override;
+	void OnRecordingStopped() override;
 
 // COSDManager::CEventHandler
-	virtual bool GetOSDWindow(HWND *phwndParent,RECT *pRect,bool *pfForcePseudoOSD);
-	virtual bool SetOSDHideTimer(DWORD Delay);
+	bool GetOSDWindow(HWND *phwndParent,RECT *pRect,bool *pfForcePseudoOSD) override;
+	bool SetOSDHideTimer(DWORD Delay) override;
 
 // CMainWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
@@ -247,6 +248,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool OpenTuner();
 	void SetTitleText(bool fEvent);
 	void RefreshChannelPanel();
+
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static DWORD WINAPI ExitWatchThread(LPVOID lpParameter);
 
@@ -301,7 +303,7 @@ public:
 	static bool Initialize();
 
 // CUISkin
-	virtual HWND GetVideoHostWindow() const;
+	HWND GetVideoHostWindow() const override;
 };
 
 

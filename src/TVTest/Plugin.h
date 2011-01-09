@@ -13,7 +13,6 @@
 
 class CPlugin : public CBonErrorHandler
 {
-	//static DWORD m_FinalizeTimeout;
 	HMODULE m_hLib;
 	CDynamicString m_FileName;
 	TVTest::PluginParam m_PluginParam;
@@ -45,6 +44,9 @@ class CPlugin : public CBonErrorHandler
 	};
 	CPointerVector<CPluginCommandInfo> m_CommandList;
 	std::vector<CDynamicString> m_ControllerList;
+
+	static HWND m_hwndMessage;
+	static UINT m_MessageCode;
 	class CMediaGrabberInfo {
 	public:
 		CPlugin *m_pPlugin;
@@ -71,8 +73,12 @@ class CPlugin : public CBonErrorHandler
 	};
 	static CCriticalLock m_AudioStreamLock;
 	static CPointerVector<CAudioStreamCallbackInfo> m_AudioStreamCallbackList;
+	//static DWORD m_FinalizeTimeout;
+
 	static void CALLBACK AudioStreamCallback(short *pData,DWORD Samples,int Channels,void *pParam);
 	static LRESULT CALLBACK Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2);
+	static LRESULT SendPluginMessage(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2,
+									 LRESULT FailedResult=0);
 	//static DWORD WINAPI FinalizeThread(LPVOID lpParameter);
 
 public:
@@ -99,22 +105,27 @@ public:
 	bool GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const;
 	bool NotifyCommand(LPCWSTR pszCommand);
 	bool IsDisableOnStart() const;
+
 	/*
 	static bool SetFinalizeTimeout(DWORD Timeout);
 	static DWORD GetFinalizeTimeout() { return m_FinalizeTimeout; }
 	*/
+
+	static void SetMessageWindow(HWND hwnd,UINT Message);
+	static LRESULT OnPluginMessage(WPARAM wParam,LPARAM lParam);
 };
 
-class CPluginList
+class CPluginManager
 {
 	CPointerVector<CPlugin> m_PluginList;
+
 	void SortPluginsByName();
 	static int CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,void *pParam);
 	bool SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
 
 public:
-	CPluginList();
-	~CPluginList();
+	CPluginManager();
+	~CPluginManager();
 	bool LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR> *pExcludePlugins=NULL);
 	void FreePlugins();
 	int NumPlugins() const { return m_PluginList.Length(); }
@@ -150,13 +161,13 @@ public:
 
 class CPluginOptions : public COptions
 {
-	CPluginList *m_pPluginList;
+	CPluginManager *m_pPluginManager;
 	std::vector<LPTSTR> m_EnablePluginList;
 	void ClearList();
 	static CPluginOptions *GetThis(HWND hDlg);
 
 public:
-	CPluginOptions(CPluginList *pPluginList);
+	CPluginOptions(CPluginManager *pPluginManager);
 	~CPluginOptions();
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;

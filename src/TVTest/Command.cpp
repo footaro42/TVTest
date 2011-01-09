@@ -157,7 +157,7 @@ CCommandList::~CCommandList()
 
 
 bool CCommandList::Initialize(const CDriverManager *pDriverManager,
-							  const CPluginList *pPluginList,
+							  const CPluginManager *pPluginManager,
 							  const CZoomOptions *pZoomOptions)
 {
 	m_DriverList.DeleteAll();
@@ -165,11 +165,12 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,
 		for (int i=0;i<pDriverManager->NumDrivers();i++)
 			m_DriverList.Add(DuplicateString(::PathFindFileName(pDriverManager->GetDriverInfo(i)->GetFileName())));
 	}
+
 	m_PluginList.DeleteAll();
 	m_PluginCommandList.DeleteAll();
-	if (pPluginList!=NULL) {
-		for (int i=0;i<pPluginList->NumPlugins();i++) {
-			const CPlugin *pPlugin=pPluginList->GetPlugin(i);
+	if (pPluginManager!=NULL) {
+		for (int i=0;i<pPluginManager->NumPlugins();i++) {
+			const CPlugin *pPlugin=pPluginManager->GetPlugin(i);
 			LPCTSTR pszFileName=::PathFindFileName(pPlugin->GetFileName());
 
 			m_PluginList.Add(DuplicateString(pszFileName));
@@ -185,7 +186,9 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,
 			}
 		}
 	}
+
 	m_pZoomOptions=pZoomOptions;
+
 	return true;
 }
 

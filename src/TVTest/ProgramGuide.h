@@ -77,7 +77,8 @@ public:
 	LPCTSTR GetCommand() const { return m_szCommand; }
 	bool GetPath(LPTSTR pszPath,int MaxLength) const;
 	HICON GetIcon();
-	bool Execute(const ProgramGuide::CServiceInfo *pServiceInfo,int Event,HWND hwnd);
+	bool Execute(const ProgramGuide::CServiceInfo *pServiceInfo,
+				 const CEventInfoData *pEventInfo,HWND hwnd);
 	bool ShowDialog(HWND hwndOwner);
 };
 
@@ -273,8 +274,8 @@ private:
 	int m_Hours;
 	struct {
 		bool fValid;
-		int Service;
-		int Program;
+		int ListIndex;
+		int EventIndex;
 	} m_CurItem;
 	bool m_fUpdating;
 	CEventHandler *m_pEventHandler;
