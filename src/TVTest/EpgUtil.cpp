@@ -44,10 +44,10 @@ unsigned int CEpgIcons::GetEventIcons(const CEventInfoData *pEventInfo)
 
 	if (pEventInfo->m_VideoInfo.ComponentType>=0xB1
 			&& pEventInfo->m_VideoInfo.ComponentType<=0xB4)
-		ShowIcons|=1<<ICON_HD;
+		ShowIcons|=IconFlag(ICON_HD);
 	else if (pEventInfo->m_VideoInfo.ComponentType>=0x01
 			&& pEventInfo->m_VideoInfo.ComponentType<=0x04)
-		ShowIcons|=1<<ICON_SD;
+		ShowIcons|=IconFlag(ICON_SD);
 
 	if (pEventInfo->m_AudioList.size()>0) {
 		const CEventInfoData::AudioInfo *pAudioInfo=pEventInfo->GetMainAudioInfo();
@@ -55,27 +55,30 @@ unsigned int CEpgIcons::GetEventIcons(const CEventInfoData *pEventInfo)
 		if (pAudioInfo->ComponentType==0x02) {
 			if (pAudioInfo->bESMultiLingualFlag
 					&& pAudioInfo->LanguageCode!=pAudioInfo->LanguageCode2)
-				ShowIcons|=1<<ICON_MULTILINGUAL;
+				ShowIcons|=IconFlag(ICON_MULTILINGUAL);
 			else
-				ShowIcons|=1<<ICON_SUB;
+				ShowIcons|=IconFlag(ICON_SUB);
 		} else {
 			if (pAudioInfo->ComponentType==0x09)
-				ShowIcons|=1<<ICON_5_1CH;
+				ShowIcons|=IconFlag(ICON_5_1CH);
 			if (pEventInfo->m_AudioList.size()>=2
 					&& pEventInfo->m_AudioList[0].LanguageCode!=0
 					&& pEventInfo->m_AudioList[1].LanguageCode!=0) {
 				if (pEventInfo->m_AudioList[0].LanguageCode!=
 						pEventInfo->m_AudioList[1].LanguageCode)
-					ShowIcons|=1<<ICON_MULTILINGUAL;
+					ShowIcons|=IconFlag(ICON_MULTILINGUAL);
 				else
-					ShowIcons|=1<<ICON_SUB;
+					ShowIcons|=IconFlag(ICON_SUB);
 			}
 		}
 	}
 
-	if (pEventInfo->m_FreeCaMode==CEventInfoData::FREE_CA_MODE_UNSCRAMBLED
-			&& pEventInfo->m_NetworkID>=4 && pEventInfo->m_NetworkID<=10)
-		ShowIcons|=1<<ICON_FREE;
+	if (pEventInfo->m_NetworkID>=4 && pEventInfo->m_NetworkID<=10) {
+		if (pEventInfo->m_FreeCaMode==CEventInfoData::FREE_CA_MODE_UNSCRAMBLED)
+			ShowIcons|=IconFlag(ICON_FREE);
+		else if (pEventInfo->m_FreeCaMode==CEventInfoData::FREE_CA_MODE_SCRAMBLED)
+			ShowIcons|=IconFlag(ICON_PAY);
+	}
 
 	return ShowIcons;
 }

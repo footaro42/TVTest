@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "InitialSettings.h"
@@ -10,15 +9,28 @@
 #include "Help.h"
 #include "resource.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
 CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
+	: m_pDriverManager(pDriverManager)
+	, m_VideoRenderer(CVideoRenderer::RENDERER_DEFAULT)
+	, m_CardReader(
+#ifndef TVH264_FOR_1SEG
+		CCoreEngine::CARDREADER_SCARD
+#else
+		CCoreEngine::CARDREADER_NONE
+#endif
+		)
 {
-	m_pDriverManager=pDriverManager;
 	m_szDriverFileName[0]='\0';
 	m_szMpeg2DecoderName[0]='\0';
-	m_VideoRenderer=CVideoRenderer::RENDERER_DEFAULT;
 #if 0
 	// VistaではビデオレンダラのデフォルトをEVRにする
 	// ...と問題が出る環境もあるみたい
@@ -30,12 +42,6 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 		if (osvi.dwMajorVersion>=6)
 			m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
 	}
-#endif
-	m_CardReader=
-#ifndef TVH264_FOR_1SEG
-		CCoreEngine::CARDREADER_SCARD;
-#else
-		CCoreEngine::CARDREADER_NONE;
 #endif
 	if (!::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_MYVIDEO,FALSE)
 			&& !::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_PERSONAL,FALSE))
@@ -166,15 +172,11 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 
 			// Card reader
 			{
-				static const LPCTSTR pszCardReaderList[] = {
-					TEXT("なし(スクランブル解除しない)"),
-					TEXT("スマートカードリーダ"),
-					TEXT("HDUS内蔵カードリーダ"),
-				};
 				CCardReader *pCardReader;
 
-				SetComboBoxList(hDlg,IDC_INITIALSETTINGS_CARDREADER,
-								&pszCardReaderList[0],lengthof(pszCardReaderList));
+				for (int i=0;i<=CCoreEngine::CARDREADER_LAST;i++)
+					DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_CARDREADER,
+										  CCoreEngine::GetCardReaderSettingName((CCoreEngine::CardReaderType)i));
 				pThis->m_CardReader=CCoreEngine::CARDREADER_NONE;
 				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
 				if (pCardReader!=NULL) {

@@ -4,11 +4,14 @@
 
 #include "ProgramGuide.h"
 #include "Options.h"
+#include "Plugin.h"
+#include "Tooltip.h"
 
 
 class CProgramGuideOptions : public COptions
 {
 	CProgramGuide *m_pProgramGuide;
+	CPluginManager *m_pPluginManager;
 	bool m_fOnScreen;
 	int m_BeginHour;
 	enum { MIN_VIEW_HOURS=1, MAX_VIEW_HOURS=24*7 };
@@ -18,14 +21,22 @@ class CProgramGuideOptions : public COptions
 	int m_LineMargin;
 	int m_WheelScrollLines;
 	LOGFONT m_Font;
+	UINT m_VisibleEventIcons;
 	CProgramGuideToolList m_ToolList;
+	HIMAGELIST m_himlEventIcons;
+	CDynamicString m_ProgramLDoubleClickCommand;
+	CTooltip m_Tooltip;
 
 	void SetDlgItemState();
 	void DeleteAllTools();
 	static CProgramGuideOptions *GetThis(HWND hDlg);
 
 public:
-	CProgramGuideOptions(CProgramGuide *pProgramGuide);
+	enum {
+		UPDATE_EVENTICONS	=0x00000001UL
+	};
+
+	CProgramGuideOptions(CProgramGuide *pProgramGuide,CPluginManager *pPluginManager);
 	~CProgramGuideOptions();
 // COptions
 	bool Load(LPCTSTR pszFileName);
@@ -33,6 +44,9 @@ public:
 // CProgramGuideOptions
 	bool GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast);
 	bool GetOnScreen() const { return m_fOnScreen; }
+	UINT GetVisibleEventIcons() const { return m_VisibleEventIcons; }
+	LPCTSTR GetProgramLDoubleClickCommand() const { return m_ProgramLDoubleClickCommand.Get(); }
+	int ParseCommand(LPCTSTR pszCommand) const;
 	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 

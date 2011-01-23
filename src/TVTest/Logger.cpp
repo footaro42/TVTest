@@ -58,10 +58,7 @@ int CLogItem::Format(char *pszText,int MaxLength) const
 
 
 CLogger::CLogger()
-	: m_NumLogItems(0)
-	, m_ppList(NULL)
-	, m_ListLength(0)
-	, m_fOutputToFile(false)
+	: m_fOutputToFile(false)
 {
 }
 
@@ -74,8 +71,10 @@ CLogger::~CLogger()
 
 bool CLogger::Read(CSettings *pSettings)
 {
+	CBlockLock Lock(&m_Lock);
+
 	pSettings->Read(TEXT("OutputLogToFile"),&m_fOutputToFile);
-	if (m_fOutputToFile && m_NumLogItems>0) {
+	if (m_fOutputToFile && m_LogList.size()>0) {
 		TCHAR szFileName[MAX_PATH];
 
 		GetDefaultLogFileName(szFileName);
@@ -112,24 +111,11 @@ bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 
 	CBlockLock Lock(&m_Lock);
 
-	if (m_NumLogItems==m_ListLength) {
-		CLogItem **ppNewList;
-		int ListLength;
-
-		if (m_ListLength==0)
-			ListLength=64;
-		else
-			ListLength=m_ListLength*2;
-		ppNewList=static_cast<CLogItem**>(realloc(m_ppList,ListLength*sizeof(CLogItem*)));
-		if (ppNewList==NULL)
-			return false;
-		m_ppList=ppNewList;
-		m_ListLength=ListLength;
-	}
-
 	TCHAR szText[1024];
 	StdUtil::vsnprintf(szText,lengthof(szText),pszText,Args);
-	m_ppList[m_NumLogItems++]=new CLogItem(szText);
+	CLogItem *pLogItem=new CLogItem(szText);
+	m_LogList.push_back(pLogItem);
+	TRACE(TEXT("Log : %s\n"),szText);
 
 	if (m_fOutputToFile) {
 		TCHAR szFileName[MAX_PATH];
@@ -143,7 +129,7 @@ bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 			DWORD Length,Write;
 
 			::SetFilePointer(hFile,0,NULL,FILE_END);
-			Length=m_ppList[m_NumLogItems-1]->Format(szText,lengthof(szText)-1);
+			Length=pLogItem->Format(szText,lengthof(szText)-1);
 			szText[Length++]='\r';
 			szText[Length++]='\n';
 			::WriteFile(hFile,szText,Length,&Write,NULL);
@@ -159,16 +145,9 @@ void CLogger::Clear()
 {
 	CBlockLock Lock(&m_Lock);
 
-	if (m_ppList!=NULL) {
-		int i;
-
-		for (i=m_NumLogItems-1;i>=0;i--)
-			delete m_ppList[i];
-		free(m_ppList);
-		m_ppList=NULL;
-		m_NumLogItems=0;
-		m_ListLength=0;
-	}
+	for (size_t i=0;i<m_LogList.size();i++)
+		delete m_LogList[i];
+	m_LogList.clear();
 }
 
 
@@ -195,11 +174,11 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend)
 
 	m_Lock.Lock();
 
-	for (int i=0;i<m_NumLogItems;i++) {
+	for (size_t i=0;i<m_LogList.size();i++) {
 		char szText[1024];
 		DWORD Length,Write;
 
-		Length=m_ppList[i]->Format(szText,lengthof(szText)-1);
+		Length=m_LogList[i]->Format(szText,lengthof(szText)-1);
 		szText[Length++]='\r';
 		szText[Length++]='\n';
 		::WriteFile(hFile,szText,Length,&Write,NULL);
@@ -234,7 +213,6 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			HWND hwndList=GetDlgItem(hDlg,IDC_LOG_LIST);
 			LV_COLUMN lvc;
 			LV_ITEM lvi;
-			int i;
 
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
@@ -246,30 +224,31 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			ListView_InsertColumn(hwndList,1,&lvc);
 			lvi.mask=LVIF_TEXT;
 			pThis->m_Lock.Lock();
-			ListView_SetItemCount(hwndList,pThis->m_NumLogItems);
-			for (i=0;i<pThis->m_NumLogItems;i++) {
+			ListView_SetItemCount(hwndList,(int)pThis->m_LogList.size());
+			for (size_t i=0;i<pThis->m_LogList.size();i++) {
+				const CLogItem *pLogItem=pThis->m_LogList[i];
 				SYSTEMTIME st;
 				int Length;
 				TCHAR szTime[64];
 
-				lvi.iItem=i;
+				lvi.iItem=(int)i;
 				lvi.iSubItem=0;
-				pThis->m_ppList[i]->GetTime(&st);
+				pLogItem->GetTime(&st);
 				Length=::GetDateFormat(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,
 											NULL,szTime,lengthof(szTime)-1);
-				szTime[Length-1]=' ';
+				szTime[Length-1]=_T(' ');
 				::GetTimeFormat(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,
 								NULL,szTime+Length,lengthof(szTime)-Length);
 				lvi.pszText=szTime;
 				ListView_InsertItem(hwndList,&lvi);
 				lvi.iSubItem=1;
-				lvi.pszText=(LPTSTR)pThis->m_ppList[i]->GetText();
+				lvi.pszText=(LPTSTR)pLogItem->GetText();
 				ListView_SetItem(hwndList,&lvi);
 			}
-			for (i=0;i<2;i++)
+			for (int i=0;i<2;i++)
 				ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
-			if (pThis->m_NumLogItems>0)
-				ListView_EnsureVisible(hwndList,pThis->m_NumLogItems-1,FALSE);
+			if (pThis->m_LogList.size()>0)
+				ListView_EnsureVisible(hwndList,(int)pThis->m_LogList.size()-1,FALSE);
 			pThis->m_Lock.Unlock();
 
 			DlgCheckBox_Check(hDlg,IDC_LOG_OUTPUTTOFILE,pThis->m_fOutputToFile);
@@ -317,7 +296,7 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 				if (fOutput!=pThis->m_fOutputToFile) {
 					CBlockLock Lock(&pThis->m_Lock);
 
-					if (fOutput && pThis->m_NumLogItems>0) {
+					if (fOutput && pThis->m_LogList.size()>0) {
 						TCHAR szFileName[MAX_PATH];
 
 						pThis->GetDefaultLogFileName(szFileName);

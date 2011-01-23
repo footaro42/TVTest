@@ -21,8 +21,11 @@ public:
 		ICON_MULTILINGUAL,
 		ICON_SUB,
 		ICON_FREE,
-		ICON_LAST=ICON_FREE
+		ICON_PAY,
+		ICON_LAST=ICON_PAY
 	};
+
+	static UINT IconFlag(int Icon) { return 1<<Icon; }
 
 	bool Load();
 	static bool Draw(HDC hdcDst,int DstX,int DstY,

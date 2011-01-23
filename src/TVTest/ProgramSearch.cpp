@@ -221,7 +221,7 @@ INT_PTR CProgramSearch::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					HCURSOR hcurOld=::LoadCursor(NULL,IDC_WAIT);
 					DWORD StartTime=::GetTickCount();
 					m_pEventHandler->Search(szKeyword);
-					DWORD SearchTime=DiffTime(StartTime,::GetTickCount());
+					DWORD SearchTime=TickTimeSpan(StartTime,::GetTickCount());
 					if (m_SortColumn>=0)
 						SortSearchResult();
 					::lstrcpy(m_szKeyword,szKeyword);

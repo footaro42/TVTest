@@ -13,6 +13,28 @@
 
 class CPlugin : public CBonErrorHandler
 {
+	class CPluginCommandInfo {
+		int m_ID;
+		LPWSTR m_pszText;
+		LPWSTR m_pszName;
+	public:
+		CPluginCommandInfo(const CPluginCommandInfo &Src);
+		CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName);
+		CPluginCommandInfo(const TVTest::CommandInfo &Info);
+		virtual ~CPluginCommandInfo();
+		CPluginCommandInfo &operator=(const CPluginCommandInfo &Info);
+		int GetID() const { return m_ID; }
+		LPCWSTR GetText() const { return m_pszText; }
+		LPCWSTR GetName() const { return m_pszName; }
+	};
+
+	class CProgramGuideCommand : public CPluginCommandInfo {
+		UINT m_Type;
+	public:
+		CProgramGuideCommand(const TVTest::ProgramGuideCommandInfo &Info);
+		UINT GetType() const { return m_Type; }
+	};
+
 	HMODULE m_hLib;
 	CDynamicString m_FileName;
 	TVTest::PluginParam m_PluginParam;
@@ -27,26 +49,16 @@ class CPlugin : public CBonErrorHandler
 	int m_Command;
 	TVTest::EventCallbackFunc m_pEventCallback;
 	void *m_pEventCallbackClientData;
+	UINT m_ProgramGuideEventFlags;
 	TVTest::WindowMessageCallbackFunc m_pMessageCallback;
 	void *m_pMessageCallbackClientData;
-	class CPluginCommandInfo {
-		int m_ID;
-		LPWSTR m_pszText;
-		LPWSTR m_pszName;
-	public:
-		CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName);
-		CPluginCommandInfo(const TVTest::CommandInfo &Info);
-		~CPluginCommandInfo();
-		CPluginCommandInfo &operator=(const CPluginCommandInfo &Info);
-		int GetID() const { return m_ID; }
-		LPCWSTR GetText() const { return m_pszText; }
-		LPCWSTR GetName() const { return m_pszName; }
-	};
 	CPointerVector<CPluginCommandInfo> m_CommandList;
+	std::vector<CProgramGuideCommand> m_ProgramGuideCommandList;
 	std::vector<CDynamicString> m_ControllerList;
 
 	static HWND m_hwndMessage;
 	static UINT m_MessageCode;
+
 	class CMediaGrabberInfo {
 	public:
 		CPlugin *m_pPlugin;
@@ -73,13 +85,11 @@ class CPlugin : public CBonErrorHandler
 	};
 	static CCriticalLock m_AudioStreamLock;
 	static CPointerVector<CAudioStreamCallbackInfo> m_AudioStreamCallbackList;
-	//static DWORD m_FinalizeTimeout;
 
 	static void CALLBACK AudioStreamCallback(short *pData,DWORD Samples,int Channels,void *pParam);
 	static LRESULT CALLBACK Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2);
 	static LRESULT SendPluginMessage(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2,
 									 LRESULT FailedResult=0);
-	//static DWORD WINAPI FinalizeThread(LPVOID lpParameter);
 
 public:
 	CPlugin();
@@ -104,12 +114,12 @@ public:
 	int NumPluginCommands() const;
 	bool GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const;
 	bool NotifyCommand(LPCWSTR pszCommand);
+	int NumProgramGuideCommands() const;
+	bool GetProgramGuideCommandInfo(int Index,TVTest::ProgramGuideCommandInfo *pInfo) const;
+	bool NotifyProgramGuideCommand(LPCTSTR pszCommand,UINT Action,const CEventInfoData *pEvent,
+								   const POINT *pCursorPos,const RECT *pItemRect);
 	bool IsDisableOnStart() const;
-
-	/*
-	static bool SetFinalizeTimeout(DWORD Timeout);
-	static DWORD GetFinalizeTimeout() { return m_FinalizeTimeout; }
-	*/
+	bool IsProgramGuideEventEnabled(UINT EventFlag) const { return (m_ProgramGuideEventFlags&EventFlag)!=0; }
 
 	static void SetMessageWindow(HWND hwnd,UINT Message);
 	static LRESULT OnPluginMessage(WPARAM wParam,LPARAM lParam);
@@ -117,11 +127,20 @@ public:
 
 class CPluginManager
 {
+	struct MenuCommandInfo {
+		CPlugin *pPlugin;
+		UINT CommandFirst;
+		UINT CommandEnd;
+	};
+
 	CPointerVector<CPlugin> m_PluginList;
+	std::vector<MenuCommandInfo> m_ProgramGuideMenuList;
 
 	void SortPluginsByName();
 	static int CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,void *pParam);
 	bool SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
+	bool SendProgramGuideEvent(UINT Event,LPARAM Param1=0,LPARAM Param2=0);
+	bool SendProgramGuideProgramEvent(UINT Event,const CEventInfoData &EventInfo,LPARAM Param);
 
 public:
 	CPluginManager();
@@ -133,10 +152,13 @@ public:
 	const CPlugin *GetPlugin(int Index) const;
 	bool EnablePlugins(bool fEnable=true);
 	int FindPlugin(const CPlugin *pPlugin) const;
+	int FindPluginByFileName(LPCTSTR pszFileName) const;
 	int FindPluginByCommand(int Command) const;
 	bool DeletePlugin(int Index);
 	bool SetMenu(HMENU hmenu) const;
 	bool OnPluginCommand(LPCTSTR pszCommand);
+	bool OnProgramGuideCommand(LPCTSTR pszCommand,UINT Action,const CEventInfoData *pEvent=NULL,
+							   const POINT *pCursorPos=NULL,const RECT *pItemRect=NULL);
 	bool SendChannelChangeEvent();
 	bool SendServiceChangeEvent();
 	bool SendDriverChangeEvent();
@@ -156,6 +178,16 @@ public:
 	bool SendCloseEvent();
 	bool SendStartRecordEvent(const class CRecordManager *pRecordManager,LPTSTR pszFileName,int MaxFileName);
 	bool SendRelayRecordEvent(LPCTSTR pszFileName);
+	bool SendStartupDoneEvent();
+	bool SendProgramGuideInitializeEvent(HWND hwnd);
+	bool SendProgramGuideFinalizeEvent(HWND hwnd);
+	bool SendProgramGuideInitializeMenuEvent(HMENU hmenu,UINT *pCommand);
+	bool SendProgramGuideMenuSelectedEvent(UINT Command);
+	bool SendProgramGuideProgramDrawBackgroundEvent(const CEventInfoData &Event,HDC hdc,
+		const RECT &ItemRect,const RECT &TitleRect,const RECT &ContentRect,COLORREF BackgroundColor);
+	bool SendProgramGuideProgramInitializeMenuEvent(const CEventInfoData &Event,
+		HMENU hmenu,UINT *pCommand,const POINT &CursorPos,const RECT &ItemRect);
+	bool SendProgramGuideProgramMenuSelectedEvent(const CEventInfoData &Event,UINT Command);
 	bool OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult);
 };
 

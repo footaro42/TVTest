@@ -19,8 +19,6 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define PLUGIN_MESSAGE_WPARAM 0x54565465
-
 struct PluginMessageParam
 {
 	CPlugin *pPlugin;
@@ -28,6 +26,18 @@ struct PluginMessageParam
 	LPARAM lParam1;
 	LPARAM lParam2;
 };
+
+
+static void EventInfoToProgramGuideProgramInfo(const CEventInfoData &EventInfo,
+											   TVTest::ProgramGuideProgramInfo *pProgramInfo)
+{
+	pProgramInfo->NetworkID=EventInfo.m_NetworkID;
+	pProgramInfo->TransportStreamID=EventInfo.m_TSID;
+	pProgramInfo->ServiceID=EventInfo.m_ServiceID;
+	pProgramInfo->EventID=EventInfo.m_EventID;
+	pProgramInfo->StartTime=EventInfo.m_stStartTime;
+	pProgramInfo->Duration=EventInfo.m_DurationSec;
+}
 
 
 
@@ -490,8 +500,6 @@ CCriticalLock CPlugin::m_GrabberLock;
 CPointerVector<CPlugin::CAudioStreamCallbackInfo> CPlugin::m_AudioStreamCallbackList;
 CCriticalLock CPlugin::m_AudioStreamLock;
 
-//DWORD CPlugin::m_FinalizeTimeout=10000;
-
 
 CPlugin::CPlugin()
 	: m_hLib(NULL)
@@ -502,6 +510,7 @@ CPlugin::CPlugin()
 	, m_fSetting(false)
 	, m_Command(0)
 	, m_pEventCallback(NULL)
+	, m_ProgramGuideEventFlags(0)
 	, m_pMessageCallback(NULL)
 {
 }
@@ -515,11 +524,10 @@ CPlugin::~CPlugin()
 
 bool CPlugin::Load(LPCTSTR pszFileName)
 {
-	HMODULE hLib;
-
 	if (m_hLib!=NULL)
 		Free();
-	hLib=::LoadLibrary(pszFileName);
+
+	HMODULE hLib=::LoadLibrary(pszFileName);
 	if (hLib==NULL) {
 		const int ErrorCode=::GetLastError();
 		TCHAR szText[256];
@@ -605,6 +613,7 @@ void CPlugin::Free()
 	CAppMain &App=GetAppClass();
 
 	m_pEventCallback=NULL;
+	m_ProgramGuideEventFlags=0;
 	m_pMessageCallback=NULL;
 
 	m_GrabberLock.Lock();
@@ -630,6 +639,7 @@ void CPlugin::Free()
 	m_AudioStreamLock.Unlock();
 
 	m_CommandList.DeleteAll();
+	m_ProgramGuideCommandList.clear();
 
 	for (size_t i=0;i<m_ControllerList.size();i++)
 		App.GetControllerManager()->DeleteController(m_ControllerList[i].Get());
@@ -646,21 +656,6 @@ void CPlugin::Free()
 			App.AddLog(TEXT("%s のTVTFinalize()関数のアドレスを取得できません。"),
 					   pszFileName);
 		} else {
-			// 別スレッドからFinalizeを呼ぶと不正な処理が起こるプラグインがある
-			/*
-			HANDLE hThread=::CreateThread(NULL,0,FinalizeThread,pFinalize,0,NULL);
-
-			if (hThread==NULL) {
-				pFinalize();
-			} else {
-				if (::WaitForSingleObject(hThread,m_FinalizeTimeout)==WAIT_TIMEOUT) {
-					GetAppClass().AddLog(TEXT("プラグイン \"%s\" の終了処理がタイムアウトしました。"),
-										 ::PathFindFileName(m_FileName.Get()));
-					::TerminateThread(hThread,-1);
-				}
-				::CloseHandle(hThread);
-			}
-			*/
 			pFinalize();
 		}
 		::FreeLibrary(m_hLib);
@@ -676,17 +671,6 @@ void CPlugin::Free()
 	m_fSetting=false;
 	m_PluginParam.pInternalData=NULL;
 }
-
-
-/*
-DWORD WINAPI CPlugin::FinalizeThread(LPVOID lpParameter)
-{
-	TVTest::FinalizeFunc pFinalize=static_cast<TVTest::FinalizeFunc>(lpParameter);
-
-	pFinalize();
-	return 0;
-}
-*/
 
 
 bool CPlugin::Enable(bool fEnable)
@@ -728,9 +712,10 @@ bool CPlugin::GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const
 {
 	if (Index<0 || Index>=m_CommandList.Length())
 		return false;
-	pInfo->ID=m_CommandList[Index]->GetID();
-	pInfo->pszText=m_CommandList[Index]->GetText();
-	pInfo->pszName=m_CommandList[Index]->GetName();
+	const CPluginCommandInfo &Command=*m_CommandList[Index];
+	pInfo->ID=Command.GetID();
+	pInfo->pszText=Command.GetText();
+	pInfo->pszName=Command.GetName();
 	return true;
 }
 
@@ -747,21 +732,59 @@ bool CPlugin::NotifyCommand(LPCWSTR pszCommand)
 }
 
 
+int CPlugin::NumProgramGuideCommands() const
+{
+	return (int)m_ProgramGuideCommandList.size();
+}
+
+
+bool CPlugin::GetProgramGuideCommandInfo(int Index,TVTest::ProgramGuideCommandInfo *pInfo) const
+{
+	if (Index<0 || (size_t)Index>=m_ProgramGuideCommandList.size())
+		return false;
+	const CProgramGuideCommand &Command=m_ProgramGuideCommandList[Index];
+	pInfo->Type=Command.GetType();
+	pInfo->Flags=0;
+	pInfo->ID=Command.GetID();
+	pInfo->pszText=Command.GetText();
+	pInfo->pszName=Command.GetName();
+	return true;
+}
+
+
+bool CPlugin::NotifyProgramGuideCommand(LPCTSTR pszCommand,UINT Action,const CEventInfoData *pEvent,
+										const POINT *pCursorPos,const RECT *pItemRect)
+{
+	for (size_t i=0;i<m_ProgramGuideCommandList.size();i++) {
+		if (::lstrcmpi(m_ProgramGuideCommandList[i].GetText(),pszCommand)==0) {
+			TVTest::ProgramGuideCommandParam Param;
+
+			Param.ID=m_ProgramGuideCommandList[i].GetID();
+			Param.Action=Action;
+			if (pEvent!=NULL)
+				EventInfoToProgramGuideProgramInfo(*pEvent,&Param.Program);
+			else
+				::ZeroMemory(&Param.Program,sizeof(Param.Program));
+			if (pCursorPos!=NULL)
+				Param.CursorPos=*pCursorPos;
+			else
+				::GetCursorPos(&Param.CursorPos);
+			if (pItemRect!=NULL)
+				Param.ItemRect=*pItemRect;
+			else
+				::SetRectEmpty(&Param.ItemRect);
+			return SendEvent(TVTest::EVENT_PROGRAMGUIDE_COMMAND,
+							 Param.ID,reinterpret_cast<LPARAM>(&Param))!=0;
+		}
+	}
+	return false;
+}
+
+
 bool CPlugin::IsDisableOnStart() const
 {
 	return (m_Flags&TVTest::PLUGIN_FLAG_DISABLEONSTART)!=0;
 }
-
-
-/*
-bool CPlugin::SetFinalizeTimeout(DWORD Timeout)
-{
-	if (Timeout<5000)
-		return false;
-	m_FinalizeTimeout=Timeout;
-	return true;
-}
-*/
 
 
 LRESULT CPlugin::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
@@ -811,7 +834,7 @@ LRESULT CPlugin::SendPluginMessage(TVTest::PluginParam *pParam,UINT Message,LPAR
 	MessageParam.lParam1=lParam1;
 	MessageParam.lParam2=lParam2;
 	if (::SendMessageTimeout(m_hwndMessage,m_MessageCode,
-							 PLUGIN_MESSAGE_WPARAM,reinterpret_cast<LPARAM>(&MessageParam),
+							 Message,reinterpret_cast<LPARAM>(&MessageParam),
 							 SMTO_NORMAL,10000,&Result))
 		return Result;
 	GetAppClass().AddLog(TEXT("応答が無いためプラグインからのメッセージを処理できません。(%s : %u)"),
@@ -1234,27 +1257,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		return TRUE;
 
 	case TVTest::MESSAGE_QUERYEVENT:
-		switch (lParam1) {
-		case TVTest::EVENT_PLUGINENABLE:
-		case TVTest::EVENT_PLUGINSETTINGS:
-		case TVTest::EVENT_CHANNELCHANGE:
-		case TVTest::EVENT_SERVICECHANGE:
-		case TVTest::EVENT_DRIVERCHANGE:
-		case TVTest::EVENT_SERVICEUPDATE:
-		case TVTest::EVENT_RECORDSTATUSCHANGE:
-		case TVTest::EVENT_FULLSCREENCHANGE:
-		case TVTest::EVENT_PREVIEWCHANGE:
-		case TVTest::EVENT_VOLUMECHANGE:
-		case TVTest::EVENT_STEREOMODECHANGE:
-		case TVTest::EVENT_COLORCHANGE:
-		case TVTest::EVENT_STANDBY:
-		case TVTest::EVENT_EXECUTE:
-		case TVTest::EVENT_RESET:
-		case TVTest::EVENT_STATUSRESET:
-		case TVTest::EVENT_AUDIOSTREAMCHANGE:
-			return TRUE;
-		}
-		return FALSE;
+		return lParam1>=0 && lParam1<TVTest::EVENT_TRAILER;
 
 	case TVTest::MESSAGE_GETTUNINGSPACE:
 		{
@@ -1499,9 +1502,9 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 	case TVTest::MESSAGE_SILENTMODE:
 		{
-			if (lParam1==0) {
+			if (lParam1==TVTest::SILENTMODE_GET) {
 				return GetAppClass().IsSilent();
-			} else if (lParam1==1) {
+			} else if (lParam1==TVTest::SILENTMODE_SET) {
 				GetAppClass().SetSilent(lParam2!=0);
 				return TRUE;
 			}
@@ -1749,6 +1752,33 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 		}
 		return TRUE;
 
+	case TVTest::MESSAGE_ENABLEPROGRAMGUIDEEVENT:
+		{
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+
+			pThis->m_ProgramGuideEventFlags=(UINT)lParam1;
+		}
+		return TRUE;
+
+	case TVTest::MESSAGE_REGISTERPROGRAMGUIDECOMMAND:
+		{
+			CPlugin *pThis=ThisFromParam(pParam);
+			if (pThis==NULL)
+				return FALSE;
+			const TVTest::ProgramGuideCommandInfo *pCommandList=
+				reinterpret_cast<TVTest::ProgramGuideCommandInfo*>(lParam1);
+			const int NumCommands=(int)lParam2;
+
+			if (pCommandList==NULL || NumCommands<1)
+				return FALSE;
+			for (int i=0;i<NumCommands;i++) {
+				pThis->m_ProgramGuideCommandList.push_back(CProgramGuideCommand(pCommandList[i]));
+			}
+		}
+		return TRUE;
+
 #ifdef _DEBUG
 	default:
 		TRACE(TEXT("CPluign::Callback() : Unknown message %u\n"),Message);
@@ -1770,10 +1800,10 @@ LRESULT CPlugin::OnPluginMessage(WPARAM wParam,LPARAM lParam)
 {
 	PluginMessageParam *pParam=reinterpret_cast<PluginMessageParam*>(lParam);
 
-	if (wParam!=PLUGIN_MESSAGE_WPARAM || pParam==NULL)
+	if (pParam==NULL || wParam!=pParam->Message)
 		return 0;
 
-	switch (pParam->Message) {
+	switch ((UINT)wParam) {
 	case TVTest::MESSAGE_GETCURRENTCHANNELINFO:
 		{
 			TVTest::ChannelInfo *pChannelInfo=reinterpret_cast<TVTest::ChannelInfo*>(pParam->lParam1);
@@ -2244,6 +2274,14 @@ void CALLBACK CPlugin::AudioStreamCallback(short *pData,DWORD Samples,int Channe
 
 
 
+CPlugin::CPluginCommandInfo::CPluginCommandInfo(const CPluginCommandInfo &Src)
+	: m_ID(Src.m_ID)
+	, m_pszText(DuplicateString(Src.m_pszText))
+	, m_pszName(DuplicateString(Src.m_pszName))
+{
+}
+
+
 CPlugin::CPluginCommandInfo::CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName)
 	: m_ID(ID)
 	, m_pszText(DuplicateString(pszText))
@@ -2275,6 +2313,13 @@ CPlugin::CPluginCommandInfo &CPlugin::CPluginCommandInfo::operator=(const CPlugi
 		ReplaceString(&m_pszName,Info.m_pszName);
 	}
 	return *this;
+}
+
+
+CPlugin::CProgramGuideCommand::CProgramGuideCommand(const TVTest::ProgramGuideCommandInfo &Info)
+	: CPluginCommandInfo(Info.ID,Info.pszText,Info.pszName)
+	, m_Type(Info.Type)
+{
 }
 
 
@@ -2409,6 +2454,18 @@ int CPluginManager::FindPlugin(const CPlugin *pPlugin) const
 }
 
 
+int CPluginManager::FindPluginByFileName(LPCTSTR pszFileName) const
+{
+	if (pszFileName==NULL)
+		return -1;
+	for (int i=0;i<NumPlugins();i++) {
+		if (::lstrcmpi(::PathFindFileName(m_PluginList[i]->GetFileName()),pszFileName)==0)
+			return i;
+	}
+	return -1;
+}
+
+
 int CPluginManager::FindPluginByCommand(int Command) const
 {
 	for (int i=0;i<NumPlugins();i++) {
@@ -2450,19 +2507,41 @@ bool CPluginManager::OnPluginCommand(LPCTSTR pszCommand)
 	if (pszCommand==NULL)
 		return false;
 
+	LPCTSTR pDelimiter=::StrChr(pszCommand,_T(':'));
+	if (pDelimiter==NULL || (pDelimiter-pszCommand)>=MAX_PATH)
+		return false;
+
 	TCHAR szFileName[MAX_PATH];
-	int Length;
+	::lstrcpyn(szFileName,pszCommand,(int)((pDelimiter-pszCommand)+1));
 
-	for (Length=0;pszCommand[Length]!=_T(':');Length++)
-		szFileName[Length]=pszCommand[Length];
-	szFileName[Length]=_T('\0');
-	for (int i=0;i<NumPlugins();i++) {
-		CPlugin *pPlugin=GetPlugin(i);
+	int PluginIndex=FindPluginByFileName(szFileName);
+	if (PluginIndex<0)
+		return false;
+	return m_PluginList[PluginIndex]->NotifyCommand(pDelimiter+1);
+}
 
-		if (::lstrcmpi(::PathFindFileName(pPlugin->GetFileName()),szFileName)==0)
-			return pPlugin->NotifyCommand(&pszCommand[Length+1]);
-	}
-	return false;
+
+bool CPluginManager::OnProgramGuideCommand(LPCTSTR pszCommand,UINT Action,const CEventInfoData *pEvent,
+										   const POINT *pCursorPos,const RECT *pItemRect)
+{
+	if (pszCommand==NULL)
+		return false;
+
+	LPCTSTR pDelimiter=::StrChr(pszCommand,_T(':'));
+	if (pDelimiter==NULL || (pDelimiter-pszCommand)>=MAX_PATH)
+		return false;
+
+	TCHAR szFileName[MAX_PATH];
+	::lstrcpyn(szFileName,pszCommand,(int)((pDelimiter-pszCommand)+1));
+
+	int PluginIndex=FindPluginByFileName(szFileName);
+	if (PluginIndex<0)
+		return false;
+	CPlugin *pPlugin=m_PluginList[PluginIndex];
+	if (!pPlugin->IsEnabled()
+			|| !pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_GENERAL))
+		return false;
+	return pPlugin->NotifyProgramGuideCommand(pDelimiter+1,Action,pEvent,pCursorPos,pItemRect);
 }
 
 
@@ -2474,6 +2553,41 @@ bool CPluginManager::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
 		m_PluginList[i]->SendEvent(Event,lParam1,lParam2);
 	}
 	return true;
+}
+
+
+bool CPluginManager::SendProgramGuideEvent(UINT Event,LPARAM Param1,LPARAM Param2)
+{
+	bool fSent=false;
+	const int Plugins=NumPlugins();
+
+	for (int i=0;i<Plugins;i++) {
+		CPlugin *pPlugin=m_PluginList[i];
+
+		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_GENERAL)
+				&& pPlugin->SendEvent(Event,Param1,Param2))
+			fSent=true;
+	}
+	return fSent;
+}
+
+
+bool CPluginManager::SendProgramGuideProgramEvent(UINT Event,const CEventInfoData &EventInfo,LPARAM Param)
+{
+	TVTest::ProgramGuideProgramInfo ProgramInfo;
+	EventInfoToProgramGuideProgramInfo(EventInfo,&ProgramInfo);
+
+	bool fSent=false;
+	const int Plugins=NumPlugins();
+
+	for (int i=0;i<Plugins;i++) {
+		CPlugin *pPlugin=m_PluginList[i];
+
+		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_PROGRAM)
+				&& pPlugin->SendEvent(Event,reinterpret_cast<LPARAM>(&ProgramInfo),Param))
+			fSent=true;
+	}
+	return fSent;
 }
 
 
@@ -2636,6 +2750,166 @@ bool CPluginManager::SendStartRecordEvent(const CRecordManager *pRecordManager,L
 bool CPluginManager::SendRelayRecordEvent(LPCTSTR pszFileName)
 {
 	return SendEvent(TVTest::EVENT_RELAYRECORD,reinterpret_cast<LPARAM>(pszFileName));
+}
+
+
+bool CPluginManager::SendStartupDoneEvent()
+{
+	return SendEvent(TVTest::EVENT_STARTUPDONE);
+}
+
+
+bool CPluginManager::SendProgramGuideInitializeEvent(HWND hwnd)
+{
+	return SendProgramGuideEvent(TVTest::EVENT_PROGRAMGUIDE_INITIALIZE,
+								 reinterpret_cast<LPARAM>(hwnd));
+}
+
+
+bool CPluginManager::SendProgramGuideFinalizeEvent(HWND hwnd)
+{
+	return SendProgramGuideEvent(TVTest::EVENT_PROGRAMGUIDE_FINALIZE,
+								 reinterpret_cast<LPARAM>(hwnd));
+}
+
+
+bool CPluginManager::SendProgramGuideInitializeMenuEvent(HMENU hmenu,UINT *pCommand)
+{
+	TVTest::ProgramGuideInitializeMenuInfo Info;
+	Info.hmenu=hmenu;
+	Info.Command=*pCommand;
+	Info.Reserved=0;
+
+	bool fSent=false;
+	const int Plugins=NumPlugins();
+	m_ProgramGuideMenuList.clear();
+
+	for (int i=0;i<Plugins;i++) {
+		CPlugin *pPlugin=m_PluginList[i];
+
+		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_GENERAL)) {
+			MenuCommandInfo CommandInfo;
+
+			int NumCommands=(int)
+				pPlugin->SendEvent(TVTest::EVENT_PROGRAMGUIDE_INITIALIZEMENU,
+								   reinterpret_cast<LPARAM>(&Info));
+			if (NumCommands>0) {
+				CommandInfo.pPlugin=pPlugin;
+				CommandInfo.CommandFirst=Info.Command;
+				CommandInfo.CommandEnd=Info.Command+NumCommands;
+				m_ProgramGuideMenuList.push_back(CommandInfo);
+				fSent=true;
+				Info.Command+=NumCommands;
+			}
+		}
+	}
+	if (fSent)
+		*pCommand=Info.Command;
+	return fSent;
+}
+
+
+bool CPluginManager::SendProgramGuideMenuSelectedEvent(UINT Command)
+{
+	bool fResult=false;
+
+	for (size_t i=0;i<m_ProgramGuideMenuList.size();i++) {
+		const MenuCommandInfo &CommandInfo=m_ProgramGuideMenuList[i];
+
+		if (CommandInfo.CommandFirst<=Command && CommandInfo.CommandEnd>Command) {
+			if (FindPlugin(CommandInfo.pPlugin)>=0) {
+				fResult=CommandInfo.pPlugin->SendEvent(
+					TVTest::EVENT_PROGRAMGUIDE_MENUSELECTED,
+					Command-CommandInfo.CommandFirst)!=0;
+			}
+			break;
+		}
+	}
+	m_ProgramGuideMenuList.clear();
+	return fResult;
+}
+
+
+bool CPluginManager::SendProgramGuideProgramDrawBackgroundEvent(const CEventInfoData &Event,HDC hdc,
+	const RECT &ItemRect,const RECT &TitleRect,const RECT &ContentRect,COLORREF BackgroundColor)
+{
+	TVTest::ProgramGuideProgramDrawBackgroundInfo Info;
+
+	Info.hdc=hdc;
+	Info.ItemRect=ItemRect;
+	Info.TitleRect=TitleRect;
+	Info.ContentRect=ContentRect;
+	Info.BackgroundColor=BackgroundColor;
+	return SendProgramGuideProgramEvent(TVTest::EVENT_PROGRAMGUIDE_PROGRAM_DRAWBACKGROUND,
+										Event,reinterpret_cast<LPARAM>(&Info));
+}
+
+
+bool CPluginManager::SendProgramGuideProgramInitializeMenuEvent(const CEventInfoData &Event,
+	HMENU hmenu,UINT *pCommand,const POINT &CursorPos,const RECT &ItemRect)
+{
+	TVTest::ProgramGuideProgramInfo ProgramInfo;
+	EventInfoToProgramGuideProgramInfo(Event,&ProgramInfo);
+
+	TVTest::ProgramGuideProgramInitializeMenuInfo Info;
+	Info.hmenu=hmenu;
+	Info.Command=*pCommand;
+	Info.Reserved=0;
+	Info.CursorPos=CursorPos;
+	Info.ItemRect=ItemRect;
+
+	bool fSent=false;
+	const int Plugins=NumPlugins();
+	m_ProgramGuideMenuList.clear();
+
+	for (int i=0;i<Plugins;i++) {
+		CPlugin *pPlugin=m_PluginList[i];
+
+		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_PROGRAM)) {
+			MenuCommandInfo CommandInfo;
+
+			int NumCommands=(int)
+				pPlugin->SendEvent(TVTest::EVENT_PROGRAMGUIDE_PROGRAM_INITIALIZEMENU,
+								   reinterpret_cast<LPARAM>(&ProgramInfo),
+								   reinterpret_cast<LPARAM>(&Info));
+			if (NumCommands>0) {
+				CommandInfo.pPlugin=pPlugin;
+				CommandInfo.CommandFirst=Info.Command;
+				CommandInfo.CommandEnd=Info.Command+NumCommands;
+				m_ProgramGuideMenuList.push_back(CommandInfo);
+				fSent=true;
+				Info.Command+=NumCommands;
+			}
+		}
+	}
+	if (fSent)
+		*pCommand=Info.Command;
+	return fSent;
+}
+
+
+bool CPluginManager::SendProgramGuideProgramMenuSelectedEvent(const CEventInfoData &Event,UINT Command)
+{
+	bool fResult=false;
+
+	for (size_t i=0;i<m_ProgramGuideMenuList.size();i++) {
+		const MenuCommandInfo &CommandInfo=m_ProgramGuideMenuList[i];
+
+		if (CommandInfo.CommandFirst<=Command && CommandInfo.CommandEnd>Command) {
+			if (FindPlugin(CommandInfo.pPlugin)>=0) {
+				TVTest::ProgramGuideProgramInfo ProgramInfo;
+
+				EventInfoToProgramGuideProgramInfo(Event,&ProgramInfo);
+				fResult=CommandInfo.pPlugin->SendEvent(
+					TVTest::EVENT_PROGRAMGUIDE_PROGRAM_MENUSELECTED,
+					reinterpret_cast<LPARAM>(&ProgramInfo),
+					Command-CommandInfo.CommandFirst)!=0;
+			}
+			break;
+		}
+	}
+	m_ProgramGuideMenuList.clear();
+	return fResult;
 }
 
 

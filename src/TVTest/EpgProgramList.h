@@ -134,12 +134,11 @@ class CEpgServiceInfo
 public:
 	CServiceInfoData m_ServiceData;
 	CEventInfoList m_EventList;
+	bool m_fMergeOldEvents;
 
 	CEpgServiceInfo();
-	CEpgServiceInfo(const CEpgServiceInfo &Info);
 	CEpgServiceInfo(const CServiceInfoData &ServiceData);
 	~CEpgServiceInfo();
-	CEpgServiceInfo &operator=(const CEpgServiceInfo &Info);
 	const CEventInfoData *GetEventInfo(WORD EventID);
 };
 

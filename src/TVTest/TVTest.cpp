@@ -68,6 +68,7 @@ static CAppMain AppMain;
 static CCoreEngine CoreEngine;
 static CMainMenu MainMenu;
 static CCommandList CommandList;
+static CPluginManager PluginManager;
 static CEpgProgramList EpgProgramList(&CoreEngine.m_DtvEngine.m_EventManager);
 static CMainWindow MainWindow;
 static CStatusView StatusView;
@@ -134,8 +135,7 @@ static CRecordManager RecordManager;
 static CCaptureOptions CaptureOptions;
 static CChannelScan ChannelScan(&CoreEngine);
 static CEpgOptions EpgOptions(&CoreEngine,&LogoManager);
-static CProgramGuideOptions ProgramGuideOptions(&g_ProgramGuide);
-static CPluginManager PluginManager;
+static CProgramGuideOptions ProgramGuideOptions(&g_ProgramGuide,&PluginManager);
 static CPluginOptions PluginOptions(&PluginManager);
 #ifdef NETWORK_REMOCON_SUPPORT
 static CNetworkRemoconOptions NetworkRemoconOptions;
@@ -278,7 +278,7 @@ public:
 	{
 		if (!m_fEnable)
 			return false;
-		if (DiffTime(m_StartTime,::GetTickCount())>=m_TimeOut) {
+		if (TickTimeSpan(m_StartTime,::GetTickCount())>=m_TimeOut) {
 			m_fEnable=false;
 			return false;
 		}
@@ -700,7 +700,7 @@ bool CAppMain::UpdateChannelList(const CTuningSpaceList *pList)
 	}
 	ChannelManager.SetCurrentChannel(
 		fAllChannels?CChannelManager::SPACE_ALL:(Space>=0?Space:0),
-		/*CoreEngine.IsUDPDriver()?0:*/-1);
+		-1);
 	ChannelManager.SetCurrentServiceID(0);
 	WORD ServiceID;
 	if (CoreEngine.m_DtvEngine.GetServiceID(&ServiceID))
@@ -748,7 +748,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 			ServiceID=pChInfo->GetServiceID();
 
 		LPCTSTR pszTuningSpace=ChannelManager.GetDriverTuningSpaceList()->GetTuningSpaceName(pChInfo->GetSpace());
-		AddLog(TEXT("BonDriverにチャンネル変更を要求しました。(チューニング空間 %d[%s] / Ch %d[%s] / Sv %d)"),
+		AddLog(TEXT("BonDriverにチャンネル変更を要求します。(チューニング空間 %d[%s] / Ch %d[%s] / Sv %d)"),
 			   pChInfo->GetSpace(),pszTuningSpace!=NULL?pszTuningSpace:TEXT("\?\?\?"),
 			   pChInfo->GetChannelIndex(),pChInfo->GetName(),ServiceID);
 
@@ -860,7 +860,7 @@ bool CAppMain::SetServiceByIndex(int Service)
 		return false;
 	WORD ServiceID=0;
 	CoreEngine.m_DtvEngine.GetServiceID(&ServiceID);
-	ChannelManager.SetCurrentServiceID(Service);
+	ChannelManager.SetCurrentServiceID(ServiceID);
 	return true;
 }
 
@@ -874,6 +874,7 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 	WORD Index=CoreEngine.m_DtvEngine.m_TsAnalyzer.GetViewableServiceIndexByID(ServiceID);
 	if (Index!=0xFFFF) {
 		if (SetService(Index)) {
+			ChannelManager.SetCurrentServiceID(ServiceID);
 			if (pServiceIndex!=NULL)
 				*pServiceIndex=Index;
 			return true;
@@ -881,7 +882,6 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 		return false;
 	}
 	AddLog(TEXT("該当するサービスが見付かりません。指定されたSIDはPMT内にありません。"));
-	ChannelManager.SetCurrentServiceID(ServiceID);
 	return false;
 }
 
@@ -3311,7 +3311,7 @@ INT_PTR CALLBACK COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 					rc=pdis->rcItem;
 					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
 					DrawUtil::FillGradient(pdis->hDC,&rc,
-										   RGB(0,0,0),pThis->GetTitleColor(pdis->itemData));
+										   RGB(0,0,0),pThis->GetTitleColor((int)pdis->itemData));
 					crText=RGB(255,255,255);
 				} else {
 					::FillRect(pdis->hDC,&pdis->rcItem,
@@ -3468,6 +3468,8 @@ bool COptionDialog::ShowDialog(HWND hwndOwner,int StartPage)
 			pNetworkRemocon->GetChannel(&GetChannelReceiver);
 	}
 #endif
+	if ((ProgramGuideOptions.GetUpdateFlags()&CProgramGuideOptions::UPDATE_EVENTICONS)!=0)
+		ProgramListPanel.SetVisibleEventIcons(ProgramGuideOptions.GetVisibleEventIcons());
 	ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
 	AppMain.SaveSettings();
 	PluginManager.SendSettingsChangeEvent();
@@ -3915,7 +3917,7 @@ static CMyEpgLoadEventHandler EpgLoadEventHandler;
 
 class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 {
-	bool OnClose()
+	bool OnClose() override
 	{
 		fShowProgramGuide=false;
 		MainMenu.CheckItem(CM_PROGRAMGUIDE,false);
@@ -3923,7 +3925,7 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 		return true;
 	}
 
-	void OnDestroy()
+	void OnDestroy() override
 	{
 		m_pProgramGuide->Clear();
 	}
@@ -3940,7 +3942,7 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 		return -1;
 	}
 
-	void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo)
+	void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo) override
 	{
 		if (!AppMain.SetDriver(pszDriverFileName))
 			return;
@@ -3975,7 +3977,7 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 		}
 	}
 
-	bool OnBeginUpdate()
+	bool OnBeginUpdate() override
 	{
 		if (CmdLineParser.m_fNoEpg) {
 			MainWindow.ShowMessage(TEXT("コマンドラインオプションでEPG情報を取得しないように指定されているため、\n番組表の取得ができません。"),
@@ -3995,21 +3997,31 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 		return MainWindow.BeginProgramGuideUpdate();
 	}
 
-	void OnEndUpdate()
+	void OnEndUpdate() override
 	{
 		MainWindow.OnProgramGuideUpdateEnd();
 	}
 
-	bool OnRefresh()
+	bool OnRefresh() override
 	{
 		m_pProgramGuide->UpdateChannelList();
 		return true;
 	}
 
-	bool OnKeyDown(UINT KeyCode,UINT Flags)
+	bool OnKeyDown(UINT KeyCode,UINT Flags) override
 	{
 		MainWindow.SendMessage(WM_KEYDOWN,KeyCode,Flags);
 		return true;
+	}
+
+	bool OnMenuInitialize(HMENU hmenu,UINT CommandBase) override
+	{
+		return PluginManager.SendProgramGuideInitializeMenuEvent(hmenu,&CommandBase);
+	}
+
+	bool OnMenuSelected(UINT Command) override
+	{
+		return PluginManager.SendProgramGuideMenuSelectedEvent(Command);
 	}
 };
 
@@ -4017,7 +4029,7 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 class CMyProgramGuideDisplayEventHandler : public CProgramGuideDisplay::CEventHandler
 {
 // CProgramGuideDisplay::CEventHandler
-	bool OnHide()
+	bool OnHide() override
 	{
 		m_pProgramGuideDisplay->Destroy();
 		fShowProgramGuide=false;
@@ -4026,21 +4038,22 @@ class CMyProgramGuideDisplayEventHandler : public CProgramGuideDisplay::CEventHa
 		return true;
 	}
 
-	bool SetAlwaysOnTop(bool fTop)
+	bool SetAlwaysOnTop(bool fTop) override
 	{
 		return AppMain.GetUICore()->SetAlwaysOnTop(fTop);
 	}
 
-	bool GetAlwaysOnTop() const {
+	bool GetAlwaysOnTop() const override
+	{
 		return AppMain.GetUICore()->GetAlwaysOnTop();
 	}
 
-	void OnRButtonDown(int x,int y)
+	void OnRButtonDown(int x,int y) override
 	{
 		RelayMouseMessage(WM_RBUTTONDOWN,x,y);
 	}
 
-	void OnLButtonDoubleClick(int x,int y)
+	void OnLButtonDoubleClick(int x,int y) override
 	{
 		RelayMouseMessage(WM_LBUTTONDBLCLK,x,y);
 	}
@@ -4056,8 +4069,58 @@ class CMyProgramGuideDisplayEventHandler : public CProgramGuideDisplay::CEventHa
 };
 
 
+class CMyProgramGuideProgramCustomizer : public CProgramGuide::CProgramCustomizer
+{
+	bool Initialize() override
+	{
+		return PluginManager.SendProgramGuideInitializeEvent(m_pProgramGuide->GetHandle());
+	}
+
+	void Finalize() override
+	{
+		PluginManager.SendProgramGuideFinalizeEvent(m_pProgramGuide->GetHandle());
+	}
+
+	bool DrawBackground(const CEventInfoData &Event,HDC hdc,
+		const RECT &ItemRect,const RECT &TitleRect,const RECT &ContentRect,
+		COLORREF BackgroundColor) override
+	{
+		return PluginManager.SendProgramGuideProgramDrawBackgroundEvent(
+			Event,hdc,ItemRect,TitleRect,ContentRect,BackgroundColor);
+	}
+
+	bool InitializeMenu(const CEventInfoData &Event,HMENU hmenu,UINT CommandBase,
+						const POINT &CursorPos,const RECT &ItemRect) override
+	{
+		return PluginManager.SendProgramGuideProgramInitializeMenuEvent(
+			Event,hmenu,&CommandBase,CursorPos,ItemRect);
+	}
+
+	bool ProcessMenu(const CEventInfoData &Event,UINT Command) override
+	{
+		return PluginManager.SendProgramGuideProgramMenuSelectedEvent(Event,Command);
+	}
+
+	bool OnLButtonDoubleClick(const CEventInfoData &Event,
+							  const POINT &CursorPos,const RECT &ItemRect) override
+	{
+		LPCTSTR pszCommand=ProgramGuideOptions.GetProgramLDoubleClickCommand();
+		if (IsStringEmpty(pszCommand))
+			return false;
+		int Command=ProgramGuideOptions.ParseCommand(pszCommand);
+		if (Command>0) {
+			m_pProgramGuide->SendMessage(WM_COMMAND,Command,0);
+			return true;
+		}
+		return PluginManager.OnProgramGuideCommand(pszCommand,
+			TVTest::PROGRAMGUIDE_COMMAND_ACTION_MOUSE,&Event,&CursorPos,&ItemRect);
+	}
+};
+
+
 static CMyProgramGuideEventHandler ProgramGuideEventHandler;
 static CMyProgramGuideDisplayEventHandler ProgramGuideDisplayEventHandler;
+static CMyProgramGuideProgramCustomizer ProgramGuideProgramCustomizer;
 
 
 class CStreamInfoEventHandler : public CStreamInfo::CEventHandler
@@ -6409,7 +6472,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		if (m_AspectRatioResetTime!=0
 				&& !m_pCore->GetFullscreen() && !::IsZoomed(hwnd)
 				&& IsViewerEnabled()
-				&& DiffTime(m_AspectRatioResetTime,::GetTickCount())<6000) {
+				&& TickTimeSpan(m_AspectRatioResetTime,::GetTickCount())<6000) {
 			int Width,Height;
 
 			if (CoreEngine.GetVideoViewSize(&Width,&Height)) {
@@ -8824,7 +8887,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz)
 			pInfo=ChannelManager.GetNextChannelInfo(fUp);
 			if (pInfo!=NULL) {
 				if (m_fWheelChannelChanging) {
-					if (m_WheelCount<5 && DiffTime(m_PrevWheelTime,CurTime)<(5UL-m_WheelCount)*100UL) {
+					if (m_WheelCount<5 && TickTimeSpan(m_PrevWheelTime,CurTime)<(5UL-m_WheelCount)*100UL) {
 						fProcessed=false;
 						break;
 					}
@@ -8839,7 +8902,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz)
 		break;
 
 	case COperationOptions::WHEEL_AUDIO:
-		if (Mode==m_PrevWheelMode && DiffTime(m_PrevWheelTime,CurTime)<300) {
+		if (Mode==m_PrevWheelMode && TickTimeSpan(m_PrevWheelTime,CurTime)<300) {
 			fProcessed=false;
 			break;
 		}
@@ -8847,7 +8910,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz)
 		break;
 
 	case COperationOptions::WHEEL_ZOOM:
-		if (Mode==m_PrevWheelMode && DiffTime(m_PrevWheelTime,CurTime)<500) {
+		if (Mode==m_PrevWheelMode && TickTimeSpan(m_PrevWheelTime,CurTime)<500) {
 			fProcessed=false;
 			break;
 		}
@@ -8864,7 +8927,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz)
 		break;
 
 	case COperationOptions::WHEEL_ASPECTRATIO:
-		if (Mode==m_PrevWheelMode && DiffTime(m_PrevWheelTime,CurTime)<300) {
+		if (Mode==m_PrevWheelMode && TickTimeSpan(m_PrevWheelTime,CurTime)<300) {
 			fProcessed=false;
 			break;
 		}
@@ -10023,6 +10086,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 	PanelForm.AddWindow(&InfoPanel,PANEL_ID_INFORMATION,TEXT("情報"));
 
 	ProgramListPanel.SetEpgProgramList(&EpgProgramList);
+	ProgramListPanel.SetVisibleEventIcons(ProgramGuideOptions.GetVisibleEventIcons());
 	ProgramListPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_VSCROLL);
 	PanelForm.AddWindow(&ProgramListPanel,PANEL_ID_PROGRAMLIST,TEXT("番組表"));
 
@@ -10059,6 +10123,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 	g_ProgramGuide.SetEpgProgramList(&EpgProgramList);
 	g_ProgramGuide.SetEventHandler(&ProgramGuideEventHandler);
+	g_ProgramGuide.SetProgramCustomizer(&ProgramGuideProgramCustomizer);
 	g_ProgramGuide.SetDriverList(&DriverManager);
 
 	CaptureWindow.SetEventHandler(&CaptureWindowEventHandler);
@@ -10137,6 +10202,8 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 				BroadcastControllerFocusMessage(NULL,false,true);
 		}
 	}
+
+	PluginManager.SendStartupDoneEvent();
 
 	MSG msg;
 

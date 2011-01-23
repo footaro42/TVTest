@@ -142,12 +142,15 @@ COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio)
 }
 
 
-DWORD DiffTime(DWORD Start,DWORD End)
+/*
+// ÇÊÇ≠çlÇ¶ÇΩÇÁÇΩÇæà¯ÇØÇŒÇ¢Ç¢ÇæÇØÇæÇ»...
+DWORD TickTimeSpan(DWORD Start,DWORD End)
 {
 	if (Start<End)
 		return End-Start;
 	return (0xFFFFFFFFUL-Start+1)+End;
 }
+*/
 
 
 FILETIME &operator+=(FILETIME &ft,LONGLONG Offset)
@@ -172,6 +175,55 @@ LONGLONG operator-(const FILETIME &ft1,const FILETIME &ft2)
 	Time2.LowPart=ft2.dwLowDateTime;
 	Time2.HighPart=ft2.dwHighDateTime;
 	return Time1.QuadPart-Time2.QuadPart;
+}
+
+
+int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2)
+{
+#if 0
+	FILETIME ft1,ft2;
+
+	SystemTimeToFileTime(pTime1,&ft1);
+	SystemTimeToFileTime(pTime2,&ft2);
+	return CompareFileTime(&ft1,&ft2);
+#else
+	DWORD Date1,Date2;
+
+	Date1=((DWORD)pTime1->wYear<<16) | ((DWORD)pTime1->wMonth<<8) | pTime1->wDay;
+	Date2=((DWORD)pTime2->wYear<<16) | ((DWORD)pTime2->wMonth<<8) | pTime2->wDay;
+	if (Date1==Date2) {
+		Date1=((DWORD)pTime1->wHour<<24) | ((DWORD)pTime1->wMinute<<16) |
+			  ((DWORD)pTime1->wSecond<<10) | pTime1->wMilliseconds;
+		Date2=((DWORD)pTime2->wHour<<24) | ((DWORD)pTime2->wMinute<<16) |
+			  ((DWORD)pTime2->wSecond<<10) | pTime2->wMilliseconds;
+	}
+	if (Date1<Date2)
+		return -1;
+	if (Date1>Date2)
+		return 1;
+	return 0;
+#endif
+}
+
+
+bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset)
+{
+	FILETIME ft;
+
+	if (!::SystemTimeToFileTime(pTime,&ft))
+		return false;
+	ft+=Offset*FILETIME_MILLISECOND;
+	return ::FileTimeToSystemTime(&ft,pTime)!=FALSE;
+}
+
+
+LONGLONG DiffSystemTime(const SYSTEMTIME *pStartTime,const SYSTEMTIME *pEndTime)
+{
+	FILETIME ftStart,ftEnd;
+
+	::SystemTimeToFileTime(pStartTime,&ftStart);
+	::SystemTimeToFileTime(pEndTime,&ftEnd);
+	return (ftEnd-ftStart)/FILETIME_MILLISECOND;
 }
 
 
@@ -227,75 +279,22 @@ void GetLocalTimeNoDST(FILETIME *pTime)
 bool UTCToJST(const SYSTEMTIME *pUTCTime,SYSTEMTIME *pJST)
 {
 	*pJST=*pUTCTime;
-	return OffsetSystemTime(pJST,9*60*60*1000);
+	return UTCToJST(pJST);
 }
 
 
 void GetCurrentJST(SYSTEMTIME *pTime)
 {
-	SYSTEMTIME st;
-
-	::GetSystemTime(&st);
-	if (!UTCToJST(&st,pTime))
+	::GetSystemTime(pTime);
+	if (!UTCToJST(pTime))
 		::GetLocalTime(pTime);
 }
 
 
 void GetCurrentJST(FILETIME *pTime)
 {
-	SYSTEMTIME st;
-
-	GetCurrentJST(&st);
-	::SystemTimeToFileTime(&st,pTime);
-}
-
-
-int CompareSystemTime(const SYSTEMTIME *pTime1,const SYSTEMTIME *pTime2)
-{
-#if 0
-	FILETIME ft1,ft2;
-
-	SystemTimeToFileTime(pTime1,&ft1);
-	SystemTimeToFileTime(pTime2,&ft2);
-	return CompareFileTime(&ft1,&ft2);
-#else
-	DWORD Date1,Date2;
-
-	Date1=((DWORD)pTime1->wYear<<16) | ((DWORD)pTime1->wMonth<<8) | pTime1->wDay;
-	Date2=((DWORD)pTime2->wYear<<16) | ((DWORD)pTime2->wMonth<<8) | pTime2->wDay;
-	if (Date1==Date2) {
-		Date1=((DWORD)pTime1->wHour<<24) | ((DWORD)pTime1->wMinute<<16) |
-			  ((DWORD)pTime1->wSecond<<10) | pTime1->wMilliseconds;
-		Date2=((DWORD)pTime2->wHour<<24) | ((DWORD)pTime2->wMinute<<16) |
-			  ((DWORD)pTime2->wSecond<<10) | pTime2->wMilliseconds;
-	}
-	if (Date1<Date2)
-		return -1;
-	if (Date1>Date2)
-		return 1;
-	return 0;
-#endif
-}
-
-
-bool OffsetSystemTime(SYSTEMTIME *pTime,LONGLONG Offset)
-{
-	FILETIME ft;
-
-	if (!::SystemTimeToFileTime(pTime,&ft))
-		return false;
-	ft+=Offset*FILETIME_MILLISECOND;
-	return ::FileTimeToSystemTime(&ft,pTime)!=FALSE;
-}
-
-
-LONGLONG DiffSystemTime(const SYSTEMTIME *pStartTime,const SYSTEMTIME *pEndTime)
-{
-	FILETIME ftStart,ftEnd;
-
-	::SystemTimeToFileTime(pStartTime,&ftStart);
-	::SystemTimeToFileTime(pEndTime,&ftEnd);
-	return (ftEnd-ftStart)/FILETIME_MILLISECOND;
+	::GetSystemTimeAsFileTime(pTime);
+	UTCToJST(pTime);
 }
 
 

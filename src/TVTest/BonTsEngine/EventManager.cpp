@@ -555,29 +555,18 @@ bool CEventManager::GetEventInfo(const WORD NetworkID, const WORD TransportStrea
 		m_ServiceMap.find(GetServiceMapKey(NetworkID, TransportStreamID, ServiceID));
 	if (itrService != m_ServiceMap.end()) {
 		TimeEventInfo Key(pTime);
-		WORD EventID = 0;
-
-		std::pair<TimeEventMap::iterator, bool> Result = itrService->second.TimeMap.insert(Key);
-		if (Result.second) {
-			if (Result.first != itrService->second.TimeMap.begin()) {
-				TimeEventMap::iterator itrTime = Result.first;
-				itrTime--;
-				if (itrTime->StartTime + itrTime->Duration > Key.StartTime)
-					EventID = itrTime->EventID;
-			}
-		} else {
-			EventID = Result.first->EventID;
-		}
-		if (EventID != 0) {
-			EventMap::iterator itrEvent = itrService->second.EventMap.find(EventID);
-			if (itrEvent != itrService->second.EventMap.end()
-					&& IsEventValid(itrEvent->second)) {
-				*pInfo = itrEvent->second;
-				bFound = true;
+		TimeEventMap::iterator itrTime = itrService->second.TimeMap.upper_bound(Key);
+		if (itrTime != itrService->second.TimeMap.begin()) {
+			itrTime--;
+			if (itrTime->StartTime + itrTime->Duration > Key.StartTime) {
+				EventMap::iterator itrEvent = itrService->second.EventMap.find(itrTime->EventID);
+				if (itrEvent != itrService->second.EventMap.end()
+						&& IsEventValid(itrEvent->second)) {
+					*pInfo = itrEvent->second;
+					bFound = true;
+				}
 			}
 		}
-		if (Result.second)
-			itrService->second.TimeMap.erase(Result.first);
 	}
 
 	return bFound;

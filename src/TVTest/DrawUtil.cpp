@@ -1498,3 +1498,11 @@ bool CUxTheme::GetInt(int PartID,int StateID,int PropID,int *pValue)
 		return false;
 	return ::GetThemeInt(m_hTheme,PartID,StateID,PropID,pValue)==S_OK;
 }
+
+
+bool CUxTheme::GetPartSize(HDC hdc,int PartID,int StateID,SIZE *pSize)
+{
+	if (m_hTheme==NULL)
+		return false;
+	return ::GetThemePartSize(m_hTheme,hdc,PartID,StateID,NULL,TS_TRUE,pSize)==S_OK;
+}

@@ -286,6 +286,7 @@ bool CCoreEngine::OpenCardReader(CardReaderType Type,LPCTSTR pszReaderName)
 	if (!m_DtvEngine.OpenBcasCard(
 			Type==CARDREADER_SCARD?CCardReader::READER_SCARD:
 			Type==CARDREADER_HDUS?CCardReader::READER_HDUS:
+			Type==CARDREADER_BONCASCLIENT?CCardReader::READER_BONCASCLIENT:
 			CCardReader::READER_NONE,
 			pszReaderName)) {
 		SetError(m_DtvEngine.GetLastErrorException());
@@ -720,4 +721,19 @@ bool CCoreEngine::SetMinTimerResolution(bool fMin)
 		}
 	}
 	return true;
+}
+
+
+LPCTSTR CCoreEngine::GetCardReaderSettingName(CardReaderType Type)
+{
+	static const LPCTSTR CardReaderList[] = {
+		TEXT("なし (スクランブル解除しない)"),
+		TEXT("スマートカードリーダ"),
+		TEXT("HDUS内蔵カードリーダ"),
+		TEXT("BonCasClient"),
+	};
+
+	if (Type<CARDREADER_NONE || Type>CARDREADER_LAST)
+		return NULL;
+	return CardReaderList[Type];
 }

@@ -60,6 +60,7 @@ public:
 	bool SetFont(const LOGFONT *pFont);
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	void ShowRetrievingMessage(bool fShow);
+	void SetVisibleEventIcons(UINT VisibleIcons);
 
 private:
 	CEpgProgramList *m_pProgramList;
@@ -70,6 +71,7 @@ private:
 	int m_TitleMargin;
 	ThemeInfo m_Theme;
 	CEpgIcons m_EpgIcons;
+	UINT m_VisibleEventIcons;
 	int m_TotalLines;
 	CProgramItemList m_ItemList;
 	int m_CurEventID;

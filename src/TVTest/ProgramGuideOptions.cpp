@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "ProgramGuideOptions.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -11,10 +12,14 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define IEPG_ASSOCIATE_COMMAND TEXT("iEpgAssociate")
 
 
-CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
+
+
+CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide,CPluginManager *pPluginManager)
 	: m_pProgramGuide(pProgramGuide)
+	, m_pPluginManager(pPluginManager)
 	, m_fOnScreen(false)
 	, m_BeginHour(-1)
 	, m_ViewHours(26)
@@ -22,6 +27,8 @@ CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide)
 	, m_LinesPerHour(pProgramGuide->GetLinesPerHour())
 	, m_LineMargin(1)
 	, m_WheelScrollLines(pProgramGuide->GetWheelScrollLines())
+	, m_VisibleEventIcons(m_pProgramGuide->GetVisibleEventIcons())
+	, m_himlEventIcons(NULL)
 {
 	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
 }
@@ -63,13 +70,24 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 			m_WheelScrollLines=Value;
 		m_pProgramGuide->SetWheelScrollLines(m_WheelScrollLines);
 
+		TCHAR szText[512];
+		if (Settings.Read(TEXT("ProgramLDoubleClick"),szText,lengthof(szText))) {
+			if (szText[0]!=_T('\0'))
+				m_ProgramLDoubleClickCommand.Set(szText);
+			else
+				m_ProgramLDoubleClickCommand.Clear();
+		}
+
+		Settings.Read(TEXT("EventIcons"),&m_VisibleEventIcons);
+		m_pProgramGuide->SetVisibleEventIcons(m_VisibleEventIcons);
+
 		bool f;
 		if (Settings.Read(TEXT("ShowToolTip"),&f))
 			m_pProgramGuide->SetShowToolTip(f);
 
 		// Font
 		TCHAR szFont[LF_FACESIZE];
-		if (Settings.Read(TEXT("FontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
+		if (Settings.Read(TEXT("FontName"),szFont,LF_FACESIZE) && szFont[0]!=_T('\0')) {
 			lstrcpy(m_Font.lfFaceName,szFont);
 			m_Font.lfEscapement=0;
 			m_Font.lfOrientation=0;
@@ -186,6 +204,8 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Write(TEXT("LinesPerHour"),m_LinesPerHour);
 		Settings.Write(TEXT("LineMargin"),m_LineMargin);
 		Settings.Write(TEXT("WheelScrollLines"),m_WheelScrollLines);
+		Settings.Write(TEXT("ProgramLDoubleClick"),m_ProgramLDoubleClickCommand.Get());
+		Settings.Write(TEXT("EventIcons"),m_VisibleEventIcons);
 
 		// Font
 		Settings.Write(TEXT("FontName"),m_Font.lfFaceName);
@@ -262,6 +282,16 @@ bool CProgramGuideOptions::GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast
 }
 
 
+int CProgramGuideOptions::ParseCommand(LPCTSTR pszCommand) const
+{
+	if (IsStringEmpty(pszCommand))
+		return 0;
+	if (::lstrcmpi(pszCommand,IEPG_ASSOCIATE_COMMAND)==0)
+		return CM_PROGRAMGUIDE_IEPGASSOCIATE;
+	return 0;
+}
+
+
 CProgramGuideOptions *CProgramGuideOptions::GetThis(HWND hDlg)
 {
 	return static_cast<CProgramGuideOptions*>(GetOptions(hDlg));
@@ -314,8 +344,54 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES_UD,
 				UDM_SETRANGE,0,MAKELONG(UD_MAXVAL,UD_MINVAL));
 
+			int Sel=pThis->m_ProgramLDoubleClickCommand.IsEmpty()?0:-1;
+			DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,TEXT("âΩÇ‡ÇµÇ»Ç¢"));
+			DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,TEXT("iEPGä÷òAïtÇØé¿çs"));
+			if (Sel<0 && pThis->m_ProgramLDoubleClickCommand.Compare(IEPG_ASSOCIATE_COMMAND)==0)
+				Sel=1;
+			for (int i=0;i<pThis->m_pPluginManager->NumPlugins();i++) {
+				const CPlugin *pPlugin=pThis->m_pPluginManager->GetPlugin(i);
+
+				for (int j=0;j<pPlugin->NumProgramGuideCommands();j++) {
+					TVTest::ProgramGuideCommandInfo CommandInfo;
+
+					pPlugin->GetProgramGuideCommandInfo(j,&CommandInfo);
+					if (CommandInfo.Type==TVTest::PROGRAMGUIDE_COMMAND_TYPE_PROGRAM) {
+						TCHAR szCommand[512];
+
+						::wsprintf(szCommand,TEXT("%s:%s"),
+								   ::PathFindFileName(pPlugin->GetFileName()),
+								   CommandInfo.pszText);
+						LRESULT Index=DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,
+															CommandInfo.pszName);
+						DlgComboBox_SetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,
+												Index,reinterpret_cast<LPARAM>(DuplicateString(szCommand)));
+						if (Sel<0 && !pThis->m_ProgramLDoubleClickCommand.IsEmpty()
+								&& ::lstrcmpi(szCommand,pThis->m_ProgramLDoubleClickCommand.Get())==0)
+							Sel=(int)Index;
+					}
+				}
+			}
+			if (Sel>=0)
+				DlgComboBox_SetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,Sel);
+
 			lfCurFont=pThis->m_Font;
 			SetFontInfo(hDlg,&lfCurFont);
+
+			pThis->m_Tooltip.Create(hDlg);
+			pThis->m_himlEventIcons=::ImageList_LoadImage(
+				GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_PROGRAMGUIDEICONS),
+				CEpgIcons::ICON_WIDTH,1,CLR_NONE,IMAGE_BITMAP,LR_CREATEDIBSECTION);
+			for (int i=0;i<=CEpgIcons::ICON_LAST;i++) {
+				DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
+								  (pThis->m_VisibleEventIcons&CEpgIcons::IconFlag(i))!=0);
+				::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
+									 BM_SETIMAGE,IMAGE_ICON,
+									 reinterpret_cast<LPARAM>(::ImageList_ExtractIcon(NULL,pThis->m_himlEventIcons,i)));
+				TCHAR szText[64];
+				::GetDlgItemText(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,szText,lengthof(szText));
+				pThis->m_Tooltip.AddTool(::GetDlgItem(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i),szText);
+			}
 
 			CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
 			HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
@@ -592,9 +668,33 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 				pThis->m_WheelScrollLines=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,NULL,TRUE);
 				pThis->m_pProgramGuide->SetWheelScrollLines(pThis->m_WheelScrollLines);
 
+				LRESULT Sel=DlgComboBox_GetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK);
+				if (Sel>=0) {
+					if (Sel==0) {
+						pThis->m_ProgramLDoubleClickCommand.Clear();
+					} else if (Sel==1) {
+						pThis->m_ProgramLDoubleClickCommand.Set(IEPG_ASSOCIATE_COMMAND);
+					} else {
+						pThis->m_ProgramLDoubleClickCommand.Set(
+							reinterpret_cast<LPCTSTR>(
+								DlgComboBox_GetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,Sel)));
+					}
+				}
+
 				if (!CompareLogFont(&pThis->m_Font,&lfCurFont)) {
 					pThis->m_Font=lfCurFont;
 					pThis->m_pProgramGuide->SetFont(&lfCurFont);
+				}
+
+				UINT VisibleEventIcons=0;
+				for (int i=0;i<=CEpgIcons::ICON_LAST;i++) {
+					if (DlgCheckBox_IsChecked(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i))
+						VisibleEventIcons|=CEpgIcons::IconFlag(i);
+				}
+				if (pThis->m_VisibleEventIcons!=VisibleEventIcons) {
+					pThis->m_VisibleEventIcons=VisibleEventIcons;
+					pThis->m_pProgramGuide->SetVisibleEventIcons(VisibleEventIcons);
+					pThis->m_UpdateFlags|=UPDATE_EVENTICONS;
 				}
 
 				CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
@@ -627,6 +727,22 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 		{
 			CProgramGuideOptions *pThis=GetThis(hDlg);
 
+			for (LRESULT i=DlgComboBox_GetCount(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK)-1;i>1;i--) {
+				delete [] reinterpret_cast<LPTSTR>(
+					DlgComboBox_GetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,i));
+			}
+			for (int i=0;i<=CEpgIcons::ICON_LAST;i++) {
+				HICON hico=reinterpret_cast<HICON>(
+					::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
+										 BM_SETIMAGE,IMAGE_ICON,reinterpret_cast<LPARAM>((HICON)NULL)));
+				if (hico!=NULL)
+					::DestroyIcon(hico);
+			}
+			if (pThis->m_himlEventIcons!=NULL) {
+				::ImageList_Destroy(pThis->m_himlEventIcons);
+				pThis->m_himlEventIcons=NULL;
+			}
+			pThis->m_Tooltip.Destroy();
 			pThis->OnDestroy();
 		}
 		return TRUE;

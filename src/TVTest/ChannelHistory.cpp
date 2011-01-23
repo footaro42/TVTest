@@ -157,12 +157,13 @@ bool CRecentChannelList::SetMenu(HMENU hmenu,bool fClear) const
 	ClearMenu(hmenu);
 	for (int i=0;i<m_MaxChannelHistoryMenu;i++) {
 		const CChannel *pChannelInfo=GetChannelInfo(i);
-		TCHAR szText[64];
-		int Length;
-
 		if (pChannelInfo==NULL)
 			break;
-		Length=::wsprintf(szText,TEXT("&%c: "),i<10?i+'0':(i-10)+'A');
+
+		TCHAR szText[64];
+		int Length=0;
+		if (i<36)
+			Length=::wsprintf(szText,TEXT("&%c: "),i<10?i+_T('0'):(i-10)+_T('A'));
 		CopyToMenuText(pChannelInfo->GetName(),
 					   szText+Length,lengthof(szText)-Length);
 		::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,CM_CHANNELHISTORY_FIRST+i,szText);
@@ -177,12 +178,16 @@ bool CRecentChannelList::SetMenu(HMENU hmenu,bool fClear) const
 
 bool CRecentChannelList::Load(LPCTSTR pszFileName)
 {
+	m_ChannelList.clear();
+
 	CSettings Settings;
 
 	if (Settings.Open(pszFileName,TEXT("RecentChannel"),CSettings::OPEN_READ)) {
 		int Count;
 
 		if (Settings.Read(TEXT("Count"),&Count) && Count>0) {
+			if (Count>m_MaxChannelHistory)
+				Count=m_MaxChannelHistory;
 			for (int i=0;i<Count;i++) {
 				TCHAR szName[32],szDriverName[MAX_PATH],szChannelName[MAX_CHANNEL_NAME];
 				int Space,Channel,Service,ServiceID;
@@ -209,7 +214,7 @@ bool CRecentChannelList::Load(LPCTSTR pszFileName)
 					break;
 				CChannelInfo ChannelInfo(Space,0,Channel,0,Service,szChannelName);
 				ChannelInfo.SetServiceID(ServiceID);
-				m_ChannelList.push_front(new CChannel(szDriverName,&ChannelInfo));
+				m_ChannelList.push_back(new CChannel(szDriverName,&ChannelInfo));
 			}
 		}
 		Settings.Close();
@@ -222,27 +227,31 @@ bool CRecentChannelList::Save(LPCTSTR pszFileName) const
 {
 	CSettings Settings;
 
-	if (Settings.Open(pszFileName,TEXT("RecentChannel"),CSettings::OPEN_WRITE)) {
-		Settings.Write(TEXT("Count"),NumChannels());
-		for (size_t i=0;i<m_ChannelList.size();i++) {
-			const CChannel *pChannelInfo=m_ChannelList[i];
-			TCHAR szName[64];
+	if (!Settings.Open(pszFileName,TEXT("RecentChannel"),CSettings::OPEN_WRITE))
+		return false;
 
-			::wsprintf(szName,TEXT("History%d_Driver"),i);
-			Settings.Write(szName,pChannelInfo->GetDriverFileName());
-			::wsprintf(szName,TEXT("History%d_Name"),i);
-			Settings.Write(szName,pChannelInfo->GetName());
-			::wsprintf(szName,TEXT("History%d_Space"),i);
-			Settings.Write(szName,pChannelInfo->GetSpace());
-			::wsprintf(szName,TEXT("History%d_Channel"),i);
-			Settings.Write(szName,pChannelInfo->GetChannelIndex());
-			::wsprintf(szName,TEXT("History%d_Service"),i);
-			Settings.Write(szName,pChannelInfo->GetService());
-			::wsprintf(szName,TEXT("History%d_ServiceID"),i);
-			Settings.Write(szName,pChannelInfo->GetServiceID());
-		}
-		Settings.Close();
+	const int Channels=NumChannels();
+
+	Settings.Clear();
+	Settings.Write(TEXT("Count"),Channels);
+	for (int i=0;i<Channels;i++) {
+		const CChannel *pChannelInfo=m_ChannelList[i];
+		TCHAR szName[64];
+
+		::wsprintf(szName,TEXT("History%d_Driver"),i);
+		Settings.Write(szName,pChannelInfo->GetDriverFileName());
+		::wsprintf(szName,TEXT("History%d_Name"),i);
+		Settings.Write(szName,pChannelInfo->GetName());
+		::wsprintf(szName,TEXT("History%d_Space"),i);
+		Settings.Write(szName,pChannelInfo->GetSpace());
+		::wsprintf(szName,TEXT("History%d_Channel"),i);
+		Settings.Write(szName,pChannelInfo->GetChannelIndex());
+		::wsprintf(szName,TEXT("History%d_Service"),i);
+		Settings.Write(szName,pChannelInfo->GetService());
+		::wsprintf(szName,TEXT("History%d_ServiceID"),i);
+		Settings.Write(szName,pChannelInfo->GetServiceID());
 	}
+	Settings.Close();
 	return true;
 }
 

@@ -341,15 +341,11 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_RENDERER,pThis->m_VideoRendererType);
 
 			// Card reader
-			static const LPCTSTR pszCardReaderList[] = {
-				TEXT("なし (スクランブル解除しない)"),
-				TEXT("スマートカードリーダ"),
-				TEXT("HDUS内蔵カードリーダ"),
-			};
-			for (int i=0;i<lengthof(pszCardReaderList);i++)
-				DlgComboBox_AddString(hDlg,IDC_OPTIONS_CARDREADER,pszCardReaderList[i]);
+			for (int i=0;i<=CCoreEngine::CARDREADER_LAST;i++)
+				DlgComboBox_AddString(hDlg,IDC_OPTIONS_CARDREADER,
+									  CCoreEngine::GetCardReaderSettingName((CCoreEngine::CardReaderType)i));
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_CARDREADER,
-				pThis->m_fTemporaryNoDescramble?0:pThis->m_CardReaderType);
+				(int)(pThis->m_fTemporaryNoDescramble?CCoreEngine::CARDREADER_NONE:pThis->m_CardReaderType));
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,pThis->m_fResident);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,pThis->m_fKeepSingleTask);
@@ -464,7 +460,7 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 						}
 						Multi2Decoder.Decode(Data,sizeof(Data),2);
 					}
-					NormalTime+=DiffTime(StartTime,::timeGetTime());
+					NormalTime+=TickTimeSpan(StartTime,::timeGetTime());
 					StartTime=::timeGetTime();
 					for (int i=0;i<BENCHMARK_COUNT;i++) {
 						if (i%10000==0) {
@@ -473,7 +469,7 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 						}
 						Multi2Decoder.DecodeSSE2(Data,sizeof(Data),2);
 					}
-					SSE2Time+=DiffTime(StartTime,::timeGetTime());
+					SSE2Time+=TickTimeSpan(StartTime,::timeGetTime());
 					BenchmarkCount+=BENCHMARK_COUNT;
 				} while (NormalTime<1000 && SSE2Time<1000);
 

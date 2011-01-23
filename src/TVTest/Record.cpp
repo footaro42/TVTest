@@ -107,7 +107,7 @@ bool CRecordTask::Pause()
 		m_pDtvEngine->m_FileWriter.ClearQueue();
 		m_pDtvEngine->m_FileWriter.Resume();
 		m_State=STATE_RECORDING;
-		m_TotalPauseTime+=DiffTime(m_PauseStartTime,::GetTickCount());
+		m_TotalPauseTime+=TickTimeSpan(m_PauseStartTime,::GetTickCount());
 	} else
 		return false;
 	return true;
@@ -150,9 +150,9 @@ DWORD CRecordTask::GetRecordTime() const
 	DWORD Time;
 
 	if (m_State==STATE_RECORDING) {
-		Time=DiffTime(m_StartTime.GetTickTime(),::GetTickCount());
+		Time=TickTimeSpan(m_StartTime.GetTickTime(),::GetTickCount());
 	} else if (m_State==STATE_PAUSE) {
-		Time=DiffTime(m_StartTime.GetTickTime(),m_PauseStartTime);
+		Time=TickTimeSpan(m_StartTime.GetTickTime(),m_PauseStartTime);
 	} else
 		return 0;
 	return Time-m_TotalPauseTime;
@@ -164,7 +164,7 @@ DWORD CRecordTask::GetPauseTime() const
 	if (m_State==STATE_RECORDING)
 		return m_TotalPauseTime;
 	if (m_State==STATE_PAUSE)
-		return DiffTime(m_PauseStartTime,::GetTickCount())+m_TotalPauseTime;
+		return TickTimeSpan(m_PauseStartTime,::GetTickCount())+m_TotalPauseTime;
 	return 0;
 }
 
@@ -445,7 +445,7 @@ LONGLONG CRecordManager::GetRemainTime() const
 		break;
 	case TIME_DURATION:
 		Remain=m_StopTimeSpec.Time.Duration-
-			(LONGLONG)DiffTime(m_RecordTask.GetStartTime(),::GetTickCount());
+			(LONGLONG)TickTimeSpan(m_RecordTask.GetStartTime(),::GetTickCount());
 		break;
 	default:
 		Remain=-1;
@@ -472,14 +472,14 @@ bool CRecordManager::QueryStart(int Offset) const
 		break;
 	case TIME_DURATION:
 		{
-			DWORD Diff=DiffTime(m_ReserveTime.GetTickTime(),::GetTickCount());
+			DWORD Span=TickTimeSpan(m_ReserveTime.GetTickTime(),::GetTickCount());
 
 			if (Offset!=0) {
-				if ((LONGLONG)Offset<=-(LONGLONG)Diff)
+				if ((LONGLONG)Offset<=-(LONGLONG)Span)
 					return true;
-				Diff+=Offset;
+				Span+=Offset;
 			}
-			if ((ULONGLONG)Diff>=m_StartTimeSpec.Time.Duration)
+			if ((ULONGLONG)Span>=m_StartTimeSpec.Time.Duration)
 				return true;
 		}
 		break;
@@ -506,15 +506,15 @@ bool CRecordManager::QueryStop(int Offset) const
 		break;
 	case TIME_DURATION:
 		{
-			DWORD Diff;
+			DWORD Span;
 
-			Diff=DiffTime(m_RecordTask.GetStartTime(),::GetTickCount());
+			Span=TickTimeSpan(m_RecordTask.GetStartTime(),::GetTickCount());
 			if (Offset!=0) {
-				if ((LONGLONG)Offset<=-(LONGLONG)Diff)
+				if ((LONGLONG)Offset<=-(LONGLONG)Span)
 					return true;
-				Diff+=Offset;
+				Span+=Offset;
 			}
-			if ((ULONGLONG)Diff>=m_StopTimeSpec.Time.Duration)
+			if ((ULONGLONG)Span>=m_StopTimeSpec.Time.Duration)
 				return true;
 		}
 		break;

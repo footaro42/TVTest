@@ -285,6 +285,7 @@ CProgramListPanel::CProgramListPanel()
 	, m_FontHeight(0)
 	, m_LineMargin(1)
 	, m_TitleMargin(2)
+	, m_VisibleEventIcons(((1<<(CEpgIcons::ICON_LAST+1))-1)^CEpgIcons::IconFlag(CEpgIcons::ICON_PAY))
 	, m_CurEventID(-1)
 	, m_ScrollPos(0)
 	//, m_hwndToolTip(NULL)
@@ -610,6 +611,16 @@ void CProgramListPanel::ShowRetrievingMessage(bool fShow)
 }
 
 
+void CProgramListPanel::SetVisibleEventIcons(UINT VisibleIcons)
+{
+	if (m_VisibleEventIcons!=VisibleIcons) {
+		m_VisibleEventIcons=VisibleIcons;
+		if (m_hwnd!=NULL)
+			Invalidate();
+	}
+}
+
+
 int CProgramListPanel::HitTest(int x,int y) const
 {
 	POINT pt;
@@ -904,7 +915,8 @@ void CProgramListPanel::DrawProgramList(HDC hdc,const RECT *prcPaint)
 				rc.left=TEXT_LEFT_MARGIN;
 				pItem->DrawText(hdc,&rc,LineHeight);
 
-				const unsigned int ShowIcons=CEpgIcons::GetEventIcons(&pItem->GetEventInfo());
+				const unsigned int ShowIcons=
+					CEpgIcons::GetEventIcons(&pItem->GetEventInfo()) & m_VisibleEventIcons;
 				if (ShowIcons!=0) {
 					int y=rc.top+ICON_MARGIN_TOP;
 					int Icon=0;

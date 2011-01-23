@@ -47,6 +47,27 @@ public:
 	bool SetAccelerator(CAccelerator *pAccelerator);
 };
 
+class CMenuPainter
+{
+	CUxTheme m_UxTheme;
+	bool m_fFlatMenu;
+
+public:
+	CMenuPainter();
+	~CMenuPainter();
+	void Initialize(HWND hwnd);
+	void Finalize();
+	void GetFont(LOGFONT *pFont);
+	COLORREF GetTextColor(bool fHighlight=false);
+	void DrawItemBackground(HDC hdc,const RECT &Rect,bool fHighlight=false);
+	void GetItemMargins(MARGINS *pMargins);
+	void GetMargins(MARGINS *pMargins);
+	void GetBorderSize(SIZE *pSize);
+	void DrawBackground(HDC hdc,const RECT &Rect);
+	void DrawBorder(HDC hdc,const RECT &Rect);
+	void DrawSeparator(HDC hdc,const RECT &Rect);
+};
+
 class CChannelMenu
 {
 	unsigned int m_Flags;
@@ -65,8 +86,7 @@ class CChannelMenu
 	int m_EventNameWidth;
 	int m_LogoWidth;
 	int m_LogoHeight;
-	CUxTheme m_UxTheme;
-	bool m_fFlatMenu;
+	CMenuPainter m_MenuPainter;
 	MARGINS m_Margins;
 	int m_MenuLogoMargin;
 	CTooltip m_Tooltip;
@@ -146,32 +166,51 @@ public:
 
 class CDropDownMenu
 {
+public:
 	class CItem {
-		int m_Command;
-		LPTSTR m_pszText;
-		int m_Width;
 	public:
 		CItem(int Command,LPCTSTR pszText);
-		~CItem();
+		virtual ~CItem();
 		int GetCommand() const { return m_Command; }
 		LPCTSTR GetText() const { return m_pszText; }
 		bool SetText(LPCTSTR pszText);
-		int GetWidth(HDC hdc);
 		bool IsSeparator() const { return m_Command<0; }
-		void Draw(HDC hdc,const RECT *pRect);
+		virtual int GetWidth(HDC hdc);
+		virtual void Draw(HDC hdc,const RECT *pRect);
+
+	protected:
+		int m_Command;
+		LPTSTR m_pszText;
+		int m_Width;
 	};
+
+	static bool Initialize(HINSTANCE hinst);
+
+	CDropDownMenu();
+	~CDropDownMenu();
+	void Clear();
+	bool AppendItem(CItem *pItem);
+	bool InsertItem(int Index,CItem *pItem);
+	bool AppendSeparator();
+	bool InsertSeparator(int Index);
+	bool DeleteItem(int Command);
+	bool SetItemText(int Command,LPCTSTR pszText);
+	int CommandToIndex(int Command) const;
+	bool Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int CurItem=-1,UINT Flags=0);
+	bool Hide();
+	bool GetPosition(RECT *pRect);
+
+private:
 	CPointerVector<CItem> m_ItemList;
 	HWND m_hwnd;
 	HWND m_hwndMessage;
-	RECT m_ItemMargin;
-	RECT m_WindowMargin;
+	MARGINS m_ItemMargin;
+	MARGINS m_WindowMargin;
 	DrawUtil::CFont m_Font;
-	COLORREF m_TextColor;
-	COLORREF m_BackColor;
-	COLORREF m_HighlightTextColor;
-	COLORREF m_HighlightBackColor;
-	Theme::BorderType m_BorderType;
+	CMenuPainter m_MenuPainter;
+	int m_ItemWidth;
 	int m_ItemHeight;
+	int m_MaxRows;
 	int m_HotItem;
 	bool m_fTrackMouseEvent;
 
@@ -183,22 +222,6 @@ class CDropDownMenu
 	static HINSTANCE m_hinst;
 	static CDropDownMenu *GetThis(HWND hwnd);
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-public:
-	static bool Initialize(HINSTANCE hinst);
-	CDropDownMenu();
-	~CDropDownMenu();
-	void Clear();
-	bool AppendItem(int Command,LPCTSTR pszText);
-	bool InsertItem(int Index,int Command,LPCTSTR pszText);
-	bool AppendSeparator() { return AppendItem(-1,NULL); }
-	bool InsertSeparator(int Index) { return InsertItem(Index,-1,NULL); }
-	bool DeleteItem(int Command);
-	bool SetItemText(int Command,LPCTSTR pszText);
-	int CommandToIndex(int Command) const;
-	bool Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int CurItem=-1,UINT Flags=0);
-	bool Hide();
-	bool GetPosition(RECT *pRect);
 };
 
 

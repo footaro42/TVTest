@@ -565,7 +565,7 @@ void CClockStatusItem::Draw(HDC hdc,const RECT *pRect)
 void CClockStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
 	if (m_fTOT) {
-		DrawText(hdc,pRect,TEXT("TOT: 2010/5/24 13:25:30"));
+		DrawText(hdc,pRect,TEXT("TOT: 2011/5/24 13:25:30"));
 	} else {
 		DrawText(hdc,pRect,TEXT("13:25:30"));
 	}
@@ -659,7 +659,7 @@ void CProgramInfoStatusItem::OnFocus(bool fFocus)
 		POINT pt;
 
 		::GetCursorPos(&pt);
-		if (!m_EventInfoPopup.IsHandle(::WindowFromPoint(pt)))
+		if (!m_EventInfoPopup.IsOwnWindow(::WindowFromPoint(pt)))
 			m_EventInfoPopup.Hide();
 	}
 }

@@ -398,7 +398,7 @@ void CControllerManager::InitDlgItems()
 
 			BITMAP bm;
 			::GetObject(m_hbmController,sizeof(BITMAP),&bm);
-			::SetRect(&rc,172,8,232,216);
+			::SetRect(&rc,172,8,232,232);
 			::MapDialogRect(m_hDlg,&rc);
 			m_ImageRect.left=rc.left+((rc.right-rc.left)-bm.bmWidth)/2;
 			m_ImageRect.top=rc.top+((rc.bottom-rc.top)-bm.bmHeight)/2;
@@ -569,7 +569,7 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 
 			::BeginPaint(hDlg,&ps);
 			::GetObject(pThis->m_hbmController,sizeof(BITMAP),&bm);
-			::SetRect(&rc,172,8,232,216);
+			::SetRect(&rc,172,8,232,232);
 			::MapDialogRect(hDlg,&rc);
 			::FillRect(ps.hdc,&rc,static_cast<HBRUSH>(::GetStockObject(WHITE_BRUSH)));
 			hdcMem=::CreateCompatibleDC(ps.hdc);

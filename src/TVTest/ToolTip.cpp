@@ -137,6 +137,24 @@ bool CTooltip::AddTool(UINT ID,const RECT &Rect,LPCTSTR pszText,LPARAM lParam)
 }
 
 
+bool CTooltip::AddTool(HWND hwnd,LPCTSTR pszText,LPARAM lParam)
+{
+	if (m_hwndTooltip==NULL || hwnd==NULL)
+		return false;
+
+	TOOLINFO ti;
+
+	ti.cbSize=TTTOOLINFO_V2_SIZE;
+	ti.uFlags=TTF_IDISHWND | TTF_SUBCLASS | TTF_TRANSPARENT;
+	ti.hwnd=m_hwndParent;
+	ti.uId=reinterpret_cast<UINT_PTR>(hwnd);
+	ti.hinst=NULL;
+	ti.lpszText=const_cast<LPTSTR>(pszText);
+	ti.lParam=lParam;
+	return ::SendMessage(m_hwndTooltip,TTM_ADDTOOL,0,reinterpret_cast<LPARAM>(&ti))!=FALSE;
+}
+
+
 bool CTooltip::DeleteTool(UINT ID)
 {
 	if (m_hwndTooltip==NULL)

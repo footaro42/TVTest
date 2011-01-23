@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "EpgProgramList.h"
 #include "HelperClass/NFile.h"
 #ifdef MOVE_SEMANTICS_SUPPORTED
@@ -323,33 +324,20 @@ bool CEventInfoList::RemoveEvent(WORD EventID)
 
 
 CEpgServiceInfo::CEpgServiceInfo()
-{
-}
-
-
-CEpgServiceInfo::CEpgServiceInfo(const CEpgServiceInfo &Info)
-	: m_ServiceData(Info.m_ServiceData)
-	, m_EventList(Info.m_EventList)
+	: m_fMergeOldEvents(true)
 {
 }
 
 
 CEpgServiceInfo::CEpgServiceInfo(const CServiceInfoData &ServiceData)
 	: m_ServiceData(ServiceData)
+	, m_fMergeOldEvents(true)
 {
 }
 
 
 CEpgServiceInfo::~CEpgServiceInfo()
 {
-}
-
-
-CEpgServiceInfo &CEpgServiceInfo::operator=(const CEpgServiceInfo &Info)
-{
-	m_ServiceData=Info.m_ServiceData;
-	m_EventList=Info.m_EventList;
-	return *this;
 }
 
 
@@ -431,7 +419,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 	if (!pEventManager->IsServiceUpdated(pService->OriginalNetworkID,
 										 pService->TransportStreamID,
 										 pService->ServiceID))
-		return true;
+		return false;
 
 	CEventManager::EventList EventList;
 	if (!pEventManager->GetEventList(pService->OriginalNetworkID,
@@ -497,89 +485,90 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 	}
 
 #ifdef _DEBUG
-	TRACE(TEXT("CEpgProgramList::UpdateService() (%d) %d/%d %d:%02d - %d/%d %d:%02d %d Events\n"),
+	TRACE(TEXT("CEpgProgramList::UpdateService() (%d) %d/%d %d:%02d - %d/%d %d:%02d %u Events\n"),
 		  pService->ServiceID,
 		  stOldestTime.wMonth,stOldestTime.wDay,stOldestTime.wHour,stOldestTime.wMinute,
 		  stNewestTime.wMonth,stNewestTime.wDay,stNewestTime.wHour,stNewestTime.wMinute,
-		  (int)EventList.size());
+		  (unsigned int)pServiceInfo->m_EventList.EventDataMap.size());
 #endif
 
-	// 既存のイベントで新しいリストに無いものを追加する
 	const ServiceMapKey Key=GetServiceMapKey(ServiceData.m_NetworkID,
 											 ServiceData.m_TSID,
 											 ServiceData.m_ServiceID);
-	ServiceMap::iterator itrService=m_ServiceMap.find(Key);
-	if (itrService!=m_ServiceMap.end()) {
-		CEventInfoList::EventMap::iterator itrEvent;
-#ifdef _DEBUG
-		int Count=0;
-#endif
+	std::pair<ServiceMap::iterator,bool> ServiceInsertResult=
+		m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo*>(Key,pServiceInfo));
 
-		for (itrEvent=itrService->second->m_EventList.EventDataMap.begin();
-				itrEvent!=itrService->second->m_EventList.EventDataMap.end();
-				itrEvent++) {
-			if (pServiceInfo->m_EventList.EventDataMap.find(itrEvent->second.m_EventID)!=
-					pServiceInfo->m_EventList.EventDataMap.end())
-				continue;
+	if (!ServiceInsertResult.second) {
+		CEpgServiceInfo *pOldServiceInfo=ServiceInsertResult.first->second;
 
-			std::pair<std::set<EventTime>::iterator,bool> Result=
-				EventTimeTable.insert(EventTime(itrEvent->second));
-			if (Result.second) {
-				const EventTime &Time=*Result.first;
+		if (pOldServiceInfo->m_fMergeOldEvents) {
+			// 既存のイベントで新しいリストに無いものを追加する
+			unsigned int OldEventCount=0;
+			CEventInfoList::EventMap::iterator itrEvent;
+
+			for (itrEvent=pOldServiceInfo->m_EventList.EventDataMap.begin();
+					itrEvent!=pOldServiceInfo->m_EventList.EventDataMap.end();
+					itrEvent++) {
+				if (pServiceInfo->m_EventList.EventDataMap.find(itrEvent->second.m_EventID)!=
+						pServiceInfo->m_EventList.EventDataMap.end())
+					continue;
+
+				EventTime Time(itrEvent->second);
+				std::set<EventTime>::iterator itrUpper=EventTimeTable.upper_bound(Time);
 				bool fSkip=false;
 				std::set<EventTime>::iterator itr;
-				itr=Result.first;
-				for (itr++;itr!=EventTimeTable.end();) {
-					if (itr->StartTime>=Time.StartTime+Time.Duration)
-						break;
-					if (itr->UpdateTime>Time.UpdateTime) {
-						fSkip=true;
-						break;
-					}
-					pServiceInfo->m_EventList.RemoveEvent(itr->EventID);
-					EventTimeTable.erase(itr++);
-				}
-				if (!fSkip && Result.first!=EventTimeTable.begin()) {
-					itr=Result.first;
+				if (itrUpper!=EventTimeTable.begin()) {
+					itr=itrUpper;
 					itr--;
-					while (true) {
-						if (itr->StartTime+itr->Duration<=Time.StartTime)
+					if (itr->StartTime==Time.StartTime) {
+						fSkip=true;
+					} else {
+						while (itr->StartTime+itr->Duration>Time.StartTime) {
+							if (itr->UpdateTime>=Time.UpdateTime) {
+								fSkip=true;
+								break;
+							}
+							pServiceInfo->m_EventList.RemoveEvent(itr->EventID);
+							if (itr==EventTimeTable.begin()) {
+								EventTimeTable.erase(itr);
+								break;
+							}
+							EventTimeTable.erase(itr--);
+						}
+					}
+				}
+				if (!fSkip) {
+					for (itr=itrUpper;itr!=EventTimeTable.end();) {
+						if (itr->StartTime>=Time.StartTime+Time.Duration)
 							break;
-						if (itr->UpdateTime>Time.UpdateTime) {
+						if (itr->UpdateTime>=Time.UpdateTime) {
 							fSkip=true;
 							break;
 						}
 						pServiceInfo->m_EventList.RemoveEvent(itr->EventID);
-						if (itr==EventTimeTable.begin()) {
-							EventTimeTable.erase(itr);
-							break;
-						}
-						EventTimeTable.erase(itr--);
+						EventTimeTable.erase(itr++);
 					}
 				}
 				if (!fSkip) {
 					pServiceInfo->m_EventList.EventDataMap.insert(
 						std::pair<WORD,CEventInfoData>(itrEvent->second.m_EventID,itrEvent->second));
-#ifdef _DEBUG
-					Count++;
-#endif
-				} else {
-					EventTimeTable.erase(Result.first);
+					OldEventCount++;
 				}
 			}
-		}
+			if (OldEventCount==0)
+				pServiceInfo->m_fMergeOldEvents=false;
 #ifdef _DEBUG
-		TRACE(TEXT("古いイベントの生き残り %d (Total %d)\n"),
-			  Count,(int)pServiceInfo->m_EventList.EventDataMap.size());
+			TRACE(TEXT("古いイベントの生き残り %u (Total %u)\n"),
+				  OldEventCount,(unsigned int)pServiceInfo->m_EventList.EventDataMap.size());
 #endif
+		}
+
+		delete pOldServiceInfo;
+		m_ServiceMap[Key]=pServiceInfo;
+	} else {
+		pServiceInfo->m_fMergeOldEvents=false;
 	}
 
-	std::pair<ServiceMap::iterator, bool> Result =
-		m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo*>(Key,pServiceInfo));
-	if (!Result.second) {
-		delete Result.first->second;
-		m_ServiceMap[Key]=pServiceInfo;
-	}
 	return true;
 }
 
@@ -629,10 +618,12 @@ bool CEpgProgramList::UpdateProgramList()
 	CEventManager::ServiceList ServiceList;
 	if (!m_pEventManager->GetServiceList(&ServiceList))
 		return false;
+	bool fUpdated=false;
 	for (size_t i=0;i<ServiceList.size();i++) {
-		UpdateService(&ServiceList[i]);
+		if (UpdateService(&ServiceList[i]))
+			fUpdated=true;
 	}
-	return true;
+	return fUpdated;
 }
 
 
@@ -710,7 +701,7 @@ bool CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
 	}
 	SetCommonEventInfo(pInfo);
 
-	return false;
+	return true;
 }
 
 
@@ -858,6 +849,28 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 	│││(イベントテキスト)                │││
 	││├─────────────────┤││
 	│││(イベント拡張テキスト)            │││
+	││├─────────────────┤││
+	│││┌───────────────┐│││
+	││││EventAudioExInfo              ││││
+	│││└───────────────┘│││
+	│││ ...                              │││
+	││├─────────────────┤││
+	│││┌───────────────┐│││
+	││││EventVideoInfo                ││││
+	│││├───────────────┤│││
+	││││映像コンポーネントテキスト    ││││
+	│││└───────────────┘│││
+	│││ ...                              │││
+	││├─────────────────┤││
+	│││┌───────────────┐│││
+	││││EventGroupHeader              ││││
+	│││├───────────────┤│││
+	││││┌─────────────┐││││
+	│││││CEventGroupDesc::EventInfo│││││
+	││││└─────────────┘││││
+	││││ ...                          ││││
+	│││└───────────────┘│││
+	│││ ...                              │││
 	││├─────────────────┤││
 	│││CRC                               │││
 	││└─────────────────┘││
@@ -1031,7 +1044,7 @@ static bool ReadString(CNFile *pFile,LPWSTR *ppszString,CCrc32 *pCrc)
 			*ppszString=NULL;
 			return false;
 		}
-		(*ppszString)[Length]='\0';
+		(*ppszString)[Length]=L'\0';
 	}
 	return true;
 }
@@ -1052,7 +1065,7 @@ static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 			*ppszString=NULL;
 			return false;
 		}
-		(*ppszString)[Length]='\0';
+		(*ppszString)[Length]=L'\0';
 	}
 	return true;
 }
@@ -1092,10 +1105,14 @@ static bool WriteCRC(CNFile *pFile,const CCrc32 *pCrc)
 bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
+	CAppMain &AppMain=GetAppClass();
 	CNFile File;
 
-	if (!File.Open(pszFileName,CNFile::CNF_READ | CNFile::CNF_SHAREREAD))
+	if (!File.Open(pszFileName,CNFile::CNF_READ | CNFile::CNF_SHAREREAD)) {
+		AppMain.AddLog(TEXT("EPGファイルを開けません。(エラーコード 0x%lu)"),
+					   File.GetLastError());
 		return false;
+	}
 
 	EpgListFileHeader FileHeader;
 
@@ -1127,8 +1144,9 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 		} else {
 			if (File.Read(&ServiceHeader2,sizeof(ServiceInfoHeader2))!=sizeof(ServiceInfoHeader2))
 				goto OnError;
-			if (ServiceHeader2.CRC!=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,sizeof(ServiceInfoHeader2)-sizeof(DWORD))) {
-				TRACE(TEXT("CEpgProgramList::LoadFromFile() : Service CRC error!\n"));
+			if (ServiceHeader2.CRC!=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,
+															  sizeof(ServiceInfoHeader2)-sizeof(DWORD))) {
+				AppMain.AddLog(TEXT("EPGファイルの破損が検出されました。"));
 				goto OnError;
 			}
 		}
@@ -1365,10 +1383,11 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				if (File.Read(&CRC32,sizeof(DWORD))!=sizeof(DWORD))
 					goto OnError;
 				if (CRC32!=CRC.GetCrc()) {
-					TRACE(TEXT("CEpgProgramList::LoadFromFile() : Event CRC error!\n"));
 					// 2回続けてCRCエラーの場合は読み込み中止
-					if (fCRCError)
+					if (fCRCError) {
+						AppMain.AddLog(TEXT("EPGファイルの破損が検出されました。"));
 						goto OnError;
+					}
 					fCRCError=true;
 					pServiceInfo->m_EventList.EventDataMap.erase(itrEvent);
 				} else {
@@ -1382,7 +1401,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 	return true;
 
 OnError:
-	TRACE(TEXT("CEpgProgramList::LoadFromFile() : Load error\n"));
+	AppMain.AddLog(TEXT("EPGファイルの読み込みエラーが発生しました。"));
 	Clear();
 	return false;
 }
@@ -1391,18 +1410,19 @@ OnError:
 bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
+	CAppMain &AppMain=GetAppClass();
 
 	TCHAR szName[MAX_PATH+8];
 	::lstrcpy(szName,pszFileName);
 	::CharUpperBuff(szName,::lstrlen(szName));
-	for (int i=0;szName[i]!='\0';i++) {
-		if (szName[i]=='\\')
-			szName[i]=':';
+	for (int i=0;szName[i]!=_T('\0');i++) {
+		if (szName[i]==_T('\\'))
+			szName[i]=_T(':');
 	}
 	::lstrcat(szName,TEXT(":Lock"));
 	CGlobalLock GlobalLock(szName);
 	if (!GlobalLock.Wait(10000)) {
-		TRACE(TEXT("CEpgProgramList::SaveToFile() : Timeout\n"));
+		AppMain.AddLog(TEXT("EPGファイルがロックされているため保存できません。"));
 		return false;
 	}
 
@@ -1425,6 +1445,8 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 
 	if (!File.Open(pszFileName,CNFile::CNF_WRITE | CNFile::CNF_NEW)) {
 		GlobalLock.Release();
+		AppMain.AddLog(TEXT("EPGファイルが開けません。(エラーコード 0x%lx)"),
+					   File.GetLastError());
 		return false;
 	}
 
@@ -1601,7 +1623,8 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 	return true;
 
 OnError:
-	TRACE(TEXT("CEpgProgramList::SaveToFile() : Write error\n"));
+	AppMain.AddLog(TEXT("EPGファイルの書き出しエラーが発生しました。(エラーコード 0x%lx)"),
+				   File.GetLastError());
 	delete [] pNumEvents;
 	File.Close();
 	::DeleteFile(pszFileName);

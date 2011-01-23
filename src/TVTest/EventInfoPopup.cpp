@@ -8,10 +8,6 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL 0x020E
-#endif
-
 
 
 
@@ -282,7 +278,8 @@ bool CEventInfoPopup::Show(const CEventInfoData *pEventInfo,const RECT *pPos)
 					pt.x=mi.rcMonitor.right-Width;
 				if (pt.y+Height>mi.rcMonitor.bottom) {
 					pt.y=mi.rcMonitor.bottom-Height;
-					pt.x+=16;
+					if (pt.x+Width<mi.rcMonitor.right)
+						pt.x+=min(16,mi.rcMonitor.right-(pt.x+Width));
 				}
 			}
 		}
@@ -306,6 +303,14 @@ bool CEventInfoPopup::Hide()
 bool CEventInfoPopup::IsVisible()
 {
 	return m_hwnd!=NULL && GetVisible();
+}
+
+
+bool CEventInfoPopup::IsOwnWindow(HWND hwnd) const
+{
+	if (hwnd==NULL)
+		return false;
+	return hwnd==m_hwnd || hwnd==m_hwndEdit;
 }
 
 
@@ -786,7 +791,7 @@ LRESULT CALLBACK CEventInfoPopupManager::HookWndProc(HWND hwnd,UINT uMsg,WPARAM 
 			POINT pt;
 			::GetCursorPos(&pt);
 			HWND hwndCur=::WindowFromPoint(pt);
-			if (!pThis->m_pPopup->IsHandle(hwndCur))
+			if (!pThis->m_pPopup->IsOwnWindow(hwndCur))
 				pThis->m_pPopup->Hide();
 		}
 		pThis->m_fTrackMouseEvent=false;
@@ -795,7 +800,7 @@ LRESULT CALLBACK CEventInfoPopupManager::HookWndProc(HWND hwnd,UINT uMsg,WPARAM 
 	case WM_ACTIVATE:
 		if (LOWORD(wParam)==WA_INACTIVE) {
 			HWND hwndActive=reinterpret_cast<HWND>(lParam);
-			if (!pThis->m_pPopup->IsHandle(hwndActive))
+			if (!pThis->m_pPopup->IsOwnWindow(hwndActive))
 				pThis->m_pPopup->Hide();
 		}
 		break;

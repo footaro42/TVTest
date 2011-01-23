@@ -198,6 +198,28 @@ public:
 		virtual void OnEndUpdate() {}
 		virtual bool OnRefresh() { return true; }
 		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
+		virtual bool OnMenuInitialize(HMENU hmenu,UINT CommandBase) { return false; }
+		virtual bool OnMenuSelected(UINT Command) { return false; }
+		friend class CProgramGuide;
+	};
+
+	class ABSTRACT_CLASS(CProgramCustomizer)
+	{
+	protected:
+		class CProgramGuide *m_pProgramGuide;
+	public:
+		CProgramCustomizer();
+		virtual ~CProgramCustomizer();
+		virtual bool Initialize() { return true; }
+		virtual void Finalize() {}
+		virtual bool DrawBackground(const CEventInfoData &Event,HDC hdc,
+			const RECT &ItemRect,const RECT &TitleRect,const RECT &ContentRect,
+			COLORREF BackgroundColor) { return false; }
+		virtual bool InitializeMenu(const CEventInfoData &Event,HMENU hmenu,UINT CommandBase,
+									const POINT &CursorPos,const RECT &ItemRect) { return false; }
+		virtual bool ProcessMenu(const CEventInfoData &Event,UINT Command) { return false; }
+		virtual bool OnLButtonDoubleClick(const CEventInfoData &Event,
+										  const POINT &CursorPos,const RECT &ItemRect) { return false; }
 		friend class CProgramGuide;
 	};
 
@@ -229,6 +251,7 @@ private:
 	} m_DragInfo;
 	DrawUtil::CBitmap m_Chevron;
 	CEpgIcons m_EpgIcons;
+	UINT m_VisibleEventIcons;
 	CEventInfoPopup m_EventInfoPopup;
 	CEventInfoPopupManager m_EventInfoPopupManager;
 	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
@@ -280,6 +303,7 @@ private:
 	bool m_fUpdating;
 	CEventHandler *m_pEventHandler;
 	CFrame *m_pFrame;
+	CProgramCustomizer *m_pProgramCustomizer;
 	COLORREF m_ColorList[NUM_COLORS];
 	Theme::GradientInfo m_ChannelNameBackGradient;
 	Theme::GradientInfo m_CurChannelNameBackGradient;
@@ -321,7 +345,7 @@ private:
 	void SetScrollBar();
 	void SetCaption();
 	void SetTooltip();
-	bool EventHitTest(int x,int y,int *pListIndex,int *pEventIndex) const;
+	bool EventHitTest(int x,int y,int *pListIndex,int *pEventIndex,RECT *pItemRect=NULL) const;
 	void OnCommand(int id);
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
@@ -369,8 +393,9 @@ public:
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	bool SetShowToolTip(bool fShow);
 	bool GetShowToolTip() const { return m_fShowToolTip; }
-	bool SetEventHandler(CEventHandler *pEventHandler);
-	bool SetFrame(CFrame *pFrame);
+	void SetEventHandler(CEventHandler *pEventHandler);
+	void SetFrame(CFrame *pFrame);
+	void SetProgramCustomizer(CProgramCustomizer *pProgramCustomizer);
 	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 	int GetWheelScrollLines() const { return m_WheelScrollLines; }
 	void SetWheelScrollLines(int Lines) { m_WheelScrollLines=Lines; }
@@ -378,6 +403,8 @@ public:
 	bool SetDragScroll(bool fDragScroll);
 	bool SetFilter(unsigned int Filter);
 	unsigned int GetFilter() const { return m_Filter; }
+	void SetVisibleEventIcons(UINT VisibleIcons);
+	UINT GetVisibleEventIcons() const { return m_VisibleEventIcons; }
 	CProgramSearch *GetProgramSearch() { return &m_ProgramSearch; }
 	void GetInfoPopupSize(int *pWidth,int *pHeight) { m_EventInfoPopup.GetSize(pWidth,pHeight); }
 	bool SetInfoPopupSize(int Width,int Height) { return m_EventInfoPopup.SetSize(Width,Height); }
@@ -394,7 +421,7 @@ public:
 	~CCalendarBar();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	void EnableBufferedPaint(bool fEnable) { m_fUseBufferedPaint=fEnable; }
-	bool SetButtons(const SYSTEMTIME &FirstTime,int Days,int FirstCommand);
+	bool SetButtons(const SYSTEMTIME *pDateList,int Days,int FirstCommand);
 	void SelectButton(int Button);
 	void UnselectButton();
 	void GetBarSize(SIZE *pSize);

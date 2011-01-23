@@ -22,6 +22,7 @@ public:
 	bool SetPopDelay(int Delay);
 	int NumTools() const;
 	bool AddTool(UINT ID,const RECT &Rect,LPCTSTR pszText=LPSTR_TEXTCALLBACK,LPARAM lParam=0);
+	bool AddTool(HWND hwnd,LPCTSTR pszText=LPSTR_TEXTCALLBACK,LPARAM lParam=0);
 	bool DeleteTool(UINT ID);
 	bool SetToolRect(UINT ID,const RECT &Rect);
 	bool SetText(UINT ID,LPCTSTR pszText);

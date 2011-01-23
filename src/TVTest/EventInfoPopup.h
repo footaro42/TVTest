@@ -32,7 +32,7 @@ public:
 	bool Show(const CEventInfoData *pEventInfo,const RECT *pPos=NULL);
 	bool Hide();
 	bool IsVisible();
-	bool IsHandle(HWND hwnd) const { return m_hwnd==hwnd; }
+	bool IsOwnWindow(HWND hwnd) const;
 	void GetSize(int *pWidth,int *pHeight);
 	bool SetSize(int Width,int Height);
 	void SetColor(COLORREF BackColor,COLORREF TextColor);
@@ -68,7 +68,7 @@ private:
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID) override;
 	void SetEventInfo(const CEventInfoData *pEventInfo);
 	void CalcTitleHeight();
 	void GetCloseButtonRect(RECT *pRect) const;

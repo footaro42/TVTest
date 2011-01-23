@@ -131,6 +131,166 @@ bool CMainMenu::SetAccelerator(CAccelerator *pAccelerator)
 
 
 
+CMenuPainter::CMenuPainter()
+{
+}
+
+
+CMenuPainter::~CMenuPainter()
+{
+}
+
+
+void CMenuPainter::Initialize(HWND hwnd)
+{
+	m_fFlatMenu=false;
+	if (m_UxTheme.Initialize() && m_UxTheme.IsActive()
+			&& m_UxTheme.Open(hwnd,VSCLASS_MENU)) {
+		// Use theme
+	} else {
+		BOOL fFlatMenu=FALSE;
+		if (::SystemParametersInfo(SPI_GETFLATMENU,0,&fFlatMenu,0) && fFlatMenu)
+			m_fFlatMenu=true;
+	}
+}
+
+
+void CMenuPainter::Finalize()
+{
+	m_UxTheme.Close();
+}
+
+
+void CMenuPainter::GetFont(LOGFONT *pFont)
+{
+	if (!m_UxTheme.IsActive()
+			|| !m_UxTheme.GetFont(MENU_POPUPITEM,0,TMT_GLYPHFONT,pFont))
+		DrawUtil::GetSystemFont(DrawUtil::FONT_MENU,pFont);
+}
+
+
+COLORREF CMenuPainter::GetTextColor(bool fHighlight)
+{
+	COLORREF Color;
+
+	if (m_UxTheme.IsOpen())
+		m_UxTheme.GetColor(MENU_POPUPITEM,fHighlight?MPI_HOT:MPI_NORMAL,TMT_TEXTCOLOR,&Color);
+	else
+		Color=::GetSysColor(fHighlight?COLOR_HIGHLIGHTTEXT:COLOR_MENUTEXT);
+	return Color;
+}
+
+
+void CMenuPainter::DrawItemBackground(HDC hdc,const RECT &Rect,bool fHighlight)
+{
+	if (m_UxTheme.IsOpen()) {
+		m_UxTheme.DrawBackground(hdc,MENU_POPUPITEM,
+								 fHighlight?MPI_HOT:MPI_NORMAL,
+								 MENU_POPUPBACKGROUND,0,&Rect);
+	} else {
+		if (m_fFlatMenu) {
+			::FillRect(hdc,&Rect,
+				reinterpret_cast<HBRUSH>(fHighlight?COLOR_MENUHILIGHT+1:COLOR_MENU+1));
+			if (fHighlight)
+				::FrameRect(hdc,&Rect,::GetSysColorBrush(COLOR_HIGHLIGHT));
+		} else {
+			::FillRect(hdc,&Rect,
+				reinterpret_cast<HBRUSH>(fHighlight?COLOR_HIGHLIGHT+1:COLOR_MENU+1));
+		}
+	}
+}
+
+
+void CMenuPainter::GetItemMargins(MARGINS *pMargins)
+{
+	if (!m_UxTheme.IsOpen()
+			|| !m_UxTheme.GetMargins(MENU_POPUPITEM,0,TMT_CONTENTMARGINS,pMargins)) {
+		pMargins->cxLeftWidth=2;
+		pMargins->cxRightWidth=2;
+		pMargins->cyTopHeight=2;
+		pMargins->cyBottomHeight=2;
+	}
+}
+
+
+void CMenuPainter::GetMargins(MARGINS *pMargins)
+{
+	int BorderSize;
+
+	if (!m_UxTheme.IsOpen()
+			|| !m_UxTheme.GetInt(MENU_POPUPBACKGROUND,0,TMT_BORDERSIZE,&BorderSize))
+		BorderSize=2;
+	/*
+	SIZE sz;
+	GetBorderSize(&sz);
+	pMargins->cxLeftWidth=BorderSize+sz.cx;
+	pMargins->cxRightWidth=BorderSize+sz.cx;
+	pMargins->cyTopHeight=BorderSize+sz.cy;
+	pMargins->cyBottomHeight=BorderSize+sz.cy;
+	*/
+	pMargins->cxLeftWidth=BorderSize;
+	pMargins->cxRightWidth=BorderSize;
+	pMargins->cyTopHeight=BorderSize;
+	pMargins->cyBottomHeight=BorderSize;
+}
+
+
+void CMenuPainter::GetBorderSize(SIZE *pSize)
+{
+	if (!m_UxTheme.IsOpen()
+			|| !m_UxTheme.GetPartSize(NULL,MENU_POPUPBORDERS,0,pSize)) {
+		pSize->cx=1;
+		pSize->cy=1;
+	}
+}
+
+
+void CMenuPainter::DrawBackground(HDC hdc,const RECT &Rect)
+{
+	if (m_UxTheme.IsOpen()) {
+		m_UxTheme.DrawBackground(hdc,MENU_POPUPBACKGROUND,0,&Rect);
+	} else {
+		::FillRect(hdc,&Rect,reinterpret_cast<HBRUSH>(COLOR_MENU+1));
+	}
+}
+
+
+void CMenuPainter::DrawBorder(HDC hdc,const RECT &Rect)
+{
+	if (m_UxTheme.IsOpen()) {
+		m_UxTheme.DrawBackground(hdc,MENU_POPUPBORDERS,0,
+								 MENU_POPUPBACKGROUND,0,&Rect);
+	} else {
+		Theme::DrawBorder(hdc,Rect,Theme::BORDER_RAISED);
+	}
+}
+
+
+void CMenuPainter::DrawSeparator(HDC hdc,const RECT &Rect)
+{
+	RECT rc;
+
+	if (m_UxTheme.IsOpen()) {
+		SIZE sz;
+
+		m_UxTheme.GetPartSize(hdc,MENU_POPUPSEPARATOR,0,&sz);
+		rc.left=Rect.left;
+		rc.right=Rect.right;
+		rc.top=Rect.top+((Rect.bottom-Rect.top)-sz.cy)/2;
+		rc.bottom=rc.top+sz.cy;
+		m_UxTheme.DrawBackground(hdc,MENU_POPUPSEPARATOR,0,&rc);
+	} else {
+		rc.left=Rect.left;
+		rc.right=Rect.right;
+		rc.top=(Rect.top+Rect.bottom)/2-1;
+		rc.bottom=rc.top+2;
+		::DrawEdge(hdc,&rc,BDR_SUNKENOUTER,BF_RECT);
+	}
+}
+
+
+
+
 class CChannelMenuItem
 {
 	const CChannelInfo *m_pChannelInfo;
@@ -220,26 +380,15 @@ bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,UINT C
 	m_LastCommand=Command+pChannelList->NumChannels()-1;
 	m_Flags=Flags;
 	m_hwnd=hwnd;
-	m_fFlatMenu=false;
 
-	m_Margins.cxLeftWidth=2;
-	m_Margins.cxRightWidth=2;
-	m_Margins.cyTopHeight=2;
-	m_Margins.cyBottomHeight=2;
-	if (m_UxTheme.Initialize() && m_UxTheme.IsActive()
-			&& m_UxTheme.Open(hwnd,VSCLASS_MENU)) {
-		m_UxTheme.GetMargins(MENU_POPUPITEM,0,TMT_CONTENTMARGINS,&m_Margins);
-		if (m_Margins.cxLeftWidth<2)
-			m_Margins.cxLeftWidth=2;
-		if (m_Margins.cxRightWidth<2)
-			m_Margins.cxRightWidth=2;
-	} else {
-		BOOL fFlatMenu=FALSE;
-		if (::SystemParametersInfo(SPI_GETFLATMENU,0,&fFlatMenu,0) && fFlatMenu)
-			m_fFlatMenu=true;
-	}
+	m_MenuPainter.Initialize(hwnd);
+	m_MenuPainter.GetItemMargins(&m_Margins);
+	if (m_Margins.cxLeftWidth<2)
+		m_Margins.cxLeftWidth=2;
+	if (m_Margins.cxRightWidth<2)
+		m_Margins.cxRightWidth=2;
 
-	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+	HDC hdc=::GetDC(hwnd);
 
 	CreateFont(hdc);
 	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_Font);
@@ -303,7 +452,7 @@ bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,UINT C
 		j++;
 	}
 	::SelectObject(hdc,hfontOld);
-	::DeleteDC(hdc);
+	::ReleaseDC(hwnd,hdc);
 
 	if ((Flags&FLAG_SHOWTOOLTIP)!=0) {
 		m_Tooltip.Create(hwnd);
@@ -333,7 +482,7 @@ void CChannelMenu::Destroy()
 			ClearMenu(m_hmenu);
 		m_hmenu=NULL;
 	}
-	m_UxTheme.Close();
+	m_MenuPainter.Finalize();
 	m_Tooltip.Destroy();
 	m_hwnd=NULL;
 }
@@ -383,24 +532,8 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 	RECT rc;
 	TCHAR szText[256];
 
-	if (m_UxTheme.IsOpen()) {
-		const int StateID=fSelected?MPI_HOT:MPI_NORMAL;
-
-		m_UxTheme.DrawBackground(pdis->hDC,MENU_POPUPITEM,StateID,
-								 MENU_POPUPBACKGROUND,0,&pdis->rcItem);
-		m_UxTheme.GetColor(MENU_POPUPITEM,StateID,TMT_TEXTCOLOR,&crTextColor);
-	} else {
-		if (m_fFlatMenu) {
-			::FillRect(pdis->hDC,&pdis->rcItem,
-				reinterpret_cast<HBRUSH>(fSelected?COLOR_MENUHILIGHT+1:COLOR_MENU+1));
-			if (fSelected)
-				::FrameRect(pdis->hDC,&pdis->rcItem,::GetSysColorBrush(COLOR_HIGHLIGHT));
-		} else {
-			::FillRect(pdis->hDC,&pdis->rcItem,
-				reinterpret_cast<HBRUSH>(fSelected?COLOR_HIGHLIGHT+1:COLOR_MENU+1));
-		}
-		crTextColor=::GetSysColor(fSelected?COLOR_HIGHLIGHTTEXT:COLOR_MENUTEXT);
-	}
+	m_MenuPainter.DrawItemBackground(pdis->hDC,pdis->rcItem,fSelected);
+	crTextColor=m_MenuPainter.GetTextColor(fSelected);
 
 	HFONT hfontOld=DrawUtil::SelectObject(pdis->hDC,
 						(pdis->itemState&ODS_CHECKED)==0?m_Font:m_FontCurrent);
@@ -535,9 +668,7 @@ void CChannelMenu::CreateFont(HDC hdc)
 		return;
 
 	LOGFONT lf;
-	if (!m_UxTheme.IsActive()
-			|| !m_UxTheme.GetFont(MENU_POPUPITEM,0,TMT_GLYPHFONT,&lf))
-		DrawUtil::GetSystemFont(DrawUtil::FONT_MENU,&lf);
+	m_MenuPainter.GetFont(&lf);
 	m_Font.Create(&lf);
 	lf.lfWeight=FW_BOLD;
 	m_FontCurrent.Create(&lf);
@@ -852,15 +983,7 @@ bool CDropDownMenu::Initialize(HINSTANCE hinst)
 CDropDownMenu::CDropDownMenu()
 	: m_hwnd(NULL)
 	, m_hwndMessage(NULL)
-	, m_Font(DrawUtil::FONT_MENU)
-	, m_TextColor(::GetSysColor(COLOR_MENUTEXT))
-	, m_BackColor(::GetSysColor(COLOR_MENU))
-	, m_HighlightTextColor(::GetSysColor(COLOR_HIGHLIGHTTEXT))
-	, m_HighlightBackColor(::GetSysColor(COLOR_HIGHLIGHT))
-	, m_BorderType(Theme::BORDER_RAISED)
 {
-	::SetRect(&m_ItemMargin,8,2,8,2);
-	::SetRect(&m_WindowMargin,1,1,1,1);
 }
 
 
@@ -877,11 +1000,27 @@ void CDropDownMenu::Clear()
 }
 
 
-bool CDropDownMenu::AppendItem(int Command,LPCTSTR pszText)
+bool CDropDownMenu::AppendItem(CItem *pItem)
 {
-	CItem *pItem=new CItem(Command,pszText);
+	if (pItem==NULL)
+		return false;
+	return m_ItemList.Add(pItem);
+}
 
-	if (!m_ItemList.Add(pItem)) {
+
+bool CDropDownMenu::InsertItem(int Index,CItem *pItem)
+{
+	if (pItem==NULL)
+		return false;
+	return m_ItemList.Insert(Index,pItem);
+}
+
+
+bool CDropDownMenu::AppendSeparator()
+{
+	CItem *pItem=new CItem(-1,NULL);
+
+	if (!AppendItem(pItem)) {
 		delete pItem;
 		return false;
 	}
@@ -889,11 +1028,11 @@ bool CDropDownMenu::AppendItem(int Command,LPCTSTR pszText)
 }
 
 
-bool CDropDownMenu::InsertItem(int Index,int Command,LPCTSTR pszText)
+bool CDropDownMenu::InsertSeparator(int Index)
 {
-	CItem *pItem=new CItem(Command,pszText);
+	CItem *pItem=new CItem(-1,NULL);
 
-	if (!m_ItemList.Insert(Index,pItem)) {
+	if (!InsertItem(Index,pItem)) {
 		delete pItem;
 		return false;
 	}
@@ -938,11 +1077,12 @@ bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int C
 	if (m_ItemList.IsEmpty() || m_hwnd!=NULL)
 		return false;
 
-	m_HotItem=CommandToIndex(CurItem);
 	HWND hwnd=::CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOPMOST,DROPDOWNMENU_WINDOW_CLASS,
 							   NULL,WS_POPUP,0,0,0,0,hwndOwner,NULL,m_hinst,this);
 	if (hwnd==NULL)
 		return false;
+
+	m_HotItem=CommandToIndex(CurItem);
 	m_hwndMessage=hwndMessage;
 
 	HDC hdc=::GetDC(hwnd);
@@ -955,14 +1095,47 @@ bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int C
 	}
 	TEXTMETRIC tm;
 	::GetTextMetrics(hdc,&tm);
+	m_ItemWidth=MaxWidth+m_ItemMargin.cxLeftWidth+m_ItemMargin.cxRightWidth;
 	m_ItemHeight=tm.tmHeight/*-tm.tmInternalLeading*/+
-		m_ItemMargin.top+m_ItemMargin.bottom;
+		m_ItemMargin.cyTopHeight+m_ItemMargin.cyBottomHeight;
 	::SelectObject(hdc,hfontOld);
 	::ReleaseDC(hwnd,hdc);
 
-	::MoveWindow(hwnd,pPos->x,pPos->y,
-				 MaxWidth+m_ItemMargin.left+m_ItemMargin.right+m_WindowMargin.left+m_WindowMargin.right,
-				 m_ItemHeight*m_ItemList.Length()+m_WindowMargin.top+m_WindowMargin.bottom,
+	const int HorzMargin=m_WindowMargin.cxLeftWidth+m_WindowMargin.cxRightWidth;
+	const int VertMargin=m_WindowMargin.cyTopHeight+m_WindowMargin.cyBottomHeight;
+	m_MaxRows=m_ItemList.Length();
+	int Columns=1;
+	int x=pPos->x,y=pPos->y;
+	MONITORINFO mi;
+	mi.cbSize=sizeof(mi);
+	if (::GetMonitorInfo(::MonitorFromPoint(*pPos,MONITOR_DEFAULTTONEAREST),&mi)) {
+		int Rows=((mi.rcMonitor.bottom-y)-VertMargin)/m_ItemHeight;
+
+		if (m_ItemList.Length()>Rows) {
+			int MaxColumns=((mi.rcMonitor.right-mi.rcMonitor.left)-HorzMargin)/m_ItemWidth;
+			if (MaxColumns>1) {
+				if (Rows*MaxColumns>=m_ItemList.Length()) {
+					Columns=(m_ItemList.Length()+Rows-1)/Rows;
+					m_MaxRows=Rows;
+				} else {
+					Columns=MaxColumns;
+					m_MaxRows=(m_ItemList.Length()+Columns-1)/Columns;
+					if ((Columns-1)*m_MaxRows>=m_ItemList.Length())
+						Columns--;
+				}
+			}
+		}
+		int Width=Columns*m_ItemWidth+HorzMargin;
+		int Height=m_MaxRows*m_ItemHeight+VertMargin;
+		if (x+Width>mi.rcMonitor.right)
+			x=max(mi.rcMonitor.right-Width,0);
+		if (y+Height>mi.rcMonitor.bottom)
+			y=max(mi.rcMonitor.bottom-Height,0);
+	}
+
+	::MoveWindow(hwnd,x,y,
+				 m_ItemWidth*Columns+HorzMargin,
+				 m_ItemHeight*m_MaxRows+VertMargin,
 				 FALSE);
 	::ShowWindow(hwnd,SW_SHOWNA);
 
@@ -990,10 +1163,11 @@ bool CDropDownMenu::GetItemRect(int Index,RECT *pRect) const
 {
 	if (Index<0 || Index>=m_ItemList.Length())
 		return false;
-	::GetClientRect(m_hwnd,pRect);
-	pRect->top=m_ItemHeight*Index;
+	pRect->left=(Index/m_MaxRows)*m_ItemWidth;
+	pRect->top=(Index%m_MaxRows)*m_ItemHeight;
+	pRect->right=pRect->left+m_ItemWidth;
 	pRect->bottom=pRect->top+m_ItemHeight;
-	::OffsetRect(pRect,m_WindowMargin.left,m_WindowMargin.top);
+	::OffsetRect(pRect,m_WindowMargin.cxLeftWidth,m_WindowMargin.cyTopHeight);
 	return true;
 }
 
@@ -1030,37 +1204,36 @@ void CDropDownMenu::UpdateItem(int Index) const
 
 void CDropDownMenu::Draw(HDC hdc,const RECT *pPaintRect)
 {
-	HBRUSH hbrBack=::CreateSolidBrush(m_BackColor);
-	FillRect(hdc,pPaintRect,hbrBack);
-
 	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	int OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 	COLORREF OldTextColor=::GetTextColor(hdc);
 	RECT rc;
 
+	::GetClientRect(m_hwnd,&rc);
+	m_MenuPainter.DrawBackground(hdc,rc);
+	m_MenuPainter.DrawBorder(hdc,rc);
+
 	for (int i=0;i<m_ItemList.Length();i++) {
 		GetItemRect(i,&rc);
 		if (rc.bottom>pPaintRect->top && rc.top<pPaintRect->bottom) {
-			if (i!=m_HotItem) {
-				//::FillRect(hdc,&rc,hbrBack);
-				::SetTextColor(hdc,m_TextColor);
+			CItem *pItem=m_ItemList[i];
+
+			if (pItem->IsSeparator()) {
+				m_MenuPainter.DrawSeparator(hdc,rc);
 			} else {
-				HBRUSH hbr=::CreateSolidBrush(m_HighlightBackColor);
-				::FillRect(hdc,&rc,hbr);
-				::DeleteObject(hbr);
-				::SetTextColor(hdc,m_HighlightTextColor);
+				const bool fHighlight=i==m_HotItem;
+
+				m_MenuPainter.DrawItemBackground(hdc,rc,fHighlight);
+				::SetTextColor(hdc,m_MenuPainter.GetTextColor(fHighlight));
+				rc.left+=m_ItemMargin.cxLeftWidth;
+				rc.right-=m_ItemMargin.cxRightWidth;
+				pItem->Draw(hdc,&rc);
 			}
-			rc.left+=m_ItemMargin.left;
-			rc.right-=m_ItemMargin.right;
-			m_ItemList[i]->Draw(hdc,&rc);
 		}
 	}
 	::SetTextColor(hdc,OldTextColor);
 	::SetBkMode(hdc,OldBkMode);
 	::SelectObject(hdc,hfontOld);
-	::DeleteObject(hbrBack);
-	::GetClientRect(m_hwnd,&rc);
-	Theme::DrawBorder(hdc,rc,m_BorderType);
 }
 
 
@@ -1077,9 +1250,21 @@ LRESULT CALLBACK CDropDownMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CDropDownMenu *pThis=static_cast<CDropDownMenu*>(reinterpret_cast<LPCREATESTRUCT>(lParam)->lpCreateParams);
 
+			::SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(pThis));
+
 			pThis->m_hwnd=hwnd;
 			pThis->m_fTrackMouseEvent=false;
-			::SetWindowLongPtr(hwnd,GWLP_USERDATA,reinterpret_cast<LONG_PTR>(pThis));
+
+			pThis->m_MenuPainter.Initialize(hwnd);
+			pThis->m_MenuPainter.GetItemMargins(&pThis->m_ItemMargin);
+			if (pThis->m_ItemMargin.cxLeftWidth<4)
+				pThis->m_ItemMargin.cxLeftWidth=4;
+			if (pThis->m_ItemMargin.cxRightWidth<4)
+				pThis->m_ItemMargin.cxRightWidth=4;
+			pThis->m_MenuPainter.GetMargins(&pThis->m_WindowMargin);
+			LOGFONT lf;
+			pThis->m_MenuPainter.GetFont(&lf);
+			pThis->m_Font.Create(&lf);
 		}
 		return 0;
 
@@ -1143,6 +1328,8 @@ LRESULT CALLBACK CDropDownMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 		{
 			CDropDownMenu *pThis=GetThis(hwnd);
 
+			pThis->m_Font.Destroy();
+			pThis->m_MenuPainter.Finalize();
 			pThis->m_hwnd=NULL;
 		}
 		return 0;
@@ -1175,7 +1362,7 @@ bool CDropDownMenu::CItem::SetText(LPCTSTR pszText)
 
 int CDropDownMenu::CItem::GetWidth(HDC hdc)
 {
-	if (m_pszText!=NULL && m_Width==0) {
+	if (!IsStringEmpty(m_pszText) && m_Width==0) {
 		SIZE sz;
 
 		::GetTextExtentPoint32(hdc,m_pszText,::lstrlen(m_pszText),&sz);
@@ -1187,15 +1374,9 @@ int CDropDownMenu::CItem::GetWidth(HDC hdc)
 
 void CDropDownMenu::CItem::Draw(HDC hdc,const RECT *pRect)
 {
-	if (m_pszText!=NULL) {
+	if (!IsStringEmpty(m_pszText)) {
 		RECT rc=*pRect;
 
 		::DrawText(hdc,m_pszText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
-	} else if (m_Command<0) {
-		RECT rc=*pRect;
-
-		rc.top=(rc.top+rc.bottom)/2-1;
-		rc.bottom=rc.top+2;
-		::DrawEdge(hdc,&rc,BDR_SUNKENOUTER,BF_RECT);
 	}
 }

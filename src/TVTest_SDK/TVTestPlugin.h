@@ -1,5 +1,5 @@
 /*
-	TVTest プラグインヘッダ ver.0.0.12
+	TVTest プラグインヘッダ ver.0.0.13
 
 	このファイルは再配布・改変など自由に行って構いません。
 	ただし、改変した場合はオリジナルと違う旨を記載して頂けると、混乱がなくてい
@@ -52,7 +52,7 @@
 	class CMyPlugin : public TVTest::CTVTestPlugin
 	{
 	public:
-		virtual bool GetPluginInfo(TVTest::PluginInfo *pInfo) {
+		bool GetPluginInfo(TVTest::PluginInfo *pInfo) {
 			// プラグインの情報を返す
 			pInfo->Type           = TVTest::PLUGIN_TYPE_NORMAL;
 			pInfo->Flags          = 0;
@@ -61,12 +61,12 @@
 			pInfo->pszDescription = L"何もしないプラグイン";
 			return true;	// false を返すとプラグインのロードが失敗になる
 		}
-		virtual bool Initialize() {
+		bool Initialize() {
 			// ここで初期化を行う
 			// 何もしないのであればオーバーライドしなくても良い
 			return true;	// false を返すとプラグインのロードが失敗になる
 		}
-		virtual bool Finalize() {
+		bool Finalize() {
 			// ここでクリーンアップを行う
 			// 何もしないのであればオーバーライドしなくても良い
 			return true;
@@ -83,6 +83,21 @@
 
 /*
 	更新履歴
+
+	ver.0.0.13 (TVTest ver.0.7.16 or later)
+	・以下のメッセージを追加した
+	  ・MESSAGE_ENABLEPROGRAMGUIDEEVENT
+	  ・MESSAGE_REGISTERPROGRAMGUIDECOMMAND
+	・以下のイベントを追加した
+	  ・EVENT_STARTUPDONE
+	  ・EVENT_PROGRAMGUIDE_INITIALIZE
+	  ・EVENT_PROGRAMGUIDE_FINALIZE
+	  ・EVENT_PROGRAMGUIDE_COMMAND
+	  ・EVENT_PROGRAMGUIDE_INITIALIZEMENU
+	  ・EVENT_PROGRAMGUIDE_MENUSELECTED
+	  ・EVENT_PROGRAMGUIDE_PROGRAM_DRAWBACKGROUND
+	  ・EVENT_PROGRAMGUIDE_PROGRAM_INITIALIZEMENU
+	  ・EVENT_PROGRAMGUIDE_PROGRAM_MENUSELECTED
 
 	ver.0.0.12 (TVTest ver.0.7.14 or later)
 	・以下のメッセージを追加した
@@ -188,7 +203,7 @@ namespace TVTest {
 #define TVTEST_PLUGIN_VERSION_(major,minor,rev) \
 	(((major)<<24) | ((minor)<<12) | (rev))
 #ifndef TVTEST_PLUGIN_VERSION
-#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_(0,0,12)
+#define TVTEST_PLUGIN_VERSION TVTEST_PLUGIN_VERSION_(0,0,13)
 #endif
 
 // エクスポート関数定義用
@@ -344,6 +359,10 @@ enum {
 	MESSAGE_GETDRIVERTUNINGSPACELIST,	// BonDriverのチューニング空間のリストの取得
 	MESSAGE_FREEDRIVERTUNINGSPACELIST,	// BonDriverのチューニング空間のリストの解放
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+	MESSAGE_ENABLEPROGRAMGUIDEEVENT,	// 番組表のイベントの有効/無効を設定する
+	MESSAGE_REGISTERPROGRAMGUIDECOMMAND,	// 番組表のコマンドを登録
+#endif
 	MESSAGE_TRAILER
 };
 
@@ -387,6 +406,18 @@ enum {
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
 	EVENT_CONTROLLERFOCUS,		// コントローラの対象を設定
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+	EVENT_STARTUPDONE,			// 起動時の処理が終わった
+	// 番組表関係のイベントは、MESSAGE_ENABLEPROGRAMGUIDEEVENT を呼んで有効にしないと通知されません
+	EVENT_PROGRAMGUIDE_INITIALIZE,				// 番組表の初期化
+	EVENT_PROGRAMGUIDE_FINALIZE,				// 番組表の終了
+	EVENT_PROGRAMGUIDE_COMMAND,					// 番組表のコマンド実行
+	EVENT_PROGRAMGUIDE_INITIALIZEMENU,			// 番組表のメニューの設定
+	EVENT_PROGRAMGUIDE_MENUSELECTED,			// 番組表のメニューが選択された
+	EVENT_PROGRAMGUIDE_PROGRAM_DRAWBACKGROUND,	// 番組表の番組の背景を描画
+	EVENT_PROGRAMGUIDE_PROGRAM_INITIALIZEMENU,	// 番組表の番組のメニューの設定
+	EVENT_PROGRAMGUIDE_PROGRAM_MENUSELECTED,	// 番組表の番組のメニューが選択された
 #endif
 	EVENT_TRAILER
 };
@@ -450,22 +481,24 @@ struct ChannelInfo {
 	WCHAR szTransportStreamName[32];	// トランスポートストリーム名
 	WCHAR szChannelName[64];			// チャンネル名
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,1)
-	int PhysicalChannel;				// 物理チャンネル番号(場合によっては信用できない)
+	int PhysicalChannel;				// 物理チャンネル番号(あまり信用できない)
 										// 不明の場合は0
 	WORD ServiceIndex;					// サービスのインデックス
+										// (現在は意味を無くしているので使わない)
 	WORD ServiceID;						// サービスID
 	// サービスはチャンネルファイルで設定されているものが取得される
 	// サービスはユーザーが切り替えられるので、実際に視聴中のサービスがこれであるとは限らない
 	// 実際に視聴中のサービスは MESSAGE_GETSERVICE で取得できる
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,12)
-	DWORD Flags;
+	DWORD Flags;						// 各種フラグ(CHANNEL_FLAG_*)
 #endif
 };
 
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,12)
+// チャンネルの情報のフラグ
 enum {
-	CHANNEL_FLAG_DISABLED	=0x00000001UL
+	CHANNEL_FLAG_DISABLED	=0x00000001UL	// 無効にされている
 };
 #endif
 
@@ -510,7 +543,8 @@ inline bool MsgSetService(PluginParam *pParam,int Service,bool fByID=false) {
 
 // チューニング空間名を取得する
 // チューニング空間名の長さが返ります。Indexが範囲外の場合は0が返ります。
-// pszNameをNULLで呼べば長さだけを取得できます。
+// pszName を NULL で呼べば長さだけを取得できます。
+// MaxLength には pszName の先に格納できる最大の要素数(終端の空文字を含む)を指定します。
 inline int MsgGetTuningSpaceName(PluginParam *pParam,int Index,LPWSTR pszName,int MaxLength) {
 	return (int)(*pParam->Callback)(pParam,MESSAGE_GETTUNINGSPACENAME,(LPARAM)pszName,MAKELPARAM(Index,min(MaxLength,0xFFFF)));
 }
@@ -544,14 +578,15 @@ enum { SERVICEINFO_SIZE_V1=TVTEST_OFFSETOF(ServiceInfo,AudioComponentType) };
 #endif
 
 // サービスの情報を取得する
-// 事前にServiceInfoのSizeメンバを設定しておきます。
+// 現在のチャンネルのサービスの情報を取得します。
+// 事前に ServiceInfo の Size メンバを設定しておきます。
 inline bool MsgGetServiceInfo(PluginParam *pParam,int Index,ServiceInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETSERVICEINFO,Index,(LPARAM)pInfo)!=0;
 }
 
 // BonDriverのファイル名を取得する
 // 戻り値はファイル名の長さ(終端のNullを除く)が返ります。
-// pszNameをNULLで呼べば長さだけを取得できます。
+// pszName を NULL で呼べば長さだけを取得できます。
 // 取得されるのは、ディレクトリを含まないファイル名のみか、相対パスの場合もあります。
 // フルパスを取得したい場合は MsgGetDriverFullPathName を使用してください。
 inline int MsgGetDriverName(PluginParam *pParam,LPWSTR pszName,int MaxLength) {
@@ -559,7 +594,7 @@ inline int MsgGetDriverName(PluginParam *pParam,LPWSTR pszName,int MaxLength) {
 }
 
 // BonDriverを設定する
-// ファイル名のみか相対パスを指定すると、ドライバ検索フォルダの設定が使用されます。
+// ファイル名のみか相対パスを指定すると、BonDriver 検索フォルダの設定が使用されます。
 inline bool MsgSetDriverName(PluginParam *pParam,LPCWSTR pszName) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETDRIVERNAME,(LPARAM)pszName,0)!=0;
 }
@@ -639,7 +674,7 @@ inline bool MsgGetRecord(PluginParam *pParam,RecordInfo *pInfo) {
 }
 
 // 録画設定を変更する
-// 既に録画中である場合は、ファイル名と開始時間の指定は無視される
+// 既に録画中である場合は、ファイル名と開始時間の指定は無視されます。
 inline bool MsgModifyRecord(PluginParam *pParam,const RecordInfo *pInfo) {
 	return (*pParam->Callback)(pParam,MESSAGE_MODIFYRECORD,(LPARAM)pInfo,0)!=0;
 }
@@ -650,7 +685,7 @@ inline int MsgGetZoom(PluginParam *pParam) {
 }
 
 // 表示倍率を設定する
-// %単位だけではなく、Num=1/Denom=3などとして割り切れない倍率を設定することもできる
+// %単位だけではなく、Num=1/Denom=3などとして割り切れない倍率を設定することもできます。
 inline bool MsgSetZoom(PluginParam *pParam,int Num,int Denom=100) {
 	return (*pParam->Callback)(pParam,MESSAGE_SETZOOM,Num,Denom)!=0;
 }
@@ -889,6 +924,8 @@ inline bool MsgClose(PluginParam *pParam,DWORD Flags=0) {
 }
 
 // ストリームコールバック関数
+// pData は 188 バイトの TS パケットが渡されます。
+// FALSE を返すとパケットが破棄されます。
 typedef BOOL (CALLBACK *StreamCallbackFunc)(BYTE *pData,void *pClientData);
 
 // ストリームコールバックフラグ
@@ -905,6 +942,8 @@ struct StreamCallbackInfo {
 };
 
 // ストリームコールバックを設定する
+// ストリームコールバックを登録すると、TS データを受け取ることができます。
+// コールバック関数は一つのプラグインで複数設定できます。
 // ストリームコールバック関数で処理が遅延すると全体が遅延するので、
 // 時間が掛かる処理は別スレッドで行うなどしてください。
 inline bool MsgSetStreamCallback(PluginParam *pParam,DWORD Flags,
@@ -963,7 +1002,7 @@ struct ProgramInfo {
 	int MaxEventText;		// イベントテキストの最大長
 	LPWSTR pszEventExtText;	// 追加イベントテキスト
 	int MaxEventExtText;	// 追加イベントテキストの最大長
-	SYSTEMTIME StartTime;	// 開始日時(ローカル時刻)
+	SYSTEMTIME StartTime;	// 開始日時(JST)
 	DWORD Duration;			// 長さ(秒単位)
 };
 
@@ -972,6 +1011,7 @@ struct ProgramInfo {
 // また、pszEventName / pszEventText / pszEventExtText メンバに取得先のバッファへのポインタを、
 // MaxEventName / MaxEventText / MaxEventExtText メンバにバッファの長さ(要素数)を設定します。
 // 必要のない情報は、ポインタを NULL にすると取得されません。
+// MsgGetEpgEventInfo で、より詳しい番組情報を取得することもできます。
 inline bool MsgGetCurrentProgramInfo(PluginParam *pParam,ProgramInfo *pInfo,bool fNext=false) {
 	return (*pParam->Callback)(pParam,MESSAGE_GETCURRENTPROGRAMINFO,(LPARAM)pInfo,fNext)!=0;
 }
@@ -1096,7 +1136,7 @@ inline bool MsgResetStatus(PluginParam *pParam)
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,6)
 
 // 音声サンプルのコールバック関数
-// 48kHz / 16ビット固定
+// 渡されるサンプルは 48kHz / 16ビット固定です。
 // pData の先には Samples * Channels 分のデータが入っています。
 // 今のところ、5.1chをダウンミックスする設定になっている場合
 // ダウンミックスされたデータが渡されますが、そのうち仕様を変えるかも知れません。
@@ -1104,7 +1144,9 @@ inline bool MsgResetStatus(PluginParam *pParam)
 typedef LRESULT (CALLBACK *AudioCallbackFunc)(short *pData,DWORD Samples,int Channels,void *pClientData);
 
 // 音声のサンプルを取得するコールバック関数を設定する
+// 一つのプラグインで設定できるコールバック関数は一つだけです。
 // pClinetData はコールバック関数に渡されます。
+// pCallback に NULL を指定すると、設定が解除されます。
 inline bool MsgSetAudioCallback(PluginParam *pParam,AudioCallbackFunc pCallback,void *pClientData=NULL)
 {
 	return (*pParam->Callback)(pParam,MESSAGE_SETAUDIOCALLBACK,(LPARAM)pCallback,(LPARAM)pClientData)!=0;
@@ -1343,26 +1385,27 @@ inline bool MsgRelayRecord(PluginParam *pParam,LPCWSTR pszFileName)
 	return (*pParam->Callback)(pParam,MESSAGE_RELAYRECORD,(LPARAM)pszFileName,0)!=0;
 }
 
+// サイレントモードのパラメータ
+enum {
+	SILENTMODE_GET,	// 取得
+	SILENTMODE_SET	// 設定
+};
+
 // サイレントモードの取得
 // サイレントモードであるか取得します。
 // サイレントモードではエラー時などにダイアログが出なくなります。
 // コマンドラインで /silent を指定するか、MsgSetSilentMode で設定すればサイレントモードになります。
 inline bool MsgGetSilentMode(PluginParam *pParam)
 {
-	return (*pParam->Callback)(pParam,MESSAGE_SILENTMODE,0,0)!=0;
+	return (*pParam->Callback)(pParam,MESSAGE_SILENTMODE,SILENTMODE_GET,0)!=0;
 }
 
 // サイレントモードの設定
 // サイレントモードの有効/無効を設定します。
 inline bool MsgSetSilentMode(PluginParam *pParam,bool fSilent)
 {
-	return (*pParam->Callback)(pParam,MESSAGE_SILENTMODE,1,(LPARAM)fSilent)!=0;
+	return (*pParam->Callback)(pParam,MESSAGE_SILENTMODE,SILENTMODE_SET,(LPARAM)fSilent)!=0;
 }
-
-#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
-
-
-#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
 
 // 録画のクライアント
 enum {
@@ -1397,7 +1440,6 @@ struct StartRecordInfo {
 };
 
 #endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,10)
-
 
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
 
@@ -1507,7 +1549,6 @@ inline bool MsgIsControllerActiveOnly(PluginParam *pParam,LPCWSTR pszName)
 }
 
 #endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
-
 
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,12)
 
@@ -1722,11 +1763,102 @@ inline void MsgFreeDriverTuningSpaceList(PluginParam *pParam,DriverTuningSpaceLi
 
 #endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,12)
 
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+
+// 番組表の番組の情報
+struct ProgramGuideProgramInfo {
+	WORD NetworkID;			// ネットワークID
+	WORD TransportStreamID;	// ストリームID
+	WORD ServiceID;			// サービスID
+	WORD EventID;			// イベントID
+	SYSTEMTIME StartTime;	// 開始日時
+	DWORD Duration;			// 長さ(秒単位)
+};
+
+// 番組表の番組の背景描画の情報
+struct ProgramGuideProgramDrawBackgroundInfo {
+	HDC hdc;					// 描画先DCハンドル
+	RECT ItemRect;				// 項目全体の位置
+	RECT TitleRect;				// タイトルの位置
+	RECT ContentRect;			// 番組内容の位置
+	COLORREF BackgroundColor;	// 背景色
+};
+
+// 番組表のメニューの情報
+struct ProgramGuideInitializeMenuInfo {
+	HMENU hmenu;		// メニューのハンドル
+	UINT Command;		// 項目のID
+	UINT Reserved;		// 予約
+};
+
+// 番組表の番組のメニューの情報
+struct ProgramGuideProgramInitializeMenuInfo {
+	HMENU hmenu;		// メニューのハンドル
+	UINT Command;		// 項目のID
+	UINT Reserved;		// 予約
+	POINT CursorPos;	// カーソル位置
+	RECT ItemRect;		// 番組の位置
+};
+
+// 番組表のイベントのフラグ
+enum {
+	PROGRAMGUIDE_EVENT_GENERAL	=0x0001,	// 全体のイベント(EVENT_PROGRAMGUIDE_*)
+	PROGRAMGUIDE_EVENT_PROGRAM	=0x0002		// 各番組のイベント(EVENT_PROGRAMGUIDE_PROGRAM_*)
+};
+
+// 番組表のイベントの有効/無効を設定する
+// 番組表のイベント(EVENT_PROGRAMGUIDE_*)の通知が必要な場合、通知を有効に設定します。
+// EventFlags で指定されたイベント(PROGRAMGUIDE_EVENT_*)の通知が有効になります。
+inline bool MsgEnableProgramGuideEvent(PluginParam *pParam,UINT EventFlags)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_ENABLEPROGRAMGUIDEEVENT,EventFlags,0)!=0;
+}
+
+// 番組表のコマンドの情報
+struct ProgramGuideCommandInfo {
+	WORD Type;			// 種類(PROGRAMGUiDE_COMMAND_TYPE_*)
+	WORD Flags;			// 各種フラグ(現在は常に0)
+	UINT ID;			// 識別子
+	LPCWSTR pszText;	// コマンドの文字列
+	LPCWSTR pszName;	// コマンドの名前
+};
+
+// 番組表のコマンドの種類
+enum {
+	PROGRAMGUIDE_COMMAND_TYPE_PROGRAM	=1	// 各番組
+};
+
+// 番組表のコマンド実行時の情報
+struct ProgramGuideCommandParam {
+	UINT ID;							// 識別子
+	UINT Action;						// 操作の種類(PROGRAMGUIDE_COMMAND_ACTION_*)
+	ProgramGuideProgramInfo Program;	// 番組の情報
+	POINT CursorPos;					// カーソル位置
+	RECT ItemRect;						// 項目の位置
+};
+
+// 番組表のコマンド実行の操作の種類
+enum {
+	PROGRAMGUIDE_COMMAND_ACTION_MOUSE,	// マウスなど
+	PROGRAMGUIDE_COMMAND_ACTION_KEY		// キーボード
+};
+
+// 番組表のコマンドを登録する
+// コマンドを登録すると、番組表のダブルクリックなどに機能を割り当てることができるようになります。
+// コマンドが実行されると EVENT_PROGRAMGUIDE_COMMAND イベントが送られます。
+inline bool MsgRegisterProgramGuideCommand(PluginParam *pParam,
+										   const ProgramGuideCommandInfo *pCommandList,int NumCommands=1)
+{
+	return (*pParam->Callback)(pParam,MESSAGE_REGISTERPROGRAMGUIDECOMMAND,(LPARAM)pCommandList,NumCommands)!=0;
+}
+
+#endif	// TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+
 
 /*
 	TVTest アプリケーションクラス
 
-	TVTest の各種機能を呼び出すためのクラス。
+	TVTest の各種機能を呼び出すためのクラスです。
 	ただのラッパーなので使わなくてもいいです。
 	TVTInitialize 関数が呼ばれた時に、引数の PluginParam 構造体へのポインタを
 	コンストラクタに渡してインスタンスを生成します。
@@ -2045,33 +2177,34 @@ public:
 	}
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,12)
-	EpgEventInfo *GetEpgEventInfo(const EpgEventQueryInfo *pInfo)
-	{
+	EpgEventInfo *GetEpgEventInfo(const EpgEventQueryInfo *pInfo) {
 		return MsgGetEpgEventInfo(m_pParam,pInfo);
 	}
-	void FreeEpgEventInfo(EpgEventInfo *pEventInfo)
-	{
+	void FreeEpgEventInfo(EpgEventInfo *pEventInfo) {
 		MsgFreeEpgEventInfo(m_pParam,pEventInfo);
 	}
-	bool GetEpgEventList(EpgEventList *pList)
-	{
+	bool GetEpgEventList(EpgEventList *pList) {
 		return MsgGetEpgEventList(m_pParam,pList);
 	}
-	void FreeEpgEventList(EpgEventList *pList)
-	{
+	void FreeEpgEventList(EpgEventList *pList) {
 		MsgFreeEpgEventList(m_pParam,pList);
 	}
-	int EnumDriver(int Index,LPWSTR pszFileName,int MaxLength)
-	{
+	int EnumDriver(int Index,LPWSTR pszFileName,int MaxLength) {
 		return MsgEnumDriver(m_pParam,Index,pszFileName,MaxLength);
 	}
-	bool GetDriverTuningSpaceList(LPCWSTR pszDriverName,DriverTuningSpaceList *pList)
-	{
+	bool GetDriverTuningSpaceList(LPCWSTR pszDriverName,DriverTuningSpaceList *pList) {
 		return MsgGetDriverTuningSpaceList(m_pParam,pszDriverName,pList);
 	}
-	void FreeDriverTuningSpaceList(DriverTuningSpaceList *pList)
-	{
+	void FreeDriverTuningSpaceList(DriverTuningSpaceList *pList) {
 		MsgFreeDriverTuningSpaceList(m_pParam,pList);
+	}
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+	bool EnableProgramGuideEvent(UINT EventFlags) {
+		return MsgEnableProgramGuideEvent(m_pParam,EventFlags);
+	}
+	bool RegisterProgramGuideCommand(const ProgramGuideCommandInfo *pCommandList,int NumCommands=1) {
+		return MsgRegisterProgramGuideCommand(m_pParam,pCommandList,NumCommands);
 	}
 #endif
 };
@@ -2130,7 +2263,7 @@ public:
 	// この関数がイベントコールバック関数として登録されているものとします
 	LRESULT CALLBACK EventCallback(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData)
 	{
-		Handler.HandleEvent(Event,lParam1,lParam2,pClientData);
+		return Handler.HandleEvent(Event,lParam1,lParam2,pClientData);
 	}
 */
 class CTVTestEventHandler
@@ -2201,10 +2334,38 @@ protected:
 	// コントローラの対象の設定
 	virtual bool OnControllerFocus(HWND hwnd) { return false; }
 #endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+	// 起動処理が終了した
+	virtual void OnStartupDone() {}
+	// 番組表の初期化
+	virtual bool OnProgramGuideInitialize(HWND hwnd) { return true; }
+	// 番組表の終了
+	virtual bool OnProgramGuideFinalize(HWND hwnd) { return true; }
+	// 番組表のコマンドの実行
+	virtual bool OnProgramGuideCommand(
+		UINT Command,const ProgramGuideCommandParam *pParam) { return false; }
+	// 番組表のメニューの初期化
+	virtual int OnProgramGuideInitializeMenu(
+		const ProgramGuideInitializeMenuInfo *pInfo) { return 0; }
+	// 番組表のメニューが選択された
+	virtual bool OnProgramGuideMenuSelected(UINT Command) { return false; }
+	// 番組表の番組の背景描画
+	virtual bool OnProgramGuideProgramDrawBackground(
+		const ProgramGuideProgramInfo *pProgramInfo,
+		const ProgramGuideProgramDrawBackgroundInfo *pInfo) { return false; }
+	// 番組表の番組のメニュー初期化
+	virtual int OnProgramGuideProgramInitializeMenu(
+		const ProgramGuideProgramInfo *pProgramInfo,
+		const ProgramGuideProgramInitializeMenuInfo *pInfo) { return 0; }
+	// 番組表の番組のメニューが選択された
+	virtual bool OnProgramGuideProgramMenuSelected(
+		const ProgramGuideProgramInfo *pProgramInfo,UINT Command) { return false; }
+#endif
 
 public:
 	virtual ~CTVTestEventHandler() {}
-	LRESULT HandleEvent(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData) {
+	LRESULT HandleEvent(UINT Event,LPARAM lParam1,LPARAM lParam2,void *pClientData)
+	{
 		m_pClientData=pClientData;
 		switch (Event) {
 		case EVENT_PLUGINENABLE:		return OnPluginEnable(lParam1!=0);
@@ -2241,6 +2402,31 @@ public:
 #endif
 #if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,11)
 		case EVENT_CONTROLLERFOCUS:		return OnControllerFocus((HWND)lParam1);
+#endif
+#if TVTEST_PLUGIN_VERSION>=TVTEST_PLUGIN_VERSION_(0,0,13)
+		case EVENT_STARTUPDONE:			OnStartupDone(); return 0;
+		case EVENT_PROGRAMGUIDE_INITIALIZE:	return OnProgramGuideInitialize((HWND)lParam1);
+		case EVENT_PROGRAMGUIDE_FINALIZE:	return OnProgramGuideFinalize((HWND)lParam1);
+		case EVENT_PROGRAMGUIDE_COMMAND:
+			return OnProgramGuideCommand(
+				(UINT)lParam1,
+				(const ProgramGuideCommandParam*)lParam2);
+		case EVENT_PROGRAMGUIDE_INITIALIZEMENU:
+			return OnProgramGuideInitializeMenu(
+				(const ProgramGuideInitializeMenuInfo*)lParam1);
+		case EVENT_PROGRAMGUIDE_MENUSELECTED:
+			return OnProgramGuideMenuSelected((UINT)lParam1);
+		case EVENT_PROGRAMGUIDE_PROGRAM_DRAWBACKGROUND:
+			return OnProgramGuideProgramDrawBackground(
+				(const ProgramGuideProgramInfo*)lParam1,
+				(const ProgramGuideProgramDrawBackgroundInfo*)lParam2);
+		case EVENT_PROGRAMGUIDE_PROGRAM_INITIALIZEMENU:
+			return OnProgramGuideProgramInitializeMenu(
+				(const ProgramGuideProgramInfo*)lParam1,
+				(const ProgramGuideProgramInitializeMenuInfo*)lParam2);
+		case EVENT_PROGRAMGUIDE_PROGRAM_MENUSELECTED:
+			return OnProgramGuideProgramMenuSelected(
+				(const ProgramGuideProgramInfo*)lParam1,(UINT)lParam2);
 #endif
 		}
 		return 0;
