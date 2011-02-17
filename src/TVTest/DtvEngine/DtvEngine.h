@@ -50,6 +50,7 @@ public:
 		virtual void OnEmmProcessed(const BYTE *pEmmData) {}
 		virtual void OnEcmError(LPCTSTR pszText) {}
 		virtual void OnEcmRefused() {}
+		virtual void OnCardReaderHung() {}
 	};
 
 	CDtvEngine(void);

@@ -8,6 +8,10 @@
 #include "BonBaseClass.h"
 #include "CardReader.h"
 
+// ECMデータの最大サイズ
+#define MAX_ECM_DATA_SIZE 256
+// EMMデータの最大サイズ
+#define MAX_EMM_DATA_SIZE 263
 
 class CBcasCard : public CBonBaseClass
 {
@@ -83,8 +87,9 @@ protected:
 
 	struct TAG_ECMSTATUS
 	{
-		DWORD dwLastEcmSize;	// 最後に問い合わせのあったECMサイズ
-		BYTE LastEcmData[256];	// 最後に問い合わせのあったECMデータ
-		BYTE KsData[16];		// Ks Odd + Even
+		DWORD dwLastEcmSize;					// 最後に問い合わせのあったECMサイズ
+		BYTE LastEcmData[MAX_ECM_DATA_SIZE];	// 最後に問い合わせのあったECMデータ
+		BYTE KsData[16];						// Ks Odd + Even
+		bool bSucceeded;						// ECMが受け付けられたか
 	} m_EcmStatus;
 };

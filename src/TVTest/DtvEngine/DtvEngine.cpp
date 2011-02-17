@@ -791,6 +791,12 @@ const DWORD CDtvEngine::OnDecoderEvent(CMediaDecoder *pDecoder, const DWORD dwEv
 					m_pEventHandler->OnEcmRefused();
 			}
 			return 0UL;
+
+		case CTsDescrambler::EVENT_CARD_READER_HUNG:
+			// カードリーダーから応答が無い
+			if (m_pEventHandler)
+				m_pEventHandler->OnCardReaderHung();
+			return 0UL;
 		}
 	}
 

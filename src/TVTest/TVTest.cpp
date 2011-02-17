@@ -5056,7 +5056,7 @@ void CFullscreen::OnMouseMove()
 	m_ViewWindow.GetClientRect(&rcClient);
 
 	rc=rcClient;
-	rc.top=rc.bottom-StatusView.GetHeight();
+	rc.top=rc.bottom-StatusView.CalcHeight(rc.right-rc.left);
 	if (::PtInRect(&rc,pt)) {
 		if (!m_fShowStatusView)
 			ShowStatusView(true);
@@ -5110,7 +5110,7 @@ void CFullscreen::ShowStatusView(bool fShow)
 
 		ShowSideBar(false);
 		m_ViewWindow.GetClientRect(&rc);
-		rc.top=rc.bottom-StatusView.GetHeight();
+		rc.top=rc.bottom-StatusView.CalcHeight(rc.right-rc.left);
 		StatusView.SetVisible(false);
 		LayoutBase.SetContainerVisible(CONTAINER_ID_STATUS,false);
 		StatusView.SetParent(&m_ViewWindow);
@@ -5274,6 +5274,7 @@ class CMyDtvEngineHandler : public CDtvEngine::CEventHandler
 	void OnEmmProcessed(const BYTE *pEmmData) override;
 	void OnEcmError(LPCTSTR pszText) override;
 	void OnEcmRefused() override;
+	void OnCardReaderHung() override;
 // CMyDtvEngineHandler
 	void OnServiceUpdated(CTsAnalyzer *pTsAnalyzer,bool fListUpdated,bool fStreamChanged);
 };
@@ -5324,6 +5325,11 @@ void CMyDtvEngineHandler::OnEcmError(LPCTSTR pszText)
 void CMyDtvEngineHandler::OnEcmRefused()
 {
 	MainWindow.PostMessage(WM_APP_ECMREFUSED,0,0);
+}
+
+void CMyDtvEngineHandler::OnCardReaderHung()
+{
+	MainWindow.PostMessage(WM_APP_CARDREADERHUNG,0,0);
 }
 
 
@@ -6515,6 +6521,14 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		if (OSDOptions.IsNotifyEnabled(COSDOptions::NOTIFY_ECMERROR))
 			ShowNotificationBar(TEXT("契約されていないため視聴できません"),
 								CNotificationBar::MESSAGE_WARNING,6000);
+		return 0;
+
+	case WM_APP_CARDREADERHUNG:
+		// カードリーダーから応答が無い
+		if (OSDOptions.IsNotifyEnabled(COSDOptions::NOTIFY_ECMERROR))
+			ShowNotificationBar(TEXT("カードリーダーから応答がありません"),
+								CNotificationBar::MESSAGE_ERROR,6000);
+		Logger.AddLog(TEXT("カードリーダーから応答がありません。"));
 		return 0;
 
 	case WM_APP_EPGLOADED:
@@ -9679,7 +9693,7 @@ bool CMainWindow::GetOSDWindow(HWND *phwndParent,RECT *pRect,bool *pfForcePseudo
 	if (m_Viewer.GetVideoContainer().GetVisible()) {
 		*phwndParent=m_Viewer.GetVideoContainer().GetHandle();
 	} else {
-		*phwndParent=m_Viewer.GetViewWindow().GetHandle();
+		*phwndParent=m_Viewer.GetVideoContainer().GetParent();
 		*pfForcePseudoOSD=true;
 	}
 	::GetClientRect(*phwndParent,pRect);

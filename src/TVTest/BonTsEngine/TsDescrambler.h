@@ -17,20 +17,15 @@
 class CEcmProcessor;
 class CEmmProcessor;
 
-class CBcasAccess {
-protected:
-	BYTE m_Data[256];
-	DWORD m_DataSize;
-
+class CBcasAccess
+{
 public:
-	CBcasAccess(const BYTE *pData, DWORD Size);
-	CBcasAccess(const CBcasAccess &BcasAccess);
-	virtual ~CBcasAccess();
-	CBcasAccess &operator=(const CBcasAccess &BcasAccess);
-	virtual bool Process() = 0;
+	virtual ~CBcasAccess() {}
+	virtual bool Process(CBcasCard *pBcasCard) = 0;
 };
 
-class CBcasAccessQueue : public CBonBaseClass {
+class CBcasAccessQueue : public CBonBaseClass
+{
 	std::deque<CBcasAccess*> m_Queue;
 	CBcasCard *m_pBcasCard;
 	CCardReader::ReaderType m_ReaderType;
@@ -40,6 +35,7 @@ class CBcasAccessQueue : public CBonBaseClass {
 	volatile bool m_bKillEvent;
 	volatile bool m_bStartEvent;
 	CCriticalLock m_Lock;
+
 	static DWORD CALLBACK BcasAccessThread(LPVOID lpParameter);
 
 public:
@@ -47,8 +43,6 @@ public:
 	~CBcasAccessQueue();
 	void Clear();
 	bool Enqueue(CBcasAccess *pAccess);
-	bool Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
-	bool Enqueue(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size);
 	bool BeginBcasThread(CCardReader::ReaderType ReaderType, LPCTSTR pszReaderName);
 	bool EndBcasThread();
 };
@@ -65,9 +59,10 @@ class CTsDescrambler : public CMediaDecoder
 {
 public:
 	enum {
-		EVENT_EMM_PROCESSED	= 0x00000001UL,
-		EVENT_ECM_ERROR		= 0x00000002UL,
-		EVENT_ECM_REFUSED	= 0x00000004UL
+		EVENT_EMM_PROCESSED		= 0x00000001UL,
+		EVENT_ECM_ERROR			= 0x00000002UL,
+		EVENT_ECM_REFUSED		= 0x00000003UL,
+		EVENT_CARD_READER_HUNG	= 0x00000004UL
 	};
 
 	struct EcmErrorInfo {

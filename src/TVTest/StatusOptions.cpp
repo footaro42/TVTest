@@ -12,6 +12,14 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+static const bool IS_HD=
+#ifndef TVH264_FOR_1SEG
+	true
+#else
+	false
+#endif
+	;
+
 #define ITEM_MARGIN	2
 #define CHECK_WIDTH	14
 
@@ -25,7 +33,7 @@ CStatusOptions::CStatusOptions(CStatusView *pStatusView)
 	: m_pStatusView(pStatusView)
 	, m_fShowTOTTime(false)
 	, m_fEnablePopupProgramInfo(true)
-	, m_fMultiRow(false)
+	, m_fMultiRow(!IS_HD)
 	, m_MaxRows(2)
 {
 	SetDefaultItemList();
@@ -159,24 +167,18 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 
 void CStatusOptions::SetDefaultItemList()
 {
-	static const bool fHD=
-#ifndef TVH264_FOR_1SEG
-		true;
-#else
-		false;
-#endif
 	static const struct {
 		BYTE ID;
 		bool fVisible;
 	} DefaultItemList[NUM_STATUS_ITEMS] = {
-		{STATUS_ITEM_TUNER,			fHD},
+		{STATUS_ITEM_TUNER,			IS_HD},
 		{STATUS_ITEM_CHANNEL,		true},
 		{STATUS_ITEM_VIDEOSIZE,		true},
 		{STATUS_ITEM_VOLUME,		true},
 		{STATUS_ITEM_AUDIOCHANNEL,	true},
 		{STATUS_ITEM_RECORD,		true},
-		{STATUS_ITEM_CAPTURE,		fHD},
-		{STATUS_ITEM_ERROR,			fHD},
+		{STATUS_ITEM_CAPTURE,		IS_HD},
+		{STATUS_ITEM_ERROR,			IS_HD},
 		{STATUS_ITEM_SIGNALLEVEL,	true},
 		{STATUS_ITEM_CLOCK,			false},
 		{STATUS_ITEM_PROGRAMINFO,	false},

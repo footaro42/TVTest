@@ -13,6 +13,8 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
+#pragma intrinsic(memcmp)
+
 
 // EMM処理を行う期間
 #define EMM_PROCESS_TIME	(7 * 24)
@@ -24,35 +26,42 @@ class CEcmProcessor : public CPsiSingleTable
 {
 public:
 	CEcmProcessor(CTsDescrambler *pDescrambler);
-
-// CTsPidMapTarget
-	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
-	virtual void OnPidUnmapped(const WORD wPID);
-
-// CEcmProcessor
 	const bool DescramblePacket(CTsPacket *pTsPacket);
 	const bool SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize);
 
-protected:
-// CPsiSingleTable
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
+	static void ResetCardReaderStatus() { m_bCardReaderHung = false; }
 
 private:
+// CTsPidMapTarget
+	void OnPidMapped(const WORD wPID, const PVOID pParam) override;
+	void OnPidUnmapped(const WORD wPID) override;
+
+// CPsiSingleTable
+	const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection) override;
+
+// CEcmProcessor
+	void OnCardReaderHung();
+
 	CTsDescrambler *m_pDescrambler;
 	CMulti2Decoder m_Multi2Decoder;
 #ifdef MULTI2_SSE2
 	CMulti2Decoder::DecodeFunc m_pDecodeFunc;
 #endif
 	WORD m_EcmPID;
-	bool m_bInQueue;
+	CLocalEvent m_EcmProcessEvent;
 	CLocalEvent m_SetScrambleKeyEvent;
-	volatile bool m_bSetScrambleKey;
 	CCriticalLock m_Multi2Lock;
 
+	bool m_bEcmReceived;
 	bool m_bLastEcmSucceed;
+	bool m_bOddKeyValid;
+	bool m_bEvenKeyValid;
 	bool m_bEcmErrorSent;
+	BYTE m_LastScramblingCtrl;
+	BYTE m_LastKsData[16];
 
 	static DWORD m_EcmErrorCount;
+	static bool m_bCardReaderHung;
 };
 
 // EMM処理内部クラス
@@ -61,36 +70,34 @@ class CEmmProcessor : public CPsiSingleTable
 {
 public:
 	CEmmProcessor(CTsDescrambler *pDescrambler);
-
-// CTsPidMapTarget
-	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
-	virtual void OnPidUnmapped(const WORD wPID);
-
-// CEmmProcessor
 	const bool ProcessEmm(const BYTE *pData, const DWORD DataSize);
 
-protected:
-// CPsiSingleTable
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
-
 private:
+// CTsPidMapTarget
+	void OnPidMapped(const WORD wPID, const PVOID pParam) override;
+	void OnPidUnmapped(const WORD wPID) override;
+
+// CPsiSingleTable
+	const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection) override;
+
 	CTsDescrambler *m_pDescrambler;
 };
 
 // ESスクランブル解除内部クラス
 class CTsDescrambler::CEsProcessor : public CTsPidMapTarget
 {
-	CEcmProcessor *m_pEcmProcessor;
-
 public:
 	CEsProcessor(CEcmProcessor *pEcmProcessor);
 	virtual ~CEsProcessor();
 	const CEcmProcessor *GetEcmProcessor() const { return m_pEcmProcessor; }
 
+private:
 // CTsPidMapTarget
-	virtual const bool StorePacket(const CTsPacket *pPacket);
-	virtual void OnPidMapped(const WORD wPID, const PVOID pParam);
-	virtual void OnPidUnmapped(const WORD wPID);
+	const bool StorePacket(const CTsPacket *pPacket) override;
+	void OnPidMapped(const WORD wPID, const PVOID pParam) override;
+	void OnPidUnmapped(const WORD wPID) override;
+
+	CEcmProcessor *m_pEcmProcessor;
 };
 
 class CDescramblePmtTable : public CPmtTable
@@ -101,64 +108,115 @@ class CDescramblePmtTable : public CPmtTable
 	WORD m_EcmPID;
 	WORD m_ServiceID;
 	std::vector<WORD> m_EsPIDList;
+
 	void UnmapEcmTarget();
 	void UnmapEsTarget();
+
+// CTsPidMapTarget
+	void OnPidUnmapped(const WORD wPID) override;
 
 public:
 	CDescramblePmtTable(CTsDescrambler *pDescrambler);
 	void SetTarget();
 	void ResetTarget();
-	// CTsPidMapTarget
-	virtual void OnPidUnmapped(const WORD wPID);
 };
 
-class CEcmAccess : public CBcasAccess {
+class CEcmAccess : public CBcasAccess
+{
+	BYTE m_EcmData[MAX_ECM_DATA_SIZE];
+	DWORD m_EcmSize;
 	CEcmProcessor *m_pEcmProcessor;
+	CLocalEvent *m_pEvent;
+
+	// コピー禁止
+	CEcmAccess(const CEcmAccess &Src);
+	CEcmAccess &operator=(const CEcmAccess &Src);
 
 public:
-	CEcmAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size);
-	CEcmAccess(const CEcmAccess &BcasAccess);
-	~CEcmAccess();
-	CEcmAccess &operator=(const CEcmAccess &EcmAccess);
-	bool Process();
+	CEcmAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size, CLocalEvent *pEvent)
+		: m_EcmSize(Size)
+		, m_pEcmProcessor(pEcmProcessor)
+		, m_pEvent(pEvent)
+	{
+		::CopyMemory(m_EcmData, pData, Size);
+		m_pEcmProcessor->AddRef();
+	}
+
+	~CEcmAccess()
+	{
+		m_pEvent->Set();
+		m_pEcmProcessor->ReleaseRef();
+	}
+
+	bool Process(CBcasCard *pBcasCard) override
+	{
+		return m_pEcmProcessor->SetScrambleKey(m_EcmData, m_EcmSize);
+	}
 };
 
-class CEmmAccess : public CBcasAccess {
+class CEmmAccess : public CBcasAccess
+{
+	BYTE m_EmmData[MAX_EMM_DATA_SIZE];
+	DWORD m_EmmSize;
 	CEmmProcessor *m_pEmmProcessor;
 
+	// コピー禁止
+	CEmmAccess(const CEmmAccess &Src);
+	CEmmAccess &operator=(const CEmmAccess &Src);
+
 public:
-	CEmmAccess(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size);
-	CEmmAccess(const CEmmAccess &EmmAccess);
-	~CEmmAccess();
-	CEmmAccess &operator=(const CEmmAccess &EmmAccess);
-	bool Process();
+	CEmmAccess(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size)
+		: m_EmmSize(Size)
+		, m_pEmmProcessor(pEmmProcessor)
+	{
+		::CopyMemory(m_EmmData, pData, Size);
+		m_pEmmProcessor->AddRef();
+	}
+
+	~CEmmAccess()
+	{
+		m_pEmmProcessor->ReleaseRef();
+	}
+
+	bool Process(CBcasCard *pBcasCard) override
+	{
+		return m_pEmmProcessor->ProcessEmm(m_EmmData, m_EmmSize);
+	}
 };
 
-class CBcasSendCommandAccess : public CBcasAccess {
-	CBcasCard *m_pBcasCard;
+class CBcasSendCommandAccess : public CBcasAccess
+{
+	BYTE *m_pSendData;
+	DWORD m_SendSize;
 	BYTE *m_pReceiveData;
 	DWORD *m_pReceiveSize;
 	CLocalEvent *m_pEvent;
 	bool *m_pbSuccess;
 
 public:
-	CBcasSendCommandAccess(CBcasCard *pBcasCard, const BYTE *pSendData, DWORD SendSize,
+	CBcasSendCommandAccess(const BYTE *pSendData, DWORD SendSize,
 						   BYTE *pReceiveData, DWORD *pReceiveSize,
 						   CLocalEvent *pEvent, bool *pbSuccess)
-		: CBcasAccess(pSendData, SendSize)
-		, m_pBcasCard(pBcasCard)
+		: m_SendSize(SendSize)
 		, m_pReceiveData(pReceiveData)
 		, m_pReceiveSize(pReceiveSize)
 		, m_pEvent(pEvent)
 		, m_pbSuccess(pbSuccess)
 	{
+		m_pSendData = new BYTE[SendSize];
+		::CopyMemory(m_pSendData, pSendData, SendSize);
 	}
-	~CBcasSendCommandAccess() {
+
+	~CBcasSendCommandAccess()
+	{
 		if (m_pEvent)
 			m_pEvent->Set();
+		delete [] m_pSendData;
 	}
-	bool Process() {
-		bool bSuccess = m_pBcasCard->SendCommand(m_Data, m_DataSize, m_pReceiveData, m_pReceiveSize);
+
+	bool Process(CBcasCard *pBcasCard) override
+	{
+		bool bSuccess = pBcasCard->SendCommand(m_pSendData, m_SendSize, m_pReceiveData, m_pReceiveSize);
 		if (m_pbSuccess)
 			*m_pbSuccess = bSuccess;
 		if (m_pEvent)
@@ -200,6 +258,8 @@ void CTsDescrambler::Reset(void)
 
 	// 内部状態を初期化する
 	m_PidMapManager.UnmapAllTarget();
+
+	CEcmProcessor::ResetCardReaderStatus();
 
 	// PATテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(PID_PAT, new CPatTable, OnPatUpdated, this);
@@ -395,7 +455,7 @@ int CTsDescrambler::GetServiceIndexByID(WORD ServiceID) const
 	int Index;
 
 	// プログラムIDからサービスインデックスを検索する
-	for (Index = (int)m_ServiceList.size() - 1 ; Index >= 0  ; Index--) {
+	for (Index = (int)m_ServiceList.size() - 1 ; Index >= 0 ; Index--) {
 		if (m_ServiceList[Index].ServiceID == ServiceID)
 			break;
 	}
@@ -478,7 +538,7 @@ bool CTsDescrambler::EnableSSE2(bool bEnable)
 bool CTsDescrambler::SendBcasCommand(const BYTE *pSendData, DWORD SendSize, BYTE *pRecvData, DWORD *pRecvSize)
 {
 	if (pSendData == NULL || SendSize == 0 || SendSize > 256
-			|| pRecvData == NULL || pRecvSize == 0)
+			|| pRecvData == NULL || pRecvSize == NULL)
 		return false;
 
 	if (!m_BcasCard.IsCardOpen())
@@ -487,7 +547,7 @@ bool CTsDescrambler::SendBcasCommand(const BYTE *pSendData, DWORD SendSize, BYTE
 	CLocalEvent Event;
 	bool bSuccess = false;
 	Event.Create();
-	CBcasSendCommandAccess *pAccess = new CBcasSendCommandAccess(&m_BcasCard, pSendData, SendSize, pRecvData, pRecvSize, &Event, &bSuccess);
+	CBcasSendCommandAccess *pAccess = new CBcasSendCommandAccess(pSendData, SendSize, pRecvData, pRecvSize, &Event, &bSuccess);
 	if (!m_Queue.Enqueue(pAccess)) {
 		delete pAccess;
 		return false;
@@ -784,14 +844,18 @@ void CDescramblePmtTable::OnPidUnmapped(const WORD wPID)
 //////////////////////////////////////////////////////////////////////
 
 DWORD CEcmProcessor::m_EcmErrorCount = 0;
+bool CEcmProcessor::m_bCardReaderHung = false;
 
 CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 	: CPsiSingleTable(true)
 	, m_pDescrambler(pDescrambler)
 	, m_EcmPID(0xFFFF)
-	, m_bInQueue(false)
+	, m_bEcmReceived(false)
 	, m_bLastEcmSucceed(true)
+	, m_bOddKeyValid(false)
+	, m_bEvenKeyValid(false)
 	, m_bEcmErrorSent(false)
+	, m_LastScramblingCtrl(0)
 {
 #ifdef MULTI2_SSE2
 	if (pDescrambler->m_bEnableSSE2)
@@ -805,7 +869,10 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 		m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
 								   m_pDescrambler->m_BcasCard.GetInitialCbc());
 
+	m_EcmProcessEvent.Create(true, true);
 	m_SetScrambleKeyEvent.Create(true);
+
+	::ZeroMemory(m_LastKsData, sizeof(m_LastKsData));
 }
 
 void CEcmProcessor::OnPidMapped(const WORD wPID, const PVOID pParam)
@@ -825,22 +892,47 @@ void CEcmProcessor::OnPidUnmapped(const WORD wPID)
 
 const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 {
-	if (!m_bInQueue) {
+	if (!m_bEcmReceived) {
 		// まだECMが来ていない
 		m_pDescrambler->m_ScramblePacketCount++;
 		return false;
 	}
 
-	// キー取得中だったら待つ
+	// 最初のキー取得中だったら待つ
 	if (m_SetScrambleKeyEvent.Wait(500) == WAIT_TIMEOUT) {
 		m_pDescrambler->m_ScramblePacketCount++;
 		return false;
 	}
 
-	// スクランブル解除
-	if (m_bLastEcmSucceed) {
-		CBlockLock Lock(&m_Multi2Lock);
+	const BYTE ScramblingCtrl = pTsPacket->m_Header.byTransportScramblingCtrl;
 
+	m_Multi2Lock.Lock();
+
+	if (m_LastScramblingCtrl != 0) {
+		if (m_LastScramblingCtrl != ScramblingCtrl) {
+			// Odd/Evenが切り替わった時にもう片方を無効にする(古いキーが使われ続けるのを防ぐため)
+			if (ScramblingCtrl == 2)
+				m_bOddKeyValid = false;
+			else
+				m_bEvenKeyValid = false;
+			m_LastScramblingCtrl = ScramblingCtrl;
+
+			// ECM処理中であれば終わるまで待つ
+			if (!m_EcmProcessEvent.IsSignaled()
+					&& !m_bCardReaderHung) {
+				m_Multi2Lock.Unlock();
+				if (m_EcmProcessEvent.Wait(5000) == WAIT_TIMEOUT)
+					OnCardReaderHung();
+				m_Multi2Lock.Lock();
+			}
+		}
+	} else {
+		m_LastScramblingCtrl = ScramblingCtrl;
+	}
+
+	// スクランブル解除
+	if ((ScramblingCtrl == 2 && m_bEvenKeyValid)
+			|| (ScramblingCtrl == 3 && m_bOddKeyValid)) {
 #ifdef MULTI2_SSE2
 		if ((m_Multi2Decoder.*m_pDecodeFunc)
 #else
@@ -848,13 +940,17 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 #endif
 				(pTsPacket->GetPayloadData(),
 				(DWORD)pTsPacket->GetPayloadSize(),
-				pTsPacket->m_Header.byTransportScramblingCtrl)) {
+				ScramblingCtrl)) {
+			m_Multi2Lock.Unlock();
+
 			// トランスポートスクランブル制御再設定
 			pTsPacket->SetAt(3UL, pTsPacket->GetAt(3UL) & 0x3FU);
-			pTsPacket->m_Header.byTransportScramblingCtrl = 0U;
+			pTsPacket->m_Header.byTransportScramblingCtrl = 0;
 			return true;
 		}
 	}
+
+	m_Multi2Lock.Unlock();
 
 	m_pDescrambler->m_ScramblePacketCount++;
 
@@ -866,14 +962,40 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 	if (pCurSection->GetTableID() != 0x82)
 		return false;
 
-#if 0
-	return SetScrambleKey(pCurSection->GetPayloadData(), pCurSection->GetPayloadSize());
-#else
+	if (pCurSection->GetPayloadSize() > MAX_ECM_DATA_SIZE)
+		return false;
+
+	// 前のECM処理が終わるまで待つ
+	if (!m_EcmProcessEvent.IsSignaled()) {
+		if (m_bCardReaderHung)
+			return false;
+		if (m_EcmProcessEvent.Wait(5000) == WAIT_TIMEOUT) {
+			OnCardReaderHung();
+			return false;
+		}
+	}
+
 	// B-CASアクセスキューに追加
-	if (m_pDescrambler->m_Queue.Enqueue(this, pCurSection->GetPayloadData(), pCurSection->GetPayloadSize()))
-		m_bInQueue = true;
-#endif
+	m_EcmProcessEvent.Reset();
+	CEcmAccess *pEcmAccess = new CEcmAccess(this, pCurSection->GetPayloadData(), pCurSection->GetPayloadSize(), &m_EcmProcessEvent);
+	if (m_pDescrambler->m_Queue.Enqueue(pEcmAccess)) {
+		m_bEcmReceived = true;
+	} else {
+		delete pEcmAccess;
+	}
+
 	return true;
+}
+
+// Ksの比較
+static inline bool CompareKs(const void *pKey1, const void *pKey2)
+{
+#ifdef WIN64
+	return *static_cast<const ULONGLONG*>(pKey1) == *static_cast<const ULONGLONG*>(pKey2);
+#else
+	return static_cast<const DWORD*>(pKey1)[0] == static_cast<const DWORD*>(pKey2)[0]
+		&& static_cast<const DWORD*>(pKey1)[1] == static_cast<const DWORD*>(pKey2)[1];
+#endif
 }
 
 const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
@@ -889,13 +1011,13 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 				&& ErrorCode != CBcasCard::ERR_ECMREFUSED
 				&& ErrorCode != CBcasCard::ERR_BADARGUMENT) {
 			// 再送信してみる
-			const BYTE *pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
+			pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
 			if (!pKsData) {
 				ErrorCode = m_pDescrambler->m_BcasCard.GetLastErrorCode();
 				if (ErrorCode != CBcasCard::ERR_ECMREFUSED) {
 					// カードを開き直して再初期化してみる
+					TRACE(TEXT("CEcmProcessor::SetScrambleKey() : エラーのためカード再初期化\n"));
 					if (m_pDescrambler->m_BcasCard.ReOpenCard()) {
-						TRACE(TEXT("CEcmProcessor::SetScrambleKey() Re open card.\n"));
 						m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
 												   m_pDescrambler->m_BcasCard.GetInitialCbc());
 						pKsData = m_pDescrambler->m_BcasCard.GetKsFromEcm(pEcmData, EcmSize);
@@ -923,19 +1045,45 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 		}
 	}
 
-	// スクランブルキー更新
 	m_Multi2Lock.Lock();
+
+	// スクランブルキー更新
 	m_Multi2Decoder.SetScrambleKey(pKsData);
-	m_Multi2Lock.Unlock();
 
 	// ECM処理成功状態更新
-	m_bLastEcmSucceed = pKsData != NULL;
-	if (!m_bLastEcmSucceed)
+	const bool bSucceeded = pKsData != NULL;
+	if (bSucceeded) {
+		if (m_bLastEcmSucceed) {
+			// キーが変わったら有効状態更新
+			if (!CompareKs(&m_LastKsData[0], &pKsData[0]))
+				m_bOddKeyValid = true;
+			if (!CompareKs(&m_LastKsData[8], &pKsData[8]))
+				m_bEvenKeyValid = true;
+		} else {
+			m_bOddKeyValid = true;
+			m_bEvenKeyValid = true;
+		}
+		::CopyMemory(m_LastKsData, pKsData, 16);
+	} else {
+		m_bOddKeyValid = false;
+		m_bEvenKeyValid = false;
 		m_EcmErrorCount++;
+	}
+	m_bLastEcmSucceed = bSucceeded;
+
+	m_Multi2Lock.Unlock();
 
 	m_SetScrambleKeyEvent.Set();
 
 	return true;
+}
+
+void CEcmProcessor::OnCardReaderHung()
+{
+	if (!m_bCardReaderHung) {
+		m_bCardReaderHung = true;
+		m_pDescrambler->SendDecoderEvent(CTsDescrambler::EVENT_CARD_READER_HUNG);
+	}
 }
 
 
@@ -963,8 +1111,6 @@ void CEmmProcessor::OnPidUnmapped(const WORD wPID)
 	ReleaseRef();
 }
 
-#pragma intrinsic(memcmp)
-
 const bool CEmmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
 {
 	if (pCurSection->GetTableID() != 0x84)
@@ -980,10 +1126,10 @@ const bool CEmmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 	WORD Pos = 0;
 	while (DataSize >= Pos + 17) {
 		const WORD EmmSize = (WORD)pHexData[Pos + 6] + 7;
-		if (EmmSize < 17 || DataSize < Pos + EmmSize)
+		if (EmmSize < 17 || EmmSize > MAX_EMM_DATA_SIZE || DataSize < Pos + EmmSize)
 			break;
 
-		if (memcmp(pCardID, &pHexData[Pos], 6) == 0) {
+		if (::memcmp(pCardID, &pHexData[Pos], 6) == 0) {
 			SYSTEMTIME st;
 			const CTotTable *pTotTable = dynamic_cast<const CTotTable*>(m_pDescrambler->m_PidMapManager.GetMapTarget(0x0014));
 			if (pTotTable == NULL || !pTotTable->GetDateTime(&st))
@@ -1001,7 +1147,9 @@ const bool CEmmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 			LocalTime.HighPart = ft.dwHighDateTime;
 			if (TotTime.QuadPart + (10000000ULL * 60ULL * 60ULL * EMM_PROCESS_TIME) > LocalTime.QuadPart) {
 				// B-CASアクセスキューに追加
-				m_pDescrambler->m_Queue.Enqueue(this, &pHexData[Pos], EmmSize);
+				CEmmAccess *pEmmAccess = new CEmmAccess(this, &pHexData[Pos], EmmSize);
+				if (!m_pDescrambler->m_Queue.Enqueue(pEmmAccess))
+					delete pEmmAccess;
 			}
 			break;
 		}
@@ -1062,108 +1210,6 @@ void CTsDescrambler::CEsProcessor::OnPidUnmapped(const WORD wPID)
 }
 
 
-CBcasAccess::CBcasAccess(const BYTE *pData, DWORD Size)
-{
-	::CopyMemory(m_Data, pData, Size);
-	m_DataSize = Size;
-}
-
-CBcasAccess::CBcasAccess(const CBcasAccess &BcasAccess)
-{
-	::CopyMemory(m_Data, BcasAccess.m_Data, BcasAccess.m_DataSize);
-	m_DataSize = BcasAccess.m_DataSize;
-}
-
-CBcasAccess::~CBcasAccess()
-{
-}
-
-CBcasAccess &CBcasAccess::operator=(const CBcasAccess &BcasAccess)
-{
-	if (&BcasAccess != this) {
-		::CopyMemory(m_Data, BcasAccess.m_Data, BcasAccess.m_DataSize);
-		m_DataSize = BcasAccess.m_DataSize;
-	}
-	return *this;
-}
-
-
-CEcmAccess::CEcmAccess(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size)
-	: CBcasAccess(pData, Size)
-	, m_pEcmProcessor(pEcmProcessor)
-{
-	m_pEcmProcessor->AddRef();
-}
-
-CEcmAccess::CEcmAccess(const CEcmAccess &EcmAccess)
-	: CBcasAccess(EcmAccess.m_Data, EcmAccess.m_DataSize)
-	, m_pEcmProcessor(EcmAccess.m_pEcmProcessor)
-{
-	m_pEcmProcessor->AddRef();
-}
-
-CEcmAccess::~CEcmAccess()
-{
-	m_pEcmProcessor->ReleaseRef();
-}
-
-CEcmAccess &CEcmAccess::operator=(const CEcmAccess &EcmAccess)
-{
-	if (&EcmAccess != this) {
-		CBcasAccess::operator=(EcmAccess);
-		if (m_pEcmProcessor != EcmAccess.m_pEcmProcessor) {
-			m_pEcmProcessor->ReleaseRef();
-			m_pEcmProcessor = EcmAccess.m_pEcmProcessor;
-			m_pEcmProcessor->AddRef();
-		}
-	}
-	return *this;
-}
-
-bool CEcmAccess::Process()
-{
-	return m_pEcmProcessor->SetScrambleKey(m_Data, m_DataSize);
-}
-
-
-CEmmAccess::CEmmAccess(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size)
-	: CBcasAccess(pData, Size)
-	, m_pEmmProcessor(pEmmProcessor)
-{
-	m_pEmmProcessor->AddRef();
-}
-
-CEmmAccess::CEmmAccess(const CEmmAccess &EmmAccess)
-	: CBcasAccess(EmmAccess.m_Data, EmmAccess.m_DataSize)
-	, m_pEmmProcessor(EmmAccess.m_pEmmProcessor)
-{
-	m_pEmmProcessor->AddRef();
-}
-
-CEmmAccess::~CEmmAccess()
-{
-	m_pEmmProcessor->ReleaseRef();
-}
-
-CEmmAccess &CEmmAccess::operator=(const CEmmAccess &EmmAccess)
-{
-	if (&EmmAccess != this) {
-		CBcasAccess::operator=(EmmAccess);
-		if (m_pEmmProcessor != EmmAccess.m_pEmmProcessor) {
-			m_pEmmProcessor->ReleaseRef();
-			m_pEmmProcessor = EmmAccess.m_pEmmProcessor;
-			m_pEmmProcessor->AddRef();
-		}
-	}
-	return *this;
-}
-
-bool CEmmAccess::Process()
-{
-	return m_pEmmProcessor->ProcessEmm(m_Data, m_DataSize);
-}
-
-
 CBcasAccessQueue::CBcasAccessQueue(CBcasCard *pBcasCard)
 	: m_pBcasCard(pBcasCard)
 	, m_hThread(NULL)
@@ -1194,30 +1240,6 @@ bool CBcasAccessQueue::Enqueue(CBcasAccess *pAccess)
 	CBlockLock Lock(&m_Lock);
 
 	m_Queue.push_back(pAccess);
-	m_Event.Set();
-	return true;
-}
-
-bool CBcasAccessQueue::Enqueue(CEcmProcessor *pEcmProcessor, const BYTE *pData, DWORD Size)
-{
-	if (m_hThread == NULL || m_bKillEvent || Size > 256)
-		return false;
-
-	CBlockLock Lock(&m_Lock);
-
-	m_Queue.push_back(new CEcmAccess(pEcmProcessor, pData, Size));
-	m_Event.Set();
-	return true;
-}
-
-bool CBcasAccessQueue::Enqueue(CEmmProcessor *pEmmProcessor, const BYTE *pData, DWORD Size)
-{
-	if (m_hThread == NULL || m_bKillEvent || Size > 256)
-		return false;
-
-	CBlockLock Lock(&m_Lock);
-
-	m_Queue.push_back(new CEmmAccess(pEmmProcessor, pData, Size));
 	m_Event.Set();
 	return true;
 }
@@ -1292,7 +1314,7 @@ DWORD CALLBACK CBcasAccessQueue::BcasAccessThread(LPVOID lpParameter)
 			CBcasAccess *pBcasAccess = pThis->m_Queue.front();
 			pThis->m_Queue.pop_front();
 			pThis->m_Lock.Unlock();
-			pBcasAccess->Process();
+			pBcasAccess->Process(pThis->m_pBcasCard);
 			delete pBcasAccess;
 		}
 	}

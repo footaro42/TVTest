@@ -15,6 +15,7 @@ static char THIS_FILE[]=__FILE__;
 
 #define CARD_NOT_OPEN_ERROR_TEXT	TEXT("カードリーダが開かれていません。")
 #define BAD_ARGUMENT_ERROR_TEXT		TEXT("引数が不正です。")
+#define ECM_REFUSED_ERROR_TEXT		TEXT("ECMが受け付けられません。")
 
 
 
@@ -175,7 +176,7 @@ const bool CBcasCard::InitialSetting(void)
 	// コマンド送信
 	static const BYTE InitSettingCmd[] = {0x90U, 0x30U, 0x00U, 0x00U, 0x00U};
 	::ZeroMemory(RecvData, sizeof(RecvData));
-	dwRecvSize=sizeof(RecvData);
+	dwRecvSize = sizeof(RecvData);
 	if (!m_pCardReader->Transmit(InitSettingCmd, sizeof(InitSettingCmd), RecvData, &dwRecvSize)) {
 		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
 		return false;
@@ -196,7 +197,7 @@ const bool CBcasCard::InitialSetting(void)
 
 	const static BYTE CardIDInfoCmd[] = {0x90, 0x32, 0x00, 0x00, 0x00};
 	::ZeroMemory(RecvData, sizeof(RecvData));
-	dwRecvSize=sizeof(RecvData);
+	dwRecvSize = sizeof(RecvData);
 	if (m_pCardReader->Transmit(CardIDInfoCmd, sizeof(CardIDInfoCmd), RecvData, &dwRecvSize)
 			&& dwRecvSize >= 17) {
 		m_BcasCardInfo.CardManufacturerID = RecvData[7];
@@ -310,8 +311,6 @@ const BYTE * CBcasCard::GetSystemKey(void)
 }
 
 
-#pragma intrinsic(memcpy, memset, memcmp)
-
 const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize)
 {
 	// 「ECM Receive Command」を処理する
@@ -321,7 +320,7 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	}
 
 	// ECMサイズをチェック
-	if (!pEcmData || (dwEcmSize < 30UL) || (dwEcmSize > 256UL)) {
+	if (!pEcmData || (dwEcmSize < 30UL) || (dwEcmSize > MAX_ECM_DATA_SIZE)) {
 		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return NULL;
 	}
@@ -330,17 +329,18 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	if (m_EcmStatus.dwLastEcmSize == dwEcmSize
 			&& ::memcmp(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize) == 0) {
 		// ECMが同一の場合はキャッシュ済みKsを返す
-		ClearError();
-		return m_EcmStatus.KsData;
+		if (m_EcmStatus.bSucceeded) {
+			ClearError();
+			return m_EcmStatus.KsData;
+		} else {
+			SetError(ERR_ECMREFUSED, ECM_REFUSED_ERROR_TEXT);
+			return NULL;
+		}
 	}
-	// ECMデータを保存する
-	m_EcmStatus.dwLastEcmSize = dwEcmSize;
-	::CopyMemory(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize);
 
 	// バッファ準備
 	static const BYTE EcmReceiveCmd[] = {0x90, 0x34, 0x00, 0x00};
-	DWORD dwRecvSize = 0UL;
-	BYTE SendData[272];
+	BYTE SendData[MAX_ECM_DATA_SIZE + 6];
 	BYTE RecvData[1024];
 	::ZeroMemory(RecvData, sizeof(RecvData));
 
@@ -351,7 +351,7 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	SendData[sizeof(EcmReceiveCmd) + dwEcmSize + 1] = 0x00U;					// RESPONSE DATA LENGTH
 
 	// コマンド送信
-	dwRecvSize=sizeof(RecvData);
+	DWORD dwRecvSize = sizeof(RecvData);
 	if (!m_pCardReader->Transmit(SendData, sizeof(EcmReceiveCmd) + dwEcmSize + 2UL, RecvData, &dwRecvSize)){
 		::ZeroMemory(&m_EcmStatus, sizeof(m_EcmStatus));
 		SetError(ERR_TRANSMITERROR, m_pCardReader->GetLastErrorText());
@@ -364,6 +364,10 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 		SetError(ERR_TRANSMITERROR, TEXT("ECMのレスポンスサイズが不正です。"));
 		return NULL;
 	}
+
+	// ECMデータを保存する
+	m_EcmStatus.dwLastEcmSize = dwEcmSize;
+	::CopyMemory(m_EcmStatus.LastEcmData, pEcmData, dwEcmSize);
 
 	// レスポンス解析
 	::CopyMemory(m_EcmStatus.KsData, &RecvData[6], sizeof(m_EcmStatus.KsData));
@@ -378,11 +382,13 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	case 0x4480U :	// Payment-deferred PPV
 	case 0x4280U :	// Prepaid PPV
 		ClearError();
+		m_EcmStatus.bSucceeded = true;
 		return m_EcmStatus.KsData;
 	}
 	// 上記以外(視聴不可)
 
-	SetError(ERR_ECMREFUSED, TEXT("ECMが受け付けられません。"));
+	m_EcmStatus.bSucceeded = false;
+	SetError(ERR_ECMREFUSED, ECM_REFUSED_ERROR_TEXT);
 
 	return NULL;
 }
@@ -395,13 +401,13 @@ const bool CBcasCard::SendEmmSection(const BYTE *pEmmData, const DWORD dwEmmSize
 		return false;
 	}
 
-	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > 262UL) {
+	if (pEmmData == NULL || dwEmmSize < 17UL || dwEmmSize > MAX_EMM_DATA_SIZE) {
 		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return false;
 	}
 
 	static const BYTE EmmReceiveCmd[] = {0x90, 0x36, 0x00, 0x00};
-	BYTE SendData[268], RecvData[1024];
+	BYTE SendData[MAX_EMM_DATA_SIZE + 6], RecvData[1024];
 
 	::CopyMemory(SendData, EmmReceiveCmd, sizeof(EmmReceiveCmd));
 	SendData[sizeof(EmmReceiveCmd)] = (BYTE)dwEmmSize;
