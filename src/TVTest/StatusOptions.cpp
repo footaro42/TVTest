@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "StatusOptions.h"
 #include "Settings.h"
 #include "DialogUtil.h"
@@ -43,6 +44,7 @@ CStatusOptions::CStatusOptions(CStatusView *pStatusView)
 
 CStatusOptions::~CStatusOptions()
 {
+	Destroy();
 }
 
 
@@ -165,6 +167,13 @@ bool CStatusOptions::Save(LPCTSTR pszFileName) const
 }
 
 
+bool CStatusOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_STATUS));
+}
+
+
 void CStatusOptions::SetDefaultItemList()
 {
 	static const struct {
@@ -218,42 +227,33 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 }
 
 
-CStatusOptions *CStatusOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CStatusOptions*>(GetProp(hDlg,TEXT("This")));
-}
-
-
-INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CStatusOptions *pThis=dynamic_cast<CStatusOptions*>(OnInitDialog(hDlg,lParam));
-
-			pThis->m_DropInsertPos=-1;
-			pThis->m_DragTimerID=0;
-			pThis->InitListBox(hDlg);
-			pThis->m_pOldListProc=SubclassWindow(GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST),ItemListProc);
-			pThis->m_ItemHeight=pThis->m_pStatusView->GetItemHeight()+(1+ITEM_MARGIN)*2;
-			DlgListBox_SetItemHeight(hDlg,IDC_STATUSOPTIONS_ITEMLIST,0,pThis->m_ItemHeight);
-			pThis->CalcTextWidth(hDlg);
-			pThis->SetListHExtent(hDlg);
-			pThis->m_CurSettingFont=pThis->m_lfItemFont;
-			SetFontInfo(hDlg,&pThis->m_CurSettingFont);
-			DlgCheckBox_Check(hDlg,IDC_STATUSOPTIONS_MULTIROW,pThis->m_fMultiRow);
-			::SetDlgItemInt(hDlg,IDC_STATUSOPTIONS_MAXROWS,pThis->m_MaxRows,TRUE);
+			m_DropInsertPos=-1;
+			m_DragTimerID=0;
+			InitListBox(hDlg);
+			m_pOldListProc=SubclassWindow(GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST),ItemListProc);
+			m_ItemHeight=m_pStatusView->GetItemHeight()+(1+ITEM_MARGIN)*2;
+			DlgListBox_SetItemHeight(hDlg,IDC_STATUSOPTIONS_ITEMLIST,0,m_ItemHeight);
+			CalcTextWidth(hDlg);
+			SetListHExtent(hDlg);
+			m_CurSettingFont=m_lfItemFont;
+			SetFontInfo(hDlg,&m_CurSettingFont);
+			DlgCheckBox_Check(hDlg,IDC_STATUSOPTIONS_MULTIROW,m_fMultiRow);
+			::SetDlgItemInt(hDlg,IDC_STATUSOPTIONS_MAXROWS,m_MaxRows,TRUE);
 			DlgUpDown_SetRange(hDlg,IDC_STATUSOPTIONS_MAXROWS_UPDOWN,1,UD_MAXVAL);
 			EnableDlgItems(hDlg,
 						   IDC_STATUSOPTIONS_MAXROWS_LABEL,
 						   IDC_STATUSOPTIONS_MAXROWS_UPDOWN,
-						   pThis->m_fMultiRow);
+						   m_fMultiRow);
 		}
 		return TRUE;
 
 	case WM_DRAWITEM:
 		{
-			CStatusOptions *pThis=GetThis(hDlg);
 			LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
 
 			switch (pdis->itemAction) {
@@ -261,7 +261,7 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			case ODA_SELECT:
 				if ((INT)pdis->itemID>=0) {
 					StatusItemInfo *pItemInfo=reinterpret_cast<StatusItemInfo*>(pdis->itemData);
-					CStatusItem *pItem=pThis->m_pStatusView->GetItemByID(pItemInfo->ID);
+					CStatusItem *pItem=m_pStatusView->GetItemByID(pItemInfo->ID);
 					int TextColor,BackColor;
 					int OldBkMode;
 					COLORREF crTextColor,crOldTextColor;
@@ -289,15 +289,15 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						DFCS_BUTTONCHECK | (pItemInfo->fVisible?DFCS_CHECKED:0));
 					rc.left=pdis->rcItem.left+ITEM_MARGIN+CHECK_WIDTH+ITEM_MARGIN;
 					rc.top=pdis->rcItem.top+ITEM_MARGIN;
-					rc.right=rc.left+pThis->m_TextWidth;
+					rc.right=rc.left+m_TextWidth;
 					rc.bottom=pdis->rcItem.bottom-ITEM_MARGIN;
 					::DrawText(pdis->hDC,pItem->GetName(),-1,&rc,
 						DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 					rc.left=rc.right+ITEM_MARGIN+1;
 					rc.right=rc.left+(pItemInfo->Width>=0?
 									pItemInfo->Width:pItem->GetDefaultWidth());
-					rc.top=pdis->rcItem.top+((pdis->rcItem.bottom-pdis->rcItem.top)-pThis->m_pStatusView->GetItemHeight())/2;
-					rc.bottom=rc.top+pThis->m_pStatusView->GetItemHeight();
+					rc.top=pdis->rcItem.top+((pdis->rcItem.bottom-pdis->rcItem.top)-m_pStatusView->GetItemHeight())/2;
+					rc.bottom=rc.top+m_pStatusView->GetItemHeight();
 					HPEN hpen,hpenOld;
 					HBRUSH hbrOld;
 					hpen=::CreatePen(PS_SOLID,1,crTextColor);
@@ -307,15 +307,15 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					SelectBrush(pdis->hDC,hbrOld);
 					SelectPen(pdis->hDC,hpenOld);
 					::DeleteObject(hpen);
-					HFONT hfont=::CreateFontIndirect(&pThis->m_CurSettingFont);
-					pThis->m_pStatusView->DrawItemPreview(pItem,pdis->hDC,&rc,false,hfont);
+					HFONT hfont=::CreateFontIndirect(&m_CurSettingFont);
+					m_pStatusView->DrawItemPreview(pItem,pdis->hDC,&rc,false,hfont);
 					::DeleteObject(hfont);
 					::SetBkMode(pdis->hDC,OldBkMode);
 					::SetTextColor(pdis->hDC,crOldTextColor);
-					if ((int)pdis->itemID==pThis->m_DropInsertPos
-								|| (int)pdis->itemID+1==pThis->m_DropInsertPos)
+					if ((int)pdis->itemID==m_DropInsertPos
+								|| (int)pdis->itemID+1==m_DropInsertPos)
 						::PatBlt(pdis->hDC,pdis->rcItem.left,
-							(int)pdis->itemID==pThis->m_DropInsertPos?
+							(int)pdis->itemID==m_DropInsertPos?
 										pdis->rcItem.top:pdis->rcItem.bottom-1,
 							pdis->rcItem.right-pdis->rcItem.left,1,DSTINVERT);
 					if ((pdis->itemState&ODS_FOCUS)==0)
@@ -331,34 +331,29 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case IDC_STATUSOPTIONS_DEFAULT:
-			{
-				CStatusOptions *pThis=GetThis(hDlg);
-
-				pThis->SetDefaultItemList();
-				DlgListBox_Clear(hDlg,IDC_STATUSOPTIONS_ITEMLIST);
-				pThis->InitListBox(hDlg);
-				pThis->SetListHExtent(hDlg);
-			}
+			SetDefaultItemList();
+			DlgListBox_Clear(hDlg,IDC_STATUSOPTIONS_ITEMLIST);
+			InitListBox(hDlg);
+			SetListHExtent(hDlg);
 			return TRUE;
 
 		case IDC_STATUSOPTIONS_CHOOSEFONT:
 			{
-				CStatusOptions *pThis=GetThis(hDlg);
-				LOGFONT lf=pThis->m_CurSettingFont;
+				LOGFONT lf=m_CurSettingFont;
 
 				if (ChooseFontDialog(hDlg,&lf)
-						&& !CompareLogFont(&pThis->m_CurSettingFont,&lf)) {
+						&& !CompareLogFont(&m_CurSettingFont,&lf)) {
 					DrawUtil::CFont Font(lf);
 					RECT rc;
 
-					pThis->m_CurSettingFont=lf;
+					m_CurSettingFont=lf;
 					SetFontInfo(hDlg,&lf);
-					pThis->m_pStatusView->GetItemMargin(&rc);
+					m_pStatusView->GetItemMargin(&rc);
 					HWND hwndList=::GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST);
 					HDC hdc=::GetDC(hwndList);
-					pThis->m_ItemHeight=(Font.GetHeight(hdc,false)+rc.top+rc.bottom)+(1+ITEM_MARGIN)*2;
+					m_ItemHeight=(Font.GetHeight(hdc,false)+rc.top+rc.bottom)+(1+ITEM_MARGIN)*2;
 					::ReleaseDC(hwndList,hdc);
-					DlgListBox_SetItemHeight(hDlg,IDC_STATUSOPTIONS_ITEMLIST,0,pThis->m_ItemHeight);
+					DlgListBox_SetItemHeight(hDlg,IDC_STATUSOPTIONS_ITEMLIST,0,m_ItemHeight);
 					::InvalidateRect(hwndList,NULL,TRUE);
 				}
 			}
@@ -377,49 +372,42 @@ INT_PTR CALLBACK CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CStatusOptions *pThis=GetThis(hDlg);
-
-				pThis->m_pStatusView->EnableSizeAdjustment(false);
+				m_pStatusView->EnableSizeAdjustment(false);
 
 				for (int i=0;i<NUM_STATUS_ITEMS;i++)
-					pThis->m_ItemList[i]=*reinterpret_cast<StatusItemInfo*>(
+					m_ItemList[i]=*reinterpret_cast<StatusItemInfo*>(
 						DlgListBox_GetItemData(hDlg,IDC_STATUSOPTIONS_ITEMLIST,i));
-				pThis->ApplyItemList();
+				ApplyItemList();
 
-				if (!CompareLogFont(&pThis->m_lfItemFont,&pThis->m_CurSettingFont)) {
-					pThis->m_lfItemFont=pThis->m_CurSettingFont;
-					pThis->m_pStatusView->SetFont(&pThis->m_lfItemFont);
+				if (!CompareLogFont(&m_lfItemFont,&m_CurSettingFont)) {
+					m_lfItemFont=m_CurSettingFont;
+					m_pStatusView->SetFont(&m_lfItemFont);
 				}
 
 				bool fMultiRow=DlgCheckBox_IsChecked(hDlg,IDC_STATUSOPTIONS_MULTIROW);
-				if (pThis->m_fMultiRow!=fMultiRow) {
-					pThis->m_fMultiRow=fMultiRow;
-					pThis->m_pStatusView->SetMultiRow(fMultiRow);
+				if (m_fMultiRow!=fMultiRow) {
+					m_fMultiRow=fMultiRow;
+					m_pStatusView->SetMultiRow(fMultiRow);
 				}
 				int MaxRows=::GetDlgItemInt(hDlg,IDC_STATUSOPTIONS_MAXROWS,NULL,TRUE);
 				if (MaxRows<1)
 					MaxRows=1;
-				if (pThis->m_MaxRows!=MaxRows) {
-					pThis->m_MaxRows=MaxRows;
-					pThis->m_pStatusView->SetMaxRows(MaxRows);
+				if (m_MaxRows!=MaxRows) {
+					m_MaxRows=MaxRows;
+					m_pStatusView->SetMaxRows(MaxRows);
 				}
 
-				pThis->m_pStatusView->EnableSizeAdjustment(true);
+				m_pStatusView->EnableSizeAdjustment(true);
 			}
 			break;
 		}
 		break;
 
 	case WM_DESTROY:
-		{
-			CStatusOptions *pThis=GetThis(hDlg);
-
-			SubclassWindow(GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST),
-													pThis->m_pOldListProc);
-			pThis->OnDestroy();
-		}
+		SubclassWindow(GetDlgItem(hDlg,IDC_STATUSOPTIONS_ITEMLIST),m_pOldListProc);
 		return TRUE;
 	}
+
 	return FALSE;
 }
 
@@ -562,7 +550,7 @@ bool CStatusOptions::IsCursorResize(HWND hwndList,int x,int y)
 
 LRESULT CALLBACK CStatusOptions::ItemListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	CStatusOptions *pThis=GetThis(GetParent(hwnd));
+	CStatusOptions *pThis=static_cast<CStatusOptions*>(GetThis(GetParent(hwnd)));
 
 	switch (uMsg) {
 	case WM_LBUTTONDOWN:

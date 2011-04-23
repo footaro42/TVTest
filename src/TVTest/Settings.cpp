@@ -10,25 +10,6 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-#ifndef StrToInt
-static int StrToInt(LPCTSTR pszValue)
-{
-	int nValue;
-	LPCTSTR p;
-
-	nValue=0;
-	p=pszValue;
-	if (*p=='-' || *p=='+')
-		p++;
-	while (*p>='0' && *p<='9') {
-		nValue=nValue*10+(*p-'0');
-		p++;
-	}
-	return pszValue[0]=='-'?-nValue:nValue;
-}
-#endif
-
-
 static unsigned int StrToUInt(LPCTSTR pszValue)
 {
 	unsigned int uValue;
@@ -36,8 +17,8 @@ static unsigned int StrToUInt(LPCTSTR pszValue)
 
 	uValue=0;
 	p=pszValue;
-	while (*p>='0' && *p<='9') {
-		uValue=uValue*10+(*p-'0');
+	while (*p>=_T('0') && *p<=_T('9')) {
+		uValue=uValue*10+(*p-_T('0'));
 		p++;
 	}
 	return uValue;
@@ -46,19 +27,19 @@ static unsigned int StrToUInt(LPCTSTR pszValue)
 
 static int HexToNum(TCHAR cCode)
 {
-	if (cCode>='0' && cCode<='9')
-		return cCode-'0';
-	if (cCode>='A' && cCode<='F')
-		return cCode-'A'+10;
-	if (cCode>='a' && cCode<='f')
-		return cCode-'a'+10;
+	if (cCode>=_T('0') && cCode<=_T('9'))
+		return cCode-_T('0');
+	if (cCode>=_T('A') && cCode<=_T('F'))
+		return cCode-_T('A')+10;
+	if (cCode>=_T('a') && cCode<=_T('f'))
+		return cCode-_T('a')+10;
 	return 0;
 }
 
 
 CSettings::CSettings()
+	: m_OpenFlags(0)
 {
-	m_OpenFlags=0;
 }
 
 
@@ -71,7 +52,8 @@ CSettings::~CSettings()
 bool CSettings::Open(LPCTSTR pszFileName,LPCTSTR pszSection,unsigned int Flags)
 {
 	if (pszFileName==NULL || ::lstrlen(pszFileName)>=MAX_PATH
-			|| pszSection==NULL || pszSection[0]=='\0')
+			|| pszSection==NULL || pszSection[0]==_T('\0')
+			|| Flags==0)
 		return false;
 	lstrcpy(m_szFileName,pszFileName);
 	lstrcpyn(m_szSection,pszSection,MAX_SECTION);
@@ -90,6 +72,9 @@ void CSettings::Close()
 
 bool CSettings::Clear()
 {
+	if ((m_OpenFlags&OPEN_WRITE)==0)
+		return false;
+
 	return WritePrivateProfileString(m_szSection,NULL,NULL,m_szFileName)!=FALSE;
 }
 
@@ -100,7 +85,7 @@ bool CSettings::Read(LPCTSTR pszValueName,int *pData)
 
 	if (!Read(pszValueName,szValue,16) || szValue[0]=='\0')
 		return false;
-	*pData=StrToInt(szValue);
+	*pData=::StrToInt(szValue);
 	return true;
 }
 
@@ -136,6 +121,9 @@ bool CSettings::Write(LPCTSTR pszValueName,unsigned int Data)
 
 bool CSettings::Read(LPCTSTR pszValueName,LPTSTR pszData,unsigned int Max)
 {
+	if ((m_OpenFlags&OPEN_READ)==0)
+		return false;
+
 	TCHAR cBack[2];
 
 	if (pszData==NULL)
@@ -157,6 +145,9 @@ bool CSettings::Read(LPCTSTR pszValueName,LPTSTR pszData,unsigned int Max)
 
 bool CSettings::Write(LPCTSTR pszValueName,LPCTSTR pszData)
 {
+	if ((m_OpenFlags&OPEN_WRITE)==0)
+		return false;
+
 	if (pszData==NULL)
 		return false;
 	// 文字列が ' か " で囲まれていると読み込み時に除去されてしまうので、
@@ -197,9 +188,9 @@ bool CSettings::Read(LPCTSTR pszValueName,bool *pfData)
 
 	if (!Read(pszValueName,szData,5))
 		return false;
-	if (lstrcmpi(szData,TEXT("yes"))==0)
+	if (lstrcmpi(szData,TEXT("yes"))==0 || lstrcmpi(szData,TEXT("true"))==0)
 		*pfData=true;
-	else if (lstrcmpi(szData,TEXT("no"))==0)
+	else if (lstrcmpi(szData,TEXT("no"))==0 || lstrcmpi(szData,TEXT("false"))==0)
 		*pfData=false;
 	else
 		return false;
@@ -209,7 +200,8 @@ bool CSettings::Read(LPCTSTR pszValueName,bool *pfData)
 
 bool CSettings::Write(LPCTSTR pszValueName,bool fData)
 {
-	// よく考えたら否定文もあるので yes/no は変だが、今更変えられない…
+	// よく考えたら否定文もあるので yes/no は変だが…
+	// (その昔、iniファイルを直接編集して設定するようにしていた頃の名残)
 	return Write(pszValueName,fData?TEXT("yes"):TEXT("no"));
 }
 
@@ -232,7 +224,7 @@ bool CSettings::WriteColor(LPCTSTR pszValueName,COLORREF crData)
 	TCHAR szText[8];
 
 	wsprintf(szText,TEXT("#%02x%02x%02x"),
-						GetRValue(crData),GetGValue(crData),GetBValue(crData));
+			 GetRValue(crData),GetGValue(crData),GetBValue(crData));
 	return Write(pszValueName,szText);
 }
 
@@ -275,10 +267,10 @@ bool CSettings::Read(LPCTSTR pszValueName,LOGFONT *pFont)
 				pFont->lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
 				break;
 			case 1:
-				pFont->lfHeight=StrToInt(q);
+				pFont->lfHeight=::StrToInt(q);
 				break;
 			case 2:
-				pFont->lfWeight=StrToInt(q);
+				pFont->lfWeight=::StrToInt(q);
 				break;
 			case 3:
 				{

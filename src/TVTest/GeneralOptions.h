@@ -25,6 +25,8 @@ public:
 	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CGeneralOptions
 	DefaultDriverType GetDefaultDriverType() const;
 	LPCTSTR GetDefaultDriverName() const;
@@ -42,9 +44,11 @@ public:
 	bool GetDescrambleUseSSE2() const { return m_fDescrambleUseSSE2; }
 	bool GetDescrambleCurServiceOnly() const;
 	bool GetEnableEmmProcess() const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 private:
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	TCHAR m_szDriverDirectory[MAX_PATH];
 	DefaultDriverType m_DefaultDriverType;
 	TCHAR m_szDefaultDriverName[MAX_PATH];

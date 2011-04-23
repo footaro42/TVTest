@@ -377,6 +377,21 @@ class CColorSchemeOptions : public COptions
 public:
 	typedef bool (*ApplyFunc)(const CColorScheme *pColorScheme);
 
+	CColorSchemeOptions();
+	~CColorSchemeOptions();
+// COptions
+	bool Load(LPCTSTR pszFileName);
+	bool Save(LPCTSTR pszFileName) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
+// CColorSchemeOptions
+	bool SetApplyCallback(ApplyFunc pCallback);
+	bool ApplyColorScheme() const;
+	const CColorScheme *GetColorScheme() const { return m_pColorScheme; }
+	COLORREF GetColor(int Type) const;
+	COLORREF GetColor(LPCTSTR pszText) const;
+	static bool GetThemesDirectory(LPTSTR pszDirectory,int MaxLength,bool fCreate=false);
+
 private:
 	CColorScheme *m_pColorScheme;
 	CColorSchemeList m_PresetList;
@@ -387,25 +402,12 @@ private:
 	ApplyFunc m_pApplyFunc;
 	CColorPalette m_ColorPalette;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	bool Apply(const CColorScheme *pColorScheme) const;
 	void GetCurrentSettings(CColorScheme *pColorScheme);
 	static const LPCTSTR m_pszExtension;
-	static CColorSchemeOptions *GetThis(HWND hDlg);
-
-public:
-	CColorSchemeOptions();
-	~CColorSchemeOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
-// CColorSchemeOptions
-	bool SetApplyCallback(ApplyFunc pCallback);
-	bool ApplyColorScheme() const;
-	const CColorScheme *GetColorScheme() const { return m_pColorScheme; }
-	COLORREF GetColor(int Type) const;
-	COLORREF GetColor(LPCTSTR pszText) const;
-	static bool GetThemesDirectory(LPTSTR pszDirectory,int MaxLength,bool fCreate=false);
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

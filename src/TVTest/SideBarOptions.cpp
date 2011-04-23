@@ -12,7 +12,7 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define CUSTOMZOOM_ICON_INDEX 45
+#define CUSTOMZOOM_ICON_INDEX 46
 
 
 static const CSideBar::SideBarItem ItemList[] = {
@@ -53,19 +53,20 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_VIDEODECODERPROPERTY,	29},
 	{CM_OPTIONS,				30},
 	{CM_STREAMINFO,				31},
-	{CM_CHANNELDISPLAYMENU,		32},
-	{CM_CHANNELNO_1,			33},
-	{CM_CHANNELNO_2,			34},
-	{CM_CHANNELNO_3,			35},
-	{CM_CHANNELNO_4,			36},
-	{CM_CHANNELNO_5,			37},
-	{CM_CHANNELNO_6,			38},
-	{CM_CHANNELNO_7,			39},
-	{CM_CHANNELNO_8,			40},
-	{CM_CHANNELNO_9,			41},
-	{CM_CHANNELNO_10,			42},
-	{CM_CHANNELNO_11,			43},
-	{CM_CHANNELNO_12,			44},
+	{CM_SPDIF_TOGGLE,			32},
+	{CM_CHANNELDISPLAYMENU,		33},
+	{CM_CHANNELNO_1,			34},
+	{CM_CHANNELNO_2,			35},
+	{CM_CHANNELNO_3,			36},
+	{CM_CHANNELNO_4,			37},
+	{CM_CHANNELNO_5,			38},
+	{CM_CHANNELNO_6,			39},
+	{CM_CHANNELNO_7,			40},
+	{CM_CHANNELNO_8,			41},
+	{CM_CHANNELNO_9,			42},
+	{CM_CHANNELNO_10,			43},
+	{CM_CHANNELNO_11,			44},
+	{CM_CHANNELNO_12,			45},
 };
 
 static const int DefaultItemList[] = {
@@ -108,6 +109,7 @@ CSideBarOptions::CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOpt
 
 CSideBarOptions::~CSideBarOptions()
 {
+	Destroy();
 }
 
 
@@ -180,6 +182,13 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 	}
 	Settings.Close();
 	return true;
+}
+
+
+bool CSideBarOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_SIDEBAR));
 }
 
 
@@ -288,30 +297,22 @@ bool CSideBarOptions::SetPlace(PlaceType Place)
 }
 
 
-CSideBarOptions *CSideBarOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CSideBarOptions*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CSideBarOptions *pThis=static_cast<CSideBarOptions*>(OnInitDialog(hDlg,lParam));
+			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOW,m_fShowPopup);
+			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS,m_fShowToolTips);
 
-			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOW,pThis->m_fShowPopup);
-			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS,pThis->m_fShowToolTips);
-
-			HBITMAP hbmIcons=pThis->CreateImage();
-			pThis->m_himlIcons=::ImageList_Create(16,16,ILC_COLOR | ILC_MASK,0,1);
-			::ImageList_AddMasked(pThis->m_himlIcons,hbmIcons,RGB(255,255,255));
+			HBITMAP hbmIcons=CreateImage();
+			m_himlIcons=::ImageList_Create(16,16,ILC_COLOR | ILC_MASK,0,1);
+			::ImageList_AddMasked(m_himlIcons,hbmIcons,RGB(255,255,255));
 			::DeleteObject(hbmIcons);
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST);
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
-			ListView_SetImageList(hwndList,pThis->m_himlIcons,LVSIL_SMALL);
+			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
+			ListView_SetImageList(hwndList,m_himlIcons,LVSIL_SMALL);
 			RECT rc;
 			::GetClientRect(hwndList,&rc);
 			rc.right-=::GetSystemMetrics(SM_CXVSCROLL);
@@ -321,10 +322,10 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			lvc.cx=rc.right;
 			lvc.iSubItem=0;
 			ListView_InsertColumn(hwndList,0,&lvc);
-			pThis->SetItemList(hwndList,&pThis->m_ItemList[0],(int)pThis->m_ItemList.size());
+			SetItemList(hwndList,&m_ItemList[0],(int)m_ItemList.size());
 			hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_COMMANDLIST);
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
-			ListView_SetImageList(hwndList,pThis->m_himlIcons,LVSIL_SMALL);
+			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
+			ListView_SetImageList(hwndList,m_himlIcons,LVSIL_SMALL);
 			::GetClientRect(hwndList,&rc);
 			rc.right-=::GetSystemMetrics(SM_CXVSCROLL);
 			lvc.cx=rc.right;
@@ -332,7 +333,7 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			int List[lengthof(ItemList)];
 			for (int i=0;i<lengthof(ItemList);i++)
 				List[i]=ItemList[i].Command;
-			pThis->SetItemList(hwndList,List,lengthof(List));
+			SetItemList(hwndList,List,lengthof(List));
 		}
 		return TRUE;
 
@@ -377,12 +378,8 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			return TRUE;
 
 		case IDC_SIDEBAR_DEFAULT:
-			{
-				CSideBarOptions *pThis=GetThis(hDlg);
-
-				pThis->SetItemList(::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST),
-								   DefaultItemList,lengthof(DefaultItemList));
-			}
+			SetItemList(::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST),
+							   DefaultItemList,lengthof(DefaultItemList));
 			return TRUE;
 
 		case IDC_SIDEBAR_ADD:
@@ -472,11 +469,9 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 
 		case PSN_APPLY:
 			{
-				CSideBarOptions *pThis=GetThis(hDlg);
-
-				pThis->m_fShowPopup=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOW);
-				pThis->m_fShowToolTips=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS);
-				pThis->m_pSideBar->ShowToolTips(pThis->m_fShowToolTips);
+				m_fShowPopup=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOW);
+				m_fShowToolTips=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS);
+				m_pSideBar->ShowToolTips(m_fShowToolTips);
 
 				HWND hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST);
 				std::vector<int> ItemList;
@@ -491,9 +486,9 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 					ListView_GetItem(hwndList,&lvi);
 					ItemList.push_back((int)lvi.lParam);
 				}
-				if (ItemList!=pThis->m_ItemList) {
-					pThis->m_ItemList=ItemList;
-					pThis->ApplyItemList();
+				if (ItemList!=m_ItemList) {
+					m_ItemList=ItemList;
+					ApplyItemList();
 				}
 			}
 			break;
@@ -501,17 +496,13 @@ INT_PTR CALLBACK CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 		break;
 
 	case WM_DESTROY:
-		{
-			CSideBarOptions *pThis=GetThis(hDlg);
-
-			if (pThis->m_himlIcons!=NULL) {
-				::ImageList_Destroy(pThis->m_himlIcons);
-				pThis->m_himlIcons=NULL;
-			}
-			pThis->OnDestroy();
+		if (m_himlIcons!=NULL) {
+			::ImageList_Destroy(m_himlIcons);
+			m_himlIcons=NULL;
 		}
 		return TRUE;
 	}
+
 	return FALSE;
 }
 

@@ -24,6 +24,8 @@ class CUICore
 	*/
 
 public:
+	typedef CUISkin::PanAndScanInfo PanAndScanInfo;
+
 	CUICore();
 	virtual ~CUICore();
 	bool SetSkin(CUISkin *pSkin);
@@ -39,6 +41,8 @@ public:
 	bool SetZoomRate(int Rate,int Factor=100);
 	bool GetZoomRate(int *pRate,int *pFactor) const;
 	int GetZoomPercentage() const;
+	bool GetPanAndScan(PanAndScanInfo *pInfo) const;
+	bool SetPanAndScan(const PanAndScanInfo &Info);
 
 	int GetVolume() const;
 	bool SetVolume(int Volume,bool fOSD=true);

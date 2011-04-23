@@ -3,6 +3,7 @@
 
 
 #include "Options.h"
+#include "BonTsEngine/MediaViewer.h"
 
 
 class CPlaybackOptions : public COptions
@@ -27,6 +28,7 @@ class CPlaybackOptions : public COptions
 	TCHAR m_szAudioDeviceName[MAX_AUDIO_DEVICE_NAME];
 	TCHAR m_szAudioFilterName[MAX_AUDIO_FILTER_NAME];
 
+	CAacDecFilter::SpdifOptions m_SpdifOptions;
 	bool m_fDownMixSurround;
 	bool m_fRestoreMute;
 	bool m_fRestorePlayStatus;
@@ -45,7 +47,8 @@ class CPlaybackOptions : public COptions
 	bool m_fAdjustFrameRate;
 #endif
 
-	static CPlaybackOptions *GetThis(HWND hDlg);
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 public:
 	CPlaybackOptions();
@@ -54,9 +57,13 @@ public:
 	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CPlaybackOptions
 	LPCTSTR GetAudioDeviceName() const { return m_szAudioDeviceName; }
 	LPCTSTR GetAudioFilterName() const { return m_szAudioFilterName; }
+	const CAacDecFilter::SpdifOptions &GetSpdifOptions() const { return m_SpdifOptions; }
+	bool SetSpdifOptions(const CAacDecFilter::SpdifOptions &Options);
 	bool GetDownMixSurround() const { return m_fDownMixSurround; }
 	bool GetRestoreMute() const { return m_fRestoreMute; }
 	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
@@ -64,11 +71,10 @@ public:
 	bool GetAdjustAudioStreamTime() const { return m_fAdjustAudioStreamTime; }
 	bool GetMinTimerResolution() const { return m_fMinTimerResolution; }
 	bool GetPacketBuffering() const { return m_fPacketBuffering; }
-	bool SetPacketBuffering(bool fBuffering);
+	void SetPacketBuffering(bool fBuffering);
 	DWORD GetPacketBufferLength() const { return m_PacketBufferLength; }
 	int GetPacketBufferPoolPercentage() const { return m_PacketBufferPoolPercentage; }
 	int GetStreamThreadPriority() const { return m_StreamThreadPriority; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

@@ -23,6 +23,21 @@ protected:
 		TIMER_ID_USER=256
 	};
 
+	struct PanAndScanInfo {
+		int XPos,YPos;
+		int Width,Height;
+		int XFactor,YFactor;
+		int XAspect,YAspect;
+
+		bool operator==(const PanAndScanInfo &Op) const {
+			return XPos==Op.XPos && YPos==Op.YPos
+				&& Width==Op.Width && Height==Op.Height
+				&& XFactor==Op.XFactor && YFactor==Op.YFactor
+				&& XAspect==Op.XAspect && YAspect==Op.YAspect;
+		}
+		bool operator!=(const PanAndScanInfo &Op) const { return !(*this==Op); }
+	};
+
 	CUICore *m_pCore;
 	bool m_fWheelChannelChanging;
 
@@ -32,6 +47,8 @@ protected:
 	virtual bool IsViewerEnabled() const=0;
 	virtual bool SetZoomRate(int Rate,int Factor)=0;
 	virtual bool GetZoomRate(int *pRate,int *pFactor)=0;
+	virtual bool SetPanAndScan(const PanAndScanInfo &Info)=0;
+	virtual bool GetPanAndScan(PanAndScanInfo *pInfo) const=0;
 	virtual void OnVolumeChanged(bool fOSD) {}
 	virtual void OnMuteChanged() {}
 	virtual void OnStereoModeChanged() {}

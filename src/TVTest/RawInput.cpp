@@ -2,6 +2,12 @@
 #include "TVTest.h"
 #include "RawInput.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 enum {
 	RAWINPUT_DETAILS		= 0x0209,
@@ -147,7 +153,7 @@ LPCTSTR CRawInput::GetKeyText(int Key) const
 int CRawInput::GetKeyData(int Key) const
 {
 	if (Key<0 || Key>=lengthof(KeyList))
-		return NULL;
+		return 0;
 	return KeyList[Key].RawData;
 }
 

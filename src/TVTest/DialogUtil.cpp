@@ -31,12 +31,6 @@ void EnableDlgItems(HWND hDlg,int FirstID,int LastID,bool fEnable)
 }
 
 
-void ShowDlgItem(HWND hDlg,int ID,bool fShow)
-{
-	ShowWindow(GetDlgItem(hDlg,ID),fShow?SW_SHOW:SW_HIDE);
-}
-
-
 void InvalidateDlgItem(HWND hDlg,int ID,bool fErase)
 {
 	InvalidateDlgItem(hDlg,ID,NULL,fErase);
@@ -48,6 +42,23 @@ void InvalidateDlgItem(HWND hDlg,int ID,const RECT *pRect,bool fErase)
 	HWND hwnd=GetDlgItem(hDlg,ID);
 	if (hwnd!=NULL)
 		InvalidateRect(hwnd,pRect,fErase);
+}
+
+
+void ShowDlgItem(HWND hDlg,int ID,bool fShow)
+{
+	ShowWindow(GetDlgItem(hDlg,ID),fShow?SW_SHOW:SW_HIDE);
+}
+
+
+bool GetDlgItemRect(HWND hDlg,int ID,RECT *pRect)
+{
+	HWND hwnd=::GetDlgItem(hDlg,ID);
+	if (hwnd==NULL)
+		return false;
+	GetWindowRect(hwnd,pRect);
+	MapWindowRect(NULL,::GetParent(hwnd),pRect);
+	return true;
 }
 
 

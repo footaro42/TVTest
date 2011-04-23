@@ -714,11 +714,10 @@ INT_PTR CALLBACK CRecordManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 #endif
 			}
 
-			::DlgCheckBox_Check(hDlg,IDC_RECORD_CURSERVICEONLY,
-								pThis->m_fCurServiceOnly);
-			::DlgCheckBox_Check(hDlg,IDC_RECORD_SAVESUBTITLE,
+			DlgCheckBox_Check(hDlg,IDC_RECORD_CURSERVICEONLY,pThis->m_fCurServiceOnly);
+			DlgCheckBox_Check(hDlg,IDC_RECORD_SAVESUBTITLE,
 				(pThis->m_SaveStream&CTsSelector::STREAM_CAPTION)!=0);
-			::DlgCheckBox_Check(hDlg,IDC_RECORD_SAVEDATACARROUSEL,
+			DlgCheckBox_Check(hDlg,IDC_RECORD_SAVEDATACARROUSEL,
 				(pThis->m_SaveStream&CTsSelector::STREAM_DATACARROUSEL)!=0);
 			if (pThis->m_fRecording) {
 				EnableDlgItems(hDlg,IDC_RECORD_CURSERVICEONLY,IDC_RECORD_SAVEDATACARROUSEL,false);
@@ -1207,6 +1206,9 @@ int CRecordManager::FormatFileName(LPTSTR pszFileName,int MaxFileName,const Even
 				} else if (::lstrcmpi(szKeyword,TEXT("channel-no2"))==0) {
 					if (pEventInfo->ChannelNo!=0)
 						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),pEventInfo->ChannelNo);
+				} else if (::lstrcmpi(szKeyword,TEXT("channel-no3"))==0) {
+					if (pEventInfo->ChannelNo!=0)
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%03d"),pEventInfo->ChannelNo);
 				} else if (::lstrcmpi(szKeyword,TEXT("event-name"))==0) {
 					if (pEventInfo->pszEventName!=NULL)
 						i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszEventName);
@@ -1392,6 +1394,7 @@ bool CRecordManager::InsertFileNameParameter(HWND hDlg,int ID,const POINT *pMenu
 		{TEXT("%channel-name%"),	TEXT("チャンネル名")},
 		{TEXT("%channel-no%"),		TEXT("チャンネル番号")},
 		{TEXT("%channel-no2%"),		TEXT("チャンネル番号(2桁)")},
+		{TEXT("%channel-no3%"),		TEXT("チャンネル番号(3桁)")},
 		{TEXT("%event-name%"),		TEXT("イベント名")},
 		{TEXT("%event-id%"),		TEXT("イベントID")},
 		{TEXT("%service-name%"),	TEXT("サービス名")},

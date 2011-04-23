@@ -258,6 +258,7 @@ CAccelerator::CAccelerator()
 
 CAccelerator::~CAccelerator()
 {
+	Destroy();
 	Finalize();
 }
 
@@ -572,6 +573,13 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 }
 
 
+bool CAccelerator::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_ACCELERATOR));
+}
+
+
 bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
 				LPCTSTR pszSettingFileName,const CCommandList *pCommandList)
 {
@@ -765,22 +773,16 @@ void CAccelerator::SetDlgItemStatus(HWND hDlg)
 }
 
 
-CAccelerator *CAccelerator::GetThis(HWND hDlg)
-{
-	return static_cast<CAccelerator*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CAccelerator *pThis=static_cast<CAccelerator*>(OnInitDialog(hDlg,lParam));
 			HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 			LV_COLUMN lvc;
 
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+			ListView_SetExtendedListViewStyle(hwndList,
+				LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_LABELTIP);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=120;
@@ -790,24 +792,24 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			ListView_InsertColumn(hwndList,1,&lvc);
 			lvc.pszText=TEXT("マルチメディアキー");
 			ListView_InsertColumn(hwndList,2,&lvc);
-			for (int i=0;i<pThis->m_pCommandList->NumCommands();i++) {
-				int Command=pThis->m_pCommandList->GetCommandID(i);
+			for (int i=0;i<m_pCommandList->NumCommands();i++) {
+				int Command=m_pCommandList->GetCommandID(i);
 				const KeyInfo *pKey=NULL;
 				int AppCommand=0;
 				LV_ITEM lvi;
 				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
 
-				for (size_t j=0;j<pThis->m_KeyList.size();j++) {
-					if (pThis->m_KeyList[j].Command==Command) {
-						pKey=&pThis->m_KeyList[j];
+				for (size_t j=0;j<m_KeyList.size();j++) {
+					if (m_KeyList[j].Command==Command) {
+						pKey=&m_KeyList[j];
 						break;
 					}
 				}
-				for (size_t j=0;j<pThis->m_AppCommandList.size();j++) {
-					if (pThis->m_AppCommandList[j].Command==Command) {
-						for (size_t k=0;k<pThis->m_MediaKeyList.size();k++) {
-							if (pThis->m_MediaKeyList[k].Type==pThis->m_AppCommandList[j].Type
-									&& pThis->m_MediaKeyList[k].Command==pThis->m_AppCommandList[j].AppCommand) {
+				for (size_t j=0;j<m_AppCommandList.size();j++) {
+					if (m_AppCommandList[j].Command==Command) {
+						for (size_t k=0;k<m_MediaKeyList.size();k++) {
+							if (m_MediaKeyList[k].Type==m_AppCommandList[j].Type
+									&& m_MediaKeyList[k].Command==m_AppCommandList[j].AppCommand) {
 								AppCommand=(int)(k+1);
 								break;
 							}
@@ -815,7 +817,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 						break;
 					}
 				}
-				pThis->m_pCommandList->GetCommandName(i,szText,lengthof(szText));
+				m_pCommandList->GetCommandName(i,szText,lengthof(szText));
 				lvi.mask=LVIF_TEXT | LVIF_PARAM;
 				lvi.iItem=i;
 				lvi.iSubItem=0;
@@ -834,7 +836,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				if (AppCommand!=0) {
 					lvi.mask=LVIF_TEXT;
 					lvi.iSubItem=2;
-					::lstrcpy(szText,pThis->m_MediaKeyList[AppCommand-1].pszText);
+					::lstrcpy(szText,m_MediaKeyList[AppCommand-1].pszText);
 					ListView_SetItem(hwndList,&lvi);
 				}
 			}
@@ -844,16 +846,16 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			for (int i=0;i<lengthof(AccelKeyList);i++)
 				DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_KEY,AccelKeyList[i].pszText);
 			DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_APPCOMMAND,TEXT("なし"));
-			for (size_t i=0;i<pThis->m_MediaKeyList.size();i++)
-				DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_APPCOMMAND,pThis->m_MediaKeyList[i].pszText);
+			for (size_t i=0;i<m_MediaKeyList.size();i++)
+				DlgComboBox_AddString(hDlg,IDC_ACCELERATOR_APPCOMMAND,m_MediaKeyList[i].pszText);
 			SetDlgItemStatus(hDlg);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_FUNCTION,
-							  pThis->m_fFunctionKeyChangeChannel);
+							  m_fFunctionKeyChangeChannel);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_DIGIT,
-							  pThis->m_fDigitKeyChangeChannel);
+							  m_fDigitKeyChangeChannel);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CHANGECH_NUMPAD,
-							  pThis->m_fNumPadChangeChannel);
+							  m_fNumPadChangeChannel);
 		}
 		return TRUE;
 
@@ -867,7 +869,6 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 		case IDC_ACCELERATOR_ALT:
 		case IDC_ACCELERATOR_GLOBAL:
 			{
-				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
 				int Key;
@@ -894,12 +895,12 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					if (i>=0 && i!=lvi.iItem) {
 						TCHAR szCommand[CCommandList::MAX_COMMAND_NAME],szText[CCommandList::MAX_COMMAND_NAME+128];
 
-						pThis->m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
+						m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
 						::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\n割り当て直しますか?"),szCommand);
 						if (::MessageBox(hDlg,szText,TEXT("確認"),
 										 MB_YESNO | MB_ICONQUESTION)!=IDYES)
 							return TRUE;
-						pThis->SetAccelItem(hwndList,i,0,0,false,
+						SetAccelItem(hwndList,i,0,0,false,
 									 GET_ACCEL_APPCOMMAND(ListView_GetItemParam(hwndList,i)));
 					}
 					lvi.lParam=MAKE_ACCEL_PARAM(AccelKeyList[Key-1].KeyCode,Mod,
@@ -924,7 +925,6 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 		case IDC_ACCELERATOR_APPCOMMAND:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
 				int AppCommand;
@@ -943,13 +943,13 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					if (i>=0 && i!=lvi.iItem) {
 						TCHAR szCommand[CCommandList::MAX_COMMAND_NAME],szText[CCommandList::MAX_COMMAND_NAME+128];
 
-						pThis->m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
+						m_pCommandList->GetCommandName(i,szCommand,lengthof(szCommand));
 						::wsprintf(szText,TEXT("既に [%s] に割り当てられています。\n割り当て直しますか?"),szCommand);
 						if (::MessageBox(hDlg,szText,TEXT("確認"),
 										 MB_YESNO | MB_ICONQUESTION)!=IDYES)
 							return TRUE;
 						LPARAM Param=ListView_GetItemParam(hwndList,i);
-						pThis->SetAccelItem(hwndList,i,GET_ACCEL_MOD(Param),
+						SetAccelItem(hwndList,i,GET_ACCEL_MOD(Param),
 									 GET_ACCEL_KEY(Param),GET_ACCEL_GLOBAL(Param),0);
 					}
 				}
@@ -960,7 +960,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				lvi.mask=LVIF_TEXT;
 				lvi.iSubItem=2;
 				if (AppCommand>0) {
-					::lstrcpy(szText,pThis->m_MediaKeyList[AppCommand-1].pszText);
+					::lstrcpy(szText,m_MediaKeyList[AppCommand-1].pszText);
 					lvi.pszText=szText;
 				} else {
 					lvi.pszText=TEXT("");
@@ -971,16 +971,15 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 
 		case IDC_ACCELERATOR_DEFAULT:
 			{
-				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
 				int NumCommands,i,j;
 
-				NumCommands=pThis->m_pCommandList->NumCommands();
+				NumCommands=m_pCommandList->NumCommands();
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				for (i=0;i<NumCommands;i++) {
-					int Command=pThis->m_pCommandList->GetCommandID(i);
+					int Command=m_pCommandList->GetCommandID(i);
 					WORD Key=0;
 					BYTE Mod=0;
 					int AppCommand=0;
@@ -996,9 +995,9 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					}
 					for (j=0;j<lengthof(m_DefaultAppCommandList);j++) {
 						if (m_DefaultAppCommandList[j].Command==Command) {
-							for (size_t k=0;k<pThis->m_MediaKeyList.size();k++) {
-								if (pThis->m_MediaKeyList[k].Type==MEDIAKEY_APPCOMMAND
-										&& pThis->m_MediaKeyList[k].Command==m_DefaultAppCommandList[j].AppCommand) {
+							for (size_t k=0;k<m_MediaKeyList.size();k++) {
+								if (m_MediaKeyList[k].Type==MEDIAKEY_APPCOMMAND
+										&& m_MediaKeyList[k].Command==m_DefaultAppCommandList[j].AppCommand) {
 									AppCommand=(int)(k+1);
 									break;
 								}
@@ -1009,7 +1008,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					if (GET_ACCEL_KEY(lvi.lParam)!=Key
 							|| GET_ACCEL_MOD(lvi.lParam)!=Mod
 							|| GET_ACCEL_APPCOMMAND(lvi.lParam)!=AppCommand)
-						pThis->SetAccelItem(hwndList,i,Mod,Key,false,AppCommand);
+						SetAccelItem(hwndList,i,Mod,Key,false,AppCommand);
 				}
 				SetDlgItemStatus(hDlg);
 			}
@@ -1047,8 +1046,7 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 			if (Sel>=0) {
-				CAccelerator *pThis=GetThis(hDlg);
-				int Index=pThis->m_RawInput.KeyDataToIndex((int)wParam);
+				int Index=m_RawInput.KeyDataToIndex((int)wParam);
 
 				if (Index>=0) {
 					Index+=1+lengthof(AppCommandList);
@@ -1107,22 +1105,21 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 					if (Sel>=0)
-						GetThis(hDlg)->SetAccelItem(hwndList,Sel,0,0,false,0);
+						SetAccelItem(hwndList,Sel,0,0,false,0);
 				}
 			}
 			break;
 
 		case PSN_APPLY:
 			{
-				CAccelerator *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ACCELERATOR_LIST);
 				LV_ITEM lvi;
 				int Count,i;
 
-				pThis->UnregisterHotKey();
-				pThis->m_KeyList.clear();
-				pThis->m_AppCommandList.clear();
-				Count=pThis->m_pCommandList->NumCommands();
+				UnregisterHotKey();
+				m_KeyList.clear();
+				m_AppCommandList.clear();
+				Count=m_pCommandList->NumCommands();
 				lvi.mask=LVIF_PARAM;
 				lvi.iSubItem=0;
 				for (i=0;i<Count;i++) {
@@ -1131,40 +1128,41 @@ INT_PTR CALLBACK CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					if (GET_ACCEL_KEY(lvi.lParam)!=0) {
 						KeyInfo Info;
 
-						Info.Command=pThis->m_pCommandList->GetCommandID(i);
+						Info.Command=m_pCommandList->GetCommandID(i);
 						Info.KeyCode=GET_ACCEL_KEY(lvi.lParam);
 						Info.Modifiers=GET_ACCEL_MOD(lvi.lParam);
 						Info.fGlobal=GET_ACCEL_GLOBAL(lvi.lParam);
-						pThis->m_KeyList.push_back(Info);
+						m_KeyList.push_back(Info);
 					}
 					int AppCommand=GET_ACCEL_APPCOMMAND(lvi.lParam);
 					if (AppCommand!=0) {
 						AppCommandInfo Info;
 
-						Info.Command=pThis->m_pCommandList->GetCommandID(i);
-						Info.Type=pThis->m_MediaKeyList[AppCommand-1].Type;
-						Info.AppCommand=pThis->m_MediaKeyList[AppCommand-1].Command;
-						pThis->m_AppCommandList.push_back(Info);
+						Info.Command=m_pCommandList->GetCommandID(i);
+						Info.Type=m_MediaKeyList[AppCommand-1].Type;
+						Info.AppCommand=m_MediaKeyList[AppCommand-1].Command;
+						m_AppCommandList.push_back(Info);
 					}
 				}
-				HACCEL hAccel=pThis->CreateAccel();
-				if (pThis->m_hAccel!=NULL)
-					::DestroyAcceleratorTable(pThis->m_hAccel);
-				pThis->m_hAccel=hAccel;
-				pThis->m_pMainMenu->SetAccelerator(pThis);
-				pThis->RegisterHotKey();
+				HACCEL hAccel=CreateAccel();
+				if (m_hAccel!=NULL)
+					::DestroyAcceleratorTable(m_hAccel);
+				m_hAccel=hAccel;
+				m_pMainMenu->SetAccelerator(this);
+				RegisterHotKey();
 
-				pThis->m_fFunctionKeyChangeChannel=
+				m_fFunctionKeyChangeChannel=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_FUNCTION);
-				pThis->m_fDigitKeyChangeChannel=
+				m_fDigitKeyChangeChannel=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_DIGIT);
-				pThis->m_fNumPadChangeChannel=
+				m_fNumPadChangeChannel=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_NUMPAD);
 			}
 			break;
 		}
 		break;
 	}
+
 	return FALSE;
 }
 

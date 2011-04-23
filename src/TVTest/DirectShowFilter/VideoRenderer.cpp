@@ -134,7 +134,7 @@ bool CVideoRenderer_Default::Finalize()
 	CHECK_RELEASE(m_pBasicVideo);
 	if (m_pVideoWindow) {
 		m_pVideoWindow->put_Visible(OAFALSE);
-		m_pVideoWindow->put_Owner(NULL);
+		m_pVideoWindow->put_Owner((OAHWND)NULL);
 		CHECK_RELEASE(m_pVideoWindow);
 	}
 	return true;

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "OperationOptions.h"
 #include "DialogUtil.h"
 #include "resource.h"
@@ -14,25 +15,28 @@ static char THIS_FILE[]=__FILE__;
 
 
 COperationOptions::COperationOptions()
+	: m_pCommandList(NULL)
+	, m_fDisplayDragMove(true)
+	, m_VolumeStep(5)
+	, m_WheelMode(WHEEL_MODE_VOLUME)
+	, m_WheelShiftMode(WHEEL_MODE_CHANNEL)
+	, m_WheelCtrlMode(WHEEL_MODE_AUDIO)
+	, m_WheelTiltMode(WHEEL_MODE_NONE)
+	, m_fStatusBarWheel(true)
+	, m_fWheelVolumeReverse(false)
+	, m_fWheelChannelReverse(false)
+	, m_WheelChannelDelay(1000)
+	, m_WheelZoomStep(5)
+	, m_LeftDoubleClickCommand(CM_FULLSCREEN)
+	, m_RightClickCommand(CM_MENU)
+	, m_MiddleClickCommand(0)
 {
-	m_pCommandList=NULL;
-	m_WheelMode=WHEEL_VOLUME;
-	m_WheelShiftMode=WHEEL_CHANNEL;
-	m_WheelCtrlMode=WHEEL_AUDIO;
-	m_WheelTiltMode=WHEEL_NONE;
-	m_fWheelChannelReverse=false;
-	m_WheelChannelDelay=1000;
-	m_VolumeStep=5;
-	m_WheelZoomStep=5;
-	m_fDisplayDragMove=true;
-	m_LeftDoubleClickCommand=CM_FULLSCREEN;
-	m_RightClickCommand=CM_MENU;
-	m_MiddleClickCommand=0;
 }
 
 
 COperationOptions::~COperationOptions()
 {
+	Destroy();
 }
 
 
@@ -40,27 +44,32 @@ bool COperationOptions::Read(CSettings *pSettings)
 {
 	int Value;
 
+	pSettings->Read(TEXT("DisplayDragMove"),&m_fDisplayDragMove);
+	pSettings->Read(TEXT("VolumeStep"),&m_VolumeStep);
+
 	if (pSettings->Read(TEXT("WheelMode"),&Value)
-			&& Value>=WHEEL_FIRST && Value<=WHEEL_LAST)
+			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelMode=(WheelMode)Value;
 	if (pSettings->Read(TEXT("WheelShiftMode"),&Value)
-			&& Value>=WHEEL_FIRST && Value<=WHEEL_LAST)
+			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelShiftMode=(WheelMode)Value;
 	if (pSettings->Read(TEXT("WheelCtrlMode"),&Value)
-			&& Value>=WHEEL_FIRST && Value<=WHEEL_LAST)
+			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelCtrlMode=(WheelMode)Value;
 	if (pSettings->Read(TEXT("WheelTiltMode"),&Value)
-			&& Value>=WHEEL_FIRST && Value<=WHEEL_LAST)
+			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelTiltMode=(WheelMode)Value;
+
+	pSettings->Read(TEXT("StatusBarWheel"),&m_fStatusBarWheel);
 	pSettings->Read(TEXT("ReverseWheelChannel"),&m_fWheelChannelReverse);
+	pSettings->Read(TEXT("ReverseWheelVolume"),&m_fWheelVolumeReverse);
 	if (pSettings->Read(TEXT("WheelChannelDelay"),&Value)) {
 		if (Value<WHEEL_CHANNEL_DELAY_MIN)
 			Value=WHEEL_CHANNEL_DELAY_MIN;
 		m_WheelChannelDelay=Value;
 	}
-	pSettings->Read(TEXT("VolumeStep"),&m_VolumeStep);
 	pSettings->Read(TEXT("WheelZoomStep"),&m_WheelZoomStep);
-	pSettings->Read(TEXT("DisplayDragMove"),&m_fDisplayDragMove);
+
 	return true;
 }
 
@@ -74,15 +83,17 @@ inline LPCTSTR GetCommandText(const CCommandList *pCommandList,int Command)
 
 bool COperationOptions::Write(CSettings *pSettings) const
 {
+	pSettings->Write(TEXT("DisplayDragMove"),m_fDisplayDragMove);
+	pSettings->Write(TEXT("VolumeStep"),m_VolumeStep);
 	pSettings->Write(TEXT("WheelMode"),(int)m_WheelMode);
 	pSettings->Write(TEXT("WheelShiftMode"),(int)m_WheelShiftMode);
 	pSettings->Write(TEXT("WheelCtrlMode"),(int)m_WheelCtrlMode);
 	pSettings->Write(TEXT("WheelTiltMode"),(int)m_WheelTiltMode);
+	pSettings->Write(TEXT("StatusBarWheel"),m_fStatusBarWheel);
 	pSettings->Write(TEXT("ReverseWheelChannel"),m_fWheelChannelReverse);
+	pSettings->Write(TEXT("ReverseWheelVolume"),m_fWheelVolumeReverse);
 	pSettings->Write(TEXT("WheelChannelDelay"),m_WheelChannelDelay);
-	pSettings->Write(TEXT("VolumeStep"),m_VolumeStep);
 	pSettings->Write(TEXT("WheelZoomStep"),m_WheelZoomStep);
-	pSettings->Write(TEXT("DisplayDragMove"),m_fDisplayDragMove);
 	if (m_pCommandList!=NULL) {
 		pSettings->Write(TEXT("LeftDoubleClickCommand"),
 			GetCommandText(m_pCommandList,m_LeftDoubleClickCommand));
@@ -92,6 +103,13 @@ bool COperationOptions::Write(CSettings *pSettings) const
 			GetCommandText(m_pCommandList,m_MiddleClickCommand));
 	}
 	return true;
+}
+
+
+bool COperationOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_OPERATION));
 }
 
 
@@ -133,7 +151,107 @@ bool COperationOptions::Initialize(LPCTSTR pszFileName,const CCommandList *pComm
 }
 
 
-void COperationOptions::InitWheelModeList(HWND hDlg,int ID)
+bool COperationOptions::IsWheelModeReverse(WheelMode Mode) const
+{
+	switch (Mode) {
+	case WHEEL_MODE_VOLUME:
+		return m_fWheelVolumeReverse;
+	case WHEEL_MODE_CHANNEL:
+		return m_fWheelChannelReverse;
+	}
+	return false;
+}
+
+
+INT_PTR COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	switch (uMsg) {
+	case WM_INITDIALOG:
+		{
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DISPLAYDRAGMOVE,m_fDisplayDragMove);
+
+			InitWheelSettings(IDC_OPTIONS_WHEELMODE,m_WheelMode);
+			InitWheelSettings(IDC_OPTIONS_WHEELSHIFTMODE,m_WheelShiftMode);
+			InitWheelSettings(IDC_OPTIONS_WHEELCTRLMODE,m_WheelCtrlMode);
+			InitWheelSettings(IDC_OPTIONS_WHEELTILTMODE,m_WheelTiltMode);
+
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_WHEELVOLUMEREVERSE,m_fWheelVolumeReverse);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_WHEELCHANNELREVERSE,m_fWheelChannelReverse);
+			DlgEdit_SetUInt(hDlg,IDC_OPTIONS_WHEELCHANNELDELAY,m_WheelChannelDelay);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_STATUSBARWHEEL,m_fStatusBarWheel);
+
+			int LeftDoubleClick=0,RightClick=0,MiddleClick=0;
+			for (int i=IDC_OPTIONS_MOUSECOMMAND_FIRST;i<=IDC_OPTIONS_MOUSECOMMAND_LAST;i++) {
+				DlgComboBox_AddString(hDlg,i,TEXT("‚È‚µ"));
+				DlgComboBox_SetItemData(hDlg,i,0,0);
+			}
+			int NumCommands=m_pCommandList->NumCommands();
+			for (int i=0;i<NumCommands;i++) {
+				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
+				int Command=m_pCommandList->GetCommandID(i);
+
+				m_pCommandList->GetCommandName(i,szText,lengthof(szText));
+				for (int j=IDC_OPTIONS_MOUSECOMMAND_FIRST;j<=IDC_OPTIONS_MOUSECOMMAND_LAST;j++) {
+					int Index=(int)DlgComboBox_AddString(hDlg,j,szText);
+					DlgComboBox_SetItemData(hDlg,j,Index,Command);
+				}
+				if (Command==m_LeftDoubleClickCommand)
+					LeftDoubleClick=i+1;
+				if (Command==m_RightClickCommand)
+					RightClick=i+1;
+				if (Command==m_MiddleClickCommand)
+					MiddleClick=i+1;
+			}
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND,LeftDoubleClick);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND,RightClick);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND,MiddleClick);
+
+			DlgEdit_SetInt(hDlg,IDC_OPTIONS_VOLUMESTEP,m_VolumeStep);
+			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_VOLUMESTEP_UD,1,100);
+		}
+		return TRUE;
+
+	case WM_NOTIFY:
+		switch (((LPNMHDR)lParam)->code) {
+		case PSN_APPLY:
+			{
+				m_fDisplayDragMove=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DISPLAYDRAGMOVE);
+
+				m_WheelMode=(WheelMode)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELMODE);
+				m_WheelShiftMode=(WheelMode)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELSHIFTMODE);
+				m_WheelCtrlMode=(WheelMode)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELCTRLMODE);
+				m_WheelTiltMode=(WheelMode)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELTILTMODE);
+
+				m_fWheelVolumeReverse=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_WHEELVOLUMEREVERSE);
+				m_fWheelChannelReverse=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_WHEELCHANNELREVERSE);
+				m_WheelChannelDelay=DlgEdit_GetUInt(hDlg,IDC_OPTIONS_WHEELCHANNELDELAY);
+				if (m_WheelChannelDelay<WHEEL_CHANNEL_DELAY_MIN)
+					m_WheelChannelDelay=WHEEL_CHANNEL_DELAY_MIN;
+				m_fStatusBarWheel=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_STATUSBARWHEEL);
+
+				m_LeftDoubleClickCommand=
+					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND,
+						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND));
+				m_RightClickCommand=
+					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND,
+						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND));
+				m_MiddleClickCommand=
+					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND,
+						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND));
+
+				m_VolumeStep=DlgEdit_GetInt(hDlg,IDC_OPTIONS_VOLUMESTEP);
+			}
+			break;
+		}
+		break;
+	}
+
+	return FALSE;
+}
+
+
+void COperationOptions::InitWheelSettings(int ID,WheelMode Mode) const
 {
 	static const LPCTSTR pszWheelMode[] = {
 		TEXT("‚È‚µ"),
@@ -143,116 +261,8 @@ void COperationOptions::InitWheelModeList(HWND hDlg,int ID)
 		TEXT("•\Ž¦”{—¦"),
 		TEXT("”ä—¦"),
 	};
-	int i;
 
-	for (i=0;i<lengthof(pszWheelMode);i++)
-		DlgComboBox_AddString(hDlg,ID,pszWheelMode[i]);
-}
-
-
-INT_PTR CALLBACK COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	switch (uMsg) {
-	case WM_INITDIALOG:
-		{
-			COperationOptions *pThis=static_cast<COperationOptions*>(OnInitDialog(hDlg,lParam));
-
-			InitWheelModeList(hDlg,IDC_OPTIONS_WHEELMODE);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELMODE,pThis->m_WheelMode);
-			InitWheelModeList(hDlg,IDC_OPTIONS_WHEELSHIFTMODE);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELSHIFTMODE,pThis->m_WheelShiftMode);
-			InitWheelModeList(hDlg,IDC_OPTIONS_WHEELCTRLMODE);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELCTRLMODE,pThis->m_WheelCtrlMode);
-			InitWheelModeList(hDlg,IDC_OPTIONS_WHEELTILTMODE);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_WHEELTILTMODE,pThis->m_WheelTiltMode);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_WHEELCHANNELREVERSE,
-												pThis->m_fWheelChannelReverse);
-			::SetDlgItemInt(hDlg,IDC_OPTIONS_WHEELCHANNELDELAY,
-											pThis->m_WheelChannelDelay,FALSE);
-			::SetDlgItemInt(hDlg,IDC_OPTIONS_VOLUMESTEP,pThis->m_VolumeStep,TRUE);
-			::SendDlgItemMessage(hDlg,IDC_OPTIONS_VOLUMESTEP_UD,UDM_SETRANGE32,1,100);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DISPLAYDRAGMOVE,
-							  pThis->m_fDisplayDragMove);
-
-			int LeftDoubleClick=0,RightClick=0,MiddleClick=0;
-			for (int i=IDC_OPTIONS_MOUSECOMMAND_FIRST;i<=IDC_OPTIONS_MOUSECOMMAND_LAST;i++) {
-				DlgComboBox_AddString(hDlg,i,TEXT("‚È‚µ"));
-				DlgComboBox_SetItemData(hDlg,i,0,0);
-			}
-			int NumCommands=pThis->m_pCommandList->NumCommands();
-			for (int i=0;i<NumCommands;i++) {
-				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
-				int Command=pThis->m_pCommandList->GetCommandID(i);
-
-				pThis->m_pCommandList->GetCommandName(i,szText,lengthof(szText));
-				for (int j=IDC_OPTIONS_MOUSECOMMAND_FIRST;j<=IDC_OPTIONS_MOUSECOMMAND_LAST;j++) {
-					int Index=(int)DlgComboBox_AddString(hDlg,j,szText);
-					DlgComboBox_SetItemData(hDlg,j,Index,Command);
-				}
-				if (Command==pThis->m_LeftDoubleClickCommand)
-					LeftDoubleClick=i+1;
-				if (Command==pThis->m_RightClickCommand)
-					RightClick=i+1;
-				if (Command==pThis->m_MiddleClickCommand)
-					MiddleClick=i+1;
-			}
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND,LeftDoubleClick);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND,RightClick);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND,MiddleClick);
-		}
-		return TRUE;
-
-	case WM_NOTIFY:
-		switch (((LPNMHDR)lParam)->code) {
-		case PSN_APPLY:
-			{
-				COperationOptions *pThis=GetThis(hDlg);
-
-				pThis->m_WheelMode=(WheelMode)
-					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELMODE);
-				pThis->m_WheelShiftMode=(WheelMode)
-					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELSHIFTMODE);
-				pThis->m_WheelCtrlMode=(WheelMode)
-					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELCTRLMODE);
-				pThis->m_WheelTiltMode=(WheelMode)
-					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_WHEELTILTMODE);
-				pThis->m_fWheelChannelReverse=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_WHEELCHANNELREVERSE);
-				pThis->m_WheelChannelDelay=
-					::GetDlgItemInt(hDlg,IDC_OPTIONS_WHEELCHANNELDELAY,NULL,FALSE);
-				if (pThis->m_WheelChannelDelay<WHEEL_CHANNEL_DELAY_MIN)
-					pThis->m_WheelChannelDelay=WHEEL_CHANNEL_DELAY_MIN;
-				pThis->m_VolumeStep=::GetDlgItemInt(hDlg,IDC_OPTIONS_VOLUMESTEP,NULL,TRUE);
-				pThis->m_fDisplayDragMove=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DISPLAYDRAGMOVE);
-
-				pThis->m_LeftDoubleClickCommand=
-					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND,
-						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_LEFTDOUBLECLICKCOMMAND));
-				pThis->m_RightClickCommand=
-					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND,
-						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_RIGHTCLICKCOMMAND));
-				pThis->m_MiddleClickCommand=
-					(int)DlgComboBox_GetItemData(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND,
-						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND));
-			}
-			break;
-		}
-		break;
-
-	case WM_DESTROY:
-		{
-			COperationOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
-	}
-	return FALSE;
-}
-
-
-COperationOptions *COperationOptions::GetThis(HWND hDlg)
-{
-	return static_cast<COperationOptions*>(GetOptions(hDlg));
+	for (int i=0;i<lengthof(pszWheelMode);i++)
+		DlgComboBox_AddString(m_hDlg,ID,pszWheelMode[i]);
+	DlgComboBox_SetCurSel(m_hDlg,ID,Mode);
 }

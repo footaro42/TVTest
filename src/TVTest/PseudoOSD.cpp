@@ -310,7 +310,7 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 	if (m_hwnd!=NULL)
 		hdc=::GetDC(m_hwnd);
 	else
-		hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+		hdc=::CreateCompatibleDC(NULL);
 	hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	RECT rc={0,0,0,0};
 	fResult=::DrawText(hdc,m_Text.Get(),-1,&rc,DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX)!=0;

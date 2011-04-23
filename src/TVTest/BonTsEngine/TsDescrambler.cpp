@@ -918,10 +918,12 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 			m_LastScramblingCtrl = ScramblingCtrl;
 
 			// ECM処理中であれば終わるまで待つ
-			if (!m_EcmProcessEvent.IsSignaled()
+			if (((ScramblingCtrl == 2 && !m_bEvenKeyValid)
+						|| (ScramblingCtrl == 3 && !m_bOddKeyValid))
+					&& !m_EcmProcessEvent.IsSignaled()
 					&& !m_bCardReaderHung) {
 				m_Multi2Lock.Unlock();
-				if (m_EcmProcessEvent.Wait(5000) == WAIT_TIMEOUT)
+				if (m_EcmProcessEvent.Wait(3000) == WAIT_TIMEOUT)
 					OnCardReaderHung();
 				m_Multi2Lock.Lock();
 			}
@@ -969,7 +971,7 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 	if (!m_EcmProcessEvent.IsSignaled()) {
 		if (m_bCardReaderHung)
 			return false;
-		if (m_EcmProcessEvent.Wait(5000) == WAIT_TIMEOUT) {
+		if (m_EcmProcessEvent.Wait(3000) == WAIT_TIMEOUT) {
 			OnCardReaderHung();
 			return false;
 		}
@@ -1256,10 +1258,16 @@ bool CBcasAccessQueue::BeginBcasThread(CCardReader::ReaderType ReaderType, LPCTS
 	m_pszReaderName = pszReaderName;
 	m_bKillEvent = false;
 	m_bStartEvent = false;
-	m_hThread = ::CreateThread(NULL, 0, BcasAccessThread, this, 0, NULL);
+	m_hThread = (HANDLE)::_beginthreadex(NULL, 0, BcasAccessThread, this, 0, NULL);
 	if (m_hThread == NULL)
 		return false;
-	m_Event.Wait();
+	if (m_Event.Wait(20000) == WAIT_TIMEOUT) {
+		::TerminateThread(m_hThread, -1);
+		::CloseHandle(m_hThread);
+		m_hThread = NULL;
+		SetError(TEXT("カードリーダーのオープンで、カードリーダーが応答しません。"));
+		return false;
+	}
 	if (!m_pBcasCard->IsCardOpen()) {
 		::WaitForSingleObject(m_hThread, INFINITE);
 		::CloseHandle(m_hThread);
@@ -1276,9 +1284,9 @@ bool CBcasAccessQueue::EndBcasThread()
 	if (m_hThread) {
 		m_bKillEvent = true;
 		m_Event.Set();
-		if (::WaitForSingleObject(m_hThread, 1000) == WAIT_TIMEOUT) {
+		if (::WaitForSingleObject(m_hThread, 3000) == WAIT_TIMEOUT) {
 			TRACE(TEXT("Terminate BcasAccessThread\n"));
-			::TerminateThread(m_hThread, 1);
+			::TerminateThread(m_hThread, -1);
 		}
 		::CloseHandle(m_hThread);
 		m_hThread = NULL;
@@ -1287,7 +1295,7 @@ bool CBcasAccessQueue::EndBcasThread()
 	return true;
 }
 
-DWORD CALLBACK CBcasAccessQueue::BcasAccessThread(LPVOID lpParameter)
+unsigned int __stdcall CBcasAccessQueue::BcasAccessThread(LPVOID lpParameter)
 {
 	CBcasAccessQueue *pThis=static_cast<CBcasAccessQueue*>(lpParameter);
 

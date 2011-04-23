@@ -121,7 +121,7 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	m_bKillSignal = false;
 	m_bPauseSignal = false;
 	m_bIsPlaying = false;
-	m_hStreamRecvThread = ::CreateThread(NULL, 0UL, CBonSrcDecoder::StreamRecvThread, this, 0UL, NULL);
+	m_hStreamRecvThread = (HANDLE)::_beginthreadex(NULL, 0, CBonSrcDecoder::StreamRecvThread, this, 0, NULL);
 	if (!m_hStreamRecvThread) {
 		SetError(ERR_INTERNAL, TEXT("ストリーム受信スレッドを作成できません。"));
 		goto OnError;
@@ -166,11 +166,11 @@ const bool CBonSrcDecoder::CloseTuner(void)
 		m_pBonDriver->CloseTuner();
 
 		// ドライバインスタンス開放
-		Trace(TEXT("ドライバを解放しています..."));
+		Trace(TEXT("BonDriverインターフェースを解放しています..."));
 		m_pBonDriver->Release();
 		m_pBonDriver = NULL;
 		m_pBonDriver2 = NULL;
-		Trace(TEXT("チューナを閉じました。"));
+		Trace(TEXT("BonDriverインターフェースを解放しました。"));
 	}
 
 	ClearError();
@@ -272,7 +272,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 	// チャンネルを変更する
 	if (!m_pBonDriver->SetChannel(byChannel)) {
 		UnlockStream();
-		SetError(ERR_TUNER,TEXT("チャンネルの変更ができません。"),
+		SetError(ERR_TUNER,TEXT("チャンネルの変更がBonDriverに受け付けられません。"),
 						   TEXT("IBonDriver::SetChannel()の呼び出しでエラーが返されました。"));
 		return false;
 	}
@@ -309,7 +309,7 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 	// チャンネルを変更する
 	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
 		UnlockStream();
-		SetError(ERR_TUNER,TEXT("チャンネルの変更ができません。"),
+		SetError(ERR_TUNER,TEXT("チャンネルの変更がBonDriverに受け付けられません。"),
 						   TEXT("IBonDriver2::SetChannel()の呼び出しでエラーが返されました。"));
 		return false;
 	}
@@ -346,7 +346,7 @@ const bool CBonSrcDecoder::SetChannelAndPlay(const DWORD dwSpace, const DWORD dw
 	// チャンネルを変更する
 	if (!m_pBonDriver2->SetChannel(dwSpace, dwChannel)) {
 		UnlockStream();
-		SetError(ERR_TUNER,TEXT("チャンネルの変更ができません。"),
+		SetError(ERR_TUNER,TEXT("チャンネルの変更がBonDriverに受け付けられません。"),
 						   TEXT("IBonDriver2::SetChannel()の呼び出しでエラーが返されました。"));
 		return false;
 	}
@@ -429,7 +429,7 @@ const bool CBonSrcDecoder::PurgeStream(void)
 }
 
 
-DWORD WINAPI CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
+unsigned int __stdcall CBonSrcDecoder::StreamRecvThread(LPVOID pParam)
 {
 	// チューナからTSデータを取り出すスレッド
 	CBonSrcDecoder *pThis = static_cast<CBonSrcDecoder *>(pParam);

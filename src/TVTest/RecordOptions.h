@@ -26,7 +26,8 @@ class CRecordOptions : public COptions
 	bool m_fShowRemainTime;
 	int m_StatusBarRecordCommand;
 
-	static CRecordOptions *GetThis(HWND hDlg);
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 public:
 	enum {
@@ -41,6 +42,8 @@ public:
 	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CRecordOptions
 	bool SetSaveFolder(LPCTSTR pszFolder);
 	LPCTSTR GetSaveFolder() const { return m_szSaveFolder; }
@@ -61,7 +64,6 @@ public:
 	void SetShowRemainTime(bool fShow) { m_fShowRemainTime=fShow; }
 	bool GetShowRemainTime() const { return m_fShowRemainTime; }
 	int GetStatusBarRecordCommand() const { return m_StatusBarRecordCommand; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

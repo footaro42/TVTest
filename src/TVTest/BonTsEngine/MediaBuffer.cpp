@@ -143,7 +143,7 @@ bool CMediaBuffer::Play()
 	m_UsedCount=0;
 	m_bBuffering=true;
 	m_BreakEvent.Reset();
-	m_hOutputThread=::CreateThread(NULL,0,OutputThread,this,0,NULL);
+	m_hOutputThread=(HANDLE)::_beginthreadex(NULL,0,OutputThread,this,0,NULL);
 	m_Lock.Unlock();
 	if (m_hOutputThread==NULL)
 		return false;
@@ -269,7 +269,7 @@ DWORD CMediaBuffer::GetUsedBufferCount()
 }
 
 
-DWORD WINAPI CMediaBuffer::OutputThread(LPVOID lpParameter)
+unsigned int __stdcall CMediaBuffer::OutputThread(LPVOID lpParameter)
 {
 	CMediaBuffer *pThis=static_cast<CMediaBuffer*>(lpParameter);
 

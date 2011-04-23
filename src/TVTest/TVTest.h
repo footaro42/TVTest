@@ -8,9 +8,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	7
-#define VERSION_BUILD	17
+#define VERSION_BUILD	18
 
-#define VERSION_TEXT_A	"0.7.17"
+#define VERSION_TEXT_A	"0.7.18"
 
 #else
 
@@ -18,9 +18,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	5
-#define VERSION_BUILD	2
+#define VERSION_BUILD	3
 
-#define VERSION_TEXT_A	"0.5.2"
+#define VERSION_TEXT_A	"0.5.3"
 
 // ÉèÉìÉZÉOå¸ÇØ
 #if !defined(TVH264_FOR_1SEG) && defined(BONTSENGINE_1SEG_SUPPORT)
@@ -63,7 +63,7 @@
 
 #include "Util.h"
 
-#define lengthof(a) (sizeof(a)/sizeof(a[0]))
+#define lengthof _countof
 
 #ifndef CLAMP
 #define CLAMP(val,min,max) \

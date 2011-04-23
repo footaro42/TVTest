@@ -21,6 +21,27 @@ enum {
 
 class CPanelOptions : public COptions
 {
+public:
+	CPanelOptions(CPanelFrame *pPanelFrame);
+	~CPanelOptions();
+// COptions
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
+// CPanelOptions
+	bool InitializePanelForm(CPanelForm *pPanelForm);
+	void ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel);
+	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
+	void SetSnapAtMainWindow(bool fSnap);
+	int GetSnapMargin() const { return m_SnapMargin; }
+	bool SetSnapMargin(int Margin);
+	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
+	void SetAttachToMainWindow(bool fAttach);
+	const LOGFONT *GetFont() const { return &m_Font; }
+	int GetFirstTab() const;
+
+private:
 	CPanelFrame *m_pPanelFrame;
 	bool m_fSnapAtMainWindow;
 	int m_SnapMargin;
@@ -41,27 +62,10 @@ class CPanelOptions : public COptions
 	bool m_fChannelDetailToolTip;
 	int m_EventsPerChannel;
 
-	static CPanelOptions *GetThis(HWND hDlg);
-	static LRESULT CALLBACK TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
-public:
-	CPanelOptions(CPanelFrame *pPanelFrame);
-	~CPanelOptions();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
-// CPanelOptions
-	bool InitializePanelForm(CPanelForm *pPanelForm);
-	void ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel);
-	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
-	void SetSnapAtMainWindow(bool fSnap);
-	int GetSnapMargin() const { return m_SnapMargin; }
-	bool SetSnapMargin(int Margin);
-	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
-	void SetAttachToMainWindow(bool fAttach);
-	const LOGFONT *GetFont() const { return &m_Font; }
-	int GetFirstTab() const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	static LRESULT CALLBACK TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

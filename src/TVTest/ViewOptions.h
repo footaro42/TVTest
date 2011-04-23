@@ -8,39 +8,21 @@
 
 class CViewOptions : public COptions
 {
-	bool m_fAdjustAspectResizing;
-	bool m_fSnapAtWindowEdge;
-	int m_SnapAtWindowEdgeMargin;
-	bool m_fNearCornerResizeOrigin;
-	bool m_fPanScanNoResizeWindow;
-	bool m_fResetPanScanEventChange;
-	bool m_fNoMaskSideCut;
-	CMediaViewer::ViewStretchMode m_FullscreenStretchMode;
-	CMediaViewer::ViewStretchMode m_MaximizeStretchMode;
-	bool m_fClientEdge;
-	bool m_fMinimizeToTray;
-	bool m_fDisablePreviewWhenMinimized;
-	bool m_fUseLogoIcon;
-	bool m_fIgnoreDisplayExtension;
-	bool m_fNoScreenSaver;
-	bool m_fNoMonitorLowPower;
-	bool m_fNoMonitorLowPowerActiveOnly;
-	bool m_fShowLogo;
-	TCHAR m_szLogoFileName[MAX_PATH];
-
-	static CViewOptions *GetThis(HWND hDlg);
-
 public:
-	CViewOptions();
-// COptions
 	enum {
 		UPDATE_MASKCUTAREA				=0x00000001UL,
 		UPDATE_IGNOREDISPLAYEXTENSION	=0x00000002UL,
 		UPDATE_LOGO						=0x00000004UL
 	};
+
+	CViewOptions();
+	~CViewOptions();
+// COptions
 	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CViewOptions
 	bool GetAdjustAspectResizing() const { return m_fAdjustAspectResizing; }
 	bool GetSnapAtWindowEdge() const { return m_fSnapAtWindowEdge; }
@@ -62,7 +44,29 @@ public:
 	bool GetShowLogo() const { return m_fShowLogo; }
 	LPCTSTR GetLogoFileName() const { return m_szLogoFileName; }
 
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+private:
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+	bool m_fAdjustAspectResizing;
+	bool m_fSnapAtWindowEdge;
+	int m_SnapAtWindowEdgeMargin;
+	bool m_fNearCornerResizeOrigin;
+	bool m_fPanScanNoResizeWindow;
+	bool m_fResetPanScanEventChange;
+	bool m_fNoMaskSideCut;
+	CMediaViewer::ViewStretchMode m_FullscreenStretchMode;
+	CMediaViewer::ViewStretchMode m_MaximizeStretchMode;
+	bool m_fClientEdge;
+	bool m_fMinimizeToTray;
+	bool m_fDisablePreviewWhenMinimized;
+	bool m_fUseLogoIcon;
+	bool m_fIgnoreDisplayExtension;
+	bool m_fNoScreenSaver;
+	bool m_fNoMonitorLowPower;
+	bool m_fNoMonitorLowPowerActiveOnly;
+	bool m_fShowLogo;
+	TCHAR m_szLogoFileName[MAX_PATH];
 };
 
 

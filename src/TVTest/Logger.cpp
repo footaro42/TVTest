@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "Logger.h"
 #include "DialogUtil.h"
 #include "StdUtil.h"
@@ -65,6 +66,7 @@ CLogger::CLogger()
 
 CLogger::~CLogger()
 {
+	Destroy();
 	Clear();
 }
 
@@ -88,6 +90,13 @@ bool CLogger::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("OutputLogToFile"),m_fOutputToFile);
 	return true;
+}
+
+
+bool CLogger::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_LOG));
 }
 
 
@@ -198,23 +207,16 @@ void CLogger::GetDefaultLogFileName(LPTSTR pszFileName) const
 }
 
 
-CLogger *CLogger::GetThis(HWND hDlg)
-{
-	return static_cast<CLogger*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CLogger *pThis=static_cast<CLogger*>(OnInitDialog(hDlg,lParam));
 			HWND hwndList=GetDlgItem(hDlg,IDC_LOG_LIST);
 			LV_COLUMN lvc;
 			LV_ITEM lvi;
 
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
+			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=80;
@@ -223,10 +225,10 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			lvc.pszText=TEXT("“à—e");
 			ListView_InsertColumn(hwndList,1,&lvc);
 			lvi.mask=LVIF_TEXT;
-			pThis->m_Lock.Lock();
-			ListView_SetItemCount(hwndList,(int)pThis->m_LogList.size());
-			for (size_t i=0;i<pThis->m_LogList.size();i++) {
-				const CLogItem *pLogItem=pThis->m_LogList[i];
+			m_Lock.Lock();
+			ListView_SetItemCount(hwndList,(int)m_LogList.size());
+			for (size_t i=0;i<m_LogList.size();i++) {
+				const CLogItem *pLogItem=m_LogList[i];
 				SYSTEMTIME st;
 				int Length;
 				TCHAR szTime[64];
@@ -247,32 +249,27 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			}
 			for (int i=0;i<2;i++)
 				ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
-			if (pThis->m_LogList.size()>0)
-				ListView_EnsureVisible(hwndList,(int)pThis->m_LogList.size()-1,FALSE);
-			pThis->m_Lock.Unlock();
+			if (m_LogList.size()>0)
+				ListView_EnsureVisible(hwndList,(int)m_LogList.size()-1,FALSE);
+			m_Lock.Unlock();
 
-			DlgCheckBox_Check(hDlg,IDC_LOG_OUTPUTTOFILE,pThis->m_fOutputToFile);
+			DlgCheckBox_Check(hDlg,IDC_LOG_OUTPUTTOFILE,m_fOutputToFile);
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case IDC_LOG_CLEAR:
-			{
-				CLogger *pThis=GetThis(hDlg);
-
-				ListView_DeleteAllItems(GetDlgItem(hDlg,IDC_LOG_LIST));
-				pThis->Clear();
-			}
+			ListView_DeleteAllItems(GetDlgItem(hDlg,IDC_LOG_LIST));
+			Clear();
 			return TRUE;
 
 		case IDC_LOG_SAVE:
 			{
-				CLogger *pThis=GetThis(hDlg);
 				TCHAR szFileName[MAX_PATH];
 
-				pThis->GetDefaultLogFileName(szFileName);
-				if (!pThis->SaveToFile(szFileName,false)) {
+				GetDefaultLogFileName(szFileName);
+				if (!SaveToFile(szFileName,false)) {
 					::MessageBox(hDlg,TEXT("•Û‘¶‚ª‚Å‚«‚Ü‚¹‚ñB"),NULL,MB_OK | MB_ICONEXCLAMATION);
 				} else {
 					TCHAR szMessage[MAX_PATH+64];
@@ -289,34 +286,25 @@ INT_PTR CALLBACK CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CLogger *pThis=GetThis(hDlg);
-
 				bool fOutput=DlgCheckBox_IsChecked(hDlg,IDC_LOG_OUTPUTTOFILE);
 
-				if (fOutput!=pThis->m_fOutputToFile) {
-					CBlockLock Lock(&pThis->m_Lock);
+				if (fOutput!=m_fOutputToFile) {
+					CBlockLock Lock(&m_Lock);
 
-					if (fOutput && pThis->m_LogList.size()>0) {
+					if (fOutput && m_LogList.size()>0) {
 						TCHAR szFileName[MAX_PATH];
 
-						pThis->GetDefaultLogFileName(szFileName);
-						pThis->SaveToFile(szFileName,true);
+						GetDefaultLogFileName(szFileName);
+						SaveToFile(szFileName,true);
 					}
-					pThis->m_fOutputToFile=fOutput;
+					m_fOutputToFile=fOutput;
 				}
 			}
 			return TRUE;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CLogger *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }
 

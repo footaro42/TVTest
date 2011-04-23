@@ -57,22 +57,85 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#if 0
+static void OutputLog(LPCTSTR pszFormat, ...)
+{
+	va_list Args;
+	TCHAR szText[1024];
+
+	va_start(Args,pszFormat);
+	int Length=::wvsprintf(szText,pszFormat,Args);
+	va_end(Args);
+
+	TRACE(szText);
+
+	static bool fStopLog=false;
+	static SIZE_T OutputSize=0;
+
+	if (!fStopLog) {
+		TCHAR szFileName[MAX_PATH];
+		::GetModuleFileName(NULL,szFileName,MAX_PATH);
+		::PathRenameExtension(szFileName,TEXT(".PassthroughTest.log"));
+		HANDLE hFile=::CreateFile(szFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
+								  OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
+		if (hFile!=INVALID_HANDLE_VALUE) {
+			DWORD FileSize=::GetFileSize(hFile,NULL);
+			DWORD Wrote;
+
+#ifdef UNICODE
+			if (FileSize==0) {
+				static const WORD BOM=0xFEFF;
+				::WriteFile(hFile,&BOM,2,&Wrote,NULL);
+			}
+#endif
+			::SetFilePointer(hFile,0,NULL,FILE_END);
+			SYSTEMTIME st;
+			TCHAR szTime[32];
+			::GetLocalTime(&st);
+			int TimeLength=::wsprintf(szTime,TEXT("%02d:%02d:%02d.%03d "),st.wHour,st.wMinute,st.wSecond,st.wMilliseconds);
+			::WriteFile(hFile,szTime,TimeLength*sizeof(TCHAR),&Wrote,NULL);
+			::WriteFile(hFile,szText,Length*sizeof(TCHAR),&Wrote,NULL);
+			OutputSize+=Length;
+			if (OutputSize>=0x8000) {
+				Length=::wsprintf(szText,TEXT("多くなりすぎたのでログの記録を停止します。\r\n\r\n"));
+				::WriteFile(hFile,szText,Length*sizeof(TCHAR),&Wrote,NULL);
+				fStopLog=true;
+			}
+			::FlushFileBuffers(hFile);
+			::CloseHandle(hFile);
+		}
+	}
+}
+#else
+#define OutputLog TRACE
+#endif
+
+
 CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	: CTransformFilter(AACDECFILTER_NAME, pUnk, CLSID_AACDECFILTER)
-	, m_AdtsParser(&m_AacDecoder)
+	, m_AdtsParser(this)
 	, m_AacDecoder(this)
-	, m_pOutSample(NULL)
 	, m_byCurChannelNum(0)
 	, m_bDualMono(false)
+
 	, m_StereoMode(STEREOMODE_STEREO)
+	, m_AutoStereoMode(STEREOMODE_STEREO)
 	, m_bDownMixSurround(true)
+
+	, m_SpdifOptions(SPDIF_MODE_DISABLED, 0)
+	, m_bPassthrough(false)
+
 	, m_pStreamCallback(NULL)
+
 	, m_bGainControl(false)
 	, m_Gain(1.0f)
 	, m_SurroundGain(1.0f)
+
 	, m_bAdjustStreamTime(false)
 	, m_StartTime(-1)
 	, m_SampleCount(0)
+	, m_bDiscontinuity(true)
+	, m_pAdtsFrame(NULL)
 {
 	TRACE(TEXT("CAacDecFilter::CAacDecFilter %p\n"), this);
 
@@ -99,6 +162,7 @@ CAacDecFilter::CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr)
 	pWaveInfo->wBitsPerSample = 16;
 	pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
 	pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
+	pWaveInfo->cbSize = 0;
 #else
 	// 5.1ch
 	WAVEFORMATEXTENSIBLE *pWaveInfo = reinterpret_cast<WAVEFORMATEXTENSIBLE *>(m_MediaType.AllocFormatBuffer(sizeof(WAVEFORMATEXTENSIBLE)));
@@ -231,6 +295,7 @@ HRESULT CAacDecFilter::StartStreaming(void)
 
 	m_StartTime = -1;
 	m_SampleCount = 0;
+	m_bDiscontinuity = true;
 
 	m_BitRateCalculator.Initialize();
 
@@ -257,6 +322,7 @@ HRESULT CAacDecFilter::BeginFlush()
 	m_AacDecoder.ResetDecoder();
 	m_StartTime = -1;
 	m_SampleCount = 0;
+	m_bDiscontinuity = true;
 	if (m_pOutput) {
 		hr = m_pOutput->DeliverBeginFlush();
 	}
@@ -282,50 +348,50 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	if (FAILED(hr))
 		return hr;
 
-	// 出力メディアサンプル設定
-	m_pOutSample = pOut;
-	pOut->SetActualDataLength(0);
-
 	// ADTSパーサに入力
 	LONG InSize = pIn->GetActualDataLength();
 	m_AdtsParser.StoreEs(pInData, InSize);
 
 	m_BitRateCalculator.Update(InSize);
 
-	if (pOut->GetActualDataLength() == 0)
-		return S_FALSE;
+#if 0
+	if (!m_bPassthrough) {
+		if (pOut->GetActualDataLength() == 0)
+			return S_FALSE;
 
-	if (m_bAdjustStreamTime) {
-		// ストリーム時間を実際のサンプルの長さを元に設定する
-		REFERENCE_TIME StartTime, EndTime;
+		if (m_bAdjustStreamTime) {
+			// ストリーム時間を実際のサンプルの長さを元に設定する
+			REFERENCE_TIME StartTime, EndTime;
 
-		hr = pIn->GetTime(&StartTime, &EndTime);
-		if (hr == S_OK || hr == VFW_S_NO_STOP_TIME) {
-			if (m_StartTime >= 0) {
-				REFERENCE_TIME CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
-				if (_abs64(StartTime - CurTime) > REFERENCE_TIME_SECOND / 5LL) {
-					// TODO: いきなりリセットしないで徐々に合わせる
-					TRACE(TEXT("Reset audio time\n"));
+			hr = pIn->GetTime(&StartTime, &EndTime);
+			if (hr == S_OK || hr == VFW_S_NO_STOP_TIME) {
+				if (m_StartTime >= 0) {
+					REFERENCE_TIME CurTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
+					if (_abs64(StartTime - CurTime) > REFERENCE_TIME_SECOND / 5LL) {
+						// TODO: いきなりリセットしないで徐々に合わせる
+						TRACE(TEXT("Reset audio time\n"));
+						m_StartTime = StartTime;
+						m_SampleCount = 0;
+					}
+				} else {
 					m_StartTime = StartTime;
 					m_SampleCount = 0;
 				}
-			} else {
-				m_StartTime = StartTime;
-				m_SampleCount = 0;
+			}
+			if (m_StartTime >= 0) {
+				DWORD Samples = pOut->GetActualDataLength() / sizeof(short);
+				if (m_bDownMixSurround || m_byCurChannelNum == 2)
+					Samples /= 2;
+				else
+					Samples /= 6;
+				StartTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
+				m_SampleCount += Samples;
+				EndTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY) - 1;
+				pOut->SetTime(&StartTime, &EndTime);
 			}
 		}
-		if (m_StartTime >= 0) {
-			DWORD Samples = pOut->GetActualDataLength() / sizeof(short);
-			if (m_bDownMixSurround || m_byCurChannelNum == 2)
-				Samples /= 2;
-			else
-				Samples /= 6;
-			StartTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY);
-			m_SampleCount += Samples;
-			EndTime = m_StartTime + (m_SampleCount * REFERENCE_TIME_SECOND / FREQUENCY) - 1;
-			pOut->SetTime(&StartTime, &EndTime);
-		}
 	}
+#endif
 
 	return S_OK;
 }
@@ -336,120 +402,214 @@ HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 	if (pProps->dwStreamId != AM_STREAM_MEDIA)
 		return m_pOutput->Deliver(pSample);
 
-	IMediaSample *pOutSample;
 	HRESULT hr;
 
-	hr = InitializeOutputSample(pSample, &pOutSample);
-	if (FAILED(hr))
-		return hr;
-	hr = Transform(pSample, pOutSample);
-	if (SUCCEEDED(hr)) {
-		if (hr == S_OK) {
-			hr = m_pOutput->Deliver(pOutSample);
-		} else {
-			hr = S_OK;
+	/*if (!m_bPassthrough) {
+		IMediaSample *pOutSample;
+
+		hr = InitializeOutputSample(pSample, &pOutSample);
+		if (FAILED(hr))
+			return hr;
+		hr = Transform(pSample, pOutSample);
+		if (SUCCEEDED(hr)) {
+			if (hr == S_OK) {
+				hr = m_pOutput->Deliver(pOutSample);
+			} else {
+				hr = S_OK;
+			}
+			m_bSampleSkipped = FALSE;
 		}
-		m_bSampleSkipped = FALSE;
+		pOutSample->Release();
+	} else */{
+		REFERENCE_TIME rtStart = -1, rtEnd;
+		hr = pSample->GetTime(&rtStart, &rtEnd);
+		if (pSample->IsDiscontinuity() == S_OK) {
+			m_bDiscontinuity = true;
+		} else if (hr == S_OK) {
+			if (!m_bAdjustStreamTime) {
+				m_StartTime = rtStart;
+			} else if (m_StartTime >= 0 && _abs64(rtStart - m_StartTime) >= REFERENCE_TIME_SECOND / 5LL) {
+				TRACE(TEXT("Resync audio stream time\n"));
+				m_StartTime = rtStart;
+			}
+		}
+		if (m_StartTime < 0 || m_bDiscontinuity) {
+			TRACE(TEXT("Initialize audio stream time\n"));
+			m_StartTime = rtStart;
+		}
+
+		hr = Transform(pSample, NULL);
+		if (SUCCEEDED(hr)) {
+			hr = S_OK;
+			m_bSampleSkipped = FALSE;
+		}
 	}
-	pOutSample->Release();
 
 	return hr;
 }
 
-void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData, const DWORD dwSamples, const BYTE byChannel)
+void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData, const DWORD dwSamples, const BYTE byChannels)
 {
-	// 出力ポインタ取得
-	BYTE *pOutBuff = NULL;
-	if (FAILED(m_pOutSample->GetPointer(&pOutBuff)))
+	if (byChannels != 1 && byChannels != 2 && byChannels != 6)
 		return;
 
-	DWORD dwOffset = m_pOutSample->GetActualDataLength();
-	DWORD dwOutSize;
+	const bool bDualMono = byChannels == 2 && pAacDecoder->GetChannelConfig() == 0;
+	const bool bSurround = byChannels == 6 && !m_bDownMixSurround;
 
-	if ((!m_bDownMixSurround && byChannel != m_byCurChannelNum
-								&& (byChannel == 6 || m_byCurChannelNum == 6))
-			|| (m_bDownMixSurround && reinterpret_cast<WAVEFORMATEX*>(m_MediaType.Format())->nChannels > 2)) {
-		// 2ch <-> 5.1ch 切り替え
-		WAVEFORMATEX *pWaveInfo = reinterpret_cast<WAVEFORMATEX *>(m_MediaType.AllocFormatBuffer(
-			byChannel == 2 ? sizeof(WAVEFORMATEX) : sizeof(WAVEFORMATEXTENSIBLE)));
-		if (pWaveInfo == NULL)
-			return;
-
-		if (byChannel == 2) {
-			pWaveInfo->wFormatTag = WAVE_FORMAT_PCM;
-			pWaveInfo->nChannels = 2;
+	bool bPassthrough = false;
+	if (m_SpdifOptions.Mode == SPDIF_MODE_PASSTHROUGH) {
+		bPassthrough = true;
+	} else if (m_SpdifOptions.Mode == SPDIF_MODE_AUTO) {
+		UINT ChannelFlag;
+		if (bDualMono) {
+			ChannelFlag = SPDIF_CHANNELS_DUALMONO;
 		} else {
-			WAVEFORMATEXTENSIBLE *pwfex = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pWaveInfo);
-
-			pWaveInfo->wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-			pWaveInfo->nChannels = 6;
-			pWaveInfo->cbSize = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
-			pwfex->dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
-								   SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
-								   SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
-			pwfex->Samples.wValidBitsPerSample = 16;
-			pwfex->SubFormat = MEDIASUBTYPE_PCM;
-		}
-		pWaveInfo->nSamplesPerSec = FREQUENCY;
-		pWaveInfo->wBitsPerSample = 16;
-		pWaveInfo->nBlockAlign = pWaveInfo->wBitsPerSample * pWaveInfo->nChannels / 8;
-		pWaveInfo->nAvgBytesPerSec = pWaveInfo->nSamplesPerSec * pWaveInfo->nBlockAlign;
-
-		/*
-			この辺はかなり手抜き
-			本来であればIPin::QueryAccept/IPinConnection::DynamicQueryAcceptを
-			呼んでフォーマット変更できるか確認すべき
-		*/
-		if (FAILED(m_pOutSample->SetMediaType(&m_MediaType)))
-			return;
-		m_pOutput->SetMediaType(&m_MediaType);
-
-		if (dwOffset > 0) {
-			if (byChannel == 2) {
-				dwOffset = DownMixSurround((short*)pOutBuff, (const short*)pOutBuff, dwOffset / (sizeof(short) * 2));
-			} else if (byChannel == 6) {
-				// 手抜き
-				dwOffset *= 3;
-				::ZeroMemory(pOutBuff, dwOffset);
+			switch (byChannels) {
+			case 1: ChannelFlag = SPDIF_CHANNELS_MONO;		break;
+			case 2: ChannelFlag = SPDIF_CHANNELS_STEREO;	break;
+			case 6: ChannelFlag = SPDIF_CHANNELS_SURROUND;	break;
 			}
+		}
+		if ((m_SpdifOptions.PassthroughChannels & ChannelFlag) != 0)
+			bPassthrough = true;
+	}
+
+	m_bPassthrough = bPassthrough;
+
+	if (bDualMono != m_bDualMono) {
+		m_bDualMono = bDualMono;
+		if (bDualMono)
+			m_StereoMode = m_AutoStereoMode;
+		else if (m_AutoStereoMode != STEREOMODE_STEREO)
+			m_StereoMode = STEREOMODE_STEREO;
+	}
+
+	m_byCurChannelNum = byChannels;
+
+	if (m_bPassthrough) {
+		OutputSpdif();
+		return;
+	}
+
+	HRESULT hr;
+
+	// メディアタイプの更新
+	bool bMediaTypeChanged = false;
+	WAVEFORMATEX *pwfx = reinterpret_cast<WAVEFORMATEX*>(m_MediaType.Format());
+	if (*m_MediaType.FormatType() != FORMAT_WaveFormatEx
+			|| (!bSurround && pwfx->wFormatTag != WAVE_FORMAT_PCM)
+			|| (bSurround && pwfx->wFormatTag != WAVE_FORMAT_EXTENSIBLE)) {
+		CMediaType mt;
+		mt.SetType(&MEDIATYPE_Audio);
+		mt.SetSubtype(&MEDIASUBTYPE_PCM);
+		mt.SetFormatType(&FORMAT_WaveFormatEx);
+
+		pwfx = reinterpret_cast<WAVEFORMATEX*>(
+			mt.AllocFormatBuffer(bSurround ? sizeof (WAVEFORMATEXTENSIBLE) : sizeof(WAVEFORMATEX)));
+		if (pwfx == NULL)
+			return;
+		if (!bSurround) {
+			pwfx->wFormatTag = WAVE_FORMAT_PCM;
+			pwfx->nChannels = 2;
+			pwfx->cbSize = 0;
+		} else {
+			WAVEFORMATEXTENSIBLE *pExtensible = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pwfx);
+			pExtensible->Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+			pExtensible->Format.nChannels = 6;
+			pExtensible->Format.cbSize  = sizeof(WAVEFORMATEXTENSIBLE) - sizeof(WAVEFORMATEX);
+			pExtensible->dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+										 SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
+										 SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
+			pExtensible->Samples.wValidBitsPerSample = 16;
+			pExtensible->SubFormat = MEDIASUBTYPE_PCM;
+		}
+		pwfx->nSamplesPerSec = FREQUENCY;
+		pwfx->wBitsPerSample = 16;
+		pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
+		pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
+		mt.SetSampleSize(pwfx->nBlockAlign);
+
+		hr = ReconnectOutput(dwSamples * pwfx->nBlockAlign, mt);
+		if (FAILED(hr))
+			return;
+
+		if (hr == S_OK) {
+			OutputLog(TEXT("出力メディアタイプを更新します。\r\n"));
+			hr = m_pOutput->SetMediaType(&mt);
+			if (FAILED(hr)) {
+				OutputLog(TEXT("出力メディアタイプを設定できません。(%08x)\r\n"), hr);
+				return;
+			}
+			m_MediaType = mt;
+			m_bDiscontinuity = true;
+			bMediaTypeChanged = true;
 		}
 	}
 
-	m_byCurChannelNum = byChannel;
-	m_bDualMono = byChannel == 2 && m_AacDecoder.GetChannelConfig() == 0;
+	IMediaSample *pOutSample = NULL;
+	hr = m_pOutput->GetDeliveryBuffer(&pOutSample, NULL, NULL, 0);
+	if (FAILED(hr) || !pOutSample) {
+		OutputLog(TEXT("出力メディアサンプルを取得できません。(%08x)\r\n"), hr);
+		return;
+	}
+	if (bMediaTypeChanged)
+		pOutSample->SetMediaType(&m_MediaType);
 
-	pOutBuff = &pOutBuff[dwOffset];
+	// 出力ポインタ取得
+	BYTE *pOutBuff = NULL;
+	if (FAILED(pOutSample->GetPointer(&pOutBuff)) || !pOutBuff) {
+		pOutSample->Release();
+		OutputLog(TEXT("サンプルのバッファを取得できません。(%08x)\r\n"), hr);
+		return;
+	}
+
+	DWORD dwOutSize;
+
 	// ダウンミックス
-	switch (byChannel) {
+	switch (byChannels) {
 	case 1U:
-		dwOutSize = DownMixMono((short *)pOutBuff, (const short *)pData, dwSamples);
+		dwOutSize = MonoToStereo((short *)pOutBuff, (const short *)pData, dwSamples);
 		break;
 	case 2U:
 		dwOutSize = DownMixStereo((short *)pOutBuff, (const short *)pData, dwSamples);
 		break;
 	case 6U:
-		if (m_bDownMixSurround) {
-			dwOutSize = DownMixSurround((short *)pOutBuff, (const short *)pData, dwSamples);
-		} else {
+		if (bSurround) {
 			dwOutSize = MapSurroundChannels((short *)pOutBuff, (const short *)pData, dwSamples);
+		} else {
+			dwOutSize = DownMixSurround((short *)pOutBuff, (const short *)pData, dwSamples);
 		}
 		break;
-	default:
-		return;
 	}
 
-	if (m_bGainControl && (byChannel < 6 || !m_bDownMixSurround))
+	if (m_bGainControl && (byChannels < 6 || bSurround))
 		GainControl((short*)pOutBuff, dwOutSize / sizeof(short),
-					byChannel < 6 ? m_Gain : m_SurroundGain);
+					bSurround ? m_SurroundGain : m_Gain);
 
 	if (m_pStreamCallback)
-		m_pStreamCallback((short*)pOutBuff, dwSamples, m_bDownMixSurround ? 2 : byChannel, m_pStreamCallbackParam);
+		m_pStreamCallback((short*)pOutBuff, dwSamples, bSurround ? 6 : 2, m_pStreamCallbackParam);
 
 	// メディアサンプル有効サイズ設定
-	m_pOutSample->SetActualDataLength(dwOffset + dwOutSize);
+	pOutSample->SetActualDataLength(dwOutSize);
+
+	if (m_StartTime >= 0) {
+		REFERENCE_TIME rtDuration, rtEnd;
+		rtDuration = REFERENCE_TIME_SECOND * (LONGLONG)dwSamples / FREQUENCY;
+		rtEnd = m_StartTime + rtDuration;
+		pOutSample->SetTime(&m_StartTime, &rtEnd);
+		m_StartTime = rtEnd;
+	}
+	pOutSample->SetMediaTime(NULL, NULL);
+	pOutSample->SetPreroll(FALSE);
+	pOutSample->SetDiscontinuity(m_bDiscontinuity);
+	m_bDiscontinuity = false;
+	pOutSample->SetSyncPoint(TRUE);
+
+	m_pOutput->Deliver(pOutSample);
+	pOutSample->Release();
 }
 
-const DWORD CAacDecFilter::DownMixMono(short *pDst, const short *pSrc, const DWORD dwSamples)
+const DWORD CAacDecFilter::MonoToStereo(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
 	// 1ch → 2ch 二重化
 	const short *p = pSrc, *pEnd = pSrc + dwSamples;
@@ -614,7 +774,6 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 
 #endif	// DOWNMIX_INT
 
-
 const DWORD CAacDecFilter::MapSurroundChannels(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
 	for (DWORD i = 0 ; i < dwSamples ; i++) {
@@ -630,7 +789,6 @@ const DWORD CAacDecFilter::MapSurroundChannels(short *pDst, const short *pSrc, c
 	return dwSamples * (sizeof(short) * 6);
 }
 
-
 bool CAacDecFilter::ResetDecoder()
 {
 	CAutoLock AutoLock(m_pLock);
@@ -638,9 +796,10 @@ bool CAacDecFilter::ResetDecoder()
 	return m_AacDecoder.ResetDecoder();
 }
 
-
 bool CAacDecFilter::SetStereoMode(int StereoMode)
 {
+	CAutoLock AutoLock(m_pLock);
+
 	switch (StereoMode) {
 	case STEREOMODE_STEREO:
 	case STEREOMODE_LEFT:
@@ -651,6 +810,19 @@ bool CAacDecFilter::SetStereoMode(int StereoMode)
 	return false;
 }
 
+bool CAacDecFilter::SetAutoStereoMode(int StereoMode)
+{
+	CAutoLock AutoLock(m_pLock);
+
+	switch (StereoMode) {
+	case STEREOMODE_STEREO:
+	case STEREOMODE_LEFT:
+	case STEREOMODE_RIGHT:
+		m_AutoStereoMode = StereoMode;
+		return true;
+	}
+	return false;
+}
 
 bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 {
@@ -659,7 +831,6 @@ bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 	m_bDownMixSurround = bDownMix;
 	return true;
 }
-
 
 bool CAacDecFilter::SetGainControl(bool bGainControl, float Gain, float SurroundGain)
 {
@@ -671,7 +842,6 @@ bool CAacDecFilter::SetGainControl(bool bGainControl, float Gain, float Surround
 	return true;
 }
 
-
 bool CAacDecFilter::GetGainControl(float *pGain, float *pSurroundGain) const
 {
 	if (pGain)
@@ -680,7 +850,6 @@ bool CAacDecFilter::GetGainControl(float *pGain, float *pSurroundGain) const
 		*pSurroundGain = m_SurroundGain;
 	return m_bGainControl;
 }
-
 
 void CAacDecFilter::GainControl(short *pBuffer, const DWORD Samples, const float Gain)
 {
@@ -699,6 +868,29 @@ void CAacDecFilter::GainControl(short *pBuffer, const DWORD Samples, const float
 	}
 }
 
+bool CAacDecFilter::SetSpdifOptions(const SpdifOptions *pOptions)
+{
+	if (!pOptions)
+		return false;
+
+	CAutoLock AutoLock(m_pLock);
+
+	m_SpdifOptions = *pOptions;
+
+	return true;
+}
+
+bool CAacDecFilter::GetSpdifOptions(SpdifOptions *pOptions) const
+{
+	if (!pOptions)
+		return false;
+
+	CAutoLock AutoLock(m_pLock);
+
+	*pOptions = m_SpdifOptions;
+
+	return true;
+}
 
 bool CAacDecFilter::SetAdjustStreamTime(bool bAdjust)
 {
@@ -712,7 +904,6 @@ bool CAacDecFilter::SetAdjustStreamTime(bool bAdjust)
 	return true;
 }
 
-
 bool CAacDecFilter::SetStreamCallback(StreamCallback pCallback, void *pParam)
 {
 	CAutoLock AutoLock(m_pLock);
@@ -723,8 +914,233 @@ bool CAacDecFilter::SetStreamCallback(StreamCallback pCallback, void *pParam)
 	return true;
 }
 
-
 DWORD CAacDecFilter::GetBitRate() const
 {
 	return m_BitRateCalculator.GetBitRate();
+}
+
+void CAacDecFilter::OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame *pFrame)
+{
+	m_pAdtsFrame = pFrame;
+
+	/*
+		S/PDIFパススルー時にもデコードするのは無駄に見えるが、
+		ステレオなのにchannel_configurationが1になっていたりして
+		ADTSヘッダの情報が信用できないので実際にデコードしてみる必要がある
+	*/
+	m_AacDecoder.Decode(pFrame);
+
+	m_pAdtsFrame = NULL;
+}
+
+void CAacDecFilter::OutputSpdif()
+{
+	static const int PREAMBLE_SIZE = sizeof(WORD) * 4;
+	static const int SAMPLES_PER_FRAME = 1024;
+
+	const CAdtsFrame *pFrame = m_pAdtsFrame;
+
+	if (pFrame->GetRawDataBlockNum() != 0) {
+		OutputLog(TEXT("no_raw_data_blocks_in_frameが不正です。(%d)\r\n"), pFrame->GetRawDataBlockNum());
+		return;
+	}
+
+	HRESULT hr;
+
+	int FrameSize = pFrame->GetFrameLength();
+	int DataBurstSize = PREAMBLE_SIZE + FrameSize;
+	int PacketSize = SAMPLES_PER_FRAME * 4;
+	int BitRate = (int)((LONGLONG)FrameSize * 8LL * FREQUENCY/*pFrame->GetSamplingFreq()*/ / (LONGLONG)SAMPLES_PER_FRAME);
+	if (DataBurstSize > PacketSize) {
+		OutputLog(TEXT("ビットレートが不正です。(Frame size %d / Data-burst size %d / Packet size %d / Bitrate %d)\r\n"),
+				  FrameSize, DataBurstSize, PacketSize, BitRate);
+		return;
+	}
+
+#ifdef _DEBUG
+	static bool bFirst=true;
+	if (bFirst) {
+		OutputLog(TEXT("出力開始(Frame size %d / Data-burst size %d / Packet size %d / Bitrate %d)\r\n"),
+				  FrameSize, DataBurstSize, PacketSize, BitRate);
+		bFirst=false;
+	}
+#endif
+
+	bool bMediaTypeChanged = false;
+	WAVEFORMATEX *pwfx = reinterpret_cast<WAVEFORMATEX*>(m_MediaType.Format());
+	if (*m_MediaType.FormatType() != FORMAT_WaveFormatEx
+			|| pwfx->wFormatTag != WAVE_FORMAT_DOLBY_AC3_SPDIF) {
+		CMediaType mt;
+		mt.SetType(&MEDIATYPE_Audio);
+		mt.SetSubtype(&MEDIASUBTYPE_PCM);
+		mt.SetFormatType(&FORMAT_WaveFormatEx);
+
+		pwfx = reinterpret_cast<WAVEFORMATEX*>(mt.AllocFormatBuffer(sizeof(WAVEFORMATEX)));
+		if (pwfx == NULL)
+			return;
+		pwfx->wFormatTag = WAVE_FORMAT_DOLBY_AC3_SPDIF;
+		pwfx->nChannels = 2;
+		pwfx->nSamplesPerSec = FREQUENCY;
+		pwfx->wBitsPerSample = 16;
+		pwfx->nBlockAlign = pwfx->nChannels * pwfx->wBitsPerSample / 8;
+		pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
+		pwfx->cbSize = 0;
+		/*
+		// Windows 7 では WAVEFORMATEXTENSIBLE_IEC61937 を使った方がいい?
+		WAVEFORMATEXTENSIBLE_IEC61937 *pwfx;
+		...
+		pwfx->FormatExt.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
+		...
+		pwfx->FormatExt.Format.cbSize = sizeof(WAVEFORMATEXTENSIBLE_IEC61937) - sizeof(WAVEFORMATEX);
+		pwfx->FormatExt.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT |
+										SPEAKER_FRONT_CENTER | SPEAKER_LOW_FREQUENCY |
+										SPEAKER_BACK_LEFT | SPEAKER_BACK_RIGHT;
+		pwfx->FormatExt.Samples.wValidBitsPerSample = 16;
+		pwfx->FormatExt.SubFormat = KSDATAFORMAT_SUBTYPE_IEC61937_AAC;
+		pwfx->dwEncodedSamplesPerSec = FREQUENCY;
+		pwfx->dwEncodedChannelCount = 6;
+		pwfx->dwAverageBytesPerSec = 0;
+		*/
+		mt.SetSampleSize(pwfx->nBlockAlign);
+
+		hr = ReconnectOutput(PacketSize, mt);
+		if (FAILED(hr))
+			return;
+
+		if (hr == S_OK) {
+			OutputLog(TEXT("出力メディアタイプを更新します。\r\n"));
+			hr = m_pOutput->SetMediaType(&mt);
+			if (FAILED(hr)) {
+				OutputLog(TEXT("出力メディアタイプを設定できません。(%08x)\r\n"), hr);
+				return;
+			}
+			m_MediaType = mt;
+			m_bDiscontinuity = true;
+			bMediaTypeChanged = true;
+		}
+	}
+
+	IMediaSample *pOutSample = NULL;
+	hr = m_pOutput->GetDeliveryBuffer(&pOutSample, NULL, NULL, 0);
+	if (FAILED(hr) || !pOutSample) {
+		OutputLog(TEXT("出力メディアサンプルを取得できません。(%08x)\r\n"), hr);
+		return;
+	}
+	if (bMediaTypeChanged)
+		pOutSample->SetMediaType(&m_MediaType);
+
+	BYTE *pOutBuff = NULL;
+	hr = pOutSample->GetPointer(&pOutBuff);
+	if (FAILED(hr) || !pOutBuff) {
+		pOutSample->Release();
+		OutputLog(TEXT("サンプルのバッファを取得できません。(%08x)\r\n"), hr);
+		return;
+	}
+
+	WORD *pWordData = reinterpret_cast<WORD*>(pOutBuff);
+	// Burst-preamble
+	pWordData[0] = 0xF872;						// Pa(Sync word 1)
+	pWordData[1] = 0x4E1F;						// Pb(Sync word 2)
+	pWordData[2] = 0x0007;						// Pc(Burst-info = MPEG2 AAC ADTS)
+	//pWordData[3] = ((FrameSize + 1) & ~1) * 8;	// Pd(Length-code)
+	pWordData[3] = FrameSize * 8;				// Pd(Length-code)
+	// Burst-payload
+	_swab((char*)pFrame->GetData(), (char*)&pWordData[4], FrameSize & ~1);
+	if (FrameSize & 1) {
+		pOutBuff[PREAMBLE_SIZE + FrameSize - 1] = 0;
+		pOutBuff[PREAMBLE_SIZE + FrameSize] = pFrame->GetAt(FrameSize - 1);
+		DataBurstSize++;
+	}
+	// Stuffing
+	if (DataBurstSize < PacketSize)
+		::ZeroMemory(&pOutBuff[DataBurstSize], PacketSize - DataBurstSize);
+
+	pOutSample->SetActualDataLength(PacketSize);
+
+	if (m_StartTime >= 0) {
+		REFERENCE_TIME rtDuration, rtEnd;
+		rtDuration = REFERENCE_TIME_SECOND * (LONGLONG)SAMPLES_PER_FRAME / FREQUENCY;
+		rtEnd = m_StartTime + rtDuration;
+		pOutSample->SetTime(&m_StartTime, &rtEnd);
+		m_StartTime = rtEnd;
+	}
+	pOutSample->SetMediaTime(NULL, NULL);
+	pOutSample->SetPreroll(FALSE);
+	pOutSample->SetDiscontinuity(m_bDiscontinuity);
+	m_bDiscontinuity = false;
+	pOutSample->SetSyncPoint(TRUE);
+
+	hr = m_pOutput->Deliver(pOutSample);
+	pOutSample->Release();
+	if (FAILED(hr)) {
+		OutputLog(TEXT("サンプルの送信エラー(%08x)\r\n"), hr);
+		return;
+	}
+}
+
+HRESULT CAacDecFilter::ReconnectOutput(long BufferSize, const CMediaType &mt)
+{
+	HRESULT hr;
+
+	IPin *pPin = m_pOutput->GetConnected();
+	if (pPin == NULL)
+		return E_POINTER;
+
+	IMemInputPin *pMemInputPin = NULL;
+	hr = pPin->QueryInterface(IID_IMemInputPin, reinterpret_cast<void**>(&pMemInputPin));
+	if (FAILED(hr)) {
+		OutputLog(TEXT("IMemInputPinインターフェースが取得できません。(%08x)\r\n"), hr);
+	} else {
+		IMemAllocator *pAllocator = NULL;
+		hr = pMemInputPin->GetAllocator(&pAllocator);
+		if (FAILED(hr)) {
+			OutputLog(TEXT("IMemAllocatorインターフェースが取得できません。(%08x)\r\n"), hr);
+		} else {
+			ALLOCATOR_PROPERTIES Props;
+			hr = pAllocator->GetProperties(&Props);
+			if (FAILED(hr)) {
+				OutputLog(TEXT("IMemAllocatorのプロパティが取得できません。(%08x)\r\n"), hr);
+			} else {
+				if (mt != m_pOutput->CurrentMediaType()
+						|| Props.cBuffers < 4
+						|| Props.cbBuffer < BufferSize) {
+					hr = S_OK;
+					if (Props.cBuffers < 4
+							|| Props.cbBuffer < BufferSize) {
+						ALLOCATOR_PROPERTIES ActualProps;
+
+						Props.cBuffers = 4;
+						Props.cbBuffer = BufferSize * 3 / 2;
+						OutputLog(TEXT("バッファサイズを設定します。(%ld bytes)\r\n"), Props.cbBuffer);
+						if (SUCCEEDED(hr = m_pOutput->DeliverBeginFlush())
+								&& SUCCEEDED(hr = m_pOutput->DeliverEndFlush())
+								&& SUCCEEDED(hr = pAllocator->Decommit())
+								&& SUCCEEDED(hr = pAllocator->SetProperties(&Props, &ActualProps))
+								&& SUCCEEDED(hr = pAllocator->Commit())) {
+							if (Props.cBuffers > ActualProps.cBuffers
+									|| Props.cbBuffer > ActualProps.cbBuffer) {
+								OutputLog(TEXT("バッファサイズの要求が受け付けられません。(%ld / %ld)\r\n"),
+										  ActualProps.cbBuffer, Props.cbBuffer);
+								hr = E_FAIL;
+								NotifyEvent(EC_ERRORABORT, hr, 0);
+							} else {
+								OutputLog(TEXT("ピンの再接続成功\r\n"));
+								hr = S_OK;
+							}
+						} else {
+							OutputLog(TEXT("ピンの再接続ができません。(%08x)\r\n"), hr);
+						}
+					}
+				} else {
+					hr = S_FALSE;
+				}
+			}
+
+			pAllocator->Release();
+		}
+
+		pMemInputPin->Release();
+	}
+
+	return hr;
 }

@@ -123,7 +123,7 @@ bool FillGlossyGradient(HDC hdc,const RECT *pRect,
 }
 
 
-// 
+// 縞々のグラデーションで塗りつぶす
 bool FillInterlacedGradient(HDC hdc,const RECT *pRect,
 							COLORREF Color1,COLORREF Color2,FillDirection Direction,
 							COLORREF LineColor,int LineOpacity)
@@ -175,8 +175,8 @@ bool FillInterlacedGradient(HDC hdc,const RECT *pRect,
 		}
 	}
 
-	::SelectObject(hdc,hpenOld);
 	::SetDCPenColor(hdc,OldPenColor);
+	::SelectObject(hdc,hpenOld);
 
 	return true;
 }
@@ -366,11 +366,12 @@ bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
 bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 					  HDC hdcSrc,int SrcX,int SrcY,int Width,int Height,COLORREF Color)
 {
+	if (hdcDst==NULL || hdcSrc==NULL)
+		return false;
+
 	COLORREF TransColor=Color^0x00FFFFFF;
 	RGBQUAD Palette[2];
 
-	if (hdcDst==NULL || hdcSrc==NULL)
-		return false;
 	Palette[0].rgbBlue=GetBValue(Color);
 	Palette[0].rgbGreen=GetGValue(Color);
 	Palette[0].rgbRed=GetRValue(Color);
@@ -382,6 +383,26 @@ bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 	::SetDIBColorTable(hdcSrc,0,2,Palette);
 	::TransparentBlt(hdcDst,DstX,DstY,Width,Height,
 					 hdcSrc,SrcX,SrcY,Width,Height,TransColor);
+	return true;
+}
+
+
+bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
+					  HBITMAP hbm,int SrcX,int SrcY,int Width,int Height,COLORREF Color)
+{
+	if (hdcDst==NULL || hbm==NULL)
+		return false;
+
+	HDC hdcMem=::CreateCompatibleDC(hdcDst);
+	if (hdcMem==NULL)
+		return false;
+
+	HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,hbm));
+	DrawMonoColorDIB(hdcDst,DstX,DstY,
+					 hdcMem,SrcX,SrcY,Width,Height,Color);
+	::SelectObject(hdcMem,hbmOld);
+	::DeleteDC(hdcMem);
+
 	return true;
 }
 
@@ -426,25 +447,25 @@ int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width)
 	int Lines=0;
 
 	p=pszText;
-	while (*p!='\0') {
-		if (*p=='\r' || *p=='\n') {
+	while (*p!=_T('\0')) {
+		if (*p==_T('\r') || *p==_T('\n')) {
 			p++;
-			if (*p=='\n')
+			if (*p==_T('\n'))
 				p++;
-			if (*p=='\0')
+			if (*p==_T('\0'))
 				break;
 			Lines++;
 			continue;
 		}
-		for (Length=0;p[Length]!='\0' && p[Length]!='\r' && p[Length]!='\n';Length++);
+		for (Length=0;p[Length]!=_T('\0') && p[Length]!=_T('\r') && p[Length]!=_T('\n');Length++);
 		::GetTextExtentExPoint(hdc,p,Length,Width,&Fit,NULL,&sz);
 		if (Fit<1)
 			Fit=1;
 		p+=Fit;
 		Lines++;
-		if (*p=='\r')
+		if (*p==_T('\r'))
 			p++;
-		if (*p=='\n')
+		if (*p==_T('\n'))
 			p++;
 	}
 	return Lines;
@@ -465,24 +486,24 @@ bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight)
 
 	p=pszText;
 	y=pRect->top;
-	while (*p!='\0' && y<pRect->bottom) {
-		if (*p=='\r' || *p=='\n') {
+	while (*p!=_T('\0') && y<pRect->bottom) {
+		if (*p==_T('\r') || *p==_T('\n')) {
 			p++;
-			if (*p=='\n')
+			if (*p==_T('\n'))
 				p++;
 			y+=LineHeight;
 			continue;
 		}
-		for (Length=0;p[Length]!='\0' && p[Length]!='\r' && p[Length]!='\n';Length++);
+		for (Length=0;p[Length]!=_T('\0') && p[Length]!=_T('\r') && p[Length]!=_T('\n');Length++);
 		::GetTextExtentExPoint(hdc,p,Length,pRect->right-pRect->left,&Fit,NULL,&sz);
 		if (Fit<1)
 			Fit=1;
 		::TextOut(hdc,pRect->left,y,p,Fit);
 		p+=Fit;
 		y+=LineHeight;
-		if (*p=='\r')
+		if (*p==_T('\r'))
 			p++;
-		if (*p=='\n')
+		if (*p==_T('\n'))
 			p++;
 	}
 	return true;
@@ -499,11 +520,7 @@ bool GetSystemFont(FontType Type,LOGFONT *pLogFont)
 	} else {
 		NONCLIENTMETRICS ncm;
 		LOGFONT *plf;
-#if WINVER<0x0600
-		ncm.cbSize=sizeof(ncm);
-#else
-		ncm.cbSize=offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
+		ncm.cbSize=CCSIZEOF_STRUCT(NONCLIENTMETRICS,lfMessageFont);
 		::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
 		switch (Type) {
 		case FONT_MESSAGE:		plf=&ncm.lfMessageFont;		break;
@@ -517,6 +534,77 @@ bool GetSystemFont(FontType Type,LOGFONT *pLogFont)
 		*pLogFont=*plf;
 	}
 	return true;
+}
+
+
+// UIに使用するデフォルトのフォントを取得する
+bool GetDefaultUIFont(LOGFONT *pFont)
+{
+	if (pFont==NULL)
+		return false;
+
+	::ZeroMemory(pFont,sizeof(LOGFONT));
+
+	LOGFONT MessageFont;
+	if (GetSystemFont(FONT_MESSAGE,&MessageFont)) {
+		// メイリオだと行間が空きすぎるのが…
+		if (::lstrcmp(MessageFont.lfFaceName,TEXT("メイリオ"))==0
+				|| ::lstrcmpi(MessageFont.lfFaceName,TEXT("Meiryo"))==0) {
+			//pFont->lfHeight=MessageFont.lfHeight;
+			pFont->lfHeight=-12;
+			pFont->lfWeight=FW_NORMAL;
+			::lstrcpy(pFont->lfFaceName,TEXT("Meiryo UI"));
+			if (IsFontAvailable(*pFont))
+				return true;
+		} else {
+			*pFont=MessageFont;
+			return true;
+		}
+	}
+
+	return GetSystemFont(FONT_DEFAULT,pFont);
+}
+
+
+bool IsFontAvailable(const LOGFONT &Font,HDC hdc)
+{
+	HFONT hfont=::CreateFontIndirect(&Font);
+
+	if (hfont==NULL)
+		return false;
+	HDC hdcMem=NULL;
+	if (hdc==NULL) {
+		hdcMem=::CreateCompatibleDC(NULL);
+		if (hdcMem==NULL)
+			return false;
+		hdc=hdcMem;
+	}
+	HFONT hfontOld=SelectFont(hdc,hfont);
+	TCHAR szFaceName[LF_FACESIZE];
+	bool fAvailable=
+		::GetTextFace(hdc,_countof(szFaceName),szFaceName)>0
+		&& ::lstrcmpi(szFaceName,Font.lfFaceName)==0;
+	::SelectObject(hdc,hfontOld);
+	if (hdcMem!=NULL)
+		::DeleteDC(hdcMem);
+
+	return fAvailable;
+}
+
+
+bool IsFontSmoothingEnabled()
+{
+	BOOL fEnabled=FALSE;
+	return ::SystemParametersInfo(SPI_GETFONTSMOOTHING,0,&fEnabled,0) && fEnabled;
+}
+
+
+bool IsClearTypeEnabled()
+{
+	UINT Type;
+	return IsFontSmoothingEnabled()
+		&& ::SystemParametersInfo(SPI_GETFONTSMOOTHINGTYPE,0,&Type,0)
+		&& Type==FE_FONTSMOOTHINGCLEARTYPE;
 }
 
 
@@ -621,15 +709,17 @@ int CFont::GetHeight(bool fCell) const
 	if (m_hfont==NULL)
 		return 0;
 
-	HDC hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
+	HDC hdc=::CreateCompatibleDC(NULL);
+	int Height;
 	if (hdc==NULL) {
 		LOGFONT lf;
 		if (!GetLogFont(&lf))
 			return 0;
-		return abs(lf.lfHeight);
+		Height=abs(lf.lfHeight);
+	} else {
+		Height=GetHeight(hdc,fCell);
+		::DeleteDC(hdc);
 	}
-	int Height=GetHeight(hdc,fCell);
-	::DeleteDC(hdc);
 	return Height;
 }
 
@@ -848,201 +938,75 @@ bool COffscreen::CopyTo(HDC hdc,const RECT *pDstRect)
 }
 
 
-CDeviceContext::CDeviceContext(HDC hdc)
-	: m_Flags(0)
-	, m_hdc(hdc)
-	, m_hwnd(NULL)
-	, m_pPaint(NULL)
-{
-}
-
-CDeviceContext::CDeviceContext(HWND hwnd)
-	: m_Flags(FLAG_DCFROMHWND)
-	, m_hdc(::GetDC(hwnd))
-	, m_hwnd(hwnd)
-	, m_pPaint(NULL)
-{
-}
-
-CDeviceContext::CDeviceContext(HWND hwnd,PAINTSTRUCT *pPaint)
-	: m_Flags(FLAG_WMPAINT)
-	, m_hdc(::BeginPaint(hwnd,pPaint))
-	, m_hwnd(hwnd)
-	, m_pPaint(pPaint)
-{
-}
-
-CDeviceContext::~CDeviceContext()
-{
-	Release();
-}
-
-void CDeviceContext::Restore()
-{
-	if (m_hdc) {
-		if ((m_Flags&FLAG_BRUSHSELECTED)!=0)
-			::SelectObject(m_hdc,m_hbrOld);
-		if ((m_Flags&FLAG_PENSELECTED)!=0)
-			::SelectObject(m_hdc,m_hpenOld);
-		if ((m_Flags&FLAG_FONTSELECTED)!=0)
-			::SelectObject(m_hdc,m_hfontOld);
-		if ((m_Flags&FLAG_TEXTCOLOR)!=0)
-			::SetTextColor(m_hdc,m_OldTextColor);
-		if ((m_Flags&FLAG_BKCOLOR)!=0)
-			::SetBkColor(m_hdc,m_OldBkColor);
-		if ((m_Flags&FLAG_BKMODE)!=0)
-			::SetBkMode(m_hdc,m_OldBkMode);
-		m_Flags&=~FLAG_RESTOREMASK;
-	}
-}
-
-void CDeviceContext::Release()
-{
-	if (m_hdc) {
-		Restore();
-		if ((m_Flags&FLAG_DCFROMHWND)!=0)
-			::ReleaseDC(m_hwnd/*::WindowFromDC(m_hdc)*/,m_hdc);
-		else if ((m_Flags&FLAG_WMPAINT)!=0)
-			::EndPaint(m_hwnd,m_pPaint);
-		m_hdc=NULL;
-	}
-	m_Flags=0;
-	m_hwnd=NULL;
-	m_pPaint=NULL;
-}
-
-void CDeviceContext::SetBrush(HBRUSH hbr)
-{
-	if (m_hdc && hbr) {
-		HBRUSH hbrOld=static_cast<HBRUSH>(::SelectObject(m_hdc,hbr));
-		if ((m_Flags&FLAG_BRUSHSELECTED)==0) {
-			m_hbrOld=hbrOld;
-			m_Flags|=FLAG_BRUSHSELECTED;
-		}
-	}
-}
-
-void CDeviceContext::SetPen(HPEN hpen)
-{
-	if (m_hdc && hpen) {
-		HPEN hpenOld=static_cast<HPEN>(::SelectObject(m_hdc,hpen));
-		if ((m_Flags&FLAG_PENSELECTED)==0) {
-			m_hpenOld=hpenOld;
-			m_Flags|=FLAG_PENSELECTED;
-		}
-	}
-}
-
-void CDeviceContext::SetFont(HFONT hfont)
-{
-	if (m_hdc && hfont) {
-		HFONT hfontOld=static_cast<HFONT>(::SelectObject(m_hdc,hfont));
-		if ((m_Flags&FLAG_FONTSELECTED)==0) {
-			m_hfontOld=hfontOld;
-			m_Flags|=FLAG_FONTSELECTED;
-		}
-	}
-}
-
-void CDeviceContext::SetFont(const CFont &Font)
-{
-	SetFont(Font.GetHandle());
-}
-
-void CDeviceContext::SetTextColor(COLORREF Color)
-{
-	if (m_hdc) {
-		COLORREF OldTextColor=::SetTextColor(m_hdc,Color);
-		if ((m_Flags&FLAG_TEXTCOLOR)==0) {
-			m_OldTextColor=OldTextColor;
-			m_Flags|=FLAG_TEXTCOLOR;
-		}
-	}
-}
-
-void CDeviceContext::SetBkColor(COLORREF Color)
-{
-	if (m_hdc) {
-		COLORREF OldBkColor=::SetBkColor(m_hdc,Color);
-		if ((m_Flags&FLAG_BKCOLOR)==0) {
-			m_OldBkColor=OldBkColor;
-			m_Flags|=FLAG_BKCOLOR;
-		}
-	}
-}
-
-void CDeviceContext::SetBkMode(int BkMode)
-{
-	if (m_hdc) {
-		int OldBkMode=::SetBkMode(m_hdc,BkMode);
-		if ((m_Flags&FLAG_BKMODE)==0) {
-			m_OldBkMode=OldBkMode;
-			m_Flags|=FLAG_BKMODE;
-		}
-	}
-}
-
-void CDeviceContext::DrawRectangle(int Left,int Top,int Right,int Bottom,RectangleStyle Style)
-{
-	if (m_hdc==NULL)
-		return;
-	switch (Style) {
-	case RECTANGLE_NORMAL:
-		::Rectangle(m_hdc,Left,Top,Right,Bottom);
-		break;
-	case RECTANGLE_FILL:
-		{
-			HBRUSH hbr=static_cast<HBRUSH>(::GetCurrentObject(m_hdc,OBJ_BRUSH));
-			if (hbr) {
-				RECT rc;
-				::SetRect(&rc,Left,Top,Right,Bottom);
-				::FillRect(m_hdc,&rc,hbr);
-			}
-		}
-		break;
-	case RECTANGLE_BORDER:
-		{
-			HBRUSH hbrOld=static_cast<HBRUSH>(::SelectObject(m_hdc,::GetStockObject(NULL_BRUSH)));
-			::Rectangle(m_hdc,Left,Top,Right,Bottom);
-			::SelectObject(m_hdc,hbrOld);
-		}
-		break;
-	}
-}
-
-void CDeviceContext::DrawRectangle(const RECT *pRect,RectangleStyle Style)
-{
-	if (m_hdc && pRect)
-		DrawRectangle(pRect->left,pRect->top,pRect->right,pRect->bottom,Style);
-}
-
-void CDeviceContext::DrawLine(int x1,int y1,int x2,int y2)
-{
-	if (m_hdc) {
-		::MoveToEx(m_hdc,x1,y1,NULL);
-		::LineTo(m_hdc,x2,y2);
-	}
-}
-
-void CDeviceContext::DrawText(LPCTSTR pszText,int Length,RECT *pRect,UINT Format)
-{
-	if (m_hdc)
-		::DrawText(m_hdc,pszText,Length,pRect,Format);
-}
-
-
 }	// namespace DrawUtil
 
 
 
 
+// GDI+のヘッダで整数型の引数にNULLを渡しているので
+// #define NULL nullptr するとエラーが出る…
+#if _MSC_VER >= 1600	// VC2010
+#undef NULL
+#define NULL 0
+#endif
 #include <gdiplus.h>
-
 
 #pragma comment(lib, "gdiplus.lib")
 #ifdef WINDOWS2000_SUPPORT
 //#pragma comment(linker, "/DELAYLOAD:gdiplus.dll")
 #endif
+
+
+class CGdiPlusInitializer
+{
+	bool m_fInitialized;
+	ULONG_PTR m_Token;
+
+public:
+	CGdiPlusInitializer()
+		: m_fInitialized(false)
+	{
+	}
+
+	~CGdiPlusInitializer()
+	{
+		Finalize();
+	}
+
+	bool Initialize()
+	{
+		if (!m_fInitialized) {
+#ifdef WINDOWS2000_SUPPORT
+			// GDI+ の DLL がロードできるか調べる
+			// (gdiplus.dllが無くても起動するように遅延ロードの指定をしている)
+			HMODULE hLib=::LoadLibrary(TEXT("gdiplus.dll"));
+			if (hLib==NULL)
+				return false;
+			::FreeLibrary(hLib);
+#endif
+
+			Gdiplus::GdiplusStartupInput si;
+			si.GdiplusVersion=1;
+			si.DebugEventCallback=NULL;
+			si.SuppressBackgroundThread=FALSE;
+			si.SuppressExternalCodecs=FALSE;
+			if (Gdiplus::GdiplusStartup(&m_Token,&si,NULL)!=Gdiplus::Ok)
+				return false;
+			m_fInitialized=true;
+		}
+		return true;
+	}
+
+	void Finalize()
+	{
+		if (m_fInitialized) {
+			Gdiplus::GdiplusShutdown(m_Token);
+			m_fInitialized=false;
+		}
+	}
+};
+
+static CGdiPlusInitializer GdiPlusInitializer;
 
 
 CGdiPlus::CGdiPlus()
@@ -1057,34 +1021,15 @@ CGdiPlus::~CGdiPlus()
 
 bool CGdiPlus::Initialize()
 {
-	if (!m_fInitialized) {
-#ifdef WINDOWS2000_SUPPORT
-		// GDI+ の DLL がロードできるか調べる
-		// (gdiplus.dllが無くても起動するように遅延ロードの指定をしている)
-		HMODULE hLib=::LoadLibrary(TEXT("gdiplus.dll"));
-		if (hLib==NULL)
-			return false;
-		::FreeLibrary(hLib);
-#endif
-
-		Gdiplus::GdiplusStartupInput si;
-		si.GdiplusVersion=1;
-		si.DebugEventCallback=NULL;
-		si.SuppressBackgroundThread=FALSE;
-		si.SuppressExternalCodecs=FALSE;
-		if (Gdiplus::GdiplusStartup(&m_Token,&si,NULL)!=Gdiplus::Ok)
-			return false;
-		m_fInitialized=true;
-	}
+	if (!GdiPlusInitializer.Initialize())
+		return false;
+	m_fInitialized=true;
 	return true;
 }
 
 void CGdiPlus::Finalize()
 {
-	if (m_fInitialized) {
-		Gdiplus::GdiplusShutdown(m_Token);
-		m_fInitialized=false;
-	}
+	m_fInitialized=false;
 }
 
 bool CGdiPlus::DrawImage(CCanvas *pCanvas,CImage *pImage,int x,int y)
@@ -1129,6 +1074,27 @@ bool CGdiPlus::FillRect(CCanvas *pCanvas,CBrush *pBrush,const RECT *pRect)
 												   pRect->left,pRect->top,
 												   pRect->right-pRect->left,
 												   pRect->bottom-pRect->top)==Gdiplus::Ok;
+	}
+	return false;
+}
+
+bool CGdiPlus::FillGradient(CCanvas *pCanvas,COLORREF Color1,COLORREF Color2,
+							const RECT &Rect,GradientDirection Direction)
+{
+	if (pCanvas!=NULL && pCanvas->m_pGraphics!=NULL) {
+		Gdiplus::RectF rect(
+			Gdiplus::REAL(Rect.left)-0.1f,
+			Gdiplus::REAL(Rect.top)-0.1f,
+			Gdiplus::REAL(Rect.right-Rect.left)+0.2f,
+			Gdiplus::REAL(Rect.bottom-Rect.top)+0.2f);
+		Gdiplus::LinearGradientBrush Brush(
+			rect,
+			Gdiplus::Color(GetRValue(Color1),GetGValue(Color1),GetBValue(Color1)),
+			Gdiplus::Color(GetRValue(Color2),GetGValue(Color2),GetBValue(Color2)),
+			Direction==GRADIENT_DIRECTION_HORZ?
+				Gdiplus::LinearGradientModeHorizontal:
+				Gdiplus::LinearGradientModeVertical);
+		return pCanvas->m_pGraphics->FillRectangle(&Brush,rect)==Gdiplus::Ok;
 	}
 	return false;
 }

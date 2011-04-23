@@ -25,6 +25,21 @@ public:
 		virtual void OnItemChanged() {}
 	};
 
+	CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOptions);
+	~CSideBarOptions();
+// COptions
+	bool Load(LPCTSTR pszFileName);
+	bool Save(LPCTSTR pszFileName) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
+// CSideBarOptions
+	bool ApplySideBarOptions();
+	bool SetSideBarImage();
+	bool ShowPopup() const { return m_fShowPopup; }
+	PlaceType GetPlace() const { return m_Place; }
+	bool SetPlace(PlaceType Place);
+	void SetEventHandler(CEventHandler *pHandler) { m_pEventHandler=pHandler; }
+
 protected:
 	enum { ITEM_SEPARATOR=0 };
 	CSideBar *m_pSideBar;
@@ -36,25 +51,12 @@ protected:
 	HIMAGELIST m_himlIcons;
 	CEventHandler *m_pEventHandler;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	HBITMAP CreateImage();
 	void ApplyItemList() const;
 	void SetItemList(HWND hwndList,const int *pList,int NumItems);
-	static CSideBarOptions *GetThis(HWND hDlg);
-
-public:
-	CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOptions);
-	~CSideBarOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
-// CSideBarOptions
-	bool ApplySideBarOptions();
-	bool SetSideBarImage();
-	bool ShowPopup() const { return m_fShowPopup; }
-	PlaceType GetPlace() const { return m_Place; }
-	bool SetPlace(PlaceType Place);
-	void SetEventHandler(CEventHandler *pHandler) { m_pEventHandler=pHandler; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

@@ -45,6 +45,7 @@ CEpgOptions::CEpgOptions(CCoreEngine *pCoreEngine,CLogoManager *pLogoManager)
 
 CEpgOptions::~CEpgOptions()
 {
+	Destroy();
 	Finalize();
 }
 
@@ -110,6 +111,13 @@ bool CEpgOptions::Write(CSettings *pSettings) const
 
 	pSettings->Write(TEXT("EventInfoFont"),&m_EventInfoFont);
 	return true;
+}
+
+
+bool CEpgOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_EPG));
 }
 
 
@@ -274,12 +282,6 @@ bool CEpgOptions::SaveLogoFile()
 }
 
 
-CEpgOptions *CEpgOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CEpgOptions*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
 static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 {
 	HDC hdc;
@@ -293,51 +295,48 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 	::ReleaseDC(hDlg,hdc);
 }
 
-INT_PTR CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CEpgOptions *pThis=dynamic_cast<CEpgOptions*>(OnInitDialog(hDlg,lParam));
-
-			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_SAVEEPGFILE,pThis->m_fSaveEpgFile);
+			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_SAVEEPGFILE,m_fSaveEpgFile);
 			::EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGFILENAME_LABEL,
-					IDC_EPGOPTIONS_EPGFILENAME_BROWSE,pThis->m_fSaveEpgFile);
+					IDC_EPGOPTIONS_EPGFILENAME_BROWSE,m_fSaveEpgFile);
 			::SendDlgItemMessage(hDlg,IDC_EPGOPTIONS_EPGFILENAME,
 								 EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGFILENAME,
-							 pThis->m_szEpgFileName);
-			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_UPDATEWHENSTANDBY,
-							  pThis->m_fUpdateWhenStandby);
-			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_USEEPGDATA,pThis->m_fUseEDCBData);
+			::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGFILENAME,m_szEpgFileName);
+			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_UPDATEWHENSTANDBY,m_fUpdateWhenStandby);
+			DlgCheckBox_Check(hDlg,IDC_EPGOPTIONS_USEEPGDATA,m_fUseEDCBData);
 			::SendDlgItemMessage(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,pThis->m_szEDCBDataFolder);
+			::SetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,m_szEDCBDataFolder);
 			EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
 								IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
-						   pThis->m_fUseEDCBData);
+						   m_fUseEDCBData);
 
-			DlgCheckBox_Check(hDlg,IDC_LOGOOPTIONS_SAVEDATA,pThis->m_fSaveLogoFile);
+			DlgCheckBox_Check(hDlg,IDC_LOGOOPTIONS_SAVEDATA,m_fSaveLogoFile);
 			::SendDlgItemMessage(hDlg,IDC_LOGOOPTIONS_DATAFILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_LOGOOPTIONS_DATAFILENAME,pThis->m_szLogoFileName);
+			::SetDlgItemText(hDlg,IDC_LOGOOPTIONS_DATAFILENAME,m_szLogoFileName);
 			EnableDlgItems(hDlg,IDC_LOGOOPTIONS_DATAFILENAME_LABEL,
 								IDC_LOGOOPTIONS_DATAFILENAME_BROWSE,
-						   pThis->m_fSaveLogoFile);
-			DlgCheckBox_Check(hDlg,IDC_LOGOOPTIONS_SAVERAWLOGO,pThis->m_pLogoManager->GetSaveLogo());
-			DlgCheckBox_Check(hDlg,IDC_LOGOOPTIONS_SAVEBMPLOGO,pThis->m_pLogoManager->GetSaveLogoBmp());
+						   m_fSaveLogoFile);
+			DlgCheckBox_Check(hDlg,IDC_LOGOOPTIONS_SAVERAWLOGO,m_pLogoManager->GetSaveLogo());
+			DlgCheckBox_Check(hDlg,IDC_LOGOOPTIONS_SAVEBMPLOGO,m_pLogoManager->GetSaveLogoBmp());
 			::SendDlgItemMessage(hDlg,IDC_LOGOOPTIONS_LOGOFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_LOGOOPTIONS_LOGOFOLDER,pThis->m_pLogoManager->GetLogoDirectory());
+			::SetDlgItemText(hDlg,IDC_LOGOOPTIONS_LOGOFOLDER,m_pLogoManager->GetLogoDirectory());
 
-			pThis->m_CurEventInfoFont=pThis->m_EventInfoFont;
-			SetFontInfo(hDlg,&pThis->m_CurEventInfoFont);
+			m_CurEventInfoFont=m_EventInfoFont;
+			SetFontInfo(hDlg,&m_CurEventInfoFont);
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case IDC_EPGOPTIONS_SAVEEPGFILE:
-			EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGFILENAME_LABEL,
-								IDC_EPGOPTIONS_EPGFILENAME_BROWSE,
-						   DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_SAVEEPGFILE));
+			EnableDlgItemsSyncCheckBox(hDlg,
+									   IDC_EPGOPTIONS_EPGFILENAME_LABEL,
+									   IDC_EPGOPTIONS_EPGFILENAME_BROWSE,
+									   IDC_EPGOPTIONS_SAVEEPGFILE);
 			return TRUE;
 
 		case IDC_EPGOPTIONS_EPGFILENAME_BROWSE:
@@ -375,9 +374,10 @@ INT_PTR CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			return TRUE;
 
 		case IDC_EPGOPTIONS_USEEPGDATA:
-			EnableDlgItems(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
-								IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
-						   DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_USEEPGDATA));
+			EnableDlgItemsSyncCheckBox(hDlg,
+									   IDC_EPGOPTIONS_EPGDATAFOLDER_LABEL,
+									   IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE,
+									   IDC_EPGOPTIONS_USEEPGDATA);
 			return TRUE;
 
 		case IDC_EPGOPTIONS_EPGDATAFOLDER_BROWSE:
@@ -391,9 +391,10 @@ INT_PTR CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			return TRUE;
 
 		case IDC_LOGOOPTIONS_SAVEDATA:
-			EnableDlgItems(hDlg,IDC_LOGOOPTIONS_DATAFILENAME_LABEL,
-								IDC_LOGOOPTIONS_DATAFILENAME_BROWSE,
-						   DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVEDATA));
+			EnableDlgItemsSyncCheckBox(hDlg,
+									   IDC_LOGOOPTIONS_DATAFILENAME_LABEL,
+									   IDC_LOGOOPTIONS_DATAFILENAME_BROWSE,
+									   IDC_LOGOOPTIONS_SAVEDATA);
 			return TRUE;
 
 		case IDC_LOGOOPTIONS_DATAFILENAME_BROWSE:
@@ -440,12 +441,8 @@ INT_PTR CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			return TRUE;
 
 		case IDC_EVENTINFOOPTIONS_FONT_CHOOSE:
-			{
-				CEpgOptions *pThis=GetThis(hDlg);
-
-				if (ChooseFontDialog(hDlg,&pThis->m_CurEventInfoFont))
-					SetFontInfo(hDlg,&pThis->m_CurEventInfoFont);
-			}
+			if (ChooseFontDialog(hDlg,&m_CurEventInfoFont))
+				SetFontInfo(hDlg,&m_CurEventInfoFont);
 			return TRUE;
 		}
 		return TRUE;
@@ -454,49 +451,41 @@ INT_PTR CALLBACK CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CEpgOptions *pThis=GetThis(hDlg);
 				TCHAR szPath[MAX_PATH];
 
-				pThis->m_fSaveEpgFile=
+				m_fSaveEpgFile=
 					DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_SAVEEPGFILE);
 				::GetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGFILENAME,
-					 pThis->m_szEpgFileName,lengthof(pThis->m_szEpgFileName));
-				pThis->m_fUpdateWhenStandby=
+								 m_szEpgFileName,lengthof(m_szEpgFileName));
+				m_fUpdateWhenStandby=
 					DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_UPDATEWHENSTANDBY);
 				bool fUseEpgData=
 					DlgCheckBox_IsChecked(hDlg,IDC_EPGOPTIONS_USEEPGDATA);
 				::GetDlgItemText(hDlg,IDC_EPGOPTIONS_EPGDATAFOLDER,
-					pThis->m_szEDCBDataFolder,lengthof(pThis->m_szEDCBDataFolder));
-				if (!pThis->m_fUseEDCBData && fUseEpgData) {
-					pThis->m_fUseEDCBData=fUseEpgData;
-					pThis->AsyncLoadEDCBData();
+					m_szEDCBDataFolder,lengthof(m_szEDCBDataFolder));
+				if (!m_fUseEDCBData && fUseEpgData) {
+					m_fUseEDCBData=fUseEpgData;
+					AsyncLoadEDCBData();
 				}
-				pThis->m_fUseEDCBData=fUseEpgData;
+				m_fUseEDCBData=fUseEpgData;
 
-				pThis->m_fSaveLogoFile=DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVEDATA);
+				m_fSaveLogoFile=DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVEDATA);
 				::GetDlgItemText(hDlg,IDC_LOGOOPTIONS_DATAFILENAME,
-								 pThis->m_szLogoFileName,lengthof(pThis->m_szLogoFileName));
-				pThis->m_pLogoManager->SetSaveLogo(DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVERAWLOGO));
-				pThis->m_pLogoManager->SetSaveLogoBmp(DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVEBMPLOGO));
+								 m_szLogoFileName,lengthof(m_szLogoFileName));
+				m_pLogoManager->SetSaveLogo(DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVERAWLOGO));
+				m_pLogoManager->SetSaveLogoBmp(DlgCheckBox_IsChecked(hDlg,IDC_LOGOOPTIONS_SAVEBMPLOGO));
 				::GetDlgItemText(hDlg,IDC_LOGOOPTIONS_LOGOFOLDER,szPath,lengthof(szPath));
-				pThis->m_pLogoManager->SetLogoDirectory(szPath);
+				m_pLogoManager->SetLogoDirectory(szPath);
 
-				if (!CompareLogFont(&pThis->m_EventInfoFont,&pThis->m_CurEventInfoFont)) {
-					pThis->m_EventInfoFont=pThis->m_CurEventInfoFont;
+				if (!CompareLogFont(&m_EventInfoFont,&m_CurEventInfoFont)) {
+					m_EventInfoFont=m_CurEventInfoFont;
 					SetGeneralUpdateFlag(UPDATE_GENERAL_EVENTINFOFONT);
 				}
 			}
 			break;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CEpgOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }

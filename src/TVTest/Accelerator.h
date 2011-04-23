@@ -54,6 +54,8 @@ class CAccelerator : public COptions, public CRawInput::CEventHandler
 
 // COptions
 	bool Load(LPCTSTR pszFileName);
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 // CAccelerator
 	static const KeyInfo m_DefaultAccelList[];
 	static const AppCommandInfo m_DefaultAppCommandList[];
@@ -66,7 +68,6 @@ class CAccelerator : public COptions, public CRawInput::CEventHandler
 	static int CheckAppCommand(HWND hwndList,int AppCommand);
 	void SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool fGlobal,BYTE AppCommand);
 	static void SetDlgItemStatus(HWND hDlg);
-	static CAccelerator *GetThis(HWND hDlg);
 // CRawInput::CEventHandler
 	void OnInput(int Type);
 	void OnUnknownInput(const BYTE *pData,int Size);
@@ -78,6 +79,8 @@ public:
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
 	bool Save(LPCTSTR pszFileName) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CAccelerator
 	bool Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
 					LPCTSTR pszSettingFileName,const CCommandList *pCommandList);
@@ -92,7 +95,6 @@ public:
 	bool IsFunctionKeyChannelChange() const { return m_fFunctionKeyChangeChannel; }
 	bool IsDigitKeyChannelChange() const { return m_fDigitKeyChangeChannel; }
 	bool IsNumPadChannelChange() const { return m_fNumPadChangeChannel; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

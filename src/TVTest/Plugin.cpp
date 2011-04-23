@@ -955,16 +955,18 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 			if (pInfo==NULL || pInfo->Size!=sizeof(TVTest::PanScanInfo))
 				return FALSE;
-			const CMediaViewer *pMediaViewer=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer;
-			pMediaViewer->GetForceAspectRatio(&pInfo->XAspect,&pInfo->YAspect);
-			const CMediaViewer::ClippingInfo &Clipping=pMediaViewer->GetClippingInfo();
+
+			CUICore::PanAndScanInfo PanScan;
+			if (!GetAppClass().GetUICore()->GetPanAndScan(&PanScan))
+				return FALSE;
+
 			pInfo->Type=TVTest::PANSCAN_NONE;
-			if (Clipping.HorzFactor>1) {
-				if (Clipping.VertFactor>1)
+			if (PanScan.Width<PanScan.XFactor) {
+				if (PanScan.Height<PanScan.YFactor)
 					pInfo->Type=TVTest::PANSCAN_SUPERFRAME;
 				else
 					pInfo->Type=TVTest::PANSCAN_SIDECUT;
-			} else if (Clipping.VertFactor>1) {
+			} else if (PanScan.Height<PanScan.YFactor) {
 				pInfo->Type=TVTest::PANSCAN_LETTERBOX;
 			}
 		}
@@ -1571,7 +1573,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			const TVTest::EpgEventQueryInfo *pQueryInfo=
 				reinterpret_cast<const TVTest::EpgEventQueryInfo*>(lParam1);
 			if (pQueryInfo==NULL)
-				return NULL;
+				return reinterpret_cast<LRESULT>((TVTest::EpgEventInfo*)NULL);
 
 			CEpgProgramList *pEpgProgramList=GetAppClass().GetEpgProgramList();
 			CEventInfoData EventData;
@@ -1581,21 +1583,21 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 												   pQueryInfo->ServiceID,
 												   pQueryInfo->EventID,
 												   &EventData))
-					return NULL;
+					return reinterpret_cast<LRESULT>((TVTest::EpgEventInfo*)NULL);
 			} else if (pQueryInfo->Type==TVTest::EPG_EVENT_QUERY_TIME) {
 				SYSTEMTIME stUTC,stLocal;
 
 				if (!::FileTimeToSystemTime(&pQueryInfo->Time,&stUTC)
 						|| !UTCToJST(&stUTC,&stLocal))
-					return NULL;
+					return reinterpret_cast<LRESULT>((TVTest::EpgEventInfo*)NULL);
 				if (!pEpgProgramList->GetEventInfo(pQueryInfo->NetworkID,
 												   pQueryInfo->TransportStreamID,
 												   pQueryInfo->ServiceID,
 												   &stLocal,
 												   &EventData))
-					return NULL;
+					return reinterpret_cast<LRESULT>((TVTest::EpgEventInfo*)NULL);
 			} else {
-				return NULL;
+				return reinterpret_cast<LRESULT>((TVTest::EpgEventInfo*)NULL);
 			}
 
 			CEpgDataConverter Converter;
@@ -2936,6 +2938,7 @@ CPluginOptions::CPluginOptions(CPluginManager *pPluginManager)
 
 CPluginOptions::~CPluginOptions()
 {
+	Destroy();
 	ClearList();
 }
 
@@ -3010,6 +3013,13 @@ bool CPluginOptions::Save(LPCTSTR pszFileName) const
 }
 
 
+bool CPluginOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_PLUGIN));
+}
+
+
 bool CPluginOptions::RestorePluginOptions()
 {
 	for (size_t i=0;i<m_EnablePluginList.size();i++) {
@@ -3048,23 +3058,16 @@ void CPluginOptions::ClearList()
 }
 
 
-CPluginOptions *CPluginOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CPluginOptions*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CPluginOptions *pThis=static_cast<CPluginOptions*>(OnInitDialog(hDlg,lParam));
 			HWND hwndList=GetDlgItem(hDlg,IDC_PLUGIN_LIST);
 			LV_COLUMN lvc;
 			int i;
 
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
+			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=120;
@@ -3076,8 +3079,8 @@ INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			ListView_InsertColumn(hwndList,2,&lvc);
 			lvc.pszText=TEXT("íòçÏå†");
 			ListView_InsertColumn(hwndList,3,&lvc);
-			for (i=0;i<pThis->m_pPluginManager->NumPlugins();i++) {
-				const CPlugin *pPlugin=pThis->m_pPluginManager->GetPlugin(i);
+			for (i=0;i<m_pPluginManager->NumPlugins();i++) {
+				const CPlugin *pPlugin=m_pPluginManager->GetPlugin(i);
 				LV_ITEM lvi;
 
 				lvi.mask=LVIF_TEXT | LVIF_PARAM;
@@ -3133,10 +3136,9 @@ INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					lvi.iItem=Sel;
 					lvi.iSubItem=0;
 					if (ListView_GetItem(hwndList,&lvi)) {
-						CPluginOptions *pThis=GetThis(hDlg);
-						int Index=pThis->m_pPluginManager->FindPlugin(reinterpret_cast<CPlugin*>(lvi.lParam));
+						int Index=m_pPluginManager->FindPlugin(reinterpret_cast<CPlugin*>(lvi.lParam));
 
-						if (pThis->m_pPluginManager->DeletePlugin(Index))
+						if (m_pPluginManager->DeletePlugin(Index))
 							ListView_DeleteItem(hwndList,Sel);
 					}
 				}
@@ -3216,10 +3218,7 @@ INT_PTR CALLBACK CPluginOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			return TRUE;
 		}
 		break;
-
-	case WM_DESTROY:
-		GetThis(hDlg)->OnDestroy();
-		return TRUE;
 	}
+
 	return FALSE;
 }

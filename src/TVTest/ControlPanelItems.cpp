@@ -232,17 +232,28 @@ void CAudioControlItem::CalcSize(int Width,SIZE *pSize)
 {
 	pSize->cx=Width;
 	pSize->cy=m_pControlPanel->GetFontHeight()+TEXT_MARGIN*2;
+	if (pSize->cy<16)
+		pSize->cy=16;
 }
 
 void CAudioControlItem::Draw(HDC hdc,const RECT &Rect)
 {
-	TCHAR szText[32];
-
-	if (GetAppClass().GetUICore()->FormatCurrentAudioText(szText,lengthof(szText))<=0)
-		::lstrcpy(szText,TEXT("<‰¹º>"));
+	CAppMain &App=GetAppClass();
 	RECT rc=Rect;
 	rc.left+=TEXT_MARGIN;
 	rc.right-=TEXT_MARGIN;
+
+	if (App.GetCoreEngine()->m_DtvEngine.m_MediaViewer.IsSpdifPassthrough()) {
+		if (!m_Icons.IsCreated())
+			m_Icons.Load(App.GetResourceInstance(),IDB_PASSTHROUGH);
+		DrawUtil::DrawMonoColorDIB(hdc,rc.left,rc.top+((rc.bottom-rc.top)-16)/2,
+								   m_Icons.GetHandle(),0,0,16,16,::GetTextColor(hdc));
+		rc.left+=16+4;
+	}
+
+	TCHAR szText[64];
+	if (App.GetUICore()->FormatCurrentAudioText(szText,lengthof(szText))<=0)
+		::lstrcpy(szText,TEXT("<‰¹º>"));
 	::DrawText(hdc,szText,-1,&rc,
 			   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }

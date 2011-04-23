@@ -58,10 +58,10 @@ CZoomOptions::~CZoomOptions()
 }
 
 
-bool CZoomOptions::ShowDialog(HWND hwndOwner)
+bool CZoomOptions::Show(HWND hwndOwner)
 {
-	return ::DialogBoxParam(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_ZOOMOPTIONS),
-							hwndOwner,DlgProc,reinterpret_cast<LPARAM>(this))==IDOK;
+	return ShowDialog(hwndOwner,
+					  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_ZOOMOPTIONS))==IDOK;
 }
 
 
@@ -187,12 +187,6 @@ bool CZoomOptions::Write(CSettings *pSettings) const
 }
 
 
-CZoomOptions *CZoomOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CZoomOptions*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
 void CZoomOptions::SetItemState(HWND hDlg)
 {
 	HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
@@ -219,19 +213,15 @@ void CZoomOptions::SetItemState(HWND hDlg)
 	}
 }
 
-INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CZoomOptions *pThis=reinterpret_cast<CZoomOptions*>(lParam);
-
-			::SetProp(hDlg,TEXT("This"),pThis);
-
-			pThis->m_fChanging=true;
+			m_fChanging=true;
 			HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
 			ListView_SetExtendedListViewStyle(hwndList,
-									LVS_EX_FULLROWSELECT | LVS_EX_CHECKBOXES);
+											  LVS_EX_FULLROWSELECT | LVS_EX_CHECKBOXES);
 			RECT rc;
 			GetClientRect(hwndList,&rc);
 			rc.right-=GetSystemMetrics(SM_CXHSCROLL);
@@ -248,15 +238,15 @@ INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 			lvi.iSubItem=0;
 			lvi.pszText=szText;
 			for (int i=0;i<NUM_ZOOM;i++) {
-				const ZoomInfo *pInfo=&m_ZoomList[pThis->m_Order[i]];
+				const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
 				lvi.iItem=i;
-				lvi.lParam=PACK_LPARAM(pThis->m_Order[i],pInfo->Zoom.Rate,pInfo->Zoom.Factor);
-				pThis->m_pCommandList->GetCommandNameByID(pInfo->Command,szText,lengthof(szText));
+				lvi.lParam=PACK_LPARAM(m_Order[i],pInfo->Zoom.Rate,pInfo->Zoom.Factor);
+				m_pCommandList->GetCommandNameByID(pInfo->Command,szText,lengthof(szText));
 				ListView_InsertItem(hwndList,&lvi);
 				ListView_SetCheckState(hwndList,i,pInfo->fVisible);
 			}
 			SetItemState(hDlg);
-			pThis->m_fChanging=false;
+			m_fChanging=false;
 			AdjustDialogPos(::GetParent(hDlg),hDlg);
 		}
 		return TRUE;
@@ -280,17 +270,16 @@ INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 						int Index=GET_LPARAM_INDEX(lvi.lParam);
 						if (m_ZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
 								&& m_ZoomList[Index].Command<=CM_CUSTOMZOOM_LAST) {
-							CZoomOptions *pThis=GetThis(hDlg);
 							TCHAR szText[64];
 
-							pThis->m_fChanging=true;
+							m_fChanging=true;
 							::LoadString(GetAppClass().GetResourceInstance(),m_ZoomList[Index].Command,szText,lengthof(szText));
 							::wsprintf(szText+::lstrlen(szText),TEXT(" - %d%%"),Rate);
 							lvi.mask=LVIF_TEXT | LVIF_PARAM;
 							lvi.pszText=szText;
 							lvi.lParam=PACK_LPARAM(Index,Rate,100);
 							ListView_SetItem(hwndList,&lvi);
-							pThis->m_fChanging=false;
+							m_fChanging=false;
 						}
 					}
 				}
@@ -304,9 +293,7 @@ INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 				int From=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED),To;
 
 				if (From>=0) {
-					CZoomOptions *pThis=GetThis(hDlg);
-
-					pThis->m_fChanging=true;
+					m_fChanging=true;
 					if (LOWORD(wParam)==IDC_ZOOMOPTIONS_UP) {
 						if (From<1)
 							break;
@@ -331,14 +318,13 @@ INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					ListView_InsertItem(hwndList,&lvi);
 					ListView_SetCheckState(hwndList,To,fChecked);
 					SetItemState(hDlg);
-					pThis->m_fChanging=false;
+					m_fChanging=false;
 				}
 			}
 			return TRUE;
 
 		case IDOK:
 			{
-				CZoomOptions *pThis=GetThis(hDlg);
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
 				LVITEM lvi;
 
@@ -348,7 +334,7 @@ INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 					lvi.iItem=i;
 					ListView_GetItem(hwndList,&lvi);
 					int Index=GET_LPARAM_INDEX(lvi.lParam);
-					pThis->m_Order[i]=Index;
+					m_Order[i]=Index;
 					if (m_ZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
 							&& m_ZoomList[Index].Command<=CM_CUSTOMZOOM_LAST) {
 						m_ZoomList[Index].Zoom.Rate=GET_LPARAM_RATE(lvi.lParam);
@@ -366,19 +352,12 @@ INT_PTR CALLBACK CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM 
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
 		case LVN_ITEMCHANGED:
-			{
-				CZoomOptions *pThis=GetThis(hDlg);
-
-				if (!pThis->m_fChanging)
-					SetItemState(hDlg);
-			}
+			if (!m_fChanging)
+				SetItemState(hDlg);
 			return TRUE;
 		}
 		break;
-
-	case WM_DESTROY:
-		::RemoveProp(hDlg,TEXT("This"));
-		return TRUE;
 	}
+
 	return FALSE;
 }

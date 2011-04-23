@@ -1,6 +1,5 @@
 #include "stdafx.h"
 #include <math.h>
-#include <shlobj.h>
 #include "Util.h"
 
 #ifdef _DEBUG
@@ -8,9 +7,6 @@
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
-
-
-#define lengthof(a) (sizeof(a)/sizeof(a[0]))
 
 
 
@@ -94,7 +90,7 @@ bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString)
 int RemoveTrailingWhitespace(LPTSTR pszString)
 {
 	if (pszString==NULL)
-		return false;
+		return 0;
 	LPTSTR pSpace=NULL;
 	LPTSTR p=pszString;
 	while (*p!=_T('\0')) {
@@ -536,7 +532,7 @@ bool IsValidFileName(LPCTSTR pszFileName,bool fWildcard,LPTSTR pszMessage,int Ma
 		static const LPCTSTR pszNGList[] = {
 			TEXT("CON"), TEXT("PRN"), TEXT("AUX"), TEXT("NUL")
 		};
-		for (int i=0;i<lengthof(pszNGList);i++) {
+		for (int i=0;i<_countof(pszNGList);i++) {
 			if (lstrcmpi(pszNGList[i],pszFileName)==0) {
 				if (pszMessage!=NULL)
 					lstrcpyn(pszMessage,TEXT("仮想デバイス名はファイル名に使用できません。"),MaxMessage);
@@ -602,7 +598,7 @@ bool GetAbsolutePath(LPCTSTR pszFilePath,LPTSTR pszAbsolutePath,int MaxLength)
 	if (::PathIsRelative(pszFilePath)) {
 		TCHAR szTemp[MAX_PATH],*p;
 
-		::GetModuleFileName(NULL,szTemp,lengthof(szTemp));
+		::GetModuleFileName(NULL,szTemp,_countof(szTemp));
 		p=::PathFindFileName(szTemp);
 		if ((p-szTemp)+::lstrlen(pszFilePath)>=MaxLength)
 			return false;
@@ -876,6 +872,58 @@ int CDynamicString::Compare(LPCTSTR pszString) const
 	if (pszString==NULL)
 		return 1;
 	return ::lstrcmp(m_pszString,pszString);
+}
+
+
+
+
+CStaticStringFormatter::CStaticStringFormatter(LPTSTR pBuffer,size_t BufferLength)
+	: m_pBuffer(pBuffer)
+	, m_BufferLength(BufferLength)
+	, m_Length(0)
+{
+	m_pBuffer[0]=_T('\0');
+}
+
+void CStaticStringFormatter::Clear()
+{
+	m_Length=0;
+}
+
+void CStaticStringFormatter::Append(LPCTSTR pszString)
+{
+	if (pszString!=NULL && m_Length+1<m_BufferLength) {
+		size_t Length=StdUtil::strnlen(pszString,m_BufferLength-m_Length-1);
+		StdUtil::strncpy(m_pBuffer+m_Length,Length+1,pszString);
+		m_Length+=Length;
+	}
+}
+
+void CStaticStringFormatter::AppendFormat(LPCTSTR pszFormat, ...)
+{
+	if (pszFormat!=NULL && m_Length+1<m_BufferLength) {
+		va_list Args;
+
+		va_start(Args,pszFormat);
+		AppendFormatV(pszFormat,Args);
+		va_end(Args);
+	}
+}
+
+void CStaticStringFormatter::AppendFormatV(LPCTSTR pszFormat,va_list Args)
+{
+	if (pszFormat!=NULL && m_Length+1<m_BufferLength) {
+		int Length=StdUtil::vsnprintf(m_pBuffer+m_Length,m_BufferLength-m_Length,pszFormat,Args);
+		if (Length>=0)
+			m_Length+=Length;
+	}
+}
+
+void CStaticStringFormatter::RemoveTrailingWhitespace()
+{
+	if (m_Length>0) {
+		m_Length-=::RemoveTrailingWhitespace(m_pBuffer);
+	}
 }
 
 

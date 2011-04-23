@@ -14,14 +14,14 @@ static char THIS_FILE[]=__FILE__;
 
 
 CResidentManager::CResidentManager()
+	: m_hwnd(NULL)
+	, m_TrayIconMessage(0)
+	, m_fResident(false)
+	, m_fMinimizeToTray(true)
+	, m_Status(0)
+	, m_TaskbarCreatedMessage(0)
+	, m_pszTipText(NULL)
 {
-	m_hwnd=NULL;
-	m_TrayIconMessage=0;
-	m_fResident=false;
-	m_fMinimizeToTray=true;
-	m_Status=0;
-	m_TaskbarCreatedMessage=::RegisterWindowMessage(TEXT("TaskbarCreated"));
-	m_pszTipText=NULL;
 }
 
 
@@ -36,6 +36,7 @@ bool CResidentManager::Initialize(HWND hwnd,UINT Message)
 {
 	m_hwnd=hwnd;
 	m_TrayIconMessage=Message;
+	m_TaskbarCreatedMessage=::RegisterWindowMessage(TEXT("TaskbarCreated"));
 	if (IsTrayIconVisible()) {
 		if (!AddTrayIcon())
 			return false;
@@ -74,15 +75,15 @@ bool CResidentManager::SetResident(bool fResident)
 bool CResidentManager::SetMinimizeToTray(bool fMinimizeToTray)
 {
 	if (m_fMinimizeToTray!=fMinimizeToTray) {
-		if (m_hwnd!=NULL) {
-			if (!IsTrayIconVisible()) {
-				if (fMinimizeToTray && (m_Status&STATUS_MINIMIZED)!=0) {
+		if (m_hwnd!=NULL && !m_fResident) {
+			if ((m_Status&STATUS_MINIMIZED)!=0) {
+				if (fMinimizeToTray) {
 					if (!AddTrayIcon())
 						return false;
-				}
-			} else {
-				if (!m_fResident)
+				} else {
 					RemoveTrayIcon();
+				}
+				::ShowWindow(m_hwnd,fMinimizeToTray?SW_HIDE:SW_SHOW);
 			}
 		}
 		m_fMinimizeToTray=fMinimizeToTray;
@@ -135,7 +136,12 @@ bool CResidentManager::ChangeTrayIcon()
 	nid.uFlags=NIF_ICON;
 	nid.hIcon=LoadIcon(GetAppClass().GetResourceInstance(),
 		MAKEINTRESOURCE((m_Status&STATUS_RECORDING)!=0?IDI_TRAY_RECORDING:IDI_TRAY));
-	return Shell_NotifyIcon(NIM_MODIFY,&nid)!=FALSE;
+	if (!Shell_NotifyIcon(NIM_MODIFY,&nid)) {
+		if (!AddTrayIcon())
+			return false;
+	}
+
+	return true;
 }
 
 
@@ -162,24 +168,27 @@ bool CResidentManager::SetStatus(UINT Status,UINT Mask)
 {
 	Status=(m_Status&~Mask)|(Status&Mask);
 	if (m_Status!=Status) {
+		const UINT OldStatus=m_Status;
 		bool fChangeIcon=false;
 
-		if ((m_Status&STATUS_RECORDING)!=(Status&STATUS_RECORDING))
-			fChangeIcon=true;
-		if ((m_Status&STATUS_MINIMIZED)!=(Status&STATUS_MINIMIZED)) {
-			if (m_fMinimizeToTray && m_hwnd!=NULL) {
-				::ShowWindow(m_hwnd,(Status&STATUS_MINIMIZED)!=0?SW_HIDE:SW_SHOW);
-				if (!IsTrayIconVisible() && (Status&STATUS_MINIMIZED)!=0)
-					AddTrayIcon();
-			}
-			if (IsTrayIconVisible() && !m_fResident && (Status&STATUS_MINIMIZED)==0)
-				RemoveTrayIcon();
-		}
-		if (m_fResident) {
-			if (fChangeIcon)
-				ChangeTrayIcon();
-		}
 		m_Status=Status;
+		if ((OldStatus&STATUS_RECORDING)!=(Status&STATUS_RECORDING))
+			fChangeIcon=true;
+		if ((OldStatus&STATUS_MINIMIZED)!=(Status&STATUS_MINIMIZED)) {
+			if (m_hwnd!=NULL && m_fMinimizeToTray) {
+				::ShowWindow(m_hwnd,(Status&STATUS_MINIMIZED)!=0?SW_HIDE:SW_SHOW);
+				if (!m_fResident) {
+					if ((Status&STATUS_MINIMIZED)!=0)
+						AddTrayIcon();
+					else
+						RemoveTrayIcon();
+					return true;
+				}
+			}
+		}
+		if (fChangeIcon && IsTrayIconVisible()) {
+			ChangeTrayIcon();
+		}
 	}
 	return true;
 }
@@ -220,7 +229,8 @@ bool CResidentManager::ShowMessage(LPCTSTR pszText,LPCTSTR pszTitle,int Icon,DWO
 bool CResidentManager::HandleMessage(UINT Message,WPARAM wParam,LPARAM lParam)
 {
 	// ÉVÉFÉãÇ™çƒãNìÆÇµÇΩéûÇÃëŒçÙ
-	if (Message==m_TaskbarCreatedMessage) {
+	if (m_TaskbarCreatedMessage!=0
+			&& Message==m_TaskbarCreatedMessage) {
 		if (IsTrayIconVisible())
 			AddTrayIcon();
 		return true;

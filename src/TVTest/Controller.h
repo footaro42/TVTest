@@ -67,6 +67,8 @@ public:
 // COptions
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CControllerManager
 	bool AddController(CController *pController);
 	bool DeleteController(LPCTSTR pszName);
@@ -81,7 +83,6 @@ public:
 	bool OnFocusChange(HWND hwnd,bool fFocus);
 	bool OnButtonDown(LPCTSTR pszName,int Button) const;
 	const ControllerSettings *GetControllerSettings(LPCTSTR pszName) const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 private:
 	struct ControllerInfo {
@@ -103,13 +104,14 @@ private:
 
 // CController::CEventHandler
 	bool OnButtonDown(CController *pController,int Index);
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 // CControllerManager
 	int FindController(LPCTSTR pszName) const;
 	void InitDlgItems();
 	void SetButtonCommand(HWND hwndList,int Index,int Command);
 	void SetDlgItemStatus();
 	CController *GetCurController() const;
-	static CControllerManager *GetThis(HWND hDlg);
 };
 
 

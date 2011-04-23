@@ -51,6 +51,7 @@ CGeneralOptions::CGeneralOptions()
 
 CGeneralOptions::~CGeneralOptions()
 {
+	Destroy();
 }
 
 
@@ -145,6 +146,13 @@ bool CGeneralOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("DescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
 	pSettings->Write(TEXT("ProcessEMM"),m_fEnableEmmProcess);
 	return true;
+}
+
+
+bool CGeneralOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_GENERAL));
 }
 
 
@@ -261,24 +269,23 @@ bool CGeneralOptions::GetEnableEmmProcess() const
 }
 
 
-INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CGeneralOptions *pThis=static_cast<CGeneralOptions*>(OnInitDialog(hDlg,lParam));
 			CAppMain &AppMain=GetAppClass();
 
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,pThis->m_szDriverDirectory);
+			::SetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,m_szDriverDirectory);
 
 			// BonDriver
 			::CheckRadioButton(hDlg,IDC_OPTIONS_DEFAULTDRIVER_NONE,
 									IDC_OPTIONS_DEFAULTDRIVER_CUSTOM,
-							   (int)pThis->m_DefaultDriverType+IDC_OPTIONS_DEFAULTDRIVER_NONE);
+							   (int)m_DefaultDriverType+IDC_OPTIONS_DEFAULTDRIVER_NONE);
 			EnableDlgItems(hDlg,IDC_OPTIONS_DEFAULTDRIVER,
 								IDC_OPTIONS_DEFAULTDRIVER_BROWSE,
-						   pThis->m_DefaultDriverType==DEFAULT_DRIVER_CUSTOM);
+						   m_DefaultDriverType==DEFAULT_DRIVER_CUSTOM);
 
 			const CDriverManager *pDriverManager=AppMain.GetDriverManager();
 			DlgComboBox_LimitText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,MAX_PATH-1);
@@ -292,7 +299,7 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_DEFAULTDRIVER,
 									  pDriverManager->GetDriverInfo(i)->GetFileName());
 			}
-			::SetDlgItemText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,pThis->m_szDefaultDriverName);
+			::SetDlgItemText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,m_szDefaultDriverName);
 
 			// MPEG-2 decoder
 			CDirectShowFilterFinder FilterFinder;
@@ -321,9 +328,9 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				TCHAR szText[32+MAX_MPEG2_DECODER_NAME];
 
 				::lstrcpy(szText,TEXT("デフォルト"));
-				if (!pThis->m_Mpeg2DecoderName.IsEmpty()) {
+				if (!m_Mpeg2DecoderName.IsEmpty()) {
 					Sel=(int)DlgComboBox_FindStringExact(hDlg,IDC_OPTIONS_DECODER,-1,
-														 pThis->m_Mpeg2DecoderName.Get())+1;
+														 m_Mpeg2DecoderName.Get())+1;
 				} else if (MediaViewer.IsOpen()) {
 					::lstrcat(szText,TEXT(" ("));
 					MediaViewer.GetVideoDecoderName(szText+::lstrlen(szText),MAX_MPEG2_DECODER_NAME);
@@ -338,28 +345,28 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			DlgComboBox_AddString(hDlg,IDC_OPTIONS_RENDERER,TEXT("デフォルト"));
 			for (int i=1;(pszRenderer=CVideoRenderer::EnumRendererName(i))!=NULL;i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_RENDERER,pszRenderer);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_RENDERER,pThis->m_VideoRendererType);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_RENDERER,m_VideoRendererType);
 
 			// Card reader
 			for (int i=0;i<=CCoreEngine::CARDREADER_LAST;i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_CARDREADER,
 									  CCoreEngine::GetCardReaderSettingName((CCoreEngine::CardReaderType)i));
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_CARDREADER,
-				(int)(pThis->m_fTemporaryNoDescramble?CCoreEngine::CARDREADER_NONE:pThis->m_CardReaderType));
+				(int)(m_fTemporaryNoDescramble?CCoreEngine::CARDREADER_NONE:m_CardReaderType));
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,pThis->m_fResident);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,pThis->m_fKeepSingleTask);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,m_fResident);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,m_fKeepSingleTask);
 			if (CTsDescrambler::IsSSE2Available())
-				DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,pThis->m_fDescrambleUseSSE2);
+				DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,m_fDescrambleUseSSE2);
 			else
 				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
 									IDC_OPTIONS_DESCRAMBLEBENCHMARK,false);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,pThis->m_fDescrambleCurServiceOnly);
-			if (pThis->m_CardReaderType==CCoreEngine::CARDREADER_NONE)
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,m_fDescrambleCurServiceOnly);
+			if (m_CardReaderType==CCoreEngine::CARDREADER_NONE)
 				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
 									IDC_OPTIONS_ENABLEEMMPROCESS,false);
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS,pThis->m_fEnableEmmProcess);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS,m_fEnableEmmProcess);
 		}
 		return TRUE;
 
@@ -504,30 +511,28 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CGeneralOptions *pThis=GetThis(hDlg);
-
 				CVideoRenderer::RendererType Renderer=(CVideoRenderer::RendererType)
 					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_RENDERER);
-				if (Renderer!=pThis->m_VideoRendererType) {
+				if (Renderer!=m_VideoRendererType) {
 					if (!CVideoRenderer::IsAvailable(Renderer)) {
-						pThis->SettingError();
+						SettingError();
 						::MessageBox(hDlg,TEXT("選択されたレンダラはこの環境で利用可能になっていません。"),
 									 NULL,MB_OK | MB_ICONEXCLAMATION);
 						return TRUE;
 					}
-					pThis->m_VideoRendererType=Renderer;
-					pThis->SetUpdateFlag(UPDATE_RENDERER);
+					m_VideoRendererType=Renderer;
+					SetUpdateFlag(UPDATE_RENDERER);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				::GetDlgItemText(hDlg,IDC_OPTIONS_DRIVERDIRECTORY,
-								 pThis->m_szDriverDirectory,lengthof(pThis->m_szDriverDirectory));
-				pThis->m_DefaultDriverType=(DefaultDriverType)
+								 m_szDriverDirectory,lengthof(m_szDriverDirectory));
+				m_DefaultDriverType=(DefaultDriverType)
 					(GetCheckedRadioButton(hDlg,IDC_OPTIONS_DEFAULTDRIVER_NONE,
 										   IDC_OPTIONS_DEFAULTDRIVER_CUSTOM)-
 					IDC_OPTIONS_DEFAULTDRIVER_NONE);
 				::GetDlgItemText(hDlg,IDC_OPTIONS_DEFAULTDRIVER,
-								 pThis->m_szDefaultDriverName,lengthof(pThis->m_szDefaultDriverName));
+								 m_szDefaultDriverName,lengthof(m_szDefaultDriverName));
 
 				TCHAR szDecoder[MAX_MPEG2_DECODER_NAME];
 				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_DECODER);
@@ -535,62 +540,49 @@ INT_PTR CALLBACK CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 					DlgComboBox_GetLBString(hDlg,IDC_OPTIONS_DECODER,Sel,szDecoder);
 				else
 					szDecoder[0]='\0';
-				if (::lstrcmpi(szDecoder,pThis->m_Mpeg2DecoderName.GetSafe())!=0) {
-					pThis->m_Mpeg2DecoderName.Set(szDecoder);
-					pThis->SetUpdateFlag(UPDATE_DECODER);
+				if (::lstrcmpi(szDecoder,m_Mpeg2DecoderName.GetSafe())!=0) {
+					m_Mpeg2DecoderName.Set(szDecoder);
+					SetUpdateFlag(UPDATE_DECODER);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				CCoreEngine::CardReaderType CardReader=(CCoreEngine::CardReaderType)
 					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_CARDREADER);
-				if ((pThis->m_fTemporaryNoDescramble && CardReader!=CCoreEngine::CARDREADER_NONE)
-						|| (!pThis->m_fTemporaryNoDescramble && CardReader!=pThis->m_CardReaderType)) {
-					pThis->m_CardReaderType=CardReader;
-					pThis->m_fTemporaryNoDescramble=false;
-					pThis->SetUpdateFlag(UPDATE_CARDREADER);
+				if ((m_fTemporaryNoDescramble && CardReader!=CCoreEngine::CARDREADER_NONE)
+						|| (!m_fTemporaryNoDescramble && CardReader!=m_CardReaderType)) {
+					m_CardReaderType=CardReader;
+					m_fTemporaryNoDescramble=false;
+					SetUpdateFlag(UPDATE_CARDREADER);
 				}
 
 				bool fResident=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESIDENT);
-				if (fResident!=pThis->m_fResident) {
-					pThis->m_fResident=fResident;
-					pThis->SetUpdateFlag(UPDATE_RESIDENT);
+				if (fResident!=m_fResident) {
+					m_fResident=fResident;
+					SetUpdateFlag(UPDATE_RESIDENT);
 				}
 
-				pThis->m_fKeepSingleTask=
+				m_fKeepSingleTask=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_KEEPSINGLETASK);
 
-				pThis->m_fDescrambleUseSSE2=
+				m_fDescrambleUseSSE2=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2);
 
 				bool fCurOnly=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY);
-				if (fCurOnly!=pThis->m_fDescrambleCurServiceOnly) {
-					pThis->m_fDescrambleCurServiceOnly=fCurOnly;
-					pThis->SetUpdateFlag(UPDATE_DESCRAMBLECURONLY);
+				if (fCurOnly!=m_fDescrambleCurServiceOnly) {
+					m_fDescrambleCurServiceOnly=fCurOnly;
+					SetUpdateFlag(UPDATE_DESCRAMBLECURONLY);
 				}
 
 				bool fEmm=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS);
-				if (fEmm!=pThis->m_fEnableEmmProcess) {
-					pThis->m_fEnableEmmProcess=fEmm;
-					pThis->SetUpdateFlag(UPDATE_ENABLEEMMPROCESS);
+				if (fEmm!=m_fEnableEmmProcess) {
+					m_fEnableEmmProcess=fEmm;
+					SetUpdateFlag(UPDATE_ENABLEEMMPROCESS);
 				}
 			}
 			return TRUE;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CGeneralOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
-}
-
-
-CGeneralOptions *CGeneralOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CGeneralOptions*>(GetOptions(hDlg));
 }

@@ -28,6 +28,12 @@ public:
 
 	enum { MAX_VOLUME=100 };
 
+	enum {
+		STEREOMODE_STEREO,
+		STEREOMODE_LEFT,
+		STEREOMODE_RIGHT
+	};
+
 private:
 	bool m_fFileMode;
 	TCHAR m_szDriverDirectory[MAX_PATH];
@@ -51,7 +57,10 @@ private:
 	int m_AudioGain;
 	int m_SurroundAudioGain;
 	int m_StereoMode;
+	int m_AutoStereoMode;
 	bool m_fDownMixSurround;
+	CAacDecFilter::SpdifOptions m_SpdifOptions;
+	bool m_fSpdifPassthrough;
 	WORD m_EventID;
 	DWORD m_ErrorPacketCount;
 	DWORD m_ContinuityErrorPacketCount;
@@ -104,17 +113,20 @@ public:
 	bool IsTCPDriver() const { return m_DriverType==DRIVER_TCP; }
 	bool IsNetworkDriver() const { return IsUDPDriver() || IsTCPDriver(); }
 	static bool IsNetworkDriverFileName(LPCTSTR pszFileName);
+
 	bool SetPacketBuffering(bool fBuffering);
 	bool GetPacketBuffering() const { return m_fPacketBuffering; }
 	bool SetPacketBufferLength(DWORD BufferLength);
 	DWORD GetPacketBufferLength() const { return m_PacketBufferLength; }
 	bool SetPacketBufferPoolPercentage(int Percentage);
 	int GetPacketBufferPoolPercentage() const { return m_PacketBufferPoolPercentage; }
+
 	bool GetVideoViewSize(int *pWidth,int *pHeight);
 	int GetOriginalVideoWidth() const { return m_OriginalVideoWidth; }
 	int GetOriginalVideoHeight() const { return m_OriginalVideoHeight; }
 	int GetDisplayVideoWidth() const { return m_DisplayVideoWidth; }
 	int GetDisplayVideoHeight() const { return m_DisplayVideoHeight; }
+
 	bool SetVolume(int Volume);
 	int GetVolume() const { return m_Volume; }
 	bool SetMute(bool fMute);
@@ -123,14 +135,20 @@ public:
 	bool GetAudioGainControl(int *pGain,int *pSurroundGain) const;
 	bool SetStereoMode(int Mode);
 	int GetStereoMode() const { return m_StereoMode; }
+	bool SetAutoStereoMode(int Mode);
+	int GetAutoStereoMode() const { return m_AutoStereoMode; }
 	bool SetDownMixSurround(bool fDownMix);
 	bool GetDownMixSurround() const { return m_fDownMixSurround; }
+	bool SetSpdifOptions(const CAacDecFilter::SpdifOptions &Options);
+	bool GetSpdifOptions(CAacDecFilter::SpdifOptions *pOptions) const;
+
 	enum {
 		STATUS_VIDEOSIZE			=0x00000001UL,
 		STATUS_AUDIOCHANNELS		=0x00000002UL,
 		STATUS_AUDIOSTREAMS			=0x00000004UL,
 		STATUS_AUDIOCOMPONENTTYPE	=0x00000008UL,
-		STATUS_EVENTID				=0x00000010UL
+		STATUS_SPDIFPASSTHROUGH		=0x00000010UL,
+		STATUS_EVENTID				=0x00000020UL
 	};
 	DWORD UpdateAsyncStatus();
 	enum {
@@ -156,6 +174,7 @@ public:
 	void *GetCurrentImage();
 	bool SetMinTimerResolution(bool fMin);
 	bool SetNoEpg(bool fNoEpg) { m_fNoEpg=fNoEpg; return true; }
+
 //private:
 	CDtvEngine m_DtvEngine;
 };

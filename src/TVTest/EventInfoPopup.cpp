@@ -90,7 +90,6 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 
 	m_EventInfo=*pEventInfo;
 
-	TCHAR szText[2048];
 	LPCTSTR pszVideo=TEXT("?"),pszAudio=TEXT("?");
 
 	static const struct {
@@ -170,35 +169,31 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		}
 	}
 
-	int Length=::wnsprintf(szText,lengthof(szText)-1,
-		TEXT("%s%s%s"),
-		NullToEmptyString(m_EventInfo.GetEventText()),
-		!IsStringEmpty(m_EventInfo.GetEventText())?TEXT("\r\n\r\n"):TEXT(""),
-		NullToEmptyString(m_EventInfo.GetEventExtText()));
-	Length-=RemoveTrailingWhitespace(szText);
-	if (*pszVideo!='?' || *pszAudio!='?') {
-		Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
-							TEXT("%s(映像: %s / 音声: %s%s)"),
-							Length>0?TEXT("\r\n\r\n"):TEXT(""),
-							pszVideo,
-							pszAudio,
-							szAudioComponent);
+	TCHAR szText[2048];
+	CStaticStringFormatter Formatter(szText,lengthof(szText));
+	Formatter.AppendFormat(TEXT("%s%s%s"),
+						   NullToEmptyString(m_EventInfo.GetEventText()),
+						   !IsStringEmpty(m_EventInfo.GetEventText())?TEXT("\r\n\r\n"):TEXT(""),
+						   NullToEmptyString(m_EventInfo.GetEventExtText()));
+	Formatter.RemoveTrailingWhitespace();
+	if (*pszVideo!=_T('?') || *pszAudio!=_T('?')) {
+		Formatter.AppendFormat(TEXT("%s(映像: %s / 音声: %s%s)"),
+							   !Formatter.IsEmpty()?TEXT("\r\n\r\n"):TEXT(""),
+							   pszVideo,
+							   pszAudio,
+							   szAudioComponent);
 	}
 	if (m_fDetailInfo) {
-		Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
-							TEXT("\r\nイベントID 0x%04X"),m_EventInfo.m_EventID);
+		Formatter.AppendFormat(TEXT("\r\nイベントID 0x%04X"),m_EventInfo.m_EventID);
 		if (m_EventInfo.m_fCommonEvent)
-			Length+=::wnsprintf(szText+Length,lengthof(szText)-1-Length,
-								TEXT(" (イベント共有 サービスID 0x%04X / イベントID 0x%04X)"),
-								m_EventInfo.m_CommonEventInfo.ServiceID,
-								m_EventInfo.m_CommonEventInfo.EventID);
+			Formatter.AppendFormat(TEXT(" (イベント共有 サービスID 0x%04X / イベントID 0x%04X)"),
+								   m_EventInfo.m_CommonEventInfo.ServiceID,
+								   m_EventInfo.m_CommonEventInfo.EventID);
 		if (m_EventInfo.m_ContentNibble.NibbleCount>0)
-			::wnsprintf(szText+Length,lengthof(szText)-1-Length,
-						TEXT("\r\nジャンル %d - %d"),
-						m_EventInfo.m_ContentNibble.NibbleList[0].ContentNibbleLevel1,
-						m_EventInfo.m_ContentNibble.NibbleList[0].ContentNibbleLevel2);
+			Formatter.AppendFormat(TEXT("\r\nジャンル %d - %d"),
+								   m_EventInfo.m_ContentNibble.NibbleList[0].ContentNibbleLevel1,
+								   m_EventInfo.m_ContentNibble.NibbleList[0].ContentNibbleLevel2);
 	}
-	szText[lengthof(szText)-1]=_T('\0');
 
 	LOGFONT lf;
 	CHARFORMAT cf;
@@ -210,7 +205,7 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 	::ReleaseDC(m_hwndEdit,hdc);
 	::SendMessage(m_hwndEdit,WM_SETREDRAW,FALSE,0);
 	::SetWindowText(m_hwndEdit,NULL);
-	CRichEditUtil::AppendText(m_hwndEdit,szText,&cf);
+	CRichEditUtil::AppendText(m_hwndEdit,Formatter.GetString(),&cf);
 	CRichEditUtil::DetectURL(m_hwndEdit,&cf);
 	POINT pt={0,0};
 	::SendMessage(m_hwndEdit,EM_SETSCROLLPOS,0,reinterpret_cast<LPARAM>(&pt));

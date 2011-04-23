@@ -50,6 +50,8 @@ public:
 // COptions
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CCaptureOptions
 	int GetSaveFormat() const { return m_SaveFormat; }
 	bool GetWriteComment() const { return m_fSetComment; }
@@ -65,7 +67,6 @@ public:
 	bool SaveImage(CCaptureImage *pImage);
 	int TranslateCommand(int Command);
 	bool OpenSaveFolder() const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 private:
 	TCHAR m_szSaveFolder[MAX_PATH];
@@ -80,12 +81,14 @@ private:
 	int m_CapturePercentage;
 	CImageCodec m_ImageCodec;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	static const SIZE m_SizeList[SIZE_LAST+1];
 	struct PercentageType {
 		BYTE Num,Denom;
 	};
 	static const PercentageType m_PercentageList[PERCENTAGE_LAST+1];
-	static CCaptureOptions *GetThis(HWND hDlg);
 };
 
 

@@ -36,7 +36,7 @@ class CBcasAccessQueue : public CBonBaseClass
 	volatile bool m_bStartEvent;
 	CCriticalLock m_Lock;
 
-	static DWORD CALLBACK BcasAccessThread(LPVOID lpParameter);
+	static unsigned int __stdcall BcasAccessThread(LPVOID lpParameter);
 
 public:
 	CBcasAccessQueue(CBcasCard *pBcasCard);

@@ -72,6 +72,9 @@ public:
 	void DrawPreview(HDC hdc,const RECT *pRect);
 	void OnLButtonDown(int x,int y);
 	void OnRButtonDown(int x,int y);
+
+private:
+	DrawUtil::CBitmap m_Icons;
 };
 
 class CRecordStatusItem : public CStatusItem
@@ -100,16 +103,16 @@ public:
 
 class CCaptureStatusItem : public CStatusItem
 {
-	HBITMAP m_hbmIcon;
-
 public:
 	CCaptureStatusItem();
-	~CCaptureStatusItem();
 // CStatusItem
 	LPCTSTR GetName() const { return TEXT("ƒLƒƒƒvƒ`ƒƒ"); }
 	void Draw(HDC hdc,const RECT *pRect);
 	void OnLButtonDown(int x,int y);
 	void OnRButtonDown(int x,int y);
+
+private:
+	DrawUtil::CBitmap m_Icons;
 };
 
 class CErrorStatusItem : public CStatusItem

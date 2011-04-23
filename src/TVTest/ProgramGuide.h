@@ -390,6 +390,7 @@ public:
 					   const Theme::GradientInfo *pTimeBarMarginGradient,
 					   const Theme::GradientInfo *pTimeBarBackGradient);
 	bool SetFont(const LOGFONT *pFont);
+	bool GetFont(LOGFONT *pFont) const;
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	bool SetShowToolTip(bool fShow);
 	bool GetShowToolTip() const { return m_fShowToolTip; }

@@ -38,6 +38,9 @@ class CChannelScan : public COptions
 	float m_MaxSignalLevel;
 	DWORD m_MaxBitRate;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
 	CChannelInfo *GetSelectedChannelInfo() const;
@@ -55,11 +58,12 @@ public:
 	bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CChannelScan
 	bool SetTuningSpaceList(const CTuningSpaceList *pTuningSpaceList);
 	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
 	bool IsScanning() const { return m_hScanThread!=NULL; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

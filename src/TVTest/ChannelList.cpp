@@ -627,7 +627,6 @@ CTuningSpaceList::CTuningSpaceList()
 
 
 CTuningSpaceList::CTuningSpaceList(const CTuningSpaceList &List)
-	: m_AllChannelList(List.m_AllChannelList)
 {
 	*this=List;
 }

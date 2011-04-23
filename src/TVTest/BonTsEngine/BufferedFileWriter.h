@@ -45,7 +45,7 @@ public:
 protected:
 	CNCachedFile *CreateNewFile(LPCTSTR pszFileName, BYTE Flags);
 	bool PushData(const BYTE *pData, SIZE_T DataSize);
-	static DWORD WINAPI ThreadProc(LPVOID lpParameter);
+	static unsigned int __stdcall ThreadProc(LPVOID lpParameter);
 
 	CNCachedFile *m_pOutFile;
 	CCriticalLock m_FileLock;

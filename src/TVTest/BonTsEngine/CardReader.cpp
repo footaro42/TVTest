@@ -205,7 +205,7 @@ static DWORD GetSCardErrorMessage(LONG Code,LPTSTR pszMessage,DWORD MaxLength)
 {
 	LPCTSTR pszText = GetSCardErrorText(Code);
 	DWORD Length = 0;
-	if (pszText!=NULL) {
+	if (pszText != NULL) {
 		Length = (DWORD)(::StrStr(pszText, TEXT(" ")) - pszText + 1);
 		if (Length > MaxLength)
 			Length = MaxLength;
@@ -226,7 +226,7 @@ static DWORD GetSCardErrorMessage(LONG Code,LPTSTR pszMessage,DWORD MaxLength)
 
 
 CSCardReader::CSCardReader()
-	: m_hSCard(NULL)
+	: m_hSCard(0)
 	, m_bIsEstablish(false)
 	, m_pReaderList(NULL)
 	, m_NumReaders(0)
@@ -327,7 +327,7 @@ void CSCardReader::Close()
 {
 	if (m_hSCard) {
 		::SCardDisconnect(m_hSCard,SCARD_LEAVE_CARD);
-		m_hSCard=NULL;
+		m_hSCard=0;
 		delete [] m_pszReaderName;
 		m_pszReaderName=NULL;
 	}
@@ -359,7 +359,7 @@ LPCTSTR CSCardReader::EnumReader(int Index) const
 
 bool CSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
 {
-	if (m_hSCard==NULL) {
+	if (!m_hSCard) {
 		SetError(TEXT("カードリーダが開かれていません。"));
 		return false;
 	}
@@ -397,7 +397,7 @@ bool CSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData
 
 CDynamicSCardReader::CDynamicSCardReader()
 	: m_hLib(NULL)
-	, m_hSCard(NULL)
+	, m_hSCard(0)
 	, m_pReaderList(NULL)
 	, m_pszReaderName(NULL)
 	, m_pSCardTransmit(NULL)
@@ -565,7 +565,7 @@ void CDynamicSCardReader::Close()
 
 		if (pDisconnect)
 			pDisconnect(m_hSCard,SCARD_LEAVE_CARD);
-		m_hSCard=NULL;
+		m_hSCard=0;
 		delete [] m_pszReaderName;
 		m_pszReaderName=NULL;
 	}
@@ -607,7 +607,7 @@ LPCTSTR CDynamicSCardReader::EnumReader(int Index) const
 
 bool CDynamicSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
 {
-	if (m_hSCard==NULL) {
+	if (!m_hSCard) {
 		SetError(TEXT("カードリーダが開かれていません。"));
 		return false;
 	}
@@ -638,7 +638,7 @@ bool CDynamicSCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pR
 
 CBonCasClientCardReader::CBonCasClientCardReader()
 	: m_hLib(NULL)
-	, m_hSCard(NULL)
+	, m_hSCard(0)
 	, m_pReaderList(NULL)
 	, m_pszReaderName(NULL)
 	, m_pCasLinkTransmit(NULL)
@@ -781,7 +781,7 @@ void CBonCasClientCardReader::Close()
 			(CasLinkDisconnectFunc)::GetProcAddress(m_hLib,"CasLinkDisconnect");
 		if (pDisconnect)
 			pDisconnect(m_hSCard,SCARD_LEAVE_CARD);
-		m_hSCard=NULL;
+		m_hSCard=0;
 	}
 
 	if (m_hLib) {
@@ -840,7 +840,7 @@ LPCTSTR CBonCasClientCardReader::EnumReader(int Index) const
 
 bool CBonCasClientCardReader::Transmit(const void *pSendData,DWORD SendSize,void *pRecvData,DWORD *pRecvSize)
 {
-	if (m_hSCard==NULL) {
+	if (!m_hSCard) {
 		SetError(TEXT("カードリーダが開かれていません。"));
 		return false;
 	}

@@ -162,10 +162,13 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 		ASPECTRATIO_4x3,
 		ASPECTRATIO_32x9,
 		ASPECTRATIO_16x9_LEFT,
-		ASPECTRATIO_16x9_RIGHT
+		ASPECTRATIO_16x9_RIGHT,
+		ASPECTRATIO_CUSTOM
 	};
 	int m_AspectRatioType;
 	DWORD m_AspectRatioResetTime;
+	bool m_fForceResetPanAndScan;
+	int m_DefaultAspectRatioMenuItemCount;
 	bool m_fFrameCut;
 	int m_VideoSizeChangedTimerCount;
 	unsigned int m_ProgramListUpdateTimerCount;
@@ -212,6 +215,8 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool IsViewerEnabled() const override;
 	bool SetZoomRate(int Rate,int Factor) override;
 	bool GetZoomRate(int *pRate,int *pFactor) override;
+	bool SetPanAndScan(const PanAndScanInfo &Info) override;
+	bool GetPanAndScan(PanAndScanInfo *pInfo) const override;
 	void OnVolumeChanged(bool fOSD) override;
 	void OnMuteChanged() override;
 	void OnStereoModeChanged() override;
@@ -243,6 +248,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	void AutoSelectStereoMode();
 	bool OnExecute(LPCTSTR pszCmdLine);
 	int GetZoomPercentage();
+	bool SetPanAndScan(int Command);
 	void ShowChannelOSD();
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);

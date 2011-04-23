@@ -92,9 +92,10 @@ public:
 	struct ClippingInfo {
 		int Left,Right,HorzFactor;
 		int Top,Bottom,VertFactor;
+		ClippingInfo() : Left(0), Right(0), HorzFactor(0), Top(0), Bottom(0), VertFactor(0) {}
 	};
 	const bool SetPanAndScan(int AspectX,int AspectY,const ClippingInfo *pClipping = NULL);
-	const ClippingInfo &GetClippingInfo() const { return m_Clipping; }
+	const bool GetClippingInfo(ClippingInfo *pClipping) const;
 	enum ViewStretchMode {
 		STRETCH_KEEPASPECTRATIO,	// アスペクト比保持
 		STRETCH_CUTFRAME,			// 全体表示(収まらない分はカット)
@@ -114,6 +115,11 @@ public:
 	bool SetVisible(bool fVisible);
 	const void HideCursor(bool bHide);
 	const bool GetCurrentImage(BYTE **ppDib);
+
+	bool SetSpdifOptions(const CAacDecFilter::SpdifOptions *pOptions);
+	bool GetSpdifOptions(CAacDecFilter::SpdifOptions *pOptions) const;
+	bool IsSpdifPassthrough() const;
+	bool SetAutoStereoMode(int Mode);
 	bool SetDownMixSurround(bool bDownMix);
 	bool GetDownMixSurround() const;
 	bool SetAudioGainControl(bool bGainControl, float Gain = 1.0f, float SurroundGain = 1.0f);

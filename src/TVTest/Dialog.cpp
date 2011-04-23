@@ -23,58 +23,6 @@ CBasicDialog::~CBasicDialog()
 }
 
 
-int CBasicDialog::ShowDialog(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate)
-{
-	if (m_hDlg!=NULL)
-		return -1;
-	return (int)::DialogBoxParam(hinst,pszTemplate,hwndOwner,DialogProc,
-								 reinterpret_cast<LPARAM>(this));
-}
-
-
-bool CBasicDialog::CreateDialogWindow(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate)
-{
-	if (m_hDlg!=NULL)
-		return false;
-	if (::CreateDialogParam(hinst,pszTemplate,hwndOwner,DialogProc,
-							reinterpret_cast<LPARAM>(this))==NULL)
-		return false;
-	m_fModeless=true;
-	return true;
-}
-
-
-CBasicDialog *CBasicDialog::GetThis(HWND hDlg)
-{
-	return static_cast<CBasicDialog*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
-INT_PTR CALLBACK CBasicDialog::DialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	CBasicDialog *pThis;
-
-	if (uMsg==WM_INITDIALOG) {
-		pThis=reinterpret_cast<CBasicDialog*>(lParam);
-		pThis->m_hDlg=hDlg;
-		::SetProp(hDlg,TEXT("This"),pThis);
-	} else {
-		pThis=GetThis(hDlg);
-		if (uMsg==WM_NCDESTROY) {
-			if (pThis!=NULL) {
-				pThis->DlgProc(hDlg,uMsg,wParam,lParam);
-				pThis->m_hDlg=NULL;
-			}
-			::RemoveProp(hDlg,TEXT("This"));
-			return TRUE;
-		}
-	}
-	if (pThis!=NULL)
-		return pThis->DlgProc(hDlg,uMsg,wParam,lParam);
-	return FALSE;
-}
-
-
 bool CBasicDialog::IsCreated() const
 {
 	return m_hDlg!=NULL;
@@ -86,7 +34,7 @@ bool CBasicDialog::Destroy()
 	if (m_hDlg!=NULL) {
 		if (m_fModeless)
 			return ::DestroyWindow(m_hDlg)!=FALSE;
-		::SendMessage(m_hDlg,WM_CLOSE,0,0);
+		::EndDialog(m_hDlg,0);
 	}
 	return m_hDlg==NULL;
 }
@@ -166,6 +114,77 @@ bool CBasicDialog::SetPosition(int Left,int Top,int Width,int Height)
 		::MoveWindow(m_hDlg,Left,Top,Width,Height,TRUE);
 	}
 	return true;
+}
+
+
+LRESULT CBasicDialog::SendMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	if (m_hDlg==nullptr)
+		return 0;
+	return ::SendMessage(m_hDlg,uMsg,wParam,lParam);
+}
+
+
+int CBasicDialog::ShowDialog(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate)
+{
+	if (m_hDlg!=NULL)
+		return -1;
+	return (int)::DialogBoxParam(hinst,pszTemplate,hwndOwner,DialogProc,
+								 reinterpret_cast<LPARAM>(this));
+}
+
+
+bool CBasicDialog::CreateDialogWindow(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate)
+{
+	if (m_hDlg!=NULL)
+		return false;
+	if (::CreateDialogParam(hinst,pszTemplate,hwndOwner,DialogProc,
+							reinterpret_cast<LPARAM>(this))==NULL)
+		return false;
+	m_fModeless=true;
+	return true;
+}
+
+
+CBasicDialog *CBasicDialog::GetThis(HWND hDlg)
+{
+	return static_cast<CBasicDialog*>(::GetProp(hDlg,TEXT("This")));
+}
+
+
+INT_PTR CALLBACK CBasicDialog::DialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	CBasicDialog *pThis;
+
+	if (uMsg==WM_INITDIALOG) {
+		pThis=reinterpret_cast<CBasicDialog*>(lParam);
+		pThis->m_hDlg=hDlg;
+		::SetProp(hDlg,TEXT("This"),pThis);
+	} else {
+		pThis=GetThis(hDlg);
+		if (uMsg==WM_NCDESTROY) {
+			if (pThis!=NULL) {
+				pThis->DlgProc(hDlg,uMsg,wParam,lParam);
+				pThis->m_hDlg=NULL;
+			}
+			::RemoveProp(hDlg,TEXT("This"));
+			return TRUE;
+		}
+	}
+	if (pThis!=NULL)
+		return pThis->DlgProc(hDlg,uMsg,wParam,lParam);
+	return FALSE;
+}
+
+
+INT_PTR CBasicDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	switch (uMsg) {
+	case WM_INITDIALOG:
+		return TRUE;
+	}
+
+	return FALSE;
 }
 
 

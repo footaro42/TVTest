@@ -24,7 +24,7 @@
 			OutputDirectory="$(SolutionDir)$(ProjectName)\$(ConfigurationName)"
 			IntermediateDirectory="$(ProjectName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			UseOfMFC="2"
+			UseOfMFC="0"
 			CharacterSet="1"
 			>
 			<Tool
@@ -55,7 +55,7 @@
 				RuntimeLibrary="1"
 				EnableFunctionLevelLinking="true"
 				FloatingPointModel="2"
-				UsePrecompiledHeader="1"
+				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="4"
@@ -116,7 +116,7 @@
 			OutputDirectory="$(SolutionDir)$(ProjectName)\$(PlatformName)\$(ConfigurationName)"
 			IntermediateDirectory="$(ProjectName)\$(PlatformName)\$(ConfigurationName)"
 			ConfigurationType="1"
-			UseOfMFC="2"
+			UseOfMFC="0"
 			CharacterSet="1"
 			>
 			<Tool
@@ -147,7 +147,7 @@
 				RuntimeLibrary="1"
 				EnableFunctionLevelLinking="true"
 				FloatingPointModel="2"
-				UsePrecompiledHeader="1"
+				UsePrecompiledHeader="2"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="false"
 				DebugInformationFormat="3"
@@ -613,6 +613,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\PanAndScanOptions.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\Panel.cpp"
 				>
 			</File>
@@ -1004,6 +1008,10 @@
 			</File>
 			<File
 				RelativePath=".\OSDOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\PanAndScanOptions.h"
 				>
 			</File>
 			<File

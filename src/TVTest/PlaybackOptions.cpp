@@ -16,12 +16,13 @@ static char THIS_FILE[]=__FILE__;
 
 
 CPlaybackOptions::CPlaybackOptions()
-	: m_fDownMixSurround(true)
+	: m_SpdifOptions(CAacDecFilter::SPDIF_MODE_DISABLED,CAacDecFilter::SPDIF_CHANNELS_SURROUND)
+	, m_fDownMixSurround(true)
 	, m_fRestoreMute(false)
 	, m_fRestorePlayStatus(false)
 	, m_fUseAudioRendererClock(true)
 	, m_fEnablePTSSync(true)
-	, m_fAdjustAudioStreamTime(false)
+	, m_fAdjustAudioStreamTime(true)
 	, m_fMinTimerResolution(true)
 	, m_fPacketBuffering(false)
 	, m_PacketBufferLength(40000)
@@ -44,6 +45,7 @@ CPlaybackOptions::CPlaybackOptions()
 
 CPlaybackOptions::~CPlaybackOptions()
 {
+	Destroy();
 }
 
 
@@ -84,8 +86,13 @@ bool CPlaybackOptions::Apply(DWORD Flags)
 
 bool CPlaybackOptions::Read(CSettings *pSettings)
 {
+	int Value;
+
 	pSettings->Read(TEXT("AudioDevice"),m_szAudioDeviceName,MAX_AUDIO_DEVICE_NAME);
 	pSettings->Read(TEXT("AudioFilter"),m_szAudioFilterName,MAX_AUDIO_FILTER_NAME);
+	if (pSettings->Read(TEXT("SpdifMode"),&Value))
+		m_SpdifOptions.Mode=(CAacDecFilter::SpdifMode)Value;
+	pSettings->Read(TEXT("SpdifChannels"),&m_SpdifOptions.PassthroughChannels);
 	pSettings->Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
 	pSettings->Read(TEXT("RestoreMute"),&m_fRestoreMute);
 	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
@@ -112,6 +119,8 @@ bool CPlaybackOptions::Write(CSettings *pSettings) const
 {
 	pSettings->Write(TEXT("AudioDevice"),m_szAudioDeviceName);
 	pSettings->Write(TEXT("AudioFilter"),m_szAudioFilterName);
+	pSettings->Write(TEXT("SpdifMode"),(int)m_SpdifOptions.Mode);
+	pSettings->Write(TEXT("SpdifChannels"),m_SpdifOptions.PassthroughChannels);
 	pSettings->Write(TEXT("DownMixSurround"),m_fDownMixSurround);
 	pSettings->Write(TEXT("RestoreMute"),m_fRestoreMute);
 	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
@@ -130,26 +139,31 @@ bool CPlaybackOptions::Write(CSettings *pSettings) const
 }
 
 
-bool CPlaybackOptions::SetPacketBuffering(bool fBuffering)
+bool CPlaybackOptions::Create(HWND hwndOwner)
 {
-	m_fPacketBuffering=fBuffering;
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_PLAYBACK));
+}
+
+
+bool CPlaybackOptions::SetSpdifOptions(const CAacDecFilter::SpdifOptions &Options)
+{
+	m_SpdifOptions=Options;
 	return true;
 }
 
 
-CPlaybackOptions *CPlaybackOptions::GetThis(HWND hDlg)
+void CPlaybackOptions::SetPacketBuffering(bool fBuffering)
 {
-	return static_cast<CPlaybackOptions*>(GetOptions(hDlg));
+	m_fPacketBuffering=fBuffering;
 }
 
 
-INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CPlaybackOptions *pThis=static_cast<CPlaybackOptions*>(OnInitDialog(hDlg,lParam));
-
 			int Sel=0;
 			DlgComboBox_AddString(hDlg,IDC_OPTIONS_AUDIODEVICE,TEXT("デフォルト"));
 			CDirectShowDeviceEnumerator DevEnum;
@@ -157,7 +171,7 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				for (int i=0;i<DevEnum.GetDeviceCount();i++) {
 					LPCTSTR pszName=DevEnum.GetDeviceFriendlyName(i);
 					DlgComboBox_AddString(hDlg,IDC_OPTIONS_AUDIODEVICE,pszName);
-					if (Sel==0 && ::lstrcmpi(pszName,pThis->m_szAudioDeviceName)==0)
+					if (Sel==0 && ::lstrcmpi(pszName,m_szAudioDeviceName)==0)
 						Sel=i+1;
 				}
 			}
@@ -185,38 +199,57 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				for (int i=0;i<FilterFinder.GetFilterCount();i++) {
 					if (FilterFinder.GetFilterInfo(i,&idAudioFilter,szAudioFilter,MAX_AUDIO_FILTER_NAME)) {
 						DlgComboBox_AddString(hDlg,IDC_OPTIONS_AUDIOFILTER,szAudioFilter);
-						if (Sel==0 && ::lstrcmpi(szAudioFilter,pThis->m_szAudioFilterName)==0)
+						if (Sel==0 && ::lstrcmpi(szAudioFilter,m_szAudioFilterName)==0)
 							Sel=i+1;
 					}
 				}
 			}
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_AUDIOFILTER,Sel);
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREMUTE,
-							  pThis->m_fRestoreMute);
+			static const LPCTSTR SpdifModeList[] = {
+				TEXT("パススルー出力を行わない"),
+				TEXT("常にパススルー出力を行う"),
+				TEXT("音声の形式に応じてパススルー出力を行う"),
+			};
+			for (int i=0;i<lengthof(SpdifModeList);i++)
+				DlgComboBox_AddString(hDlg,IDC_OPTIONS_SPDIFMODE,SpdifModeList[i]);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_SPDIFMODE,(int)m_SpdifOptions.Mode);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_MONO,
+							  (m_SpdifOptions.PassthroughChannels&CAacDecFilter::SPDIF_CHANNELS_MONO)!=0);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_DUALMONO,
+							  (m_SpdifOptions.PassthroughChannels&CAacDecFilter::SPDIF_CHANNELS_DUALMONO)!=0);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_STEREO,
+							  (m_SpdifOptions.PassthroughChannels&CAacDecFilter::SPDIF_CHANNELS_STEREO)!=0);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_SURROUND,
+							  (m_SpdifOptions.PassthroughChannels&CAacDecFilter::SPDIF_CHANNELS_SURROUND)!=0);
+			EnableDlgItems(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_LABEL,IDC_OPTIONS_SPDIF_CHANNELS_SURROUND,
+						   m_SpdifOptions.Mode==CAacDecFilter::SPDIF_MODE_AUTO);
+
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DOWNMIXSURROUND,
-							  pThis->m_fDownMixSurround);
+							  m_fDownMixSurround);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREMUTE,
+							  m_fRestoreMute);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS,
-							  pThis->m_fRestorePlayStatus);
+							  m_fRestorePlayStatus);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION,
-							  pThis->m_fMinTimerResolution);
+							  m_fMinTimerResolution);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME,
-							  pThis->m_fAdjustAudioStreamTime);
+							  m_fAdjustAudioStreamTime);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_PTSSYNC,
-							  pThis->m_fEnablePTSSync);
+							  m_fEnablePTSSync);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK,
-							  !pThis->m_fUseAudioRendererClock);
+							  !m_fUseAudioRendererClock);
 
 			// Buffering
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEBUFFERING,
-							  pThis->m_fPacketBuffering);
+							  m_fPacketBuffering);
 			EnableDlgItems(hDlg,IDC_OPTIONS_BUFFERING_FIRST,IDC_OPTIONS_BUFFERING_LAST,
-					pThis->m_fPacketBuffering);
-			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,pThis->m_PacketBufferLength,FALSE);
+					m_fPacketBuffering);
+			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERSIZE,m_PacketBufferLength,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERSIZE_UD,1,MAX_PACKET_BUFFER_LENGTH);
 			SetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,
-						  pThis->m_PacketBufferPoolPercentage,TRUE);
+						  m_PacketBufferPoolPercentage,TRUE);
 			DlgUpDown_SetRange(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE_UD,0,100);
 
 			static const LPCTSTR ThreadPriorityList[] = {
@@ -226,19 +259,29 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			};
 			for (int i=0;i<lengthof(ThreadPriorityList);i++)
 				DlgComboBox_AddString(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,ThreadPriorityList[i]);
-			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,pThis->m_StreamThreadPriority);
+			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY,m_StreamThreadPriority);
 
 #ifdef TVH264
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTFRAMERATE,
-							  pThis->m_fAdjustFrameRate);
+							  m_fAdjustFrameRate);
 #endif
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case IDC_OPTIONS_SPDIFMODE:
+			if (HIWORD(wParam)==CBN_SELCHANGE) {
+				EnableDlgItems(hDlg,
+							   IDC_OPTIONS_SPDIF_CHANNELS_LABEL,
+							   IDC_OPTIONS_SPDIF_CHANNELS_SURROUND,
+							   DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_SPDIFMODE)==CAacDecFilter::SPDIF_MODE_AUTO);
+			}
+			return TRUE;
+
 		case IDC_OPTIONS_ENABLEBUFFERING:
-			EnableDlgItemsSyncCheckBox(hDlg,IDC_OPTIONS_BUFFERING_FIRST,
+			EnableDlgItemsSyncCheckBox(hDlg,
+									   IDC_OPTIONS_BUFFERING_FIRST,
 									   IDC_OPTIONS_BUFFERING_LAST,
 									   IDC_OPTIONS_ENABLEBUFFERING);
 			return TRUE;
@@ -249,60 +292,75 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CPlaybackOptions *pThis=GetThis(hDlg);
-
 				TCHAR szAudioDevice[MAX_AUDIO_DEVICE_NAME];
-				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIODEVICE);
+				LRESULT Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIODEVICE);
 				if (Sel<=0)
 					szAudioDevice[0]='\0';
 				else
 					DlgComboBox_GetLBString(hDlg,IDC_OPTIONS_AUDIODEVICE,Sel,szAudioDevice);
-				if (::lstrcmpi(pThis->m_szAudioDeviceName,szAudioDevice)!=0) {
-					::lstrcpy(pThis->m_szAudioDeviceName,szAudioDevice);
+				if (::lstrcmpi(m_szAudioDeviceName,szAudioDevice)!=0) {
+					::lstrcpy(m_szAudioDeviceName,szAudioDevice);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
 				TCHAR szAudioFilter[MAX_AUDIO_FILTER_NAME];
-				Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIOFILTER);
+				Sel=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_AUDIOFILTER);
 				if (Sel<=0)
 					szAudioFilter[0]='\0';
 				else
 					DlgComboBox_GetLBString(hDlg,IDC_OPTIONS_AUDIOFILTER,Sel,szAudioFilter);
-				if (::lstrcmpi(pThis->m_szAudioFilterName,szAudioFilter)!=0) {
-					::lstrcpy(pThis->m_szAudioFilterName,szAudioFilter);
+				if (::lstrcmpi(m_szAudioFilterName,szAudioFilter)!=0) {
+					::lstrcpy(m_szAudioFilterName,szAudioFilter);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
 
-				pThis->m_fDownMixSurround=
+				CAacDecFilter::SpdifOptions SpdifOptions;
+				SpdifOptions.Mode=(CAacDecFilter::SpdifMode)
+					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_SPDIFMODE);
+				SpdifOptions.PassthroughChannels=0;
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_MONO))
+					SpdifOptions.PassthroughChannels|=CAacDecFilter::SPDIF_CHANNELS_MONO;
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_DUALMONO))
+					SpdifOptions.PassthroughChannels|=CAacDecFilter::SPDIF_CHANNELS_DUALMONO;
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_STEREO))
+					SpdifOptions.PassthroughChannels|=CAacDecFilter::SPDIF_CHANNELS_STEREO;
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SPDIF_CHANNELS_SURROUND))
+					SpdifOptions.PassthroughChannels|=CAacDecFilter::SPDIF_CHANNELS_SURROUND;
+				if (SpdifOptions!=m_SpdifOptions) {
+					m_SpdifOptions=SpdifOptions;
+					GetAppClass().GetCoreEngine()->SetSpdifOptions(m_SpdifOptions);
+				}
+
+				m_fDownMixSurround=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DOWNMIXSURROUND);
-				GetAppClass().GetCoreEngine()->SetDownMixSurround(pThis->m_fDownMixSurround);
-				pThis->m_fRestoreMute=
+				GetAppClass().GetCoreEngine()->SetDownMixSurround(m_fDownMixSurround);
+				m_fRestoreMute=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREMUTE);
-				pThis->m_fRestorePlayStatus=
+				m_fRestorePlayStatus=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESTOREPLAYSTATUS);
 
 				bool f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINTIMERRESOLUTION);
-				if (f!=pThis->m_fMinTimerResolution) {
-					pThis->m_fMinTimerResolution=f;
+				if (f!=m_fMinTimerResolution) {
+					m_fMinTimerResolution=f;
 					if (GetAppClass().GetUICore()->IsViewerEnabled())
 						GetAppClass().GetCoreEngine()->SetMinTimerResolution(f);
 				}
 
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTAUDIOSTREAMTIME);
-				if (f!=pThis->m_fAdjustAudioStreamTime) {
-					pThis->m_fAdjustAudioStreamTime=f;
-					pThis->SetUpdateFlag(UPDATE_ADJUSTAUDIOSTREAMTIME);
+				if (f!=m_fAdjustAudioStreamTime) {
+					m_fAdjustAudioStreamTime=f;
+					SetUpdateFlag(UPDATE_ADJUSTAUDIOSTREAMTIME);
 				}
 
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PTSSYNC);
-				if (f!=pThis->m_fEnablePTSSync) {
-					pThis->m_fEnablePTSSync=f;
-					pThis->SetUpdateFlag(UPDATE_PTSSYNC);
+				if (f!=m_fEnablePTSSync) {
+					m_fEnablePTSSync=f;
+					SetUpdateFlag(UPDATE_PTSSYNC);
 				}
 
 				f=!DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USEDEMUXERCLOCK);
-				if (f!=pThis->m_fUseAudioRendererClock) {
-					pThis->m_fUseAudioRendererClock=f;
+				if (f!=m_fUseAudioRendererClock) {
+					m_fUseAudioRendererClock=f;
 					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetUseAudioRendererClock(f);
 					SetGeneralUpdateFlag(UPDATE_GENERAL_BUILDMEDIAVIEWER);
 				}
@@ -312,40 +370,33 @@ INT_PTR CALLBACK CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				BufferLength=CLAMP(BufferLength,0,MAX_PACKET_BUFFER_LENGTH);
 				int PoolPercentage=::GetDlgItemInt(hDlg,IDC_OPTIONS_BUFFERPOOLPERCENTAGE,NULL,TRUE);
 				PoolPercentage=CLAMP(PoolPercentage,0,100);
-				if (fBuffering!=pThis->m_fPacketBuffering
+				if (fBuffering!=m_fPacketBuffering
 					|| (fBuffering
-						&& (BufferLength!=pThis->m_PacketBufferLength
-							|| PoolPercentage!=pThis->m_PacketBufferPoolPercentage)))
-					pThis->SetUpdateFlag(UPDATE_PACKETBUFFERING);
-				pThis->m_fPacketBuffering=fBuffering;
-				pThis->m_PacketBufferLength=BufferLength;
-				pThis->m_PacketBufferPoolPercentage=PoolPercentage;
+						&& (BufferLength!=m_PacketBufferLength
+							|| PoolPercentage!=m_PacketBufferPoolPercentage)))
+					SetUpdateFlag(UPDATE_PACKETBUFFERING);
+				m_fPacketBuffering=fBuffering;
+				m_PacketBufferLength=BufferLength;
+				m_PacketBufferPoolPercentage=PoolPercentage;
 
-				Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY);
-				if (Sel>=0 && Sel!=pThis->m_StreamThreadPriority) {
-					pThis->m_StreamThreadPriority=Sel;
-					pThis->SetUpdateFlag(UPDATE_STREAMTHREADPRIORITY);
+				int Priority=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_STREAMTHREADPRIORITY);
+				if (Priority>=0 && Priority!=m_StreamThreadPriority) {
+					m_StreamThreadPriority=Priority;
+					SetUpdateFlag(UPDATE_STREAMTHREADPRIORITY);
 				}
 
 #ifdef TVH264
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTFRAMERATE);
-				if (f!=pThis->m_fAdjustFrameRate) {
-					pThis->m_fAdjustFrameRate=f;
-					pThis->SetUpdateFlag(UPDATE_ADJUSTFRAMERATE);
+				if (f!=m_fAdjustFrameRate) {
+					m_fAdjustFrameRate=f;
+					SetUpdateFlag(UPDATE_ADJUSTFRAMERATE);
 				}
 #endif
 			}
 			break;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CPlaybackOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }

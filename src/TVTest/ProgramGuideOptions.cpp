@@ -30,12 +30,13 @@ CProgramGuideOptions::CProgramGuideOptions(CProgramGuide *pProgramGuide,CPluginM
 	, m_VisibleEventIcons(m_pProgramGuide->GetVisibleEventIcons())
 	, m_himlEventIcons(NULL)
 {
-	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
+	m_pProgramGuide->GetFont(&m_Font);
 }
 
 
 CProgramGuideOptions::~CProgramGuideOptions()
 {
+	Destroy();
 }
 
 
@@ -267,6 +268,13 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 }
 
 
+bool CProgramGuideOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_PROGRAMGUIDE));
+}
+
+
 bool CProgramGuideOptions::GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast)
 {
 	SYSTEMTIME st;
@@ -292,12 +300,6 @@ int CProgramGuideOptions::ParseCommand(LPCTSTR pszCommand) const
 }
 
 
-CProgramGuideOptions *CProgramGuideOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CProgramGuideOptions*>(GetOptions(hDlg));
-}
-
-
 static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 {
 	HDC hdc;
@@ -312,45 +314,43 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 }
 
 
-INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	static LOGFONT lfCurFont;
 
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CProgramGuideOptions *pThis=static_cast<CProgramGuideOptions*>(OnInitDialog(hDlg,lParam));
-
-			DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN,pThis->m_fOnScreen);
+			DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN,m_fOnScreen);
 			DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,TEXT("åªç›éû"));
 			for (int i=0;i<=23;i++) {
 				TCHAR szText[8];
 				::wsprintf(szText,TEXT("%déû"),i);
 				DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,szText);
 			}
-			DlgComboBox_SetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,pThis->m_BeginHour+1);
-			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,pThis->m_ViewHours,TRUE);
+			DlgComboBox_SetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR,m_BeginHour+1);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,m_ViewHours,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS_UD,
 								 UDM_SETRANGE32,MIN_VIEW_HOURS,MAX_VIEW_HOURS);
-			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_CHANNELWIDTH,pThis->m_ItemWidth,TRUE);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_CHANNELWIDTH,m_ItemWidth,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_CHANNELWIDTH_UD,
 				UDM_SETRANGE32,CProgramGuide::MIN_ITEM_WIDTH,CProgramGuide::MAX_ITEM_WIDTH);
-			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,pThis->m_LinesPerHour,TRUE);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,m_LinesPerHour,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR_UD,
 				UDM_SETRANGE32,CProgramGuide::MIN_LINES_PER_HOUR,CProgramGuide::MAX_LINES_PER_HOUR);
-			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN,pThis->m_LineMargin,TRUE);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN,m_LineMargin,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN_UD,UDM_SETRANGE32,0,100);
-			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,pThis->m_WheelScrollLines,TRUE);
+			::SetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,m_WheelScrollLines,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES_UD,
 				UDM_SETRANGE,0,MAKELONG(UD_MAXVAL,UD_MINVAL));
 
-			int Sel=pThis->m_ProgramLDoubleClickCommand.IsEmpty()?0:-1;
+			int Sel=m_ProgramLDoubleClickCommand.IsEmpty()?0:-1;
 			DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,TEXT("âΩÇ‡ÇµÇ»Ç¢"));
 			DlgComboBox_AddString(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,TEXT("iEPGä÷òAïtÇØé¿çs"));
-			if (Sel<0 && pThis->m_ProgramLDoubleClickCommand.Compare(IEPG_ASSOCIATE_COMMAND)==0)
+			if (Sel<0 && m_ProgramLDoubleClickCommand.Compare(IEPG_ASSOCIATE_COMMAND)==0)
 				Sel=1;
-			for (int i=0;i<pThis->m_pPluginManager->NumPlugins();i++) {
-				const CPlugin *pPlugin=pThis->m_pPluginManager->GetPlugin(i);
+			for (int i=0;i<m_pPluginManager->NumPlugins();i++) {
+				const CPlugin *pPlugin=m_pPluginManager->GetPlugin(i);
 
 				for (int j=0;j<pPlugin->NumProgramGuideCommands();j++) {
 					TVTest::ProgramGuideCommandInfo CommandInfo;
@@ -366,8 +366,8 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 															CommandInfo.pszName);
 						DlgComboBox_SetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,
 												Index,reinterpret_cast<LPARAM>(DuplicateString(szCommand)));
-						if (Sel<0 && !pThis->m_ProgramLDoubleClickCommand.IsEmpty()
-								&& ::lstrcmpi(szCommand,pThis->m_ProgramLDoubleClickCommand.Get())==0)
+						if (Sel<0 && !m_ProgramLDoubleClickCommand.IsEmpty()
+								&& ::lstrcmpi(szCommand,m_ProgramLDoubleClickCommand.Get())==0)
 							Sel=(int)Index;
 					}
 				}
@@ -375,25 +375,25 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			if (Sel>=0)
 				DlgComboBox_SetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,Sel);
 
-			lfCurFont=pThis->m_Font;
+			lfCurFont=m_Font;
 			SetFontInfo(hDlg,&lfCurFont);
 
-			pThis->m_Tooltip.Create(hDlg);
-			pThis->m_himlEventIcons=::ImageList_LoadImage(
+			m_Tooltip.Create(hDlg);
+			m_himlEventIcons=::ImageList_LoadImage(
 				GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_PROGRAMGUIDEICONS),
 				CEpgIcons::ICON_WIDTH,1,CLR_NONE,IMAGE_BITMAP,LR_CREATEDIBSECTION);
 			for (int i=0;i<=CEpgIcons::ICON_LAST;i++) {
 				DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
-								  (pThis->m_VisibleEventIcons&CEpgIcons::IconFlag(i))!=0);
+								  (m_VisibleEventIcons&CEpgIcons::IconFlag(i))!=0);
 				::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
 									 BM_SETIMAGE,IMAGE_ICON,
-									 reinterpret_cast<LPARAM>(::ImageList_ExtractIcon(NULL,pThis->m_himlEventIcons,i)));
+									 reinterpret_cast<LPARAM>(::ImageList_ExtractIcon(NULL,m_himlEventIcons,i)));
 				TCHAR szText[64];
 				::GetDlgItemText(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,szText,lengthof(szText));
-				pThis->m_Tooltip.AddTool(::GetDlgItem(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i),szText);
+				m_Tooltip.AddTool(::GetDlgItem(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i),szText);
 			}
 
-			CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
+			CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 			HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
 			HIMAGELIST himl=::ImageList_Create(
 				::GetSystemMetrics(SM_CXSMICON),::GetSystemMetrics(SM_CYSMICON),
@@ -402,7 +402,7 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			LV_COLUMN lvc;
 
 			ListView_SetImageList(hwndList,himl,LVSIL_SMALL);
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT);
+			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
 			lvc.cx=80;
@@ -441,7 +441,7 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 				ListView_SetColumnWidth(hwndList,1,LVSCW_AUTOSIZE_USEHEADER);
 				if (ListView_GetColumnWidth(hwndList,1)<rc.right-Width)
 					ListView_SetColumnWidth(hwndList,1,rc.right-Width);
-				pThis->SetDlgItemState();
+				SetDlgItemState();
 			}
 		}
 		return TRUE;
@@ -591,12 +591,11 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 
 		case IDC_PROGRAMGUIDETOOL_REMOVEALL:
 			{
-				CProgramGuideOptions *pThis=GetThis(hDlg);
 				HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
 
-				pThis->DeleteAllTools();
+				DeleteAllTools();
 				ListView_DeleteAllItems(hwndList);
-				pThis->SetDlgItemState();
+				SetDlgItemState();
 			}
 			return TRUE;
 		}
@@ -605,7 +604,7 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 	case WM_NOTIFY:
 		switch (reinterpret_cast<LPNMHDR>(lParam)->code) {
 		case LVN_ITEMCHANGED:
-			GetThis(hDlg)->SetDlgItemState();
+			SetDlgItemState();
 			return TRUE;
 
 		case NM_RCLICK:
@@ -631,59 +630,58 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 
 		case PSN_APPLY:
 			{
-				CProgramGuideOptions *pThis=GetThis(hDlg);
 				int Value;
 				bool fUpdate=false;
 
-				pThis->m_fOnScreen=DlgCheckBox_IsChecked(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN);
+				m_fOnScreen=DlgCheckBox_IsChecked(hDlg,IDC_PROGRAMGUIDEOPTIONS_ONSCREEN);
 				Value=(int)DlgComboBox_GetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_BEGINHOUR)-1;
-				if (pThis->m_BeginHour!=Value) {
-					pThis->m_BeginHour=Value;
-					pThis->m_pProgramGuide->SetBeginHour(Value);
+				if (m_BeginHour!=Value) {
+					m_BeginHour=Value;
+					m_pProgramGuide->SetBeginHour(Value);
 					fUpdate=true;
 				}
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_VIEWHOURS,NULL,TRUE);
 				Value=CLAMP(Value,(int)MIN_VIEW_HOURS,(int)MAX_VIEW_HOURS);
-				if (pThis->m_ViewHours!=Value) {
+				if (m_ViewHours!=Value) {
 					SYSTEMTIME stFirst,stLast;
 
-					pThis->m_ViewHours=Value;
-					pThis->m_pProgramGuide->GetTimeRange(&stFirst,NULL);
+					m_ViewHours=Value;
+					m_pProgramGuide->GetTimeRange(&stFirst,NULL);
 					stLast=stFirst;
-					OffsetSystemTime(&stLast,(LONGLONG)pThis->m_ViewHours*(60*60*1000));
-					pThis->m_pProgramGuide->SetTimeRange(&stFirst,&stLast);
+					OffsetSystemTime(&stLast,(LONGLONG)m_ViewHours*(60*60*1000));
+					m_pProgramGuide->SetTimeRange(&stFirst,&stLast);
 					fUpdate=true;
 				}
 				if (fUpdate)
-					pThis->m_pProgramGuide->UpdateProgramGuide();
+					m_pProgramGuide->UpdateProgramGuide();
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_CHANNELWIDTH,NULL,TRUE);
-				pThis->m_ItemWidth=CLAMP(Value,
+				m_ItemWidth=CLAMP(Value,
 					(int)CProgramGuide::MIN_ITEM_WIDTH,(int)CProgramGuide::MAX_ITEM_WIDTH);
 				Value=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINESPERHOUR,NULL,TRUE);
-				pThis->m_LinesPerHour=CLAMP(Value,
+				m_LinesPerHour=CLAMP(Value,
 					(int)CProgramGuide::MIN_LINES_PER_HOUR,(int)CProgramGuide::MAX_LINES_PER_HOUR);
-				pThis->m_LineMargin=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN,NULL,TRUE);
-				pThis->m_pProgramGuide->SetUIOptions(pThis->m_LinesPerHour,pThis->m_ItemWidth,pThis->m_LineMargin);
+				m_LineMargin=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_LINEMARGIN,NULL,TRUE);
+				m_pProgramGuide->SetUIOptions(m_LinesPerHour,m_ItemWidth,m_LineMargin);
 
-				pThis->m_WheelScrollLines=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,NULL,TRUE);
-				pThis->m_pProgramGuide->SetWheelScrollLines(pThis->m_WheelScrollLines);
+				m_WheelScrollLines=::GetDlgItemInt(hDlg,IDC_PROGRAMGUIDEOPTIONS_WHEELSCROLLLINES,NULL,TRUE);
+				m_pProgramGuide->SetWheelScrollLines(m_WheelScrollLines);
 
 				LRESULT Sel=DlgComboBox_GetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK);
 				if (Sel>=0) {
 					if (Sel==0) {
-						pThis->m_ProgramLDoubleClickCommand.Clear();
+						m_ProgramLDoubleClickCommand.Clear();
 					} else if (Sel==1) {
-						pThis->m_ProgramLDoubleClickCommand.Set(IEPG_ASSOCIATE_COMMAND);
+						m_ProgramLDoubleClickCommand.Set(IEPG_ASSOCIATE_COMMAND);
 					} else {
-						pThis->m_ProgramLDoubleClickCommand.Set(
+						m_ProgramLDoubleClickCommand.Set(
 							reinterpret_cast<LPCTSTR>(
 								DlgComboBox_GetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,Sel)));
 					}
 				}
 
-				if (!CompareLogFont(&pThis->m_Font,&lfCurFont)) {
-					pThis->m_Font=lfCurFont;
-					pThis->m_pProgramGuide->SetFont(&lfCurFont);
+				if (!CompareLogFont(&m_Font,&lfCurFont)) {
+					m_Font=lfCurFont;
+					m_pProgramGuide->SetFont(&lfCurFont);
 				}
 
 				UINT VisibleEventIcons=0;
@@ -691,13 +689,13 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 					if (DlgCheckBox_IsChecked(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i))
 						VisibleEventIcons|=CEpgIcons::IconFlag(i);
 				}
-				if (pThis->m_VisibleEventIcons!=VisibleEventIcons) {
-					pThis->m_VisibleEventIcons=VisibleEventIcons;
-					pThis->m_pProgramGuide->SetVisibleEventIcons(VisibleEventIcons);
-					pThis->m_UpdateFlags|=UPDATE_EVENTICONS;
+				if (m_VisibleEventIcons!=VisibleEventIcons) {
+					m_VisibleEventIcons=VisibleEventIcons;
+					m_pProgramGuide->SetVisibleEventIcons(VisibleEventIcons);
+					m_UpdateFlags|=UPDATE_EVENTICONS;
 				}
 
-				CProgramGuideToolList *pToolList=pThis->m_pProgramGuide->GetToolList();
+				CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 				HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
 				int Items,i;
 
@@ -718,15 +716,13 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 			break;
 
 		case PSN_RESET:
-			GetThis(hDlg)->DeleteAllTools();
+			DeleteAllTools();
 			break;
 		}
 		break;
 
 	case WM_DESTROY:
 		{
-			CProgramGuideOptions *pThis=GetThis(hDlg);
-
 			for (LRESULT i=DlgComboBox_GetCount(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK)-1;i>1;i--) {
 				delete [] reinterpret_cast<LPTSTR>(
 					DlgComboBox_GetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,i));
@@ -738,15 +734,15 @@ INT_PTR CALLBACK CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam
 				if (hico!=NULL)
 					::DestroyIcon(hico);
 			}
-			if (pThis->m_himlEventIcons!=NULL) {
-				::ImageList_Destroy(pThis->m_himlEventIcons);
-				pThis->m_himlEventIcons=NULL;
+			if (m_himlEventIcons!=NULL) {
+				::ImageList_Destroy(m_himlEventIcons);
+				m_himlEventIcons=NULL;
 			}
-			pThis->m_Tooltip.Destroy();
-			pThis->OnDestroy();
+			m_Tooltip.Destroy();
 		}
 		return TRUE;
 	}
+
 	return FALSE;
 }
 

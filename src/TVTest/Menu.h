@@ -37,11 +37,11 @@ public:
 	~CMainMenu();
 	bool Create(HINSTANCE hinst);
 	void Destroy();
-	bool Popup(UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
+	bool Show(UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
 	bool PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
-	void EnableItem(int ID,bool fEnable);
-	void CheckItem(int ID,bool fCheck);
-	void CheckRadioItem(int FirstID,int LastID,int CheckID);
+	void EnableItem(UINT ID,bool fEnable);
+	void CheckItem(UINT ID,bool fCheck);
+	void CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID);
 	HMENU GetMenuHandle() const;
 	HMENU GetSubMenu(int SubMenu) const;
 	bool SetAccelerator(CAccelerator *pAccelerator);
@@ -110,7 +110,7 @@ public:
 	bool Create(const CChannelList *pChannelList,int CurChannel,UINT Command,
 				HMENU hmenu,HWND hwnd,unsigned int Flags,int MaxRows=0);
 	void Destroy();
-	bool Popup(UINT Flags,int x,int y);
+	bool Show(UINT Flags,int x,int y);
 	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	bool OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	bool OnMenuSelect(HWND hwnd,WPARAM wParam,LPARAM lParam);
@@ -119,22 +119,43 @@ public:
 
 class CPopupMenu
 {
+	enum PopupMenuType {
+		TYPE_RESOURCE,
+		TYPE_CREATED,
+		TYPE_ATTACHED
+	};
+
 	HMENU m_hmenu;
+	PopupMenuType m_Type;
 
 public:
 	CPopupMenu();
 	CPopupMenu(HINSTANCE hinst,LPCTSTR pszName);
-	CPopupMenu(HINSTANCE hinst,int ID);
+	CPopupMenu(HINSTANCE hinst,UINT ID);
+	CPopupMenu(HMENU hmenu);
 	~CPopupMenu();
-	HMENU GetPopupHandle();
-	bool EnableItem(int ID,bool fEnable);
-	bool CheckItem(int ID,bool fCheck);
-	bool CheckRadioItem(int FirstID,int LastID,int CheckID);
-	bool Popup(HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON);
-	bool Popup(HMENU hmenu,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true);
-	bool Popup(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true);
-	bool Popup(HINSTANCE hinst,int ID,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true) {
-		return Popup(hinst,MAKEINTRESOURCE(ID),hwnd,pPos,Flags,fToggle);
+	bool Create();
+	bool IsCreated() const { return m_hmenu!=NULL; }
+	bool Load(HINSTANCE hinst,LPCTSTR pszName);
+	bool Load(HINSTANCE hinst,UINT ID) { return Load(hinst,MAKEINTRESOURCE(ID)); }
+	bool Attach(HMENU hmenu);
+	void Destroy();
+	int GetItemCount() const;
+	void Clear();
+	HMENU GetPopupHandle() const;
+	bool Append(UINT ID,LPCTSTR pszText,UINT Flags=MF_ENABLED);
+	bool AppendUnformatted(UINT ID,LPCTSTR pszText,UINT Flags=MF_ENABLED);
+	bool Append(HMENU hmenu,LPCTSTR pszText,UINT Flags=MF_ENABLED);
+	bool AppendSeparator();
+	bool EnableItem(UINT ID,bool fEnable);
+	bool CheckItem(UINT ID,bool fCheck);
+	bool CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID,UINT Flags=MF_BYCOMMAND);
+	HMENU GetSubMenu(int Pos) const;
+	bool Show(HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON);
+	bool Show(HMENU hmenu,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true);
+	bool Show(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true);
+	bool Show(HINSTANCE hinst,int ID,HWND hwnd,const POINT *pPos=NULL,UINT Flags=TPM_RIGHTBUTTON,bool fToggle=true) {
+		return Show(hinst,MAKEINTRESOURCE(ID),hwnd,pPos,Flags,fToggle);
 	}
 };
 

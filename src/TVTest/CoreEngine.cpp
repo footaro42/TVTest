@@ -31,8 +31,10 @@ CCoreEngine::CCoreEngine()
 	, m_Volume(50)
 	, m_AudioGain(100)
 	, m_SurroundAudioGain(100)
-	, m_StereoMode(0)
+	, m_StereoMode(STEREOMODE_STEREO)
+	, m_AutoStereoMode(STEREOMODE_LEFT)
 	, m_fDownMixSurround(true)
+	, m_fSpdifPassthrough(false)
 	, m_EventID(0)
 	, m_ErrorPacketCount(0)
 	, m_ContinuityErrorPacketCount(0)
@@ -256,7 +258,9 @@ bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		m_AudioGain!=100 || m_SurroundAudioGain!=100,
 		(float)m_AudioGain/100.0f,(float)m_SurroundAudioGain/100.0f);
 	m_DtvEngine.SetStereoMode(m_StereoMode);
+	m_DtvEngine.m_MediaViewer.SetAutoStereoMode(m_AutoStereoMode);
 	m_DtvEngine.m_MediaViewer.SetDownMixSurround(m_fDownMixSurround);
+	m_DtvEngine.m_MediaViewer.SetSpdifOptions(&m_SpdifOptions);
 	return true;
 }
 
@@ -495,12 +499,41 @@ bool CCoreEngine::SetStereoMode(int Mode)
 }
 
 
+bool CCoreEngine::SetAutoStereoMode(int Mode)
+{
+	if (Mode<0 || Mode>2)
+		return false;
+	if (Mode!=m_AutoStereoMode) {
+		m_DtvEngine.m_MediaViewer.SetStereoMode(Mode);
+		m_AutoStereoMode=Mode;
+	}
+	return true;
+}
+
+
 bool CCoreEngine::SetDownMixSurround(bool fDownMix)
 {
 	if (fDownMix!=m_fDownMixSurround) {
 		m_DtvEngine.m_MediaViewer.SetDownMixSurround(fDownMix);
 		m_fDownMixSurround=fDownMix;
 	}
+	return true;
+}
+
+
+bool CCoreEngine::SetSpdifOptions(const CAacDecFilter::SpdifOptions &Options)
+{
+	m_SpdifOptions=Options;
+	m_DtvEngine.m_MediaViewer.SetSpdifOptions(&Options);
+	return true;
+}
+
+
+bool CCoreEngine::GetSpdifOptions(CAacDecFilter::SpdifOptions *pOptions) const
+{
+	if (pOptions==NULL)
+		return false;
+	*pOptions=m_SpdifOptions;
 	return true;
 }
 
@@ -518,6 +551,7 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 			Updated|=STATUS_VIDEOSIZE;
 		}
 	}
+
 	if (m_DtvEngine.m_MediaViewer.GetCroppedVideoSize(&Width,&Height)) {
 		if (Width!=m_DisplayVideoWidth || Height!=m_DisplayVideoHeight) {
 			m_DisplayVideoWidth=Width;
@@ -525,30 +559,42 @@ DWORD CCoreEngine::UpdateAsyncStatus()
 			Updated|=STATUS_VIDEOSIZE;
 		}
 	}
+
 	int NumAudioChannels=m_DtvEngine.GetAudioChannelNum();
 	if (NumAudioChannels!=m_NumAudioChannels) {
 		m_NumAudioChannels=NumAudioChannels;
 		Updated|=STATUS_AUDIOCHANNELS;
 		TRACE(TEXT("Audio channels = %dch\n"),NumAudioChannels);
 	}
+
 	int NumAudioStreams=m_DtvEngine.GetAudioStreamNum();
 	if (NumAudioStreams!=m_NumAudioStreams) {
 		m_NumAudioStreams=NumAudioStreams;
 		Updated|=STATUS_AUDIOSTREAMS;
 		TRACE(TEXT("Audio streams = %dch\n"),NumAudioChannels);
 	}
+
 	BYTE AudioComponentType=m_DtvEngine.GetAudioComponentType();
 	if (AudioComponentType!=m_AudioComponentType) {
 		m_AudioComponentType=AudioComponentType;
 		Updated|=STATUS_AUDIOCOMPONENTTYPE;
 		TRACE(TEXT("AudioComponentType = %x\n"),AudioComponentType);
 	}
+
+	bool fSpdifPassthrough=m_DtvEngine.m_MediaViewer.IsSpdifPassthrough();
+	if (fSpdifPassthrough!=m_fSpdifPassthrough) {
+		m_fSpdifPassthrough=fSpdifPassthrough;
+		Updated|=STATUS_SPDIFPASSTHROUGH;
+		TRACE(TEXT("S/PDIF passthrough %s\n"),fSpdifPassthrough?TEXT("ON"):TEXT("OFF"));
+	}
+
 	WORD EventID=m_DtvEngine.GetEventID();
 	if (EventID!=m_EventID) {
 		m_EventID=EventID;
 		Updated|=STATUS_EVENTID;
 		TRACE(TEXT("EventID = %d\n"),EventID);
 	}
+
 	return Updated;
 }
 

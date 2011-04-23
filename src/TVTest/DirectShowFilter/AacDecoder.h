@@ -15,7 +15,7 @@
 //
 
 
-class CAacDecoder :	public CAdtsParser::IFrameHandler
+class CAacDecoder
 {
 public:
 	class IPcmHandler
@@ -34,10 +34,6 @@ public:
 	const bool Decode(const CAdtsFrame *pFrame);
 
 	const BYTE GetChannelConfig() const;
-
-protected:
-// CAdtsParser::IFrameHandler
-	virtual void OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame *pFrame);
 
 private:
 	IPcmHandler *m_pPcmHandler;

@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlobj.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "CaptureOptions.h"
@@ -67,6 +66,7 @@ CCaptureOptions::CCaptureOptions()
 
 CCaptureOptions::~CCaptureOptions()
 {
+	Destroy();
 }
 
 
@@ -133,6 +133,13 @@ bool CCaptureOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("CaptureRatioNum"),m_PercentageList[m_CapturePercentage].Num);
 	pSettings->Write(TEXT("CaptureRatioDenom"),m_PercentageList[m_CapturePercentage].Denom);
 	return true;
+}
+
+
+bool CCaptureOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_CAPTURE));
 }
 
 
@@ -312,24 +319,17 @@ bool CCaptureOptions::OpenSaveFolder() const
 }
 
 
-CCaptureOptions *CCaptureOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CCaptureOptions*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CCaptureOptions *pThis=dynamic_cast<CCaptureOptions*>(OnInitDialog(hDlg,lParam));
 			int i;
 
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
-			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,pThis->m_szSaveFolder);
+			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,m_szSaveFolder);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
-			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_FILENAME,pThis->m_szFileName);
+			SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_FILENAME,m_szFileName);
 
 			static const LPCTSTR SizeTypeText[] = {
 				TEXT("元の大きさ"),
@@ -348,63 +348,55 @@ INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,szText);
 			}
 			int Sel=-1;
-			switch (pThis->m_CaptureSizeType) {
+			switch (m_CaptureSizeType) {
 			case SIZE_TYPE_ORIGINAL:
 			case SIZE_TYPE_VIEW:
-				Sel=pThis->m_CaptureSizeType;
+				Sel=m_CaptureSizeType;
 				break;
 			case SIZE_TYPE_CUSTOM:
-				Sel=lengthof(SizeTypeText)+(PERCENTAGE_LAST+1)+pThis->m_CaptureSize;
+				Sel=lengthof(SizeTypeText)+(PERCENTAGE_LAST+1)+m_CaptureSize;
 				break;
 			case SIZE_TYPE_PERCENTAGE:
-				Sel=lengthof(SizeTypeText)+pThis->m_CapturePercentage;
+				Sel=lengthof(SizeTypeText)+m_CapturePercentage;
 				break;
 			}
 			DlgComboBox_SetCurSel(hDlg,IDC_CAPTUREOPTIONS_SIZE,Sel);
 
 			LPCTSTR pszFormat;
-			for (i=0;(pszFormat=pThis->m_ImageCodec.EnumSaveFormat(i))!=NULL;i++)
-				SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FORMAT,CB_ADDSTRING,
-										0,reinterpret_cast<LPARAM>(pszFormat));
-			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FORMAT,CB_SETCURSEL,
-														pThis->m_SaveFormat,0);
+			for (i=0;(pszFormat=m_ImageCodec.EnumSaveFormat(i))!=NULL;i++)
+				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_FORMAT,pszFormat);
+			DlgComboBox_SetCurSel(hDlg,IDC_CAPTUREOPTIONS_FORMAT,m_SaveFormat);
 
 			// JPEG quality
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
-										TBM_SETRANGE,TRUE,MAKELPARAM(0,100));
+								TBM_SETRANGE,TRUE,MAKELPARAM(0,100));
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
-										TBM_SETPOS,TRUE,pThis->m_JPEGQuality);
+								TBM_SETPOS,TRUE,m_JPEGQuality);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
-														TBM_SETPAGESIZE,0,10);
+								TBM_SETPAGESIZE,0,10);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,
-														TBM_SETTICFREQ,10,0);
+								TBM_SETTICFREQ,10,0);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT,
-															EM_LIMITTEXT,3,0);
-			SetDlgItemInt(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT,
-													pThis->m_JPEGQuality,TRUE);
-			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_UD,
-											UDM_SETRANGE,0,MAKELPARAM(100,0));
+								EM_LIMITTEXT,3,0);
+			SetDlgItemInt(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_EDIT,m_JPEGQuality,TRUE);
+			DlgUpDown_SetRange(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_UD,0,100);
 
 			// PNG compression level
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
-											TBM_SETRANGE,TRUE,MAKELPARAM(0,9));
+								TBM_SETRANGE,TRUE,MAKELPARAM(0,9));
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
-								TBM_SETPOS,TRUE,pThis->m_PNGCompressionLevel);
+								TBM_SETPOS,TRUE,m_PNGCompressionLevel);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
-														TBM_SETPAGESIZE,0,1);
+								TBM_SETPAGESIZE,0,1);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,
-														TBM_SETTICFREQ,1,0);
+								TBM_SETTICFREQ,1,0);
 			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT,
-															EM_LIMITTEXT,0,1);
-			SetDlgItemInt(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT,
-										pThis->m_PNGCompressionLevel,FALSE);
-			SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_UD,
-											UDM_SETRANGE,0,MAKELPARAM(9,0));
+								EM_LIMITTEXT,0,1);
+			SetDlgItemInt(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_EDIT,m_PNGCompressionLevel,FALSE);
+			DlgUpDown_SetRange(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_UD,0,9);
 
-			CheckDlgButton(hDlg,IDC_CAPTUREOPTIONS_ICONSAVEFILE,
-						pThis->m_fCaptureSaveToFile?BST_CHECKED:BST_UNCHECKED);
-			CheckDlgButton(hDlg,IDC_CAPTUREOPTIONS_SETCOMMENT,
-						pThis->m_fSetComment?BST_CHECKED:BST_UNCHECKED);
+			DlgCheckBox_Check(hDlg,IDC_CAPTUREOPTIONS_ICONSAVEFILE,m_fCaptureSaveToFile);
+			DlgCheckBox_Check(hDlg,IDC_CAPTUREOPTIONS_SETCOMMENT,m_fSetComment);
 		}
 		return TRUE;
 
@@ -426,10 +418,8 @@ INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 			{
 				TCHAR szFolder[MAX_PATH];
 
-				GetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,szFolder,
-																	MAX_PATH);
-				if (BrowseFolderDialog(hDlg,szFolder,
-												TEXT("画像の保存先フォルダ:")))
+				GetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,szFolder,lengthof(szFolder));
+				if (BrowseFolderDialog(hDlg,szFolder,TEXT("画像の保存先フォルダ:")))
 					SetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,szFolder);
 			}
 			return TRUE;
@@ -452,7 +442,6 @@ INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CCaptureOptions *pThis=GetThis(hDlg);
 				TCHAR szSaveFolder[MAX_PATH],szFileName[MAX_PATH],szMessage[256];
 
 				GetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER,szSaveFolder,lengthof(szSaveFolder));
@@ -469,7 +458,7 @@ INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 						Result=::SHCreateDirectoryEx(hDlg,szSaveFolder,NULL);
 						if (Result!=ERROR_SUCCESS
 								&& Result!=ERROR_ALREADY_EXISTS) {
-							pThis->SettingError();
+							SettingError();
 							::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
 											NULL,MB_OK | MB_ICONEXCLAMATION);
 							SetDlgItemFocus(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER);
@@ -479,38 +468,31 @@ INT_PTR CALLBACK CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPAR
 				}
 				GetDlgItemText(hDlg,IDC_CAPTUREOPTIONS_FILENAME,szFileName,lengthof(szFileName));
 				if (!IsValidFileName(szFileName,false,szMessage,lengthof(szMessage))) {
-					pThis->SettingError();
+					SettingError();
 					SetDlgItemFocus(hDlg,IDC_CAPTUREOPTIONS_FILENAME);
 					SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_FILENAME,EM_SETSEL,0,-1);
 					MessageBox(hDlg,szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
 					return TRUE;
 				}
-				lstrcpy(pThis->m_szSaveFolder,szSaveFolder);
-				lstrcpy(pThis->m_szFileName,szFileName);
-				pThis->SetPresetCaptureSize(
+				lstrcpy(m_szSaveFolder,szSaveFolder);
+				lstrcpy(m_szFileName,szFileName);
+				SetPresetCaptureSize(
 					(int)DlgComboBox_GetCurSel(hDlg,IDC_CAPTUREOPTIONS_SIZE));
-				pThis->m_SaveFormat=(int)SendDlgItemMessage(hDlg,
-							IDC_CAPTUREOPTIONS_FORMAT,CB_GETCURSEL,0,0);
-				pThis->m_JPEGQuality=(int)SendDlgItemMessage(hDlg,
-							IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,TBM_GETPOS,0,0);
-				pThis->m_PNGCompressionLevel=(int)SendDlgItemMessage(hDlg,
-							IDC_CAPTUREOPTIONS_PNGLEVEL_TB,TBM_GETPOS,0,0);
-				pThis->m_fCaptureSaveToFile=IsDlgButtonChecked(hDlg,
-								IDC_CAPTUREOPTIONS_ICONSAVEFILE)==BST_CHECKED;
-				pThis->m_fSetComment=IsDlgButtonChecked(hDlg,
-								IDC_CAPTUREOPTIONS_SETCOMMENT)==BST_CHECKED;
+				m_SaveFormat=
+					(int)DlgComboBox_GetCurSel(hDlg,IDC_CAPTUREOPTIONS_FORMAT);
+				m_JPEGQuality=
+					(int)SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_JPEGQUALITY_TB,TBM_GETPOS,0,0);
+				m_PNGCompressionLevel=
+					(int)SendDlgItemMessage(hDlg,IDC_CAPTUREOPTIONS_PNGLEVEL_TB,TBM_GETPOS,0,0);
+				m_fCaptureSaveToFile=
+					DlgCheckBox_IsChecked(hDlg,IDC_CAPTUREOPTIONS_ICONSAVEFILE);
+				m_fSetComment=
+					DlgCheckBox_IsChecked(hDlg,IDC_CAPTUREOPTIONS_SETCOMMENT);
 			}
 			break;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CCaptureOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }

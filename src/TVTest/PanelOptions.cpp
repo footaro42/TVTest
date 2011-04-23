@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "PanelOptions.h"
 #include "ChannelPanel.h"
 #include "DialogUtil.h"
@@ -30,16 +31,9 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	, m_fChannelDetailToolTip(false)
 	, m_EventsPerChannel(2)
 {
-	::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),&m_Font);
-	NONCLIENTMETRICS ncm;
-	ncm.cbSize=
-#if WINVER<0x0600
-		sizeof(ncm);
-#else
-		offsetof(NONCLIENTMETRICS,iPaddedBorderWidth);
-#endif
-	::SystemParametersInfo(SPI_GETNONCLIENTMETRICS,ncm.cbSize,&ncm,0);
-	m_CaptionFont=ncm.lfMessageFont;
+	DrawUtil::GetDefaultUIFont(&m_Font);
+	DrawUtil::GetSystemFont(DrawUtil::FONT_MESSAGE,&m_CaptionFont);
+
 	for (int i=0;i<NUM_PANELS;i++) {
 		m_TabList[i].ID=PANEL_ID_FIRST+i;
 		m_TabList[i].fVisible=true;
@@ -49,6 +43,7 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 
 CPanelOptions::~CPanelOptions()
 {
+	Destroy();
 }
 
 
@@ -56,6 +51,7 @@ bool CPanelOptions::InitializePanelForm(CPanelForm *pPanelForm)
 {
 	int TabOrder[NUM_PANELS];
 
+	pPanelForm->SetTabFont(&m_Font);
 	pPanelForm->SetPageFont(&m_Font);
 	if (m_fSpecCaptionFont) {
 		CPanelForm::CPage *pCaptionPanel=pPanelForm->GetPageByID(PANEL_ID_CAPTION);
@@ -230,6 +226,19 @@ bool CPanelOptions::Write(CSettings *pSettings) const
 }
 
 
+bool CPanelOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_PANEL));
+}
+
+
+int CPanelOptions::GetFirstTab() const
+{
+	return m_FirstTab>=0?m_FirstTab:m_LastTab;
+}
+
+
 static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 {
 	HDC hdc;
@@ -244,19 +253,7 @@ static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 }
 
 
-int CPanelOptions::GetFirstTab() const
-{
-	return m_FirstTab>=0?m_FirstTab:m_LastTab;
-}
-
-
-CPanelOptions *CPanelOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CPanelOptions*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	static const LPCTSTR pszTabList[] = {
 		TEXT("èÓïÒ"),
@@ -269,23 +266,21 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CPanelOptions *pThis=dynamic_cast<CPanelOptions*>(OnInitDialog(hDlg,lParam));
-
 			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW,
-												pThis->m_fSnapAtMainWindow);
+												m_fSnapAtMainWindow);
 			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW,
-												pThis->m_fAttachToMainWindow);
+												m_fAttachToMainWindow);
 
 			// Opacity
 			::SendDlgItemMessage(hDlg,IDC_PANELOPTIONS_OPACITY_TB,
 										TBM_SETRANGE,TRUE,MAKELPARAM(20,100));
 			::SendDlgItemMessage(hDlg,IDC_PANELOPTIONS_OPACITY_TB,
-										TBM_SETPOS,TRUE,pThis->m_Opacity);
+										TBM_SETPOS,TRUE,m_Opacity);
 			::SendDlgItemMessage(hDlg,IDC_PANELOPTIONS_OPACITY_TB,
 										TBM_SETPAGESIZE,0,10);
 			::SendDlgItemMessage(hDlg,IDC_PANELOPTIONS_OPACITY_TB,
 										TBM_SETTICFREQ,10,0);
-			::SetDlgItemInt(hDlg,IDC_PANELOPTIONS_OPACITY_EDIT,pThis->m_Opacity,TRUE);
+			::SetDlgItemInt(hDlg,IDC_PANELOPTIONS_OPACITY_EDIT,m_Opacity,TRUE);
 			::SendDlgItemMessage(hDlg,IDC_PANELOPTIONS_OPACITY_UD,
 										UDM_SETRANGE,0,MAKELPARAM(100,20));
 
@@ -296,22 +291,22 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			::SendMessage(hwndTabList,LB_SETCOLUMNWIDTH,rc.right/NUM_PANELS,0);
 			for (int i=0;i<NUM_PANELS;i++)
 				::SendMessage(hwndTabList,LB_ADDSTRING,0,
-				MAKELPARAM(pThis->m_TabList[i].ID,pThis->m_TabList[i].fVisible));
+				MAKELPARAM(m_TabList[i].ID,m_TabList[i].fVisible));
 			::SetProp(hwndTabList,TEXT("TabList"),SubclassWindow(hwndTabList,TabListProc));
 
 			DlgComboBox_AddString(hDlg,IDC_PANELOPTIONS_FIRSTTAB,TEXT("ç≈å„Ç…ï\é¶ÇµÇΩÉ^Éu"));
 			for (int i=0;i<lengthof(pszTabList);i++)
 				DlgComboBox_AddString(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pszTabList[i]);
-			DlgComboBox_SetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB,pThis->m_FirstTab+1);
+			DlgComboBox_SetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB,m_FirstTab+1);
 
-			pThis->m_CurSettingFont=pThis->m_Font;
-			SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&pThis->m_Font);
-			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT,pThis->m_fSpecCaptionFont);
+			m_CurSettingFont=m_Font;
+			SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&m_Font);
+			DlgCheckBox_Check(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT,m_fSpecCaptionFont);
 			EnableDlgItems(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,
 						   IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE,
-						   pThis->m_fSpecCaptionFont);
-			pThis->m_CurSettingCaptionFont=pThis->m_CaptionFont;
-			SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&pThis->m_CaptionFont);
+						   m_fSpecCaptionFont);
+			m_CurSettingCaptionFont=m_CaptionFont;
+			SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&m_CaptionFont);
 		}
 		return TRUE;
 
@@ -396,12 +391,8 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			return TRUE;
 
 		case IDC_PANELOPTIONS_CHOOSEFONT:
-			{
-				CPanelOptions *pThis=GetThis(hDlg);
-
-				if (ChooseFontDialog(hDlg,&pThis->m_CurSettingFont))
-					SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&pThis->m_CurSettingFont);
-			}
+			if (ChooseFontDialog(hDlg,&m_CurSettingFont))
+				SetFontInfo(hDlg,IDC_PANELOPTIONS_FONTINFO,&m_CurSettingFont);
 			return TRUE;
 
 		case IDC_PANELOPTIONS_SPECCAPTIONFONT:
@@ -411,12 +402,8 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 			return TRUE;
 
 		case IDC_PANELOPTIONS_CAPTIONFONT_CHOOSE:
-			{
-				CPanelOptions *pThis=GetThis(hDlg);
-
-				if (ChooseFontDialog(hDlg,&pThis->m_CurSettingCaptionFont))
-					SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&pThis->m_CurSettingCaptionFont);
-			}
+			if (ChooseFontDialog(hDlg,&m_CurSettingCaptionFont))
+				SetFontInfo(hDlg,IDC_PANELOPTIONS_CAPTIONFONT_INFO,&m_CurSettingCaptionFont);
 			return TRUE;
 		}
 		return TRUE;
@@ -425,72 +412,64 @@ INT_PTR CALLBACK CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CPanelOptions *pThis=GetThis(hDlg);
-				CPanelForm *pPanel=dynamic_cast<CPanelForm*>(pThis->m_pPanelFrame->GetWindow());
+				CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
 
-				pThis->m_fSnapAtMainWindow=
+				m_fSnapAtMainWindow=
 					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_SNAPATMAINWINDOW);
-				pThis->m_fAttachToMainWindow=
+				m_fAttachToMainWindow=
 					DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_ATTACHTOMAINWINDOW);
-				pThis->m_Opacity=::GetDlgItemInt(hDlg,IDC_PANELOPTIONS_OPACITY_EDIT,NULL,TRUE);
-				pThis->m_pPanelFrame->SetOpacity(pThis->m_Opacity*255/100);
-				pThis->m_FirstTab=(int)DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
+				m_Opacity=::GetDlgItemInt(hDlg,IDC_PANELOPTIONS_OPACITY_EDIT,NULL,TRUE);
+				m_pPanelFrame->SetOpacity(m_Opacity*255/100);
+				m_FirstTab=(int)DlgComboBox_GetCurSel(hDlg,IDC_PANELOPTIONS_FIRSTTAB)-1;
 
 				for (int i=0;i<NUM_PANELS;i++) {
 					LPARAM Data=DlgListBox_GetItemData(hDlg,IDC_PANELOPTIONS_TABLIST,i);
-					pThis->m_TabList[i].ID=LOWORD(Data);
-					pThis->m_TabList[i].fVisible=HIWORD(Data)!=0;
+					m_TabList[i].ID=LOWORD(Data);
+					m_TabList[i].fVisible=HIWORD(Data)!=0;
 				}
 				if (pPanel!=NULL) {
 					int TabOrder[NUM_PANELS];
 					for (int i=0;i<NUM_PANELS;i++) {
-						TabOrder[i]=pThis->m_TabList[i].ID;
-						pPanel->SetTabVisible(pThis->m_TabList[i].ID,pThis->m_TabList[i].fVisible);
+						TabOrder[i]=m_TabList[i].ID;
+						pPanel->SetTabVisible(m_TabList[i].ID,m_TabList[i].fVisible);
 					}
 					pPanel->SetTabOrder(TabOrder);
 				}
 
-				bool fFontChanged=!CompareLogFont(&pThis->m_Font,&pThis->m_CurSettingFont);
+				bool fFontChanged=!CompareLogFont(&m_Font,&m_CurSettingFont);
 				if (fFontChanged) {
-					pThis->m_Font=pThis->m_CurSettingFont;
+					m_Font=m_CurSettingFont;
 					if (pPanel!=NULL) {
-						pPanel->SetTabFont(&pThis->m_Font);
-						pPanel->SetPageFont(&pThis->m_Font);
+						pPanel->SetTabFont(&m_Font);
+						pPanel->SetPageFont(&m_Font);
 					}
 				}
 
 				bool fChangeCaptionFont=false;
 				bool fSpecCaptionFont=DlgCheckBox_IsChecked(hDlg,IDC_PANELOPTIONS_SPECCAPTIONFONT);
-				if (pThis->m_fSpecCaptionFont!=fSpecCaptionFont) {
-					pThis->m_fSpecCaptionFont=fSpecCaptionFont;
+				if (m_fSpecCaptionFont!=fSpecCaptionFont) {
+					m_fSpecCaptionFont=fSpecCaptionFont;
 					fChangeCaptionFont=true;
 				}
-				if (!CompareLogFont(&pThis->m_CaptionFont,&pThis->m_CurSettingCaptionFont)) {
-					pThis->m_CaptionFont=pThis->m_CurSettingCaptionFont;
-					if (pThis->m_fSpecCaptionFont)
+				if (!CompareLogFont(&m_CaptionFont,&m_CurSettingCaptionFont)) {
+					m_CaptionFont=m_CurSettingCaptionFont;
+					if (m_fSpecCaptionFont)
 						fChangeCaptionFont=true;
-				} else if (pThis->m_fSpecCaptionFont && fFontChanged) {
+				} else if (m_fSpecCaptionFont && fFontChanged) {
 					fChangeCaptionFont=true;
 				}
 				if (fChangeCaptionFont) {
 					CPanelForm::CPage *pCaptionPanel=pPanel->GetPageByID(PANEL_ID_CAPTION);
 					if (pCaptionPanel!=NULL)
-						pCaptionPanel->SetFont(pThis->m_fSpecCaptionFont?
-											   &pThis->m_CaptionFont:&pThis->m_Font);
+						pCaptionPanel->SetFont(m_fSpecCaptionFont?
+											   &m_CaptionFont:&m_Font);
 				}
 			}
 			break;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CPanelOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }
 

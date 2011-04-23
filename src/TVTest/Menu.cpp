@@ -45,7 +45,7 @@ void CMainMenu::Destroy()
 }
 
 
-bool CMainMenu::Popup(UINT Flags,int x,int y,HWND hwnd,bool fToggle)
+bool CMainMenu::Show(UINT Flags,int x,int y,HWND hwnd,bool fToggle)
 {
 	if (m_hmenu==NULL)
 		return false;
@@ -83,21 +83,21 @@ bool CMainMenu::PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd,bool f
 }
 
 
-void CMainMenu::EnableItem(int ID,bool fEnable)
+void CMainMenu::EnableItem(UINT ID,bool fEnable)
 {
 	if (m_hmenu)
 		::EnableMenuItem(m_hmenu,ID,MF_BYCOMMAND | (fEnable?MFS_ENABLED:MFS_GRAYED));
 }
 
 
-void CMainMenu::CheckItem(int ID,bool fCheck)
+void CMainMenu::CheckItem(UINT ID,bool fCheck)
 {
 	if (m_hmenu)
 		::CheckMenuItem(m_hmenu,ID,MF_BYCOMMAND | (fCheck?MFS_CHECKED:MFS_UNCHECKED));
 }
 
 
-void CMainMenu::CheckRadioItem(int FirstID,int LastID,int CheckID)
+void CMainMenu::CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID)
 {
 	if (m_hmenu)
 		::CheckMenuRadioItem(m_hmenu,FirstID,LastID,CheckID,MF_BYCOMMAND);
@@ -488,7 +488,7 @@ void CChannelMenu::Destroy()
 }
 
 
-bool CChannelMenu::Popup(UINT Flags,int x,int y)
+bool CChannelMenu::Show(UINT Flags,int x,int y)
 {
 	if (m_hmenu==NULL)
 		return false;
@@ -698,33 +698,138 @@ CPopupMenu::CPopupMenu()
 
 
 CPopupMenu::CPopupMenu(HINSTANCE hinst,LPCTSTR pszName)
+	: m_hmenu(NULL)
 {
-	m_hmenu=::LoadMenu(hinst,pszName);
+	Load(hinst,pszName);
 }
 
 
-CPopupMenu::CPopupMenu(HINSTANCE hinst,int ID)
+CPopupMenu::CPopupMenu(HINSTANCE hinst,UINT ID)
+	: m_hmenu(NULL)
 {
-	m_hmenu=::LoadMenu(hinst,MAKEINTRESOURCE(ID));
+	Load(hinst,ID);
+}
+
+
+CPopupMenu::CPopupMenu(HMENU hmenu)
+	: m_hmenu(NULL)
+{
+	Attach(hmenu);
 }
 
 
 CPopupMenu::~CPopupMenu()
 {
-	if (m_hmenu!=NULL)
-		::DestroyMenu(m_hmenu);
+	Destroy();
 }
 
 
-HMENU CPopupMenu::GetPopupHandle()
+bool CPopupMenu::Create()
+{
+	Destroy();
+
+	m_hmenu=::CreatePopupMenu();
+	if (m_hmenu==NULL)
+		return false;
+	m_Type=TYPE_CREATED;
+	return true;
+}
+
+
+bool CPopupMenu::Load(HINSTANCE hinst,LPCTSTR pszName)
+{
+	Destroy();
+
+	m_hmenu=::LoadMenu(hinst,pszName);
+	if (m_hmenu==NULL)
+		return false;
+	m_Type=TYPE_RESOURCE;
+	return true;
+}
+
+
+bool CPopupMenu::Attach(HMENU hmenu)
+{
+	if (hmenu==NULL)
+		return false;
+	Destroy();
+	m_hmenu=hmenu;
+	m_Type=TYPE_ATTACHED;
+	return true;
+}
+
+
+void CPopupMenu::Destroy()
+{
+	if (m_hmenu!=NULL) {
+		if (m_Type!=TYPE_ATTACHED)
+			::DestroyMenu(m_hmenu);
+		m_hmenu=NULL;
+	}
+}
+
+
+int CPopupMenu::GetItemCount() const
+{
+	if (m_hmenu==NULL)
+		return 0;
+	return ::GetMenuItemCount(GetPopupHandle());
+}
+
+
+void CPopupMenu::Clear()
+{
+	if (m_hmenu!=NULL)
+		ClearMenu(GetPopupHandle());
+}
+
+
+HMENU CPopupMenu::GetPopupHandle() const
 {
 	if (m_hmenu==NULL)
 		return NULL;
-	return ::GetSubMenu(m_hmenu,0);
+	if (m_Type==TYPE_RESOURCE)
+		return ::GetSubMenu(m_hmenu,0);
+	return m_hmenu;
 }
 
 
-bool CPopupMenu::EnableItem(int ID,bool fEnable)
+bool CPopupMenu::Append(UINT ID,LPCTSTR pszText,UINT Flags)
+{
+	if (m_hmenu==NULL || pszText==NULL)
+		return false;
+	return ::AppendMenu(GetPopupHandle(),MF_STRING | Flags,ID,pszText)!=FALSE;
+}
+
+
+bool CPopupMenu::AppendUnformatted(UINT ID,LPCTSTR pszText,UINT Flags)
+{
+	if (m_hmenu==NULL || pszText==NULL)
+		return false;
+	TCHAR szText[256];
+	CopyToMenuText(pszText,szText,lengthof(szText));
+	return Append(ID,szText);
+}
+
+
+bool CPopupMenu::Append(HMENU hmenu,LPCTSTR pszText,UINT Flags)
+{
+	if (m_hmenu==NULL || hmenu==NULL || pszText==NULL)
+		return false;
+	return ::AppendMenu(GetPopupHandle(),MF_POPUP | Flags,
+						reinterpret_cast<UINT_PTR>(hmenu),pszText)!=FALSE;
+}
+
+
+bool CPopupMenu::AppendSeparator()
+{
+	if (m_hmenu==NULL)
+		return false;
+	return ::AppendMenu(GetPopupHandle(),MF_SEPARATOR,0,NULL)!=FALSE;
+}
+
+
+bool CPopupMenu::EnableItem(UINT ID,bool fEnable)
 {
 	if (m_hmenu==NULL)
 		return false;
@@ -732,7 +837,7 @@ bool CPopupMenu::EnableItem(int ID,bool fEnable)
 }
 
 
-bool CPopupMenu::CheckItem(int ID,bool fCheck)
+bool CPopupMenu::CheckItem(UINT ID,bool fCheck)
 {
 	if (m_hmenu==NULL)
 		return false;
@@ -740,15 +845,23 @@ bool CPopupMenu::CheckItem(int ID,bool fCheck)
 }
 
 
-bool CPopupMenu::CheckRadioItem(int FirstID,int LastID,int CheckID)
+bool CPopupMenu::CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID,UINT Flags)
 {
 	if (m_hmenu==NULL)
 		return false;
-	return ::CheckMenuRadioItem(m_hmenu,FirstID,LastID,CheckID,MF_BYCOMMAND)!=FALSE;
+	return ::CheckMenuRadioItem(GetPopupHandle(),FirstID,LastID,CheckID,Flags)!=FALSE;
 }
 
 
-bool CPopupMenu::Popup(HWND hwnd,const POINT *pPos,UINT Flags)
+HMENU CPopupMenu::GetSubMenu(int Pos) const
+{
+	if (m_hmenu==NULL)
+		return false;
+	return ::GetSubMenu(GetPopupHandle(),Pos);
+}
+
+
+bool CPopupMenu::Show(HWND hwnd,const POINT *pPos,UINT Flags)
 {
 	if (m_hmenu==NULL)
 		return false;
@@ -762,10 +875,11 @@ bool CPopupMenu::Popup(HWND hwnd,const POINT *pPos,UINT Flags)
 }
 
 
-bool CPopupMenu::Popup(HMENU hmenu,HWND hwnd,const POINT *pPos,UINT Flags,bool fToggle)
+bool CPopupMenu::Show(HMENU hmenu,HWND hwnd,const POINT *pPos,UINT Flags,bool fToggle)
 {
 	if (m_hmenu==NULL) {
 		m_hmenu=hmenu;
+		m_Type=TYPE_ATTACHED;
 		POINT pt;
 		if (pPos!=NULL)
 			pt=*pPos;
@@ -781,11 +895,10 @@ bool CPopupMenu::Popup(HMENU hmenu,HWND hwnd,const POINT *pPos,UINT Flags,bool f
 }
 
 
-bool CPopupMenu::Popup(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pPos,UINT Flags,bool fToggle)
+bool CPopupMenu::Show(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pPos,UINT Flags,bool fToggle)
 {
 	if (m_hmenu==NULL) {
-		m_hmenu=::LoadMenu(hinst,pszName);
-		if (m_hmenu==NULL)
+		if (!Load(hinst,pszName))
 			return false;
 		POINT pt;
 		if (pPos!=NULL)
@@ -793,8 +906,7 @@ bool CPopupMenu::Popup(HINSTANCE hinst,LPCTSTR pszName,HWND hwnd,const POINT *pP
 		else
 			::GetCursorPos(&pt);
 		::TrackPopupMenu(GetPopupHandle(),Flags,pt.x,pt.y,0,hwnd,NULL);
-		::DestroyMenu(m_hmenu);
-		m_hmenu=NULL;
+		Destroy();
 	} else {
 		if (fToggle)
 			::EndMenu();
@@ -899,7 +1011,8 @@ bool CIconMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 {
 	LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
 
-	if (pdis->CtlType!=ODT_MENU || (HMENU)pdis->hwndItem!=m_hmenu)
+	if (pdis->CtlType!=ODT_MENU || (HMENU)pdis->hwndItem!=m_hmenu
+			|| pdis->itemID<m_FirstID || pdis->itemID>m_LastID)
 		return false;
 
 	int cx,cy;

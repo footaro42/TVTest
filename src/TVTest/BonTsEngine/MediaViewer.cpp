@@ -111,8 +111,6 @@ CMediaViewer::CMediaViewer(IEventHandler *pEventHandler)
 	, m_pAudioStreamCallbackParam(NULL)
 	, m_pImageMixer(NULL)
 {
-	::ZeroMemory(&m_Clipping, sizeof(m_Clipping));
-
 	// COMライブラリ初期化
 	//::CoInitialize(NULL);
 }
@@ -1201,7 +1199,7 @@ const BYTE CMediaViewer::GetAudioChannelNum()
 	// オーディオの入力チャンネル数を取得する
 	if (m_pAacDecoder)
 		return m_pAacDecoder->GetCurrentChannelNum();
-	return 0;
+	return AUDIO_CHANNEL_INVALID;
 }
 
 const bool CMediaViewer::SetStereoMode(const int iMode)
@@ -1417,6 +1415,15 @@ const bool CMediaViewer::SetPanAndScan(int AspectX,int AspectY,const ClippingInf
 }
 
 
+const bool CMediaViewer::GetClippingInfo(ClippingInfo *pClipping) const
+{
+	if (pClipping==NULL)
+		return false;
+	*pClipping=m_Clipping;
+	return true;
+}
+
+
 const bool CMediaViewer::SetViewStretchMode(ViewStretchMode Mode)
 {
 	if (m_ViewStretchMode!=Mode) {
@@ -1587,6 +1594,38 @@ const bool CMediaViewer::GetCurrentImage(BYTE **ppDib)
 		}
 	}
 	return fOK;
+}
+
+
+bool CMediaViewer::SetSpdifOptions(const CAacDecFilter::SpdifOptions *pOptions)
+{
+	if (m_pAacDecoder)
+		return m_pAacDecoder->SetSpdifOptions(pOptions);
+	return false;
+}
+
+
+bool CMediaViewer::GetSpdifOptions(CAacDecFilter::SpdifOptions *pOptions) const
+{
+	if (m_pAacDecoder)
+		return m_pAacDecoder->GetSpdifOptions(pOptions);
+	return false;
+}
+
+
+bool CMediaViewer::IsSpdifPassthrough() const
+{
+	if (m_pAacDecoder)
+		return m_pAacDecoder->IsSpdifPassthrough();
+	return false;
+}
+
+
+bool CMediaViewer::SetAutoStereoMode(int Mode)
+{
+	if (m_pAacDecoder)
+		return m_pAacDecoder->SetAutoStereoMode(Mode);
+	return false;
 }
 
 

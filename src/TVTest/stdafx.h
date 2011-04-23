@@ -4,22 +4,16 @@
 
 #pragma once
 
-// 下で指定された定義の前に対象プラットフォームを指定しなければならない場合、以下の定義を変更してください。
-// 異なるプラットフォームに対応する値に関する最新情報については、MSDN を参照してください。
-#ifndef WINVER				// Windows XP 以降のバージョンに固有の機能の使用を許可します。
-#define WINVER 0x0501		// これを Windows の他のバージョン向けに適切な値に変更してください。
+#ifndef WINVER
+#define WINVER 0x0502		// Windows XP SP1
 #endif
 
-#ifndef _WIN32_WINNT		// Windows XP 以降のバージョンに固有の機能の使用を許可します。
-#define _WIN32_WINNT 0x0501	// これを Windows の他のバージョン向けに適切な値に変更してください。
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0502	// Windows XP SP1
 #endif
 
-#ifndef _WIN32_WINDOWS		// Windows 98 以降のバージョンに固有の機能の使用を許可します。
-#define _WIN32_WINDOWS 0x0410 // これを Windows Me またはそれ以降のバージョン向けに適切な値に変更してください。
-#endif
-
-#ifndef _WIN32_IE			// IE 6.0 以降のバージョンに固有の機能の使用を許可します。
-#define _WIN32_IE 0x0600	// これを IE の他のバージョン向けに適切な値に変更してください。
+#ifndef _WIN32_IE
+#define _WIN32_IE 0x0600	// Internet Explorer 6.0
 #endif
 
 // Winsock2 とヘッダが干渉しないようにする
@@ -28,6 +22,7 @@
 #define _WIN32_DCOM	// for CoInitializeEx()
 
 #include <stdio.h>
+#include <process.h>
 #include <windows.h>
 #include <windowsx.h>
 #include <tchar.h>
@@ -73,6 +68,8 @@
 #pragma comment(lib, "Kernel32.lib")
 #pragma comment(lib, "User32.lib")
 #pragma comment(lib, "Gdi32.lib")
+#pragma comment(lib, "AdvApi32.lib")
+#pragma comment(lib, "Shell32.lib")
 #pragma comment(lib, "ComCtl32.lib")
 #pragma comment(lib, "ComDlg32.lib")
 #pragma comment(lib, "Strmiids.lib")
@@ -104,6 +101,8 @@
 	#define __restrict
 #endif
 #if _MSC_VER >= 1600	// VC2010
+	#undef NULL
+	#define NULL nullptr
 	#define MOVE_SEMANTICS_SUPPORTED
 #else
 	#define nullptr NULL

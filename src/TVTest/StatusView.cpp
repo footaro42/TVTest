@@ -61,7 +61,7 @@ bool CStatusItem::SetWidth(int Width)
 	if (Width<0)
 		return false;
 	if (Width<m_MinWidth)
-		Width=m_MinWidth;
+		m_Width=m_MinWidth;
 	else
 		m_Width=Width;
 	return true;
@@ -121,7 +121,6 @@ bool CStatusItem::GetMenuPos(POINT *pPos,UINT *pFlags)
 
 void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText,DWORD Flags) const
 {
-	
 	::DrawText(hdc,pszText,-1,const_cast<LPRECT>(pRect),
 			   ((Flags&DRAWTEXT_HCENTER)!=0?DT_CENTER:DT_LEFT) |
 			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
@@ -131,25 +130,18 @@ void CStatusItem::DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText,DWORD Flags
 void CStatusItem::DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX,int SrcY,
 							int IconWidth,int IconHeight,bool fEnabled) const
 {
-	HDC hdcMem;
-	HBITMAP hbmOld;
+	if (hdc==NULL || hbm==NULL)
+		return;
+
 	COLORREF cr;
 
-	if (hbm==NULL)
-		return;
-	hdcMem=::CreateCompatibleDC(hdc);
-	if (hdcMem==NULL)
-		return;
-	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,hbm));
 	cr=::GetTextColor(hdc);
 	if (!fEnabled)
 		cr=MixColor(cr,::GetBkColor(hdc));
 	DrawUtil::DrawMonoColorDIB(hdc,
-							   pRect->left+(pRect->right-pRect->left-16)/2,
-							   pRect->top+(pRect->bottom-pRect->top-16)/2,
-							   hdcMem,SrcX,SrcY,IconWidth,IconHeight,cr);
-	::SelectObject(hdcMem,hbmOld);
-	::DeleteDC(hdcMem);
+							   pRect->left+(pRect->right-pRect->left-IconWidth)/2,
+							   pRect->top+(pRect->bottom-pRect->top-IconHeight)/2,
+							   hbm,SrcX,SrcY,IconWidth,IconHeight,cr);
 }
 
 
@@ -663,8 +655,10 @@ bool CStatusView::SetFont(const LOGFONT *pFont)
 		return false;
 	m_FontHeight=m_Font.GetHeight(false);
 	m_ItemHeight=m_FontHeight+ITEM_MARGIN*2;
-	if (m_hwnd!=NULL)
+	if (m_hwnd!=NULL) {
 		AdjustSize();
+		Invalidate();
+	}
 	return true;
 }
 

@@ -545,7 +545,7 @@ CPanelForm::CPage::~CPage()
 
 bool CPanelForm::CPage::GetDefaultFont(LOGFONT *pFont)
 {
-	return ::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),pFont)!=0;
+	return ::GetObject(::GetStockObject(DEFAULT_GUI_FONT),sizeof(LOGFONT),pFont)==sizeof(LOGFONT);
 }
 
 

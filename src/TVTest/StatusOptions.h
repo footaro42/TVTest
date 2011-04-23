@@ -10,6 +10,22 @@
 
 class CStatusOptions : public COptions
 {
+public:
+	CStatusOptions(CStatusView *pStatusView);
+	~CStatusOptions();
+// COptions
+	bool Load(LPCTSTR pszFileName);
+	bool Save(LPCTSTR pszFileName) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
+// CStatusOptions
+	bool ApplyOptions();
+	bool GetShowTOTTime() const { return m_fShowTOTTime; }
+	void SetShowTOTTime(bool fShow) { m_fShowTOTTime=fShow; }
+	bool IsPopupProgramInfoEnabled() const { return m_fEnablePopupProgramInfo; }
+	void EnablePopupProgramInfo(bool fEnable) { m_fEnablePopupProgramInfo=fEnable; }
+
+private:
 	CStatusView *m_pStatusView;
 	struct StatusItemInfo {
 		int ID;
@@ -33,6 +49,9 @@ class CStatusOptions : public COptions
 	bool m_fShowTOTTime;
 	bool m_fEnablePopupProgramInfo;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void SetDefaultItemList();
 	void InitListBox(HWND hDlg);
 	void CalcTextWidth(HWND hDlg);
@@ -42,23 +61,8 @@ class CStatusOptions : public COptions
 	bool IsCursorResize(HWND hwndList,int x,int y);
 	bool ApplyItemList();
 
-	static CStatusOptions *GetThis(HWND hDlg);
 	static LRESULT CALLBACK ItemListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
-public:
-	CStatusOptions(CStatusView *pStatusView);
-	~CStatusOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
-// CStatusOptions
-	bool ApplyOptions();
-	bool GetShowTOTTime() const { return m_fShowTOTTime; }
-	void SetShowTOTTime(bool fShow) { m_fShowTOTTime=fShow; }
-	bool IsPopupProgramInfoEnabled() const { return m_fEnablePopupProgramInfo; }
-	void EnablePopupProgramInfo(bool fEnable) { m_fEnablePopupProgramInfo=fEnable; }
-
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

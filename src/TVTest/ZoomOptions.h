@@ -4,15 +4,24 @@
 
 #include "Command.h"
 #include "Settings.h"
+#include "Dialog.h"
 
 
-class CZoomOptions
+class CZoomOptions : public CBasicDialog
 {
 public:
 	struct ZoomRate {
 		int Rate;
 		int Factor;
 	};
+
+	CZoomOptions(const CCommandList *pCommandList);
+	~CZoomOptions();
+	bool Show(HWND hwndOwner) override;
+	bool SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const;
+	bool GetZoomRateByCommand(int Command,ZoomRate *pRate) const;
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
 
 private:
 	enum { NUM_ZOOM = 16 };
@@ -29,18 +38,8 @@ private:
 	int m_Order[NUM_ZOOM];
 	bool m_fChanging;
 
-	static CZoomOptions *GetThis(HWND hDlg);
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 	static void CZoomOptions::SetItemState(HWND hDlg);
-
-public:
-	CZoomOptions(const CCommandList *pCommandList);
-	~CZoomOptions();
-	bool ShowDialog(HWND hwndOwner);
-	bool SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const;
-	bool GetZoomRateByCommand(int Command,ZoomRate *pRate) const;
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
 };
 
 

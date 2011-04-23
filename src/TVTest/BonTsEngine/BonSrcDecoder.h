@@ -72,7 +72,7 @@ public:
 	bool IsPurgeStreamOnChannelChange() const { return m_bPurgeStreamOnChannelChange; }
 
 private:
-	static DWORD WINAPI StreamRecvThread(LPVOID pParam);
+	static unsigned int __stdcall StreamRecvThread(LPVOID pParam);
 	bool LockStream();
 	void UnlockStream();
 

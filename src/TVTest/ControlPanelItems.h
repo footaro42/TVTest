@@ -57,9 +57,6 @@ public:
 
 class CVolumeControlItem : public CControlPanelItem
 {
-	static const int m_BarHeight;
-	static const int m_Margin;
-
 public:
 	CVolumeControlItem();
 // CControlPanelItem
@@ -67,6 +64,10 @@ public:
 	void OnLButtonDown(int x,int y);
 	void OnRButtonDown(int x,int y);
 	void OnMouseMove(int x,int y);
+
+private:
+	static const int m_BarHeight;
+	static const int m_Margin;
 };
 
 class CAudioControlItem : public CControlPanelItem
@@ -77,6 +78,9 @@ public:
 	void Draw(HDC hdc,const RECT &Rect);
 	void OnLButtonDown(int x,int y);
 	void OnRButtonDown(int x,int y);
+
+private:
+	DrawUtil::CBitmap m_Icons;
 };
 
 class CControlPanelButton : public CControlPanelItem

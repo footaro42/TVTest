@@ -16,7 +16,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 CChannelStatusItem::CChannelStatusItem()
-	: CStatusItem(STATUS_ITEM_CHANNEL,96)
+	: CStatusItem(STATUS_ITEM_CHANNEL,100)
 {
 }
 
@@ -195,17 +195,28 @@ void CVolumeStatusItem::OnMouseMove(int x,int y)
 
 
 CAudioChannelStatusItem::CAudioChannelStatusItem()
-	: CStatusItem(STATUS_ITEM_AUDIOCHANNEL,64)
+	: CStatusItem(STATUS_ITEM_AUDIOCHANNEL,80)
 {
 }
 
 void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	TCHAR szText[32];
+	CAppMain &App=GetAppClass();
+	RECT rc=*pRect;
 
-	if (GetAppClass().GetUICore()->FormatCurrentAudioText(szText,lengthof(szText))<=0)
+	if (App.GetCoreEngine()->m_DtvEngine.m_MediaViewer.IsSpdifPassthrough()) {
+		if (!m_Icons.IsCreated())
+			m_Icons.Load(App.GetResourceInstance(),IDB_PASSTHROUGH);
+		RECT rcIcon=rc;
+		rcIcon.right=rcIcon.left+16;
+		DrawIcon(hdc,&rcIcon,m_Icons.GetHandle(),0,0,16,16);
+		rc.left=rcIcon.right+4;
+	}
+
+	TCHAR szText[64];
+	if (App.GetUICore()->FormatCurrentAudioText(szText,lengthof(szText))<=0)
 		::lstrcpy(szText,TEXT("<‰¹º>"));
-	DrawText(hdc,pRect,szText);
+	DrawText(hdc,&rc,szText);
 }
 
 void CAudioChannelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
@@ -430,24 +441,15 @@ void CRecordStatusItem::SetCircleColor(COLORREF Color)
 
 CCaptureStatusItem::CCaptureStatusItem()
 	: CStatusItem(STATUS_ITEM_CAPTURE,16)
-	, m_hbmIcon(NULL)
 {
 	m_MinWidth=16;
 }
 
-CCaptureStatusItem::~CCaptureStatusItem()
-{
-	if (m_hbmIcon!=NULL)
-		::DeleteObject(m_hbmIcon);
-}
-
 void CCaptureStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	if (m_hbmIcon==NULL)
-		m_hbmIcon=static_cast<HBITMAP>(::LoadImage(
-			GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_CAPTURE),
-			IMAGE_BITMAP,0,0,LR_DEFAULTCOLOR | LR_CREATEDIBSECTION));
-	DrawIcon(hdc,pRect,m_hbmIcon,0,0,16,16);
+	if (!m_Icons.IsCreated())
+		m_Icons.Load(GetAppClass().GetResourceInstance(),IDB_CAPTURE);
+	DrawIcon(hdc,pRect,m_Icons.GetHandle(),0,0,16,16);
 }
 
 void CCaptureStatusItem::OnLButtonDown(int x,int y)
@@ -684,25 +686,23 @@ void CProgramInfoStatusItem::EnablePopupInfo(bool fEnable)
 bool CProgramInfoStatusItem::UpdateContent()
 {
 	CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
-	TCHAR szText[256];
-	int Length=0;
+	TCHAR szText[256],szEventName[256];
+	CStaticStringFormatter Formatter(szText,lengthof(szText));
 	SYSTEMTIME stStart,stEnd;
 
 	if (m_fNext)
-		Length=::wsprintf(szText,TEXT("ŽŸ: "));
+		Formatter.Append(TEXT("ŽŸ: "));
 	if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,NULL,m_fNext)) {
-		Length+=::wsprintf(&szText[Length],TEXT("%d:%02d`"),
-						   stStart.wHour,stStart.wMinute);
+		Formatter.AppendFormat(TEXT("%d:%02d`"),stStart.wHour,stStart.wMinute);
 		if (CoreEngine.m_DtvEngine.GetEventTime(NULL,&stEnd,m_fNext))
-			Length+=::wsprintf(&szText[Length],TEXT("%d:%02d"),
-							   stEnd.wHour,stEnd.wMinute);
-		szText[Length++]=' ';
+			Formatter.AppendFormat(TEXT("%d:%02d"),stEnd.wHour,stEnd.wMinute);
+		Formatter.Append(TEXT(" "));
 	}
-	if (!CoreEngine.m_DtvEngine.GetEventName(&szText[Length],lengthof(szText)-Length,m_fNext))
-		szText[Length]='\0';
-	if (m_Text.Compare(szText)==0)
+	if (CoreEngine.m_DtvEngine.GetEventName(szEventName,lengthof(szEventName),m_fNext)>0)
+		Formatter.Append(szEventName);
+	if (m_Text.Compare(Formatter.GetString())==0)
 		return false;
-	m_Text.Set(szText);
+	m_Text.Set(Formatter.GetString());
 	return true;
 }
 

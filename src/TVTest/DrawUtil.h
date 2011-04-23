@@ -33,6 +33,8 @@ bool DrawBitmap(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
 				HBITMAP hbm,const RECT *pSrcRect=NULL,BYTE Opacity=255);
 bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 					  HDC hdcSrc,int SrcX,int SrcY,int Width,int Height,COLORREF Color);
+bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
+					  HBITMAP hbm,int SrcX,int SrcY,int Width,int Height,COLORREF Color);
 
 int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width);
 bool DrawWrapText(HDC hdc,LPCTSTR pszText,const RECT *pRect,int LineHeight);
@@ -47,6 +49,10 @@ enum FontType {
 };
 
 bool GetSystemFont(FontType Type,LOGFONT *pLogFont);
+bool GetDefaultUIFont(LOGFONT *pFont);
+bool IsFontAvailable(const LOGFONT &Font,HDC hdc=NULL);
+bool IsFontSmoothingEnabled();
+bool IsClearTypeEnabled();
 
 class CFont {
 	HFONT m_hfont;
@@ -132,55 +138,6 @@ public:
 	bool CopyTo(HDC hdc,const RECT *pDstRect=NULL);
 };
 
-class CDeviceContext {
-	enum {
-		FLAG_DCFROMHWND		=0x00000001UL,
-		FLAG_WMPAINT		=0x00000002UL,
-		FLAG_BRUSHSELECTED	=0x00000100UL,
-		FLAG_PENSELECTED	=0x00000200UL,
-		FLAG_FONTSELECTED	=0x00000400UL,
-		FLAG_TEXTCOLOR		=0x00000800UL,
-		FLAG_BKCOLOR		=0x00001000UL,
-		FLAG_BKMODE			=0x00002000UL,
-		FLAG_RESTOREMASK	=0xFFFFFF00UL,
-	};
-	DWORD m_Flags;
-	HDC m_hdc;
-	HWND m_hwnd;
-	PAINTSTRUCT *m_pPaint;
-	HBRUSH m_hbrOld;
-	HPEN m_hpenOld;
-	HFONT m_hfontOld;
-	COLORREF m_OldTextColor;
-	COLORREF m_OldBkColor;
-	int m_OldBkMode;
-public:
-	enum RectangleStyle {
-		RECTANGLE_NORMAL,
-		RECTANGLE_FILL,
-		RECTANGLE_BORDER
-	};
-
-	CDeviceContext(HDC hdc);
-	CDeviceContext(HWND hwnd);
-	CDeviceContext(HWND hwnd,PAINTSTRUCT *pPaint);
-	~CDeviceContext();
-	HDC GetHandle() const { return m_hdc; }
-	void Restore();
-	void Release();
-	void SetBrush(HBRUSH hbr);
-	void SetPen(HPEN hpen);
-	void SetFont(HFONT hfont);
-	void SetFont(const CFont &Font);
-	void SetTextColor(COLORREF Color);
-	void SetBkColor(COLORREF Color);
-	void SetBkMode(int BkMode);
-	void DrawRectangle(int Left,int Top,int Right,int Bottom,RectangleStyle Style=RECTANGLE_NORMAL);
-	void DrawRectangle(const RECT *pRect,RectangleStyle Style=RECTANGLE_NORMAL);
-	void DrawLine(int x1,int y1,int x2,int y2);
-	void DrawText(LPCTSTR pszText,int Length,RECT *pRect,UINT Format);
-};
-
 }	// namespace DrawUtil
 
 
@@ -190,9 +147,8 @@ class Bitmap;
 class SolidBrush;
 }
 
-class CGdiPlus {
-	bool m_fInitialized;
-	ULONG_PTR m_Token;
+class CGdiPlus
+{
 public:
 	class CImage {
 		Gdiplus::Bitmap *m_pBitmap;
@@ -238,6 +194,11 @@ public:
 		friend CGdiPlus;
 	};
 
+	enum GradientDirection {
+		GRADIENT_DIRECTION_HORZ,
+		GRADIENT_DIRECTION_VERT
+	};
+
 	CGdiPlus();
 	~CGdiPlus();
 	bool Initialize();
@@ -247,6 +208,11 @@ public:
 	bool DrawImage(CCanvas *pCanvas,int DstX,int DstY,int DstWidth,int DstHeight,
 				   CImage *pImage,int SrcX,int SrcY,int SrcWidth,int SrcHeight,float Opacity=1.0f);
 	bool FillRect(CCanvas *pCanvas,CBrush *pBrush,const RECT *pRect);
+	bool FillGradient(CCanvas *pCanvas,COLORREF Color1,COLORREF Color2,
+					  const RECT &Rect,GradientDirection Direction);
+
+private:
+	bool m_fInitialized;
 };
 
 

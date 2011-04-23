@@ -52,8 +52,12 @@ class CNetworkRemoconOptions : public COptions {
 	TCHAR m_szDefaultChannelFileName[MAX_PATH];
 	bool m_fTempEnable;
 	unsigned int m_TempPort;
+
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	bool GetChannelFilePath(LPTSTR pszPath) const;
-	static CNetworkRemoconOptions *GetThis(HWND hDlg);
+
 public:
 	CNetworkRemoconOptions();
 	~CNetworkRemoconOptions();
@@ -61,6 +65,8 @@ public:
 	//bool Apply(DWORD Flags);
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CNetworkRemoconOptions
 	unsigned int GetPort() const { return m_Port; }
 	bool SetTempEnable(bool fEnable);
@@ -73,7 +79,6 @@ public:
 	bool InitNetworkRemocon(CNetworkRemocon **ppNetworkRemocon,
 		const CCoreEngine *pCoreEngine,CChannelManager *pChannelManager) const;
 	bool FindChannelFile(LPCTSTR pszDriverName,LPTSTR pszFileName) const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

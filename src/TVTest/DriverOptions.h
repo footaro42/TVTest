@@ -30,11 +30,14 @@ class CDriverOptions : public COptions
 	CDriverManager *m_pDriverManager;
 	CDriverSettingList m_SettingList;
 	CDriverSettingList m_CurSettingList;
+
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void InitDlgItem(int Driver);
 	void SetChannelList(int Driver);
 	void AddChannelList(const CChannelList *pChannelList);
 	CDriverSettings *GetCurSelDriverSettings() const;
-	static CDriverOptions *GetThis(HWND hDlg);
 
 public:
 	CDriverOptions();
@@ -42,6 +45,8 @@ public:
 // COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CDriverOptions
 	bool Initialize(CDriverManager *pDriverManager);
 	struct ChannelInfo {
@@ -57,7 +62,6 @@ public:
 	bool IsIgnoreInitialStream(LPCTSTR pszFileName) const;
 	bool IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const;
 	bool IsResetChannelChangeErrorCount(LPCTSTR pszFileName) const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

@@ -32,7 +32,7 @@ class CMediaBuffer : public CMediaDecoder
 	DWORD m_InputCount;
 	DWORD m_OutputCount;
 #endif
-	static DWORD WINAPI OutputThread(LPVOID lpParameter);
+	static unsigned int __stdcall OutputThread(LPVOID lpParameter);
 
 public:
 	CMediaBuffer(IEventHandler *pEventHandler = NULL);

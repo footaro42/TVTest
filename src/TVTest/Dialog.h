@@ -5,7 +5,25 @@
 #include <vector>
 
 
-class CBasicDialog {
+class CBasicDialog
+{
+public:
+	CBasicDialog();
+	virtual ~CBasicDialog();
+	virtual bool Show(HWND hwndOwner) { return false; }
+	virtual bool Create(HWND hwndOwner) { return false; }
+	bool IsCreated() const;
+	bool Destroy();
+	bool IsModeless() const { return m_fModeless; }
+	bool ProcessMessage(LPMSG pMsg);
+	bool IsVisible() const;
+	bool SetVisible(bool fVisible);
+	bool GetPosition(RECT *pPosition) const;
+	bool GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const;
+	bool SetPosition(const RECT *pPosition);
+	bool SetPosition(int Left,int Top,int Width,int Height);
+	LRESULT SendMessage(UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 protected:
 	HWND m_hDlg;
 	bool m_fModeless;
@@ -32,26 +50,15 @@ protected:
 	static INT_PTR CALLBACK DialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	int ShowDialog(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate);
 	bool CreateDialogWindow(HWND hwndOwner,HINSTANCE hinst,LPCTSTR pszTemplate);
-	virtual INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)=0;
-
-public:
-	CBasicDialog();
-	virtual ~CBasicDialog();
-	virtual bool Show(HWND hwndOwner) { return false; }
-	virtual bool Create(HWND hwndOwner) { return false; }
-	bool IsCreated() const;
-	bool Destroy();
-	bool IsModeless() const { return m_fModeless; }
-	bool ProcessMessage(LPMSG pMsg);
-	bool IsVisible() const;
-	bool SetVisible(bool fVisible);
-	bool GetPosition(RECT *pPosition) const;
-	bool GetPosition(int *pLeft,int *pTop,int *pWidth,int *pHeight) const;
-	bool SetPosition(const RECT *pPosition);
-	bool SetPosition(int Left,int Top,int Width,int Height);
+	virtual INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
-class CResizableDialog : public CBasicDialog {
+class CResizableDialog : public CBasicDialog
+{
+public:
+	CResizableDialog();
+	virtual ~CResizableDialog();
+
 protected:
 	struct LayoutItem {
 		int ID;
@@ -84,10 +91,6 @@ protected:
 	bool AddControl(int ID,unsigned int Align);
 	bool AddControls(int FirstID,int LastID,unsigned int Align);
 	void ApplyPosition();
-
-public:
-	CResizableDialog();
-	virtual ~CResizableDialog();
 };
 
 

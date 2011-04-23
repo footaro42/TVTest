@@ -99,7 +99,7 @@ const bool CBufferedFileWriter::OpenFile(LPCTSTR pszFileName, BYTE Flags)
 
 	// 書き出しスレッド開始
 	m_EndEvent.Reset();
-	m_hThread = ::CreateThread(NULL, 0, ThreadProc, this, 0, NULL);
+	m_hThread = (HANDLE)::_beginthreadex(NULL, 0, ThreadProc, this, 0, NULL);
 	if (!m_hThread) {
 		CloseFile();
 		SetError(TEXT("スレッドが作成できません。"));
@@ -339,7 +339,7 @@ bool CBufferedFileWriter::PushData(const BYTE *pData, SIZE_T DataSize)
 }
 
 
-DWORD WINAPI CBufferedFileWriter::ThreadProc(LPVOID lpParameter)
+unsigned int __stdcall CBufferedFileWriter::ThreadProc(LPVOID lpParameter)
 {
 	CBufferedFileWriter *pThis = static_cast<CBufferedFileWriter*>(lpParameter);
 

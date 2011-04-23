@@ -55,6 +55,7 @@ CRecordOptions::CRecordOptions()
 
 CRecordOptions::~CRecordOptions()
 {
+	Destroy();
 }
 
 
@@ -163,6 +164,13 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	if (pszCommand!=NULL)
 		pSettings->Write(TEXT("StatusBarRecordCommand"),pszCommand);
 	return true;
+}
+
+
+bool CRecordOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_RECORD));
 }
 
 
@@ -315,64 +323,55 @@ bool CRecordOptions::ApplyOptions(CRecordManager *pManager)
 }
 
 
-CRecordOptions *CRecordOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CRecordOptions*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
-INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CRecordOptions *pThis=dynamic_cast<CRecordOptions*>(OnInitDialog(hDlg,lParam));
-
-			::SetProp(hDlg,TEXT("This"),pThis);
 			/*
-			if (pThis->m_szSaveFolder[0]=='\0') {
-				if (!::SHGetSpecialFolderPath(hDlg,pThis->m_szSaveFolder,
+			if (m_szSaveFolder[0]=='\0') {
+				if (!::SHGetSpecialFolderPath(hDlg,m_szSaveFolder,
 											  CSIDL_MYVIDEO,FALSE)
-						&& !::SHGetSpecialFolderPath(hDlg,pThis->m_szSaveFolder,
+						&& !::SHGetSpecialFolderPath(hDlg,m_szSaveFolder,
 													 CSIDL_PERSONAL,FALSE))
-					pThis->m_szSaveFolder[0]='\0';
+					m_szSaveFolder[0]='\0';
 			}
 			*/
 			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,pThis->m_szSaveFolder);
+			::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,m_szSaveFolder);
 			::SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_FILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
-			::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_FILENAME,pThis->m_szFileName);
+			::SetDlgItemText(hDlg,IDC_RECORDOPTIONS_FILENAME,m_szFileName);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMCHANNELCHANGE,
-				pThis->m_fConfirmChannelChange?BST_CHECKED:BST_UNCHECKED);
+				m_fConfirmChannelChange?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMEXIT,
-				pThis->m_fConfirmExit?BST_CHECKED:BST_UNCHECKED);
+				m_fConfirmExit?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP,
-				pThis->m_fConfirmStop?BST_CHECKED:BST_UNCHECKED);
+				m_fConfirmStop?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,
-				pThis->m_fConfirmStopStatusBarOnly?BST_CHECKED:BST_UNCHECKED);
-			EnableDlgItem(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,pThis->m_fConfirmStop);
+				m_fConfirmStopStatusBarOnly?BST_CHECKED:BST_UNCHECKED);
+			EnableDlgItem(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP,m_fConfirmStop);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY,
-				pThis->m_fCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
+				m_fCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE,
-				pThis->m_fSaveSubtitle?BST_CHECKED:BST_UNCHECKED);
+				m_fSaveSubtitle?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL,
-				pThis->m_fSaveDataCarrousel?BST_CHECKED:BST_UNCHECKED);
+				m_fSaveDataCarrousel?BST_CHECKED:BST_UNCHECKED);
 			::CheckDlgButton(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY,
-				pThis->m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
+				m_fDescrambleCurServiceOnly?BST_CHECKED:BST_UNCHECKED);
 			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,
-							pThis->m_BufferSize/1024,FALSE);
+							m_BufferSize/1024,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE_UD,
 							   MIN_BUFFER_SIZE/1024,MAX_BUFFER_SIZE/1024);
 
-			DlgCheckBox_Check(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE,pThis->m_fAlertLowFreeSpace);
-			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,pThis->m_LowFreeSpaceThreshold,FALSE);
+			DlgCheckBox_Check(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE,m_fAlertLowFreeSpace);
+			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,m_LowFreeSpaceThreshold,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_SPIN,
 							   1,0x7FFFFFFF);
 			EnableDlgItems(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_LABEL,
 								IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD_UNIT,
-						   pThis->m_fAlertLowFreeSpace);
+						   m_fAlertLowFreeSpace);
 
-			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE,pThis->m_TimeShiftBufferSize,FALSE);
+			::SetDlgItemInt(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE,m_TimeShiftBufferSize,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE_SPIN,
 							   MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
 
@@ -383,7 +382,7 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				pCommandList->GetCommandNameByID(StatusBarCommandList[i],
 												 szText,lengthof(szText));
 				DlgComboBox_AddString(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND,szText);
-				if (StatusBarCommandList[i]==pThis->m_StatusBarRecordCommand)
+				if (StatusBarCommandList[i]==m_StatusBarRecordCommand)
 					DlgComboBox_SetCurSel(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND,i);
 			}
 		}
@@ -449,7 +448,6 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CRecordOptions *pThis=GetThis(hDlg);
 				TCHAR szSaveFolder[MAX_PATH],szFileName[MAX_PATH];
 
 				::GetDlgItemText(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER,szSaveFolder,MAX_PATH);
@@ -466,7 +464,7 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						Result=::SHCreateDirectoryEx(hDlg,szSaveFolder,NULL);
 						if (Result!=ERROR_SUCCESS
 								&& Result!=ERROR_ALREADY_EXISTS) {
-							pThis->SettingError();
+							SettingError();
 							::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
 											NULL,MB_OK | MB_ICONEXCLAMATION);
 							SetDlgItemFocus(hDlg,IDC_RECORDOPTIONS_SAVEFOLDER);
@@ -486,7 +484,7 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 #else
 					TCHAR szMessage[256];
 					if (!IsValidFileName(szFileName,false,szMessage,lengthof(szMessage))) {
-						pThis->SettingError();
+						SettingError();
 						SetDlgItemFocus(hDlg,IDC_RECORDOPTIONS_FILENAME);
 						SendDlgItemMessage(hDlg,IDC_RECORDOPTIONS_FILENAME,EM_SETSEL,0,-1);
 						::MessageBox(hDlg,szMessage,NULL,MB_OK | MB_ICONEXCLAMATION);
@@ -494,69 +492,62 @@ INT_PTR CALLBACK CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 					}
 #endif
 				}
-				::lstrcpy(pThis->m_szSaveFolder,szSaveFolder);
-				::lstrcpy(pThis->m_szFileName,szFileName);
-				pThis->m_fConfirmChannelChange=
+				::lstrcpy(m_szSaveFolder,szSaveFolder);
+				::lstrcpy(m_szFileName,szFileName);
+				m_fConfirmChannelChange=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMCHANNELCHANGE);
-				pThis->m_fConfirmExit=
+				m_fConfirmExit=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMEXIT);
-				pThis->m_fConfirmStop=
+				m_fConfirmStop=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTOP);
-				pThis->m_fConfirmStopStatusBarOnly=
+				m_fConfirmStopStatusBarOnly=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CONFIRMSTATUSBARSTOP);
 
 				bool fOptionChanged=false;
 				bool f=DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_CURSERVICEONLY);
-				if (pThis->m_fCurServiceOnly!=f) {
-					pThis->m_fCurServiceOnly=f;
+				if (m_fCurServiceOnly!=f) {
+					m_fCurServiceOnly=f;
 					fOptionChanged=true;
 				}
 				f=DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVESUBTITLE);
-				if (pThis->m_fSaveSubtitle!=f) {
-					pThis->m_fSaveSubtitle=f;
+				if (m_fSaveSubtitle!=f) {
+					m_fSaveSubtitle=f;
 					fOptionChanged=true;
 				}
 				f=DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_SAVEDATACARROUSEL);
-				if (pThis->m_fSaveDataCarrousel!=f) {
-					pThis->m_fSaveDataCarrousel=f;
+				if (m_fSaveDataCarrousel!=f) {
+					m_fSaveDataCarrousel=f;
 					fOptionChanged=true;
 				}
 				if (fOptionChanged)
-					pThis->SetUpdateFlag(UPDATE_RECORDSTREAM);
+					SetUpdateFlag(UPDATE_RECORDSTREAM);
 
-				pThis->m_fDescrambleCurServiceOnly=
+				m_fDescrambleCurServiceOnly=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_DESCRAMBLECURSERVICEONLY);
 				unsigned int BufferSize=
 					::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_BUFFERSIZE,NULL,FALSE)*1024;
-				pThis->m_BufferSize=CLAMP(BufferSize,MIN_BUFFER_SIZE,MAX_BUFFER_SIZE);
+				m_BufferSize=CLAMP(BufferSize,MIN_BUFFER_SIZE,MAX_BUFFER_SIZE);
 
-				pThis->m_fAlertLowFreeSpace=
+				m_fAlertLowFreeSpace=
 					DlgCheckBox_IsChecked(hDlg,IDC_RECORDOPTIONS_ALERTLOWFREESPACE);
-				pThis->m_LowFreeSpaceThreshold=
+				m_LowFreeSpaceThreshold=
 					::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_LOWFREESPACETHRESHOLD,NULL,FALSE);
 
 				BufferSize=::GetDlgItemInt(hDlg,IDC_RECORDOPTIONS_TIMESHIFTBUFFERSIZE,NULL,FALSE);
 				BufferSize=CLAMP(BufferSize,MIN_TIMESHIFT_BUFFER_SIZE,MAX_TIMESHIFT_BUFFER_SIZE);
-				if (BufferSize!=pThis->m_TimeShiftBufferSize) {
-					pThis->m_TimeShiftBufferSize=BufferSize;
-					pThis->SetUpdateFlag(UPDATE_TIMESHIFTBUFFER);
+				if (BufferSize!=m_TimeShiftBufferSize) {
+					m_TimeShiftBufferSize=BufferSize;
+					SetUpdateFlag(UPDATE_TIMESHIFTBUFFER);
 				}
 
 				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND);
 				if (Sel>=0)
-					pThis->m_StatusBarRecordCommand=StatusBarCommandList[Sel];
+					m_StatusBarRecordCommand=StatusBarCommandList[Sel];
 			}
 			break;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CRecordOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }

@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
+#include "AppMain.h"
 #include "OSDOptions.h"
 #include "DialogUtil.h"
 #include "DrawUtil.h"
@@ -61,6 +62,7 @@ COSDOptions::COSDOptions()
 
 COSDOptions::~COSDOptions()
 {
+	Destroy();
 }
 
 
@@ -139,6 +141,13 @@ bool COSDOptions::Write(CSettings *pSettings) const
 }
 
 
+bool COSDOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_OSD));
+}
+
+
 bool COSDOptions::GetLayeredWindow() const
 {
 	return m_fLayeredWindow && m_fCompositionEnabled;
@@ -168,12 +177,6 @@ void COSDOptions::EnableNotify(unsigned int Type,bool fEnabled)
 }
 
 
-COSDOptions *COSDOptions::GetThis(HWND hDlg)
-{
-	return static_cast<COSDOptions*>(GetOptions(hDlg));
-}
-
-
 static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 {
 	HDC hdc;
@@ -187,17 +190,15 @@ static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 	ReleaseDC(hDlg,hdc);
 }
 
-INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			COSDOptions *pThis=static_cast<COSDOptions*>(OnInitDialog(hDlg,lParam));
-
-			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOWOSD,pThis->m_fShowOSD);
-			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_PSEUDOOSD,pThis->m_fPseudoOSD);
-			pThis->m_CurTextColor=pThis->m_TextColor;
-			::SetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,pThis->m_FadeTime/1000,TRUE);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOWOSD,m_fShowOSD);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_PSEUDOOSD,m_fPseudoOSD);
+			m_CurTextColor=m_TextColor;
+			::SetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,m_FadeTime/1000,TRUE);
 			DlgUpDown_SetRange(hDlg,IDC_OSDOPTIONS_FADETIME_UD,1,UD_MAXVAL);
 			static const LPCTSTR ChannelChangeModeText[] = {
 				TEXT("ƒƒS‚Æƒ`ƒƒƒ“ƒlƒ‹–¼"),
@@ -206,33 +207,32 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			};
 			SetComboBoxList(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE,
 							ChannelChangeModeText,lengthof(ChannelChangeModeText));
-			DlgComboBox_SetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE,(int)pThis->m_ChannelChangeType);
-			EnableDlgItems(hDlg,IDC_OSDOPTIONS_FIRST,IDC_OSDOPTIONS_LAST,pThis->m_fShowOSD);
+			DlgComboBox_SetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE,(int)m_ChannelChangeType);
+			EnableDlgItems(hDlg,IDC_OSDOPTIONS_FIRST,IDC_OSDOPTIONS_LAST,m_fShowOSD);
 
-			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_ENABLE,pThis->m_fEnableNotificationBar);
-			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME,(pThis->m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
-			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR,(pThis->m_NotificationBarFlags&NOTIFY_ECMERROR)!=0);
-			::SetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,pThis->m_NotificationBarDuration/1000,FALSE);
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_ENABLE,m_fEnableNotificationBar);
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME,(m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
+			DlgCheckBox_Check(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR,(m_NotificationBarFlags&NOTIFY_ECMERROR)!=0);
+			::SetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,m_NotificationBarDuration/1000,FALSE);
 			DlgUpDown_SetRange(hDlg,IDC_NOTIFICATIONBAR_DURATION_UPDOWN,1,60);
-			pThis->m_CurNotificationBarFont=pThis->m_NotificationBarFont;
-			SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&pThis->m_CurNotificationBarFont);
-			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,pThis->m_fEnableNotificationBar);
+			m_CurNotificationBarFont=m_NotificationBarFont;
+			SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&m_CurNotificationBarFont);
+			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,m_fEnableNotificationBar);
 
-			pThis->m_CurDisplayMenuFont=pThis->m_DisplayMenuFont;
-			SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&pThis->m_DisplayMenuFont);
-			DlgCheckBox_Check(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE,pThis->m_fDisplayMenuFontAutoSize);
+			m_CurDisplayMenuFont=m_DisplayMenuFont;
+			SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&m_DisplayMenuFont);
+			DlgCheckBox_Check(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE,m_fDisplayMenuFontAutoSize);
 		}
 		return TRUE;
 
 	case WM_DRAWITEM:
 		{
-			COSDOptions *pThis=GetThis(hDlg);
 			LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
 			RECT rc;
 
 			rc=pdis->rcItem;
-			DrawEdge(pdis->hDC,&rc,BDR_SUNKENOUTER,BF_RECT | BF_ADJUST);
-			DrawUtil::Fill(pdis->hDC,&rc,pThis->m_CurTextColor);
+			::DrawEdge(pdis->hDC,&rc,BDR_SUNKENOUTER,BF_RECT | BF_ADJUST);
+			DrawUtil::Fill(pdis->hDC,&rc,m_CurTextColor);
 		}
 		return TRUE;
 
@@ -244,12 +244,8 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			return TRUE;
 
 		case IDC_OSDOPTIONS_TEXTCOLOR:
-			{
-				COSDOptions *pThis=GetThis(hDlg);
-
-				if (ChooseColorDialog(hDlg,&pThis->m_CurTextColor))
-					InvalidateDlgItem(hDlg,IDC_OSDOPTIONS_TEXTCOLOR);
-			}
+			if (ChooseColorDialog(hDlg,&m_CurTextColor))
+				InvalidateDlgItem(hDlg,IDC_OSDOPTIONS_TEXTCOLOR);
 			return TRUE;
 
 		case IDC_NOTIFICATIONBAR_ENABLE:
@@ -258,21 +254,13 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			return TRUE;
 
 		case IDC_NOTIFICATIONBAR_FONT_CHOOSE:
-			{
-				COSDOptions *pThis=GetThis(hDlg);
-
-				if (ChooseFontDialog(hDlg,&pThis->m_CurNotificationBarFont))
-					SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&pThis->m_CurNotificationBarFont);
-			}
+			if (ChooseFontDialog(hDlg,&m_CurNotificationBarFont))
+				SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&m_CurNotificationBarFont);
 			return TRUE;
 
 		case IDC_DISPLAYMENU_FONT_CHOOSE:
-			{
-				COSDOptions *pThis=GetThis(hDlg);
-
-				if (ChooseFontDialog(hDlg,&pThis->m_CurDisplayMenuFont))
-					SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&pThis->m_CurDisplayMenuFont);
-			}
+			if (ChooseFontDialog(hDlg,&m_CurDisplayMenuFont))
+				SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&m_CurDisplayMenuFont);
 			return TRUE;
 		}
 		return TRUE;
@@ -281,38 +269,29 @@ INT_PTR CALLBACK COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				COSDOptions *pThis=GetThis(hDlg);
+				m_fShowOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOWOSD);
+				m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_PSEUDOOSD);
+				m_TextColor=m_CurTextColor;
+				m_FadeTime=::GetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,NULL,FALSE)*1000;
+				m_ChannelChangeType=(ChannelChangeType)DlgComboBox_GetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE);
 
-				pThis->m_fShowOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOWOSD);
-				pThis->m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_PSEUDOOSD);
-				pThis->m_TextColor=pThis->m_CurTextColor;
-				pThis->m_FadeTime=::GetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,NULL,FALSE)*1000;
-				pThis->m_ChannelChangeType=(ChannelChangeType)DlgComboBox_GetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE);
-
-				pThis->m_fEnableNotificationBar=
+				m_fEnableNotificationBar=
 					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE);
-				pThis->EnableNotify(NOTIFY_EVENTNAME,
+				EnableNotify(NOTIFY_EVENTNAME,
 									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME));
-				pThis->EnableNotify(NOTIFY_ECMERROR,
+				EnableNotify(NOTIFY_ECMERROR,
 									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR));
-				pThis->m_NotificationBarDuration=
+				m_NotificationBarDuration=
 					::GetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,NULL,FALSE)*1000;
-				pThis->m_NotificationBarFont=pThis->m_CurNotificationBarFont;
+				m_NotificationBarFont=m_CurNotificationBarFont;
 
-				pThis->m_DisplayMenuFont=pThis->m_CurDisplayMenuFont;
-				pThis->m_fDisplayMenuFontAutoSize=DlgCheckBox_IsChecked(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE);
+				m_DisplayMenuFont=m_CurDisplayMenuFont;
+				m_fDisplayMenuFontAutoSize=DlgCheckBox_IsChecked(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE);
 			}
 			return TRUE;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			COSDOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }

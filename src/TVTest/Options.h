@@ -3,6 +3,7 @@
 
 
 #include "Settings.h"
+#include "Dialog.h"
 
 
 class ABSTRACT_DECL COptionFrame
@@ -12,19 +13,8 @@ public:
 	virtual void OnSettingError(class COptions *pOptions) {}
 };
 
-class COptions
+class COptions : public CBasicDialog
 {
-	static COptionFrame *m_pFrame;
-	static DWORD m_GeneralUpdateFlags;
-
-protected:
-	HWND m_hDlg;
-	DWORD m_UpdateFlags;
-	static COptions *OnInitDialog(HWND hDlg,LPARAM lParam);
-	static COptions *GetOptions(HWND hDlg);
-	void OnDestroy();
-	void SettingError();
-
 public:
 	enum {
 		UPDATE_GENERAL_BUILDMEDIAVIEWER	= 0x00000001UL,
@@ -46,6 +36,15 @@ public:
 	virtual bool Write(CSettings *pSettings) const { return true; }
 	virtual bool Load(LPCTSTR pszFileName) { return false; }
 	virtual bool Save(LPCTSTR pszFileName) const { return false; }
+
+protected:
+	void SettingError();
+
+	DWORD m_UpdateFlags;
+
+private:
+	static COptionFrame *m_pFrame;
+	static DWORD m_GeneralUpdateFlags;
 };
 
 

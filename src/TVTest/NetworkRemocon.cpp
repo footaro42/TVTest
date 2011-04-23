@@ -348,6 +348,7 @@ CNetworkRemoconOptions::CNetworkRemoconOptions()
 
 CNetworkRemoconOptions::~CNetworkRemoconOptions()
 {
+	Destroy();
 }
 
 
@@ -375,6 +376,13 @@ bool CNetworkRemoconOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("NetworkRemoconPort"),m_Port);
 	pSettings->Write(TEXT("NetworkRemoconChFile"),m_szChannelFileName);
 	return true;
+}
+
+
+bool CNetworkRemoconOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_NETWORKREMOCON));
 }
 
 
@@ -515,24 +523,16 @@ bool CNetworkRemoconOptions::GetChannelFilePath(LPTSTR pszPath) const
 }
 
 
-CNetworkRemoconOptions *CNetworkRemoconOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CNetworkRemoconOptions*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
-INT_PTR CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CNetworkRemoconOptions *pThis=dynamic_cast<CNetworkRemoconOptions*>(OnInitDialog(hDlg,lParam));
-
 			::CheckDlgButton(hDlg,IDC_NETWORKREMOCON_USE,
-						pThis->m_fUseNetworkRemocon?BST_CHECKED:
-						pThis->m_fTempEnable?BST_INDETERMINATE:BST_UNCHECKED);
-			::SetDlgItemTextA(hDlg,IDC_NETWORKREMOCON_ADDRESS,pThis->m_szAddress);
-			::SetDlgItemInt(hDlg,IDC_NETWORKREMOCON_PORT,pThis->m_Port,FALSE);
+						m_fUseNetworkRemocon?BST_CHECKED:
+						m_fTempEnable?BST_INDETERMINATE:BST_UNCHECKED);
+			::SetDlgItemTextA(hDlg,IDC_NETWORKREMOCON_ADDRESS,m_szAddress);
+			::SetDlgItemInt(hDlg,IDC_NETWORKREMOCON_PORT,m_Port,FALSE);
 			{
 				TCHAR szFileMask[MAX_PATH];
 				HANDLE hFind;
@@ -550,7 +550,7 @@ INT_PTR CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wPar
 					} while (::FindNextFile(hFind,&wfd));
 					::FindClose(hFind);
 				}
-				::SetDlgItemText(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,pThis->m_szChannelFileName);
+				::SetDlgItemText(hDlg,IDC_NETWORKREMOCON_CHANNELFILE,m_szChannelFileName);
 			}
 		}
 		return TRUE;
@@ -569,7 +569,6 @@ INT_PTR CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wPar
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			{
-				CNetworkRemoconOptions *pThis=GetThis(hDlg);
 				int State;
 				char szAddress[16];
 				unsigned int Port;
@@ -583,34 +582,27 @@ INT_PTR CALLBACK CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wPar
 										szChannelFile,lengthof(szChannelFile));
 				bool fUpdate=false;
 				if (State!=BST_INDETERMINATE
-						&& (State==BST_CHECKED)!=(pThis->m_fUseNetworkRemocon || pThis->m_fTempEnable)) {
-					pThis->m_fUseNetworkRemocon=State==BST_CHECKED;
-					pThis->m_fTempEnable=false;
+						&& (State==BST_CHECKED)!=(m_fUseNetworkRemocon || m_fTempEnable)) {
+					m_fUseNetworkRemocon=State==BST_CHECKED;
+					m_fTempEnable=false;
 					fUpdate=true;
-				} else if (pThis->m_fUseNetworkRemocon || pThis->m_fTempEnable) {
-					if (pThis->m_Port!=Port
-							|| ::lstrcmpiA(pThis->m_szAddress,szAddress)!=0
-							|| ::lstrcmpi(pThis->m_szChannelFileName,szChannelFile)!=0) {
+				} else if (m_fUseNetworkRemocon || m_fTempEnable) {
+					if (m_Port!=Port
+							|| ::lstrcmpiA(m_szAddress,szAddress)!=0
+							|| ::lstrcmpi(m_szChannelFileName,szChannelFile)!=0) {
 						fUpdate=true;
 					}
 				}
-				pThis->m_Port=Port;
-				::lstrcpyA(pThis->m_szAddress,szAddress);
-				::lstrcpy(pThis->m_szChannelFileName,szChannelFile);
+				m_Port=Port;
+				::lstrcpyA(m_szAddress,szAddress);
+				::lstrcpy(m_szChannelFileName,szChannelFile);
 				if (fUpdate)
-					pThis->SetUpdateFlag(UPDATE_NETWORKREMOCON);
+					SetUpdateFlag(UPDATE_NETWORKREMOCON);
 			}
 			return TRUE;
 		}
 		break;
-
-	case WM_DESTROY:
-		{
-			CNetworkRemoconOptions *pThis=GetThis(hDlg);
-
-			pThis->OnDestroy();
-		}
-		return TRUE;
 	}
+
 	return FALSE;
 }

@@ -82,6 +82,7 @@ CControllerManager::CControllerManager()
 
 CControllerManager::~CControllerManager()
 {
+	Destroy();
 	DeleteAllControllers();
 }
 
@@ -101,6 +102,13 @@ bool CControllerManager::Write(CSettings *pSettings) const
 	if (!m_CurController.IsEmpty())
 		pSettings->Write(TEXT("CurController"),m_CurController.Get());
 	return true;
+}
+
+
+bool CControllerManager::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_CONTROLLER));
 }
 
 
@@ -491,39 +499,32 @@ CController *CControllerManager::GetCurController() const
 }
 
 
-CControllerManager *CControllerManager::GetThis(HWND hDlg)
-{
-	return static_cast<CControllerManager*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CControllerManager *pThis=static_cast<CControllerManager*>(OnInitDialog(hDlg,lParam));
-
-			const size_t NumControllers=pThis->m_ControllerList.size();
+			const size_t NumControllers=m_ControllerList.size();
 			if (NumControllers>0) {
-				pThis->m_CurSettingsList.resize(NumControllers);
+				m_CurSettingsList.resize(NumControllers);
 				int Sel=0;
 				for (size_t i=0;i<NumControllers;i++) {
-					const ControllerInfo &Info=pThis->m_ControllerList[i];
+					const ControllerInfo &Info=m_ControllerList[i];
 
 					DlgComboBox_AddString(hDlg,IDC_CONTROLLER_LIST,Info.pController->GetText());
-					if (!pThis->m_CurController.IsEmpty()
-							&& ::lstrcmpi(pThis->m_CurController.Get(),Info.pController->GetName())==0)
+					if (!m_CurController.IsEmpty()
+							&& ::lstrcmpi(m_CurController.Get(),Info.pController->GetName())==0)
 						Sel=(int)i;
 					if (Info.fSettingsLoaded)
-						pThis->m_CurSettingsList[i]=Info.Settings;
+						m_CurSettingsList[i]=Info.Settings;
 				}
 				DlgComboBox_SetCurSel(hDlg,IDC_CONTROLLER_LIST,Sel);
 			}
 			EnableDlgItem(hDlg,IDC_CONTROLLER_LIST,NumControllers>0);
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_CONTROLLER_ASSIGN);
-			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
+			ListView_SetExtendedListViewStyle(hwndList,
+				LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_LABELTIP);
 			LV_COLUMN lvc;
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
 			lvc.fmt=LVCFMT_LEFT;
@@ -541,21 +542,19 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 				DlgComboBox_AddString(hDlg,IDC_CONTROLLER_COMMAND,szText);
 			}
 
-			pThis->m_Tooltip.Create(hDlg);
+			m_Tooltip.Create(hDlg);
 
-			pThis->InitDlgItems();
-			pThis->SetDlgItemStatus();
+			InitDlgItems();
+			SetDlgItemStatus();
 		}
 		return TRUE;
 
 	case WM_PAINT:
 		{
-			CControllerManager *pThis=GetThis(hDlg);
-
-			if (pThis->m_hbmController==NULL)
+			if (m_hbmController==NULL)
 				break;
 
-			const CController *pController=pThis->GetCurController();
+			const CController *pController=GetCurController();
 			if (pController==NULL)
 				break;
 
@@ -568,22 +567,22 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 			HBITMAP hbmOld;
 
 			::BeginPaint(hDlg,&ps);
-			::GetObject(pThis->m_hbmController,sizeof(BITMAP),&bm);
+			::GetObject(m_hbmController,sizeof(BITMAP),&bm);
 			::SetRect(&rc,172,8,232,232);
 			::MapDialogRect(hDlg,&rc);
 			::FillRect(ps.hdc,&rc,static_cast<HBRUSH>(::GetStockObject(WHITE_BRUSH)));
 			hdcMem=::CreateCompatibleDC(ps.hdc);
-			hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,pThis->m_hbmController));
-			::BitBlt(ps.hdc,pThis->m_ImageRect.left,pThis->m_ImageRect.top,
+			hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,m_hbmController));
+			::BitBlt(ps.hdc,m_ImageRect.left,m_ImageRect.top,
 							bm.bmWidth,bm.bmHeight,hdcMem,0,0,SRCCOPY);
-			if (CurButton>=0 && pThis->m_hbmSelButtons!=NULL) {
+			if (CurButton>=0 && m_hbmSelButtons!=NULL) {
 				CController::ButtonInfo Button;
 
 				pController->GetButtonInfo(CurButton,&Button);
-				::SelectObject(hdcMem,pThis->m_hbmSelButtons);
+				::SelectObject(hdcMem,m_hbmSelButtons);
 				::TransparentBlt(ps.hdc,
-					pThis->m_ImageRect.left+Button.ImageButtonRect.Left,
-					pThis->m_ImageRect.top+Button.ImageButtonRect.Top,
+					m_ImageRect.left+Button.ImageButtonRect.Left,
+					m_ImageRect.top+Button.ImageButtonRect.Top,
 					Button.ImageButtonRect.Width,
 					Button.ImageButtonRect.Height,
 					hdcMem,
@@ -601,14 +600,13 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 
 	case WM_LBUTTONDOWN:
 		{
-			CControllerManager *pThis=GetThis(hDlg);
 			POINT pt;
 
 			pt.x=GET_X_LPARAM(lParam);
 			pt.y=GET_Y_LPARAM(lParam);
-			if (pThis->m_hbmSelButtons!=NULL
-					&& ::PtInRect(&pThis->m_ImageRect,pt)) {
-				const CController *pController=pThis->GetCurController();
+			if (m_hbmSelButtons!=NULL
+					&& ::PtInRect(&m_ImageRect,pt)) {
+				const CController *pController=GetCurController();
 				if (pController==NULL)
 					return TRUE;
 
@@ -618,8 +616,8 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 					RECT rc;
 
 					pController->GetButtonInfo(i,&Button);
-					rc.left=pThis->m_ImageRect.left+Button.ImageButtonRect.Left;
-					rc.top=pThis->m_ImageRect.top+Button.ImageButtonRect.Top;
+					rc.left=m_ImageRect.left+Button.ImageButtonRect.Left;
+					rc.top=m_ImageRect.top+Button.ImageButtonRect.Top;
 					rc.right=rc.left+Button.ImageButtonRect.Width;
 					rc.bottom=rc.top+Button.ImageButtonRect.Height;
 					if (::PtInRect(&rc,pt)) {
@@ -639,15 +637,13 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 
 	case WM_SETCURSOR:
 		if (LOWORD(lParam)==HTCLIENT) {
-			CControllerManager *pThis=GetThis(hDlg);
-
-			if (pThis->m_hbmSelButtons!=NULL) {
+			if (m_hbmSelButtons!=NULL) {
 				POINT pt;
 
 				::GetCursorPos(&pt);
 				::ScreenToClient(hDlg,&pt);
-				if (::PtInRect(&pThis->m_ImageRect,pt)) {
-					const CController *pController=pThis->GetCurController();
+				if (::PtInRect(&m_ImageRect,pt)) {
+					const CController *pController=GetCurController();
 					if (pController==NULL)
 						break;
 
@@ -657,8 +653,8 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 						RECT rc;
 
 						pController->GetButtonInfo(i,&Button);
-						rc.left=pThis->m_ImageRect.left+Button.ImageButtonRect.Left;
-						rc.top=pThis->m_ImageRect.top+Button.ImageButtonRect.Top;
+						rc.left=m_ImageRect.left+Button.ImageButtonRect.Left;
+						rc.top=m_ImageRect.top+Button.ImageButtonRect.Top;
 						rc.right=rc.left+Button.ImageButtonRect.Width;
 						rc.bottom=rc.top+Button.ImageButtonRect.Height;
 						if (::PtInRect(&rc,pt)) {
@@ -676,12 +672,11 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 		switch (LOWORD(wParam)) {
 		case IDC_CONTROLLER_LIST:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				CControllerManager *pThis=GetThis(hDlg);
-				const CController *pCurController=pThis->GetCurController();
+				const CController *pCurController=GetCurController();
 
-				pThis->InitDlgItems();
+				InitDlgItems();
 				if (pCurController!=NULL)
-					pThis->m_CurController.Set(pCurController->GetName());
+					m_CurController.Set(pCurController->GetName());
 			}
 			return TRUE;
 
@@ -690,9 +685,7 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 				int CurController=(int)DlgComboBox_GetCurSel(hDlg,IDC_CONTROLLER_LIST);
 
 				if (CurController>=0) {
-					CControllerManager *pThis=GetThis(hDlg);
-
-					pThis->m_CurSettingsList[CurController].fActiveOnly=
+					m_CurSettingsList[CurController].fActiveOnly=
 						DlgCheckBox_IsChecked(hDlg,IDC_CONTROLLER_ACTIVEONLY);
 				}
 			}
@@ -704,10 +697,9 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 				int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 				if (Sel>=0) {
-					CControllerManager *pThis=GetThis(hDlg);
 					int Command=(int)DlgComboBox_GetCurSel(hDlg,IDC_CONTROLLER_COMMAND);
 
-					pThis->SetButtonCommand(hwndList,Sel,
+					SetButtonCommand(hwndList,Sel,
 						Command<=0?0:GetAppClass().GetCommandList()->GetCommandID(Command-1));
 				}
 			}
@@ -715,8 +707,7 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 
 		case IDC_CONTROLLER_DEFAULT:
 			{
-				CControllerManager *pThis=GetThis(hDlg);
-				const CController *pController=pThis->GetCurController();
+				const CController *pController=GetCurController();
 				if (pController==NULL)
 					return TRUE;
 
@@ -726,9 +717,9 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 					CController::ButtonInfo Button;
 
 					pController->GetButtonInfo(i,&Button);
-					pThis->SetButtonCommand(hwndList,i,Button.DefaultCommand);
+					SetButtonCommand(hwndList,i,Button.DefaultCommand);
 				}
-				pThis->SetDlgItemStatus();
+				SetDlgItemStatus();
 			}
 			return TRUE;
 		}
@@ -737,12 +728,8 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
 		case LVN_ITEMCHANGED:
-			{
-				CControllerManager *pThis=GetThis(hDlg);
-
-				pThis->SetDlgItemStatus();
-				::InvalidateRect(hDlg,&pThis->m_ImageRect,FALSE);
-			}
+			SetDlgItemStatus();
+			::InvalidateRect(hDlg,&m_ImageRect,FALSE);
 			break;
 
 		case LVN_KEYDOWN:
@@ -750,23 +737,20 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 				LPNMLVKEYDOWN pnmlvk=reinterpret_cast<LPNMLVKEYDOWN>(lParam);
 
 				if (pnmlvk->wVKey==VK_BACK || pnmlvk->wVKey==VK_DELETE) {
-					CControllerManager *pThis=GetThis(hDlg);
 					HWND hwndList=::GetDlgItem(hDlg,IDC_CONTROLLER_ASSIGN);
 					int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 					if (Sel>=0)
-						pThis->SetButtonCommand(hwndList,Sel,0);
+						SetButtonCommand(hwndList,Sel,0);
 				}
 			}
 			break;
 
 		case PSN_APPLY:
 			{
-				CControllerManager *pThis=GetThis(hDlg);
-
-				for (size_t i=0;i<pThis->m_ControllerList.size();i++) {
-					ControllerInfo &Info=pThis->m_ControllerList[i];
-					ControllerSettings &CurSettings=pThis->m_CurSettingsList[i];
+				for (size_t i=0;i<m_ControllerList.size();i++) {
+					ControllerInfo &Info=m_ControllerList[i];
+					ControllerSettings &CurSettings=m_CurSettingsList[i];
 
 					if (Info.pController->IsEnabled()) {
 						if (CurSettings.fActiveOnly!=Info.Settings.fActiveOnly) {
@@ -784,21 +768,19 @@ INT_PTR CALLBACK CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,L
 
 	case WM_DESTROY:
 		{
-			CControllerManager *pThis=GetThis(hDlg);
-
-			if (pThis->m_hbmController!=NULL) {
-				::DeleteObject(pThis->m_hbmController);
-				pThis->m_hbmController=NULL;
+			if (m_hbmController!=NULL) {
+				::DeleteObject(m_hbmController);
+				m_hbmController=NULL;
 			}
-			if (pThis->m_hbmSelButtons!=NULL) {
-				::DeleteObject(pThis->m_hbmSelButtons);
-				pThis->m_hbmSelButtons=NULL;
+			if (m_hbmSelButtons!=NULL) {
+				::DeleteObject(m_hbmSelButtons);
+				m_hbmSelButtons=NULL;
 			}
-			pThis->m_CurSettingsList.clear();
-			pThis->m_Tooltip.Destroy();
-			pThis->OnDestroy();
+			m_CurSettingsList.clear();
+			m_Tooltip.Destroy();
 		}
 		return TRUE;
 	}
+
 	return FALSE;
 }

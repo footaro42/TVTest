@@ -2,6 +2,9 @@
 #define TVTEST_UTIL_H
 
 
+#include "HelperClass/StdUtil.h"
+
+
 LONGLONG StringToInt64(LPCTSTR pszString);
 ULONGLONG StringToUInt64(LPCTSTR pszString);
 bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
@@ -103,6 +106,24 @@ public:
 	void Clear();
 	bool IsEmpty() const;
 	int Compare(LPCTSTR pszString) const;
+};
+
+class CStaticStringFormatter
+{
+public:
+	CStaticStringFormatter(LPTSTR pBuffer,size_t BufferLength);
+	size_t Length() const { return m_Length; }
+	bool IsEmpty() const { return m_Length==0; }
+	LPCTSTR GetString() const { return m_pBuffer; }
+	void Clear();
+	void Append(LPCTSTR pszString);
+	void AppendFormat(LPCTSTR pszFormat, ...);
+	void AppendFormatV(LPCTSTR pszFormat,va_list Args);
+	void RemoveTrailingWhitespace();
+private:
+	const LPTSTR m_pBuffer;
+	const size_t m_BufferLength;
+	size_t m_Length;
 };
 
 class CFilePath {

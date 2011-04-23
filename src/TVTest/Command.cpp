@@ -35,6 +35,7 @@ static const struct {
 	{TEXT("CustomZoom3"),				CM_CUSTOMZOOM_3},
 	{TEXT("CustomZoom4"),				CM_CUSTOMZOOM_4},
 	{TEXT("CustomZoom5"),				CM_CUSTOMZOOM_5},
+	{TEXT("ZoomOptions"),				CM_ZOOMOPTIONS},
 	{TEXT("AspectRatio"),				CM_ASPECTRATIO},
 	{TEXT("AspectDefault"),				CM_ASPECTRATIO_DEFAULT},
 	{TEXT("Aspect16x9"),				CM_ASPECTRATIO_16x9},
@@ -42,9 +43,12 @@ static const struct {
 	{TEXT("SuperFrame"),				CM_ASPECTRATIO_SUPERFRAME},
 	{TEXT("SideCut"),					CM_ASPECTRATIO_SIDECUT},
 	{TEXT("Aspect4x3"),					CM_ASPECTRATIO_4x3},
+#ifndef TVH264_FOR_1SEG
 	{TEXT("Aspect32x9"),				CM_ASPECTRATIO_32x9},
 	{TEXT("Aspect16x9Left"),			CM_ASPECTRATIO_16x9_LEFT},
 	{TEXT("Aspect16x9Right"),			CM_ASPECTRATIO_16x9_RIGHT},
+#endif
+	{TEXT("PanAndScanOptions"),			CM_PANANDSCANOPTIONS},
 	{TEXT("FrameCut"),					CM_FRAMECUT},
 	{TEXT("Fullscreen"),				CM_FULLSCREEN},
 	{TEXT("AlwaysOnTop"),				CM_ALWAYSONTOP},
@@ -67,6 +71,10 @@ static const struct {
 	{TEXT("Stereo"),					CM_STEREO_THROUGH},
 	{TEXT("StereoLeft"),				CM_STEREO_LEFT},
 	{TEXT("StereoRight"),				CM_STEREO_RIGHT},
+	{TEXT("SpdifDisabled"),				CM_SPDIF_DISABLED},
+	{TEXT("SpdifPassthrough"),			CM_SPDIF_PASSTHROUGH},
+	{TEXT("SpdifAuto"),					CM_SPDIF_AUTO},
+	{TEXT("SpdifToggle"),				CM_SPDIF_TOGGLE},
 	{TEXT("Record"),					CM_RECORD},
 	{TEXT("RecordStart"),				CM_RECORD_START},
 	{TEXT("RecordStop"),				CM_RECORD_STOP},
@@ -266,7 +274,7 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 				&& CommandList[Index].Command<=CM_CUSTOMZOOM_LAST) {
 			CZoomOptions::ZoomRate Zoom;
 			if (m_pZoomOptions->GetZoomRateByCommand(CommandList[Index].Command,&Zoom))
-				Length+=StdUtil::snprintf(pszName+Length,MaxLength-Length,TEXT(" - %d%%"),Zoom.Rate*100/Zoom.Factor);
+				Length+=StdUtil::snprintf(pszName+Length,MaxLength-Length,TEXT(" : %d%%"),Zoom.Rate*100/Zoom.Factor);
 		}
 		return Length;
 	}

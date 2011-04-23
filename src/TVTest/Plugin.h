@@ -195,8 +195,9 @@ class CPluginOptions : public COptions
 {
 	CPluginManager *m_pPluginManager;
 	std::vector<LPTSTR> m_EnablePluginList;
+
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void ClearList();
-	static CPluginOptions *GetThis(HWND hDlg);
 
 public:
 	CPluginOptions(CPluginManager *pPluginManager);
@@ -205,9 +206,9 @@ public:
 	bool Write(CSettings *pSettings) const;
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
+	bool Create(HWND hwndOwner);
 	bool RestorePluginOptions();
 	bool StorePluginOptions();
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

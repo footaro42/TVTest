@@ -160,10 +160,3 @@ const BYTE CAacDecoder::GetChannelConfig() const
 {
 	return m_byLastChannelConfig;
 }
-
-
-void CAacDecoder::OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame *pFrame)
-{
-	// CAdtsParser::IFrameHandler‚ÌŽÀ‘•
-	Decode(pFrame);
-}

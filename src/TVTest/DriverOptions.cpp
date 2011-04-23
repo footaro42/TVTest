@@ -194,6 +194,7 @@ CDriverOptions::CDriverOptions()
 
 CDriverOptions::~CDriverOptions()
 {
+	Destroy();
 }
 
 
@@ -300,6 +301,13 @@ bool CDriverOptions::Save(LPCTSTR pszFileName) const
 		}
 	}
 	return true;
+}
+
+
+bool CDriverOptions::Create(HWND hwndOwner)
+{
+	return CreateDialogWindow(hwndOwner,
+							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_DRIVER));
 }
 
 
@@ -581,35 +589,27 @@ CDriverSettings *CDriverOptions::GetCurSelDriverSettings() const
 }
 
 
-CDriverOptions *CDriverOptions::GetThis(HWND hDlg)
-{
-	return static_cast<CDriverOptions*>(GetOptions(hDlg));
-}
-
-
-INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CDriverOptions *pThis=static_cast<CDriverOptions*>(OnInitDialog(hDlg,lParam));
-
-			if (pThis->m_pDriverManager!=NULL
-					&& pThis->m_pDriverManager->NumDrivers()>0) {
+			if (m_pDriverManager!=NULL
+					&& m_pDriverManager->NumDrivers()>0) {
 				int CurDriver=0;
 
-				pThis->m_CurSettingList=pThis->m_SettingList;
-				for (int i=0;i<pThis->m_pDriverManager->NumDrivers();i++) {
-					LPCTSTR pszFileName=pThis->m_pDriverManager->GetDriverInfo(i)->GetFileName();
+				m_CurSettingList=m_SettingList;
+				for (int i=0;i<m_pDriverManager->NumDrivers();i++) {
+					LPCTSTR pszFileName=m_pDriverManager->GetDriverInfo(i)->GetFileName();
 					CDriverSettings *pSettings;
 
 					DlgComboBox_AddString(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST,pszFileName);
-					int Index=pThis->m_CurSettingList.Find(pszFileName);
+					int Index=m_CurSettingList.Find(pszFileName);
 					if (Index<0) {
 						pSettings=new CDriverSettings(pszFileName);
-						pThis->m_CurSettingList.Add(pSettings);
+						m_CurSettingList.Add(pSettings);
 					} else {
-						pSettings=pThis->m_CurSettingList.GetDriverSettings(Index);
+						pSettings=m_CurSettingList.GetDriverSettings(Index);
 					}
 					DlgComboBox_SetItemData(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST,i,(LPARAM)pSettings);
 				}
@@ -621,7 +621,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						CurDriver=0;
 				}
 				DlgComboBox_SetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST,CurDriver);
-				pThis->InitDlgItem(CurDriver);
+				InitDlgItem(CurDriver);
 			} else {
 				EnableDlgItems(hDlg,IDC_DRIVEROPTIONS_FIRST,IDC_DRIVEROPTIONS_LAST,false);
 			}
@@ -632,9 +632,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		switch (LOWORD(wParam)) {
 		case IDC_DRIVEROPTIONS_DRIVERLIST:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				CDriverOptions *pThis=GetThis(hDlg);
-
-				pThis->InitDlgItem((int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
+				InitDlgItem((int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
 			}
 			return TRUE;
 
@@ -642,7 +640,6 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		case IDC_DRIVEROPTIONS_INITCHANNEL_LAST:
 		case IDC_DRIVEROPTIONS_INITCHANNEL_CUSTOM:
 			{
-				CDriverOptions *pThis=GetThis(hDlg);
 				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST);
 
 				if (Sel>=0) {
@@ -659,8 +656,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_INITCHANNEL_SPACE:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				DlgComboBox_Clear(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
 				if (pSettings!=NULL) {
@@ -674,7 +670,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						pSettings->SetInitialSpace(Space);
 					}
 					pSettings->SetInitialChannel(0);
-					pThis->SetChannelList((int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
+					SetChannelList((int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_DRIVERLIST));
 					DlgComboBox_SetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL,0);
 				}
 			}
@@ -682,8 +678,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL:
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
 					int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_DRIVEROPTIONS_INITCHANNEL_CHANNEL);
@@ -703,8 +698,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_DESCRAMBLEDRIVER:
 			{
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
 					pSettings->SetDescrambleDriver(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_DESCRAMBLEDRIVER));
@@ -714,8 +708,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_NOSIGNALLEVEL:
 			{
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
 					pSettings->SetNoSignalLevel(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_NOSIGNALLEVEL));
@@ -725,8 +718,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_IGNOREINITIALSTREAM:
 			{
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
 					pSettings->SetIgnoreInitialStream(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_IGNOREINITIALSTREAM));
@@ -736,8 +728,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_PURGESTREAMONCHANNELCHANGE:
 			{
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
 					pSettings->SetPurgeStreamOnChannelChange(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_PURGESTREAMONCHANNELCHANGE));
@@ -747,8 +738,7 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 		case IDC_DRIVEROPTIONS_RESETCHANNELCHANGEERRORCOUNT:
 			{
-				CDriverOptions *pThis=GetThis(hDlg);
-				CDriverSettings *pSettings=pThis->GetCurSelDriverSettings();
+				CDriverSettings *pSettings=GetCurSelDriverSettings();
 
 				if (pSettings!=NULL) {
 					pSettings->SetResetChannelChangeErrorCount(DlgCheckBox_IsChecked(hDlg,IDC_DRIVEROPTIONS_RESETCHANNELCHANGEERRORCOUNT));
@@ -761,23 +751,15 @@ INT_PTR CALLBACK CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 	case WM_NOTIFY:
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
-			{
-				CDriverOptions *pThis=GetThis(hDlg);
-
-				pThis->m_SettingList=pThis->m_CurSettingList;
-			}
+			m_SettingList=m_CurSettingList;
 			break;
 		}
 		break;
 
 	case WM_DESTROY:
-		{
-			CDriverOptions *pThis=GetThis(hDlg);
-
-			pThis->m_CurSettingList.Clear();
-			pThis->OnDestroy();
-		}
+		m_CurSettingList.Clear();
 		return TRUE;
 	}
+
 	return FALSE;
 }

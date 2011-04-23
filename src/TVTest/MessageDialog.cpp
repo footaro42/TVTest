@@ -103,14 +103,13 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 						   SWP_NOMOVE | SWP_NOZORDER);
 			::GetWindowRect(hDlg,&rcDlg);
 			::GetClientRect(hDlg,&rcClient);
-			::GetWindowRect(::GetDlgItem(hDlg,IDOK),&rcOK);
-			MapWindowRect(NULL,hDlg,&rcOK);
+			GetDlgItemRect(hDlg,IDOK,&rcOK);
 			const int Offset=MaxWidth-rcEdit.right;
 			::SetWindowPos(::GetDlgItem(hDlg,IDOK),NULL,
 						   rcOK.left+Offset,rcOK.top,0,0,
-						   SWP_NOSIZE | SWP_NOZORDER);
+						   SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
 			::SetWindowPos(hDlg,NULL,0,0,(rcDlg.right-rcDlg.left)+Offset,rcDlg.bottom-rcDlg.top,
-						   SWP_NOMOVE | SWP_NOZORDER);
+						   SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 			::SendMessage(hwndEdit,EM_SETEVENTMASK,0,ENM_REQUESTRESIZE | ENM_MOUSEEVENTS);
 			::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_REQUESTRESIZE,0,0);
 
@@ -128,13 +127,13 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		{
 			CMessageDialog *pThis=GetThis(hDlg);
 			PAINTSTRUCT ps;
-			RECT rcClient,rcEdit,rc;
+			RECT rcEdit,rc;
 
 			::BeginPaint(hDlg,&ps);
 			::GetWindowRect(::GetDlgItem(hDlg,IDC_ERROR_MESSAGE),&rcEdit);
 			MapWindowRect(NULL,hDlg,&rcEdit);
-			::GetClientRect(hDlg,&rcClient);
-			::SetRect(&rc,0,0,rcClient.right,rcEdit.bottom);
+			::GetClientRect(hDlg,&rc);
+			rc.bottom=rcEdit.bottom;
 			::FillRect(ps.hdc,&rc,::GetSysColorBrush(COLOR_WINDOW));
 			::EndPaint(hDlg,&ps);
 		}
@@ -142,7 +141,8 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 
 	case WM_CTLCOLORSTATIC:
 		if (reinterpret_cast<HWND>(lParam)==::GetDlgItem(hDlg,IDC_ERROR_ICON))
-			return reinterpret_cast<BOOL>(::GetSysColorBrush(COLOR_WINDOW));
+			return reinterpret_cast<INT_PTR>(::GetSysColorBrush(COLOR_WINDOW));
+		break;
 
 	case WM_NOTIFY:
 		switch (reinterpret_cast<LPNMHDR>(lParam)->code) {
@@ -152,14 +152,11 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				RECT rcEdit,rcDialog,rcClient,rcOK,rcIcon;
 				int Width,Height,MinWidth;
 				int XOffset,YOffset;
-				HWND hwndOK;
 
 				::GetWindowRect(hDlg,&rcDialog);
 				::GetClientRect(hDlg,&rcClient);
 				::GetWindowRect(prr->nmhdr.hwndFrom,&rcEdit);
-				hwndOK=::GetDlgItem(hDlg,IDOK);
-				::GetWindowRect(hwndOK,&rcOK);
-				MapWindowRect(NULL,hDlg,&rcOK);
+				GetDlgItemRect(hDlg,IDOK,&rcOK);
 				MinWidth=(rcOK.right-rcOK.left)+(rcClient.right-rcOK.right)*2;
 				Width=prr->rc.right-prr->rc.left;
 				if (Width<MinWidth)
@@ -175,7 +172,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				XOffset=Width-(rcEdit.right-rcEdit.left);
 				YOffset=Height-(rcEdit.bottom-rcEdit.top);
 				::SetWindowPos(prr->nmhdr.hwndFrom,NULL,0,0,Width,Height,
-							   SWP_NOMOVE | SWP_NOZORDER);
+							   SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
 				::SetRect(&rcEdit,0,0,Width,Height);
 				::SendDlgItemMessage(hDlg,IDC_ERROR_MESSAGE,EM_SETRECT,0,reinterpret_cast<LPARAM>(&rcEdit));
 				rcDialog.right+=XOffset;
@@ -183,7 +180,7 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 				::MoveWindow(hDlg,rcDialog.left,rcDialog.top,
 							 rcDialog.right-rcDialog.left,
 							 rcDialog.bottom-rcDialog.top,TRUE);
-				::MoveWindow(hwndOK,rcOK.left+XOffset,rcOK.top+YOffset,
+				::MoveWindow(::GetDlgItem(hDlg,IDOK),rcOK.left+XOffset,rcOK.top+YOffset,
 							 rcOK.right-rcOK.left,rcOK.bottom-rcOK.top,TRUE);
 			}
 			return TRUE;

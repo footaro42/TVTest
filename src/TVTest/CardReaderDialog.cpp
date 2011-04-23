@@ -86,8 +86,8 @@ CCardReaderErrorDialog::~CCardReaderErrorDialog()
 
 bool CCardReaderErrorDialog::Show(HWND hwndOwner)
 {
-	return ::DialogBoxParam(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_CARDREADER),
-							hwndOwner,DlgProc,reinterpret_cast<LPARAM>(this))==IDOK;
+	return ShowDialog(hwndOwner,
+					  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_CARDREADER))==IDOK;
 }
 
 
@@ -97,17 +97,11 @@ bool CCardReaderErrorDialog::SetMessage(LPCTSTR pszMessage)
 }
 
 
-CCardReaderErrorDialog *CCardReaderErrorDialog::GetThis(HWND hDlg)
-{
-	return static_cast<CCardReaderErrorDialog*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
 static bool SearchReaders(HWND hDlg)
 {
 	CCardReader *pCardReader;
 	bool fFound=false;
-	int Index;
+	LRESULT Index;
 
 	pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
 	if (pCardReader!=NULL) {
@@ -115,7 +109,7 @@ static bool SearchReaders(HWND hDlg)
 			for (int i=0;i<pCardReader->NumReaders();i++) {
 				LPCTSTR pszReaderName=pCardReader->EnumReader(i);
 				if (pszReaderName!=NULL) {
-					Index=(int)DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,pszReaderName);
+					Index=DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,pszReaderName);
 					DlgListBox_SetItemData(hDlg,IDC_CARDREADER_READERLIST,Index,(LPARAM)CCoreEngine::CARDREADER_SCARD);
 					fFound=true;
 				}
@@ -127,7 +121,7 @@ static bool SearchReaders(HWND hDlg)
 	pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
 	if (pCardReader!=NULL) {
 		if (pCardReader->Open()) {
-			Index=(int)DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,TEXT("HDUS内蔵カードリーダ"));
+			Index=DlgListBox_AddString(hDlg,IDC_CARDREADER_READERLIST,TEXT("HDUS内蔵カードリーダ"));
 			DlgListBox_SetItemData(hDlg,IDC_CARDREADER_READERLIST,Index,(LPARAM)CCoreEngine::CARDREADER_HDUS);
 			pCardReader->Close();
 			fFound=true;
@@ -139,25 +133,22 @@ static bool SearchReaders(HWND hDlg)
 }
 
 
-INT_PTR CALLBACK CCardReaderErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CCardReaderErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CCardReaderErrorDialog *pThis=reinterpret_cast<CCardReaderErrorDialog*>(lParam);
-
-			::SetProp(hDlg,TEXT("This"),pThis);
 			::SendDlgItemMessage(hDlg,IDC_CARDREADER_ICON,STM_SETICON,
 				reinterpret_cast<WPARAM>(::LoadIcon(NULL,IDI_WARNING)),0);
-			if (!pThis->m_Message.IsEmpty())
-				::SetDlgItemText(hDlg,IDC_CARDREADER_MESSAGE,pThis->m_Message.Get());
+			if (!m_Message.IsEmpty())
+				::SetDlgItemText(hDlg,IDC_CARDREADER_MESSAGE,m_Message.Get());
 			bool fFound=SearchReaders(hDlg);
 			EnableDlgItem(hDlg,IDC_CARDREADER_RETRY,fFound);
 			::CheckRadioButton(hDlg,IDC_CARDREADER_RETRY,IDC_CARDREADER_NOREADER,
-							   fFound && pThis->m_ReaderType!=CCoreEngine::CARDREADER_NONE?
+							   fFound && m_ReaderType!=CCoreEngine::CARDREADER_NONE?
 							   IDC_CARDREADER_RETRY:IDC_CARDREADER_NOREADER);
 			EnableDlgItem(hDlg,IDC_CARDREADER_READERLIST,
-						  fFound && pThis->m_ReaderType!=CCoreEngine::CARDREADER_NONE);
+						  fFound && m_ReaderType!=CCoreEngine::CARDREADER_NONE);
 			if (fFound)
 				DlgListBox_SetCurSel(hDlg,IDC_CARDREADER_READERLIST,0);
 			AdjustDialogPos(::GetParent(hDlg),hDlg);
@@ -204,28 +195,26 @@ INT_PTR CALLBACK CCardReaderErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wPar
 
 		case IDOK:
 			{
-				CCardReaderErrorDialog *pThis=GetThis(hDlg);
-
 				if (DlgRadioButton_IsChecked(hDlg,IDC_CARDREADER_RETRY)) {
-					int Sel=(int)DlgListBox_GetCurSel(hDlg,IDC_CARDREADER_READERLIST);
+					LRESULT Sel=DlgListBox_GetCurSel(hDlg,IDC_CARDREADER_READERLIST);
 
 					if (Sel<0) {
 						::MessageBox(hDlg,TEXT("カードリーダを選択してください。"),TEXT("お願い"),MB_OK | MB_ICONINFORMATION);
 						return TRUE;
 					}
-					pThis->m_ReaderType=(CCoreEngine::CardReaderType)DlgListBox_GetItemData(hDlg,IDC_CARDREADER_READERLIST,Sel);
+					m_ReaderType=(CCoreEngine::CardReaderType)DlgListBox_GetItemData(hDlg,IDC_CARDREADER_READERLIST,Sel);
 					LRESULT Length=DlgListBox_GetStringLength(hDlg,IDC_CARDREADER_READERLIST,Sel);
 					if (Length>0) {
 						LPTSTR pszName=new TCHAR[Length+1];
 						DlgListBox_GetString(hDlg,IDC_CARDREADER_READERLIST,Sel,pszName);
-						pThis->m_ReaderName.Set(pszName);
+						m_ReaderName.Set(pszName);
 						delete [] pszName;
 					} else {
-						pThis->m_ReaderName.Clear();
+						m_ReaderName.Clear();
 					}
 				} else {
-					pThis->m_ReaderType=CCoreEngine::CARDREADER_NONE;
-					pThis->m_ReaderName.Clear();
+					m_ReaderType=CCoreEngine::CARDREADER_NONE;
+					m_ReaderName.Clear();
 				}
 			}
 		case IDCANCEL:
@@ -234,5 +223,6 @@ INT_PTR CALLBACK CCardReaderErrorDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wPar
 		}
 		return TRUE;
 	}
+
 	return FALSE;
 }

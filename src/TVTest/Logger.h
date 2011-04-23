@@ -26,7 +26,9 @@ class CLogger : public COptions, public CTracer
 	bool m_fOutputToFile;
 	CCriticalLock m_Lock;
 
-	static CLogger *GetThis(HWND hDlg);
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 
 public:
 	CLogger();
@@ -34,6 +36,8 @@ public:
 // COptions
 	bool Read(CSettings *pSettings) override;
 	bool Write(CSettings *pSettings) const override;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CLogger
 	bool AddLog(LPCTSTR pszText, ...);
 	bool AddLogV(LPCTSTR pszText,va_list Args);
@@ -42,8 +46,6 @@ public:
 	bool GetOutputToFile() const { return m_fOutputToFile; }
 	bool SaveToFile(LPCTSTR pszFileName,bool fAppend);
 	void GetDefaultLogFileName(LPTSTR pszFileName) const;
-
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 protected:
 // CTracer

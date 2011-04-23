@@ -953,17 +953,20 @@ CProgramGuide::CProgramGuide()
 	, m_ProgramSearchEventHandler(this)
 	, m_Filter(0)
 {
-	LOGFONT lf;
-	DrawUtil::GetSystemFont(DrawUtil::FONT_DEFAULT,&lf);
-	SetFont(&lf);
 	m_WindowPosition.Left=0;
 	m_WindowPosition.Top=0;
 	m_WindowPosition.Width=640;
 	m_WindowPosition.Height=480;
+
+	LOGFONT lf;
+	DrawUtil::GetDefaultUIFont(&lf);
+	SetFont(&lf);
+
 	m_ScrollPos.x=0;
 	m_ScrollPos.y=0;
 	m_OldScrollPos=m_ScrollPos;
 	m_szDriverFileName[0]='\0';
+
 	m_ColorList[COLOR_BACK]=::GetSysColor(COLOR_WINDOW);
 	m_ColorList[COLOR_TEXT]=::GetSysColor(COLOR_WINDOWTEXT);
 	m_ColorList[COLOR_CHANNELNAMETEXT]=::GetSysColor(COLOR_WINDOWTEXT);
@@ -997,6 +1000,7 @@ CProgramGuide::CProgramGuide()
 		m_TimeBarBackGradient[i].Color1=m_TimeBarMarginGradient.Color1;
 		m_TimeBarBackGradient[i].Color2=m_TimeBarMarginGradient.Color2;
 	}
+
 	m_EventInfoPopup.SetEventHandler(&m_EventInfoPopupHandler);
 }
 
@@ -2311,6 +2315,12 @@ bool CProgramGuide::SetFont(const LOGFONT *pFont)
 		Invalidate();
 	}
 	return true;
+}
+
+
+bool CProgramGuide::GetFont(LOGFONT *pFont) const
+{
+	return m_Font.GetLogFont(pFont);
 }
 
 

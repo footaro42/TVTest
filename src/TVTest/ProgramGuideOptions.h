@@ -27,9 +27,11 @@ class CProgramGuideOptions : public COptions
 	CDynamicString m_ProgramLDoubleClickCommand;
 	CTooltip m_Tooltip;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	void SetDlgItemState();
 	void DeleteAllTools();
-	static CProgramGuideOptions *GetThis(HWND hDlg);
 
 public:
 	enum {
@@ -41,13 +43,14 @@ public:
 // COptions
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
 // CProgramGuideOptions
 	bool GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast);
 	bool GetOnScreen() const { return m_fOnScreen; }
 	UINT GetVisibleEventIcons() const { return m_VisibleEventIcons; }
 	LPCTSTR GetProgramLDoubleClickCommand() const { return m_ProgramLDoubleClickCommand.Get(); }
 	int ParseCommand(LPCTSTR pszCommand) const;
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

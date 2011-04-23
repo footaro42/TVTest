@@ -16,7 +16,40 @@ public:
 		CHANNELCHANGE_LAST	=CHANNELCHANGE_LOGOONLY
 	};
 
+	enum {
+		NOTIFY_EVENTNAME	=0x00000001,
+		NOTIFY_ECMERROR		=0x00000002
+	};
+
+	COSDOptions();
+	~COSDOptions();
+// COptions
+	bool Read(CSettings *pSettings);
+	bool Write(CSettings *pSettings) const;
+// CBasicDialog
+	bool Create(HWND hwndOwner);
+// COSDOptions
+	bool GetShowOSD() const { return m_fShowOSD; }
+	bool GetPseudoOSD() const { return m_fPseudoOSD; }
+	COLORREF GetTextColor() const { return m_TextColor; }
+	int GetOpacity() const { return m_Opacity; }
+	int GetFadeTime() const { return m_FadeTime; }
+	ChannelChangeType GetChannelChangeType() const { return m_ChannelChangeType; }
+	bool GetLayeredWindow() const;
+	void OnDwmCompositionChanged();
+	bool IsNotificationBarEnabled() const { return m_fEnableNotificationBar; }
+	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
+	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }
+	bool IsNotifyEnabled(unsigned int Type) const;
+	const LOGFONT *GetDisplayMenuFont() const { return &m_DisplayMenuFont; }
+	bool IsDisplayMenuFontAutoSize() const { return m_fDisplayMenuFontAutoSize; }
+
 private:
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+	void EnableNotify(unsigned int Type,bool fEnabled);
+
 	bool m_fShowOSD;
 	bool m_fPseudoOSD;
 	COLORREF m_TextColor;
@@ -37,37 +70,6 @@ private:
 	LOGFONT m_DisplayMenuFont;
 	LOGFONT m_CurDisplayMenuFont;
 	bool m_fDisplayMenuFontAutoSize;
-
-	void EnableNotify(unsigned int Type,bool fEnabled);
-	static COSDOptions *GetThis(HWND hDlg);
-
-public:
-	enum {
-		NOTIFY_EVENTNAME	=0x00000001,
-		NOTIFY_ECMERROR		=0x00000002
-	};
-
-	COSDOptions();
-	~COSDOptions();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
-// COSDOptions
-	bool GetShowOSD() const { return m_fShowOSD; }
-	bool GetPseudoOSD() const { return m_fPseudoOSD; }
-	COLORREF GetTextColor() const { return m_TextColor; }
-	int GetOpacity() const { return m_Opacity; }
-	int GetFadeTime() const { return m_FadeTime; }
-	ChannelChangeType GetChannelChangeType() const { return m_ChannelChangeType; }
-	bool GetLayeredWindow() const;
-	void OnDwmCompositionChanged();
-	bool IsNotificationBarEnabled() const { return m_fEnableNotificationBar; }
-	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
-	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }
-	bool IsNotifyEnabled(unsigned int Type) const;
-	const LOGFONT *GetDisplayMenuFont() const { return &m_DisplayMenuFont; }
-	bool IsDisplayMenuFontAutoSize() const { return m_fDisplayMenuFontAutoSize; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

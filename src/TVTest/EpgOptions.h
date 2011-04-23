@@ -66,9 +66,11 @@ private:
 	LOGFONT m_EventInfoFont;
 	LOGFONT m_CurEventInfoFont;
 
+// CBasicDialog
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
 	bool GetEpgFileFullPath(LPTSTR pszFileName);
 	static DWORD WINAPI LoadThread(LPVOID lpParameter);
-	static CEpgOptions *GetThis(HWND hDlg);
 
 public:
 	CEpgOptions(CCoreEngine *pCoreEngine,CLogoManager *pLogoManager);
@@ -76,6 +78,7 @@ public:
 	void Finalize();
 	bool Read(CSettings *pSettings);
 	bool Write(CSettings *pSettings) const;
+	bool Create(HWND hwndOwner);
 	bool LoadEpgFile(CEpgProgramList *pEpgList);
 	bool AsyncLoadEpgFile(CEpgProgramList *pEpgList,CEpgFileLoadEventHandler *pEventHandler=NULL);
 	bool SaveEpgFile(CEpgProgramList *pEpgList);
@@ -88,7 +91,6 @@ public:
 	bool LoadLogoFile();
 	bool SaveLogoFile();
 	const LOGFONT *GetEventInfoFont() const { return &m_EventInfoFont; }
-	static INT_PTR CALLBACK DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 
