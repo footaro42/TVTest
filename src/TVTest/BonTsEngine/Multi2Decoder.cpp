@@ -246,7 +246,6 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 		case 3: p[2] ^= Remain[2];
 		case 2: p[1] ^= Remain[1];
 		case 1: p[0] ^= Remain[0];
-		default: __assume(0);
 		}
 	}
 
@@ -621,7 +620,6 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 		case 3: p[2] ^= Remain[2];
 		case 2: p[1] ^= Remain[1];
 		case 1: p[0] ^= Remain[0];
-		default: __assume(0);
 		}
 	}
 

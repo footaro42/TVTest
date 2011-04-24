@@ -1,11 +1,11 @@
 
 
-    TVTest ver.0.7.18 ソース
+    TVTest ver.0.7.18r3 ソース
 
 
 ◆ ファイル構成
 
-  ・TVTest_0.7.18_Src.zip    ソースファイル
+  ・TVTest_0.7.18r3_Src.zip  ソースファイル
   ・TVTest_SDK_110123.zip    プラグイン開発用 SDK
 
 
