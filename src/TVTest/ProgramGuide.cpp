@@ -14,10 +14,6 @@ static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
 
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL 0x020E
-#endif
-
 
 #define TITLE_TEXT TEXT("EPG番組表")
 
@@ -39,6 +35,9 @@ static char THIS_FILE[]=__FILE__;
 #define PROGRAM_GUIDE_ICON_MARGIN_RIGHT		0
 #define PROGRAM_GUIDE_ICON_MARGIN_TOP		1
 #define PROGRAM_GUIDE_ICON_MARGIN			1
+
+#define HEADER_SHADOW_HEIGHT	8
+#define TIMEBAR_SHADOW_WIDTH	6
 
 // メニューの位置
 #define MENU_DATE	0
@@ -939,6 +938,7 @@ CProgramGuide::CProgramGuide()
 	, m_hDragCursor1(NULL)
 	, m_hDragCursor2(NULL)
 	, m_VisibleEventIcons(((1<<(CEpgIcons::ICON_LAST+1))-1)^CEpgIcons::IconFlag(CEpgIcons::ICON_PAY))
+	, m_fBarShadow(false)
 	, m_EventInfoPopupManager(&m_EventInfoPopup)
 	, m_EventInfoPopupHandler(this)
 	, m_fShowToolTip(true)
@@ -1434,8 +1434,8 @@ void CProgramGuide::DrawDayHeader(int Day,HDC hdc,const RECT &Rect) const
 	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_TitleFont);
 	COLORREF OldTextColor=::SetTextColor(hdc,m_ColorList[COLOR_CHANNELNAMETEXT]);
 	TCHAR szText[64];
-	::wsprintf(szText,TEXT("%d/%d(%s)"),
-			   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek));
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%d/%d(%s)"),
+					  st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek));
 	RECT rc=Rect;
 	rc.left+=HEADER_MARGIN_LEFT;
 	rc.right-=HEADER_MARGIN_RIGHT;
@@ -1509,10 +1509,10 @@ void CProgramGuide::DrawTimeBar(HDC hdc,const RECT &Rect,bool fRight)
 			GetCurrentTimeRange(&st,NULL);
 			if (i>0)
 				OffsetSystemTime(&st,(LONGLONG)i*(1000*60*60));
-			::wsprintf(szText,TEXT("%d/%d(%s) %d時"),
-					   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),Hour);
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("%d/%d(%s) %d時"),
+							  st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),Hour);
 		} else {
-			::wsprintf(szText,TEXT("%d"),Hour);
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("%d"),Hour);
 		}
 		::TextOut(hdc,rc.right-4,rc.top+4,szText,lstrlen(szText));
 		rc.top=rc.bottom;
@@ -1742,6 +1742,25 @@ void CProgramGuide::Draw(HDC hdc,const RECT &PaintRect)
 	}
 
 	::SetBkMode(hdc,OldBkMode);
+
+	if (m_fBarShadow) {
+		rc.left=rcGuide.left;
+		rc.top=rcGuide.top;
+		rc.right=rcGuide.right;
+		rc.bottom=min(rc.top+HEADER_SHADOW_HEIGHT,rcGuide.bottom);
+		DrawUtil::FillGradient(hdc,&rc,DrawUtil::RGBA(0,0,0,80),DrawUtil::RGBA(0,0,0,0),
+							   DrawUtil::DIRECTION_VERT);
+		rc.top=rcGuide.top;
+		rc.bottom=rcGuide.bottom;
+		rc.left=rcGuide.left;
+		rc.right=min(rc.left+TIMEBAR_SHADOW_WIDTH,rcGuide.right);
+		DrawUtil::FillGradient(hdc,&rc,DrawUtil::RGBA(0,0,0,64),DrawUtil::RGBA(0,0,0,0),
+							   DrawUtil::DIRECTION_HORZ);
+		rc.right=rcGuide.right;
+		rc.left=max(rc.right-TIMEBAR_SHADOW_WIDTH,rcGuide.left);
+		DrawUtil::FillGradient(hdc,&rc,DrawUtil::RGBA(0,0,0,0),DrawUtil::RGBA(0,0,0,48),
+							   DrawUtil::DIRECTION_HORZ);
+	}
 }
 
 
@@ -1772,16 +1791,16 @@ void CProgramGuide::GetProgramGuideRect(RECT *pRect) const
 void CProgramGuide::Scroll(int XScroll,int YScroll)
 {
 	POINT Pos=m_ScrollPos;
-	RECT rc;
+	RECT rcGuide;
 	SCROLLINFO si;
 	int XScrollSize=0,YScrollSize=0;
 
-	GetProgramGuideRect(&rc);
+	GetProgramGuideRect(&rcGuide);
 	si.cbSize=sizeof(SCROLLINFO);
 	si.fMask=SIF_POS;
 	if (XScroll!=0) {
 		int TotalWidth=(int)m_EventLayoutList.Length()*(m_ItemWidth+m_ItemMargin*2);
-		int XPage=max(rc.right-rc.left,0);
+		int XPage=max(rcGuide.right-rcGuide.left,0);
 
 		Pos.x=m_ScrollPos.x+XScroll;
 		if (Pos.x<0)
@@ -1794,7 +1813,7 @@ void CProgramGuide::Scroll(int XScroll,int YScroll)
 	}
 	if (YScroll!=0) {
 		int TotalLines=m_Hours*m_LinesPerHour;
-		int YPage=(rc.bottom-rc.top)/(m_FontHeight+m_LineMargin);
+		int YPage=(rcGuide.bottom-rcGuide.top)/(m_FontHeight+m_LineMargin);
 
 		Pos.y=m_ScrollPos.y+YScroll;
 		if (Pos.y<0)
@@ -1805,29 +1824,64 @@ void CProgramGuide::Scroll(int XScroll,int YScroll)
 		::SetScrollInfo(m_hwnd,SB_VERT,&si,TRUE);
 		YScrollSize=(m_ScrollPos.y-Pos.y)*(m_FontHeight+m_LineMargin);
 	}
-	if (abs(YScrollSize)<rc.bottom-rc.top && abs(XScrollSize)<rc.right-rc.left) {
-		::ScrollWindowEx(m_hwnd,XScrollSize,YScrollSize,&rc,&rc,NULL,NULL,SW_INVALIDATE);
-		if (XScrollSize!=0) {
-			RECT rcHeader;
 
-			::SetRect(&rcHeader,rc.left,0,rc.right,rc.top);
-			if (m_ListMode==LIST_WEEK)
-				rcHeader.top+=m_HeaderHeight;
-			::ScrollWindowEx(m_hwnd,XScrollSize,0,&rcHeader,&rcHeader,NULL,NULL,SW_INVALIDATE);
+	m_ScrollPos=Pos;
+
+	if (!CBufferedPaint::IsSupported()) {
+		RECT rcClip=rcGuide;
+		if (m_fBarShadow) {
+			rcClip.top+=HEADER_SHADOW_HEIGHT;
+			rcClip.left+=TIMEBAR_SHADOW_WIDTH;
+			rcClip.right-=TIMEBAR_SHADOW_WIDTH;
 		}
-		if (YScrollSize!=0) {
-			RECT rcTime;
+		if (rcClip.right>rcClip.left && rcClip.bottom>rcClip.top
+				&& abs(YScrollSize)<rcClip.bottom-rcClip.top
+				&& abs(XScrollSize)<rcClip.right-rcClip.left) {
+			::ScrollWindowEx(m_hwnd,XScrollSize,YScrollSize,&rcGuide,&rcClip,
+							 NULL,NULL,SW_INVALIDATE);
 
-			::SetRect(&rcTime,0,rc.top,rc.left,rc.bottom);
-			::ScrollWindowEx(m_hwnd,0,YScrollSize,&rcTime,&rcTime,NULL,NULL,SW_INVALIDATE);
-			rcTime.left=rc.right;
-			rcTime.right=rcTime.left+m_TimeBarWidth;
-			::ScrollWindowEx(m_hwnd,0,YScrollSize,&rcTime,&rcTime,NULL,NULL,SW_INVALIDATE);
+			if (m_fBarShadow) {
+				RECT rc;
+				rc.left=rcGuide.left;
+				rc.top=rcGuide.top;
+				rc.right=rcGuide.right;
+				rc.bottom=rcClip.top;
+				::InvalidateRect(m_hwnd,&rc,FALSE);
+				rc.top=rcGuide.top;
+				rc.bottom=rcGuide.bottom;
+				rc.left=rcGuide.left;
+				rc.right=rcClip.left;
+				::InvalidateRect(m_hwnd,&rc,FALSE);
+				rc.left=rcClip.right;
+				rc.right=rcGuide.right;
+				::InvalidateRect(m_hwnd,&rc,FALSE);
+			}
+
+			if (XScrollSize!=0) {
+				RECT rcHeader;
+
+				::SetRect(&rcHeader,rcGuide.left,0,rcGuide.right,rcGuide.top);
+				if (m_ListMode==LIST_WEEK)
+					rcHeader.top+=m_HeaderHeight;
+				::ScrollWindowEx(m_hwnd,XScrollSize,0,&rcHeader,&rcHeader,NULL,NULL,SW_INVALIDATE);
+			}
+
+			if (YScrollSize!=0) {
+				RECT rcTime;
+
+				::SetRect(&rcTime,0,rcGuide.top,rcGuide.left,rcGuide.bottom);
+				::ScrollWindowEx(m_hwnd,0,YScrollSize,&rcTime,&rcTime,NULL,NULL,SW_INVALIDATE);
+				rcTime.left=rcGuide.right;
+				rcTime.right=rcTime.left+m_TimeBarWidth;
+				::ScrollWindowEx(m_hwnd,0,YScrollSize,&rcTime,&rcTime,NULL,NULL,SW_INVALIDATE);
+			}
+		} else {
+			Invalidate();
 		}
 	} else {
 		Invalidate();
 	}
-	m_ScrollPos=Pos;
+
 	SetTooltip();
 }
 
@@ -1865,20 +1919,22 @@ void CProgramGuide::SetCaption()
 				GetCurrentTimeRange(&stFirst,&stLast);
 				if (m_ListMode==LIST_SERVICES) {
 					OffsetSystemTime(&stLast,-60*60*1000);
-					::wsprintf(szText,TITLE_TEXT TEXT(" - %s %d/%d(%s) %d時 ～ %d/%d(%s) %d時"),
-							   DayText[m_Day],stFirst.wMonth,stFirst.wDay,
-							   GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour,
-							   stLast.wMonth,stLast.wDay,
-							   GetDayOfWeekText(stLast.wDayOfWeek),stLast.wHour);
+					StdUtil::snprintf(szText,lengthof(szText),
+						TITLE_TEXT TEXT(" - %s %d/%d(%s) %d時 ～ %d/%d(%s) %d時"),
+						DayText[m_Day],stFirst.wMonth,stFirst.wDay,
+						GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour,
+						stLast.wMonth,stLast.wDay,
+						GetDayOfWeekText(stLast.wDayOfWeek),stLast.wHour);
 				} else {
 					stLast=stFirst;
 					OffsetSystemTime(&stLast,6LL*24*60*60*1000);
-					::wsprintf(szText,TITLE_TEXT TEXT(" - %s %d/%d(%s) ～ %d/%d(%s)"),
-							   m_ServiceList.GetItem(m_WeekListService)->GetServiceName(),
-							   stFirst.wMonth,stFirst.wDay,
-							   GetDayOfWeekText(stFirst.wDayOfWeek),
-							   stLast.wMonth,stLast.wDay,
-							   GetDayOfWeekText(stLast.wDayOfWeek));
+					StdUtil::snprintf(szText,lengthof(szText),
+						TITLE_TEXT TEXT(" - %s %d/%d(%s) ～ %d/%d(%s)"),
+						m_ServiceList.GetItem(m_WeekListService)->GetServiceName(),
+						stFirst.wMonth,stFirst.wDay,
+						GetDayOfWeekText(stFirst.wDayOfWeek),
+						stLast.wMonth,stLast.wDay,
+						GetDayOfWeekText(stLast.wDayOfWeek));
 				}
 				m_pFrame->SetCaption(szText);
 			}
@@ -2062,8 +2118,7 @@ bool CProgramGuide::GetTuningSpaceName(int Space,LPTSTR pszName,int MaxName) con
 		if (p!=NULL) {
 			::lstrcpyn(pszName,p,MaxName);
 		} else {
-			::wnsprintf(pszName,MaxName-1,TEXT("チューニング空間 %d"),Space+1);
-			pszName[MaxName-1]='\0';
+			StdUtil::snprintf(pszName,MaxName,TEXT("チューニング空間 %d"),Space+1);
 		}
 	}
 	return true;
@@ -2491,12 +2546,15 @@ LRESULT CProgramGuide::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			if (m_pProgramCustomizer!=NULL)
 				m_pProgramCustomizer->Initialize();
 
+			m_fBarShadow=CBufferedPaint::IsSupported();
+
 			GetCurrentJST(&m_stCurTime);
 			::SetTimer(hwnd,TIMER_ID_UPDATECURTIME,1000,NULL);
 		}
 		return 0;
 
 	case WM_PAINT:
+#if 0
 		{
 			PAINTSTRUCT ps;
 
@@ -2504,6 +2562,9 @@ LRESULT CProgramGuide::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			Draw(ps.hdc,ps.rcPaint);
 			::EndPaint(hwnd,&ps);
 		}
+#else
+		OnPaint(hwnd);
+#endif
 		return 0;
 
 	case WM_SIZE:
@@ -2715,8 +2776,9 @@ LRESULT CProgramGuide::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				GetDayTimeRange(i-CM_PROGRAMGUIDE_TODAY,&st,NULL);
 				mii.cch=lengthof(szText);
 				::GetMenuItemInfo(hmenu,i,FALSE,&mii);
-				::wsprintf(szText+::lstrlen(szText),TEXT(" %d/%d(%s) %d時～"),
-						   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
+				int Length=::lstrlen(szText);
+				StdUtil::snprintf(szText+Length,lengthof(szText)-Length,TEXT(" %d/%d(%s) %d時～"),
+								  st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
 				::SetMenuItemInfo(hmenu,i,FALSE,&mii);
 			}
 
@@ -2790,7 +2852,7 @@ LRESULT CProgramGuide::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 				if (m_ToolList.NumTools()>0) {
 					::AppendMenu(hmenuPopup,MFT_SEPARATOR | MFS_ENABLED,0,NULL);
-					for (int i=0;i<m_ToolList.NumTools();i++) {
+					for (size_t i=0;i<m_ToolList.NumTools();i++) {
 						const CProgramGuideTool *pTool=m_ToolList.GetTool(i);
 
 						CopyToMenuText(pTool->GetName(),szText,lengthof(szText));
@@ -3445,10 +3507,10 @@ public:
 			TCHAR szText[256];
 
 			m_pProgramGuide->GetCurrentTimeRange(&stFirst,NULL);
-			::wsprintf(szText,TEXT("%s %d/%d(%s) %d時～"),
-					   DayText[m_pProgramGuide->GetViewDay()],
-					   stFirst.wMonth,stFirst.wDay,
-					   GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour);
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %d/%d(%s) %d時～"),
+							  DayText[m_pProgramGuide->GetViewDay()],
+							  stFirst.wMonth,stFirst.wDay,
+							  GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour);
 			DrawText(hdc,pRect,szText);
 		} else {
 			const ProgramGuide::CServiceInfo *pService=
@@ -3470,9 +3532,9 @@ public:
 					TCHAR szText[256];
 
 					m_pProgramGuide->GetDayTimeRange(i,&st,NULL);
-					::wsprintf(szText,TEXT("%s %d/%d(%s) %d時～"),
-							   DayText[i],
-							   st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
+					StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %d/%d(%s) %d時～"),
+									  DayText[i],
+									  st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
 					m_Menu.AppendItem(new CDropDownMenu::CItem(CM_PROGRAMGUIDE_TODAY+i,szText));
 				}
 				CurItem=CM_PROGRAMGUIDE_TODAY+m_pProgramGuide->GetViewDay();
@@ -3646,8 +3708,9 @@ bool CCalendarBar::SetButtons(const SYSTEMTIME *pDateList,int Days,int FirstComm
 		TCHAR szText[32];
 
 		tbb.idCommand=FirstCommand+i;
-		::wsprintf(szText,TEXT("%02d/%02d(%s)"),	// %02d にしているのは幅を揃えるため
-				   Date.wMonth,Date.wDay,GetDayOfWeekText(Date.wDayOfWeek));
+		StdUtil::snprintf(szText,lengthof(szText),
+						  TEXT("%02d/%02d(%s)"),	// %02d にしているのは幅を揃えるため
+						  Date.wMonth,Date.wDay,GetDayOfWeekText(Date.wDayOfWeek));
 		tbb.iString=reinterpret_cast<INT_PTR>(szText);
 		tbb.dwData=((DWORD)Date.wMonth<<16) | ((DWORD)Date.wDay<<8) | Date.wDayOfWeek;
 		if (i==0 && Days>1 && Date.wDay==pDateList[i+1].wDay)
@@ -3775,12 +3838,13 @@ bool CCalendarBar::OnNotify(LPARAM lParam,LRESULT *pResult)
 			if ((pnmtb->nmcd.lItemlParam&CALENDARBAR_FLAG_NOW)!=0) {
 				::lstrcpy(szText,TEXT("現在"));
 			} else {
-				::wsprintf(szText,TEXT("%d/%d(%s)"),
-						   (int)(pnmtb->nmcd.lItemlParam>>16),
-						   (int)((pnmtb->nmcd.lItemlParam>>8)&0xFF),
-						   GetDayOfWeekText(DayOfWeek));
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("%d/%d(%s)"),
+								  (int)(pnmtb->nmcd.lItemlParam>>16),
+								  (int)((pnmtb->nmcd.lItemlParam>>8)&0xFF),
+								  GetDayOfWeekText(DayOfWeek));
 			}
-			::DrawText(hdc,szText,-1,&pnmtb->nmcd.rc,DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+			::DrawText(hdc,szText,-1,&pnmtb->nmcd.rc,
+					   DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
 			::SetTextColor(hdc,OldTextColor);
 			::SetBkMode(hdc,OldBkMode);
@@ -4314,7 +4378,7 @@ bool CProgramGuideTool::Execute(const ProgramGuide::CServiceInfo *pServiceInfo,
 	SYSTEMTIME stStart,stEnd;
 	TCHAR szFileName[MAX_PATH],szCommand[2048];
 	LPCTSTR p;
-	LPTSTR q;
+	LPTSTR q,pEnd;
 
 	pEventInfo->GetStartTime(&stStart);
 	pEventInfo->GetEndTime(&stEnd);
@@ -4323,83 +4387,100 @@ bool CProgramGuideTool::Execute(const ProgramGuide::CServiceInfo *pServiceInfo,
 		::MessageBox(hwnd,TEXT("パスが長すぎます。"),NULL,MB_OK | MB_ICONEXCLAMATION);
 		return false;
 	}
-	while (*p==' ')
+
+	while (*p==_T(' '))
 		p++;
 	q=szCommand;
-	while (*p!='\0') {
-		if (*p=='%') {
+	pEnd=q+lengthof(szCommand);
+	while (*p!=_T('\0')) {
+		if (q>=pEnd) {
+			::MessageBox(hwnd,TEXT("コマンドが長すぎます。"),NULL,MB_OK | MB_ICONEXCLAMATION);
+			return false;
+		}
+
+		if (*p==_T('%')) {
 			p++;
-			if (*p=='%') {
-				*q++='%';
+			if (*p==_T('%')) {
+				*q++=_T('%');
 				p++;
 			} else {
 				TCHAR szKeyword[32];
 				int i;
 
-				for (i=0;*p!='%' && *p!='\0';i++) {
+				for (i=0;*p!=_T('%') && *p!=_T('\0');i++) {
 					if (i<lengthof(szKeyword)-1)
 						szKeyword[i]=*p;
 					p++;
 				}
-				if (*p=='%')
+				if (*p==_T('%'))
 					p++;
-				szKeyword[i]='\0';
+				szKeyword[i]=_T('\0');
 				if (::lstrcmpi(szKeyword,TEXT("tvpid"))==0) {
-					TCHAR sziEpgFileName[MAX_PATH+2];
+					TCHAR sziEpgFileName[MAX_PATH+11];
 
 					GetAppClass().GetAppDirectory(sziEpgFileName);
 					::PathAppend(sziEpgFileName,TEXT("iepg.tvpid"));
-					pServiceInfo->SaveiEpgFile(pEventInfo,sziEpgFileName,true);
+					if (!pServiceInfo->SaveiEpgFile(pEventInfo,sziEpgFileName,true)) {
+						::MessageBox(hwnd,TEXT("iEPGファイルの書き出しができません。"),NULL,
+									 MB_OK | MB_ICONEXCLAMATION);
+						return false;
+					}
+					size_t Length=::lstrlen(sziEpgFileName);
+					if (Length>=(size_t)(pEnd-q)) {
+						::MessageBox(hwnd,TEXT("コマンドが長すぎます。"),NULL,
+									 MB_OK | MB_ICONEXCLAMATION);
+						return false;
+					}
 					::lstrcpy(q,sziEpgFileName);
-					q+=::lstrlen(q);
+					q+=Length;
 				} else if (::lstrcmpi(szKeyword,TEXT("eid"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),pEventInfo->m_EventID);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),pEventInfo->m_EventID);
 				} else if (::lstrcmpi(szKeyword,TEXT("nid"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),pServiceInfo->GetNetworkID());
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),pServiceInfo->GetNetworkID());
 				} else if (::lstrcmpi(szKeyword,TEXT("tsid"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),pServiceInfo->GetTSID());
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),pServiceInfo->GetTSID());
 				} else if (::lstrcmpi(szKeyword,TEXT("sid"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),pServiceInfo->GetServiceID());
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),pServiceInfo->GetServiceID());
 				} else if (::lstrcmpi(szKeyword,TEXT("start-year"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stStart.wYear);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stStart.wYear);
 				} else if (::lstrcmpi(szKeyword,TEXT("start-month"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stStart.wMonth);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stStart.wMonth);
 				} else if (::lstrcmpi(szKeyword,TEXT("start-day"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stStart.wDay);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stStart.wDay);
 				} else if (::lstrcmpi(szKeyword,TEXT("start-hour"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stStart.wHour);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stStart.wHour);
 				} else if (::lstrcmpi(szKeyword,TEXT("start-minute"))==0) {
-					q+=::wsprintf(q,TEXT("%02d"),stStart.wMinute);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%02d"),stStart.wMinute);
 				} else if (::lstrcmpi(szKeyword,TEXT("end-year"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stEnd.wYear);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stEnd.wYear);
 				} else if (::lstrcmpi(szKeyword,TEXT("end-month"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stEnd.wMonth);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stEnd.wMonth);
 				} else if (::lstrcmpi(szKeyword,TEXT("end-day"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stEnd.wDay);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stEnd.wDay);
 				} else if (::lstrcmpi(szKeyword,TEXT("end-hour"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),stEnd.wHour);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),stEnd.wHour);
 				} else if (::lstrcmpi(szKeyword,TEXT("end-minute"))==0) {
-					q+=::wsprintf(q,TEXT("%02d"),stEnd.wMinute);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%02d"),stEnd.wMinute);
 				} else if (::lstrcmpi(szKeyword,TEXT("duration-sec"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),pEventInfo->m_DurationSec);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),pEventInfo->m_DurationSec);
 				} else if (::lstrcmpi(szKeyword,TEXT("duration-min"))==0) {
-					q+=::wsprintf(q,TEXT("%d"),(pEventInfo->m_DurationSec+59)/60);
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%d"),(pEventInfo->m_DurationSec+59)/60);
 				} else if (::lstrcmpi(szKeyword,TEXT("event-name"))==0) {
 					if (pEventInfo->GetEventName()!=NULL)
-						q+=::wsprintf(q,TEXT("%s"),pEventInfo->GetEventName());
+						q+=StdUtil::snprintf(q,pEnd-q,TEXT("%s"),pEventInfo->GetEventName());
 				} else if (::lstrcmpi(szKeyword,TEXT("service-name"))==0) {
-					q+=::wsprintf(q,TEXT("%s"),pServiceInfo->GetServiceName());
+					q+=StdUtil::snprintf(q,pEnd-q,TEXT("%s"),pServiceInfo->GetServiceName());
 				}
 			}
 		} else {
 #ifndef UNICODE
-			if (::IsDBCSLeadByteEx(CP_ACP,*p))
+			if (::IsDBCSLeadByteEx(CP_ACP,*p) && *(p+1)!='\0')
 				*q++=*p++;
 #endif
 			*q++=*p++;
 		}
 	}
-	*q='\0';
+	*q=_T('\0');
 	TRACE(TEXT("外部ツール実行 : %s, %s\n"),szFileName,szCommand);
 	return ::ShellExecute(NULL,NULL,szFileName,szCommand,NULL,SW_SHOWNORMAL)>=(HINSTANCE)32;
 }
@@ -4521,11 +4602,10 @@ INT_PTR CALLBACK CProgramGuideTool::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LP
 					for (int i=0;i<lengthof(ParameterList);i++) {
 						TCHAR szText[128];
 
-						::wsprintf(szText,TEXT("%s (%s)"),
-								   ParameterList[i].pszParameter,
-								   ParameterList[i].pszText);
-						::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED,i+1,
-									 szText);
+						StdUtil::snprintf(szText,lengthof(szText),TEXT("%s (%s)"),
+										  ParameterList[i].pszParameter,
+										  ParameterList[i].pszText);
+						::AppendMenu(hmenu,MF_STRING | MF_ENABLED,i+1,szText);
 					}
 					::GetWindowRect(::GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_PARAMETER),&rc);
 					Command=::TrackPopupMenu(hmenu,TPM_RETURNCMD,
@@ -4587,26 +4667,26 @@ bool CProgramGuideTool::GetCommandFileName(LPCTSTR *ppszCommand,LPTSTR pszFileNa
 
 	p=*ppszCommand;
 	q=pszFileName;
-	if (*p=='"') {
-		cDelimiter='"';
+	if (*p==_T('"')) {
+		cDelimiter=_T('"');
 		p++;
 	} else
-		cDelimiter=' ';
-	for (int i=0;*p!='\0' && *p!=cDelimiter;i++) {
+		cDelimiter=_T(' ');
+	for (int i=0;*p!=_T('\0') && *p!=cDelimiter;i++) {
 #ifndef UNICODE
-		if (IsDBCSLeadByteEx(CP_ACP,*p) && *(p+1)!='\0') {
+		if (IsDBCSLeadByteEx(CP_ACP,*p) && *(p+1)!=_T('\0')) {
 			*q++=*p++;
 			i++;
 		}
 #endif
 		if (i>=MaxFileName-1) {
-			pszFileName[0]='\0';
+			pszFileName[0]=_T('\0');
 			return false;
 		}
 		*q++=*p++;
 	}
-	*q='\0';
-	if (*p=='"')
+	*q=_T('\0');
+	if (*p==_T('"'))
 		p++;
 	*ppszCommand=p;
 	return true;
@@ -4637,7 +4717,7 @@ CProgramGuideToolList &CProgramGuideToolList::operator=(const CProgramGuideToolL
 	if (&Src!=this) {
 		Clear();
 		if (Src.m_ToolList.size()>0) {
-			m_ToolList.reserve(Src.m_ToolList.size());
+			m_ToolList.resize(Src.m_ToolList.size());
 			for (size_t i=0;i<Src.m_ToolList.size();i++)
 				m_ToolList[i]=new CProgramGuideTool(*Src.m_ToolList[i]);
 		}
@@ -4663,17 +4743,17 @@ bool CProgramGuideToolList::Add(CProgramGuideTool *pTool)
 }
 
 
-CProgramGuideTool *CProgramGuideToolList::GetTool(int Index)
+CProgramGuideTool *CProgramGuideToolList::GetTool(size_t Index)
 {
-	if (Index<0 || (size_t)Index>=m_ToolList.size())
+	if (Index>=m_ToolList.size())
 		return NULL;
 	return m_ToolList[Index];
 }
 
 
-const CProgramGuideTool *CProgramGuideToolList::GetTool(int Index) const
+const CProgramGuideTool *CProgramGuideToolList::GetTool(size_t Index) const
 {
-	if (Index<0 || (size_t)Index>=m_ToolList.size())
+	if (Index>=m_ToolList.size())
 		return NULL;
 	return m_ToolList[Index];
 }

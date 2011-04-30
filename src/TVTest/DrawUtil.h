@@ -4,6 +4,18 @@
 
 namespace DrawUtil {
 
+struct RGBA {
+	BYTE Red;
+	BYTE Green;
+	BYTE Blue;
+	BYTE Alpha;
+
+	RGBA() : Red(0), Green(0), Blue(0), Alpha(0) {}
+	RGBA(BYTE r,BYTE g,BYTE b,BYTE a=255) : Red(r), Green(g), Blue(b), Alpha(a) {}
+	RGBA(COLORREF c) : Red(GetRValue(c)), Green(GetGValue(c)), Blue(GetBValue(c)), Alpha(255) {}
+	COLORREF GetCOLORREF() const { return RGB(Red,Green,Blue); }
+};
+
 // ìhÇËÇ¬Ç‘ÇµÇÃï˚å¸
 enum FillDirection {
 	DIRECTION_HORZ,			// êÖïΩï˚å¸
@@ -14,6 +26,8 @@ enum FillDirection {
 
 bool Fill(HDC hdc,const RECT *pRect,COLORREF Color);
 bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
+				  FillDirection Direction=DIRECTION_HORZ);
+bool FillGradient(HDC hdc,const RECT *pRect,const RGBA &Color1,const RGBA &Color2,
 				  FillDirection Direction=DIRECTION_HORZ);
 bool FillGlossyGradient(HDC hdc,const RECT *pRect,
 						COLORREF Color1,COLORREF Color2,

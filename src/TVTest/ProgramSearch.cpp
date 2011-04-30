@@ -60,7 +60,6 @@ CProgramSearch::~CProgramSearch()
 {
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pSearch=NULL;
-	m_History.DeleteAll();
 }
 
 
@@ -86,24 +85,24 @@ bool CProgramSearch::SetKeywordHistory(const LPTSTR *pKeywordList,int NumKeyword
 {
 	if (pKeywordList==NULL)
 		return false;
-	m_History.DeleteAll();
+	m_History.clear();
 	for (int i=0;i<NumKeywords;i++)
-		m_History.Add(DuplicateString(pKeywordList[i]));
+		m_History.push_back(CDynamicString(pKeywordList[i]));
 	return true;
 }
 
 
 int CProgramSearch::GetKeywordHistoryCount() const
 {
-	return m_History.Length();
+	return (int)m_History.size();
 }
 
 
 LPCTSTR CProgramSearch::GetKeywordHistory(int Index) const
 {
-	if (Index<0 || Index>=m_History.Length())
+	if (Index<0 || (size_t)Index>=m_History.size())
 		return NULL;
-	return m_History[Index];
+	return m_History[Index].Get();
 }
 
 
@@ -148,8 +147,8 @@ INT_PTR CProgramSearch::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		AddControl(IDC_PROGRAMSEARCH_INFO,ALIGN_HORZ_BOTTOM);
 
 		DlgComboBox_LimitText(hDlg,IDC_PROGRAMSEARCH_KEYWORD,MAX_KEYWORD_LENGTH-1);
-		for (int i=0;i<m_History.Length();i++)
-			DlgComboBox_AddString(hDlg,IDC_PROGRAMSEARCH_KEYWORD,m_History[i]);
+		for (size_t i=0;i<m_History.size();i++)
+			DlgComboBox_AddString(hDlg,IDC_PROGRAMSEARCH_KEYWORD,m_History[i].Get());
 		{
 			HWND hwndEdit=::GetTopWindow(::GetDlgItem(hDlg,IDC_PROGRAMSEARCH_KEYWORD));
 			m_pOldEditProc=SubclassWindow(hwndEdit,EditProc);
@@ -228,9 +227,10 @@ INT_PTR CProgramSearch::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					::SetCursor(hcurOld);
 
 					TCHAR szStatus[MAX_KEYWORD_LENGTH+64];
-					::wsprintf(szStatus,TEXT("%s ‚Éˆê’v‚·‚é”Ô‘g %d Œ (%d.%02d •b)"),
-							   szKeyword,ListView_GetItemCount(::GetDlgItem(hDlg,IDC_PROGRAMSEARCH_RESULT)),
-							   SearchTime/1000,SearchTime/10%100);
+					StdUtil::snprintf(szStatus,lengthof(szStatus),
+									  TEXT("%s ‚Éˆê’v‚·‚é”Ô‘g %d Œ (%d.%02d •b)"),
+									  szKeyword,ListView_GetItemCount(::GetDlgItem(hDlg,IDC_PROGRAMSEARCH_RESULT)),
+									  SearchTime/1000,SearchTime/10%100);
 					::SetDlgItemText(hDlg,IDC_PROGRAMSEARCH_STATUS,szStatus);
 				}
 			}
@@ -353,12 +353,12 @@ INT_PTR CProgramSearch::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			HWND hwndComboBox=::GetDlgItem(hDlg,IDC_PROGRAMSEARCH_KEYWORD);
 			int Count=ComboBox_GetCount(hwndComboBox);
 
-			m_History.DeleteAll();
+			m_History.clear();
 			for (int i=0;i<Count;i++) {
 				TCHAR szKeyword[MAX_KEYWORD_LENGTH];
 
 				ComboBox_GetLBText(hwndComboBox,i,szKeyword);
-				m_History.Add(DuplicateString(szKeyword));
+				m_History.push_back(CDynamicString(szKeyword));
 			}
 		}
 		{
@@ -422,11 +422,11 @@ bool CProgramSearch::AddSearchResult(const CEventInfoData *pEventInfo,LPCTSTR ps
 	ListView_InsertItem(hwndList,&lvi);
 	SYSTEMTIME stEnd;
 	pEventInfo->GetEndTime(&stEnd);
-	::wsprintf(szText,TEXT("%02d/%02d(%s) %02d:%02d`%02d:%02d"),
-			   pEventInfo->m_stStartTime.wMonth,pEventInfo->m_stStartTime.wDay,
-			   GetDayOfWeekText(pEventInfo->m_stStartTime.wDayOfWeek),
-			   pEventInfo->m_stStartTime.wHour,pEventInfo->m_stStartTime.wMinute,
-			   stEnd.wHour,stEnd.wMinute);
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d/%02d(%s) %02d:%02d`%02d:%02d"),
+					  pEventInfo->m_stStartTime.wMonth,pEventInfo->m_stStartTime.wDay,
+					  GetDayOfWeekText(pEventInfo->m_stStartTime.wDayOfWeek),
+					  pEventInfo->m_stStartTime.wHour,pEventInfo->m_stStartTime.wMinute,
+					  stEnd.wHour,stEnd.wMinute);
 	lvi.mask=LVIF_TEXT;
 	lvi.iSubItem=1;
 	//lvi.pszText=szText;
@@ -479,19 +479,18 @@ int CProgramSearch::FormatEventTimeText(const CEventInfoData *pEventInfo,LPTSTR 
 	TCHAR szEndTime[16];
 	SYSTEMTIME stEnd;
 	if (pEventInfo->m_DurationSec>0 && pEventInfo->GetEndTime(&stEnd))
-		::wsprintf(szEndTime,TEXT("`%d:%02d"),stEnd.wHour,stEnd.wMinute);
+		StdUtil::snprintf(szEndTime,lengthof(szEndTime),
+						  TEXT("`%d:%02d"),stEnd.wHour,stEnd.wMinute);
 	else
 		szEndTime[0]='\0';
-	int Length=::wnsprintf(pszText,MaxLength-1,TEXT("%d/%d/%d(%s) %d:%02d%s\r\n"),
-			pEventInfo->m_stStartTime.wYear,
-			pEventInfo->m_stStartTime.wMonth,
-			pEventInfo->m_stStartTime.wDay,
-			GetDayOfWeekText(pEventInfo->m_stStartTime.wDayOfWeek),
-			pEventInfo->m_stStartTime.wHour,
-			pEventInfo->m_stStartTime.wMinute,
-			szEndTime);
-	pszText[MaxLength-1]='\0';
-	return Length;
+	return StdUtil::snprintf(pszText,MaxLength,TEXT("%d/%d/%d(%s) %d:%02d%s\r\n"),
+							 pEventInfo->m_stStartTime.wYear,
+							 pEventInfo->m_stStartTime.wMonth,
+							 pEventInfo->m_stStartTime.wDay,
+							 GetDayOfWeekText(pEventInfo->m_stStartTime.wDayOfWeek),
+							 pEventInfo->m_stStartTime.wHour,
+							 pEventInfo->m_stStartTime.wMinute,
+							 szEndTime);
 }
 
 
@@ -502,15 +501,14 @@ int CProgramSearch::FormatEventInfoText(const CEventInfoData *pEventInfo,LPTSTR 
 		return 0;
 	}
 
-	int Length=::wnsprintf(pszText,MaxLength-1,
-			TEXT("%s\r\n\r\n%s%s%s%s"),
-			NullToEmptyString(pEventInfo->GetEventName()),
-			NullToEmptyString(pEventInfo->GetEventText()),
-			pEventInfo->GetEventText()!=NULL?TEXT("\r\n\r\n"):TEXT(""),
-			NullToEmptyString(pEventInfo->GetEventExtText()),
-			pEventInfo->GetEventExtText()!=NULL?TEXT("\r\n\r\n"):TEXT(""));
-	pszText[MaxLength-1]='\0';
-	return Length;
+	return StdUtil::snprintf(
+		pszText,MaxLength,
+		TEXT("%s\r\n\r\n%s%s%s%s"),
+		NullToEmptyString(pEventInfo->GetEventName()),
+		NullToEmptyString(pEventInfo->GetEventText()),
+		pEventInfo->GetEventText()!=NULL?TEXT("\r\n\r\n"):TEXT(""),
+		NullToEmptyString(pEventInfo->GetEventExtText()),
+		pEventInfo->GetEventExtText()!=NULL?TEXT("\r\n\r\n"):TEXT(""));
 }
 
 

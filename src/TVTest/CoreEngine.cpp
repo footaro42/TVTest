@@ -12,8 +12,7 @@ static char THIS_FILE[]=__FILE__;
 
 
 CCoreEngine::CCoreEngine()
-	: m_fFileMode(false)
-	, m_hDriverLib(NULL)
+	: m_hDriverLib(NULL)
 	, m_DriverType(DRIVER_UNKNOWN)
 	, m_fDescramble(true)
 	, m_CardReaderType(CARDREADER_SCARD)
@@ -147,7 +146,8 @@ bool CCoreEngine::LoadDriver()
 		int ErrorCode=::GetLastError();
 		TCHAR szText[MAX_PATH+64];
 
-		::wsprintf(szText,TEXT("\"%s\" が読み込めません。"),m_szDriverFileName);
+		StdUtil::snprintf(szText,lengthof(szText),
+						  TEXT("\"%s\" が読み込めません。"),m_szDriverFileName);
 		SetError(szText);
 		switch (ErrorCode) {
 		case ERROR_MOD_NOT_FOUND:
@@ -166,7 +166,7 @@ bool CCoreEngine::LoadDriver()
 			SetErrorAdvise(TEXT("このBonDriverに必要なランタイムがインストールされていない可能性があります。"));
 			break;
 		default:
-			::wsprintf(szText,TEXT("エラーコード: %d"),ErrorCode);
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("エラーコード: %d"),ErrorCode);
 			SetErrorAdvise(szText);
 		}
 		if (GetErrorText(ErrorCode,szText,lengthof(szText)))
@@ -194,7 +194,6 @@ bool CCoreEngine::OpenDriver()
 		return false;
 	if (m_DtvEngine.IsSrcFilterOpen())
 		return false;
-	m_fFileMode=false;
 	if (!m_DtvEngine.OpenSrcFilter_BonDriver(m_hDriverLib)) {
 		SetError(m_DtvEngine.GetLastErrorException());
 		return false;
@@ -202,9 +201,7 @@ bool CCoreEngine::OpenDriver()
 	LPCTSTR pszName=m_DtvEngine.m_BonSrcDecoder.GetTunerName();
 	m_DriverType=DRIVER_UNKNOWN;
 	if (pszName!=NULL) {
-		if (::lstrcmpi(pszName,TEXT("HDUS"))==0)
-			m_DriverType=DRIVER_HDUS;
-		else if (::_tcsncmp(pszName,TEXT("UDP/"),4)==0)
+		if (::_tcsncmp(pszName,TEXT("UDP/"),4)==0)
 			m_DriverType=DRIVER_UDP;
 		else if (::_tcsncmp(pszName,TEXT("TCP"),3)==0)
 			m_DriverType=DRIVER_TCP;
@@ -223,18 +220,6 @@ bool CCoreEngine::IsDriverOpen() const
 {
 	return m_DtvEngine.IsSrcFilterOpen();
 }
-
-
-/*
-bool CCoreEngine::OpenFile(LPCTSTR pszFileName)
-{
-	m_DtvEngine.ReleaseSrcFilter();
-	m_fFileMode=true;
-	if (!m_DtvEngine.OpenSrcFilter_File(pszFileName))
-		return false;
-	return true;
-}
-*/
 
 
 bool CCoreEngine::BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
@@ -618,18 +603,9 @@ DWORD CCoreEngine::UpdateStatistics()
 		m_ScramblePacketCount=ScrambleCount;
 		Updated|=STATISTIC_SCRAMBLEPACKETCOUNT;
 	}
-	float SignalLevel;
-	DWORD BitRate;
-	DWORD StreamRemain;
-	if (!m_fFileMode) {
-		SignalLevel=m_DtvEngine.m_BonSrcDecoder.GetSignalLevel();
-		BitRate=m_DtvEngine.m_BonSrcDecoder.GetBitRate();
-		StreamRemain=m_DtvEngine.m_BonSrcDecoder.GetStreamRemain();
-	} else {
-		SignalLevel=0.0;
-		BitRate=0;
-		StreamRemain=0;
-	}
+	float SignalLevel=m_DtvEngine.m_BonSrcDecoder.GetSignalLevel();
+	DWORD BitRate=m_DtvEngine.m_BonSrcDecoder.GetBitRate();
+	DWORD StreamRemain=m_DtvEngine.m_BonSrcDecoder.GetStreamRemain();
 	if (SignalLevel!=m_SignalLevel) {
 		m_SignalLevel=SignalLevel;
 		Updated|=STATISTIC_SIGNALLEVEL;

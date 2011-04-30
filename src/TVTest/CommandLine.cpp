@@ -342,16 +342,29 @@ bool CArgsParser::GetDurationValue(int *pValue) const
 
 
 
-CCommandLineParser::CCommandLineParser()
-	: m_fNoDescramble(false)
-	, m_fUseNetworkRemocon(false)
-	, m_UDPPort(1234)
+CCommandLineOptions::CCommandLineOptions()
+	: m_fNoDriver(false)
+	, m_fNoDescramble(false)
+	, m_fSingleTask(false)
+	, m_fStandby(false)
+	, m_fNoView(false)
+	, m_fNoDirectShow(false)
+	, m_fSilent(false)
+	, m_fInitialSettings(false)
+	, m_fSaveLog(false)
+	, m_fNoEpg(false)
+	, m_TvRockDID(-1)
+
 	, m_Channel(0)
 	, m_ControllerChannel(0)
 	, m_TuningSpace(-1)
 	, m_ServiceID(0)
 	, m_NetworkID(0)
 	, m_TransportStreamID(0)
+
+	, m_fUseNetworkRemocon(false)
+	, m_UDPPort(1234)
+
 	, m_fRecord(false)
 	, m_fRecordStop(false)
 	, m_RecordStartTime(FILETIME_NULL)
@@ -359,23 +372,20 @@ CCommandLineParser::CCommandLineParser()
 	, m_RecordDuration(0)
 	, m_fRecordCurServiceOnly(false)
 	, m_fExitOnRecordEnd(false)
+	, m_fRecordOnly(false)
+
 	, m_fFullscreen(false)
 	, m_fMinimize(false)
 	, m_fMaximize(false)
-	, m_fNoDriver(false)
-	, m_fStandby(false)
-	, m_fNoView(false)
-	, m_fNoDirectShow(false)
-	, m_fSilent(false)
-	, m_fNoPlugin(false)
-	, m_fSingleTask(false)
-	, m_fInitialSettings(false)
-	, m_fSaveLog(false)
-	, m_fRecordOnly(false)
-	, m_fNoEpg(false)
-	, m_TvRockDID(-1)
+	, m_WindowLeft(INVALID_WINDOW_POS)
+	, m_WindowTop(INVALID_WINDOW_POS)
+	, m_WindowWidth(0)
+	, m_WindowHeight(0)
+
 	, m_Volume(-1)
 	, m_fMute(false)
+
+	, m_fNoPlugin(false)
 {
 }
 
@@ -392,6 +402,10 @@ CCommandLineParser::CCommandLineParser()
 	/log			終了時にログを保存する
 	/max			最大化状態で起動
 	/min			最小化状態で起動
+	/posx			ウィンドウの左位置の指定
+	/posy			ウィンドウの上位置の指定
+	/width			ウィンドウの幅の指定
+	/height			ウィンドウの高さの指定
 	/mute			消音
 	/nd				スクランブル解除しない
 	/nid			ネットワークID
@@ -421,7 +435,7 @@ CCommandLineParser::CCommandLineParser()
 	/tsid			トランスポートストリームID
 	/volume			音量
 */
-void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
+void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 {
 	CArgsParser Args(pszCmdLine);
 
@@ -434,6 +448,7 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("d"),&m_DriverName)
 					&& !Args.GetOption(TEXT("f"),&m_fFullscreen)
 					&& !Args.GetOption(TEXT("fullscreen"),&m_fFullscreen)
+					&& !Args.GetOption(TEXT("height"),&m_WindowHeight)
 					&& !Args.GetOption(TEXT("ini"),&m_IniFileName)
 					&& !Args.GetOption(TEXT("init"),&m_fInitialSettings)
 					&& !Args.GetOption(TEXT("log"),&m_fSaveLog)
@@ -450,6 +465,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("nid"),&m_NetworkID)
 					&& !Args.GetOption(TEXT("p"),&m_UDPPort)
 					&& !Args.GetOption(TEXT("port"),&m_UDPPort)
+					&& !Args.GetOption(TEXT("posx"),&m_WindowLeft)
+					&& !Args.GetOption(TEXT("posy"),&m_WindowTop)
 					&& !Args.GetOption(TEXT("plugindir"),&m_PluginsDirectory)
 					&& !Args.GetOption(TEXT("pluginsdir"),&m_PluginsDirectory)
 					&& !Args.GetOption(TEXT("rec"),&m_fRecord)
@@ -467,7 +484,8 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("silent"),&m_fSilent)
 					&& !Args.GetOption(TEXT("standby"),&m_fStandby)
 					&& !Args.GetOption(TEXT("tsid"),&m_TransportStreamID)
-					&& !Args.GetOption(TEXT("volume"),&m_Volume)) {
+					&& !Args.GetOption(TEXT("volume"),&m_Volume)
+					&& !Args.GetOption(TEXT("width"),&m_WindowWidth)) {
 				if (Args.IsOption(TEXT("plugin-"))) {
 					if (Args.Next()) {
 						TCHAR szPlugin[MAX_PATH];
@@ -529,7 +547,7 @@ void CCommandLineParser::Parse(LPCWSTR pszCmdLine)
 }
 
 
-bool CCommandLineParser::IsChannelSpecified() const
+bool CCommandLineOptions::IsChannelSpecified() const
 {
 	return m_Channel>0 || m_ControllerChannel>0 || m_ServiceID>0
 		|| m_NetworkID>0 || m_TransportStreamID>0;

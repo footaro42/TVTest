@@ -379,7 +379,6 @@
     <ClCompile Include="PanelOptions.cpp" />
     <ClCompile Include="PlaybackOptions.cpp" />
     <ClCompile Include="Plugin.cpp" />
-    <ClCompile Include="PointerArray.cpp" />
     <ClCompile Include="ProgramGuide.cpp" />
     <ClCompile Include="ProgramGuideOptions.cpp" />
     <ClCompile Include="ProgramListPanel.cpp" />
@@ -522,7 +521,6 @@
     <ClInclude Include="PanelOptions.h" />
     <ClInclude Include="PlaybackOptions.h" />
     <ClInclude Include="Plugin.h" />
-    <ClInclude Include="PointerArray.h" />
     <ClInclude Include="ProgramGuide.h" />
     <ClInclude Include="ProgramGuideOptions.h" />
     <ClInclude Include="ProgramListPanel.h" />

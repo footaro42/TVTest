@@ -8,21 +8,22 @@
 class CMessageDialog
 {
 public:
-	CMessageDialog();
-	~CMessageDialog();
 	enum MessageType {
 		TYPE_INFO,
 		TYPE_WARNING,
 		TYPE_ERROR
 	};
+
+	CMessageDialog();
+	~CMessageDialog();
 	bool Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTSTR pszTitle=NULL,LPCTSTR pszSystemMessage=NULL,LPCTSTR pszCaption=NULL);
 
 private:
 	CRichEditUtil m_RichEditUtil;
-	LPTSTR m_pszText;
-	LPTSTR m_pszTitle;
-	LPTSTR m_pszSystemMessage;
-	LPTSTR m_pszCaption;
+	CDynamicString m_Text;
+	CDynamicString m_Title;
+	CDynamicString m_SystemMessage;
+	CDynamicString m_Caption;
 	MessageType m_MessageType;
 	HWND m_hDlg;
 

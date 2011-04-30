@@ -50,11 +50,12 @@ private:
 	public:
 		CPage *m_pWindow;
 		int m_ID;
-		LPTSTR m_pszTitle;
+		CDynamicString m_Title;
 		bool m_fVisible;
 		CWindowInfo(CPage *pWindow,int ID,LPCTSTR pszTitle);
 		~CWindowInfo();
 	};
+
 	CWindowInfo *m_pWindowList[MAX_WINDOWS];
 	int m_NumWindows;
 	int m_TabOrder[MAX_WINDOWS];

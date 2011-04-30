@@ -57,24 +57,24 @@ private:
 	public:
 		inline void SetHexData(const BYTE *pHexData);
 		inline void GetHexData(BYTE *pHexData) const;
+		DATKEY &operator^=(const DATKEY &Operand) {
+#ifndef WIN64
+			dwRight ^= Operand.dwRight;
+			dwLeft ^= Operand.dwLeft;
+#else
+			Data64 ^= Operand.Data64;
+#endif
+			return *this;
+		}
 
 		union {
-#if !defined(MULTI2_USE_INTRINSIC) || !defined(WIN64)
-			struct {
-				DWORD dwLeft, dwRight;
-			};
-#else
 			struct {
 				DWORD dwRight, dwLeft;
 			};
 			unsigned __int64 Data64;
-#endif
 			BYTE Data[8];
 		};
 	};
-
-	//static inline void DecryptBlock(DATKEY &Block, const SYSKEY &WorkKey);
-	//static inline void EncryptBlock(DATKEY &Block, const SYSKEY &WorkKey);
 
 	static inline void KeySchedule(SYSKEY &WorkKey, const SYSKEY &SysKey, DATKEY &DataKey);
 

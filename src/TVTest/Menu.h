@@ -2,10 +2,10 @@
 #define TVTEST_MENU_H
 
 
+#include <vector>
 #include "Accelerator.h"
 #include "ChannelList.h"
 #include "EpgProgramList.h"
-#include "PointerArray.h"
 #include "Theme.h"
 #include "LogoManager.h"
 #include "DrawUtil.h"
@@ -193,7 +193,7 @@ public:
 		CItem(int Command,LPCTSTR pszText);
 		virtual ~CItem();
 		int GetCommand() const { return m_Command; }
-		LPCTSTR GetText() const { return m_pszText; }
+		LPCTSTR GetText() const { return m_Text.Get(); }
 		bool SetText(LPCTSTR pszText);
 		bool IsSeparator() const { return m_Command<0; }
 		virtual int GetWidth(HDC hdc);
@@ -201,7 +201,7 @@ public:
 
 	protected:
 		int m_Command;
-		LPTSTR m_pszText;
+		CDynamicString m_Text;
 		int m_Width;
 	};
 
@@ -222,7 +222,7 @@ public:
 	bool GetPosition(RECT *pRect);
 
 private:
-	CPointerVector<CItem> m_ItemList;
+	std::vector<CItem*> m_ItemList;
 	HWND m_hwnd;
 	HWND m_hwndMessage;
 	MARGINS m_ItemMargin;

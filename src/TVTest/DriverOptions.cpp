@@ -127,21 +127,27 @@ CDriverSettingList::CDriverSettingList()
 }
 
 
+CDriverSettingList::CDriverSettingList(const CDriverSettingList &Src)
+{
+	*this=Src;
+}
+
+
 CDriverSettingList::~CDriverSettingList()
 {
 	Clear();
 }
 
 
-CDriverSettingList &CDriverSettingList::operator=(const CDriverSettingList &List)
+CDriverSettingList &CDriverSettingList::operator=(const CDriverSettingList &Src)
 {
-	if (&List!=this) {
-		int NumDrivers=List.NumDrivers();
-
-		m_SettingList.DeleteAll();
-		m_SettingList.Reserve(NumDrivers);
-		for (int i=0;i<NumDrivers;i++)
-			m_SettingList.Add(new CDriverSettings(*List.m_SettingList[i]));
+	if (&Src!=this) {
+		Clear();
+		if (Src.m_SettingList.size()>0) {
+			m_SettingList.resize(Src.m_SettingList.size());
+			for (size_t i=0;i<Src.m_SettingList.size();i++)
+				m_SettingList[i]=new CDriverSettings(*Src.m_SettingList[i]);
+		}
 	}
 	return *this;
 }
@@ -149,26 +155,34 @@ CDriverSettingList &CDriverSettingList::operator=(const CDriverSettingList &List
 
 void CDriverSettingList::Clear()
 {
-	m_SettingList.DeleteAll();
-	m_SettingList.Clear();
+	for (size_t i=0;i<m_SettingList.size();i++)
+		delete m_SettingList[i];
+	m_SettingList.clear();
 }
 
 
 bool CDriverSettingList::Add(CDriverSettings *pSettings)
 {
-	return m_SettingList.Add(pSettings);
+	if (pSettings==NULL)
+		return false;
+	m_SettingList.push_back(pSettings);
+	return true;
 }
 
 
-CDriverSettings *CDriverSettingList::GetDriverSettings(int Index)
+CDriverSettings *CDriverSettingList::GetDriverSettings(size_t Index)
 {
-	return m_SettingList.Get(Index);
+	if (Index>=m_SettingList.size())
+		return NULL;
+	return m_SettingList[Index];
 }
 
 
-const CDriverSettings *CDriverSettingList::GetDriverSettings(int Index) const
+const CDriverSettings *CDriverSettingList::GetDriverSettings(size_t Index) const
 {
-	return m_SettingList.Get(Index);
+	if (Index>=m_SettingList.size())
+		return NULL;
+	return m_SettingList[Index];
 }
 
 
@@ -176,9 +190,9 @@ int CDriverSettingList::Find(LPCTSTR pszFileName) const
 {
 	if (pszFileName==NULL)
 		return -1;
-	for (int i=0;i<m_SettingList.Length();i++) {
+	for (size_t i=0;i<m_SettingList.size();i++) {
 		if (::lstrcmpi(m_SettingList[i]->GetFileName(),pszFileName)==0)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -207,11 +221,12 @@ bool CDriverOptions::Load(LPCTSTR pszFileName)
 
 		if (Settings.Read(TEXT("DriverCount"),&NumDrivers) && NumDrivers>0) {
 			for (int i=0;i<NumDrivers;i++) {
-				TCHAR szName[32],szFileName[MAX_PATH];
+				TCHAR szName[64],szFileName[MAX_PATH];
 
 				::wsprintf(szName,TEXT("Driver%d_FileName"),i);
-				if (Settings.Read(szName,szFileName,lengthof(szFileName))
-						&& szFileName[0]!='\0') {
+				if (!Settings.Read(szName,szFileName,lengthof(szFileName)))
+					break;
+				if (szFileName[0]!='\0') {
 					CDriverSettings *pSettings=new CDriverSettings(szFileName);
 					int Value;
 
@@ -260,12 +275,12 @@ bool CDriverOptions::Save(LPCTSTR pszFileName) const
 	CSettings Settings;
 
 	if (Settings.Open(pszFileName,TEXT("DriverSettings"),CSettings::OPEN_WRITE)) {
-		int NumDrivers=m_SettingList.NumDrivers();
+		int NumDrivers=(int)m_SettingList.NumDrivers();
 
 		Settings.Write(TEXT("DriverCount"),NumDrivers);
 		for (int i=0;i<NumDrivers;i++) {
 			const CDriverSettings *pSettings=m_SettingList.GetDriverSettings(i);
-			TCHAR szName[32];
+			TCHAR szName[64];
 
 			::wsprintf(szName,TEXT("Driver%d_FileName"),i);
 			Settings.Write(szName,pSettings->GetFileName());
@@ -307,7 +322,8 @@ bool CDriverOptions::Save(LPCTSTR pszFileName) const
 bool CDriverOptions::Create(HWND hwndOwner)
 {
 	return CreateDialogWindow(hwndOwner,
-							  GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_OPTIONS_DRIVER));
+							  GetAppClass().GetResourceInstance(),
+							  MAKEINTRESOURCE(IDD_OPTIONS_DRIVER));
 }
 
 
@@ -357,7 +373,7 @@ bool CDriverOptions::GetInitialChannel(LPCTSTR pszFileName,ChannelInfo *pChannel
 
 bool CDriverOptions::SetLastChannel(LPCTSTR pszFileName,const ChannelInfo *pChannelInfo)
 {
-	if (pszFileName==NULL || pszFileName[0]=='\0' || pChannelInfo==NULL)
+	if (IsStringEmpty(pszFileName) || pChannelInfo==NULL)
 		return false;
 
 	int Index=m_SettingList.Find(pszFileName);

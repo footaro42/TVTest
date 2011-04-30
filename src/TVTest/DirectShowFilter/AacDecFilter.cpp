@@ -11,10 +11,16 @@ static char THIS_FILE[]=__FILE__;
 
 
 // 周波数(48kHz)
-#define FREQUENCY 48000
+static const int FREQUENCY = 48000;
+
+// AACのフレーム当たりのサンプル数
+static const int SAMPLES_PER_FRAME = 1024;
 
 // REFERENCE_TIMEの一秒
-#define REFERENCE_TIME_SECOND 10000000LL
+static const REFERENCE_TIME REFERENCE_TIME_SECOND = 10000000LL;
+
+// MediaSample用に確保するバッファ数
+static const int NUM_SAMPLE_BUFFERS = 4;
 
 // 5.1chダウンミックス設定
 /*
@@ -250,19 +256,23 @@ HRESULT CAacDecFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOCATOR_PR
 	CheckPointer(pAllocator, E_POINTER);
 	CheckPointer(pprop, E_POINTER);
 
-	// バッファは1個あればよい
-	if(!pprop->cBuffers)pprop->cBuffers = 1L;
+	if (pprop->cBuffers < NUM_SAMPLE_BUFFERS)
+		pprop->cBuffers = NUM_SAMPLE_BUFFERS;
 
-	// とりあえず1MB確保
-	if(pprop->cbBuffer < 0x100000L)pprop->cbBuffer = 0x100000L;
+	// フレーム当たりのサンプル数 * 16ビット * 5.1ch 分のバッファを確保する
+	static const long BufferSize = SAMPLES_PER_FRAME * 2 * 6;
+	if (pprop->cbBuffer < BufferSize)
+		pprop->cbBuffer = BufferSize;
 
 	// アロケータプロパティを設定しなおす
 	ALLOCATOR_PROPERTIES Actual;
 	HRESULT hr = pAllocator->SetProperties(pprop, &Actual);
-	if(FAILED(hr))return hr;
+	if (FAILED(hr))
+		return hr;
 
 	// 要求を受け入れられたか判定
-	if(Actual.cbBuffer < pprop->cbBuffer)return E_FAIL;
+	if (Actual.cBuffers < pprop->cBuffers || Actual.cbBuffer < pprop->cbBuffer)
+		return E_FAIL;
 
 	return S_OK;
 }
@@ -529,7 +539,7 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 		pwfx->nAvgBytesPerSec = pwfx->nSamplesPerSec * pwfx->nBlockAlign;
 		mt.SetSampleSize(pwfx->nBlockAlign);
 
-		hr = ReconnectOutput(dwSamples * pwfx->nBlockAlign, mt);
+		hr = ReconnectOutput(/*dwSamples*/SAMPLES_PER_FRAME * pwfx->nBlockAlign, mt);
 		if (FAILED(hr))
 			return;
 
@@ -936,7 +946,6 @@ void CAacDecFilter::OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame
 void CAacDecFilter::OutputSpdif()
 {
 	static const int PREAMBLE_SIZE = sizeof(WORD) * 4;
-	static const int SAMPLES_PER_FRAME = 1024;
 
 	const CAdtsFrame *pFrame = m_pAdtsFrame;
 
@@ -947,21 +956,20 @@ void CAacDecFilter::OutputSpdif()
 
 	HRESULT hr;
 
-	int FrameSize = pFrame->GetFrameLength();
+	const int FrameSize = pFrame->GetFrameLength();
 	int DataBurstSize = PREAMBLE_SIZE + FrameSize;
-	int PacketSize = SAMPLES_PER_FRAME * 4;
-	int BitRate = (int)((LONGLONG)FrameSize * 8LL * FREQUENCY/*pFrame->GetSamplingFreq()*/ / (LONGLONG)SAMPLES_PER_FRAME);
+	static const int PacketSize = SAMPLES_PER_FRAME * 4;
 	if (DataBurstSize > PacketSize) {
-		OutputLog(TEXT("ビットレートが不正です。(Frame size %d / Data-burst size %d / Packet size %d / Bitrate %d)\r\n"),
-				  FrameSize, DataBurstSize, PacketSize, BitRate);
+		OutputLog(TEXT("ビットレートが不正です。(Frame size %d / Data-burst size %d / Packet size %d)\r\n"),
+				  FrameSize, DataBurstSize, PacketSize);
 		return;
 	}
 
 #ifdef _DEBUG
 	static bool bFirst=true;
 	if (bFirst) {
-		OutputLog(TEXT("出力開始(Frame size %d / Data-burst size %d / Packet size %d / Bitrate %d)\r\n"),
-				  FrameSize, DataBurstSize, PacketSize, BitRate);
+		OutputLog(TEXT("出力開始(Frame size %d / Data-burst size %d / Packet size %d)\r\n"),
+				  FrameSize, DataBurstSize, PacketSize);
 		bFirst=false;
 	}
 #endif
@@ -1102,14 +1110,14 @@ HRESULT CAacDecFilter::ReconnectOutput(long BufferSize, const CMediaType &mt)
 				OutputLog(TEXT("IMemAllocatorのプロパティが取得できません。(%08x)\r\n"), hr);
 			} else {
 				if (mt != m_pOutput->CurrentMediaType()
-						|| Props.cBuffers < 4
+						|| Props.cBuffers < NUM_SAMPLE_BUFFERS
 						|| Props.cbBuffer < BufferSize) {
 					hr = S_OK;
-					if (Props.cBuffers < 4
+					if (Props.cBuffers < NUM_SAMPLE_BUFFERS
 							|| Props.cbBuffer < BufferSize) {
 						ALLOCATOR_PROPERTIES ActualProps;
 
-						Props.cBuffers = 4;
+						Props.cBuffers = NUM_SAMPLE_BUFFERS;
 						Props.cbBuffer = BufferSize * 3 / 2;
 						OutputLog(TEXT("バッファサイズを設定します。(%ld bytes)\r\n"), Props.cbBuffer);
 						if (SUCCEEDED(hr = m_pOutput->DeliverBeginFlush())
@@ -1117,8 +1125,8 @@ HRESULT CAacDecFilter::ReconnectOutput(long BufferSize, const CMediaType &mt)
 								&& SUCCEEDED(hr = pAllocator->Decommit())
 								&& SUCCEEDED(hr = pAllocator->SetProperties(&Props, &ActualProps))
 								&& SUCCEEDED(hr = pAllocator->Commit())) {
-							if (Props.cBuffers > ActualProps.cBuffers
-									|| Props.cbBuffer > ActualProps.cbBuffer) {
+							if (ActualProps.cBuffers < Props.cBuffers
+									|| ActualProps.cbBuffer < BufferSize) {
 								OutputLog(TEXT("バッファサイズの要求が受け付けられません。(%ld / %ld)\r\n"),
 										  ActualProps.cbBuffer, Props.cbBuffer);
 								hr = E_FAIL;

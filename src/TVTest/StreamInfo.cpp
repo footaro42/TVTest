@@ -16,12 +16,31 @@ static char THIS_FILE[]=__FILE__;
 
 CStreamInfo::CStreamInfo()
 	: m_pEventHandler(NULL)
+	, m_fCreateFirst(true)
 {
 }
 
 
 CStreamInfo::~CStreamInfo()
 {
+}
+
+
+bool CStreamInfo::Create(HWND hwndOwner)
+{
+	if (m_fCreateFirst) {
+		if (m_pEventHandler!=NULL)
+			m_pEventHandler->OnRestoreSettings();
+		m_fCreateFirst=false;
+	}
+
+	return CreateDialogWindow(hwndOwner,GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_STREAMINFO));
+}
+
+
+void CStreamInfo::SetEventHandler(CEventHandler *pHandler)
+{
+	m_pEventHandler=pHandler;
 }
 
 
@@ -81,12 +100,12 @@ INT_PTR CStreamInfo::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				p=pszText;
 				::GetDlgItemText(hDlg,IDC_STREAMINFO_STREAM,p,Length);
 				p+=::lstrlen(p);
-				*p++='\r';
-				*p++='\n';
+				*p++=_T('\r');
+				*p++=_T('\n');
 				::GetDlgItemText(hDlg,IDC_STREAMINFO_NETWORK,p,Length-(int)(p-pszText));
 				p+=::lstrlen(p);
-				*p++='\r';
-				*p++='\n';
+				*p++=_T('\r');
+				*p++=_T('\n');
 				GetTreeViewText(hwndTree,TreeView_GetChild(hwndTree,TreeView_GetRoot(hwndTree)),true,
 								p,Length-(int)(p-pszText));
 				CopyText(pszText);
@@ -221,10 +240,10 @@ void CStreamInfo::SetService()
 
 	WORD TSID=pAnalyzer->GetTransportStreamID();
 	if (TSID!=0) {
-		::wsprintf(szText,TEXT("TSID %#04x (%d)"),TSID,TSID);
+		Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("TSID 0x%04x (%d)"),TSID,TSID);
 		TCHAR szTsName[64];
 		if (pAnalyzer->GetTsName(szTsName,lengthof(szTsName))>0) {
-			::wsprintf(szText+::lstrlen(szText),TEXT(" %s"),szTsName);
+			StdUtil::snprintf(szText+Length,lengthof(szText)-Length,TEXT(" %s"),szTsName);
 		}
 	} else {
 		szText[0]='\0';
@@ -233,10 +252,10 @@ void CStreamInfo::SetService()
 
 	WORD NID=pAnalyzer->GetNetworkID();
 	if (NID!=0) {
-		Length=::wsprintf(szText,TEXT("NID %#04x (%d)"),NID,NID);
+		Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("NID 0x%04x (%d)"),NID,NID);
 		TCHAR szName[64];
 		if (pAnalyzer->GetNetworkName(szName,lengthof(szName))>0) {
-			::wsprintf(szText+Length,TEXT(" %s"),szName);
+			StdUtil::snprintf(szText+Length,lengthof(szText)-Length,TEXT(" %s"),szName);
 		}
 	} else {
 		szText[0]='\0';
@@ -270,57 +289,71 @@ void CStreamInfo::SetService()
 			tvis.hParent=hItem;
 			tvis.item.state=0;
 			tvis.item.cChildren=1;
-			Length=::wsprintf(szText,TEXT("サービス%d"),i+1);
+			Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("サービス%d"),i+1);
 			if (pServiceInfo->szServiceName[0]!='\0')
-				Length+=::wsprintf(szText+Length,TEXT(" (%s)"),pServiceInfo->szServiceName);
+				Length+=StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+										  TEXT(" (%s)"),pServiceInfo->szServiceName);
 			ServiceID=pServiceInfo->ServiceID;
-			Length+=::wsprintf(szText+Length,TEXT(" SID %#04x (%d)"),ServiceID,ServiceID);
+			Length+=StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+									  TEXT(" SID 0x%04x (%d)"),ServiceID,ServiceID);
 			if (pServiceInfo->ServiceType!=0xFF) {
-				::wsprintf(szText+Length,TEXT(" Type %#02x"),pServiceInfo->ServiceType);
+				StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+								  TEXT(" Type 0x%02x"),pServiceInfo->ServiceType);
 			}
 			tvis.item.pszText=szText;
 			tvis.hParent=TreeView_InsertItem(hwndTree,&tvis);
+
 			tvis.item.cChildren=0;
 			PID=pServiceInfo->PmtPID;
-			::wsprintf(szText,TEXT("PMT PID %#04x (%d)"),PID,PID);
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("PMT PID 0x%04x (%d)"),PID,PID);
 			TreeView_InsertItem(hwndTree,&tvis);
+
 			PID=pServiceInfo->VideoEs.PID;
 			if (PID!=CTsAnalyzer::PID_INVALID) {
 				BYTE StreamType=pServiceInfo->VideoStreamType;
-				::wsprintf(szText,TEXT("映像 PID %#04x (%d) Type %#02x (%s) / Component tag %#02x"),
+				StdUtil::snprintf(szText,lengthof(szText),
+					TEXT("映像 PID 0x%04x (%d) Type 0x%02x (%s) / Component tag 0x%02x"),
 					PID,PID,StreamType,GetStreamTypeText(StreamType),
 					pServiceInfo->VideoEs.ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
+
 			int NumAudioStreams=(int)pServiceInfo->AudioEsList.size();
 			for (j=0;j<NumAudioStreams;j++) {
 				PID=pServiceInfo->AudioEsList[j].PID;
-				::wsprintf(szText,TEXT("音声%d PID %#04x (%d) Component tag %#02x"),
-						   j+1,PID,PID,pServiceInfo->AudioEsList[j].ComponentTag);
+				StdUtil::snprintf(szText,lengthof(szText),
+								  TEXT("音声%d PID 0x%04x (%d) Component tag 0x%02x"),
+								  j+1,PID,PID,pServiceInfo->AudioEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
+
 			int NumCaptionStreams=(int)pServiceInfo->CaptionEsList.size();
 			for (j=0;j<NumCaptionStreams;j++) {
 				PID=pServiceInfo->CaptionEsList[j].PID;
-				::wsprintf(szText,TEXT("字幕%d PID %#04x (%d) Component tag %#02x"),
-						   j+1,PID,PID,pServiceInfo->CaptionEsList[j].ComponentTag);
+				StdUtil::snprintf(szText,lengthof(szText),
+								  TEXT("字幕%d PID 0x%04x (%d) Component tag 0x%02x"),
+								  j+1,PID,PID,pServiceInfo->CaptionEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
+
 			int NumDataStreams=(int)pServiceInfo->DataCarrouselEsList.size();
 			for (j=0;j<NumDataStreams;j++) {
 				PID=pServiceInfo->DataCarrouselEsList[j].PID;
-				::wsprintf(szText,TEXT("データ%d PID %#04x (%d) Component tag %#02x"),
-						   j+1,PID,PID,pServiceInfo->DataCarrouselEsList[j].ComponentTag);
+				StdUtil::snprintf(szText,lengthof(szText),
+								  TEXT("データ%d PID 0x%04x (%d) Component tag 0x%02x"),
+								  j+1,PID,PID,pServiceInfo->DataCarrouselEsList[j].ComponentTag);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
+
 			PID=pServiceInfo->PcrPID;
 			if (PID!=CTsAnalyzer::PID_INVALID) {
-				::wsprintf(szText,TEXT("PCR PID %#04x (%d)"),PID,PID);
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("PCR PID 0x%04x (%d)"),PID,PID);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
+
 			PID=pServiceInfo->EcmPID;
 			if (PID!=CTsAnalyzer::PID_INVALID) {
-				::wsprintf(szText,TEXT("ECM PID %#04x (%d)"),PID,PID);
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("ECM PID 0x%04x (%d)"),PID,PID);
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
 		}
@@ -346,15 +379,16 @@ void CStreamInfo::SetService()
 				tvis.item.state=0;
 				tvis.item.cChildren=0;
 				if (pServiceInfo->szServiceName[0]!='\0')
-					::lstrcpy(szText,pServiceInfo->szServiceName);
+					Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("%s"),pServiceInfo->szServiceName);
 				else
-					::wsprintf(szText,TEXT("サービス%d"),i+1);
-				::wsprintf(szText+::lstrlen(szText),TEXT(",%d,%d,%d,%d,%d,%d,%d"),
-						   pChannelInfo->GetSpace(),
-						   pChannelInfo->GetChannelIndex(),
-						   RemoteControlKeyID,
-						   i,
-						   pServiceInfo->ServiceID,NID,TSID);
+					Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("サービス%d"),i+1);
+				StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+								  TEXT(",%d,%d,%d,%d,%d,%d,%d"),
+								  pChannelInfo->GetSpace(),
+								  pChannelInfo->GetChannelIndex(),
+								  RemoteControlKeyID,
+								  i,
+								  pServiceInfo->ServiceID,NID,TSID);
 				tvis.item.pszText=szText;
 				TreeView_InsertItem(hwndTree,&tvis);
 			}
@@ -378,24 +412,24 @@ void CStreamInfo::SetService()
 				tvis.hParent=hItem;
 				tvis.item.state=0;
 				tvis.item.cChildren=1;
-				::wsprintf(szText,
-						   TEXT("TSID %#04x (%d) / エリア %s / ガードインターバル %s / 伝送モード %s"),
-						   Info.TransportStreamID,
-						   Info.TransportStreamID,
-						   GetAreaText(Info.AreaCode),
-						   Info.GuardInterval==0?TEXT("1/32"):
-						   Info.GuardInterval==1?TEXT("1/16"):
-						   Info.GuardInterval==2?TEXT("1/8"):
-						   Info.GuardInterval==3?TEXT("1/4"):TEXT("?"),
-						   Info.TransmissionMode==0?TEXT("Mode1"):
-						   Info.TransmissionMode==1?TEXT("Mode2"):
-						   Info.TransmissionMode==2?TEXT("Mode3"):TEXT("?"));
+				StdUtil::snprintf(szText,lengthof(szText),
+					TEXT("TSID 0x%04x (%d) / エリア %s / ガードインターバル %s / 伝送モード %s"),
+					Info.TransportStreamID,
+					Info.TransportStreamID,
+					GetAreaText(Info.AreaCode),
+					Info.GuardInterval==0?TEXT("1/32"):
+					Info.GuardInterval==1?TEXT("1/16"):
+					Info.GuardInterval==2?TEXT("1/8"):
+					Info.GuardInterval==3?TEXT("1/4"):TEXT("?"),
+					Info.TransmissionMode==0?TEXT("Mode1"):
+					Info.TransmissionMode==1?TEXT("Mode2"):
+					Info.TransmissionMode==2?TEXT("Mode3"):TEXT("?"));
 				tvis.item.pszText=szText;
 				tvis.hParent=TreeView_InsertItem(hwndTree,&tvis);
 				tvis.item.cChildren=0;
 				for (size_t j=0;j<TerrestrialList[i].Frequency.size();j++) {
-					::wsprintf(szText,TEXT("周波数%d %d MHz"),
-							   (int)j+1,TerrestrialList[i].Frequency[j]/7);
+					StdUtil::snprintf(szText,lengthof(szText),TEXT("周波数%d %d MHz"),
+									  (int)j+1,TerrestrialList[i].Frequency[j]/7);
 					TreeView_InsertItem(hwndTree,&tvis);
 				}
 			}
@@ -413,16 +447,17 @@ void CStreamInfo::SetService()
 			hItem=TreeView_InsertItem(hwndTree,&tvis);
 			if (hItem!=NULL) {
 				for (int i=0;i<(int)SatelliteList.size();i++) {
-				const CTsAnalyzer::SatelliteDeliverySystemInfo &Info=SatelliteList[i];
+					const CTsAnalyzer::SatelliteDeliverySystemInfo &Info=SatelliteList[i];
 
 					tvis.hParent=hItem;
 					tvis.item.state=0;
 					tvis.item.cChildren=0;
-					::wsprintf(szText,TEXT("TSID %#04x (%d) / 周波数 %ld.%05ld GHz"),
-							   Info.TransportStreamID,
-							   Info.TransportStreamID,
-							   Info.Frequency/100000,
-							   Info.Frequency%100000);
+					StdUtil::snprintf(szText,lengthof(szText),
+									  TEXT("TSID 0x%04x (%d) / 周波数 %ld.%05ld GHz"),
+									  Info.TransportStreamID,
+									  Info.TransportStreamID,
+									  Info.Frequency/100000,
+									  Info.Frequency%100000);
 					tvis.item.pszText=szText;
 					TreeView_InsertItem(hwndTree,&tvis);
 				}
@@ -447,7 +482,7 @@ int CStreamInfo::GetTreeViewText(HWND hwndTree,HTREEITEM hItem,bool fSiblings,LP
 			if (MaxText<=Level)
 				break;
 			for (int i=0;i<Level;i++)
-				*p++='\t';
+				*p++=_T('\t');
 			MaxText-=Level;
 		}
 		tvi.pszText=p;
@@ -455,8 +490,8 @@ int CStreamInfo::GetTreeViewText(HWND hwndTree,HTREEITEM hItem,bool fSiblings,LP
 		if (TreeView_GetItem(hwndTree,&tvi)) {
 			int Len=::lstrlen(p);
 			p+=Len;
-			*p++='\r';
-			*p++='\n';
+			*p++=_T('\r');
+			*p++=_T('\n');
 			MaxText-=Len+2;
 		}
 		HTREEITEM hChild=TreeView_GetChild(hwndTree,tvi.hItem);
@@ -469,19 +504,6 @@ int CStreamInfo::GetTreeViewText(HWND hwndTree,HTREEITEM hItem,bool fSiblings,LP
 			break;
 		tvi.hItem=TreeView_GetNextSibling(hwndTree,tvi.hItem);
 	}
-	*p='\0';
+	*p=_T('\0');
 	return (int)(p-pszText);
-}
-
-
-bool CStreamInfo::Create(HWND hwndOwner)
-{
-	return CreateDialogWindow(hwndOwner,GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_STREAMINFO));
-}
-
-
-bool CStreamInfo::SetEventHandler(CEventHandler *pHandler)
-{
-	m_pEventHandler=pHandler;
-	return true;
 }

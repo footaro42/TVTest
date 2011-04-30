@@ -51,10 +51,7 @@ bool CServiceInfoData::operator==(const CServiceInfoData &Info) const
 
 
 CEventInfoData::CEventInfoData()
-	: m_pszEventName(NULL)
-	, m_pszEventText(NULL)
-	, m_pszEventExtText(NULL)
-	, m_fValidStartTime(false)
+	: m_fValidStartTime(false)
 	, m_fCommonEvent(false)
 	, m_UpdateTime(0)
 {
@@ -62,9 +59,6 @@ CEventInfoData::CEventInfoData()
 
 
 CEventInfoData::CEventInfoData(const CEventInfoData &Info)
-	: m_pszEventName(NULL)
-	, m_pszEventText(NULL)
-	, m_pszEventExtText(NULL)
 {
 	*this=Info;
 }
@@ -72,9 +66,6 @@ CEventInfoData::CEventInfoData(const CEventInfoData &Info)
 
 #ifdef MOVE_SEMANTICS_SUPPORTED
 CEventInfoData::CEventInfoData(CEventInfoData &&Info)
-	: m_pszEventName(NULL)
-	, m_pszEventText(NULL)
-	, m_pszEventExtText(NULL)
 {
 	*this=std::move(Info);
 }
@@ -82,9 +73,6 @@ CEventInfoData::CEventInfoData(CEventInfoData &&Info)
 
 
 CEventInfoData::CEventInfoData(const CEventManager::CEventInfo &Info)
-	: m_pszEventName(NULL)
-	, m_pszEventText(NULL)
-	, m_pszEventExtText(NULL)
 {
 	*this=Info;
 }
@@ -92,9 +80,6 @@ CEventInfoData::CEventInfoData(const CEventManager::CEventInfo &Info)
 
 CEventInfoData::~CEventInfoData()
 {
-	delete [] m_pszEventName;
-	delete [] m_pszEventText;
-	delete [] m_pszEventExtText;
 }
 
 
@@ -105,9 +90,9 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 		m_TSID=Info.m_TSID;
 		m_ServiceID=Info.m_ServiceID;
 		m_EventID=Info.m_EventID;
-		SetEventName(Info.m_pszEventName);
-		SetEventText(Info.m_pszEventText);
-		SetEventExtText(Info.m_pszEventExtText);
+		m_EventName=Info.m_EventName;
+		m_EventText=Info.m_EventText;
+		m_EventExtText=Info.m_EventExtText;
 		m_fValidStartTime=Info.m_fValidStartTime;
 		if (m_fValidStartTime)
 			m_stStartTime=Info.m_stStartTime;
@@ -134,9 +119,9 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 		m_TSID=Info.m_TSID;
 		m_ServiceID=Info.m_ServiceID;
 		m_EventID=Info.m_EventID;
-		m_pszEventName=Info.m_pszEventName;
-		m_pszEventText=Info.m_pszEventText;
-		m_pszEventExtText=Info.m_pszEventExtText;
+		m_EventName=std::move(Info.m_EventName);
+		m_EventText=std::move(Info.m_EventText);
+		m_EventExtText=std::move(Info.m_EventExtText);
 		m_fValidStartTime=Info.m_fValidStartTime;
 		if (m_fValidStartTime)
 			m_stStartTime=Info.m_stStartTime;
@@ -150,9 +135,6 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 		m_fCommonEvent=Info.m_fCommonEvent;
 		m_CommonEventInfo=Info.m_CommonEventInfo;
 		m_UpdateTime=Info.m_UpdateTime;
-		Info.m_pszEventName=NULL;
-		Info.m_pszEventText=NULL;
-		Info.m_pszEventExtText=NULL;
 	}
 	return *this;
 }
@@ -192,9 +174,9 @@ bool CEventInfoData::operator==(const CEventInfoData &Info) const
 		&& m_TSID==Info.m_TSID
 		&& m_ServiceID==Info.m_ServiceID
 		&& m_EventID==Info.m_EventID
-		&& CompareText(m_pszEventName,Info.m_pszEventName)
-		&& CompareText(m_pszEventText,Info.m_pszEventText)
-		&& CompareText(m_pszEventExtText,Info.m_pszEventExtText)
+		&& m_EventName==Info.m_EventName
+		&& m_EventText==Info.m_EventText
+		&& m_EventExtText==Info.m_EventExtText
 		&& m_fValidStartTime==Info.m_fValidStartTime
 		&& (!m_fValidStartTime
 			|| ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0)
@@ -213,19 +195,19 @@ bool CEventInfoData::operator==(const CEventInfoData &Info) const
 
 bool CEventInfoData::SetEventName(LPCWSTR pszEventName)
 {
-	return ReplaceString(&m_pszEventName,pszEventName);
+	return m_EventName.Set(pszEventName);
 }
 
 
 bool CEventInfoData::SetEventText(LPCWSTR pszEventText)
 {
-	return ReplaceString(&m_pszEventText,pszEventText);
+	return m_EventText.Set(pszEventText);
 }
 
 
 bool CEventInfoData::SetEventExtText(LPCWSTR pszEventExtText)
 {
-	return ReplaceString(&m_pszEventExtText,pszEventExtText);
+	return m_EventExtText.Set(pszEventExtText);
 }
 
 
@@ -1213,10 +1195,14 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				}
 				pEventData->m_fCommonEvent=false;
 				pEventData->m_UpdateTime=0;
-				if (!ReadString(&File,&pEventData->m_pszEventName)
-						|| !ReadString(&File,&pEventData->m_pszEventText)
-						|| !ReadString(&File,&pEventData->m_pszEventExtText))
+				LPWSTR pszEventName=NULL,pszEventText=NULL,pszEventExtText=NULL;
+				if (!ReadString(&File,&pszEventName)
+						|| !ReadString(&File,&pszEventText)
+						|| !ReadString(&File,&pszEventExtText))
 					goto OnError;
+				pEventData->m_EventName.Attach(pszEventName);
+				pEventData->m_EventText.Attach(pszEventText);
+				pEventData->m_EventExtText.Attach(pszEventExtText);
 				if (!ReadString(&File,&pszText))	// Component type text
 					goto OnError;
 				delete [] pszText;
@@ -1363,13 +1349,13 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 							if (pszText!=NULL) {
 								switch (Flag) {
 								case DATA_FLAG_EVENTNAME:
-									pEventData->m_pszEventName=pszText;
+									pEventData->m_EventName.Attach(pszText);
 									break;
 								case DATA_FLAG_EVENTTEXT:
-									pEventData->m_pszEventText=pszText;
+									pEventData->m_EventText.Attach(pszText);
 									break;
 								case DATA_FLAG_EVENTEXTTEXT:
-									pEventData->m_pszEventExtText=pszText;
+									pEventData->m_EventExtText.Attach(pszText);
 									break;
 								default:
 									delete [] pszText;

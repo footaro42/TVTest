@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <shlobj.h>
 #include "TVTest.h"
 #include "Taskbar.h"
 #include "AppMain.h"
@@ -175,20 +174,20 @@ bool CTaskbarManager::HandleMessage(UINT uMsg,WPARAM wParam,LPARAM lParam)
 		HIMAGELIST himl=::ImageList_LoadBitmap(hinst,
 											   MAKEINTRESOURCE(IDB_THUMBBAR),
 											   16,1,RGB(192,192,192));
-		if (himl==NULL)
-			return true;
-		m_pTaskbarList->ThumbBarSetImageList(m_hwnd,himl);
-		THUMBBUTTON tb[3];
-		tb[0].iId=CM_FULLSCREEN;
-		tb[1].iId=CM_DISABLEVIEWER;
-		tb[2].iId=CM_PROGRAMGUIDE;
-		for (int i=0;i<lengthof(tb);i++) {
-			tb[i].dwMask=(THUMBBUTTONMASK)(THB_BITMAP | THB_TOOLTIP | THB_FLAGS);
-			tb[i].iBitmap=i;
-			::LoadStringW(hinst,tb[i].iId,tb[i].szTip,lengthof(tb[0].szTip));
-			tb[i].dwFlags=(THUMBBUTTONFLAGS)(THBF_ENABLED | THBF_DISMISSONCLICK);
+		if (himl!=NULL) {
+			m_pTaskbarList->ThumbBarSetImageList(m_hwnd,himl);
+			THUMBBUTTON tb[3];
+			tb[0].iId=CM_FULLSCREEN;
+			tb[1].iId=CM_DISABLEVIEWER;
+			tb[2].iId=CM_PROGRAMGUIDE;
+			for (int i=0;i<lengthof(tb);i++) {
+				tb[i].dwMask=(THUMBBUTTONMASK)(THB_BITMAP | THB_TOOLTIP | THB_FLAGS);
+				tb[i].iBitmap=i;
+				::LoadStringW(hinst,tb[i].iId,tb[i].szTip,lengthof(tb[0].szTip));
+				tb[i].dwFlags=(THUMBBUTTONFLAGS)(THBF_ENABLED | THBF_DISMISSONCLICK);
+			}
+			m_pTaskbarList->ThumbBarAddButtons(m_hwnd,lengthof(tb),tb);
 		}
-		m_pTaskbarList->ThumbBarAddButtons(m_hwnd,lengthof(tb),tb);
 		return true;
 	}
 	return false;

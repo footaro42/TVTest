@@ -84,7 +84,7 @@
 				DelayLoadDLLs="gdiplus.dll;uxtheme.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
-				StackReserveSize="0"
+				StackReserveSize="2097152"
 				LargeAddressAware="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -177,7 +177,7 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
-				StackReserveSize="0"
+				StackReserveSize="2097152"
 				LargeAddressAware="2"
 				RandomizedBaseAddress="1"
 				DataExecutionPrevention="0"
@@ -274,7 +274,7 @@
 				DelayLoadDLLs="gdiplus.dll;uxtheme.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
-				StackReserveSize="0"
+				StackReserveSize="2097152"
 				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
@@ -375,7 +375,7 @@
 				DelayLoadDLLs="gdiplus.dll"
 				GenerateDebugInformation="true"
 				SubSystem="2"
-				StackReserveSize="0"
+				StackReserveSize="2097152"
 				LargeAddressAware="2"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
@@ -638,10 +638,6 @@
 			</File>
 			<File
 				RelativePath=".\Plugin.cpp"
-				>
-			</File>
-			<File
-				RelativePath=".\PointerArray.cpp"
 				>
 			</File>
 			<File
@@ -1032,10 +1028,6 @@
 			</File>
 			<File
 				RelativePath=".\Plugin.h"
-				>
-			</File>
-			<File
-				RelativePath=".\PointerArray.h"
 				>
 			</File>
 			<File

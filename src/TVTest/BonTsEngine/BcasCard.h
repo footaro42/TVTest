@@ -8,7 +8,8 @@
 #include "BonBaseClass.h"
 #include "CardReader.h"
 
-// ECMデータの最大サイズ
+// ECMデータの最小/最大サイズ
+#define MIN_ECM_DATA_SIZE 30
 #define MAX_ECM_DATA_SIZE 256
 // EMMデータの最大サイズ
 #define MAX_EMM_DATA_SIZE 263

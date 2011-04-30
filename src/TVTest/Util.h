@@ -102,10 +102,13 @@ public:
 	LPCTSTR Get() const { return m_pszString; }
 	LPCTSTR GetSafe() const { return NullToEmptyString(m_pszString); }
 	bool Set(LPCTSTR pszString);
+	bool Set(LPCTSTR pszString,size_t Length);
+	bool Attach(LPTSTR pszString);
 	int Length() const;
 	void Clear();
 	bool IsEmpty() const;
 	int Compare(LPCTSTR pszString) const;
+	int CompareIgnoreCase(LPCTSTR pszString) const;
 };
 
 class CStaticStringFormatter
@@ -177,6 +180,28 @@ public:
 	bool GetTime(FILETIME *pTime) const;
 	bool GetTime(SYSTEMTIME *pTime) const;
 };
+
+namespace Util
+{
+
+	class CWaitCursor
+	{
+	public:
+		CWaitCursor()
+			: m_hcurOld(::SetCursor(::LoadCursor(NULL,IDC_WAIT)))
+		{
+		}
+
+		~CWaitCursor()
+		{
+			::SetCursor(m_hcurOld);
+		}
+
+	private:
+		HCURSOR m_hcurOld;
+	};
+
+}	// namespace Util
 
 
 #endif

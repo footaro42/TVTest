@@ -8,9 +8,9 @@
 
 #define VERSION_MAJOR	0
 #define VERSION_MINOR	7
-#define VERSION_BUILD	18
+#define VERSION_BUILD	19
 
-#define VERSION_TEXT_A	"0.7.18"
+#define VERSION_TEXT_A	"0.7.19"
 
 #else
 

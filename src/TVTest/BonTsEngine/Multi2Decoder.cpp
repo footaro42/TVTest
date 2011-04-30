@@ -4,10 +4,6 @@
 
 #include "stdafx.h"
 #include "Multi2Decoder.h"
-#ifdef MULTI2_SSE2_ICC
-#include "../ICC/Multi2Decoder/Multi2DecoderSSE2.h"
-#pragma comment(lib, "Multi2Decoder.lib")
-#endif
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -28,8 +24,8 @@ inline void CMulti2Decoder::DATKEY::SetHexData(const BYTE *pHexData)
 {
 	// バイトオーダー変換
 #ifndef MULTI2_USE_INTRINSIC
-	Data[3] = pHexData[0];	Data[2] = pHexData[1];	Data[1] = pHexData[2];	Data[0] = pHexData[3];
-	Data[7] = pHexData[4];	Data[6] = pHexData[5];	Data[5] = pHexData[6];	Data[4] = pHexData[7];
+	Data[7] = pHexData[0];	Data[6] = pHexData[1];	Data[5] = pHexData[2];	Data[4] = pHexData[3];
+	Data[3] = pHexData[4];	Data[2] = pHexData[5];	Data[1] = pHexData[6];	Data[0] = pHexData[7];
 #else
 #ifndef WIN64
 	dwLeft  = _byteswap_ulong(*reinterpret_cast<const DWORD*>(pHexData + 0));
@@ -44,8 +40,8 @@ inline void CMulti2Decoder::DATKEY::GetHexData(BYTE *pHexData) const
 {
 	// バイトオーダー変換
 #ifndef MULTI2_USE_INTRINSIC
-	pHexData[0] = Data[3];	pHexData[1] = Data[2];	pHexData[2] = Data[1];	pHexData[3] = Data[0];
-	pHexData[4] = Data[7];	pHexData[5] = Data[6];	pHexData[6] = Data[5];	pHexData[7] = Data[4];
+	pHexData[0] = Data[7];	pHexData[1] = Data[6];	pHexData[2] = Data[5];	pHexData[3] = Data[4];
+	pHexData[4] = Data[3];	pHexData[5] = Data[2];	pHexData[6] = Data[1];	pHexData[7] = Data[0];
 #else
 #ifndef WIN64
 	*reinterpret_cast<DWORD*>(pHexData + 0) = _byteswap_ulong(dwLeft);
@@ -148,6 +144,7 @@ const bool CMulti2Decoder::Initialize(const BYTE *pSystemKey, const BYTE *pIniti
 
 	// Descrambler CBC Initial Valueセット
 	m_InitialCbc.SetHexData(pInitialCbc);
+
 	return true;
 }
 
@@ -187,8 +184,8 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 	const SYSKEY &WorkKey = (byScrCtrl == 3)? m_WorkKeyOdd : m_WorkKeyEven;
 
 	DATKEY CbcData = m_InitialCbc;
-	//DWORD RemainSize = dwSize/sizeof(DATKEY)*sizeof(DATKEY);
-	DWORD RemainSize = dwSize&0xFFFFFFF8UL;
+	//DWORD RemainSize = dwSize / sizeof(DATKEY) * sizeof(DATKEY);
+	DWORD RemainSize = dwSize & 0xFFFFFFF8UL;
 	BYTE *pEnd = pData + RemainSize;
 	BYTE *p = pData;
 
@@ -196,7 +193,6 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 	DATKEY SrcData;
 	while (p < pEnd) {
 		SrcData.SetHexData(p);
-		//DecryptBlock(SrcData, WorkKey);
 		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
 			RoundFuncPi4(SrcData, WorkKey.dwKey8);
 			RoundFuncPi3(SrcData, WorkKey.dwKey6, WorkKey.dwKey7);
@@ -207,20 +203,16 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 			RoundFuncPi2(SrcData, WorkKey.dwKey1);
 			RoundFuncPi1(SrcData);
 		}
-		SrcData.dwLeft ^= CbcData.dwLeft;
-		SrcData.dwRight ^= CbcData.dwRight;
+		SrcData ^= CbcData;
 		CbcData.SetHexData(p);
 		SrcData.GetHexData(p);
-		p+=sizeof(DATKEY);
+		p += sizeof(DATKEY);
 	}
 
 	// OFBモード
 	//RemainSize = dwSize % sizeof(DATKEY);
 	RemainSize = dwSize & 0x00000007UL;
 	if (RemainSize > 0) {
-		BYTE Remain[sizeof(DATKEY)];
-
-		//EncryptBlock(CbcData, WorkKey);
 		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
 			RoundFuncPi1(CbcData);
 			RoundFuncPi2(CbcData, WorkKey.dwKey1);
@@ -231,14 +223,17 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 			RoundFuncPi3(CbcData, WorkKey.dwKey6, WorkKey.dwKey7);
 			RoundFuncPi4(CbcData, WorkKey.dwKey8);
 		}
+
+		BYTE Remain[sizeof(DATKEY)];
 		CbcData.GetHexData(Remain);
-		/*
-		pEnd+=RemainSize;
-		for (BYTE *q=Remain ; p<pEnd ; q++) {
+#if 0
+		pEnd += RemainSize;
+		for (BYTE *q = Remain ; p < pEnd ; q++) {
 			*p++ ^= *q;
 		}
-		*/
+#else
 		switch (RemainSize) {
+		default: __assume(0);
 		case 7: p[6] ^= Remain[6];
 		case 6: p[5] ^= Remain[5];
 		case 5: p[4] ^= Remain[4];
@@ -247,43 +242,11 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 		case 2: p[1] ^= Remain[1];
 		case 1: p[0] ^= Remain[0];
 		}
+#endif
 	}
 
 	return true;
 }
-
-/*
-// 実際はinline展開されない@VC2005
-inline void CMulti2Decoder::DecryptBlock(DATKEY &Block, const SYSKEY &WorkKey)
-{
-	// Block Decryption
-	for(DWORD dwRound = 0UL ; dwRound < SCRAMBLE_ROUND ; dwRound++){
-		RoundFuncPi4(Block, WorkKey.dwKey8);
-		RoundFuncPi3(Block, WorkKey.dwKey6, WorkKey.dwKey7);
-		RoundFuncPi2(Block, WorkKey.dwKey5);
-		RoundFuncPi1(Block);
-		RoundFuncPi4(Block, WorkKey.dwKey4);
-		RoundFuncPi3(Block, WorkKey.dwKey2, WorkKey.dwKey3);
-		RoundFuncPi2(Block, WorkKey.dwKey1);
-		RoundFuncPi1(Block);
-		}
-}
-
-inline void CMulti2Decoder::EncryptBlock(DATKEY &Block, const SYSKEY &WorkKey)
-{
-	// Block Encryption
-	for(DWORD dwRound = 0UL ; dwRound < SCRAMBLE_ROUND ; dwRound++){
-		RoundFuncPi1(Block);
-		RoundFuncPi2(Block, WorkKey.dwKey1);
-		RoundFuncPi3(Block, WorkKey.dwKey2, WorkKey.dwKey3);
-		RoundFuncPi4(Block, WorkKey.dwKey4);
-		RoundFuncPi1(Block);
-		RoundFuncPi2(Block, WorkKey.dwKey5);
-		RoundFuncPi3(Block, WorkKey.dwKey6, WorkKey.dwKey7);
-		RoundFuncPi4(Block, WorkKey.dwKey8);
-		}
-}
-*/
 
 inline void CMulti2Decoder::KeySchedule(SYSKEY &WorkKey, const SYSKEY &SysKey, DATKEY &DataKey)
 {
@@ -361,15 +324,18 @@ inline const DWORD CMulti2Decoder::LeftRotate(const DWORD dwValue, const DWORD d
 
 
 
-#ifdef MULTI2_SSE2
-#ifndef MULTI2_SSE2_ICC
 /*
 	SSE2対応
 	elick氏のコードを参考にしています。まだ最適化が可能だと思います。
 */
+#ifdef MULTI2_SSE2
+
+#ifndef MULTI2_SSE2_ICC
+
+// VCだとICCに比べて大分遅くなってしまいます。この辺はやはりICCが優秀。
 
 
-#define MM_SHUFFLE4(a, b, c, d) ((a << 6) | (b << 4) | (c << 2) | d)
+#define MM_SHUFFLE4(a, b, c, d) (((a) << 6) | ((b) << 4) | ((c) << 2) | (d))
 
 #define MM_SHIFT_COUNT(n) (ShiftCount##n)
 #define MM_ROTATE(v, l, r) LeftRotate(v, MM_SHIFT_COUNT(l), MM_SHIFT_COUNT(r))
@@ -393,7 +359,8 @@ static __m128i SwapMask;
 class CSSE2Initializer
 {
 public:
-	CSSE2Initializer() {
+	CSSE2Initializer()
+	{
 		if (IsSSE2Available()) {
 			TRACE(TEXT("Multi2Decoder SSE2 available\n"));
 
@@ -413,7 +380,9 @@ public:
 			SwapMask = _mm_set1_epi32(0xFF00FF00);
 		}
 	}
-	static bool IsSSE2Available() {
+
+	static bool IsSSE2Available()
+	{
 #ifndef WIN64
 		bool b;
 
@@ -425,6 +394,8 @@ public:
 		}
 
 		return b;
+#elif defined(_M_X64)
+		return true;
 #else
 		return ::IsProcessorFeaturePresent(PF_XMMI64_INSTRUCTIONS_AVAILABLE) != FALSE;
 #endif
@@ -568,8 +539,7 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 	}
 
 	DATKEY CbcData;
-	CbcData.dwLeft = _byteswap_ulong(Cbc.m128i_i32[0]);
-	CbcData.dwRight = _byteswap_ulong(Cbc.m128i_i32[1]);
+	CbcData.SetHexData(Cbc.m128i_u8);
 
 	RemainSize= dwSize & 0x00000018UL;
 	pEnd = p + RemainSize;
@@ -577,7 +547,6 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 		DATKEY SrcData;
 
 		SrcData.SetHexData(p);
-		//DecryptBlock(SrcData, WorkKey);
 		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
 			RoundFuncPi4(SrcData, WorkKey.dwKey8);
 			RoundFuncPi3(SrcData, WorkKey.dwKey6, WorkKey.dwKey7);
@@ -588,8 +557,7 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 			RoundFuncPi2(SrcData, WorkKey.dwKey1);
 			RoundFuncPi1(SrcData);
 		}
-		SrcData.dwLeft ^= CbcData.dwLeft;
-		SrcData.dwRight ^= CbcData.dwRight;
+		SrcData ^= CbcData;
 		CbcData.SetHexData(p);
 		SrcData.GetHexData(p);
 		p += sizeof(DATKEY);
@@ -598,9 +566,6 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 	// OFBモード
 	RemainSize = dwSize & 0x00000007UL;
 	if (RemainSize > 0) {
-		BYTE Remain[sizeof(DATKEY)];
-
-		//EncryptBlock(CbcData, WorkKey);
 		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
 			RoundFuncPi1(CbcData);
 			RoundFuncPi2(CbcData, WorkKey.dwKey1);
@@ -611,8 +576,11 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 			RoundFuncPi3(CbcData, WorkKey.dwKey6, WorkKey.dwKey7);
 			RoundFuncPi4(CbcData, WorkKey.dwKey8);
 		}
+
+		BYTE Remain[sizeof(DATKEY)];
 		CbcData.GetHexData(Remain);
 		switch (RemainSize) {
+		default: __assume(0);
 		case 7: p[6] ^= Remain[6];
 		case 6: p[5] ^= Remain[5];
 		case 5: p[4] ^= Remain[4];
@@ -634,6 +602,11 @@ bool CMulti2Decoder::IsSSE2Available()
 
 #else	// MULTI2_SSE2_ICC
 
+// ICCでコンパイルしたライブラリの使用
+
+#include "../ICC/Multi2Decoder/Multi2DecoderSSE2.h"
+#pragma comment(lib, "Multi2Decoder.lib")
+
 
 class CSSE2Initializer
 {
@@ -652,7 +625,7 @@ const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYT
 	else if(!m_bIsSysKeyValid || !m_bIsWorkKeyValid)return false;	// スクランブルキー未設定
 	else if((byScrCtrl != 2U) && (byScrCtrl != 3U))return false;	// スクランブル制御不正
 
-	// ワークキー選択
+	// スクランブル解除
 	return Multi2DecoderSSE2::Decode(pData, dwSize,
 		(byScrCtrl == 3) ? &m_WorkKeyOdd : &m_WorkKeyEven,
 		m_InitialCbc.dwLeft, m_InitialCbc.dwRight);
@@ -666,6 +639,5 @@ bool CMulti2Decoder::IsSSE2Available()
 
 
 #endif	// MULTI2_SSE2_ICC
-
 
 #endif	// MULTI2_SSE2

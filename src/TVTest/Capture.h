@@ -11,7 +11,7 @@ class CCaptureImage
 	HGLOBAL m_hData;
 	bool m_fLocked;
 	SYSTEMTIME m_stCaptureTime;
-	LPTSTR m_pszComment;
+	CDynamicString m_Comment;
 
 public:
 	CCaptureImage(HGLOBAL hData);
@@ -23,7 +23,7 @@ public:
 	bool UnlockData();
 	const SYSTEMTIME &GetCaptureTime() const { return m_stCaptureTime; }
 	bool SetComment(LPCTSTR pszComment);
-	LPCTSTR GetComment() const { return m_pszComment; }
+	LPCTSTR GetComment() const { return m_Comment.Get(); }
 };
 
 class CCapturePreview : public CCustomWindow
@@ -73,6 +73,7 @@ public:
 	public:
 		CEventHandler();
 		virtual ~CEventHandler()=0;
+		virtual void OnRestoreSettings() {}
 		virtual bool OnClose() { return true; }
 		virtual bool OnSave(CCaptureImage *pImage) { return false; }
 		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
@@ -97,26 +98,22 @@ public:
 	void SetStatusTheme(const CStatusView::ThemeInfo *pTheme);
 
 private:
-	static HINSTANCE m_hinst;
-
-	CCapturePreview m_Preview;
-	class CPreviewEventHandler : public CCapturePreview::CEventHandler {
+	class CPreviewEventHandler : public CCapturePreview::CEventHandler
+	{
 		CCaptureWindow *m_pCaptureWindow;
 	public:
 		CPreviewEventHandler(CCaptureWindow *pCaptureWindow);
 		void OnRButtonDown(int x,int y);
 		bool OnKeyDown(UINT KeyCode,UINT Flags);
 	};
-	CPreviewEventHandler m_PreviewEventHandler;
-	CStatusView m_Status;
-	bool m_fShowStatusBar;
-	DrawUtil::CBitmap m_StatusIcons;
+
 	enum {
 		STATUS_ITEM_CAPTURE,
 		//STATUS_ITEM_CONTINUOUS,
 		STATUS_ITEM_SAVE,
 		STATUS_ITEM_COPY
 	};
+
 	class CCaptureStatusItem : public CStatusItem {
 		HBITMAP m_hbmIcon;
 	public:
@@ -126,6 +123,7 @@ private:
 		void OnLButtonDown(int x,int y);
 		void OnRButtonDown(int x,int y);
 	};
+
 	/*
 	class CContinuousStatusItem : public CStatusItem {
 		HBITMAP m_hbmIcon;
@@ -137,6 +135,7 @@ private:
 		void OnRButtonDown(int x,int y);
 	};
 	*/
+
 	class CSaveStatusItem : public CStatusItem {
 		CCaptureWindow *m_pCaptureWindow;
 		HBITMAP m_hbmIcon;
@@ -146,6 +145,7 @@ private:
 		void Draw(HDC hdc,const RECT *pRect);
 		void OnLButtonDown(int x,int y);
 	};
+
 	class CCopyStatusItem : public CStatusItem {
 		CCaptureWindow *m_pCaptureWindow;
 		HBITMAP m_hbmIcon;
@@ -155,8 +155,17 @@ private:
 		void Draw(HDC hdc,const RECT *pRect);
 		void OnLButtonDown(int x,int y);
 	};
+
+	static HINSTANCE m_hinst;
+
+	CCapturePreview m_Preview;
+	CPreviewEventHandler m_PreviewEventHandler;
+	CStatusView m_Status;
+	bool m_fShowStatusBar;
+	DrawUtil::CBitmap m_StatusIcons;
 	CCaptureImage *m_pImage;
 	CEventHandler *m_pEventHandler;
+	bool m_fCreateFirst;
 
 	void SetTitle();
 // CCustomWindow

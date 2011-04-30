@@ -2,9 +2,9 @@
 #define STATUS_VIEW_H
 
 
+#include <vector>
 #include "BasicWindow.h"
 #include "TsUtilClass.h"
-#include "PointerArray.h"
 #include "Theme.h"
 #include "DrawUtil.h"
 #include "Aero.h"
@@ -90,7 +90,7 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
 	void SetVisible(bool fVisible) override;
 // CStatusView
-	int NumItems() const { return m_ItemList.Length(); }
+	int NumItems() const { return (int)m_ItemList.size(); }
 	const CStatusItem *GetItem(int Index) const;
 	CStatusItem *GetItem(int Index);
 	const CStatusItem *GetItemByID(int ID) const;
@@ -133,9 +133,9 @@ private:
 	int m_MaxRows;
 	int m_Rows;
 	ThemeInfo m_Theme;
-	CPointerVector<CStatusItem> m_ItemList;
+	std::vector<CStatusItem*> m_ItemList;
 	bool m_fSingleMode;
-	LPTSTR m_pszSingleText;
+	CDynamicString m_SingleText;
 	int m_HotItem;
 	bool m_fTrackMouseEvent;
 	bool m_fOnButtonDown;

@@ -204,32 +204,33 @@ bool CCaptureOptions::GetCustomSize(int *pWidth,int *pHeight) const
 
 bool CCaptureOptions::GenerateFileName(LPTSTR pszFileName,int MaxLength,const SYSTEMTIME *pst) const
 {
+	TCHAR szSaveFolder[MAX_PATH];
 	SYSTEMTIME st;
-	int ExtOffset;
 
 	if (m_szSaveFolder[0]!='\0') {
-		if (::lstrlen(m_szSaveFolder)+1+::lstrlen(m_szFileName)>=MaxLength)
-			return false;
-		::PathCombine(pszFileName,m_szSaveFolder,m_szFileName);
+		::lstrcpy(szSaveFolder,m_szSaveFolder);
 	} else {
-		::GetModuleFileName(NULL,pszFileName,MaxLength);
-		::lstrcpy(::PathFindFileName(pszFileName),m_szFileName);
+		if (!GetAppClass().GetAppDirectory(szSaveFolder))
+			return false;
 	}
+	if (::lstrlen(szSaveFolder)+1+::lstrlen(m_szFileName)>=MaxLength)
+		return false;
+	::PathCombine(pszFileName,szSaveFolder,m_szFileName);
 	if (pst==NULL) {
 		::GetLocalTime(&st);
 	} else {
 		st=*pst;
 	}
-	::wsprintf(pszFileName+::lstrlen(pszFileName),
-		TEXT("%04d%02d%02d-%02d%02d%02d"),
-		st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
-	ExtOffset=::lstrlen(pszFileName);
-	::wsprintf(pszFileName+ExtOffset,TEXT(".%s"),
-				m_ImageCodec.GetExtension(m_SaveFormat));
+	int Length=::lstrlen(pszFileName);
+	Length+=StdUtil::snprintf(pszFileName+Length,MaxLength-Length,
+							  TEXT("%04d%02d%02d-%02d%02d%02d"),
+							  st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
+	LPCTSTR pszExtension=m_ImageCodec.GetExtension(m_SaveFormat);
+	StdUtil::snprintf(pszFileName+Length,MaxLength-Length,TEXT(".%s"),pszExtension);
 	if (::PathFileExists(pszFileName)) {
 		for (int i=0;;i++) {
-			::wsprintf(pszFileName+ExtOffset,TEXT("-%d.%s"),
-				i+1,m_ImageCodec.GetExtension(m_SaveFormat));
+			StdUtil::snprintf(pszFileName+Length,MaxLength-Length,
+							  TEXT("-%d.%s"),i+1,pszExtension);
 			if (!::PathFileExists(pszFileName))
 				break;
 		}
@@ -266,15 +267,13 @@ bool CCaptureOptions::GetCommentText(LPTSTR pszComment,int MaxComment,
 	TCHAR szDate[64],szTime[64];
 
 	::GetLocalTime(&st);
-	::GetDateFormat(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,NULL,
-													szDate,lengthof(szDate));
-	::GetTimeFormat(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,NULL,
-													szTime,lengthof(szTime));
-	::wsprintf(pszComment,TEXT("%s %s"),szDate,szTime);
-	if (pszChannelName!=NULL)
-		::wsprintf(pszComment+::lstrlen(pszComment),TEXT(" %s"),pszChannelName);
-	if (pszEventName!=NULL)
-		::wsprintf(pszComment+::lstrlen(pszComment),TEXT("\r\n%s"),pszEventName);
+	::GetDateFormat(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,NULL,szDate,lengthof(szDate));
+	::GetTimeFormat(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,NULL,szTime,lengthof(szTime));
+	int Length=StdUtil::snprintf(pszComment,MaxComment,TEXT("%s %s"),szDate,szTime);
+	if (!IsStringEmpty(pszChannelName))
+		Length+=StdUtil::snprintf(pszComment+Length,MaxComment-Length,TEXT(" %s"),pszChannelName);
+	if (!IsStringEmpty(pszEventName))
+		Length+=StdUtil::snprintf(pszComment+Length,MaxComment-Length,TEXT("\r\n%s"),pszEventName);
 	return true;
 }
 
@@ -339,12 +338,13 @@ INT_PTR CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 			for (i=0;i<lengthof(SizeTypeText);i++)
 				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,SizeTypeText[i]);
 			for (i=0;i<=PERCENTAGE_LAST;i++) {
-				wsprintf(szText,TEXT("%d %%"),
-						 m_PercentageList[i].Num*100/m_PercentageList[i].Denom);
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("%d %%"),
+								  m_PercentageList[i].Num*100/m_PercentageList[i].Denom);
 				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,szText);
 			}
 			for (i=0;i<=SIZE_LAST;i++) {
-				wsprintf(szText,TEXT("%ld x %ld"),m_SizeList[i].cx,m_SizeList[i].cy);
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("%ld x %ld"),
+								  m_SizeList[i].cx,m_SizeList[i].cy);
 				DlgComboBox_AddString(hDlg,IDC_CAPTUREOPTIONS_SIZE,szText);
 			}
 			int Sel=-1;
@@ -448,19 +448,21 @@ INT_PTR CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 				if (szSaveFolder[0]!='\0' && !::PathIsDirectory(szSaveFolder)) {
 					TCHAR szMessage[MAX_PATH+80];
 
-					::wsprintf(szMessage,
+					StdUtil::snprintf(szMessage,lengthof(szMessage),
 						TEXT("キャプチャ画像の保存先フォルダ \"%s\" がありません。\n")
 						TEXT("作成しますか?"),szSaveFolder);
 					if (::MessageBox(hDlg,szMessage,TEXT("フォルダ作成の確認"),
-										MB_YESNO | MB_ICONQUESTION)==IDYES) {
+									 MB_YESNO | MB_ICONQUESTION)==IDYES) {
 						int Result;
 
 						Result=::SHCreateDirectoryEx(hDlg,szSaveFolder,NULL);
 						if (Result!=ERROR_SUCCESS
 								&& Result!=ERROR_ALREADY_EXISTS) {
 							SettingError();
-							::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
-											NULL,MB_OK | MB_ICONEXCLAMATION);
+							StdUtil::snprintf(szMessage,lengthof(szMessage),
+								TEXT("フォルダ \"%s\" を作成できません。"),szSaveFolder);
+							::MessageBox(hDlg,szMessage,
+										 NULL,MB_OK | MB_ICONEXCLAMATION);
 							SetDlgItemFocus(hDlg,IDC_CAPTUREOPTIONS_SAVEFOLDER);
 							return TRUE;
 						}

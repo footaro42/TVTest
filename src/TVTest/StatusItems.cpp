@@ -34,9 +34,11 @@ void CChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		crBack=::GetBkColor(hdc);
 		::SetTextColor(hdc,MixColor(crText,crBack,128));
 		pInfo=ChannelManager.GetChangingChannelInfo();
-		::wsprintf(szText,TEXT("%d: %s"),pInfo->GetChannelNo(),pInfo->GetName());
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
+						  pInfo->GetChannelNo(),pInfo->GetName());
 	} else if ((pInfo=ChannelManager.GetCurrentChannelInfo())!=NULL) {
-		::wsprintf(szText,TEXT("%d: %s"),pInfo->GetChannelNo(),pInfo->GetName());
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
+						  pInfo->GetChannelNo(),pInfo->GetName());
 	} else {
 		::lstrcpy(szText,TEXT("<ƒ`ƒƒƒ“ƒlƒ‹>"));
 	}
@@ -78,12 +80,12 @@ void CVideoSizeStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
 	CAppMain &AppMain=GetAppClass();
 	const CCoreEngine &CoreEngine=*AppMain.GetCoreEngine();
-	TCHAR szText[32];
+	TCHAR szText[64];
 
-	::wsprintf(szText,TEXT("%d x %d (%d %%)"),
-			   CoreEngine.GetOriginalVideoWidth(),
-			   CoreEngine.GetOriginalVideoHeight(),
-			   AppMain.GetUICore()->GetZoomPercentage());
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%d x %d (%d %%)"),
+					  CoreEngine.GetOriginalVideoWidth(),
+					  CoreEngine.GetOriginalVideoHeight(),
+					  AppMain.GetUICore()->GetZoomPercentage());
 	DrawText(hdc,pRect,szText);
 }
 
@@ -301,9 +303,9 @@ void CRecordStatusItem::Draw(HDC hdc,const RECT *pRect)
 		} else {
 			RecordSec=(int)(RecordManager.GetRecordTime()/1000);
 		}
-		::wsprintf(szText,TEXT("%s%d:%02d:%02d"),
-				   fRemain?TEXT("-"):TEXT(""),
-				   RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60);
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%s%d:%02d:%02d"),
+						  fRemain?TEXT("-"):TEXT(""),
+						  RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60);
 		pszText=szText;
 	} else if (RecordManager.IsReserved()) {
 		pszText=TEXT("¡ ˜^‰æ‘Ò‹@");
@@ -478,10 +480,10 @@ void CErrorStatusItem::Draw(HDC hdc,const RECT *pRect)
 	const CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
 	TCHAR szText[64];
 
-	::wsprintf(szText,TEXT("D %u / E %u / S %u"),
-			   CoreEngine.GetContinuityErrorPacketCount(),
-			   CoreEngine.GetErrorPacketCount(),
-			   CoreEngine.GetScramblePacketCount());
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("D %u / E %u / S %u"),
+					  CoreEngine.GetContinuityErrorPacketCount(),
+					  CoreEngine.GetErrorPacketCount(),
+					  CoreEngine.GetScramblePacketCount());
 	DrawText(hdc,pRect,szText);
 }
 
@@ -520,10 +522,12 @@ void CSignalLevelStatusItem::Draw(HDC hdc,const RECT *pRect)
 
 	if (m_fShowSignalLevel) {
 		int Level=(int)(CoreEngine.GetSignalLevel()*100.0f);
-		Length=::wsprintf(szText,TEXT("%d.%02d dB / "),Level/100,abs(Level)%100);
+		Length=StdUtil::snprintf(szText,lengthof(szText),
+								 TEXT("%d.%02d dB / "),Level/100,abs(Level)%100);
 	}
 	unsigned int BitRate=CoreEngine.GetBitRate()*100/(1024*1024);
-	::wsprintf(szText+Length,TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
+	StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+					  TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
 	DrawText(hdc,pRect,szText);
 }
 
@@ -555,11 +559,12 @@ void CClockStatusItem::Draw(HDC hdc,const RECT *pRect)
 	if (m_fTOT) {
 		if (!GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsAnalyzer.GetTotTime(&st))
 			return;
-		::wsprintf(szText,TEXT("TOT: %d/%d/%d %d:%02d:%02d"),
-				   st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("TOT: %d/%d/%d %d:%02d:%02d"),
+						  st.wYear,st.wMonth,st.wDay,st.wHour,st.wMinute,st.wSecond);
 	} else {
 		::GetLocalTime(&st);
-		::wsprintf(szText,TEXT("%d:%02d:%02d"),st.wHour,st.wMinute,st.wSecond);
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%d:%02d:%02d"),
+						  st.wHour,st.wMinute,st.wSecond);
 	}
 	DrawText(hdc,pRect,szText);
 }
@@ -741,8 +746,8 @@ void CBufferingStatusItem::Draw(HDC hdc,const RECT *pRect)
 	CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
 	TCHAR szText[32];
 
-	::wsprintf(szText,TEXT("R %lu / B %d%%"),
-		CoreEngine.GetStreamRemain(),CoreEngine.GetPacketBufferUsedPercentage());
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("R %lu / B %d%%"),
+					  CoreEngine.GetStreamRemain(),CoreEngine.GetPacketBufferUsedPercentage());
 	DrawText(hdc,pRect,szText);
 }
 
@@ -821,11 +826,11 @@ CMediaBitRateStatusItem::CMediaBitRateStatusItem()
 void CMediaBitRateStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
 	CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
-	TCHAR szText[32];
+	TCHAR szText[64];
 
-	::wsprintf(szText,TEXT("V %u Kbps / A %u Kbps"),
-			   CoreEngine.m_DtvEngine.m_MediaViewer.GetVideoBitRate()/1024,
-			   CoreEngine.m_DtvEngine.m_MediaViewer.GetAudioBitRate()/1024);
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("V %u Kbps / A %u Kbps"),
+					  CoreEngine.m_DtvEngine.m_MediaViewer.GetVideoBitRate()/1024,
+					  CoreEngine.m_DtvEngine.m_MediaViewer.GetAudioBitRate()/1024);
 	DrawText(hdc,pRect,szText);
 }
 

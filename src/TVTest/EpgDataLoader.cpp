@@ -15,7 +15,6 @@ CEpgDataLoader::CEpgDataLoader()
 	: m_EventManager(NULL)
 	, m_hThread(NULL)
 	, m_hAbortEvent(NULL)
-	, m_pszFolder(NULL)
 	, m_pEventHandler(NULL)
 {
 }
@@ -32,12 +31,14 @@ CEpgDataLoader::~CEpgDataLoader()
 	}
 	if (m_hAbortEvent!=NULL)
 		::CloseHandle(m_hAbortEvent);
-	delete [] m_pszFolder;
 }
 
 
 bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 {
+	if (pszFileName==NULL)
+		return false;
+
 	static const DWORD MAX_READ_SIZE=0x1000000UL;
 	static const DWORD BUFFER_SIZE=188*1024;
 	HANDLE hFile;
@@ -51,7 +52,7 @@ bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 					   OPEN_EXISTING,FILE_FLAG_SEQUENTIAL_SCAN,NULL);
 	if (hFile==INVALID_HANDLE_VALUE)
 		return false;
-	if (!::GetFileSizeEx(hFile,&FileSize) || FileSize.QuadPart<188) {
+	if (!::GetFileSizeEx(hFile,&FileSize) || FileSize.QuadPart<188*10) {
 		::CloseHandle(hFile);
 		return false;
 	}
@@ -95,6 +96,9 @@ bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 
 bool CEpgDataLoader::Load(LPCTSTR pszFolder,HANDLE hAbortEvent)
 {
+	if (pszFolder==NULL)
+		return false;
+
 	FILETIME ftCurrent;
 	TCHAR szFileMask[MAX_PATH];
 	HANDLE hFind;
@@ -125,6 +129,8 @@ bool CEpgDataLoader::Load(LPCTSTR pszFolder,HANDLE hAbortEvent)
 
 bool CEpgDataLoader::LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler)
 {
+	if (pszFolder==NULL)
+		return false;
 	if (m_hThread!=NULL) {
 		if (m_hAbortEvent!=NULL)
 			::SetEvent(m_hAbortEvent);
@@ -133,13 +139,13 @@ bool CEpgDataLoader::LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler)
 		::CloseHandle(m_hThread);
 		m_hThread=NULL;
 	}
-	ReplaceString(&m_pszFolder,pszFolder);
+	m_Folder.Set(pszFolder);
 	m_pEventHandler=pEventHandler;
 	if (m_hAbortEvent==NULL)
 		m_hAbortEvent=::CreateEvent(NULL,FALSE,FALSE,NULL);
 	else
 		::ResetEvent(m_hAbortEvent);
-	m_hThread=CreateThread(NULL,0,LoadThread,this,0,NULL);
+	m_hThread=(HANDLE)::_beginthreadex(NULL,0,LoadThread,this,0,NULL);
 	if (m_hThread==NULL)
 		return false;
 	return true;
@@ -157,18 +163,18 @@ bool CEpgDataLoader::Abort(DWORD Timeout)
 }
 
 
-DWORD WINAPI CEpgDataLoader::LoadThread(LPVOID lpParameter)
+unsigned int __stdcall CEpgDataLoader::LoadThread(LPVOID lpParameter)
 {
 	CEpgDataLoader *pThis=static_cast<CEpgDataLoader*>(lpParameter);
 
 	if (pThis->m_pEventHandler!=NULL)
 		pThis->m_pEventHandler->OnStart();
 	::SetThreadPriority(::GetCurrentThread(),THREAD_PRIORITY_LOWEST);
-	bool fSuccess=pThis->Load(pThis->m_pszFolder,pThis->m_hAbortEvent);
+	bool fSuccess=pThis->Load(pThis->m_Folder.Get(),pThis->m_hAbortEvent);
 	if (pThis->m_pEventHandler!=NULL)
 		pThis->m_pEventHandler->OnEnd(fSuccess,&pThis->m_EventManager);
 	pThis->m_EventManager.Clear();
-	SAFE_DELETE_ARRAY(pThis->m_pszFolder);
+	pThis->m_Folder.Clear();
 	return 0;
 }
 

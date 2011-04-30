@@ -93,12 +93,12 @@ public:
 	CProgramGuideToolList &operator=(const CProgramGuideToolList &Src);
 	void Clear();
 	bool Add(CProgramGuideTool *pTool);
-	CProgramGuideTool *GetTool(int Index);
-	const CProgramGuideTool *GetTool(int Index) const;
-	int NumTools() const { return (int)m_ToolList.size(); }
+	CProgramGuideTool *GetTool(size_t Index);
+	const CProgramGuideTool *GetTool(size_t Index) const;
+	size_t NumTools() const { return m_ToolList.size(); }
 };
 
-class CProgramGuide : public CCustomWindow
+class CProgramGuide : public CCustomWindow, protected CDoubleBufferingDraw
 {
 public:
 	enum ListMode {
@@ -252,6 +252,7 @@ private:
 	DrawUtil::CBitmap m_Chevron;
 	CEpgIcons m_EpgIcons;
 	UINT m_VisibleEventIcons;
+	bool m_fBarShadow;
 	CEventInfoPopup m_EventInfoPopup;
 	CEventInfoPopupManager m_EventInfoPopupManager;
 	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler

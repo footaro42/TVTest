@@ -13,7 +13,7 @@ static char THIS_FILE[]=__FILE__;
 #define TS_PACKETSIZE	188
 #endif
 
-#define SAMPLE_PACKETS 256
+#define SAMPLE_PACKETS 1024
 
 
 
@@ -80,7 +80,7 @@ HRESULT CBonSrcPin::Active(void)
 
 	m_bKillSignal=false;
 	m_SrcStream.Reset();
-	m_hThread=::CreateThread(NULL,0,StreamThread,this,0,NULL);
+	m_hThread=(HANDLE)::_beginthreadex(NULL,0,StreamThread,this,0,NULL);
 	if (m_hThread==NULL) {
 		return E_FAIL;
 	}
@@ -189,7 +189,7 @@ void CBonSrcPin::SetAudioPID(WORD PID)
 	m_SrcStream.SetAudioPID(PID);
 }
 
-DWORD WINAPI CBonSrcPin::StreamThread(LPVOID lpParameter)
+unsigned int __stdcall CBonSrcPin::StreamThread(LPVOID lpParameter)
 {
 	CBonSrcPin *pThis=static_cast<CBonSrcPin*>(lpParameter);
 

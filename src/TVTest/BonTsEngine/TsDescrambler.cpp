@@ -49,13 +49,13 @@ private:
 #endif
 	WORD m_EcmPID;
 	CLocalEvent m_EcmProcessEvent;
-	CLocalEvent m_SetScrambleKeyEvent;
 	CCriticalLock m_Multi2Lock;
 
 	bool m_bEcmReceived;
 	bool m_bLastEcmSucceed;
 	bool m_bOddKeyValid;
 	bool m_bEvenKeyValid;
+	int m_LastChangedKey;
 	bool m_bEcmErrorSent;
 	BYTE m_LastScramblingCtrl;
 	BYTE m_LastKsData[16];
@@ -854,6 +854,7 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 	, m_bLastEcmSucceed(true)
 	, m_bOddKeyValid(false)
 	, m_bEvenKeyValid(false)
+	, m_LastChangedKey(0)
 	, m_bEcmErrorSent(false)
 	, m_LastScramblingCtrl(0)
 {
@@ -870,7 +871,6 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 								   m_pDescrambler->m_BcasCard.GetInitialCbc());
 
 	m_EcmProcessEvent.Create(true, true);
-	m_SetScrambleKeyEvent.Create(true);
 
 	::ZeroMemory(m_LastKsData, sizeof(m_LastKsData));
 }
@@ -892,49 +892,56 @@ void CEcmProcessor::OnPidUnmapped(const WORD wPID)
 
 const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 {
+	const BYTE ScramblingCtrl = pTsPacket->m_Header.byTransportScramblingCtrl;
+	if (!(ScramblingCtrl & 2))
+		return true;
+
 	if (!m_bEcmReceived) {
 		// まだECMが来ていない
 		m_pDescrambler->m_ScramblePacketCount++;
 		return false;
 	}
 
-	// 最初のキー取得中だったら待つ
-	if (m_SetScrambleKeyEvent.Wait(500) == WAIT_TIMEOUT) {
-		m_pDescrambler->m_ScramblePacketCount++;
-		return false;
-	}
-
-	const BYTE ScramblingCtrl = pTsPacket->m_Header.byTransportScramblingCtrl;
+	const bool bEven = !(ScramblingCtrl & 1);
 
 	m_Multi2Lock.Lock();
 
-	if (m_LastScramblingCtrl != 0) {
-		if (m_LastScramblingCtrl != ScramblingCtrl) {
+	if (m_LastScramblingCtrl != ScramblingCtrl) {
+		if (m_LastScramblingCtrl != 0) {
+			/*
+				一つのECMで複数のストリームが対象になっている時、
+				ストリームによってOdd/Evenの切り替わるタイミングが違う事がある?
+				(未確認だが、不具合報告からの推測)
+				無効にするのをECMのKsが変わったタイミングにしておく
+			*/
+#if 0
 			// Odd/Evenが切り替わった時にもう片方を無効にする(古いキーが使われ続けるのを防ぐため)
-			if (ScramblingCtrl == 2)
+			if (bEven)
 				m_bOddKeyValid = false;
 			else
 				m_bEvenKeyValid = false;
-			m_LastScramblingCtrl = ScramblingCtrl;
+#endif
 
-			// ECM処理中であれば終わるまで待つ
-			if (((ScramblingCtrl == 2 && !m_bEvenKeyValid)
-						|| (ScramblingCtrl == 3 && !m_bOddKeyValid))
+			// ECM処理中であれば待ってみる
+			if (((bEven && !m_bEvenKeyValid) || (!bEven && !m_bOddKeyValid))
 					&& !m_EcmProcessEvent.IsSignaled()
 					&& !m_bCardReaderHung) {
 				m_Multi2Lock.Unlock();
-				if (m_EcmProcessEvent.Wait(3000) == WAIT_TIMEOUT)
-					OnCardReaderHung();
+				m_EcmProcessEvent.Wait(1000);
 				m_Multi2Lock.Lock();
 			}
+		} else {
+			// 最初のECM処理中であれば終わるまで待つ
+			m_Multi2Lock.Unlock();
+			m_EcmProcessEvent.Wait(3000);
+			m_Multi2Lock.Lock();
 		}
-	} else {
+
 		m_LastScramblingCtrl = ScramblingCtrl;
 	}
 
 	// スクランブル解除
-	if ((ScramblingCtrl == 2 && m_bEvenKeyValid)
-			|| (ScramblingCtrl == 3 && m_bOddKeyValid)) {
+	if ((bEven && m_bEvenKeyValid) || (!bEven && m_bOddKeyValid)) {
 #ifdef MULTI2_SSE2
 		if ((m_Multi2Decoder.*m_pDecodeFunc)
 #else
@@ -959,13 +966,37 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 	return false;
 }
 
+// Ksの比較
+static inline bool CompareKs(const void *pKey1, const void *pKey2)
+{
+#ifdef WIN64
+	return *static_cast<const ULONGLONG*>(pKey1) == *static_cast<const ULONGLONG*>(pKey2);
+#else
+	return static_cast<const DWORD*>(pKey1)[0] == static_cast<const DWORD*>(pKey2)[0]
+		&& static_cast<const DWORD*>(pKey1)[1] == static_cast<const DWORD*>(pKey2)[1];
+#endif
+}
+
 const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
 {
 	if (pCurSection->GetTableID() != 0x82)
 		return false;
 
-	if (pCurSection->GetPayloadSize() > MAX_ECM_DATA_SIZE)
+	const WORD PayloadSize = pCurSection->GetPayloadSize();
+
+	if (PayloadSize < MIN_ECM_DATA_SIZE || PayloadSize > MAX_ECM_DATA_SIZE)
 		return false;
+
+	// ECMが変わったらキー取得が成功するまで無効にする
+	// (最初ECM本体のKsが変化したか比較するようにしたが、
+	//  ECM本体とECM応答のKsの変化は一致するわけではない)
+	m_Multi2Lock.Lock();
+	if (m_LastChangedKey == 1) {
+		m_bEvenKeyValid = false;
+	} else if (m_LastChangedKey == 2) {
+		m_bOddKeyValid = false;
+	}
+	m_Multi2Lock.Unlock();
 
 	// 前のECM処理が終わるまで待つ
 	if (!m_EcmProcessEvent.IsSignaled()) {
@@ -979,7 +1010,7 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 
 	// B-CASアクセスキューに追加
 	m_EcmProcessEvent.Reset();
-	CEcmAccess *pEcmAccess = new CEcmAccess(this, pCurSection->GetPayloadData(), pCurSection->GetPayloadSize(), &m_EcmProcessEvent);
+	CEcmAccess *pEcmAccess = new CEcmAccess(this, pCurSection->GetPayloadData(), PayloadSize, &m_EcmProcessEvent);
 	if (m_pDescrambler->m_Queue.Enqueue(pEcmAccess)) {
 		m_bEcmReceived = true;
 	} else {
@@ -987,17 +1018,6 @@ const bool CEcmProcessor::OnTableUpdate(const CPsiSection *pCurSection, const CP
 	}
 
 	return true;
-}
-
-// Ksの比較
-static inline bool CompareKs(const void *pKey1, const void *pKey2)
-{
-#ifdef WIN64
-	return *static_cast<const ULONGLONG*>(pKey1) == *static_cast<const ULONGLONG*>(pKey2);
-#else
-	return static_cast<const DWORD*>(pKey1)[0] == static_cast<const DWORD*>(pKey2)[0]
-		&& static_cast<const DWORD*>(pKey1)[1] == static_cast<const DWORD*>(pKey2)[1];
-#endif
 }
 
 const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
@@ -1054,13 +1074,22 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 
 	// ECM処理成功状態更新
 	const bool bSucceeded = pKsData != NULL;
+	m_LastChangedKey = 0;
 	if (bSucceeded) {
 		if (m_bLastEcmSucceed) {
 			// キーが変わったら有効状態更新
-			if (!CompareKs(&m_LastKsData[0], &pKsData[0]))
+			const bool bOddKeyChanged  = !CompareKs(&m_LastKsData[0], &pKsData[0]);
+			const bool bEvenKeyChanged = !CompareKs(&m_LastKsData[8], &pKsData[8]);
+			if (bOddKeyChanged)
 				m_bOddKeyValid = true;
-			if (!CompareKs(&m_LastKsData[8], &pKsData[8]))
+			if (bEvenKeyChanged)
 				m_bEvenKeyValid = true;
+			if (bOddKeyChanged) {
+				if (!bEvenKeyChanged)
+					m_LastChangedKey = 1;
+			} else if (bEvenKeyChanged) {
+				m_LastChangedKey = 2;
+			}
 		} else {
 			m_bOddKeyValid = true;
 			m_bEvenKeyValid = true;
@@ -1074,8 +1103,6 @@ const bool CEcmProcessor::SetScrambleKey(const BYTE *pEcmData, DWORD EcmSize)
 	m_bLastEcmSucceed = bSucceeded;
 
 	m_Multi2Lock.Unlock();
-
-	m_SetScrambleKeyEvent.Set();
 
 	return true;
 }

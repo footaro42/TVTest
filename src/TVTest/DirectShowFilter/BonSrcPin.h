@@ -37,7 +37,7 @@ public:
 
 protected:
 	void EndStreamThread();
-	static DWORD WINAPI StreamThread(LPVOID lpParameter);
+	static unsigned int __stdcall StreamThread(LPVOID lpParameter);
 
 	CBonSrcFilter* m_pFilter;
 

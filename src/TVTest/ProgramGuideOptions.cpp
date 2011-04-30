@@ -166,21 +166,21 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 	}
 
 	if (Settings.Open(pszFileName,TEXT("ProgramGuideTools"),CSettings::OPEN_READ)) {
-		int NumTools;
+		unsigned int NumTools;
 
 		if (Settings.Read(TEXT("ToolCount"),&NumTools) && NumTools>0) {
 			CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 
-			for (int i=0;i<NumTools;i++) {
-				TCHAR szName[16];
+			for (unsigned int i=0;i<NumTools;i++) {
+				TCHAR szName[32];
 				TCHAR szToolName[CProgramGuideTool::MAX_NAME];
 				TCHAR szCommand[CProgramGuideTool::MAX_COMMAND];
 
-				wsprintf(szName,TEXT("Tool%d_Name"),i);
+				wsprintf(szName,TEXT("Tool%u_Name"),i);
 				if (!Settings.Read(szName,szToolName,lengthof(szToolName))
 						|| szToolName[0]=='\0')
 					break;
-				wsprintf(szName,TEXT("Tool%d_Command"),i);
+				wsprintf(szName,TEXT("Tool%u_Command"),i);
 				if (!Settings.Read(szName,szCommand,lengthof(szCommand))
 						|| szCommand[0]=='\0')
 					break;
@@ -252,14 +252,14 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		const CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 
 		Settings.Clear();
-		Settings.Write(TEXT("ToolCount"),pToolList->NumTools());
-		for (int i=0;i<pToolList->NumTools();i++) {
+		Settings.Write(TEXT("ToolCount"),(unsigned int)pToolList->NumTools());
+		for (size_t i=0;i<pToolList->NumTools();i++) {
 			const CProgramGuideTool *pTool=pToolList->GetTool(i);
-			TCHAR szName[16];
+			TCHAR szName[32];
 
-			::wsprintf(szName,TEXT("Tool%d_Name"),i);
+			::wsprintf(szName,TEXT("Tool%u_Name"),(UINT)i);
 			Settings.Write(szName,pTool->GetName());
-			::wsprintf(szName,TEXT("Tool%d_Command"),i);
+			::wsprintf(szName,TEXT("Tool%u_Command"),(UINT)i);
 			Settings.Write(szName,pTool->GetCommand());
 		}
 		Settings.Close();
@@ -316,8 +316,6 @@ static void SetFontInfo(HWND hDlg,const LOGFONT *plf)
 
 INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	static LOGFONT lfCurFont;
-
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
@@ -375,23 +373,38 @@ INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			if (Sel>=0)
 				DlgComboBox_SetCurSel(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,Sel);
 
-			lfCurFont=m_Font;
-			SetFontInfo(hDlg,&lfCurFont);
+			m_CurSettingFont=m_Font;
+			SetFontInfo(hDlg,&m_CurSettingFont);
 
 			m_Tooltip.Create(hDlg);
 			m_himlEventIcons=::ImageList_LoadImage(
 				GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDB_PROGRAMGUIDEICONS),
 				CEpgIcons::ICON_WIDTH,1,CLR_NONE,IMAGE_BITMAP,LR_CREATEDIBSECTION);
+			HDC hdc=::GetDC(hDlg);
+			HDC hdcMem=::CreateCompatibleDC(hdc);
 			for (int i=0;i<=CEpgIcons::ICON_LAST;i++) {
 				DlgCheckBox_Check(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
 								  (m_VisibleEventIcons&CEpgIcons::IconFlag(i))!=0);
+				// ImageList_ExtractIcon()だとなぜか色が化ける
+				// (4ビットのアイコンはシステムパレットが前提なのかも)
+				/*
 				::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
 									 BM_SETIMAGE,IMAGE_ICON,
 									 reinterpret_cast<LPARAM>(::ImageList_ExtractIcon(NULL,m_himlEventIcons,i)));
+				*/
+				HBITMAP hbm=::CreateCompatibleBitmap(hdc,CEpgIcons::ICON_WIDTH,CEpgIcons::ICON_HEIGHT);
+				HGDIOBJ hOldBmp=::SelectObject(hdcMem,hbm);
+				::ImageList_Draw(m_himlEventIcons,i,hdcMem,0,0,ILD_NORMAL);
+				::SelectObject(hdcMem,hOldBmp);
+				::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
+									 BM_SETIMAGE,IMAGE_BITMAP,
+									 reinterpret_cast<LPARAM>(hbm));
 				TCHAR szText[64];
 				::GetDlgItemText(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,szText,lengthof(szText));
 				m_Tooltip.AddTool(::GetDlgItem(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i),szText);
 			}
+			::DeleteDC(hdcMem);
+			::ReleaseDC(hDlg,hdc);
 
 			CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 			HWND hwndList=GetDlgItem(hDlg,IDC_PROGRAMGUIDETOOL_LIST);
@@ -416,12 +429,12 @@ INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 			ListView_InsertColumn(hwndList,1,&lvc);
 			if (pToolList->NumTools()>0) {
 				ListView_SetItemCount(hwndList,pToolList->NumTools());
-				for (int i=0;i<pToolList->NumTools();i++) {
+				for (size_t i=0;i<pToolList->NumTools();i++) {
 					CProgramGuideTool *pTool=new CProgramGuideTool(*pToolList->GetTool(i));
 					LV_ITEM lvi;
 
 					lvi.mask=LVIF_TEXT | LVIF_PARAM;
-					lvi.iItem=i;
+					lvi.iItem=(int)i;
 					lvi.iSubItem=0;
 					lvi.pszText=const_cast<LPTSTR>(pTool->GetName());
 					lvi.lParam=reinterpret_cast<LPARAM>(pTool);
@@ -449,8 +462,8 @@ INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
 		case IDC_PROGRAMGUIDEOPTIONS_CHOOSEFONT:
-			if (ChooseFontDialog(hDlg,&lfCurFont))
-				SetFontInfo(hDlg,&lfCurFont);
+			if (ChooseFontDialog(hDlg,&m_CurSettingFont))
+				SetFontInfo(hDlg,&m_CurSettingFont);
 			return TRUE;
 
 		case IDC_PROGRAMGUIDETOOL_ADD:
@@ -679,9 +692,9 @@ INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					}
 				}
 
-				if (!CompareLogFont(&m_Font,&lfCurFont)) {
-					m_Font=lfCurFont;
-					m_pProgramGuide->SetFont(&lfCurFont);
+				if (!CompareLogFont(&m_Font,&m_CurSettingFont)) {
+					m_Font=m_CurSettingFont;
+					m_pProgramGuide->SetFont(&m_Font);
 				}
 
 				UINT VisibleEventIcons=0;
@@ -728,11 +741,20 @@ INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 					DlgComboBox_GetItemData(hDlg,IDC_PROGRAMGUIDEOPTIONS_PROGRAMLDOUBLECLICK,i));
 			}
 			for (int i=0;i<=CEpgIcons::ICON_LAST;i++) {
+				/*
 				HICON hico=reinterpret_cast<HICON>(
 					::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
-										 BM_SETIMAGE,IMAGE_ICON,reinterpret_cast<LPARAM>((HICON)NULL)));
+										 BM_SETIMAGE,IMAGE_ICON,
+										 reinterpret_cast<LPARAM>((HICON)NULL)));
 				if (hico!=NULL)
 					::DestroyIcon(hico);
+				*/
+				HBITMAP hbm=reinterpret_cast<HBITMAP>(
+					::SendDlgItemMessage(hDlg,IDC_PROGRAMGUIDEOPTIONS_ICON_FIRST+i,
+										 BM_SETIMAGE,IMAGE_BITMAP,
+										 reinterpret_cast<LPARAM>((HBITMAP)NULL)));
+				if (hbm!=NULL)
+					::DeleteObject(hbm);
 			}
 			if (m_himlEventIcons!=NULL) {
 				::ImageList_Destroy(m_himlEventIcons);

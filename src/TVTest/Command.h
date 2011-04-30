@@ -2,7 +2,7 @@
 #define TVTEST_COMMAND_H
 
 
-#include "PointerArray.h"
+#include <vector>
 
 
 class CDriverManager;
@@ -11,9 +11,15 @@ class CZoomOptions;
 
 class CCommandList
 {
-	CPointerVector<TCHAR> m_DriverList;
-	CPointerVector<TCHAR> m_PluginList;
-	CPointerVector<TCHAR> m_PluginCommandList;
+	struct PluginCommandInfo {
+		CDynamicString Text;
+		CDynamicString Name;
+		PluginCommandInfo(LPCTSTR pszText,LPCTSTR pszName) : Text(pszText), Name(pszName) {}
+	};
+
+	std::vector<CDynamicString> m_DriverList;
+	std::vector<CDynamicString> m_PluginList;
+	std::vector<PluginCommandInfo> m_PluginCommandList;
 	const CZoomOptions *m_pZoomOptions;
 
 public:

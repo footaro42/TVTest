@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <limits.h>
 #include "TVTest.h"
 #include "ChannelList.h"
 
@@ -546,7 +545,6 @@ bool CChannelList::HasMultiService() const
 
 CTuningSpaceInfo::CTuningSpaceInfo()
 	: m_pChannelList(NULL)
-	, m_pszName(NULL)
 	, m_Space(SPACE_UNKNOWN)
 {
 }
@@ -554,24 +552,22 @@ CTuningSpaceInfo::CTuningSpaceInfo()
 
 CTuningSpaceInfo::CTuningSpaceInfo(const CTuningSpaceInfo &Info)
 	: m_pChannelList(NULL)
-	, m_pszName(NULL)
 	, m_Space(SPACE_UNKNOWN)
 {
-	Create(Info.m_pChannelList,Info.m_pszName);
+	Create(Info.m_pChannelList,Info.m_Name.Get());
 }
 
 
 CTuningSpaceInfo::~CTuningSpaceInfo()
 {
 	delete m_pChannelList;
-	delete [] m_pszName;
 }
 
 
 CTuningSpaceInfo &CTuningSpaceInfo::operator=(const CTuningSpaceInfo &Info)
 {
 	if (&Info!=this)
-		Create(Info.m_pChannelList,Info.m_pszName);
+		Create(Info.m_pChannelList,Info.m_Name.Get());
 	return *this;
 }
 
@@ -590,7 +586,7 @@ bool CTuningSpaceInfo::Create(const CChannelList *pList,LPCTSTR pszName)
 
 bool CTuningSpaceInfo::SetName(LPCTSTR pszName)
 {
-	if (!ReplaceString(&m_pszName,pszName))
+	if (!m_Name.Set(pszName))
 		return false;
 	// チューニング空間の種類を判定する
 	// BonDriverから取得できないので苦肉の策
@@ -640,64 +636,55 @@ CTuningSpaceList::~CTuningSpaceList()
 
 CTuningSpaceList &CTuningSpaceList::operator=(const CTuningSpaceList &List)
 {
-	if (&List==this)
-		return *this;
-	Clear();
-	if (List.NumSpaces()>0) {
-		m_TuningSpaceList.Reserve(List.NumSpaces());
-		for (int i=0;i<List.NumSpaces();i++)
-			m_TuningSpaceList.Add(new CTuningSpaceInfo(*List.m_TuningSpaceList[i]));
+	if (&List!=this) {
+		Clear();
+		if (List.NumSpaces()>0) {
+			m_TuningSpaceList.resize(List.m_TuningSpaceList.size());
+			for (size_t i=0;i<List.m_TuningSpaceList.size();i++)
+				m_TuningSpaceList[i]=new CTuningSpaceInfo(*List.m_TuningSpaceList[i]);
+		}
+		m_AllChannelList=List.m_AllChannelList;
 	}
-	m_AllChannelList=List.m_AllChannelList;
 	return *this;
 }
 
 
 CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space)
 {
-	if (Space<0 || Space>=NumSpaces()) {
-		//TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() : Out of range %d\n"),Space);
+	if (Space<0 || Space>=NumSpaces())
 		return NULL;
-	}
 	return m_TuningSpaceList[Space];
 }
 
 
 const CTuningSpaceInfo *CTuningSpaceList::GetTuningSpaceInfo(int Space) const
 {
-	if (Space<0 || Space>=NumSpaces()) {
-		//TRACE(TEXT("CTuningSpaceList::GetTuningSpaceInfo() const : Out of range %d\n"),Space);
+	if (Space<0 || Space>=NumSpaces())
 		return NULL;
-	}
 	return m_TuningSpaceList[Space];
 }
 
 
 CChannelList *CTuningSpaceList::GetChannelList(int Space)
 {
-	if (Space<0 || Space>=NumSpaces()) {
-		//TRACE(TEXT("CTuningSpaceList::GetChannelList() : Out of range %d\n"),Space);
+	if (Space<0 || Space>=NumSpaces())
 		return NULL;
-	}
 	return m_TuningSpaceList[Space]->GetChannelList();
 }
 
 
 const CChannelList *CTuningSpaceList::GetChannelList(int Space) const
 {
-	if (Space<0 || Space>=NumSpaces()) {
-		//TRACE(TEXT("CTuningSpaceList::GetChannelList() const : Out of range %d\n"),Space);
+	if (Space<0 || Space>=NumSpaces())
 		return NULL;
-	}
 	return m_TuningSpaceList[Space]->GetChannelList();
 }
 
 
 LPCTSTR CTuningSpaceList::GetTuningSpaceName(int Space) const
 {
-	if (Space<0 || Space>=NumSpaces()) {
+	if (Space<0 || Space>=NumSpaces())
 		return NULL;
-	}
 	return m_TuningSpaceList[Space]->GetName();
 }
 
@@ -758,13 +745,14 @@ bool CTuningSpaceList::Reserve(int Spaces)
 	}
 	if (Spaces<NumSpaces()) {
 		for (i=NumSpaces()-1;i>=Spaces;i--)
-			m_TuningSpaceList.Delete(i);
+			delete m_TuningSpaceList[i];
+		m_TuningSpaceList.resize(Spaces);
 	} else {
 		for (i=NumSpaces();i<Spaces;i++) {
 			CTuningSpaceInfo *pInfo=new CTuningSpaceInfo;
 
 			pInfo->Create();
-			m_TuningSpaceList.Add(pInfo);
+			m_TuningSpaceList.push_back(pInfo);
 		}
 	}
 	return true;
@@ -773,8 +761,9 @@ bool CTuningSpaceList::Reserve(int Spaces)
 
 void CTuningSpaceList::Clear()
 {
-	m_TuningSpaceList.DeleteAll();
-	m_TuningSpaceList.Clear();
+	for (size_t i=0;i<m_TuningSpaceList.size();i++)
+		delete m_TuningSpaceList[i];
+	m_TuningSpaceList.clear();
 	m_AllChannelList.Clear();
 }
 
@@ -943,7 +932,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 #else
 								::lstrcpyn(szName,p,min(i+1,lengthof(szName)));
 #endif
-								if (m_TuningSpaceList.Length()<=Space) {
+								if ((int)m_TuningSpaceList.size()<=Space) {
 									Reserve(Space+1);
 									m_TuningSpaceList[Space]->SetName(szName);
 								}

@@ -87,10 +87,9 @@ int CProgramItemInfo::CalcTitleLines(HDC hdc,int Width)
 {
 	TCHAR szText[256];
 
-	::wnsprintf(szText,lengthof(szText)-1,TEXT("%02d:%02d %s"),
-				m_EventInfo.m_stStartTime.wHour,m_EventInfo.m_stStartTime.wMinute,
-				NullToEmptyString(m_EventInfo.GetEventName()));
-	szText[lengthof(szText)-1]='\0';
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d %s"),
+					  m_EventInfo.m_stStartTime.wHour,m_EventInfo.m_stStartTime.wMinute,
+					  NullToEmptyString(m_EventInfo.GetEventName()));
 	m_NameLines=DrawUtil::CalcWrapTextLines(hdc,szText,Width);
 	return m_NameLines;
 }
@@ -112,10 +111,9 @@ void CProgramItemInfo::DrawTitle(HDC hdc,const RECT *pRect,int LineHeight)
 {
 	TCHAR szText[256];
 
-	::wnsprintf(szText,lengthof(szText)-1,TEXT("%02d:%02d %s"),
-				m_EventInfo.m_stStartTime.wHour,m_EventInfo.m_stStartTime.wMinute,
-				NullToEmptyString(m_EventInfo.GetEventName()));
-	szText[lengthof(szText)-1]='\0';
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d %s"),
+					  m_EventInfo.m_stStartTime.wHour,m_EventInfo.m_stStartTime.wMinute,
+					  NullToEmptyString(m_EventInfo.GetEventName()));
 	DrawUtil::DrawWrapText(hdc,szText,pRect,LineHeight);
 }
 
@@ -779,10 +777,11 @@ LRESULT CProgramListPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 					TCHAR szEndTime[16];
 					SYSTEMTIME stEnd;
 					if (EventInfo.m_DurationSec>0 && EventInfo.GetEndTime(&stEnd))
-						::wsprintf(szEndTime,TEXT("Å`%d:%02d"),stEnd.wHour,stEnd.wMinute);
+						StdUtil::snprintf(szEndTime,lengthof(szEndTime),
+										  TEXT("Å`%d:%02d"),stEnd.wHour,stEnd.wMinute);
 					else
 						szEndTime[0]='\0';
-					::wnsprintf(szText,lengthof(szText)-1,
+					StdUtil::snprintf(szText,lengthof(szText),
 						TEXT("%d/%d(%s) %d:%02d%s\n%s\n\n%s%s%s%s"),
 						EventInfo.m_stStartTime.wMonth,
 						EventInfo.m_stStartTime.wDay,

@@ -9,7 +9,6 @@
 #include "LogoManager.h"
 #include "DrawUtil.h"
 #include "Theme.h"
-#include "PointerArray.h"
 
 
 class CChannelDisplayMenu : public CDisplayView
@@ -73,8 +72,8 @@ private:
 		CTuner(const CDriverInfo *pDriverInfo);
 		~CTuner();
 		void Clear();
-		LPCTSTR GetDriverFileName() const { return m_pszDriverFileName; }
-		LPCTSTR GetTunerName() const { return m_pszTunerName; }
+		LPCTSTR GetDriverFileName() const { return m_DriverFileName.Get(); }
+		LPCTSTR GetTunerName() const { return m_TunerName.Get(); }
 		LPCTSTR GetDisplayName() const;
 		void SetDisplayName(LPCTSTR pszName);
 		int NumSpaces() const;
@@ -83,10 +82,10 @@ private:
 		void SetIcon(HICON hico);
 		HICON GetIcon() const { return m_hIcon; }
 	private:
-		CPointerVector<CTuningSpaceInfo> m_TuningSpaceList;
-		LPTSTR m_pszDriverFileName;
-		LPTSTR m_pszTunerName;
-		LPTSTR m_pszDisplayName;
+		std::vector<CTuningSpaceInfo*> m_TuningSpaceList;
+		CDynamicString m_DriverFileName;
+		CDynamicString m_TunerName;
+		CDynamicString m_DisplayName;
 		HICON m_hIcon;
 	};
 
@@ -125,7 +124,7 @@ private:
 	SYSTEMTIME m_ClockTime;
 	enum { TIMER_CLOCK=1 };
 
-	CPointerVector<CTuner> m_TunerList;
+	std::vector<CTuner*> m_TunerList;
 	int m_TotalTuningSpaces;
 	int m_CurTuner;
 	int m_CurChannel;

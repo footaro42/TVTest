@@ -25,12 +25,13 @@ class CPlaybackOptions : public COptions
 		MAX_PACKET_BUFFER_LENGTH = 0x00100000UL
 	};
 
-	TCHAR m_szAudioDeviceName[MAX_AUDIO_DEVICE_NAME];
-	TCHAR m_szAudioFilterName[MAX_AUDIO_FILTER_NAME];
+	CDynamicString m_AudioDeviceName;
+	CDynamicString m_AudioFilterName;
 
 	CAacDecFilter::SpdifOptions m_SpdifOptions;
 	bool m_fDownMixSurround;
 	bool m_fRestoreMute;
+	bool m_fMute;
 	bool m_fRestorePlayStatus;
 
 	bool m_fUseAudioRendererClock;
@@ -60,12 +61,13 @@ public:
 // CBasicDialog
 	bool Create(HWND hwndOwner);
 // CPlaybackOptions
-	LPCTSTR GetAudioDeviceName() const { return m_szAudioDeviceName; }
-	LPCTSTR GetAudioFilterName() const { return m_szAudioFilterName; }
+	LPCTSTR GetAudioDeviceName() const { return m_AudioDeviceName.Get(); }
+	LPCTSTR GetAudioFilterName() const { return m_AudioFilterName.Get(); }
 	const CAacDecFilter::SpdifOptions &GetSpdifOptions() const { return m_SpdifOptions; }
 	bool SetSpdifOptions(const CAacDecFilter::SpdifOptions &Options);
 	bool GetDownMixSurround() const { return m_fDownMixSurround; }
 	bool GetRestoreMute() const { return m_fRestoreMute; }
+	bool IsMuteOnStartUp() const { return m_fRestoreMute && m_fMute; }
 	bool GetRestorePlayStatus() const { return m_fRestorePlayStatus; }
 	bool GetUseAudioRendererClock() const { return m_fUseAudioRendererClock; }
 	bool GetAdjustAudioStreamTime() const { return m_fAdjustAudioStreamTime; }

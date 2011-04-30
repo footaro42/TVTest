@@ -95,11 +95,11 @@ public:
 	CEventInfoData &operator=(const CEventManager::CEventInfo &Info);
 	bool operator==(const CEventInfoData &Info) const;
 	bool operator!=(const CEventInfoData &Info) const { return !(*this==Info); }
-	LPCWSTR GetEventName() const { return m_pszEventName; }
+	LPCWSTR GetEventName() const { return m_EventName.Get(); }
 	bool SetEventName(LPCWSTR pszEventName);
-	LPCWSTR GetEventText() const { return m_pszEventText; }
+	LPCWSTR GetEventText() const { return m_EventText.Get(); }
 	bool SetEventText(LPCWSTR pszEventText);
-	LPCWSTR GetEventExtText() const { return m_pszEventExtText; }
+	LPCWSTR GetEventExtText() const { return m_EventExtText.Get(); }
 	bool SetEventExtText(LPCWSTR pszEventExtText);
 	bool GetStartTime(SYSTEMTIME *pTime) const;
 	bool GetEndTime(SYSTEMTIME *pTime) const;
@@ -107,9 +107,9 @@ public:
 	const AudioInfo *GetMainAudioInfo() const;
 
 private:
-	LPWSTR m_pszEventName;
-	LPWSTR m_pszEventText;
-	LPWSTR m_pszEventExtText;
+	CDynamicString m_EventName;
+	CDynamicString m_EventText;
+	CDynamicString m_EventExtText;
 
 	friend class CEpgProgramList;
 };

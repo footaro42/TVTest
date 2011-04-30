@@ -4,7 +4,6 @@
 
 #include <vector>
 #include "TVTestPlugin.h"
-#include "PointerArray.h"
 #include "Options.h"
 #include "MediaData.h"
 #include "BonTsEngine/Exception.h"
@@ -15,17 +14,15 @@ class CPlugin : public CBonErrorHandler
 {
 	class CPluginCommandInfo {
 		int m_ID;
-		LPWSTR m_pszText;
-		LPWSTR m_pszName;
+		CDynamicString m_Text;
+		CDynamicString m_Name;
 	public:
-		CPluginCommandInfo(const CPluginCommandInfo &Src);
 		CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName);
 		CPluginCommandInfo(const TVTest::CommandInfo &Info);
 		virtual ~CPluginCommandInfo();
-		CPluginCommandInfo &operator=(const CPluginCommandInfo &Info);
 		int GetID() const { return m_ID; }
-		LPCWSTR GetText() const { return m_pszText; }
-		LPCWSTR GetName() const { return m_pszName; }
+		LPCWSTR GetText() const { return m_Text.Get(); }
+		LPCWSTR GetName() const { return m_Name.Get(); }
 	};
 
 	class CProgramGuideCommand : public CPluginCommandInfo {
@@ -52,7 +49,7 @@ class CPlugin : public CBonErrorHandler
 	UINT m_ProgramGuideEventFlags;
 	TVTest::WindowMessageCallbackFunc m_pMessageCallback;
 	void *m_pMessageCallbackClientData;
-	CPointerVector<CPluginCommandInfo> m_CommandList;
+	std::vector<CPluginCommandInfo> m_CommandList;
 	std::vector<CProgramGuideCommand> m_ProgramGuideCommandList;
 	std::vector<CDynamicString> m_ControllerList;
 
@@ -63,13 +60,14 @@ class CPlugin : public CBonErrorHandler
 	public:
 		CPlugin *m_pPlugin;
 		TVTest::StreamCallbackInfo m_CallbackInfo;
-		CMediaGrabberInfo(CPlugin *pPlugin,TVTest::StreamCallbackInfo *pCallbackInfo) {
-			m_pPlugin=pPlugin;
-			m_CallbackInfo=*pCallbackInfo;
+		CMediaGrabberInfo(CPlugin *pPlugin,TVTest::StreamCallbackInfo *pCallbackInfo)
+			: m_pPlugin(pPlugin)
+			, m_CallbackInfo(*pCallbackInfo)
+		{
 		}
 	};
 	static bool m_fSetGrabber;
-	static CPointerVector<CMediaGrabberInfo> m_GrabberList;
+	static std::vector<CMediaGrabberInfo> m_GrabberList;
 	static CCriticalLock m_GrabberLock;
 	static bool CALLBACK GrabMediaCallback(const CMediaData *pMediaData,const PVOID pParam);
 	class CAudioStreamCallbackInfo {
@@ -77,14 +75,15 @@ class CPlugin : public CBonErrorHandler
 		CPlugin *m_pPlugin;
 		TVTest::AudioCallbackFunc m_pCallback;
 		void *m_pClientData;
-		CAudioStreamCallbackInfo(CPlugin *pPlugin,TVTest::AudioCallbackFunc pCallback,void *pClientData) {
-			m_pPlugin=pPlugin;
-			m_pCallback=pCallback;
-			m_pClientData=pClientData;
+		CAudioStreamCallbackInfo(CPlugin *pPlugin,TVTest::AudioCallbackFunc pCallback,void *pClientData)
+			: m_pPlugin(pPlugin)
+			, m_pCallback(pCallback)
+			, m_pClientData(pClientData)
+		{
 		}
 	};
 	static CCriticalLock m_AudioStreamLock;
-	static CPointerVector<CAudioStreamCallbackInfo> m_AudioStreamCallbackList;
+	static std::vector<CAudioStreamCallbackInfo> m_AudioStreamCallbackList;
 
 	static void CALLBACK AudioStreamCallback(short *pData,DWORD Samples,int Channels,void *pParam);
 	static LRESULT CALLBACK Callback(TVTest::PluginParam *pParam,UINT Message,LPARAM lParam1,LPARAM lParam2);
@@ -133,11 +132,11 @@ class CPluginManager
 		UINT CommandEnd;
 	};
 
-	CPointerVector<CPlugin> m_PluginList;
+	std::vector<CPlugin*> m_PluginList;
 	std::vector<MenuCommandInfo> m_ProgramGuideMenuList;
 
 	void SortPluginsByName();
-	static int CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,void *pParam);
+	static bool CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2);
 	bool SendEvent(UINT Event,LPARAM lParam1=0,LPARAM lParam2=0);
 	bool SendProgramGuideEvent(UINT Event,LPARAM Param1=0,LPARAM Param2=0);
 	bool SendProgramGuideProgramEvent(UINT Event,const CEventInfoData &EventInfo,LPARAM Param);
@@ -147,7 +146,7 @@ public:
 	~CPluginManager();
 	bool LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR> *pExcludePlugins=NULL);
 	void FreePlugins();
-	int NumPlugins() const { return m_PluginList.Length(); }
+	int NumPlugins() const { return (int)m_PluginList.size(); }
 	CPlugin *GetPlugin(int Index);
 	const CPlugin *GetPlugin(int Index) const;
 	bool EnablePlugins(bool fEnable=true);

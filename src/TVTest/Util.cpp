@@ -839,6 +839,27 @@ bool CDynamicString::Set(LPCTSTR pszString)
 }
 
 
+bool CDynamicString::Set(LPCTSTR pszString,size_t Length)
+{
+	Clear();
+	if (pszString!=NULL && Length>0) {
+		Length=StdUtil::strnlen(pszString,Length);
+		m_pszString=new TCHAR[Length+1];
+		::CopyMemory(m_pszString,pszString,Length*sizeof(TCHAR));
+		m_pszString[Length]=_T('\0');
+	}
+	return true;
+}
+
+
+bool CDynamicString::Attach(LPTSTR pszString)
+{
+	Clear();
+	m_pszString=pszString;
+	return true;
+}
+
+
 int CDynamicString::Length() const
 {
 	if (m_pszString==NULL)
@@ -864,14 +885,27 @@ bool CDynamicString::IsEmpty() const
 
 int CDynamicString::Compare(LPCTSTR pszString) const
 {
-	if (m_pszString==NULL) {
-		if (pszString==NULL)
+	if (IsEmpty()) {
+		if (IsStringEmpty(pszString))
 			return 0;
 		return -1;
 	}
-	if (pszString==NULL)
+	if (IsStringEmpty(pszString))
 		return 1;
 	return ::lstrcmp(m_pszString,pszString);
+}
+
+
+int CDynamicString::CompareIgnoreCase(LPCTSTR pszString) const
+{
+	if (IsEmpty()) {
+		if (IsStringEmpty(pszString))
+			return 0;
+		return -1;
+	}
+	if (IsStringEmpty(pszString))
+		return 1;
+	return ::lstrcmpi(m_pszString,pszString);
 }
 
 

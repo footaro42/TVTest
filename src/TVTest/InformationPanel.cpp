@@ -704,10 +704,11 @@ void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
 	int OldBkMode=::SetBkMode(hdcDst,TRANSPARENT);
 
 	if (GetDrawItemRect(ITEM_VIDEO,&rc,PaintRect)) {
-		::wsprintf(szText,TEXT("%d x %d [%d x %d (%d:%d)]"),
-				   m_OriginalVideoWidth,m_OriginalVideoHeight,
-				   m_DisplayVideoWidth,m_DisplayVideoHeight,
-				   m_AspectX,m_AspectY);
+		StdUtil::snprintf(szText,lengthof(szText),
+						  TEXT("%d x %d [%d x %d (%d:%d)]"),
+						  m_OriginalVideoWidth,m_OriginalVideoHeight,
+						  m_DisplayVideoWidth,m_DisplayVideoHeight,
+						  m_AspectX,m_AspectY);
 		DrawItem(hdc,szText,rc);
 	}
 	if (GetDrawItemRect(ITEM_DECODER,&rc,PaintRect)) {
@@ -723,36 +724,38 @@ void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
 		int Length=0;
 		if (m_fSignalLevel) {
 			int SignalLevel=(int)(m_SignalLevel*100.0f);
-			Length=::wsprintf(szText,TEXT("%d.%02d dB / "),
-							  SignalLevel/100,abs(SignalLevel)%100);
+			Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("%d.%02d dB / "),
+									 SignalLevel/100,abs(SignalLevel)%100);
 		}
 		unsigned int BitRate=m_BitRate*100/(1024*1024);
-		::wsprintf(szText+Length,TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
+		StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+						  TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
 		DrawItem(hdc,szText,rc);
 	}
 	if (GetDrawItemRect(ITEM_MEDIABITRATE,&rc,PaintRect)) {
 		/*
 		unsigned int VideoBitRate=m_VideoBitRate*100/1024;
 		unsigned int AudioBitRate=m_AudioBitRate*100/1024;
-		::wsprintf(szText,TEXT("âfëú %u.%02u Kbps / âπê∫ %u.%02u Kbps"),
-				   VideoBitRate/100,VideoBitRate%100,
-				   AudioBitRate/100,AudioBitRate%100);
+		StdUtil::snprintf(szText,lengthof(szText),
+						  TEXT("âfëú %u.%02u Kbps / âπê∫ %u.%02u Kbps"),
+						  VideoBitRate/100,VideoBitRate%100,
+						  AudioBitRate/100,AudioBitRate%100);
 		*/
-		::wsprintf(szText,TEXT("âfëú %u Kbps / âπê∫ %u Kbps"),
-				   m_VideoBitRate/1024,m_AudioBitRate/1024);
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("âfëú %u Kbps / âπê∫ %u Kbps"),
+						  m_VideoBitRate/1024,m_AudioBitRate/1024);
 		DrawItem(hdc,szText,rc);
 	}
 	if (GetDrawItemRect(ITEM_ERROR,&rc,PaintRect)) {
 		const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
 		int Length;
 
-		Length=::wsprintf(szText,TEXT("D %u / E %u"),
-						  pCoreEngine->GetContinuityErrorPacketCount(),
-						  pCoreEngine->GetErrorPacketCount());
+		Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("D %u / E %u"),
+								 pCoreEngine->GetContinuityErrorPacketCount(),
+								 pCoreEngine->GetErrorPacketCount());
 		if (pCoreEngine->GetDescramble()
 				&& pCoreEngine->GetCardReaderType()!=CCoreEngine::CARDREADER_NONE)
-			::wsprintf(szText+Length,TEXT(" / S %u"),
-					   pCoreEngine->GetScramblePacketCount());
+			StdUtil::snprintf(szText+Length,lengthof(szText)-Length,TEXT(" / S %u"),
+							  pCoreEngine->GetScramblePacketCount());
 		DrawItem(hdc,szText,rc);
 	}
 	if (GetDrawItemRect(ITEM_RECORD,&rc,PaintRect)) {
@@ -763,7 +766,7 @@ void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
 			unsigned int FreeSpace=
 				(unsigned int)(m_DiskFreeSpace/(ULONGLONG)(1024*1024*1024/100));
 
-			::wsprintf(szText,
+			StdUtil::snprintf(szText,lengthof(szText),
 				TEXT("Åú %d:%02d:%02d / %d.%02d MB / %d.%02d GBãÛÇ´"),
 				RecordSec/(60*60),(RecordSec/60)%60,RecordSec%60,
 				Size/100,Size%100,FreeSpace/100,FreeSpace%100);

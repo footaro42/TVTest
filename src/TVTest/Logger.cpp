@@ -16,15 +16,14 @@ static char THIS_FILE[]=__FILE__;
 
 
 CLogItem::CLogItem(LPCTSTR pszText)
+	: m_Text(pszText)
 {
 	::GetSystemTimeAsFileTime(&m_Time);
-	m_pszText=DuplicateString(pszText);
 }
 
 
 CLogItem::~CLogItem()
 {
-	delete [] m_pszText;
 }
 
 
@@ -49,7 +48,7 @@ int CLogItem::Format(char *pszText,int MaxLength) const
 	Length+=::GetTimeFormatA(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,
 								NULL,pszText+Length,MaxLength-Length);
 	pszText[Length-1]='>';
-	Length+=::WideCharToMultiByte(CP_ACP,0,m_pszText,::lstrlen(m_pszText),
+	Length+=::WideCharToMultiByte(CP_ACP,0,m_Text.Get(),m_Text.Length(),
 									pszText+Length,MaxLength-Length-1,NULL,NULL);
 	pszText[Length]='\0';
 	return Length;
@@ -274,7 +273,8 @@ INT_PTR CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				} else {
 					TCHAR szMessage[MAX_PATH+64];
 
-					::wsprintf(szMessage,TEXT("ログを \"%s\" に保存しました。"),szFileName);
+					StdUtil::snprintf(szMessage,lengthof(szMessage),
+									  TEXT("ログを \"%s\" に保存しました。"),szFileName);
 					::MessageBox(hDlg,szMessage,TEXT("ログ保存"),MB_OK | MB_ICONINFORMATION);
 				}
 			}

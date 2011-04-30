@@ -437,7 +437,7 @@ LRESULT CEventInfoPopup::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 			OldBkMode=::SetBkMode(ps.hdc,TRANSPARENT);
 			OldTextColor=::SetTextColor(ps.hdc,m_TitleTextColor);
 			if (m_EventInfo.m_fValidStartTime) {
-				Length=::wsprintf(szText,TEXT("%d/%d/%d(%s) %d:%02d"),
+				Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("%d/%d/%d(%s) %d:%02d"),
 					m_EventInfo.m_stStartTime.wYear,
 					m_EventInfo.m_stStartTime.wMonth,
 					m_EventInfo.m_stStartTime.wDay,
@@ -447,7 +447,8 @@ LRESULT CEventInfoPopup::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPar
 				SYSTEMTIME stEnd;
 				if (m_EventInfo.m_DurationSec>0
 						&& m_EventInfo.GetEndTime(&stEnd))
-					Length+=::wsprintf(szText+Length,TEXT("Å`%d:%02d"),stEnd.wHour,stEnd.wMinute);
+					Length+=StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+											  TEXT("Å`%d:%02d"),stEnd.wHour,stEnd.wMinute);
 				::TextOut(ps.hdc,0,0,szText,Length);
 			}
 			rc.top+=m_TitleLineHeight;

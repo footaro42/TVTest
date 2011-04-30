@@ -100,8 +100,8 @@ bool COSDManager::ShowChannelOSD(const CChannelInfo *pInfo,bool fChanging)
 	TCHAR szText[4+MAX_CHANNEL_NAME];
 	int Length=0;
 	if (pInfo->GetChannelNo()!=0)
-		Length=::wsprintf(szText,TEXT("%d "),pInfo->GetChannelNo());
-	::wsprintf(szText+Length,TEXT("%s"),pInfo->GetName());
+		Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("%d "),pInfo->GetChannelNo());
+	StdUtil::snprintf(szText+Length,lengthof(szText)-Length,TEXT("%s"),pInfo->GetName());
 
 	if (!m_pOptions->GetPseudoOSD() && !fForcePseudoOSD
 			&& CoreEngine.m_DtvEngine.m_MediaViewer.IsDrawTextSupported()) {

@@ -25,10 +25,11 @@ private:
 	CEventManager m_EventManager;
 	HANDLE m_hThread;
 	HANDLE m_hAbortEvent;
-	LPTSTR m_pszFolder;
+	CDynamicString m_Folder;
 	CEventHandler *m_pEventHandler;
+
 	bool LoadFromFile(LPCTSTR pszFileName);
-	static DWORD WINAPI LoadThread(LPVOID lpParameter);
+	static unsigned int __stdcall LoadThread(LPVOID lpParameter);
 };
 
 

@@ -26,6 +26,7 @@ static const int StatusBarCommandList[] = {
 	CM_RECORD_START,
 	CM_RECORDOPTION,
 	CM_TIMESHIFTRECORDING,
+	0,
 };
 
 
@@ -86,7 +87,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	TCHAR szPath[MAX_PATH];
 	unsigned int Value;
 
-	// Backward compatibility
+	// 古いバージョンの互換用
 	if (pSettings->Read(TEXT("RecordFile"),szPath,lengthof(szPath))
 			&& szPath[0]!='\0') {
 		LPTSTR pszFileName=::PathFindFileName(szPath);
@@ -104,7 +105,7 @@ bool CRecordOptions::Read(CSettings *pSettings)
 			&& szPath[0]!='\0')
 		::lstrcpy(m_szFileName,szPath);
 #if 0
-	// Backward compatibility
+	// 古いバージョンの互換用
 	bool fAddTime;
 	if (pSettings->Read(TEXT("AddRecordTime"),&fAddTime) && fAddTime) {
 		TCHAR szFormat[] = TEXT("%date%_%time%");
@@ -134,9 +135,13 @@ bool CRecordOptions::Read(CSettings *pSettings)
 	pSettings->Read(TEXT("ShowRecordRemainTime"),&m_fShowRemainTime);
 	TCHAR szCommand[CCommandList::MAX_COMMAND_TEXT];
 	if (pSettings->Read(TEXT("StatusBarRecordCommand"),szCommand,lengthof(szCommand))) {
-		int Command=GetAppClass().GetCommandList()->ParseText(szCommand);
-		if (Command!=0)
-			m_StatusBarRecordCommand=Command;
+		if (szCommand[0]!=L'\0') {
+			int Command=GetAppClass().GetCommandList()->ParseText(szCommand);
+			if (Command!=0)
+				m_StatusBarRecordCommand=Command;
+		} else {
+			m_StatusBarRecordCommand=0;
+		}
 	}
 	return true;
 }
@@ -160,9 +165,13 @@ bool CRecordOptions::Write(CSettings *pSettings) const
 	pSettings->Write(TEXT("TimeShiftRecBufferSize"),m_TimeShiftBufferSize);
 	pSettings->Write(TEXT("TimeShiftRecording"),m_fEnableTimeShiftRecording);
 	pSettings->Write(TEXT("ShowRecordRemainTime"),m_fShowRemainTime);
-	LPCTSTR pszCommand=GetAppClass().GetCommandList()->GetCommandTextByID(m_StatusBarRecordCommand);
-	if (pszCommand!=NULL)
-		pSettings->Write(TEXT("StatusBarRecordCommand"),pszCommand);
+	if (m_StatusBarRecordCommand!=0) {
+		LPCTSTR pszCommand=GetAppClass().GetCommandList()->GetCommandTextByID(m_StatusBarRecordCommand);
+		if (pszCommand!=NULL)
+			pSettings->Write(TEXT("StatusBarRecordCommand"),pszCommand);
+	} else {
+		pSettings->Write(TEXT("StatusBarRecordCommand"),TEXT(""));
+	}
 	return true;
 }
 
@@ -377,12 +386,15 @@ INT_PTR CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 			const CCommandList *pCommandList=GetAppClass().GetCommandList();
 			for (int i=0;i<lengthof(StatusBarCommandList);i++) {
+				const int Command=StatusBarCommandList[i];
 				TCHAR szText[CCommandList::MAX_COMMAND_NAME];
 
-				pCommandList->GetCommandNameByID(StatusBarCommandList[i],
-												 szText,lengthof(szText));
+				if (Command!=0)
+					pCommandList->GetCommandNameByID(Command,szText,lengthof(szText));
+				else
+					::lstrcpy(szText,TEXT("何もしない"));
 				DlgComboBox_AddString(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND,szText);
-				if (StatusBarCommandList[i]==m_StatusBarRecordCommand)
+				if (Command==m_StatusBarRecordCommand)
 					DlgComboBox_SetCurSel(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND,i);
 			}
 		}
@@ -454,7 +466,7 @@ INT_PTR CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				if (szSaveFolder[0]!='\0' && !::PathIsDirectory(szSaveFolder)) {
 					TCHAR szMessage[MAX_PATH+80];
 
-					::wsprintf(szMessage,
+					StdUtil::snprintf(szMessage,lengthof(szMessage),
 						TEXT("録画ファイルの保存先フォルダ \"%s\" がありません。\n")
 						TEXT("作成しますか?"),szSaveFolder);
 					if (::MessageBox(hDlg,szMessage,TEXT("フォルダ作成の確認"),
@@ -541,7 +553,7 @@ INT_PTR CRecordOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				}
 
 				int Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_RECORDOPTIONS_STATUSBARCOMMAND);
-				if (Sel>=0)
+				if (Sel>=0 && Sel<lengthof(StatusBarCommandList))
 					m_StatusBarRecordCommand=StatusBarCommandList[Sel];
 			}
 			break;

@@ -15,20 +15,12 @@ static char THIS_FILE[]=__FILE__;
 
 
 CMessageDialog::CMessageDialog()
-	: m_pszText(NULL)
-	, m_pszTitle(NULL)
-	, m_pszSystemMessage(NULL)
-	, m_pszCaption(NULL)
 {
 }
 
 
 CMessageDialog::~CMessageDialog()
 {
-	delete [] m_pszText;
-	delete [] m_pszTitle;
-	delete [] m_pszSystemMessage;
-	delete [] m_pszCaption;
 }
 
 
@@ -56,8 +48,8 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			::SetProp(hDlg,TEXT("This"),pThis);
 			pThis->m_hDlg=hDlg;
 
-			if (pThis->m_pszCaption!=NULL)
-				::SetWindowText(hDlg,pThis->m_pszCaption);
+			if (!pThis->m_Caption.IsEmpty())
+				::SetWindowText(hDlg,pThis->m_Caption.Get());
 
 			::SendDlgItemMessage(hDlg,IDC_ERROR_ICON,STM_SETICON,
 				reinterpret_cast<WPARAM>(::LoadIcon(NULL,
@@ -80,16 +72,16 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 			cfBold=cf;
 			cfBold.dwMask|=CFM_BOLD;
 			cfBold.dwEffects|=CFE_BOLD;
-			if (pThis->m_pszTitle!=NULL) {
-				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszTitle,&cfBold);
+			if (!pThis->m_Title.IsEmpty()) {
+				CRichEditUtil::AppendText(hwndEdit,pThis->m_Title.Get(),&cfBold);
 				CRichEditUtil::AppendText(hwndEdit,TEXT("\n"),&cf);
 			}
-			if (pThis->m_pszText!=NULL) {
-				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszText,&cf);
+			if (!pThis->m_Text.IsEmpty()) {
+				CRichEditUtil::AppendText(hwndEdit,pThis->m_Text.Get(),&cf);
 			}
-			if (pThis->m_pszSystemMessage!=NULL) {
+			if (!pThis->m_SystemMessage.IsEmpty()) {
 				CRichEditUtil::AppendText(hwndEdit,TEXT("\n\nWindowsのエラーメッセージ :\n"),&cfBold);
-				CRichEditUtil::AppendText(hwndEdit,pThis->m_pszSystemMessage,&cf);
+				CRichEditUtil::AppendText(hwndEdit,pThis->m_SystemMessage.Get(),&cf);
 			}
 			const int MaxWidth=CRichEditUtil::GetMaxLineWidth(hwndEdit)+8;
 			RECT rcEdit,rcIcon,rcDlg,rcClient,rcOK;
@@ -225,10 +217,10 @@ INT_PTR CALLBACK CMessageDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARA
 		{
 			CMessageDialog *pThis=GetThis(hDlg);
 
-			SAFE_DELETE_ARRAY(pThis->m_pszText);
-			SAFE_DELETE_ARRAY(pThis->m_pszTitle);
-			SAFE_DELETE_ARRAY(pThis->m_pszSystemMessage);
-			SAFE_DELETE_ARRAY(pThis->m_pszCaption);
+			pThis->m_Text.Clear();
+			pThis->m_Title.Clear();
+			pThis->m_SystemMessage.Clear();
+			pThis->m_Caption.Clear();
 			pThis->m_hDlg=NULL;
 			::RemoveProp(hDlg,TEXT("This"));
 		}
@@ -242,33 +234,35 @@ bool CMessageDialog::Show(HWND hwndOwner,MessageType Type,LPCTSTR pszText,LPCTST
 {
 	if (pszText==NULL && pszTitle==NULL && pszSystemMessage==NULL)
 		return false;
-	if (!m_RichEditUtil.LoadRichEditLib()) {
-		TCHAR szMessage[2048];
 
-		szMessage[0]='\0';
+	if (!m_RichEditUtil.LoadRichEditLib()) {
+		TCHAR szMessage[1024];
+		CStaticStringFormatter Formatter(szMessage,lengthof(szMessage));
+
 		if (pszTitle!=NULL)
-			::lstrcat(szMessage,pszTitle);
+			Formatter.Append(pszTitle);
 		if (pszText!=NULL) {
-			if (szMessage[0]!='\0')
-				::lstrcat(szMessage,TEXT("\n"));
-			::lstrcat(szMessage,pszText);
+			if (!Formatter.IsEmpty())
+				Formatter.Append(TEXT("\n"));
+			Formatter.Append(pszText);
 		}
 		if (pszSystemMessage!=NULL) {
-			if (szMessage[0]!='\0')
-				::lstrcat(szMessage,TEXT("\n\n"));
-			::lstrcat(szMessage,TEXT("Windowsのエラーメッセージ:\n"));
-			::lstrcat(szMessage,pszSystemMessage);
+			if (!Formatter.IsEmpty())
+				Formatter.Append(TEXT("\n\n"));
+			Formatter.Append(TEXT("Windowsのエラーメッセージ:\n"));
+			Formatter.Append(pszSystemMessage);
 		}
-		return ::MessageBox(hwndOwner,szMessage,pszCaption,MB_OK |
+		return ::MessageBox(hwndOwner,Formatter.GetString(),pszCaption,
+							MB_OK |
 							(Type==TYPE_INFO?MB_ICONINFORMATION:
 							 Type==TYPE_WARNING?MB_ICONEXCLAMATION:
 							 Type==TYPE_ERROR?MB_ICONSTOP:0))==IDOK;
 	}
 
-	ReplaceString(&m_pszText,pszText);
-	ReplaceString(&m_pszTitle,pszTitle);
-	ReplaceString(&m_pszSystemMessage,pszSystemMessage);
-	ReplaceString(&m_pszCaption,pszCaption);
+	m_Text.Set(pszText);
+	m_Title.Set(pszTitle);
+	m_SystemMessage.Set(pszSystemMessage);
+	m_Caption.Set(pszCaption);
 	m_MessageType=Type;
 	return ::DialogBoxParam(GetAppClass().GetResourceInstance(),
 							MAKEINTRESOURCE(IDD_ERROR),hwndOwner,DlgProc,

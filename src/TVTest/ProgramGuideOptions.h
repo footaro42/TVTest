@@ -21,6 +21,7 @@ class CProgramGuideOptions : public COptions
 	int m_LineMargin;
 	int m_WheelScrollLines;
 	LOGFONT m_Font;
+	LOGFONT m_CurSettingFont;
 	UINT m_VisibleEventIcons;
 	CProgramGuideToolList m_ToolList;
 	HIMAGELIST m_himlEventIcons;
@@ -28,7 +29,7 @@ class CProgramGuideOptions : public COptions
 	CTooltip m_Tooltip;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	void SetDlgItemState();
 	void DeleteAllTools();
@@ -41,10 +42,10 @@ public:
 	CProgramGuideOptions(CProgramGuide *pProgramGuide,CPluginManager *pPluginManager);
 	~CProgramGuideOptions();
 // COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
+	bool Load(LPCTSTR pszFileName) override;
+	bool Save(LPCTSTR pszFileName) const override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CProgramGuideOptions
 	bool GetTimeRange(SYSTEMTIME *pstFirst,SYSTEMTIME *pstLast);
 	bool GetOnScreen() const { return m_fOnScreen; }

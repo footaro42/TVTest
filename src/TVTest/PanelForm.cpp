@@ -382,9 +382,9 @@ void CPanelForm::CalcTabSize()
 	hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	MaxWidth=0;
 	for (int i=0;i<m_NumWindows;i++) {
-		if (m_pWindowList[i]->m_fVisible) {
-			::GetTextExtentPoint32(hdc,m_pWindowList[i]->m_pszTitle,
-								   ::lstrlen(m_pWindowList[i]->m_pszTitle),&sz);
+		const CWindowInfo *pWindow=m_pWindowList[i];
+		if (pWindow->m_fVisible) {
+			::GetTextExtentPoint32(hdc,pWindow->m_Title.Get(),pWindow->m_Title.Length(),&sz);
 			if (sz.cx>MaxWidth)
 				MaxWidth=sz.cx;
 		}
@@ -482,7 +482,7 @@ void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
 			rcText.top=rc.top+TAB_MARGIN;
 			rcText.right=rc.right-TAB_MARGIN;
 			rcText.bottom=rc.bottom-TAB_MARGIN;
-			::DrawText(hdc,pWindow->m_pszTitle,-1,&rcText,
+			::DrawText(hdc,pWindow->m_Title.Get(),-1,&rcText,
 				DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX | DT_END_ELLIPSIS);
 			rc.left=rc.right;
 			rc.right=rc.left+TabWidth;
@@ -519,7 +519,7 @@ void CPanelForm::Draw(HDC hdc,const RECT &PaintRect)
 CPanelForm::CWindowInfo::CWindowInfo(CPage *pWindow,int ID,LPCTSTR pszTitle)
 	: m_pWindow(pWindow)
 	, m_ID(ID)
-	, m_pszTitle(DuplicateString(pszTitle))
+	, m_Title(pszTitle)
 	, m_fVisible(true)
 {
 }
@@ -527,7 +527,6 @@ CPanelForm::CWindowInfo::CWindowInfo(CPage *pWindow,int ID,LPCTSTR pszTitle)
 
 CPanelForm::CWindowInfo::~CWindowInfo()
 {
-	delete [] m_pszTitle;
 }
 
 

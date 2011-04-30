@@ -12,8 +12,7 @@ public:
 	enum DriverType {
 		DRIVER_UNKNOWN,
 		DRIVER_UDP,
-		DRIVER_TCP,
-		DRIVER_HDUS
+		DRIVER_TCP
 	};
 
 	enum CardReaderType {
@@ -35,7 +34,6 @@ public:
 	};
 
 private:
-	bool m_fFileMode;
 	TCHAR m_szDriverDirectory[MAX_PATH];
 	TCHAR m_szDriverFileName[MAX_PATH];
 	HMODULE m_hDriverLib;
@@ -92,8 +90,6 @@ public:
 	bool OpenDriver();
 	bool CloseDriver();
 	bool IsDriverOpen() const;
-	//bool OpenFile(LPCTSTR pszFileName);
-	bool IsFileMode() const { return m_fFileMode; }
 	bool BuildMediaViewer(HWND hwndHost,HWND hwndMessage,
 		CVideoRenderer::RendererType VideoRenderer=CVideoRenderer::RENDERER_DEFAULT,
 		LPCWSTR pszMpeg2Decoder=NULL,LPCWSTR pszAudioDevice=NULL);

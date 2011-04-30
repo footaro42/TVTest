@@ -88,7 +88,9 @@ bool CChannelDisplayMenu::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int I
 
 void CChannelDisplayMenu::Clear()
 {
-	m_TunerList.DeleteAll();
+	for (size_t i=0;i<m_TunerList.size();i++)
+		delete m_TunerList[i];
+	m_TunerList.clear();
 	m_TotalTuningSpaces=0;
 	m_CurTuner=-1;
 	m_CurChannel=-1;
@@ -132,7 +134,7 @@ bool CChannelDisplayMenu::SetDriverManager(CDriverManager *pDriverManager)
 					pTuner->SetIcon(hico);
 			}
 		}
-		m_TunerList.Add(pTuner);
+		m_TunerList.push_back(pTuner);
 		m_TotalTuningSpaces+=pTuner->NumSpaces();
 	}
 	if (m_hwnd!=NULL) {
@@ -162,7 +164,7 @@ void CChannelDisplayMenu::SetEventHandler(CEventHandler *pEventHandler)
 bool CChannelDisplayMenu::SetSelect(LPCTSTR pszDriverFileName,const CChannelInfo *pChannelInfo)
 {
 	int TunerIndex=0;
-	for (int i=0;i<m_TunerList.Length();i++) {
+	for (size_t i=0;i<m_TunerList.size();i++) {
 		const CTuner *pTuner=m_TunerList[i];
 		if (::lstrcmpi(pTuner->GetDriverFileName(),pszDriverFileName)==0) {
 			int Space=0,Channel=-1;
@@ -236,7 +238,7 @@ void CChannelDisplayMenu::LoadSettings()
 	if (Settings.Open(szIniFileName,TEXT("TunerSettings"),CSettings::OPEN_READ)) {
 		m_TunerInfoList.clear();
 		for (int i=0;;i++) {
-			TCHAR szName[32],*p;
+			TCHAR szName[64],*p;
 			TunerInfo Info;
 
 			::wsprintf(szName,TEXT("Tuner%d_Driver"),i);
@@ -393,7 +395,7 @@ void CChannelDisplayMenu::Layout()
 const CTuningSpaceInfo *CChannelDisplayMenu::GetTuningSpaceInfo(int Index) const
 {
 	int TunerIndex=0;
-	for (int i=0;i<m_TunerList.Length();i++) {
+	for (size_t i=0;i<m_TunerList.size();i++) {
 		const CTuner *pTuner=m_TunerList[i];
 
 		if (Index>=TunerIndex && Index<TunerIndex+pTuner->NumSpaces())
@@ -407,7 +409,7 @@ const CTuningSpaceInfo *CChannelDisplayMenu::GetTuningSpaceInfo(int Index) const
 CTuningSpaceInfo *CChannelDisplayMenu::GetTuningSpaceInfo(int Index)
 {
 	int TunerIndex=0;
-	for (int i=0;i<m_TunerList.Length();i++) {
+	for (size_t i=0;i<m_TunerList.size();i++) {
 		CTuner *pTuner=m_TunerList[i];
 
 		if (Index>=TunerIndex && Index<TunerIndex+pTuner->NumSpaces())
@@ -421,7 +423,7 @@ CTuningSpaceInfo *CChannelDisplayMenu::GetTuningSpaceInfo(int Index)
 const CChannelDisplayMenu::CTuner *CChannelDisplayMenu::GetTuner(int Index,int *pSpace) const
 {
 	int TunerIndex=0;
-	for (int i=0;i<m_TunerList.Length();i++) {
+	for (size_t i=0;i<m_TunerList.size();i++) {
 		const CTuner *pTuner=m_TunerList[i];
 
 		if (Index>=TunerIndex && Index<TunerIndex+pTuner->NumSpaces()) {
@@ -690,7 +692,7 @@ void CChannelDisplayMenu::Draw(HDC hdc,const RECT *pPaintRect)
 		rc.bottom=rcClient.bottom;
 		Theme::FillGradient(hdc,&rc,&m_TunerAreaBackGradient);
 		int TunerIndex=0;
-		for (int i=0;i<m_TunerList.Length();i++) {
+		for (size_t i=0;i<m_TunerList.size();i++) {
 			const CTuner *pTuner=m_TunerList[i];
 
 			for (int j=0;j<pTuner->NumSpaces();j++) {
@@ -715,20 +717,23 @@ void CChannelDisplayMenu::Draw(HDC hdc,const RECT *pPaintRect)
 									 pTuner->GetIcon(),
 									 32,32,0,NULL,DI_NORMAL);
 					::SetTextColor(hdc,TextColor);
-					if (pTuner->GetDisplayName()!=NULL) {
+					if (!IsStringEmpty(pTuner->GetDisplayName())) {
 						::lstrcpyn(szText,pTuner->GetDisplayName(),lengthof(szText));
 					} else {
 						LPCTSTR pszDriver=pTuner->GetDriverFileName();
 						if (::StrCmpNI(pszDriver,TEXT("BonDriver_"),10)==0)
 							pszDriver+=10;
-						::lstrcpy(szText,pszDriver);
+						::lstrcpyn(szText,pszDriver,lengthof(szText));
 						::PathRemoveExtension(szText);
 					}
 					if (pTuner->NumSpaces()>1) {
-						if (pTuningSpace->GetName()!=NULL)
-							::wsprintf(szText+::lstrlen(szText),TEXT(" [%s]"),pTuningSpace->GetName());
+						int Length=::lstrlen(szText);
+						if (!IsStringEmpty(pTuningSpace->GetName()))
+							StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+											  TEXT(" [%s]"),pTuningSpace->GetName());
 						else
-							::wsprintf(szText+::lstrlen(szText),TEXT(" [%d]"),j+1);
+							StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+											  TEXT(" [%d]"),j+1);
 					}
 					::DrawText(hdc,szText,-1,&rc,
 						DT_CENTER | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
@@ -787,12 +792,15 @@ void CChannelDisplayMenu::Draw(HDC hdc,const RECT *pPaintRect)
 						if (pEventInfo!=NULL) {
 							int Length=0;
 							if (pEventInfo->m_fValidStartTime)
-								Length+=::wsprintf(szText,TEXT("%02d:%02d "),
+								Length+=StdUtil::snprintf(
+									szText,lengthof(szText)-Length,
+									TEXT("%02d:%02d "),
 									pEventInfo->m_stStartTime.wHour,
 									pEventInfo->m_stStartTime.wMinute);
-							if (pEventInfo->GetEventName()!=NULL)
-								Length+=::wsprintf(szText+Length,TEXT("%s"),
-												   pEventInfo->GetEventName());
+							if (!IsStringEmpty(pEventInfo->GetEventName()))
+								Length+=StdUtil::snprintf(
+									szText+Length,lengthof(szText)-Length,
+									TEXT("%s"),pEventInfo->GetEventName());
 							if (Length>0)
 								::DrawText(hdc,szText,Length,&rc,
 									DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
@@ -818,7 +826,7 @@ void CChannelDisplayMenu::DrawClock(HDC hdc) const
 	RECT rc;
 	COLORREF OldTextColor;
 	int OldBkMode;
-	TCHAR szText[8];
+	TCHAR szText[32];
 
 	hfontOld=SelectFont(hdc,m_Font.GetHandle());
 	GetTextExtentPoint32(hdc,TEXT("88:88"),5,&sz);
@@ -830,7 +838,7 @@ void CChannelDisplayMenu::DrawClock(HDC hdc) const
 	OldTextColor=SetTextColor(hdc,m_ClockTextColor);
 	OldBkMode=SetBkMode(hdc,TRANSPARENT);
 	::wsprintf(szText,TEXT("%d:%02d"),m_ClockTime.wHour,m_ClockTime.wMinute);
-	::DrawText(hdc,szText,-1,&rc,DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+	::DrawText(hdc,szText,-1,&rc,DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 	SetTextColor(hdc,OldTextColor);
 	SetBkMode(hdc,OldBkMode);
 	SelectObject(hdc,hfontOld);
@@ -1134,9 +1142,8 @@ LRESULT CChannelDisplayMenu::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM 
 
 
 CChannelDisplayMenu::CTuner::CTuner(const CDriverInfo *pDriverInfo)
-	: m_pszDriverFileName(DuplicateString(pDriverInfo->GetFileName()))
-	, m_pszTunerName(DuplicateString(pDriverInfo->GetTunerName()))
-	, m_pszDisplayName(NULL)
+	: m_DriverFileName(pDriverInfo->GetFileName())
+	, m_TunerName(pDriverInfo->GetTunerName())
 	, m_hIcon(NULL)
 {
 	const CTuningSpaceList *pList=pDriverInfo->GetAvailableTuningSpaceList();
@@ -1151,15 +1158,15 @@ CChannelDisplayMenu::CTuner::CTuner(const CDriverInfo *pDriverInfo)
 			if (pSrcChannelList!=NULL && pSrcChannelList->NumEnableChannels()>0) {
 				CTuningSpaceInfo *pTuningSpace;
 
-				if (m_TuningSpaceList.Length()>0
+				if (!m_TuningSpaceList.empty()
 						&& pSrcTuningSpace->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL
-						&& m_TuningSpaceList[m_TuningSpaceList.Length()-1]->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL) {
-					pTuningSpace=m_TuningSpaceList[m_TuningSpaceList.Length()-1];
+						&& m_TuningSpaceList[m_TuningSpaceList.size()-1]->GetType()==CTuningSpaceInfo::SPACE_TERRESTRIAL) {
+					pTuningSpace=m_TuningSpaceList[m_TuningSpaceList.size()-1];
 					pTuningSpace->SetName(TEXT("’nã"));
 				} else {
 					pTuningSpace=new CTuningSpaceInfo;
 					pTuningSpace->Create(NULL,pSrcTuningSpace->GetName());
-					m_TuningSpaceList.Add(pTuningSpace);
+					m_TuningSpaceList.push_back(pTuningSpace);
 				}
 				for (int j=0;j<pSrcChannelList->NumChannels();j++) {
 					const CChannelInfo *pChannelInfo=pSrcChannelList->GetChannelInfo(j);
@@ -1171,11 +1178,11 @@ CChannelDisplayMenu::CTuner::CTuner(const CDriverInfo *pDriverInfo)
 			}
 		}
 	}
-	if (m_TuningSpaceList.Length()==0) {
+	if (m_TuningSpaceList.empty()) {
 		CTuningSpaceInfo *pTuningSpace=new CTuningSpaceInfo;
 
 		pTuningSpace->Create();
-		m_TuningSpaceList.Add(pTuningSpace);
+		m_TuningSpaceList.push_back(pTuningSpace);
 	}
 }
 
@@ -1183,9 +1190,6 @@ CChannelDisplayMenu::CTuner::CTuner(const CDriverInfo *pDriverInfo)
 CChannelDisplayMenu::CTuner::~CTuner()
 {
 	Clear();
-	delete [] m_pszDriverFileName;
-	delete [] m_pszTunerName;
-	delete [] m_pszDisplayName;
 	if (m_hIcon!=NULL)
 		::DestroyIcon(m_hIcon);
 }
@@ -1193,39 +1197,45 @@ CChannelDisplayMenu::CTuner::~CTuner()
 
 void CChannelDisplayMenu::CTuner::Clear()
 {
-	m_TuningSpaceList.DeleteAll();
+	for (size_t i=0;i<m_TuningSpaceList.size();i++)
+		delete m_TuningSpaceList[i];
+	m_TuningSpaceList.clear();
 }
 
 
 LPCTSTR CChannelDisplayMenu::CTuner::GetDisplayName() const
 {
-	if (m_pszDisplayName!=NULL)
-		return m_pszDisplayName;
-	return m_pszTunerName;
+	if (!m_DisplayName.IsEmpty())
+		return m_DisplayName.Get();
+	return m_TunerName.Get();
 }
 
 
 void CChannelDisplayMenu::CTuner::SetDisplayName(LPCTSTR pszName)
 {
-	ReplaceString(&m_pszDisplayName,pszName);
+	m_DisplayName.Set(pszName);
 }
 
 
 int CChannelDisplayMenu::CTuner::NumSpaces() const
 {
-	return m_TuningSpaceList.Length();
+	return (int)m_TuningSpaceList.size();
 }
 
 
 CTuningSpaceInfo *CChannelDisplayMenu::CTuner::GetTuningSpaceInfo(int Index)
 {
-	return m_TuningSpaceList.Get(Index);
+	if (Index<0 || (size_t)Index>=m_TuningSpaceList.size())
+		return NULL;
+	return m_TuningSpaceList[Index];
 }
 
 
 const CTuningSpaceInfo *CChannelDisplayMenu::CTuner::GetTuningSpaceInfo(int Index) const
 {
-	return m_TuningSpaceList.Get(Index);
+	if (Index<0 || (size_t)Index>=m_TuningSpaceList.size())
+		return NULL;
+	return m_TuningSpaceList[Index];
 }
 
 

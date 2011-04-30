@@ -111,32 +111,32 @@ typedef HRESULT (WINAPI *BufferedPaintClearFunc)(HPAINTBUFFER hBufferedPaint,con
 typedef HRESULT (WINAPI *BufferedPaintSetAlphaFunc)(HPAINTBUFFER hBufferedPaint,const RECT *prc,BYTE alpha);
 
 
+static HMODULE g_hThemeLib=NULL;
+
 class CBufferedPaintInitializer
 {
-	HMODULE m_hThemeLib;
-
 public:
 	CBufferedPaintInitializer()
 	{
-		m_hThemeLib=::LoadLibrary(TEXT("uxtheme.dll"));
-		if (m_hThemeLib!=NULL) {
+		g_hThemeLib=::LoadLibrary(TEXT("uxtheme.dll"));
+		if (g_hThemeLib!=NULL) {
 			BufferedPaintInitFunc pBufferedPaintInit;
-			if (!ProcAddress(pBufferedPaintInit,m_hThemeLib,"BufferedPaintInit")
+			if (!ProcAddress(pBufferedPaintInit,g_hThemeLib,"BufferedPaintInit")
 					|| pBufferedPaintInit()!=S_OK) {
 				TRACE(TEXT("BufferedPaintInit() Failed\n"));
-				::FreeLibrary(m_hThemeLib);
-				m_hThemeLib=NULL;
+				::FreeLibrary(g_hThemeLib);
+				g_hThemeLib=NULL;
 			}
 		}
 	}
 
 	~CBufferedPaintInitializer()
 	{
-		if (m_hThemeLib!=NULL) {
+		if (g_hThemeLib!=NULL) {
 			BufferedPaintUnInitFunc pBufferedPaintUnInit;
-			if (ProcAddress(pBufferedPaintUnInit,m_hThemeLib,"BufferedPaintUnInit"))
+			if (ProcAddress(pBufferedPaintUnInit,g_hThemeLib,"BufferedPaintUnInit"))
 				pBufferedPaintUnInit();
-			::FreeLibrary(m_hThemeLib);
+			::FreeLibrary(g_hThemeLib);
 		}
 	}
 };
@@ -144,34 +144,30 @@ public:
 static CBufferedPaintInitializer BufferedPaintInitializer;
 
 
-
-
 CBufferedPaint::CBufferedPaint()
 	: m_hPaintBuffer(NULL)
 {
-	m_hThemeLib=::LoadLibrary(TEXT("uxtheme.dll"));
 }
 
 
 CBufferedPaint::~CBufferedPaint()
 {
-	if (m_hThemeLib!=NULL) {
-		End();
-		::FreeLibrary(m_hThemeLib);
-	}
+	End(false);
 }
 
 
 HDC CBufferedPaint::Begin(HDC hdc,const RECT *pRect,bool fErase)
 {
-	if (m_hThemeLib==NULL)
+	if (g_hThemeLib==NULL)
 		return NULL;
 
-	if (m_hPaintBuffer!=NULL)
-		End(false);
+	if (m_hPaintBuffer!=NULL) {
+		if (!End(false))
+			return NULL;
+	}
 
 	BeginBufferedPaintFunc pBeginBufferedPaint;
-	if (!ProcAddress(pBeginBufferedPaint,m_hThemeLib,"BeginBufferedPaint"))
+	if (!ProcAddress(pBeginBufferedPaint,g_hThemeLib,"BeginBufferedPaint"))
 		return NULL;
 
 	BP_PAINTPARAMS Params={sizeof(BP_PAINTPARAMS),0,NULL,NULL};
@@ -185,15 +181,16 @@ HDC CBufferedPaint::Begin(HDC hdc,const RECT *pRect,bool fErase)
 }
 
 
-void CBufferedPaint::End(bool fUpdate)
+bool CBufferedPaint::End(bool fUpdate)
 {
 	if (m_hPaintBuffer!=NULL) {
 		EndBufferedPaintFunc pEndBufferedPaint;
-		if (ProcAddress(pEndBufferedPaint,m_hThemeLib,"EndBufferedPaint")) {
-			pEndBufferedPaint(m_hPaintBuffer,fUpdate);
-			m_hPaintBuffer=NULL;
-		}
+		if (!ProcAddress(pEndBufferedPaint,g_hThemeLib,"EndBufferedPaint"))
+			return false;
+		pEndBufferedPaint(m_hPaintBuffer,fUpdate);
+		m_hPaintBuffer=NULL;
 	}
+	return true;
 }
 
 
@@ -202,7 +199,7 @@ bool CBufferedPaint::Clear(const RECT *pRect)
 	if (m_hPaintBuffer==NULL)
 		return false;
 	BufferedPaintClearFunc pBufferedPaintClear;
-	if (!ProcAddress(pBufferedPaintClear,m_hThemeLib,"BufferedPaintClear"))
+	if (!ProcAddress(pBufferedPaintClear,g_hThemeLib,"BufferedPaintClear"))
 		return false;
 	return pBufferedPaintClear(m_hPaintBuffer,pRect)==S_OK;
 }
@@ -213,7 +210,35 @@ bool CBufferedPaint::SetAlpha(BYTE Alpha)
 	if (m_hPaintBuffer==NULL)
 		return false;
 	BufferedPaintSetAlphaFunc pBufferedPaintSetAlpha;
-	if (!ProcAddress(pBufferedPaintSetAlpha,m_hThemeLib,"BufferedPaintSetAlpha"))
+	if (!ProcAddress(pBufferedPaintSetAlpha,g_hThemeLib,"BufferedPaintSetAlpha"))
 		return false;
 	return pBufferedPaintSetAlpha(m_hPaintBuffer,NULL,Alpha)==S_OK;
+}
+
+
+bool CBufferedPaint::IsSupported()
+{
+	return g_hThemeLib!=NULL;
+}
+
+
+
+
+void CDoubleBufferingDraw::OnPaint(HWND hwnd)
+{
+	::PAINTSTRUCT ps;
+	::BeginPaint(hwnd,&ps);
+	{
+		CBufferedPaint BufferedPaint;
+		RECT rc;
+		::GetClientRect(hwnd,&rc);
+		HDC hdc=BufferedPaint.Begin(ps.hdc,&rc);
+		if (hdc!=NULL) {
+			Draw(hdc,ps.rcPaint);
+			BufferedPaint.End();
+		} else {
+			Draw(ps.hdc,ps.rcPaint);
+		}
+	}
+	::EndPaint(hwnd,&ps);
 }

@@ -450,12 +450,12 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 				static const DWORD BENCHMARK_COUNT=400000;
 				HCURSOR hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
 				CMulti2Decoder Multi2Decoder;
-				BYTE SystemKey[32],InitialCbc[8],ScrambleKey[16],Data[184];
+				BYTE SystemKey[32],InitialCbc[8],ScrambleKey[16],PacketData[188];
 				DWORD BenchmarkCount=0,StartTime,NormalTime,SSE2Time;
 
 				FillRandomData(SystemKey,sizeof(SystemKey));
 				FillRandomData(InitialCbc,sizeof(InitialCbc));
-				FillRandomData(Data,sizeof(Data));
+				FillRandomData(PacketData,sizeof(PacketData));
 				Multi2Decoder.Initialize(SystemKey,InitialCbc);
 				NormalTime=SSE2Time=0;
 				do {
@@ -465,7 +465,7 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 							FillRandomData(ScrambleKey,sizeof(ScrambleKey));
 							Multi2Decoder.SetScrambleKey(ScrambleKey);
 						}
-						Multi2Decoder.Decode(Data,sizeof(Data),2);
+						Multi2Decoder.Decode(PacketData+4,sizeof(PacketData)-4,2);
 					}
 					NormalTime+=TickTimeSpan(StartTime,::timeGetTime());
 					StartTime=::timeGetTime();
@@ -474,7 +474,7 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 							FillRandomData(ScrambleKey,sizeof(ScrambleKey));
 							Multi2Decoder.SetScrambleKey(ScrambleKey);
 						}
-						Multi2Decoder.DecodeSSE2(Data,sizeof(Data),2);
+						Multi2Decoder.DecodeSSE2(PacketData+4,sizeof(PacketData)-4,2);
 					}
 					SSE2Time+=TickTimeSpan(StartTime,::timeGetTime());
 					BenchmarkCount+=BENCHMARK_COUNT;
@@ -488,7 +488,7 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					Percentage=-(int)((SSE2Time*100/NormalTime)-100);
 				// 表示されるメッセージに深い意味はない
 				TCHAR szText[256];
-				::wsprintf(szText,
+				StdUtil::snprintf(szText,lengthof(szText),
 						   TEXT("%lu 回の実行に掛かった時間\n")
 						   TEXT("SSE2不使用 : %lu ms\n")
 						   TEXT("SSE2使用 : %lu ms\n")

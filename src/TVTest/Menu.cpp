@@ -419,7 +419,8 @@ bool CChannelMenu::Create(const CChannelList *pChannelList,int CurChannel,UINT C
 
 		if (i==CurChannel)
 			DrawUtil::SelectObject(hdc,m_FontCurrent);
-		Length=::wsprintf(szText,TEXT("%d: %s"),pChInfo->GetChannelNo(),pChInfo->GetName());
+		Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
+								 pChInfo->GetChannelNo(),pChInfo->GetName());
 		::GetTextExtentPoint32(hdc,szText,Length,&sz);
 		if (sz.cx>m_ChannelNameWidth)
 			m_ChannelNameWidth=sz.cx;
@@ -555,7 +556,8 @@ bool CChannelMenu::OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam)
 	}
 
 	rc.right=rc.left+m_ChannelNameWidth;
-	::wsprintf(szText,TEXT("%d: %s"),pChInfo->GetChannelNo(),pChInfo->GetName());
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
+					  pChInfo->GetChannelNo(),pChInfo->GetName());
 	::DrawText(pdis->hDC,szText,-1,&rc,
 			   DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
@@ -647,18 +649,16 @@ int CChannelMenu::GetEventText(const CEventInfoData *pEventInfo,
 {
 	SYSTEMTIME stStart,stEnd;
 	TCHAR szEnd[16];
-	int Length;
 
 	pEventInfo->GetStartTime(&stStart);
 	if (pEventInfo->GetEndTime(&stEnd))
-		::wsprintf(szEnd,TEXT("%02d:%02d"),stEnd.wHour,stEnd.wMinute);
+		StdUtil::snprintf(szEnd,lengthof(szEnd),
+						  TEXT("%02d:%02d"),stEnd.wHour,stEnd.wMinute);
 	else
 		szEnd[0]='\0';
-	Length=::wnsprintf(pszText,MaxLength-1,TEXT("%02d:%02d`%s %ls"),
-					   stStart.wHour,stStart.wMinute,szEnd,
-					   NullToEmptyString(pEventInfo->GetEventName()));
-	pszText[Length]='\0';
-	return Length;
+	return StdUtil::snprintf(pszText,MaxLength,TEXT("%02d:%02d`%s %ls"),
+							 stStart.wHour,stStart.wMinute,szEnd,
+							 NullToEmptyString(pEventInfo->GetEventName()));
 }
 
 
@@ -1108,8 +1108,9 @@ CDropDownMenu::~CDropDownMenu()
 
 void CDropDownMenu::Clear()
 {
-	m_ItemList.DeleteAll();
-	m_ItemList.Clear();
+	for (size_t i=0;i<m_ItemList.size();i++)
+		delete m_ItemList[i];
+	m_ItemList.clear();
 }
 
 
@@ -1117,15 +1118,19 @@ bool CDropDownMenu::AppendItem(CItem *pItem)
 {
 	if (pItem==NULL)
 		return false;
-	return m_ItemList.Add(pItem);
+	m_ItemList.push_back(pItem);
+	return true;
 }
 
 
 bool CDropDownMenu::InsertItem(int Index,CItem *pItem)
 {
-	if (pItem==NULL)
+	if (pItem==NULL || Index<0 || (size_t)Index>m_ItemList.size())
 		return false;
-	return m_ItemList.Insert(Index,pItem);
+	std::vector<CItem*>::iterator i=m_ItemList.begin();
+	std::advance(i,Index);
+	m_ItemList.insert(i,pItem);
+	return true;
 }
 
 
@@ -1159,7 +1164,11 @@ bool CDropDownMenu::DeleteItem(int Command)
 
 	if (Index<0)
 		return false;
-	return m_ItemList.Delete(Index);
+	std::vector<CItem*>::iterator i=m_ItemList.begin();
+	std::advance(i,Index);
+	delete *i;
+	m_ItemList.erase(i);
+	return true;
 }
 
 
@@ -1177,9 +1186,9 @@ int CDropDownMenu::CommandToIndex(int Command) const
 {
 	if (Command<0)
 		return -1;
-	for (int i=0;i<m_ItemList.Length();i++) {
+	for (size_t i=0;i<m_ItemList.size();i++) {
 		if (m_ItemList[i]->GetCommand()==Command)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -1187,7 +1196,7 @@ int CDropDownMenu::CommandToIndex(int Command) const
 
 bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int CurItem,UINT Flags)
 {
-	if (m_ItemList.IsEmpty() || m_hwnd!=NULL)
+	if (m_ItemList.empty() || m_hwnd!=NULL)
 		return false;
 
 	HWND hwnd=::CreateWindowEx(WS_EX_NOACTIVATE | WS_EX_TOPMOST,DROPDOWNMENU_WINDOW_CLASS,
@@ -1201,7 +1210,7 @@ bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int C
 	HDC hdc=::GetDC(hwnd);
 	HFONT hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	int MaxWidth=0;
-	for (int i=0;i<m_ItemList.Length();i++) {
+	for (size_t i=0;i<m_ItemList.size();i++) {
 		int Width=m_ItemList[i]->GetWidth(hdc);
 		if (Width>MaxWidth)
 			MaxWidth=Width;
@@ -1216,7 +1225,7 @@ bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int C
 
 	const int HorzMargin=m_WindowMargin.cxLeftWidth+m_WindowMargin.cxRightWidth;
 	const int VertMargin=m_WindowMargin.cyTopHeight+m_WindowMargin.cyBottomHeight;
-	m_MaxRows=m_ItemList.Length();
+	m_MaxRows=(int)m_ItemList.size();
 	int Columns=1;
 	int x=pPos->x,y=pPos->y;
 	MONITORINFO mi;
@@ -1224,16 +1233,16 @@ bool CDropDownMenu::Show(HWND hwndOwner,HWND hwndMessage,const POINT *pPos,int C
 	if (::GetMonitorInfo(::MonitorFromPoint(*pPos,MONITOR_DEFAULTTONEAREST),&mi)) {
 		int Rows=((mi.rcMonitor.bottom-y)-VertMargin)/m_ItemHeight;
 
-		if (m_ItemList.Length()>Rows) {
+		if ((int)m_ItemList.size()>Rows) {
 			int MaxColumns=((mi.rcMonitor.right-mi.rcMonitor.left)-HorzMargin)/m_ItemWidth;
 			if (MaxColumns>1) {
-				if (Rows*MaxColumns>=m_ItemList.Length()) {
-					Columns=(m_ItemList.Length()+Rows-1)/Rows;
+				if (Rows*MaxColumns>=(int)m_ItemList.size()) {
+					Columns=((int)m_ItemList.size()+Rows-1)/Rows;
 					m_MaxRows=Rows;
 				} else {
 					Columns=MaxColumns;
-					m_MaxRows=(m_ItemList.Length()+Columns-1)/Columns;
-					if ((Columns-1)*m_MaxRows>=m_ItemList.Length())
+					m_MaxRows=((int)m_ItemList.size()+Columns-1)/Columns;
+					if ((Columns-1)*m_MaxRows>=(int)m_ItemList.size())
 						Columns--;
 				}
 			}
@@ -1274,7 +1283,7 @@ bool CDropDownMenu::GetPosition(RECT *pRect)
 
 bool CDropDownMenu::GetItemRect(int Index,RECT *pRect) const
 {
-	if (Index<0 || Index>=m_ItemList.Length())
+	if (Index<0 || (size_t)Index>=m_ItemList.size())
 		return false;
 	pRect->left=(Index/m_MaxRows)*m_ItemWidth;
 	pRect->top=(Index%m_MaxRows)*m_ItemHeight;
@@ -1291,7 +1300,7 @@ int CDropDownMenu::HitTest(int x,int y) const
 
 	pt.x=x;
 	pt.y=y;
-	for (int i=0;i<m_ItemList.Length();i++) {
+	for (int i=0;i<(int)m_ItemList.size();i++) {
 		RECT rc;
 
 		GetItemRect(i,&rc);
@@ -1326,7 +1335,7 @@ void CDropDownMenu::Draw(HDC hdc,const RECT *pPaintRect)
 	m_MenuPainter.DrawBackground(hdc,rc);
 	m_MenuPainter.DrawBorder(hdc,rc);
 
-	for (int i=0;i<m_ItemList.Length();i++) {
+	for (int i=0;i<(int)m_ItemList.size();i++) {
 		GetItemRect(i,&rc);
 		if (rc.bottom>pPaintRect->top && rc.top<pPaintRect->bottom) {
 			CItem *pItem=m_ItemList[i];
@@ -1455,7 +1464,7 @@ LRESULT CALLBACK CDropDownMenu::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM
 
 CDropDownMenu::CItem::CItem(int Command,LPCTSTR pszText)
 	: m_Command(Command)
-	, m_pszText(DuplicateString(pszText))
+	, m_Text(pszText)
 	, m_Width(0)
 {
 }
@@ -1463,22 +1472,21 @@ CDropDownMenu::CItem::CItem(int Command,LPCTSTR pszText)
 
 CDropDownMenu::CItem::~CItem()
 {
-	delete [] m_pszText;
 }
 
 
 bool CDropDownMenu::CItem::SetText(LPCTSTR pszText)
 {
-	return ReplaceString(&m_pszText,pszText);
+	return m_Text.Set(pszText);
 }
 
 
 int CDropDownMenu::CItem::GetWidth(HDC hdc)
 {
-	if (!IsStringEmpty(m_pszText) && m_Width==0) {
+	if (!m_Text.IsEmpty() && m_Width==0) {
 		SIZE sz;
 
-		::GetTextExtentPoint32(hdc,m_pszText,::lstrlen(m_pszText),&sz);
+		::GetTextExtentPoint32(hdc,m_Text.Get(),m_Text.Length(),&sz);
 		m_Width=sz.cx;
 	}
 	return m_Width;
@@ -1487,9 +1495,9 @@ int CDropDownMenu::CItem::GetWidth(HDC hdc)
 
 void CDropDownMenu::CItem::Draw(HDC hdc,const RECT *pRect)
 {
-	if (!IsStringEmpty(m_pszText)) {
+	if (!m_Text.IsEmpty()) {
 		RECT rc=*pRect;
 
-		::DrawText(hdc,m_pszText,-1,&rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
+		::DrawText(hdc,m_Text.Get(),-1,&rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 	}
 }

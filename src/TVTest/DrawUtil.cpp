@@ -80,6 +80,78 @@ bool FillGradient(HDC hdc,const RECT *pRect,COLORREF Color1,COLORREF Color2,
 }
 
 
+bool FillGradient(HDC hdc,const RECT *pRect,const RGBA &Color1,const RGBA &Color2,
+				  FillDirection Direction)
+{
+	if (hdc==NULL || pRect==NULL
+			|| pRect->left>pRect->right || pRect->top>pRect->bottom)
+		return false;
+
+	if (Direction==DIRECTION_HORZMIRROR || Direction==DIRECTION_VERTMIRROR) {
+		RECT rc;
+
+		rc=*pRect;
+		if (Direction==DIRECTION_HORZMIRROR) {
+			rc.right=(pRect->left+pRect->right)/2;
+			if (rc.right>rc.left) {
+				FillGradient(hdc,&rc,Color1,Color2,DIRECTION_HORZ);
+				rc.left=rc.right;
+			}
+			rc.right=pRect->right;
+			FillGradient(hdc,&rc,Color2,Color1,DIRECTION_HORZ);
+		} else {
+			rc.bottom=(pRect->top+pRect->bottom)/2;
+			if (rc.bottom>rc.top) {
+				FillGradient(hdc,&rc,Color1,Color2,DIRECTION_VERT);
+				rc.top=rc.bottom;
+			}
+			rc.bottom=pRect->bottom;
+			FillGradient(hdc,&rc,Color2,Color1,DIRECTION_VERT);
+		}
+		return true;
+	}
+
+	const int Width=pRect->right-pRect->left;
+	const int Height=pRect->bottom-pRect->top;
+	HBITMAP hbm=::CreateCompatibleBitmap(hdc,Width,Height);
+	if (hbm==NULL)
+		return false;
+	HDC hdcMem=::CreateCompatibleDC(hdc);
+	HGDIOBJ hOldBmp=::SelectObject(hdcMem,hbm);
+
+	RECT rc={0,0,Width,Height};
+	FillGradient(hdcMem,&rc,Color1.GetCOLORREF(),Color2.GetCOLORREF(),Direction);
+
+	BLENDFUNCTION BlendFunc={AC_SRC_OVER,0,0,0};
+	if (Direction==DIRECTION_HORZ) {
+		for (int x=0;x<Width;x++) {
+			BlendFunc.SourceConstantAlpha=
+				(BYTE)(((Width-1-x)*Color1.Alpha+x*Color2.Alpha)/(Width-1));
+			if (BlendFunc.SourceConstantAlpha!=0) {
+				::AlphaBlend(hdc,x+pRect->left,pRect->top,1,Height,
+							 hdcMem,x,0,1,Height,
+							 BlendFunc);
+			}
+		}
+	} else {
+		for (int y=0;y<Height;y++) {
+			BlendFunc.SourceConstantAlpha=
+				(BYTE)(((Height-1-y)*Color1.Alpha+y*Color2.Alpha)/(Height-1));
+			if (BlendFunc.SourceConstantAlpha!=0) {
+				::AlphaBlend(hdc,pRect->left,y+pRect->top,Width,1,
+							 hdcMem,0,y,Width,1,
+							 BlendFunc);
+			}
+		}
+	}
+
+	::SelectObject(hdcMem,hOldBmp);
+	::DeleteDC(hdcMem);
+
+	return true;
+}
+
+
 // 光沢のあるグラデーションで塗りつぶす
 bool FillGlossyGradient(HDC hdc,const RECT *pRect,
 						COLORREF Color1,COLORREF Color2,

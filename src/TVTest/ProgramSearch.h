@@ -2,9 +2,9 @@
 #define PROGRAM_SEARCH_H
 
 
+#include <vector>
 #include "Dialog.h"
 #include "EpgProgramList.h"
-#include "PointerArray.h"
 #include "RichEditUtil.h"
 
 
@@ -49,7 +49,7 @@ private:
 	WNDPROC m_pOldEditProc;
 	TCHAR m_szKeyword[MAX_KEYWORD_LENGTH];
 	int m_MaxHistory;
-	CPointerVector<TCHAR> m_History;
+	std::vector<CDynamicString> m_History;
 	int m_SortColumn;
 	bool m_fSortDescending;
 	int m_ColumnWidth[NUM_COLUMNS];

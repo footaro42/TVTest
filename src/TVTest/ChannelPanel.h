@@ -2,10 +2,10 @@
 #define CHANNEL_PANEL_H
 
 
+#include <vector>
 #include "PanelForm.h"
 #include "EpgProgramList.h"
 #include "ChannelList.h"
-#include "PointerArray.h"
 #include "Theme.h"
 #include "DrawUtil.h"
 #include "EventInfoPopup.h"
@@ -100,7 +100,7 @@ private:
 		bool IsExpanded() const { return m_fExpanded; }
 		void Expand(bool fExpand) { m_fExpanded=fExpand; }
 	};
-	CPointerVector<CChannelEventInfo> m_ChannelList;
+	std::vector<CChannelEventInfo*> m_ChannelList;
 	int m_CurChannel;
 	CEventHandler *m_pEventHandler;
 	CTooltip m_Tooltip;

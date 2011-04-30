@@ -2,7 +2,7 @@
 #define CHANNEL_LIST_H
 
 
-#include "PointerArray.h"
+#include <vector>
 
 
 #define FIRST_UHF_CHANNEL 13
@@ -115,7 +115,7 @@ public:
 
 private:
 	CChannelList *m_pChannelList;
-	LPTSTR m_pszName;
+	CDynamicString m_Name;
 	TuningSpaceType m_Space;
 
 public:
@@ -126,7 +126,7 @@ public:
 	bool Create(const CChannelList *pList=NULL,LPCTSTR pszName=NULL);
 	CChannelList *GetChannelList() { return m_pChannelList; }
 	const CChannelList *GetChannelList() const { return m_pChannelList; }
-	LPCTSTR GetName() const { return m_pszName; }
+	LPCTSTR GetName() const { return m_Name.Get(); }
 	bool SetName(LPCTSTR pszName);
 	TuningSpaceType GetType() const { return m_Space; }
 	int NumChannels() const;
@@ -134,7 +134,7 @@ public:
 
 class CTuningSpaceList
 {
-	CPointerVector<CTuningSpaceInfo> m_TuningSpaceList;
+	std::vector<CTuningSpaceInfo*> m_TuningSpaceList;
 	CChannelList m_AllChannelList;
 	bool MakeTuningSpaceList(const CChannelList *pList,int Spaces=0);
 
@@ -143,7 +143,7 @@ public:
 	CTuningSpaceList(const CTuningSpaceList &List);
 	~CTuningSpaceList();
 	CTuningSpaceList &operator=(const CTuningSpaceList &List);
-	int NumSpaces() const { return m_TuningSpaceList.Length(); }
+	int NumSpaces() const { return (int)m_TuningSpaceList.size(); }
 	CTuningSpaceInfo *GetTuningSpaceInfo(int Space);
 	const CTuningSpaceInfo *GetTuningSpaceInfo(int Space) const;
 	CChannelList *GetChannelList(int Space);

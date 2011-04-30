@@ -11,6 +11,7 @@
 #include "Controller.h"
 #include "BonTsEngine/TsEncode.h"
 #include "resource.h"
+#include <algorithm>
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -494,10 +495,10 @@ HWND CPlugin::m_hwndMessage=NULL;
 UINT CPlugin::m_MessageCode=0;
 
 bool CPlugin::m_fSetGrabber=false;
-CPointerVector<CPlugin::CMediaGrabberInfo> CPlugin::m_GrabberList;
+std::vector<CPlugin::CMediaGrabberInfo> CPlugin::m_GrabberList;
 CCriticalLock CPlugin::m_GrabberLock;
 
-CPointerVector<CPlugin::CAudioStreamCallbackInfo> CPlugin::m_AudioStreamCallbackList;
+std::vector<CPlugin::CAudioStreamCallbackInfo> CPlugin::m_AudioStreamCallbackList;
 CCriticalLock CPlugin::m_AudioStreamLock;
 
 
@@ -532,7 +533,8 @@ bool CPlugin::Load(LPCTSTR pszFileName)
 		const int ErrorCode=::GetLastError();
 		TCHAR szText[256];
 
-		::wsprintf(szText,TEXT("DLLがロードできません。(エラーコード %#lx)"),ErrorCode);
+		StdUtil::snprintf(szText,lengthof(szText),
+						  TEXT("DLLがロードできません。(エラーコード 0x%lx)"),ErrorCode);
 		SetError(szText);
 		switch (ErrorCode) {
 		case ERROR_BAD_EXE_FORMAT:
@@ -618,11 +620,13 @@ void CPlugin::Free()
 
 	m_GrabberLock.Lock();
 	if (m_fSetGrabber) {
-		for (int i=m_GrabberList.Length()-1;i>=0;i--) {
-			if (m_GrabberList[i]->m_pPlugin==this)
-				m_GrabberList.Delete(i);
+		for (std::vector<CMediaGrabberInfo>::iterator i=m_GrabberList.begin();i!=m_GrabberList.end();) {
+			if (i->m_pPlugin==this)
+				i=m_GrabberList.erase(i);
+			else
+				i++;
 		}
-		if (m_GrabberList.Length()==0) {
+		if (m_GrabberList.empty()) {
 			App.GetCoreEngine()->m_DtvEngine.m_MediaGrabber.SetMediaGrabCallback(NULL);
 			m_fSetGrabber=false;
 		}
@@ -630,15 +634,16 @@ void CPlugin::Free()
 	m_GrabberLock.Unlock();
 
 	m_AudioStreamLock.Lock();
-	for (int i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
-		if (m_AudioStreamCallbackList[i]->m_pPlugin==this) {
-			m_AudioStreamCallbackList.Delete(i);
+	for (std::vector<CAudioStreamCallbackInfo>::iterator i=m_AudioStreamCallbackList.begin();
+		 	i!=m_AudioStreamCallbackList.end();i++) {
+		if (i->m_pPlugin==this) {
+			m_AudioStreamCallbackList.erase(i);
 			break;
 		}
 	}
 	m_AudioStreamLock.Unlock();
 
-	m_CommandList.DeleteAll();
+	m_CommandList.clear();
 	m_ProgramGuideCommandList.clear();
 
 	for (size_t i=0;i<m_ControllerList.size();i++)
@@ -704,15 +709,15 @@ bool CPlugin::SetCommand(int Command)
 
 int CPlugin::NumPluginCommands() const
 {
-	return m_CommandList.Length();
+	return (int)m_CommandList.size();
 }
 
 
 bool CPlugin::GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const
 {
-	if (Index<0 || Index>=m_CommandList.Length())
+	if (Index<0 || (size_t)Index>=m_CommandList.size() || pInfo==NULL)
 		return false;
-	const CPluginCommandInfo &Command=*m_CommandList[Index];
+	const CPluginCommandInfo &Command=m_CommandList[Index];
 	pInfo->ID=Command.GetID();
 	pInfo->pszText=Command.GetText();
 	pInfo->pszName=Command.GetName();
@@ -722,9 +727,9 @@ bool CPlugin::GetPluginCommandInfo(int Index,TVTest::CommandInfo *pInfo) const
 
 bool CPlugin::NotifyCommand(LPCWSTR pszCommand)
 {
-	for (int i=0;i<m_CommandList.Length();i++) {
-		if (::lstrcmpi(m_CommandList[i]->GetText(),pszCommand)==0) {
-			SendEvent(TVTest::EVENT_COMMAND,m_CommandList[i]->GetID(),0);
+	for (size_t i=0;i<m_CommandList.size();i++) {
+		if (::lstrcmpi(m_CommandList[i].GetText(),pszCommand)==0) {
+			SendEvent(TVTest::EVENT_COMMAND,m_CommandList[i].GetID(),0);
 			return true;
 		}
 	}
@@ -1173,19 +1178,17 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 					MediaGrabber.SetMediaGrabCallback(GrabMediaCallback,&m_GrabberList);
 					m_fSetGrabber=true;
 				}
-				m_GrabberList.Add(new CMediaGrabberInfo(pThis,pInfo));
+				m_GrabberList.push_back(CMediaGrabberInfo(pThis,pInfo));
 			} else {
-				int i;
-
-				for (i=m_GrabberList.Length()-1;i>=0;i--) {
-					if (m_GrabberList[i]->m_pPlugin==pThis
-							&& m_GrabberList[i]->m_CallbackInfo.Callback==pInfo->Callback) {
-						m_GrabberList.Delete(i);
-						break;
+				for (std::vector<CMediaGrabberInfo>::iterator i=m_GrabberList.begin();
+						i!=m_GrabberList.end();i++) {
+					if (i->m_pPlugin==pThis
+							&& i->m_CallbackInfo.Callback==pInfo->Callback) {
+						m_GrabberList.erase(i);
+						return TRUE;
 					}
 				}
-				if (i<0)
-					return FALSE;
+				return FALSE;
 			}
 		}
 		return TRUE;
@@ -1303,7 +1306,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			if (pCommandList==NULL || NumCommands<=0)
 				return FALSE;
 			for (int i=0;i<NumCommands;i++) {
-				pThis->m_CommandList.Add(new CPluginCommandInfo(pCommandList[i]));
+				pThis->m_CommandList.push_back(CPluginCommandInfo(pCommandList[i]));
 			}
 		}
 		return TRUE;
@@ -1337,31 +1340,33 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 
 			m_AudioStreamLock.Lock();
 			if (pCallback!=NULL) {
-				if (m_AudioStreamCallbackList.Length()==0) {
+				if (m_AudioStreamCallbackList.empty()) {
 					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetAudioStreamCallback(AudioStreamCallback);
 				} else {
-					for (int i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
-						if (m_AudioStreamCallbackList[i]->m_pPlugin==pThis) {
-							m_AudioStreamCallbackList.Delete(i);
+					for (std::vector<CAudioStreamCallbackInfo>::iterator i=m_AudioStreamCallbackList.begin();
+							i!=m_AudioStreamCallbackList.end();i++) {
+						if (i->m_pPlugin==pThis) {
+							m_AudioStreamCallbackList.erase(i);
 							break;
 						}
 					}
 				}
-				m_AudioStreamCallbackList.Add(new CAudioStreamCallbackInfo(pThis,pCallback,reinterpret_cast<void*>(lParam2)));
+				m_AudioStreamCallbackList.push_back(CAudioStreamCallbackInfo(pThis,pCallback,reinterpret_cast<void*>(lParam2)));
 				m_AudioStreamLock.Unlock();
 			} else {
-				int i;
-
-				for (i=m_AudioStreamCallbackList.Length()-1;i>=0;i--) {
-					if (m_AudioStreamCallbackList[i]->m_pPlugin==pThis) {
-						m_AudioStreamCallbackList.Delete(i);
+				bool fFound=false;
+				for (std::vector<CAudioStreamCallbackInfo>::iterator i=m_AudioStreamCallbackList.begin();
+						i!=m_AudioStreamCallbackList.end();i++) {
+					if (i->m_pPlugin==pThis) {
+						m_AudioStreamCallbackList.erase(i);
+						fFound=true;
 						break;
 					}
 				}
 				m_AudioStreamLock.Unlock();
-				if (i<0)
+				if (!fFound)
 					return FALSE;
-				if (m_AudioStreamCallbackList.Length()==0)
+				if (m_AudioStreamCallbackList.empty())
 					GetAppClass().GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetAudioStreamCallback(NULL);
 			}
 		}
@@ -2252,10 +2257,10 @@ bool CALLBACK CPlugin::GrabMediaCallback(const CMediaData *pMediaData, const PVO
 	CBlockLock Lock(&m_GrabberLock);
 	BYTE *pData=const_cast<BYTE*>(pMediaData->GetData());
 
-	for (int i=0;i<m_GrabberList.Length();i++) {
-		CMediaGrabberInfo *pInfo=m_GrabberList[i];
+	for (size_t i=0;i<m_GrabberList.size();i++) {
+		CMediaGrabberInfo &Info=m_GrabberList[i];
 
-		if (!pInfo->m_CallbackInfo.Callback(pData,pInfo->m_CallbackInfo.pClientData))
+		if (!Info.m_CallbackInfo.Callback(pData,Info.m_CallbackInfo.pClientData))
 			return false;
 	}
 	return true;
@@ -2266,55 +2271,34 @@ void CALLBACK CPlugin::AudioStreamCallback(short *pData,DWORD Samples,int Channe
 {
 	CBlockLock Lock(&m_AudioStreamLock);
 
-	for (int i=0;i<m_AudioStreamCallbackList.Length();i++) {
-		CAudioStreamCallbackInfo *pInfo=m_AudioStreamCallbackList[i];
+	for (size_t i=0;i<m_AudioStreamCallbackList.size();i++) {
+		CAudioStreamCallbackInfo &Info=m_AudioStreamCallbackList[i];
 
-		(*pInfo->m_pCallback)(pData,Samples,Channels,pInfo->m_pClientData);
+		(Info.m_pCallback)(pData,Samples,Channels,Info.m_pClientData);
 	}
 }
 
 
 
 
-CPlugin::CPluginCommandInfo::CPluginCommandInfo(const CPluginCommandInfo &Src)
-	: m_ID(Src.m_ID)
-	, m_pszText(DuplicateString(Src.m_pszText))
-	, m_pszName(DuplicateString(Src.m_pszName))
-{
-}
-
-
 CPlugin::CPluginCommandInfo::CPluginCommandInfo(int ID,LPCWSTR pszText,LPCWSTR pszName)
 	: m_ID(ID)
-	, m_pszText(DuplicateString(pszText))
-	, m_pszName(DuplicateString(pszName))
+	, m_Text(pszText)
+	, m_Name(pszName)
 {
 }
 
 
 CPlugin::CPluginCommandInfo::CPluginCommandInfo(const TVTest::CommandInfo &Info)
 	: m_ID(Info.ID)
-	, m_pszText(DuplicateString(Info.pszText))
-	, m_pszName(DuplicateString(Info.pszName))
+	, m_Text(Info.pszText)
+	, m_Name(Info.pszName)
 {
 }
 
 
 CPlugin::CPluginCommandInfo::~CPluginCommandInfo()
 {
-	delete [] m_pszText;
-	delete [] m_pszName;
-}
-
-
-CPlugin::CPluginCommandInfo &CPlugin::CPluginCommandInfo::operator=(const CPluginCommandInfo &Info)
-{
-	if (&Info!=this) {
-		m_ID=Info.m_ID;
-		ReplaceString(&m_pszText,Info.m_pszText);
-		ReplaceString(&m_pszName,Info.m_pszName);
-	}
-	return *this;
 }
 
 
@@ -2340,18 +2324,19 @@ CPluginManager::~CPluginManager()
 
 void CPluginManager::SortPluginsByName()
 {
-	m_PluginList.Sort(CompareName);
+	if (m_PluginList.size()>1)
+		std::sort(m_PluginList.begin(),m_PluginList.end(),CompareName);
 }
 
 
-int CPluginManager::CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2,void *pParam)
+bool CPluginManager::CompareName(const CPlugin *pPlugin1,const CPlugin *pPlugin2)
 {
 	int Cmp;
 
 	Cmp=::lstrcmpi(pPlugin1->GetPluginName(),pPlugin2->GetPluginName());
-	if (Cmp!=0)
-		return Cmp;
-	return ::lstrcmpi(pPlugin1->GetFileName(),pPlugin2->GetFileName());
+	if (Cmp==0)
+		Cmp=::lstrcmpi(pPlugin1->GetFileName(),pPlugin2->GetFileName());
+	return Cmp<0;
 }
 
 
@@ -2397,7 +2382,7 @@ bool CPluginManager::LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR>
 			::PathCombine(szFileName,pszDirectory,wfd.cFileName);
 			if (pPlugin->Load(szFileName)) {
 				App.AddLog(TEXT("%s を読み込みました。"),wfd.cFileName);
-				m_PluginList.Add(pPlugin);
+				m_PluginList.push_back(pPlugin);
 			} else {
 				App.AddLog(TEXT("%s : %s"),
 						   wfd.cFileName,
@@ -2412,34 +2397,40 @@ bool CPluginManager::LoadPlugins(LPCTSTR pszDirectory,const std::vector<LPCTSTR>
 		::FindClose(hFind);
 	}
 	SortPluginsByName();
-	for (int i=0;i<m_PluginList.Length();i++)
-		m_PluginList[i]->SetCommand(CM_PLUGIN_FIRST+i);
+	for (size_t i=0;i<m_PluginList.size();i++)
+		m_PluginList[i]->SetCommand(CM_PLUGIN_FIRST+(int)i);
 	return true;
 }
 
 
 void CPluginManager::FreePlugins()
 {
-	m_PluginList.DeleteAll();
-	m_PluginList.Clear();
+	for (std::vector<CPlugin*>::iterator i=m_PluginList.begin();i!=m_PluginList.end();) {
+		delete *i;
+		i=m_PluginList.erase(i);
+	}
 }
 
 
 CPlugin *CPluginManager::GetPlugin(int Index)
 {
-	return m_PluginList.Get(Index);
+	if (Index<0 || (size_t)Index>=m_PluginList.size())
+		return NULL;
+	return m_PluginList[Index];
 }
 
 
 const CPlugin *CPluginManager::GetPlugin(int Index) const
 {
-	return m_PluginList.Get(Index);
+	if (Index<0 || (size_t)Index>=m_PluginList.size())
+		return NULL;
+	return m_PluginList[Index];
 }
 
 
 bool CPluginManager::EnablePlugins(bool fEnable)
 {
-	for (int i=0;i<NumPlugins();i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		m_PluginList[i]->Enable(fEnable);
 	}
 	return true;
@@ -2448,9 +2439,9 @@ bool CPluginManager::EnablePlugins(bool fEnable)
 
 int CPluginManager::FindPlugin(const CPlugin *pPlugin) const
 {
-	for (int i=0;i<NumPlugins();i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		if (m_PluginList[i]==pPlugin)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -2460,9 +2451,9 @@ int CPluginManager::FindPluginByFileName(LPCTSTR pszFileName) const
 {
 	if (pszFileName==NULL)
 		return -1;
-	for (int i=0;i<NumPlugins();i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		if (::lstrcmpi(::PathFindFileName(m_PluginList[i]->GetFileName()),pszFileName)==0)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -2470,9 +2461,9 @@ int CPluginManager::FindPluginByFileName(LPCTSTR pszFileName) const
 
 int CPluginManager::FindPluginByCommand(int Command) const
 {
-	for (int i=0;i<NumPlugins();i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		if (m_PluginList[i]->GetCommand()==Command)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -2480,9 +2471,13 @@ int CPluginManager::FindPluginByCommand(int Command) const
 
 bool CPluginManager::DeletePlugin(int Index)
 {
-	if (Index<0 || Index>=NumPlugins())
+	if (Index<0 || (size_t)Index>=m_PluginList.size())
 		return false;
-	return m_PluginList.Delete(Index);
+	std::vector<CPlugin*>::iterator i=m_PluginList.begin();
+	std::advance(i,Index);
+	delete *i;
+	m_PluginList.erase(i);
+	return true;
 }
 
 
@@ -2490,7 +2485,7 @@ bool CPluginManager::SetMenu(HMENU hmenu) const
 {
 	ClearMenu(hmenu);
 	if (NumPlugins()>0) {
-		for (int i=0;i<NumPlugins();i++) {
+		for (size_t i=0;i<m_PluginList.size();i++) {
 			const CPlugin *pPlugin=m_PluginList[i];
 
 			::AppendMenu(hmenu,MFT_STRING | MFS_ENABLED |
@@ -2549,9 +2544,7 @@ bool CPluginManager::OnProgramGuideCommand(LPCTSTR pszCommand,UINT Action,const 
 
 bool CPluginManager::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
 {
-	const int Plugins=NumPlugins();
-
-	for (int i=0;i<Plugins;i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		m_PluginList[i]->SendEvent(Event,lParam1,lParam2);
 	}
 	return true;
@@ -2561,9 +2554,8 @@ bool CPluginManager::SendEvent(UINT Event,LPARAM lParam1,LPARAM lParam2)
 bool CPluginManager::SendProgramGuideEvent(UINT Event,LPARAM Param1,LPARAM Param2)
 {
 	bool fSent=false;
-	const int Plugins=NumPlugins();
 
-	for (int i=0;i<Plugins;i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		CPlugin *pPlugin=m_PluginList[i];
 
 		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_GENERAL)
@@ -2580,9 +2572,8 @@ bool CPluginManager::SendProgramGuideProgramEvent(UINT Event,const CEventInfoDat
 	EventInfoToProgramGuideProgramInfo(EventInfo,&ProgramInfo);
 
 	bool fSent=false;
-	const int Plugins=NumPlugins();
 
-	for (int i=0;i<Plugins;i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		CPlugin *pPlugin=m_PluginList[i];
 
 		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_PROGRAM)
@@ -2783,10 +2774,9 @@ bool CPluginManager::SendProgramGuideInitializeMenuEvent(HMENU hmenu,UINT *pComm
 	Info.Reserved=0;
 
 	bool fSent=false;
-	const int Plugins=NumPlugins();
 	m_ProgramGuideMenuList.clear();
 
-	for (int i=0;i<Plugins;i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		CPlugin *pPlugin=m_PluginList[i];
 
 		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_GENERAL)) {
@@ -2861,10 +2851,9 @@ bool CPluginManager::SendProgramGuideProgramInitializeMenuEvent(const CEventInfo
 	Info.ItemRect=ItemRect;
 
 	bool fSent=false;
-	const int Plugins=NumPlugins();
 	m_ProgramGuideMenuList.clear();
 
-	for (int i=0;i<Plugins;i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		CPlugin *pPlugin=m_PluginList[i];
 
 		if (pPlugin->IsProgramGuideEventEnabled(TVTest::PROGRAMGUIDE_EVENT_PROGRAM)) {
@@ -2917,10 +2906,9 @@ bool CPluginManager::SendProgramGuideProgramMenuSelectedEvent(const CEventInfoDa
 
 bool CPluginManager::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam,LRESULT *pResult)
 {
-	const int Plugins=NumPlugins();
 	bool fNoDefault=false;
 
-	for (int i=0;i<Plugins;i++) {
+	for (size_t i=0;i<m_PluginList.size();i++) {
 		if (m_PluginList[i]->OnMessage(hwnd,uMsg,wParam,lParam,pResult))
 			fNoDefault=true;
 	}

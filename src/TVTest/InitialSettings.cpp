@@ -51,8 +51,15 @@ CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 
 CInitialSettings::~CInitialSettings()
 {
-	m_LogoImage.Free();
-	m_GdiPlus.Finalize();
+	Destroy();
+}
+
+
+bool CInitialSettings::Show(HWND hwndOwner)
+{
+	return ShowDialog(hwndOwner,
+					  GetAppClass().GetResourceInstance(),
+					  MAKEINTRESOURCE(IDD_INITIALSETTINGS))==IDOK;
 }
 
 
@@ -74,30 +81,20 @@ bool CInitialSettings::GetMpeg2DecoderName(LPTSTR pszDecoderName,int MaxLength) 
 }
 
 
-CInitialSettings *CInitialSettings::GetThis(HWND hDlg)
-{
-	return static_cast<CInitialSettings*>(::GetProp(hDlg,TEXT("This")));
-}
-
-
-INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
+INT_PTR CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			CInitialSettings *pThis=reinterpret_cast<CInitialSettings*>(lParam);
-
-			::SetProp(hDlg,TEXT("This"),pThis);
-			AdjustDialogPos(NULL,hDlg);
 			{
 				HWND hwndLogo=::GetDlgItem(hDlg,IDC_INITIALSETTINGS_LOGO);
 				RECT rc;
 
 				::GetWindowRect(hwndLogo,&rc);
 				::SetRect(&rc,rc.right-rc.left,0,0,0);
-				if (pThis->m_AeroGlass.ApplyAeroGlass(hDlg,&rc)) {
-					pThis->m_GdiPlus.Initialize();
-					pThis->m_LogoImage.LoadFromResource(GetAppClass().GetResourceInstance(),
+				if (m_AeroGlass.ApplyAeroGlass(hDlg,&rc)) {
+					m_GdiPlus.Initialize();
+					m_LogoImage.LoadFromResource(GetAppClass().GetResourceInstance(),
 						MAKEINTRESOURCE(IDB_LOGO32),TEXT("PNG"));
 					::ShowWindow(hwndLogo,SW_HIDE);
 				} else {
@@ -108,13 +105,13 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				}
 			}
 
-			// Driver
+			// BonDriver
 			{
 				int NormalDriverCount=0;
 
 				DlgComboBox_LimitText(hDlg,IDC_INITIALSETTINGS_DRIVER,MAX_PATH-1);
-				for (int i=0;i<pThis->m_pDriverManager->NumDrivers();i++) {
-					const CDriverInfo *pDriverInfo=pThis->m_pDriverManager->GetDriverInfo(i);
+				for (int i=0;i<m_pDriverManager->NumDrivers();i++) {
+					const CDriverInfo *pDriverInfo=m_pDriverManager->GetDriverInfo(i);
 					int Index;
 
 					if (CCoreEngine::IsNetworkDriverFileName(pDriverInfo->GetFileName())) {
@@ -125,10 +122,10 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					DlgComboBox_InsertString(hDlg,IDC_INITIALSETTINGS_DRIVER,
 											 Index,pDriverInfo->GetFileName());
 				}
-				if (pThis->m_pDriverManager->NumDrivers()>0) {
+				if (m_pDriverManager->NumDrivers()>0) {
 					DlgComboBox_GetLBString(hDlg,IDC_INITIALSETTINGS_DRIVER,
-											0,pThis->m_szDriverFileName);
-					::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,pThis->m_szDriverFileName);
+											0,m_szDriverFileName);
+					::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,m_szDriverFileName);
 				}
 			}
 
@@ -148,7 +145,7 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 					for (int i=0;i<FilterFinder.GetFilterCount();i++) {
 						if (FilterFinder.GetFilterInfo(i,NULL,szFilterName,lengthof(szFilterName))) {
 							int Index=(int)DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,szFilterName);
-							if (::lstrcmpi(szFilterName,pThis->m_szMpeg2DecoderName)==0)
+							if (::lstrcmpi(szFilterName,m_szMpeg2DecoderName)==0)
 								Sel=Index;
 							Count++;
 						}
@@ -167,39 +164,41 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				for (int i=1;(pszName=CVideoRenderer::EnumRendererName(i))!=NULL;i++)
 					DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_VIDEORENDERER,pszName);
 				DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_VIDEORENDERER,
-									  pThis->m_VideoRenderer);
+									  m_VideoRenderer);
 			}
 
-			// Card reader
+			// カードリーダー
 			{
 				CCardReader *pCardReader;
 
 				for (int i=0;i<=CCoreEngine::CARDREADER_LAST;i++)
 					DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_CARDREADER,
 										  CCoreEngine::GetCardReaderSettingName((CCoreEngine::CardReaderType)i));
-				pThis->m_CardReader=CCoreEngine::CARDREADER_NONE;
+				m_CardReader=CCoreEngine::CARDREADER_NONE;
 				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
 				if (pCardReader!=NULL) {
 					if (pCardReader->NumReaders()>0)
-						pThis->m_CardReader=CCoreEngine::CARDREADER_SCARD;
+						m_CardReader=CCoreEngine::CARDREADER_SCARD;
 					delete pCardReader;
 				}
-				if (pThis->m_CardReader==CCoreEngine::CARDREADER_NONE) {
+				if (m_CardReader==CCoreEngine::CARDREADER_NONE) {
 					pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
 					if (pCardReader!=NULL) {
 						if (pCardReader->Open()) {
-							pThis->m_CardReader=CCoreEngine::CARDREADER_HDUS;
+							m_CardReader=CCoreEngine::CARDREADER_HDUS;
 							pCardReader->Close();
 						}
 						delete pCardReader;
 					}
 				}
-				DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER,pThis->m_CardReader);
+				DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER,m_CardReader);
 			}
 
-			// Record folder
-			::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,pThis->m_szRecordFolder);
+			// 録画フォルダ
+			::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,m_szRecordFolder);
 			::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,EM_LIMITTEXT,MAX_PATH-1,0);
+
+			AdjustDialogPos(NULL,hDlg);
 		}
 		return TRUE;
 
@@ -239,17 +238,20 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				CCoreEngine::CardReaderType ReaderType=CCoreEngine::CARDREADER_NONE;
 				CCardReader *pCardReader;
 				TCHAR szText[1024];
+				int Length;
 
 				::SetCursor(::LoadCursor(NULL,IDC_WAIT));
-				::lstrcpy(szText,TEXT("以下のカードリーダが見付かりました。\n"));
+				Length=StdUtil::snprintf(szText,lengthof(szText),
+										 TEXT("以下のカードリーダが見付かりました。\n"));
 				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
 				if (pCardReader!=NULL) {
 					if (pCardReader->NumReaders()>0) {
 						for (int i=0;i<pCardReader->NumReaders();i++) {
 							LPCTSTR pszReaderName=pCardReader->EnumReader(i);
 							if (pszReaderName!=NULL) {
-								::wsprintf(szText+::lstrlen(szText),
-										   TEXT("\"%s\"\n"),pszReaderName);
+								Length+=StdUtil::snprintf(
+									szText+Length,lengthof(szText)-Length,
+									TEXT("\"%s\"\n"),pszReaderName);
 							}
 						}
 						ReaderType=CCoreEngine::CARDREADER_SCARD;
@@ -259,7 +261,9 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
 				if (pCardReader!=NULL) {
 					if (pCardReader->Open()) {
-						::lstrcat(szText,TEXT("\"HDUS内蔵カードリーダ\"\n"));
+						/*Length+=*/StdUtil::snprintf(
+							szText+Length,lengthof(szText)-Length,
+							TEXT("\"HDUS内蔵カードリーダ\"\n"));
 						pCardReader->Close();
 						if (ReaderType==CCoreEngine::CARDREADER_NONE)
 							ReaderType=CCoreEngine::CARDREADER_HDUS;
@@ -280,7 +284,7 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			{
 				TCHAR szFolder[MAX_PATH];
 
-				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,szFolder,MAX_PATH);
+				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,szFolder,lengthof(szFolder));
 				if (BrowseFolderDialog(hDlg,szFolder,
 										TEXT("録画ファイルの保存先フォルダ:")))
 					::SetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,szFolder);
@@ -293,7 +297,6 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 
 		case IDOK:
 			{
-				CInitialSettings *pThis=GetThis(hDlg);
 				TCHAR szMpeg2Decoder[MAX_DECODER_NAME];
 				CVideoRenderer::RendererType VideoRenderer;
 
@@ -343,13 +346,13 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 				}
 
 				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_DRIVER,
-								 pThis->m_szDriverFileName,MAX_PATH);
+								 m_szDriverFileName,MAX_PATH);
 				if (SelDecoder>0)
-					::lstrcpy(pThis->m_szMpeg2DecoderName,szMpeg2Decoder);
+					::lstrcpy(m_szMpeg2DecoderName,szMpeg2Decoder);
 				else
-					pThis->m_szMpeg2DecoderName[0]='\0';
-				pThis->m_VideoRenderer=VideoRenderer;
-				pThis->m_CardReader=(CCoreEngine::CardReaderType)
+					m_szMpeg2DecoderName[0]='\0';
+				m_VideoRenderer=VideoRenderer;
+				m_CardReader=(CCoreEngine::CardReaderType)
 					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER);
 
 				TCHAR szRecordFolder[MAX_PATH];
@@ -359,22 +362,23 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 						&& !::PathIsDirectory(szRecordFolder)) {
 					TCHAR szMessage[MAX_PATH+64];
 
-					::wsprintf(szMessage,
+					StdUtil::snprintf(szMessage,lengthof(szMessage),
 						TEXT("録画ファイルの保存先フォルダ \"%s\" がありません。\n")
 						TEXT("作成しますか?"),szRecordFolder);
 					if (::MessageBox(hDlg,szMessage,TEXT("フォルダ作成の確認"),
-										MB_YESNO | MB_ICONQUESTION)==IDYES) {
+									 MB_YESNO | MB_ICONQUESTION)==IDYES) {
 						int Result;
 
 						Result=::SHCreateDirectoryEx(hDlg,szRecordFolder,NULL);
 						if (Result!=ERROR_SUCCESS
 								&& Result!=ERROR_ALREADY_EXISTS) {
 							::MessageBox(hDlg,TEXT("フォルダが作成できません。"),
-											NULL,MB_OK | MB_ICONEXCLAMATION);
+										 NULL,MB_OK | MB_ICONEXCLAMATION);
+							return TRUE;
 						}
 					}
 				}
-				::lstrcpy(pThis->m_szRecordFolder,szRecordFolder);
+				::lstrcpy(m_szRecordFolder,szRecordFolder);
 			}
 		case IDCANCEL:
 			::EndDialog(hDlg,LOWORD(wParam));
@@ -383,61 +387,48 @@ INT_PTR CALLBACK CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 		return TRUE;
 
 	case WM_PAINT:
-		{
-			CInitialSettings *pThis=GetThis(hDlg);
+		if (m_GdiPlus.IsInitialized()) {
+			PAINTSTRUCT ps;
 
-			if (pThis->m_GdiPlus.IsInitialized()) {
-				PAINTSTRUCT ps;
+			::BeginPaint(hDlg,&ps);
+			{
+				CGdiPlus::CCanvas Canvas(ps.hdc);
+				CGdiPlus::CBrush Brush(::GetSysColor(COLOR_3DFACE));
+				RECT rc,rcClient;
 
-				::BeginPaint(hDlg,&ps);
-				{
-					CGdiPlus::CCanvas Canvas(ps.hdc);
-					CGdiPlus::CBrush Brush(::GetSysColor(COLOR_3DFACE));
-					RECT rc,rcClient;
-
-					::GetWindowRect(::GetDlgItem(hDlg,IDC_INITIALSETTINGS_LOGO),&rc);
-					::OffsetRect(&rc,-rc.left,-rc.top);
-					Canvas.Clear(0,0,0,0);
-					::GetClientRect(hDlg,&rcClient);
-					rcClient.left=rc.right;
-					pThis->m_GdiPlus.FillRect(&Canvas,&Brush,&rcClient);
-					pThis->m_GdiPlus.DrawImage(&Canvas,&pThis->m_LogoImage,
-						(rc.right-pThis->m_LogoImage.GetWidth())/2,
-						(rc.bottom-pThis->m_LogoImage.GetHeight())/2);
-				}
-				::EndPaint(hDlg,&ps);
-				return TRUE;
+				::GetWindowRect(::GetDlgItem(hDlg,IDC_INITIALSETTINGS_LOGO),&rc);
+				::OffsetRect(&rc,-rc.left,-rc.top);
+				Canvas.Clear(0,0,0,0);
+				::GetClientRect(hDlg,&rcClient);
+				rcClient.left=rc.right;
+				m_GdiPlus.FillRect(&Canvas,&Brush,&rcClient);
+				m_GdiPlus.DrawImage(&Canvas,&m_LogoImage,
+					(rc.right-m_LogoImage.GetWidth())/2,
+					(rc.bottom-m_LogoImage.GetHeight())/2);
 			}
+			::EndPaint(hDlg,&ps);
+			return TRUE;
 		}
 		break;
 
 	case WM_CTLCOLORSTATIC:
 		if (reinterpret_cast<HWND>(lParam)==::GetDlgItem(hDlg,IDC_INITIALSETTINGS_LOGO))
-			return reinterpret_cast<BOOL>(::GetStockObject(WHITE_BRUSH));
+			return reinterpret_cast<INT_PTR>(::GetStockObject(WHITE_BRUSH));
 		break;
 
 	case WM_DESTROY:
 		{
-			CInitialSettings *pThis=GetThis(hDlg);
 			HBITMAP hbm=reinterpret_cast<HBITMAP>(::SendDlgItemMessage(hDlg,IDC_INITIALSETTINGS_LOGO,
 				STM_SETIMAGE,IMAGE_BITMAP,reinterpret_cast<LPARAM>((HBITMAP)NULL)));
 
 			if (hbm!=NULL) {
 				::DeleteObject(hbm);
 			} else {
-				pThis->m_LogoImage.Free();
-				pThis->m_GdiPlus.Finalize();
+				m_LogoImage.Free();
+				m_GdiPlus.Finalize();
 			}
-			::RemoveProp(hDlg,TEXT("This"));
 		}
 		return TRUE;
 	}
 	return FALSE;
-}
-
-
-bool CInitialSettings::ShowDialog(HWND hwndOwner)
-{
-	return ::DialogBoxParam(GetAppClass().GetResourceInstance(),MAKEINTRESOURCE(IDD_INITIALSETTINGS),
-							hwndOwner,DlgProc,reinterpret_cast<LPARAM>(this))==IDOK;
 }

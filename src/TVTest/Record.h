@@ -95,7 +95,7 @@ public:
 private:
 	bool m_fRecording;
 	bool m_fReserved;
-	LPTSTR m_pszFileName;
+	CDynamicString m_FileName;
 	CRecordTime m_ReserveTime;
 	TimeSpecInfo m_StartTimeSpec;
 	TimeSpecInfo m_StopTimeSpec;
@@ -118,7 +118,7 @@ public:
 	CRecordManager();
 	~CRecordManager();
 	bool SetFileName(LPCTSTR pszFileName);
-	LPCTSTR GetFileName() const { return m_pszFileName; }
+	LPCTSTR GetFileName() const { return m_FileName.Get(); }
 	/*
 	bool SetFileExistsOperation(FileExistsOperation Operation);
 	FileExistsOperation GetFileExistsOperation() const { return m_ExistsOperation; }

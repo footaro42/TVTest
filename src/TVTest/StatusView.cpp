@@ -196,7 +196,6 @@ CStatusView::CStatusView()
 	, m_MaxRows(2)
 	, m_Rows(1)
 	, m_fSingleMode(false)
-	, m_pszSingleText(NULL)
 	, m_HotItem(-1)
 	, m_fTrackMouseEvent(false)
 	, m_fOnButtonDown(false)
@@ -224,10 +223,12 @@ CStatusView::CStatusView()
 CStatusView::~CStatusView()
 {
 	Destroy();
+
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pStatusView=NULL;
-	m_ItemList.DeleteAll();
-	delete [] m_pszSingleText;
+
+	for (size_t i=0;i<m_ItemList.size();i++)
+		delete m_ItemList[i];
 }
 
 
@@ -240,7 +241,7 @@ bool CStatusView::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 
 const CStatusItem *CStatusView::GetItem(int Index) const
 {
-	if (Index<0 || Index>=m_ItemList.Length())
+	if (Index<0 || (size_t)Index>=m_ItemList.size())
 		return NULL;
 	return m_ItemList[Index];
 }
@@ -248,7 +249,7 @@ const CStatusItem *CStatusView::GetItem(int Index) const
 
 CStatusItem *CStatusView::GetItem(int Index)
 {
-	if (Index<0 || Index>=m_ItemList.Length())
+	if (Index<0 || (size_t)Index>=m_ItemList.size())
 		return NULL;
 	return m_ItemList[Index];
 }
@@ -276,7 +277,9 @@ CStatusItem *CStatusView::GetItemByID(int ID)
 
 bool CStatusView::AddItem(CStatusItem *pItem)
 {
-	m_ItemList.Add(pItem);
+	if (pItem==NULL)
+		return false;
+	m_ItemList.push_back(pItem);
 	pItem->m_pStatus=this;
 	return true;
 }
@@ -284,11 +287,9 @@ bool CStatusView::AddItem(CStatusItem *pItem)
 
 int CStatusView::IDToIndex(int ID) const
 {
-	int i;
-
-	for (i=0;i<m_ItemList.Length();i++) {
+	for (size_t i=0;i<m_ItemList.size();i++) {
 		if (m_ItemList[i]->GetID()==ID)
-			return i;
+			return (int)i;
 	}
 	return -1;
 }
@@ -296,7 +297,7 @@ int CStatusView::IDToIndex(int ID) const
 
 int CStatusView::IndexToID(int Index) const
 {
-	if (Index<0 || Index>=m_ItemList.Length())
+	if (Index<0 || (size_t)Index>=m_ItemList.size())
 		return -1;
 	return m_ItemList[Index]->GetID();
 }
@@ -366,14 +367,14 @@ LRESULT CStatusView::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				pt.x=x;
 				pt.y=y;
 				int i;
-				for (i=0;i<m_ItemList.Length();i++) {
+				for (i=0;i<(int)m_ItemList.size();i++) {
 					if (!m_ItemList[i]->GetVisible())
 						continue;
 					GetItemRectByIndex(i,&rc);
 					if (::PtInRect(&rc,pt))
 						break;
 				}
-				if (i==m_ItemList.Length())
+				if (i==(int)m_ItemList.size())
 					i=-1;
 				if (i!=m_HotItem)
 					SetHotItem(i);
@@ -515,7 +516,7 @@ bool CStatusView::GetItemRect(int ID,RECT *pRect) const
 
 bool CStatusView::GetItemRectByIndex(int Index,RECT *pRect) const
 {
-	if (Index<0 || Index>=m_ItemList.Length())
+	if (Index<0 || (size_t)Index>=m_ItemList.size())
 		return false;
 
 	RECT rc;
@@ -587,7 +588,7 @@ int CStatusView::GetIntegralWidth() const
 	int Width;
 
 	Width=0;
-	for (int i=0;i<m_ItemList.Length();i++) {
+	for (size_t i=0;i<m_ItemList.size();i++) {
 		if (m_ItemList[i]->GetVisible())
 			Width+=m_ItemList[i]->GetWidth()+ITEM_MARGIN*2;
 	}
@@ -599,27 +600,24 @@ int CStatusView::GetIntegralWidth() const
 
 void CStatusView::SetVisible(bool fVisible)
 {
-	int i;
-
 	if (m_HotItem>=0)
 		SetHotItem(-1);
 	CBasicWindow::SetVisible(fVisible);
-	for (i=0;i<m_ItemList.Length();i++)
+	for (size_t i=0;i<m_ItemList.size();i++)
 		m_ItemList[i]->OnVisibleChange(fVisible && m_ItemList[i]->GetVisible());
 }
 
 
 void CStatusView::SetSingleText(LPCTSTR pszText)
 {
-	delete [] m_pszSingleText;
 	if (pszText!=NULL) {
-		m_pszSingleText=DuplicateString(pszText);
+		m_SingleText.Set(pszText);
 		m_fSingleMode=true;
 		SetHotItem(-1);
 	} else {
 		if (!m_fSingleMode)
 			return;
-		m_pszSingleText=NULL;
+		m_SingleText.Clear();
 		m_fSingleMode=false;
 	}
 	if (m_hwnd!=NULL)
@@ -709,7 +707,7 @@ int CStatusView::CalcHeight(int Width) const
 		RECT rc={0,0,Width,0};
 		Theme::SubtractBorderRect(&m_Theme.Border,&rc);
 		int RowWidth=0;
-		for (int i=0;i<m_ItemList.Length();i++) {
+		for (size_t i=0;i<m_ItemList.size();i++) {
 			const CStatusItem *pItem=m_ItemList[i];
 
 			if (pItem->GetVisible()) {
@@ -748,22 +746,20 @@ bool CStatusView::SetEventHandler(CEventHandler *pEventHandler)
 
 bool CStatusView::SetItemOrder(const int *pOrderList)
 {
-	int i,j;
-	CPointerVector<CStatusItem> NewList;
+	std::vector<CStatusItem*> NewList;
 
-	for (i=0;i<m_ItemList.Length();i++) {
+	for (size_t i=0;i<m_ItemList.size();i++) {
 		CStatusItem *pItem=GetItem(IDToIndex(pOrderList[i]));
 
 		if (pItem==NULL)
 			return false;
-		NewList.Add(pItem);
-		for (j=0;j<i;j++) {
+		NewList.push_back(pItem);
+		for (size_t j=0;j<i;j++) {
 			if (NewList[i]==NewList[j])
 				return false;
 		}
 	}
-	for (i=0;i<m_ItemList.Length();i++)
-		m_ItemList.Set(i,NewList[i]);
+	m_ItemList=NewList;
 	if (m_hwnd!=NULL && !m_fSingleMode) {
 		if (m_fMultiRow)
 			AdjustSize();
@@ -825,7 +821,7 @@ void CStatusView::OnTrace(LPCTSTR pszOutput)
 
 void CStatusView::SetHotItem(int Item)
 {
-	if (Item<0 || Item>=m_ItemList.Length())
+	if (Item<0 || (size_t)Item>=m_ItemList.size())
 		Item=-1;
 	if (m_HotItem!=Item) {
 		int OldHotItem=m_HotItem;
@@ -867,7 +863,7 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 
 	if (!m_fSingleMode) {
 		int MaxWidth=0;
-		for (int i=0;i<m_ItemList.Length();i++) {
+		for (size_t i=0;i<m_ItemList.size();i++) {
 			const CStatusItem *pItem=m_ItemList[i];
 			if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
 				MaxWidth=pItem->GetWidth();
@@ -903,14 +899,14 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 		::SetTextColor(hdcDst,m_Theme.ItemStyle.TextColor);
 		rc.left+=ITEM_MARGIN;
 		rc.right-=ITEM_MARGIN;
-		::DrawText(hdcDst,m_pszSingleText,-1,&rc,
+		::DrawText(hdcDst,m_SingleText.Get(),-1,&rc,
 				   DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 	} else {
 		const int Left=rc.left;
 		int Row=0;
 
 		rc.right=Left;
-		for (int i=0;i<m_ItemList.Length();i++) {
+		for (int i=0;i<(int)m_ItemList.size();i++) {
 			CStatusItem *pItem=m_ItemList[i];
 
 			if (pItem->GetVisible()) {
@@ -1001,7 +997,7 @@ void CStatusView::CalcRows()
 		Theme::SubtractBorderRect(&m_Theme.Border,&rc);
 		Rows=1;
 		RowWidth=0;
-		for (int i=0;i<m_ItemList.Length();i++) {
+		for (size_t i=0;i<m_ItemList.size();i++) {
 			CStatusItem *pItem=m_ItemList[i];
 
 			pItem->m_fBreak=false;
@@ -1023,7 +1019,7 @@ void CStatusView::CalcRows()
 		}
 		m_Rows=Rows;
 	} else {
-		for (int i=0;i<m_ItemList.Length();i++)
+		for (size_t i=0;i<m_ItemList.size();i++)
 			m_ItemList[i]->m_fBreak=false;
 		m_Rows=1;
 	}

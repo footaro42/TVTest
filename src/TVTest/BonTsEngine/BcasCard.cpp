@@ -320,7 +320,7 @@ const BYTE * CBcasCard::GetKsFromEcm(const BYTE *pEcmData, const DWORD dwEcmSize
 	}
 
 	// ECMサイズをチェック
-	if (!pEcmData || (dwEcmSize < 30UL) || (dwEcmSize > MAX_ECM_DATA_SIZE)) {
+	if (!pEcmData || (dwEcmSize < MIN_ECM_DATA_SIZE) || (dwEcmSize > MAX_ECM_DATA_SIZE)) {
 		SetError(ERR_BADARGUMENT, BAD_ARGUMENT_ERROR_TEXT);
 		return NULL;
 	}

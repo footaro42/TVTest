@@ -80,7 +80,8 @@ bool CZoomOptions::SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const
 					&& pCurRate->Rate*100/pCurRate->Factor==
 						pInfo->Zoom.Rate*100/pInfo->Zoom.Factor)
 				Flags|=MF_CHECKED;
-			::wsprintf(szText,TEXT("%d%%"),pInfo->Zoom.Rate*100/pInfo->Zoom.Factor);
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("%d%%"),
+							  pInfo->Zoom.Rate*100/pInfo->Zoom.Factor);
 			::InsertMenu(hmenu,Pos++,Flags,pInfo->Command,szText);
 		}
 	}
@@ -124,10 +125,10 @@ bool CZoomOptions::Read(CSettings *pSettings)
 			::wsprintf(szName,TEXT("ZoomList%d"),i);
 			if (pSettings->Read(szName,szText,lengthof(szText))) {
 				LPTSTR p=szText;
-				while (*p!='\0' && *p!=',')
+				while (*p!=_T('\0') && *p!=_T(','))
 					p++;
-				if (*p==',')
-					*p++='\0';
+				if (*p==_T(','))
+					*p++=_T('\0');
 				int Command=m_pCommandList->ParseText(szText);
 				if (Command!=0) {
 					for (j=0;j<NUM_ZOOM;j++) {
@@ -142,7 +143,7 @@ bool CZoomOptions::Read(CSettings *pSettings)
 						}
 						if (k==Count) {
 							m_Order[Count]=j;
-							m_ZoomList[j].fVisible=*p!='0';
+							m_ZoomList[j].fVisible=*p!=_T('0');
 							Count++;
 						}
 					}
@@ -180,7 +181,8 @@ bool CZoomOptions::Write(CSettings *pSettings) const
 		TCHAR szName[32];
 
 		::wsprintf(szName,TEXT("ZoomList%d"),i);
-		::wsprintf(szText,TEXT("%s,%d"),m_pCommandList->GetCommandTextByID(pInfo->Command),pInfo->fVisible?1:0);
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%s,%d"),
+						  m_pCommandList->GetCommandTextByID(pInfo->Command),pInfo->fVisible?1:0);
 		pSettings->Write(szName,szText);
 	}
 	return true;

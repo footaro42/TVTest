@@ -10,7 +10,7 @@ class CResidentManager
 	bool m_fMinimizeToTray;
 	UINT m_Status;
 	UINT m_TaskbarCreatedMessage;
-	LPTSTR m_pszTipText;
+	CDynamicString m_TipText;
 	bool AddTrayIcon();
 	bool RemoveTrayIcon();
 	bool ChangeTrayIcon();

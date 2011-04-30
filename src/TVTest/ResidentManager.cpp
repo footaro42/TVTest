@@ -20,7 +20,6 @@ CResidentManager::CResidentManager()
 	, m_fMinimizeToTray(true)
 	, m_Status(0)
 	, m_TaskbarCreatedMessage(0)
-	, m_pszTipText(NULL)
 {
 }
 
@@ -28,7 +27,6 @@ CResidentManager::CResidentManager()
 CResidentManager::~CResidentManager()
 {
 	Finalize();
-	delete [] m_pszTipText;
 }
 
 
@@ -101,14 +99,14 @@ bool CResidentManager::AddTrayIcon()
 	nid.uID=1;
 	nid.uFlags=NIF_MESSAGE | NIF_ICON | NIF_TIP;
 	nid.uCallbackMessage=m_TrayIconMessage;
-	nid.hIcon=LoadIcon(GetAppClass().GetResourceInstance(),
+	nid.hIcon=::LoadIcon(GetAppClass().GetResourceInstance(),
 		MAKEINTRESOURCE((m_Status&STATUS_RECORDING)!=0?IDI_TRAY_RECORDING:IDI_TRAY));
-	lstrcpy(nid.szTip,m_pszTipText?m_pszTipText:APP_NAME);
-	if (!Shell_NotifyIcon(NIM_ADD,&nid))
+	::lstrcpyn(nid.szTip,!m_TipText.IsEmpty()?m_TipText.Get():APP_NAME,lengthof(nid.szTip));
+	if (!::Shell_NotifyIcon(NIM_ADD,&nid))
 		return false;
 	/*
 	nid.uVersion=NOTIFYICON_VERSION;
-	Shell_NotifyIcon(NIM_SETVERSION,&nid);
+	::Shell_NotifyIcon(NIM_SETVERSION,&nid);
 	*/
 	return true;
 }
@@ -153,8 +151,8 @@ bool CResidentManager::UpdateTipText()
 	nid.hWnd=m_hwnd;
 	nid.uID=1;
 	nid.uFlags=NIF_TIP;
-	lstrcpy(nid.szTip,m_pszTipText?m_pszTipText:APP_NAME);
-	return Shell_NotifyIcon(NIM_MODIFY,&nid)!=FALSE;
+	::lstrcpyn(nid.szTip,!m_TipText.IsEmpty()?m_TipText.Get():APP_NAME,lengthof(nid.szTip));
+	return ::Shell_NotifyIcon(NIM_MODIFY,&nid)!=FALSE;
 }
 
 
@@ -196,7 +194,7 @@ bool CResidentManager::SetStatus(UINT Status,UINT Mask)
 
 bool CResidentManager::SetTipText(LPCTSTR pszText)
 {
-	ReplaceString(&m_pszTipText,pszText);
+	m_TipText.Set(pszText);
 	if (IsTrayIconVisible())
 		UpdateTipText();
 	return true;

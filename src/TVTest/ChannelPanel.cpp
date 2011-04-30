@@ -99,7 +99,10 @@ CChannelPanel::CChannelPanel()
 CChannelPanel::~CChannelPanel()
 {
 	Destroy();
-	m_ChannelList.DeleteAll();
+
+	for (size_t i=0;i<m_ChannelList.size();i++)
+		delete m_ChannelList[i];
+	m_ChannelList.clear();
 }
 
 
@@ -163,7 +166,10 @@ bool CChannelPanel::UpdateEvents(CChannelEventInfo *pInfo,const SYSTEMTIME *pTim
 
 bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEvent)
 {
-	m_ChannelList.DeleteAll();
+	for (size_t i=0;i<m_ChannelList.size();i++)
+		delete m_ChannelList[i];
+	m_ChannelList.clear();
+
 	m_ScrollPos=0;
 	m_CurChannel=-1;
 	if (pChannelList!=NULL) {
@@ -187,7 +193,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 				if (hbmLogo!=NULL)
 					pEventInfo->SetLogo(hbmLogo);
 			}
-			m_ChannelList.Add(pEventInfo);
+			m_ChannelList.push_back(pEventInfo);
 			/*
 			if (m_hwnd!=NULL) {
 				RECT rc;
@@ -199,23 +205,25 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 			*/
 		}
 	}
+
 	if (m_hwnd!=NULL) {
 		SetScrollBar();
 		SetTooltips();
 		Invalidate();
 		Update();
 	}
+
 	return true;
 }
 
 
 bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
 {
-	if (m_pProgramList!=NULL && m_ChannelList.Length()>0) {
+	if (m_pProgramList!=NULL && !m_ChannelList.empty()) {
 		bool fChanged=false;
 
 		GetCurrentJST(&m_UpdatedTime);
-		for (int i=0;i<m_ChannelList.Length();i++) {
+		for (size_t i=0;i<m_ChannelList.size();i++) {
 			CChannelEventInfo *pInfo=m_ChannelList[i];
 
 			if (fUpdateProgramList) {
@@ -237,7 +245,7 @@ bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
 bool CChannelPanel::UpdateChannel(int ChannelIndex)
 {
 	if (m_pProgramList!=NULL) {
-		for (int i=0;i<m_ChannelList.Length();i++) {
+		for (int i=0;i<(int)m_ChannelList.size();i++) {
 			CChannelEventInfo *pEventInfo=m_ChannelList[i];
 
 			if (pEventInfo->GetOriginalChannelIndex()==ChannelIndex) {
@@ -267,7 +275,7 @@ bool CChannelPanel::UpdateChannels(WORD NetworkID,WORD TransportStreamID)
 	bool fChanged=false;
 
 	GetCurrentJST(&st);
-	for (int i=0;i<m_ChannelList.Length();i++) {
+	for (size_t i=0;i<m_ChannelList.size();i++) {
 		CChannelEventInfo *pInfo=m_ChannelList[i];
 
 		if ((NetworkID==0 || pInfo->GetNetworkID()==NetworkID)
@@ -285,7 +293,7 @@ bool CChannelPanel::UpdateChannels(WORD NetworkID,WORD TransportStreamID)
 
 bool CChannelPanel::IsChannelListEmpty() const
 {
-	return m_ChannelList.Length()==0;
+	return m_ChannelList.empty();
 }
 
 
@@ -373,7 +381,7 @@ bool CChannelPanel::SetEventsPerChannel(int Events)
 	if (m_EventsPerChannel!=Events) {
 		m_EventsPerChannel=Events;
 		m_ExpandEvents=Events+EXPAND_INCREASE_EVENTS;
-		for (int i=0;i<m_ChannelList.Length();i++) {
+		for (size_t i=0;i<m_ChannelList.size();i++) {
 			CChannelEventInfo *pInfo=m_ChannelList[i];
 
 			pInfo->SetMaxEvents(pInfo->IsExpanded()?m_ExpandEvents:m_EventsPerChannel);
@@ -393,7 +401,7 @@ bool CChannelPanel::SetEventsPerChannel(int Events)
 
 bool CChannelPanel::ExpandChannel(int Channel,bool fExpand)
 {
-	if (Channel<0 || Channel>=m_ChannelList.Length())
+	if (Channel<0 || (size_t)Channel>=m_ChannelList.size())
 		return false;
 	CChannelEventInfo *pInfo=m_ChannelList[Channel];
 	if (pInfo->IsExpanded()!=fExpand) {
@@ -552,7 +560,7 @@ LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				LPNMTTDISPINFO pnmtdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 				int Channel=LOWORD(pnmtdi->lParam),Event=HIWORD(pnmtdi->lParam);
 
-				if (Channel>=0 && Channel<m_ChannelList.Length()) {
+				if (Channel>=0 && (size_t)Channel<m_ChannelList.size()) {
 					static TCHAR szText[1024];
 
 					m_ChannelList[Channel]->FormatEventText(szText,lengthof(szText),Event);
@@ -623,7 +631,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 	RECT rcClient,rc;
 	GetClientRect(&rcClient);
 	rc.top=-m_ScrollPos;
-	for (int i=0;i<m_ChannelList.Length() && rc.top<prcPaint->bottom;i++) {
+	for (int i=0;i<(int)m_ChannelList.size() && rc.top<prcPaint->bottom;i++) {
 		CChannelEventInfo *pChannelInfo=m_ChannelList[i];
 		const bool fCurrent=pChannelInfo->GetOriginalChannelIndex()==m_CurChannel;
 
@@ -756,7 +764,7 @@ int CChannelPanel::CalcHeight() const
 	int Height;
 
 	Height=0;
-	for (int i=0;i<m_ChannelList.Length();i++) {
+	for (size_t i=0;i<m_ChannelList.size();i++) {
 		if (m_ChannelList[i]->IsExpanded())
 			Height+=m_ExpandedItemHeight;
 		else
@@ -789,7 +797,7 @@ int CChannelPanel::HitTest(int x,int y,HitType *pType) const
 	pt.y=y;
 	GetClientRect(&rc);
 	rc.top=-m_ScrollPos;
-	for (int i=0;i<m_ChannelList.Length();i++) {
+	for (int i=0;i<(int)m_ChannelList.size();i++) {
 		rc.bottom=rc.top+m_FontHeight+m_ChannelNameMargin*2;
 		if (::PtInRect(&rc,pt)) {
 			if (pType!=NULL) {
@@ -845,7 +853,7 @@ void CChannelPanel::SetTooltips(bool fRectOnly)
 		GetClientRect(&rc);
 		rc.top=-m_ScrollPos;
 		ToolCount=0;
-		for (int i=0;i<m_ChannelList.Length();i++) {
+		for (int i=0;i<(int)m_ChannelList.size();i++) {
 			rc.top+=m_FontHeight+m_ChannelNameMargin*2;
 			int NumEvents=m_ChannelList[i]->IsExpanded()?
 											m_ExpandEvents:m_EventsPerChannel;
@@ -889,7 +897,7 @@ bool CChannelPanel::GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData
 {
 	int Channel=LOWORD(Param),Event=HIWORD(Param);
 
-	if (Channel<0 || Channel>=m_ChannelList.Length()
+	if (Channel<0 || (size_t)Channel>=m_ChannelList.size()
 			|| !m_ChannelList[Channel]->IsEventEnabled(Event))
 		return false;
 	*ppInfo=&m_ChannelList[Channel]->GetEventInfo(Event);

@@ -1,17 +1,19 @@
 
 
-    TVTest ver.0.7.18r3 ソース
+    TVTest ver.0.7.19 ソース
 
 
 ◆ ファイル構成
 
-  ・TVTest_0.7.18r3_Src.zip  ソースファイル
-  ・TVTest_SDK_110123.zip    プラグイン開発用 SDK
+  ・TVTest_0.7.19_Src.zip  ソースファイル
+  ・TVTest_SDK_110123.zip  プラグイン開発用 SDK
 
 
 ◆ ソースについて
 
-  Visual Studio 2010 SP1 と Intel C++ Composer XE 2011 でビルドしています。
+  Visual Studio 2008 と 2010 のプロジェクトファイルが付いています。
+  (こちらでは普段 Visual Studio 2010 SP1 と Intel C++ Composer XE 2011 でビルド
+   しています)
   一部 ATL を使用しているので Express Edition ではビルドできないと思います。
 
   ビルドには DirectX SDK と DirectShow の BaseClasses ライブラリ(Windows SDK に
@@ -23,4 +25,10 @@
   #define MULTI2_SSE2_ICC をコメントアウトしてください。
   ICC が有る場合は ICC\ICC.sln をビルドして Multi2Decoder.lib を作成ください。
   (ICC 用のソリューション/プロジェクトなので ICC が無いとビルドできません)
+
+
+◆ 注意
+
+  デコーダによっては、(多分リバースエンジニアリング対策で)デバッグ実行時に接続
+  できなかったり不正終了させられたりします。
 

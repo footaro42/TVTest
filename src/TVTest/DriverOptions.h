@@ -2,9 +2,9 @@
 #define DRIVER_OPTIONS_H
 
 
+#include <vector>
 #include "Options.h"
 #include "DriverManager.h"
-#include "PointerArray.h"
 #include "ChannelManager.h"
 
 
@@ -12,16 +12,18 @@ class CDriverSettings;
 
 class CDriverSettingList
 {
-	CPointerVector<CDriverSettings> m_SettingList;
+	std::vector<CDriverSettings*> m_SettingList;
+
 public:
 	CDriverSettingList();
+	CDriverSettingList(const CDriverSettingList &Src);
 	~CDriverSettingList();
-	CDriverSettingList &operator=(const CDriverSettingList &List);
+	CDriverSettingList &operator=(const CDriverSettingList &Src);
 	void Clear();
-	int NumDrivers() const { return m_SettingList.Length(); }
+	size_t NumDrivers() const { return m_SettingList.size(); }
 	bool Add(CDriverSettings *pSettings);
-	CDriverSettings *GetDriverSettings(int Index);
-	const CDriverSettings *GetDriverSettings(int Index) const;
+	CDriverSettings *GetDriverSettings(size_t Index);
+	const CDriverSettings *GetDriverSettings(size_t Index) const;
 	int Find(LPCTSTR pszFileName) const;
 };
 
@@ -32,7 +34,7 @@ class CDriverOptions : public COptions
 	CDriverSettingList m_CurSettingList;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	void InitDlgItem(int Driver);
 	void SetChannelList(int Driver);
@@ -43,10 +45,10 @@ public:
 	CDriverOptions();
 	~CDriverOptions();
 // COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
+	bool Load(LPCTSTR pszFileName) override;
+	bool Save(LPCTSTR pszFileName) const override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CDriverOptions
 	bool Initialize(CDriverManager *pDriverManager);
 	struct ChannelInfo {

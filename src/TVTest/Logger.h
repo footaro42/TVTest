@@ -10,12 +10,12 @@
 class CLogItem
 {
 	FILETIME m_Time;
-	LPTSTR m_pszText;
+	CDynamicString m_Text;
 
 public:
 	CLogItem(LPCTSTR pszText);
 	~CLogItem();
-	LPCTSTR GetText() const { return m_pszText; }
+	LPCTSTR GetText() const { return m_Text.Get(); }
 	void GetTime(SYSTEMTIME *pTime) const;
 	int Format(char *pszText,int MaxLength) const;
 };
