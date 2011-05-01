@@ -147,6 +147,7 @@ bool FillGradient(HDC hdc,const RECT *pRect,const RGBA &Color1,const RGBA &Color
 
 	::SelectObject(hdcMem,hOldBmp);
 	::DeleteDC(hdcMem);
+	::DeleteObject(hbm);
 
 	return true;
 }
