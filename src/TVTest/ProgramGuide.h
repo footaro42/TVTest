@@ -334,7 +334,7 @@ private:
 	void DrawEventList(const ProgramGuide::CEventLayout *pLayout,
 					   HDC hdc,const RECT &Rect,const RECT &PaintRect) const;
 	void DrawHeaderBackground(HDC hdc,const RECT &Rect,bool fCur) const;
-	void DrawServiceHeader(const ProgramGuide::CServiceInfo *pServiceInfo,
+	void DrawServiceHeader(ProgramGuide::CServiceInfo *pServiceInfo,
 						   HDC hdc,const RECT &Rect,HDC hdcChevron,int Chevron,
 						   bool fLeftAlign=false) const;
 	void DrawDayHeader(int Day,HDC hdc,const RECT &Rect) const;

@@ -480,6 +480,64 @@ bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 }
 
 
+HBITMAP CreateDIB(int Width,int Height,int BitCount)
+{
+	struct {
+		BITMAPINFOHEADER bmiHeader;
+		RGBQUAD bmiColors[256];
+	} bmi;
+	void *pBits;
+
+	::ZeroMemory(&bmi,sizeof(bmi));
+	bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+	bmi.bmiHeader.biWidth=Width;
+	bmi.bmiHeader.biHeight=Height;
+	bmi.bmiHeader.biPlanes=1;
+	bmi.bmiHeader.biBitCount=BitCount;
+	bmi.bmiHeader.biCompression=BI_RGB;
+	return ::CreateDIBSection(NULL,(BITMAPINFO*)&bmi,DIB_RGB_COLORS,&pBits,NULL,0);
+}
+
+
+HBITMAP ResizeBitmap(HBITMAP hbmSrc,int Width,int Height,int BitCount,int StretchMode)
+{
+	if (hbmSrc==NULL || Width<1 || Height==0)
+		return NULL;
+
+	HBITMAP hbm=CreateDIB(Width,Height,BitCount);
+	if (hbm==NULL)
+		return NULL;
+
+	bool fOK=false;
+	HDC hdcSrc=::CreateCompatibleDC(NULL);
+	HDC hdcDst=::CreateCompatibleDC(NULL);
+	if (hdcSrc!=NULL && hdcDst!=NULL) {
+		HBITMAP hbmSrcOld=SelectBitmap(hdcSrc,hbmSrc);
+		HBITMAP hbmDstOld=SelectBitmap(hdcDst,hbm);
+		int OldStretchMode=::SetStretchBltMode(hdcDst,StretchMode);
+		BITMAP bm;
+		::GetObject(hbmSrc,sizeof(bm),&bm);
+		::StretchBlt(hdcDst,0,0,Width,abs(Height),
+					 hdcSrc,0,0,bm.bmWidth,bm.bmHeight,SRCCOPY);
+		::SetStretchBltMode(hdcDst,OldStretchMode);
+		::SelectObject(hdcDst,hbmDstOld);
+		::SelectObject(hdcSrc,hbmSrcOld);
+		fOK=true;
+	}
+	if (hdcDst!=NULL)
+		::DeleteDC(hdcDst);
+	if (hdcSrc!=NULL)
+		::DeleteDC(hdcSrc);
+
+	if (!fOK) {
+		::DeleteObject(hbm);
+		return NULL;
+	}
+
+	return hbm;
+}
+
+
 // テキストを描画する
 bool DrawText(HDC hdc,LPCTSTR pszText,const RECT &Rect,UINT Format,
 			  const CFont *pFont,COLORREF Color)
@@ -893,11 +951,27 @@ CBitmap &CBitmap::operator=(const CBitmap &Src)
 	return *this;
 }
 
+bool CBitmap::Create(int Width,int Height,int BitCount)
+{
+	Destroy();
+	m_hbm=CreateDIB(Width,Height,BitCount);
+	return m_hbm!=NULL;
+}
+
 bool CBitmap::Load(HINSTANCE hinst,LPCTSTR pszName,UINT Flags)
 {
 	Destroy();
 	m_hbm=static_cast<HBITMAP>(::LoadImage(hinst,pszName,IMAGE_BITMAP,0,0,Flags));
 	return m_hbm!=NULL;
+}
+
+bool CBitmap::Attach(HBITMAP hbm)
+{
+	if (hbm==NULL)
+		return false;
+	Destroy();
+	m_hbm=hbm;
+	return true;
 }
 
 void CBitmap::Destroy()
@@ -916,6 +990,26 @@ bool CBitmap::IsDIB() const
 			return true;
 	}
 	return false;
+}
+
+int CBitmap::GetWidth() const
+{
+	if (m_hbm!=NULL) {
+		BITMAP bm;
+		if (::GetObject(m_hbm,sizeof(bm),&bm)==sizeof(bm))
+			return bm.bmWidth;
+	}
+	return 0;
+}
+
+int CBitmap::GetHeight() const
+{
+	if (m_hbm!=NULL) {
+		BITMAP bm;
+		if (::GetObject(m_hbm,sizeof(bm),&bm)==sizeof(bm))
+			return bm.bmHeight;
+	}
+	return 0;
 }
 
 

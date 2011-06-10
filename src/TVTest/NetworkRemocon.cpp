@@ -1,6 +1,4 @@
 #include "stdafx.h"
-#include <shlobj.h>
-#include <shlwapi.h>
 #include "TVTest.h"
 #include "AppMain.h"
 #include "NetworkRemocon.h"
@@ -320,9 +318,10 @@ bool CNetworkRemocon::LoadChannelText(LPCTSTR pszFileName,
 			TCHAR szName[MAX_CHANNEL_NAME];
 
 			MultiByteToWideChar(CP_ACP,0,pszName,-1,szName,MAX_CHANNEL_NAME);
-			m_ChannelList.AddChannel(Space,0,Channel,
-				pChannelList->NumChannels()==0?
-							m_ChannelList.NumChannels()+1:Channel+1,0,szName);
+			m_ChannelList.AddChannel(
+				CChannelInfo(Space,Channel,
+							 pChannelList->NumChannels()==0?m_ChannelList.NumChannels()+1:Channel+1,
+							 szName));
 		}
 		while (*p!='\r' && *p!='\n' && *p!='\0')
 			p++;

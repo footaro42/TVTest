@@ -313,7 +313,7 @@ bool CPseudoOSD::CalcTextSize(SIZE *pSize)
 		hdc=::CreateCompatibleDC(NULL);
 	hfontOld=DrawUtil::SelectObject(hdc,m_Font);
 	RECT rc={0,0,0,0};
-	fResult=::DrawText(hdc,m_Text.Get(),-1,&rc,DT_CALCRECT | DT_SINGLELINE | DT_NOPREFIX)!=0;
+	fResult=::DrawText(hdc,m_Text.Get(),-1,&rc,DT_CALCRECT | DT_NOPREFIX)!=0;
 	if (fResult) {
 		pSize->cx=rc.right-rc.left;
 		pSize->cy=rc.bottom-rc.top;
@@ -466,15 +466,20 @@ static void SetBitmapTextOpacity(void *pBits,int Width,int Height,const RECT &Re
 	for (int y=Rect.top;y<Rect.bottom;y++) {
 		BYTE *p=static_cast<BYTE*>(pBits)+(y*Width+Rect.left)*4;
 		for (int x=Rect.left;x<Rect.right;x++) {
-			int Opacity;
+			unsigned int Opacity;
 
 			if (p[0]==0 && p[1]==0 && p[2]==0)
 				Opacity=BackOpacity;
 			else
 				Opacity=TextOpacity;
+			/*
 			p[0]=p[0]*Opacity/255;
 			p[1]=p[1]*Opacity/255;
 			p[2]=p[2]*Opacity/255;
+			*/
+			p[0]=(p[0]*Opacity+255)>>8;
+			p[1]=(p[1]*Opacity+255)>>8;
+			p[2]=(p[2]*Opacity+255)>>8;
 			p[3]=Opacity;
 			p+=4;
 		}
@@ -493,17 +498,13 @@ void CPseudoOSD::UpdateLayeredWindow()
 		return;
 
 	BITMAPINFO bmi;
+	::ZeroMemory(&bmi,sizeof(bmi));
 	bmi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
 	bmi.bmiHeader.biWidth=Width;
 	bmi.bmiHeader.biHeight=-Height;
 	bmi.bmiHeader.biPlanes=1;
 	bmi.bmiHeader.biBitCount=32;
 	bmi.bmiHeader.biCompression=BI_RGB;
-	bmi.bmiHeader.biSizeImage=0;
-	bmi.bmiHeader.biXPelsPerMeter=0;
-	bmi.bmiHeader.biYPelsPerMeter=0;
-	bmi.bmiHeader.biClrUsed=0;
-	bmi.bmiHeader.biClrImportant=0;
 	HBITMAP hbmSurface;
 	void *pBits;
 	hbmSurface=::CreateDIBSection(NULL,&bmi,DIB_RGB_COLORS,&pBits,NULL,0);

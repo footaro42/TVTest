@@ -454,6 +454,7 @@ class CServiceInfo
 	CServiceInfoData m_ServiceData;
 	LPTSTR m_pszServiceName;
 	HBITMAP m_hbmLogo;
+	DrawUtil::CBitmap m_StretchedLogo;
 	std::vector<CEventInfoData*> m_EventList;
 	typedef std::map<WORD,CEventInfoData*> EventIDMap;
 	EventIDMap m_EventIDMap;
@@ -471,6 +472,7 @@ public:
 	LPCTSTR GetServiceName() const { return m_pszServiceName; }
 	void SetLogo(HBITMAP hbm) { m_hbmLogo=hbm; }
 	HBITMAP GetLogo() const { return m_hbmLogo; }
+	HBITMAP GetStretchedLogo(int Width,int Height);
 	int NumEvents() const { return (int)m_EventList.size(); }
 	CEventInfoData *GetEvent(int Index);
 	const CEventInfoData *GetEvent(int Index) const;
@@ -508,6 +510,24 @@ CServiceInfo::~CServiceInfo()
 {
 	delete [] m_pszServiceName;
 	ClearEvents();
+}
+
+
+HBITMAP CServiceInfo::GetStretchedLogo(int Width,int Height)
+{
+	if (m_hbmLogo==NULL)
+		return NULL;
+	// AlphaBlendでリサイズすると汚いので、予めリサイズした画像を作成しておく
+	if (m_StretchedLogo.IsCreated()) {
+		if (m_StretchedLogo.GetWidth()!=Width || m_StretchedLogo.GetHeight()!=Height)
+			m_StretchedLogo.Destroy();
+	}
+	if (!m_StretchedLogo.IsCreated()) {
+		HBITMAP hbm=DrawUtil::ResizeBitmap(m_hbmLogo,Width,Height);
+		if (hbm!=NULL)
+			m_StretchedLogo.Attach(hbm);
+	}
+	return m_StretchedLogo.GetHandle();
 }
 
 
@@ -1376,7 +1396,7 @@ void CProgramGuide::DrawHeaderBackground(HDC hdc,const RECT &Rect,bool fCur) con
 }
 
 
-void CProgramGuide::DrawServiceHeader(const ProgramGuide::CServiceInfo *pServiceInfo,
+void CProgramGuide::DrawServiceHeader(ProgramGuide::CServiceInfo *pServiceInfo,
 									  HDC hdc,const RECT &Rect,HDC hdcChevron,int Chevron,
 									  bool fLeftAlign) const
 {
@@ -1399,8 +1419,10 @@ void CProgramGuide::DrawServiceHeader(const ProgramGuide::CServiceInfo *pService
 		int LogoWidth,LogoHeight;
 		LogoHeight=min(rc.bottom-rc.top-4,14);
 		LogoWidth=LogoHeight*16/9;
+		HBITMAP hbmStretched=pServiceInfo->GetStretchedLogo(LogoWidth,LogoHeight);
 		DrawUtil::DrawBitmap(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
-							 LogoWidth,LogoHeight,hbmLogo,NULL,192);
+							 LogoWidth,LogoHeight,
+							 hbmStretched!=NULL?hbmStretched:hbmLogo,NULL,192);
 		rc.left+=LogoWidth+HEADER_MARGIN_LEFT;
 	}
 

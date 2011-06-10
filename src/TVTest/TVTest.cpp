@@ -4338,52 +4338,14 @@ void CTitleBarUtil::ShowSystemMenu(int x,int y)
 
 class CSideBarUtil : public CSideBar::CEventHandler, public CBarLayout
 {
-	bool m_fFixed;
-
 public:
 	CSideBarUtil()
 		: m_fFixed(false)
 	{
 	}
 
-// CSideBar::CEventHandler
-	void OnCommand(int Command)
-	{
-		MainWindow.SendCommand(Command);
-	}
-
-	void OnRButtonDown(int x,int y)
-	{
-		CPopupMenu Menu(hInst,IDM_SIDEBAR);
-		POINT pt;
-
-		Menu.CheckItem(CM_SIDEBAR,MainWindow.GetSideBarVisible());
-		Menu.EnableItem(CM_SIDEBAR,!AppMain.GetUICore()->GetFullscreen());
-		Menu.CheckRadioItem(CM_SIDEBAR_PLACE_FIRST,CM_SIDEBAR_PLACE_LAST,
-							CM_SIDEBAR_PLACE_FIRST+(int)SideBarOptions.GetPlace());
-		pt.x=x;
-		pt.y=y;
-		::ClientToScreen(m_pSideBar->GetHandle(),&pt);
-		m_fFixed=true;
-		Menu.Show(MainWindow.GetHandle(),&pt);
-		m_fFixed=false;
-
-		RECT rc;
-		m_pSideBar->GetScreenPosition(&rc);
-		::GetCursorPos(&pt);
-		if (!::PtInRect(&rc,pt))
-			OnMouseLeave();
-	}
-
-	void OnMouseLeave()
-	{
-		if (!m_fFixed && !AppMain.GetUICore()->GetFullscreen()
-				&& !MainWindow.GetSideBarVisible())
-			m_pSideBar->SetVisible(false);
-	}
-
 // CBarLayout
-	void Layout(RECT *pArea,RECT *pBarRect)
+	void Layout(RECT *pArea,RECT *pBarRect) override
 	{
 		const int BarWidth=SideBar.GetBarWidth();
 
@@ -4417,6 +4379,115 @@ public:
 			pArea->bottom-=BarWidth;
 			break;
 		}
+	}
+
+private:
+	bool m_fFixed;
+
+	static const CChannelInfo *GetChannelInfoByCommand(int Command)
+	{
+		const CChannelList *pList=ChannelManager.GetCurrentChannelList();
+		if (pList!=NULL) {
+			int No=Command-CM_CHANNELNO_FIRST;
+			int Index;
+
+			if (pList->HasRemoteControlKeyID()) {
+				Index=pList->FindChannelNo(No+1);
+				if (Index<0)
+					return NULL;
+			} else {
+				Index=No;
+			}
+			return pList->GetChannelInfo(Index);
+		}
+		return NULL;
+	}
+
+// CSideBar::CEventHandler
+	void OnCommand(int Command) override
+	{
+		MainWindow.SendCommand(Command);
+	}
+
+	void OnRButtonDown(int x,int y) override
+	{
+		CPopupMenu Menu(hInst,IDM_SIDEBAR);
+		POINT pt;
+
+		Menu.CheckItem(CM_SIDEBAR,MainWindow.GetSideBarVisible());
+		Menu.EnableItem(CM_SIDEBAR,!AppMain.GetUICore()->GetFullscreen());
+		Menu.CheckRadioItem(CM_SIDEBAR_PLACE_FIRST,CM_SIDEBAR_PLACE_LAST,
+							CM_SIDEBAR_PLACE_FIRST+(int)SideBarOptions.GetPlace());
+		pt.x=x;
+		pt.y=y;
+		::ClientToScreen(m_pSideBar->GetHandle(),&pt);
+		m_fFixed=true;
+		Menu.Show(MainWindow.GetHandle(),&pt);
+		m_fFixed=false;
+
+		RECT rc;
+		m_pSideBar->GetScreenPosition(&rc);
+		::GetCursorPos(&pt);
+		if (!::PtInRect(&rc,pt))
+			OnMouseLeave();
+	}
+
+	void OnMouseLeave() override
+	{
+		if (!m_fFixed && !AppMain.GetUICore()->GetFullscreen()
+				&& !MainWindow.GetSideBarVisible())
+			m_pSideBar->SetVisible(false);
+	}
+
+	bool GetTooltipText(int Command,LPTSTR pszText,int MaxText) override
+	{
+		if (Command>=CM_CHANNELNO_FIRST && Command<=CM_CHANNELNO_LAST
+#ifdef NETWORK_REMOCON_SUPPORT
+				&& pNetworkRemocon==NULL)
+#endif
+		{
+			const CChannelInfo *pChInfo=GetChannelInfoByCommand(Command);
+			if (pChInfo!=NULL) {
+				StdUtil::snprintf(pszText,MaxText,TEXT("%d: %s"),
+								  (Command-CM_CHANNELNO_FIRST)+1,pChInfo->GetName());
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool DrawIcon(int Command,HDC hdc,const RECT &ItemRect,COLORREF ForeColor,HDC hdcBuffer) override
+	{
+		if (Command>=CM_CHANNELNO_FIRST && Command<=CM_CHANNELNO_LAST
+				&& SideBarOptions.GetShowChannelLogo()
+#ifdef NETWORK_REMOCON_SUPPORT
+				&& pNetworkRemocon==NULL)
+#endif
+		{
+			// アイコンに局ロゴを表示
+			// TODO: 新しくロゴが取得された時に再描画する
+			const CChannelInfo *pChannel=GetChannelInfoByCommand(Command);
+			if (pChannel!=NULL) {
+				HBITMAP hbmLogo=LogoManager.GetAssociatedLogoBitmap(
+					pChannel->GetNetworkID(),pChannel->GetServiceID(),
+					CLogoManager::LOGOTYPE_SMALL);
+				if (hbmLogo!=NULL) {
+					const int Width=ItemRect.right-ItemRect.left;
+					const int Height=ItemRect.bottom-ItemRect.top;
+					const int IconHeight=Height*11/16;	// 本来の比率より縦長にしている(見栄えのため)
+					HBITMAP hbmOld=SelectBitmap(hdcBuffer,hbmLogo);
+					int OldStretchMode=::SetStretchBltMode(hdc,STRETCH_HALFTONE);
+					BITMAP bm;
+					::GetObject(hbmLogo,sizeof(bm),&bm);
+					::StretchBlt(hdc,ItemRect.left,ItemRect.top+(Height-IconHeight)/2,Width,IconHeight,
+								 hdcBuffer,0,0,bm.bmWidth,bm.bmHeight,SRCCOPY);
+					::SetStretchBltMode(hdc,OldStretchMode);
+					::SelectObject(hdcBuffer,hbmOld);
+					return true;
+				}
+			}
+		}
+		return false;
 	}
 };
 
@@ -4958,8 +5029,8 @@ bool CFullscreen::OnCreate()
 	m_fShowSideBar=false;
 	m_fShowPanel=false;
 
-	m_LastCursorMovePos.x=-100;
-	m_LastCursorMovePos.y=-100;
+	m_LastCursorMovePos.x=LONG_MAX/2;
+	m_LastCursorMovePos.y=LONG_MAX/2;
 	::SetTimer(m_hwnd,TIMER_ID_HIDECURSOR,HIDE_CURSOR_DELAY,NULL);
 
 	return true;
@@ -5048,41 +5119,59 @@ void CFullscreen::OnMouseMove()
 		return;
 
 	POINT pt;
-	RECT rcClient,rc;
+	RECT rcClient,rcStatus,rcTitle,rc;
+	bool fShowStatusView=false,fShowTitleBar=false,fShowSideBar=false;
 
 	::GetCursorPos(&pt);
 	::ScreenToClient(m_hwnd,&pt);
 	m_ViewWindow.GetClientRect(&rcClient);
 
+	rcStatus=rcClient;
+	rcStatus.top=rcStatus.bottom-StatusView.CalcHeight(rcClient.right-rcClient.left);
+	if (::PtInRect(&rcStatus,pt))
+		fShowStatusView=true;
 	rc=rcClient;
-	rc.top=rc.bottom-StatusView.CalcHeight(rc.right-rc.left);
-	if (::PtInRect(&rc,pt)) {
-		if (!m_fShowStatusView)
-			ShowStatusView(true);
-		::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
-		return;
-	}
-	if (m_fShowStatusView)
-		ShowStatusView(false);
-
-	if (FullscreenTitleBarUtil.IsSpot(&rcClient,&pt)) {
-		if (!m_fShowTitleBar)
-			ShowTitleBar(true);
-		::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
-		return;
-	}
-	if (m_fShowTitleBar)
-		ShowTitleBar(false);
+	FullscreenTitleBarUtil.Layout(&rc,&rcTitle);
+	if (::PtInRect(&rcTitle,pt))
+		fShowTitleBar=true;
 
 	if (SideBarOptions.ShowPopup()) {
-		if (SideBarUtil.IsSpot(&rcClient,&pt)) {
-			if (!m_fShowSideBar)
-				ShowSideBar(true);
-			::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
-			return;
+		RECT rcSideBar;
+		switch (SideBarOptions.GetPlace()) {
+		case CSideBarOptions::PLACE_LEFT:
+		case CSideBarOptions::PLACE_RIGHT:
+			if (!fShowStatusView && !fShowTitleBar) {
+				SideBarUtil.Layout(&rcClient,&rcSideBar);
+				if (::PtInRect(&rcSideBar,pt))
+					fShowSideBar=true;
+			}
+			break;
+		case CSideBarOptions::PLACE_TOP:
+			rcClient.top=rcTitle.bottom;
+			SideBarUtil.Layout(&rcClient,&rcSideBar);
+			if (::PtInRect(&rcSideBar,pt)) {
+				fShowSideBar=true;
+				fShowTitleBar=true;
+			}
+			break;
+		case CSideBarOptions::PLACE_BOTTOM:
+			rcClient.bottom=rcStatus.top;
+			SideBarUtil.Layout(&rcClient,&rcSideBar);
+			if (::PtInRect(&rcSideBar,pt)) {
+				fShowSideBar=true;
+				fShowStatusView=true;
+			}
+			break;
 		}
-		if (m_fShowSideBar)
-			ShowSideBar(false);
+	}
+
+	ShowStatusView(fShowStatusView);
+	ShowTitleBar(fShowTitleBar);
+	ShowSideBar(fShowSideBar);
+
+	if (fShowStatusView || fShowTitleBar || fShowSideBar) {
+		::KillTimer(m_hwnd,TIMER_ID_HIDECURSOR);
+		return;
 	}
 
 	if (abs(m_LastCursorMovePos.x-pt.x)>=4 || abs(m_LastCursorMovePos.y-pt.y)>=4) {
@@ -5172,9 +5261,11 @@ void CFullscreen::ShowSideBar(bool fShow)
 	if (fShow) {
 		RECT rcClient,rcBar;
 
-		ShowStatusView(false);
-		ShowTitleBar(false);
 		m_ViewWindow.GetClientRect(&rcClient);
+		if (m_fShowStatusView)
+			rcClient.bottom-=StatusView.GetHeight();
+		if (m_fShowTitleBar)
+			rcClient.top+=m_TitleBar.GetHeight();
 		SideBarUtil.Layout(&rcClient,&rcBar);
 		SideBar.SetVisible(false);
 		LayoutBase.SetContainerVisible(CONTAINER_ID_SIDEBAR,false);
@@ -5207,7 +5298,8 @@ bool CFullscreen::CPanelEventHandler::OnClose()
 
 
 
-class CServiceUpdateInfo {
+class CServiceUpdateInfo
+{
 public:
 	struct ServiceInfo {
 		WORD ServiceID;
@@ -5933,8 +6025,8 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			pt.y=GET_Y_LPARAM(lParam);
 			::ClientToScreen(hwnd,&pt);
 			*/
-			::GetWindowRect(hwnd,&rcOld);
 			::GetCursorPos(&pt);
+			::GetWindowRect(hwnd,&rcOld);
 			rc.left=m_rcDragStart.left+(pt.x-m_ptDragStartPos.x);
 			rc.top=m_rcDragStart.top+(pt.y-m_ptDragStartPos.y);
 			rc.right=rc.left+(m_rcDragStart.right-m_rcDragStart.left);
@@ -6304,25 +6396,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					// 外部からチャンネル変更されたか、
 					// ドライバが開かれたときのデフォルトチャンネル
 					AppMain.FollowChannelChange(TransportStreamID,ServiceID);
-				}/* else if (pChInfo!=NULL && ServiceID!=0 && !CoreEngine.IsNetworkDriver()) {
-					// サービスを選択する
-					// チャンネル切り替え直後はまだPMTが来ていないので
-					// サービスの選択ができないため
-					WORD SID;
-
-					SID=ChannelManager.GetCurrentServiceID();
-					if (SID==0 && ChannelManager.GetCurrentService()<0
-							&& pChInfo->GetServiceID()!=0) {
-						SID=pChInfo->GetServiceID();
-					}
-					if (SID!=0 && SID!=ServiceID) {
-						if (AppMain.SetServiceByID(SID,&pInfo->m_CurService))
-							ChannelManager.SetCurrentService(pInfo->m_CurService);
-					}
-
-					if (OSDOptions.GetShowOSD() && wParam!=0)
-						ShowChannelOSD();
-				}*/
+				}
 				if (pChInfo!=NULL && !CoreEngine.IsNetworkDriver()) {
 					// チャンネルの情報を更新する
 					// 古いチャンネル設定ファイルにはNIDとTSIDの情報が含まれていないため
@@ -6334,7 +6408,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 							if (ServiceID!=0) {
 								ChannelManager.UpdateStreamInfo(
 									pChInfo->GetSpace(),
-									pChInfo->GetChannelIndex(),i,
+									pChInfo->GetChannelIndex(),
 									NetworkID,TransportStreamID,ServiceID);
 							}
 						}
@@ -6488,7 +6562,8 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 	case WM_APP_ECMREFUSED:
 		// ECM が受け付けられない
-		if (OSDOptions.IsNotifyEnabled(COSDOptions::NOTIFY_ECMERROR))
+		if (OSDOptions.IsNotifyEnabled(COSDOptions::NOTIFY_ECMERROR)
+				&& IsViewerEnabled())
 			ShowNotificationBar(TEXT("契約されていないため視聴できません"),
 								CNotificationBar::MESSAGE_WARNING,6000);
 		return 0;
@@ -6602,14 +6677,6 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		}
 		EpgOptions.SaveLogoFile();
 		EpgOptions.Finalize();
-
-		{
-			TCHAR szLogoMapName[MAX_PATH];
-			::GetModuleFileName(NULL,szLogoMapName,MAX_PATH);
-			::PathRenameExtension(szLogoMapName,TEXT(".logo.ini"));
-			Logger.AddLog(TEXT("ロゴ設定を保存しています..."));
-			LogoManager.SaveLogoIDMap(szLogoMapName);
-		}
 
 #ifndef _DEBUG
 		if (hThread!=NULL) {
@@ -6783,6 +6850,7 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 		Aero.EnableNcRendering(m_hwnd,false);
 	}
 
+	// IME無効化
 	::ImmAssociateContext(m_hwnd,NULL);
 	::ImmAssociateContextEx(m_hwnd,NULL,IACE_CHILDREN);
 
@@ -7024,65 +7092,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_ASPECTRATIO_32x9:
 	case CM_ASPECTRATIO_16x9_LEFT:
 	case CM_ASPECTRATIO_16x9_RIGHT:
-		{
-#if 0
-			static const struct {
-				BYTE XAspect,YAspect;
-				CMediaViewer::ClippingInfo Clipping;
-			} AspectRatioList[] = {
-				{ 0,0,{0,0, 0,0,0, 0}},
-				{16,9,{0,0, 1,0,0, 1}},
-				{16,9,{0,0, 1,3,3,24}},
-				{16,9,{2,2,16,3,3,24}},
-				{ 4,3,{2,2,16,0,0, 1}},
-				{ 4,3,{0,0, 1,0,0, 1}},
-				{32,9,{0,0, 1,0,0, 1}},
-				{16,9,{0,1, 2,0,0, 1}},
-				{16,9,{1,0, 2,0,0, 1}},
-			};
-			int i=id-CM_ASPECTRATIO_FIRST;
-
-			CoreEngine.m_DtvEngine.m_MediaViewer.SetPanAndScan(
-				AspectRatioList[i].XAspect,AspectRatioList[i].YAspect,
-				&AspectRatioList[i].Clipping);
-			if (!m_pCore->GetFullscreen() && !::IsZoomed(hwnd)) {
-				if (!ViewOptions.GetPanScanNoResizeWindow()) {
-					int ZoomNum,ZoomDenom;
-					int Width,Height;
-
-					if (GetZoomRate(&ZoomNum,&ZoomDenom)
-							&& CoreEngine.GetVideoViewSize(&Width,&Height)) {
-						AdjustWindowSize(Width*ZoomNum/ZoomDenom,
-										 Height*ZoomNum/ZoomDenom);
-					} else {
-						WORD w,h;
-
-						if (CoreEngine.m_DtvEngine.m_MediaViewer.GetDestSize(&w,&h))
-							AdjustWindowSize(w,h);
-					}
-				} else {
-					SIZE sz;
-					int Width,Height;
-
-					m_Viewer.GetVideoContainer().GetClientSize(&sz);
-					if (CoreEngine.GetVideoViewSize(&Width,&Height))
-						AdjustWindowSize(Width*sz.cy/Height,sz.cy);
-					StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
-					ControlPanel.UpdateItem(CONTROLPANEL_ITEM_VIDEO);
-				}
-			}
-			m_AspectRatioType=i;
-			m_AspectRatioResetTime=0;
-			/*
-			MainMenu.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
-									CM_ASPECTRATIO_FIRST+m_AspectRatioType);
-			*/
-			AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_FIRST+m_AspectRatioType);
-			SideBar.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
-								   CM_ASPECTRATIO_FIRST+m_AspectRatioType);
-#endif
-			SetPanAndScan(id);
-		}
+		SetPanAndScan(id);
 		return;
 
 	case CM_PANANDSCANOPTIONS:
@@ -7179,10 +7189,12 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_STEREO_LEFT:
 	case CM_STEREO_RIGHT:
 		m_pCore->SetStereoMode(id-CM_STEREO_THROUGH);
+		ShowAudioOSD();
 		return;
 
 	case CM_SWITCHAUDIO:
 		m_pCore->SwitchAudio();
+		ShowAudioOSD();
 		return;
 
 	case CM_SPDIF_DISABLED:
@@ -7963,6 +7975,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	default:
 		if (id>=CM_AUDIOSTREAM_FIRST && id<=CM_AUDIOSTREAM_LAST) {
 			m_pCore->SetAudioStream(id-CM_AUDIOSTREAM_FIRST);
+			ShowAudioOSD();
 			return;
 		}
 
@@ -8156,13 +8169,14 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 						SYSTEMTIME stStart,stEnd;
 
 						if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,&stEnd)) {
-							::wsprintf(szBarText,TEXT("%d:%02d～%d:%02d "),
-									   stStart.wHour,stStart.wMinute,
-									   stEnd.wHour,stEnd.wMinute);
+							StdUtil::snprintf(szBarText,lengthof(szBarText),
+											  TEXT("%d:%02d～%d:%02d %s"),
+											  stStart.wHour,stStart.wMinute,
+											  stEnd.wHour,stEnd.wMinute,
+											  szEventName);
 						} else {
-							szBarText[0]=_T('\0');
+							::lstrcpy(szBarText,szEventName);
 						}
-						::lstrcat(szBarText,szEventName);
 						ShowNotificationBar(szBarText);
 					}
 				}
@@ -8588,24 +8602,24 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 			CurServiceID=0;
 		ClearMenu(hmenu);
 		for (size_t i=0;i<ServiceList.size();i++) {
-			const CTsAnalyzer::ServiceInfo *pServiceInfo=&ServiceList[i];
-			TCHAR szText[512],szEventName[256];
+			const CTsAnalyzer::ServiceInfo &ServiceInfo=ServiceList[i];
+			TCHAR szText[512],szEventName[256],szMenu[256];
+			CStaticStringFormatter Formatter(szText,lengthof(szText));
 
-			if (pServiceInfo->szServiceName[0]!='\0') {
-				::wsprintf(szText,TEXT("&%d: %s"),i+1,pServiceInfo->szServiceName);
+			if (ServiceInfo.szServiceName[0]!='\0') {
+				CopyToMenuText(ServiceInfo.szServiceName,szMenu,lengthof(szMenu));
+				Formatter.AppendFormat(TEXT("&%d: %s"),i+1,szMenu);
 			} else {
-				::wsprintf(szText,TEXT("&%d: サービス%d"),i+1,i+1);
+				Formatter.AppendFormat(TEXT("&%d: サービス%d"),i+1,i+1);
 			}
 			if (CoreEngine.m_DtvEngine.m_TsAnalyzer.GetEventName(
-					CoreEngine.m_DtvEngine.m_TsAnalyzer.GetServiceIndexByID(pServiceInfo->ServiceID),
+					CoreEngine.m_DtvEngine.m_TsAnalyzer.GetServiceIndexByID(ServiceInfo.ServiceID),
 					szEventName,lengthof(szEventName))>0) {
-				::lstrcat(szText,TEXT(" ("));
-				int Length=::lstrlen(szText);
-				CopyToMenuText(szEventName,szText+Length,lengthof(szText)-1-Length);
-				::lstrcat(szText,TEXT(")"));
+				CopyToMenuText(szEventName,szMenu,lengthof(szMenu));
+				Formatter.AppendFormat(TEXT(" (%s)"),szMenu);
 			}
-			::AppendMenu(hmenu,MF_STRING | MF_ENABLED,CM_SERVICE_FIRST+i,szText);
-			if (pServiceInfo->ServiceID==CurServiceID)
+			::AppendMenu(hmenu,MF_STRING | MF_ENABLED,CM_SERVICE_FIRST+i,Formatter.GetString());
+			if (ServiceInfo.ServiceID==CurServiceID)
 				CurService=(int)i;
 		}
 		if (CurService>=0)
@@ -8629,8 +8643,8 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 				LPTSTR pszDelimiter=::StrChr(AudioInfo.szText,_T('\r'));
 				if (pszDelimiter!=NULL) {
 					*pszDelimiter='\0';
-					::lstrcpyn(szAudio1,AudioInfo.szText,lengthof(szAudio1));
-					::lstrcpyn(szAudio2,pszDelimiter+1,lengthof(szAudio2));
+					CopyToMenuText(AudioInfo.szText,szAudio1,lengthof(szAudio1));
+					CopyToMenuText(pszDelimiter+1,szAudio2,lengthof(szAudio2));
 				}
 			}
 			// ES multilingual flag が立っているのに両方日本語の場合がある…
@@ -8639,7 +8653,7 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 				// 2カ国語
 				LPCTSTR pszLang1=szAudio1[0]!='\0'?szAudio1:GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG);
 				LPCTSTR pszLang2=szAudio2[0]!='\0'?szAudio2:GetLanguageText(AudioInfo.LanguageCode2,LANGUAGE_TEXT_LONG);
-				::wsprintf(szText,TEXT("%s+%s(&S)"),pszLang1,pszLang2);
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("%s+%s(&S)"),pszLang1,pszLang2);
 				Menu.Append(CM_STEREO_THROUGH,szText);
 				::wsprintf(szText,TEXT("%s(&L)"),pszLang1);
 				Menu.Append(CM_STEREO_LEFT,szText);
@@ -8648,12 +8662,12 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 			} else {
 				Menu.Append(CM_STEREO_THROUGH,TEXT("主+副音声(&S)"));
 				if (szAudio1[0]!='\0')
-					::wsprintf(szText,TEXT("主音声(%s)(&L)"),szAudio1);
+					StdUtil::snprintf(szText,lengthof(szText),TEXT("主音声(%s)(&L)"),szAudio1);
 				else
 					::lstrcpy(szText,TEXT("主音声(&L)"));
 				Menu.Append(CM_STEREO_LEFT,szText);
 				if (szAudio2[0]!='\0')
-					::wsprintf(szText,TEXT("副音声(%s)(&R)"),szAudio2);
+					StdUtil::snprintf(szText,lengthof(szText),TEXT("副音声(%s)(&R)"),szAudio2);
 				else
 					::lstrcpy(szText,TEXT("副音声(&R)"));
 				Menu.Append(CM_STEREO_RIGHT,szText);
@@ -8672,11 +8686,16 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 						&& CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo,i)) {
 					if (AudioInfo.szText[0]!='\0') {
 						LPTSTR p=::StrChr(AudioInfo.szText,_T('\r'));
-						if (p!=NULL)
-							*p=_T('/');
-						::wsprintf(szText+Length,TEXT(" (%s)"),AudioInfo.szText);
+						if (p!=NULL) {
+							*p++=_T('/');
+							if (*p==_T('\n'))
+								::MoveMemory(p,p+1,::lstrlen(p)*sizeof(*p));
+						}
+						StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+										  TEXT(" (%s)"),AudioInfo.szText);
 					} else {
-						::wsprintf(szText+Length,TEXT(" (%s)"),GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG));
+						StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
+										  TEXT(" (%s)"),GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG));
 					}
 				}
 				Menu.Append(CM_AUDIOSTREAM_FIRST+i,szText);
@@ -8751,6 +8770,8 @@ void CMainWindow::OnTunerChanged()
 	m_ResetErrorCountTimer.End();
 	StatusView.UpdateItem(STATUS_ITEM_TUNER);
 	ControlPanel.UpdateItem(CONTROLPANEL_ITEM_TUNER);
+	if (SideBarOptions.GetShowChannelLogo())
+		SideBar.Invalidate();
 	m_fForceResetPanAndScan=true;
 }
 
@@ -8777,6 +8798,8 @@ void CMainWindow::OnChannelListChanged()
 	} else {
 		ChannelPanel.ClearChannelList();
 	}
+	if (SideBarOptions.GetShowChannelLogo())
+		SideBar.Invalidate();
 }
 
 
@@ -8795,7 +8818,7 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 	StatusView.UpdateItem(STATUS_ITEM_TUNER);
 	ControlPanel.UpdateItem(CONTROLPANEL_ITEM_CHANNEL);
 	ControlPanel.UpdateItem(CONTROLPANEL_ITEM_TUNER);
-	if (pCurChannel!=NULL && OSDOptions.GetShowOSD())
+	if (pCurChannel!=NULL && OSDOptions.IsOSDEnabled(COSDOptions::OSD_CHANNEL))
 		ShowChannelOSD();
 	ProgramListPanel.ClearProgramList();
 	::SetTimer(m_hwnd,TIMER_ID_PROGRAMLISTUPDATE,10000,NULL);
@@ -8823,6 +8846,8 @@ void CMainWindow::OnChannelChanged(bool fSpaceChanged)
 	int ChannelNo;
 	if (pCurChannel!=NULL)
 		ChannelNo=pCurChannel->GetChannelNo();
+	if (fSpaceChanged && SideBarOptions.GetShowChannelLogo())
+		SideBar.Invalidate();
 	SideBar.CheckRadioItem(CM_CHANNELNO_1,CM_CHANNELNO_12,
 						   pCurChannel!=NULL && ChannelNo>=1 && ChannelNo<=12?
 						   CM_CHANNELNO_1+ChannelNo-1:0);
@@ -8886,6 +8911,8 @@ void CMainWindow::OnRecordingStarted()
 	SetTitleText(true);
 	m_ResetErrorCountTimer.End();
 	m_fAlertedLowFreeSpace=false;
+	if (OSDOptions.IsOSDEnabled(COSDOptions::OSD_RECORDING))
+		OSDManager.ShowOSD(TEXT("●録画"));
 }
 
 
@@ -8898,6 +8925,8 @@ void CMainWindow::OnRecordingStopped()
 	TaskbarManager.SetRecordingStatus(false);
 	SetTitleText(true);
 	RecordManager.SetStopOnEventEnd(false);
+	if (OSDOptions.IsOSDEnabled(COSDOptions::OSD_RECORDING))
+		OSDManager.ShowOSD(TEXT("■録画停止"));
 	if (m_pCore->GetStandby())
 		AppMain.CloseTuner();
 	if (m_fExitOnRecordingStop)
@@ -8996,7 +9025,7 @@ void CMainWindow::OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz)
 				SetWheelChannelChanging(true,OperationOptions.GetWheelChannelDelay());
 				ChannelManager.SetChangingChannel(ChannelManager.FindChannelInfo(pInfo));
 				StatusView.UpdateItem(STATUS_ITEM_CHANNEL);
-				if (OSDOptions.GetShowOSD())
+				if (OSDOptions.IsOSDEnabled(COSDOptions::OSD_CHANNEL))
 					ShowChannelOSD();
 			}
 			fProcessed=true;
@@ -9072,7 +9101,7 @@ void CMainWindow::OnVolumeChanged(bool fOSD)
 	StatusView.UpdateItem(STATUS_ITEM_VOLUME);
 	ControlPanel.UpdateItem(CONTROLPANEL_ITEM_VOLUME);
 	MainMenu.CheckItem(CM_VOLUME_MUTE,false);
-	if (fOSD && OSDOptions.GetShowOSD()
+	if (fOSD && OSDOptions.IsOSDEnabled(COSDOptions::OSD_VOLUME)
 			&& GetVisible() && !::IsIconic(m_hwnd))
 		OSDManager.ShowVolumeOSD(Volume);
 }
@@ -9134,6 +9163,67 @@ void CMainWindow::AutoSelectStereoMode()
 		int OldStereoMode=m_CurEventStereoMode;
 		m_pCore->SetStereoMode(fDualMono?m_CurEventStereoMode:CCoreEngine::STEREOMODE_STEREO);
 		m_CurEventStereoMode=OldStereoMode;
+	}
+}
+
+
+void CMainWindow::ShowAudioOSD()
+{
+	if (OSDOptions.IsOSDEnabled(COSDOptions::OSD_AUDIO)) {
+		CTsAnalyzer::EventAudioInfo AudioInfo;
+		TCHAR szText[128];
+
+		if (CoreEngine.m_DtvEngine.GetEventAudioInfo(&AudioInfo)) {
+			if (AudioInfo.ComponentType==0x02) {
+				// Dual mono
+				TCHAR szAudio1[64],szAudio2[64];
+				LPCTSTR pszAudio1,pszAudio2;
+
+				szAudio1[0]=_T('\0');
+				szAudio2[0]=_T('\0');
+				if (AudioInfo.szText[0]!=_T('\0')) {
+					LPTSTR pszDelimiter=::StrChr(AudioInfo.szText,_T('\r'));
+					if (pszDelimiter!=NULL) {
+						*pszDelimiter=_T('\0');
+						if (*(pszDelimiter+1)==_T('\n'))
+							pszDelimiter++;
+						::lstrcpyn(szAudio1,AudioInfo.szText,lengthof(szAudio1));
+						::lstrcpyn(szAudio2,pszDelimiter+1,lengthof(szAudio2));
+					}
+				}
+				if (AudioInfo.bESMultiLingualFlag
+						&& AudioInfo.LanguageCode!=AudioInfo.LanguageCode2) {
+					// 2カ国語
+					pszAudio1=szAudio1[0]!=_T('\0')?szAudio1:GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG);
+					pszAudio2=szAudio2[0]!=_T('\0')?szAudio2:GetLanguageText(AudioInfo.LanguageCode2,LANGUAGE_TEXT_LONG);
+				} else {
+					pszAudio1=szAudio1[0]!=_T('\0')?szAudio1:TEXT("主音声");
+					pszAudio2=szAudio2[0]!=_T('\0')?szAudio2:TEXT("副音声");
+				}
+				switch (m_pCore->GetStereoMode()) {
+				case 0:
+					StdUtil::snprintf(szText,lengthof(szText),TEXT("%s+%s"),pszAudio1,pszAudio2);
+					break;
+				case 1:
+					::lstrcpyn(szText,pszAudio1,lengthof(szText));
+					break;
+				case 2:
+					::lstrcpyn(szText,pszAudio2,lengthof(szText));
+					break;
+				default:
+					return;
+				}
+			} else {
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("音声%d (%s)"),
+								  m_pCore->GetAudioStream()+1,
+								  AudioInfo.szText[0]!=_T('\0')?AudioInfo.szText:
+								  GetLanguageText(AudioInfo.LanguageCode,LANGUAGE_TEXT_LONG));
+			}
+		} else {
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("音声%d"),m_pCore->GetAudioStream()+1);
+		}
+
+		OSDManager.ShowOSD(szText);
 	}
 }
 
@@ -9619,7 +9709,7 @@ static bool SetCommandLineChannel(const CCommandLineOptions *pCmdLine)
 			const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
 
 			if ((pCmdLine->m_Channel==0
-					|| pCmdLine->m_Channel==pChannelInfo->GetChannel())
+					|| pCmdLine->m_Channel==pChannelInfo->GetPhysicalChannel())
 				&& (pCmdLine->m_ControllerChannel==0
 					|| pCmdLine->m_ControllerChannel==pChannelInfo->GetChannelNo())
 				&& (pCmdLine->m_ServiceID==0
@@ -10267,18 +10357,8 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 	StatusView.SetSingleText(TEXT("チャンネル設定を読み込んでいます..."));
 	AppMain.InitializeChannel();
 
+	StatusView.SetSingleText(TEXT("ロゴを読み込んでいます..."));
 	EpgOptions.LoadLogoFile();
-
-	{
-		TCHAR szLogoMapName[MAX_PATH];
-
-		::GetModuleFileName(NULL,szLogoMapName,MAX_PATH);
-		::PathRenameExtension(szLogoMapName,TEXT(".logo.ini"));
-		if (::PathFileExists(szLogoMapName)) {
-			StatusView.SetSingleText(TEXT("ロゴ設定を読み込んでいます..."));
-			LogoManager.LoadLogoIDMap(szLogoMapName);
-		}
-	}
 
 	{
 		TCHAR szDRCSMapName[MAX_PATH];

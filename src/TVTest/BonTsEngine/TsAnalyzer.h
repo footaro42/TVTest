@@ -90,6 +90,7 @@ public:
 	bool GetPcrTimeStamp(const int Index, ULONGLONG *pTimeStamp);
 	bool GetEcmPID(const int Index, WORD *pEcmPID);
 	int GetServiceName(const int Index, LPTSTR pszName, const int MaxLength);
+	BYTE GetServiceType(const int Index);
 	WORD GetLogoID(const int Index);
 
 	bool GetServiceList(ServiceList *pList);
@@ -230,9 +231,9 @@ protected:
 
 	ServiceList m_ServiceList;
 	WORD m_TransportStreamID;
+	WORD m_NetworkID;
 
 	struct NitInfo {
-		WORD NetworkID;
 		BYTE BroadcastingID;
 		BYTE RemoteControlKeyID;
 		TCHAR szNetworkName[32];

@@ -24,6 +24,8 @@ public:
 	void Reset();
 	void ClearOSD();
 	void OnParentMove();
+	bool ShowOSD(LPCTSTR pszText);
+	void HideOSD();
 	bool ShowChannelOSD(const CChannelInfo *pInfo,bool fChanging=false);
 	void HideChannelOSD();
 	bool ShowVolumeOSD(int Volume);
@@ -32,7 +34,7 @@ public:
 private:
 	const COSDOptions *m_pOptions;
 	CEventHandler *m_pEventHandler;
-	CPseudoOSD m_ChannelOSD;
+	CPseudoOSD m_OSD;
 	CPseudoOSD m_VolumeOSD;
 };
 

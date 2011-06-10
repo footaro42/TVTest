@@ -65,8 +65,8 @@ public:
 	int GetNetworkRemoconCurrentChannel() const { return m_NetworkRemoconCurrentChannel; }
 	bool SetNetworkRemoconCurrentChannel(int Channel);
 #endif
-	bool UpdateStreamInfo(int Space,int ChannelIndex,int Service,
-						WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
+	bool UpdateStreamInfo(int Space,int ChannelIndex,
+						  WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
 	bool SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
 };

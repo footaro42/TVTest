@@ -250,6 +250,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	int GetZoomPercentage();
 	bool SetPanAndScan(int Command);
 	void ShowChannelOSD();
+	void ShowAudioOSD();
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);
 	bool OpenTuner();

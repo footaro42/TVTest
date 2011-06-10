@@ -69,10 +69,12 @@ static int CompareLogoVersion(WORD Version1,WORD Version2)
 CLogoManager::CLogoManager()
 	: m_fSaveLogo(false)
 	, m_fSaveBmp(false)
-	, m_fUpdated(false)
+	, m_fLogoUpdated(false)
+	, m_fLogoIDMapUpdated(false)
+	, m_LogoFileLastWriteTime(FILETIME_NULL)
+	, m_LogoIDMapFileLastWriteTime(FILETIME_NULL)
 {
 	::lstrcpy(m_szLogoDirectory,TEXT(".\\Logo"));
-	::ZeroMemory(&m_LogoFileLastWriteTime,sizeof(FILETIME));
 }
 
 
@@ -121,7 +123,7 @@ bool CLogoManager::AssociateLogoID(WORD NetworkID,WORD ServiceID,WORD LogoID)
 {
 	CBlockLock Lock(&m_Lock);
 
-	m_LogoIDMap[GetIDMapKey(NetworkID,ServiceID)]=LogoID;
+	SetLogoIDMap(NetworkID,ServiceID,LogoID);
 	return true;
 }
 
@@ -131,7 +133,7 @@ bool CLogoManager::SaveLogoFile(LPCTSTR pszFileName)
 	CBlockLock Lock(&m_Lock);
 
 	if (m_LogoMap.empty())
-		return false;
+		return true;
 
 	// ファイルが読み込んだ時から更新されている場合読み込み直す
 	// (複数起動して他のプロセスが更新した可能性があるため)
@@ -278,6 +280,24 @@ bool CLogoManager::SaveLogoIDMap(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
 
+	if (m_LogoIDMap.empty())
+		return true;
+
+	// ファイルが読み込んだ時から更新されている場合読み込み直す
+	// (複数起動して他のプロセスが更新した可能性があるため)
+	if (m_LogoIDMapFileLastWriteTime.dwLowDateTime!=0
+			|| m_LogoIDMapFileLastWriteTime.dwHighDateTime!=0) {
+		WIN32_FIND_DATA fd;
+		HANDLE hFind=::FindFirstFile(pszFileName,&fd);
+		if (hFind!=INVALID_HANDLE_VALUE) {
+			::FindClose(hFind);
+			if (::CompareFileTime(&fd.ftLastWriteTime,&m_LogoIDMapFileLastWriteTime)>0) {
+				TRACE(TEXT("CLogoManager::SaveLogoIDMap() : Reload file\n"));
+				LoadLogoIDMap(pszFileName);
+			}
+		}
+	}
+
 	for (LogoIDMap::const_iterator itr=m_LogoIDMap.begin();itr!=m_LogoIDMap.end();itr++) {
 		TCHAR szKey[16],szText[16];
 
@@ -293,30 +313,38 @@ bool CLogoManager::LoadLogoIDMap(LPCTSTR pszFileName)
 {
 	CBlockLock Lock(&m_Lock);
 
-	m_LogoIDMap.clear();
+	m_fLogoIDMapUpdated=false;
+
+	WIN32_FIND_DATA fd;
+	HANDLE hFind=::FindFirstFile(pszFileName,&fd);
+	if (hFind!=INVALID_HANDLE_VALUE) {
+		::FindClose(hFind);
+		m_LogoIDMapFileLastWriteTime=fd.ftLastWriteTime;
+	}
 
 	LPTSTR pszSection=new TCHAR[32767];
 	if (::GetPrivateProfileSection(TEXT("LogoIDMap"),pszSection,32767,pszFileName)>2) {
-		for (LPTSTR p=pszSection;*p!='\0';p+=::lstrlen(p)+1) {
+		for (LPTSTR p=pszSection;*p!=_T('\0');p+=::lstrlen(p)+1) {
 			int i;
 			DWORD Key=0;
 			for (i=0;i<8;i++) {
 				Key<<=4;
-				if (p[i]>='0' && p[i]<='9')
-					Key|=p[i]-'0';
-				else if (p[i]>='a' && p[i]<='z')
-					Key|=p[i]-'a'+10;
-				else if (p[i]>='A' && p[i]<='Z')
-					Key|=p[i]-'A'+10;
+				if (p[i]>=_T('0') && p[i]<=_T('9'))
+					Key|=p[i]-_T('0');
+				else if (p[i]>=_T('a') && p[i]<=_T('z'))
+					Key|=p[i]-_T('a')+10;
+				else if (p[i]>=_T('A') && p[i]<=_T('Z'))
+					Key|=p[i]-_T('A')+10;
 				else
 					break;
 			}
-			if (i==8 && p[i]=='=') {
+			if (i==8 && p[i]==_T('=')) {
 				m_LogoIDMap.insert(std::pair<DWORD,WORD>(Key,(WORD)::StrToInt(&p[i+1])));
 			}
 		}
 	}
 	delete [] pszSection;
+
 	return true;
 }
 
@@ -347,7 +375,7 @@ HBITMAP CLogoManager::GetLogoBitmap(WORD OriginalNetworkID,WORD LogoID,BYTE Logo
 		CLogoData *pLogoData=LoadLogoData(OriginalNetworkID,LogoID,LogoType);
 		if (pLogoData!=NULL) {
 			m_LogoMap.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
-			m_fUpdated=true;
+			m_fLogoUpdated=true;
 			return pLogoData->GetBitmap(&m_ImageCodec);
 		}
 		return NULL;
@@ -421,33 +449,36 @@ void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
 
 	CBlockLock Lock(&m_Lock);
 
-	ULONGLONG Key=GetMapKey(pData->OriginalNetworkID,pData->LogoID,pData->LogoType);
+	const ULONGLONG Key=GetMapKey(pData->OriginalNetworkID,pData->LogoID,pData->LogoType);
 	LogoMap::iterator itr=m_LogoMap.find(Key);
+	bool fUpdated=false;
 	CLogoData *pLogoData;
 	if (itr!=m_LogoMap.end()) {
 		// バージョンが新しい場合のみ更新
 		if (CompareLogoVersion(itr->second->GetLogoVersion(),pData->LogoVersion)<0) {
-			delete itr->second;
 			pLogoData=new CLogoData(pData);
-			m_LogoMap[Key]=pLogoData;
-			m_fUpdated=true;
-		} else {
-			return;
+			delete itr->second;
+			itr->second=pLogoData;
+			//m_LogoMap[Key]=pLogoData;
+			fUpdated=true;
 		}
 	} else {
 		pLogoData=new CLogoData(pData);
 		m_LogoMap.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
-		m_fUpdated=true;
+		fUpdated=true;
 	}
+
+	if (fUpdated)
+		m_fLogoUpdated=true;
 
 	if (pData->ServiceList.size()>0) {
 		for (size_t i=0;i<pData->ServiceList.size();i++) {
 			const CLogoDownloader::LogoService &Service=pData->ServiceList[i];
-			m_LogoIDMap[GetIDMapKey(Service.OriginalNetworkID,Service.ServiceID)]=pData->LogoID;
+			SetLogoIDMap(Service.OriginalNetworkID,Service.ServiceID,pData->LogoID,fUpdated);
 		}
 	}
 
-	if (m_fSaveLogo || m_fSaveBmp) {
+	if (fUpdated && (m_fSaveLogo || m_fSaveBmp)) {
 		TCHAR szFilePath[MAX_PATH],szDirectory[MAX_PATH],szFileName[MAX_PATH];
 
 		if (!GetAbsolutePath(m_szLogoDirectory,szDirectory,lengthof(szDirectory)))
@@ -473,6 +504,28 @@ void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
 				pLogoData->SaveBmpToFile(&m_ImageCodec,szFilePath);
 		}
 	}
+}
+
+
+bool CLogoManager::SetLogoIDMap(WORD NetworkID,WORD ServiceID,WORD LogoID,bool fUpdate)
+{
+	const DWORD Key=GetIDMapKey(NetworkID,ServiceID);
+	LogoIDMap::iterator i=m_LogoIDMap.find(Key);
+
+	if (i==m_LogoIDMap.end()) {
+		TRACE(TEXT("Logo ID mapped : NID %04x / SID %04x / Logo ID %04x\n"),
+			  NetworkID,ServiceID,LogoID);
+		m_LogoIDMap.insert(std::pair<DWORD,WORD>(Key,LogoID));
+		m_fLogoIDMapUpdated=true;
+	} else if (fUpdate && i->second!=LogoID) {
+		TRACE(TEXT("Logo ID changed : NID %04x / SID %04x / Logo ID %04x -> %04x\n"),
+			  NetworkID,ServiceID,i->second,LogoID);
+		i->second=LogoID;
+		m_fLogoIDMapUpdated=true;
+	} else {
+		return false;
+	}
+	return true;
 }
 
 

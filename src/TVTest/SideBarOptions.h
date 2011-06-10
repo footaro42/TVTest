@@ -38,6 +38,7 @@ public:
 	bool ShowPopup() const { return m_fShowPopup; }
 	PlaceType GetPlace() const { return m_Place; }
 	bool SetPlace(PlaceType Place);
+	bool GetShowChannelLogo() const { return m_fShowChannelLogo; }
 	void SetEventHandler(CEventHandler *pHandler) { m_pEventHandler=pHandler; }
 
 protected:
@@ -47,6 +48,7 @@ protected:
 	std::vector<int> m_ItemList;
 	bool m_fShowPopup;
 	bool m_fShowToolTips;
+	bool m_fShowChannelLogo;
 	PlaceType m_Place;
 	HIMAGELIST m_himlIcons;
 	CEventHandler *m_pEventHandler;

@@ -10,7 +10,38 @@
 
 class CLogoManager : public CLogoDownloader::ILogoHandler
 {
-	class CLogoData {
+public:
+	CLogoManager();
+	~CLogoManager();
+	void Clear();
+	bool SetLogoDirectory(LPCTSTR pszDirectory);
+	LPCTSTR GetLogoDirectory() const { return m_szLogoDirectory; }
+	bool SetSaveLogo(bool fSave);
+	bool GetSaveLogo() const { return m_fSaveLogo; }
+	bool SetSaveLogoBmp(bool fSave);
+	bool GetSaveLogoBmp() const { return m_fSaveBmp; }
+	bool AssociateLogoID(WORD NetworkID,WORD ServiceID,WORD LogoID);
+	bool SaveLogoFile(LPCTSTR pszFileName);
+	bool LoadLogoFile(LPCTSTR pszFileName);
+	bool IsLogoDataUpdated() const { return m_fLogoUpdated; }
+	bool SaveLogoIDMap(LPCTSTR pszFileName);
+	bool LoadLogoIDMap(LPCTSTR pszFileName);
+	bool IsLogoIDMapUpdated() const { return m_fLogoIDMapUpdated; }
+	HBITMAP GetLogoBitmap(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
+	HBITMAP GetAssociatedLogoBitmap(WORD NetworkID,WORD ServiceID,BYTE LogoType);
+	const CGdiPlus::CImage *GetLogoImage(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
+	const CGdiPlus::CImage *GetAssociatedLogoImage(WORD NetworkID,WORD ServiceID,BYTE LogoType);
+	bool IsLogoAvailable(WORD NetworkID,WORD ServiceID,BYTE LogoType);
+	DWORD GetAvailableLogoType(WORD NetworkID,WORD ServiceID);
+
+	enum {
+		LOGOTYPE_SMALL	=0xFF,	// éÊìæÇ≈Ç´ÇÈíÜÇ©ÇÁè¨Ç≥Ç¢Ç‡ÇÃóDêÊ
+		LOGOTYPE_BIG	=0xFE	// éÊìæÇ≈Ç´ÇÈíÜÇ©ÇÁëÂÇ´Ç¢Ç‡ÇÃóDêÊ
+	};
+
+private:
+	class CLogoData
+	{
 		WORD m_OriginalNetworkID;
 		WORD m_LogoID;
 		WORD m_LogoVersion;
@@ -19,6 +50,7 @@ class CLogoManager : public CLogoDownloader::ILogoHandler
 		BYTE *m_pData;
 		HBITMAP m_hbm;
 		CGdiPlus::CImage m_Image;
+
 	public:
 		CLogoData(const CLogoDownloader::LogoData *pData);
 		CLogoData(const CLogoData &Src);
@@ -52,41 +84,16 @@ class CLogoManager : public CLogoDownloader::ILogoHandler
 	LogoIDMap m_LogoIDMap;
 	CImageCodec m_ImageCodec;
 	CCriticalLock m_Lock;
-	bool m_fUpdated;
+	bool m_fLogoUpdated;
+	bool m_fLogoIDMapUpdated;
 	FILETIME m_LogoFileLastWriteTime;
+	FILETIME m_LogoIDMapFileLastWriteTime;
 
+	bool SetLogoIDMap(WORD NetworkID,WORD ServiceID,WORD LogoID,bool fUpdate=true);
 	CLogoData *LoadLogoData(WORD NetworkID,WORD LogoID,BYTE LogoType);
 
 // CLogoDownloader::ILogoHandler
-	void OnLogo(const CLogoDownloader::LogoData *pData);
-
-public:
-	CLogoManager();
-	~CLogoManager();
-	void Clear();
-	bool SetLogoDirectory(LPCTSTR pszDirectory);
-	LPCTSTR GetLogoDirectory() const { return m_szLogoDirectory; }
-	bool SetSaveLogo(bool fSave);
-	bool GetSaveLogo() const { return m_fSaveLogo; }
-	bool SetSaveLogoBmp(bool fSave);
-	bool GetSaveLogoBmp() const { return m_fSaveBmp; }
-	bool AssociateLogoID(WORD NetworkID,WORD ServiceID,WORD LogoID);
-	bool SaveLogoFile(LPCTSTR pszFileName);
-	bool LoadLogoFile(LPCTSTR pszFileName);
-	bool IsLogoDataUpdated() const { return m_fUpdated; }
-	bool SaveLogoIDMap(LPCTSTR pszFileName);
-	bool LoadLogoIDMap(LPCTSTR pszFileName);
-	HBITMAP GetLogoBitmap(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
-	HBITMAP GetAssociatedLogoBitmap(WORD NetworkID,WORD ServiceID,BYTE LogoType);
-	const CGdiPlus::CImage *GetLogoImage(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
-	const CGdiPlus::CImage *GetAssociatedLogoImage(WORD NetworkID,WORD ServiceID,BYTE LogoType);
-	bool IsLogoAvailable(WORD NetworkID,WORD ServiceID,BYTE LogoType);
-	DWORD GetAvailableLogoType(WORD NetworkID,WORD ServiceID);
-
-	enum {
-		LOGOTYPE_SMALL	=0xFF,	// éÊìæÇ≈Ç´ÇÈíÜÇ©ÇÁè¨Ç≥Ç¢Ç‡ÇÃóDêÊ
-		LOGOTYPE_BIG	=0xFE	// éÊìæÇ≈Ç´ÇÈíÜÇ©ÇÁëÂÇ´Ç¢Ç‡ÇÃóDêÊ
-	};
+	void OnLogo(const CLogoDownloader::LogoData *pData) override;
 };
 
 

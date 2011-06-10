@@ -252,14 +252,29 @@ bool CEpgOptions::IsEDCBDataLoading() const
 bool CEpgOptions::LoadLogoFile()
 {
 	if (m_fSaveLogoFile && m_szLogoFileName[0]!='\0') {
+		CAppMain &App=GetAppClass();
 		TCHAR szFileName[MAX_PATH];
 
 		if (!GetAbsolutePath(m_szLogoFileName,szFileName,lengthof(szFileName)))
 			return false;
 		if (::PathFileExists(szFileName)) {
-			GetAppClass().AddLog(TEXT("ロゴデータを \"%s\" から読み込みます..."),szFileName);
-			if (!m_pLogoManager->LoadLogoFile(szFileName))
+			App.AddLog(TEXT("ロゴデータを \"%s\" から読み込みます..."),szFileName);
+			if (!m_pLogoManager->LoadLogoFile(szFileName)) {
+				App.AddLog(TEXT("ロゴファイルの読み込みでエラーが発生しました。"));
 				return false;
+			}
+		}
+		if (::lstrlen(szFileName)+4<MAX_PATH) {
+			::lstrcat(szFileName,TEXT(".ini"));
+			if (!::PathFileExists(szFileName)) {
+				// 以前のバージョンとの互換用
+				::GetModuleFileName(NULL,szFileName,lengthof(szFileName));
+				::PathRenameExtension(szFileName,TEXT(".logo.ini"));
+				if (!::PathFileExists(szFileName))
+					return false;
+			}
+			App.AddLog(TEXT("ロゴ設定を \"%s\" から読み込みます..."),szFileName);
+			m_pLogoManager->LoadLogoIDMap(szFileName);
 		}
 	}
 	return true;
@@ -268,15 +283,26 @@ bool CEpgOptions::LoadLogoFile()
 
 bool CEpgOptions::SaveLogoFile()
 {
-	if (m_fSaveLogoFile && m_szLogoFileName[0]!='\0'
-			&& m_pLogoManager->IsLogoDataUpdated()) {
+	if (m_fSaveLogoFile && m_szLogoFileName[0]!='\0') {
+		CAppMain &App=GetAppClass();
 		TCHAR szFileName[MAX_PATH];
 
 		if (!GetAbsolutePath(m_szLogoFileName,szFileName,lengthof(szFileName)))
 			return false;
-		GetAppClass().AddLog(TEXT("ロゴデータを \"%s\" に保存します..."),szFileName);
-		if (!m_pLogoManager->SaveLogoFile(szFileName))
-			return false;
+		if (!::PathFileExists(szFileName) || m_pLogoManager->IsLogoDataUpdated()) {
+			App.AddLog(TEXT("ロゴデータを \"%s\" に保存します..."),szFileName);
+			if (!m_pLogoManager->SaveLogoFile(szFileName)) {
+				App.AddLog(TEXT("ロゴファイルの保存でエラーが発生しました。"));
+				return false;
+			}
+		}
+		if (::lstrlen(szFileName)+4<MAX_PATH) {
+			::lstrcat(szFileName,TEXT(".ini"));
+			if (!::PathFileExists(szFileName) || m_pLogoManager->IsLogoIDMapUpdated()) {
+				App.AddLog(TEXT("ロゴ設定を \"%s\" に保存します..."),szFileName);
+				m_pLogoManager->SaveLogoIDMap(szFileName);
+			}
+		}
 	}
 	return true;
 }

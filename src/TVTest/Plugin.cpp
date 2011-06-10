@@ -192,8 +192,8 @@ static void ConvertChannelInfo(const CChannelInfo *pChInfo,TVTest::ChannelInfo *
 	pChannelInfo->szTransportStreamName[0]='\0';
 	::lstrcpyn(pChannelInfo->szChannelName,pChInfo->GetName(),lengthof(pChannelInfo->szChannelName));
 	if (pChannelInfo->Size>=TVTest::CHANNELINFO_SIZE_V2) {
-		pChannelInfo->PhysicalChannel=pChInfo->GetChannel();
-		pChannelInfo->ServiceIndex=pChInfo->GetService();
+		pChannelInfo->PhysicalChannel=pChInfo->GetPhysicalChannel();
+		pChannelInfo->ServiceIndex=0;	// Žg—p•s‰Â
 		pChannelInfo->ServiceID=pChInfo->GetServiceID();
 		if (pChannelInfo->Size==sizeof(TVTest::ChannelInfo)) {
 			pChannelInfo->Flags=0;

@@ -15,6 +15,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define OSD_FLAG(type) (1U<<(type))
+
+
 
 
 COSDOptions::COSDOptions()
@@ -24,6 +27,7 @@ COSDOptions::COSDOptions()
 	, m_Opacity(80)
 	, m_FadeTime(3000)
 	, m_ChannelChangeType(CHANNELCHANGE_LOGOANDTEXT)
+	, m_EnabledOSD(OSD_FLAG(OSD_CHANNEL) | OSD_FLAG(OSD_VOLUME))
 
 	, m_fLayeredWindow(true)
 	, m_fCompositionEnabled(false)
@@ -75,6 +79,7 @@ bool COSDOptions::Read(CSettings *pSettings)
 	pSettings->ReadColor(TEXT("OSDTextColor"),&m_TextColor);
 	pSettings->Read(TEXT("OSDOpacity"),&m_Opacity);
 	pSettings->Read(TEXT("OSDFadeTime"),&m_FadeTime);
+	pSettings->Read(TEXT("EnabledOSD"),&m_EnabledOSD);
 	if (pSettings->Read(TEXT("ChannelOSDType"),&Value)
 			&& Value>=CHANNELCHANGE_FIRST && Value<=CHANNELCHANGE_LAST)
 		m_ChannelChangeType=(ChannelChangeType)Value;
@@ -123,6 +128,7 @@ bool COSDOptions::Write(CSettings *pSettings) const
 	pSettings->WriteColor(TEXT("OSDTextColor"),m_TextColor);
 	pSettings->Write(TEXT("OSDOpacity"),m_Opacity);
 	pSettings->Write(TEXT("OSDFadeTime"),m_FadeTime);
+	pSettings->Write(TEXT("EnabledOSD"),m_EnabledOSD);
 	pSettings->Write(TEXT("ChannelOSDType"),(int)m_ChannelChangeType);
 
 	pSettings->Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
@@ -159,6 +165,12 @@ void COSDOptions::OnDwmCompositionChanged()
 	CAeroGlass Aero;
 
 	m_fCompositionEnabled=Aero.IsEnabled();
+}
+
+
+bool COSDOptions::IsOSDEnabled(OSDType Type) const
+{
+	return m_fShowOSD && (m_EnabledOSD&OSD_FLAG(Type))!=0;
 }
 
 
@@ -200,6 +212,10 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			m_CurTextColor=m_TextColor;
 			::SetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,m_FadeTime/1000,TRUE);
 			DlgUpDown_SetRange(hDlg,IDC_OSDOPTIONS_FADETIME_UD,1,UD_MAXVAL);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_CHANNEL,(m_EnabledOSD&OSD_FLAG(OSD_CHANNEL))!=0);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_VOLUME,(m_EnabledOSD&OSD_FLAG(OSD_VOLUME))!=0);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_AUDIO,(m_EnabledOSD&OSD_FLAG(OSD_AUDIO))!=0);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_RECORDING,(m_EnabledOSD&OSD_FLAG(OSD_RECORDING))!=0);
 			static const LPCTSTR ChannelChangeModeText[] = {
 				TEXT("ロゴとチャンネル名"),
 				TEXT("チャンネル名のみ"),
@@ -273,14 +289,24 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_PSEUDOOSD);
 				m_TextColor=m_CurTextColor;
 				m_FadeTime=::GetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,NULL,FALSE)*1000;
+				unsigned int EnabledOSD=0;
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOW_CHANNEL))
+					EnabledOSD|=OSD_FLAG(OSD_CHANNEL);
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOW_VOLUME))
+					EnabledOSD|=OSD_FLAG(OSD_VOLUME);
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOW_AUDIO))
+					EnabledOSD|=OSD_FLAG(OSD_AUDIO);
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOW_RECORDING))
+					EnabledOSD|=OSD_FLAG(OSD_RECORDING);
+				m_EnabledOSD=EnabledOSD;
 				m_ChannelChangeType=(ChannelChangeType)DlgComboBox_GetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE);
 
 				m_fEnableNotificationBar=
 					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE);
 				EnableNotify(NOTIFY_EVENTNAME,
-									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME));
+					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYEVENTNAME));
 				EnableNotify(NOTIFY_ECMERROR,
-									DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR));
+					DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_NOTIFYECMERROR));
 				m_NotificationBarDuration=
 					::GetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,NULL,FALSE)*1000;
 				m_NotificationBarFont=m_CurNotificationBarFont;

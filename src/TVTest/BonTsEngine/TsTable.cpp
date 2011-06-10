@@ -906,6 +906,7 @@ CSdtTable & CSdtTable::operator = (const CSdtTable &Operand)
 {
 	if (this != &Operand) {
 		CPsiSingleTable::operator = (Operand);
+		m_wNetworkID = Operand.m_wNetworkID;
 		m_ServiceInfoArray = Operand.m_ServiceInfoArray;
 	}
 
@@ -917,7 +918,13 @@ void CSdtTable::Reset(void)
 	// 状態をクリアする
 	CPsiSingleTable::Reset();
 
+	m_wNetworkID = 0xFFFF;
 	m_ServiceInfoArray.clear();
+}
+
+const WORD CSdtTable::GetNetworkID(void) const
+{
+	return m_wNetworkID;
 }
 
 const WORD CSdtTable::GetServiceNum(void) const
@@ -943,6 +950,18 @@ const WORD CSdtTable::GetServiceID(const WORD wIndex) const
 {
 	// 	サービスIDを返す
 	return (wIndex < GetServiceNum())? m_ServiceInfoArray[wIndex].wServiceID : 0xFFFFU;
+}
+
+const bool CSdtTable::GetEITScheduleFlag(const WORD wIndex) const
+{
+	// EIT Schedule Flagを返す
+	return (wIndex < GetServiceNum())? m_ServiceInfoArray[wIndex].bEITScheduleFlag : false;
+}
+
+const bool CSdtTable::GetEITPresentFollowingFlag(const WORD wIndex) const
+{
+	// EIT Present Followingを返す
+	return (wIndex < GetServiceNum())? m_ServiceInfoArray[wIndex].bEITPresentFollowingFlag : false;
 }
 
 const BYTE CSdtTable::GetRunningStatus(const WORD wIndex) const
@@ -976,19 +995,29 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	const WORD wDataSize = pCurSection->GetPayloadSize();
 	const BYTE *pHexData = pCurSection->GetPayloadData();
 
+	if (wDataSize < 3)
+		return false;
+	if (pCurSection->GetTableID() != 0x42		// actual
+		&& pCurSection->GetTableID() != 0x46)	// other
+		return false;
+
 	// 状態をクリアする
 	m_ServiceInfoArray.clear();
 
-	TRACE(TEXT("\n------- SDT Table -------\nTransport Stream ID = %04X\nOriginal Network ID = %02X%02X\n"), pCurSection->GetTableIdExtension(), pHexData[0], pHexData[1]);
+	m_wNetworkID = ((WORD)pHexData[0] << 8) | (WORD)pHexData[1];
+
+	TRACE(TEXT("\n------- SDT Table -------\nTransport Stream ID = %04X\nOriginal Network ID = %04X\n"), pCurSection->GetTableIdExtension(), m_wNetworkID);
 
 	// テーブルを解析する
 	WORD wDescLen;
 	for (WORD wPos = 3 ; wPos + 5 <= wDataSize ; wPos += 5 + wDescLen) {
 		TAG_SDTITEM SdtItem;
 
-		SdtItem.wServiceID		= ((WORD)pHexData[wPos + 0] << 8) | (WORD)pHexData[wPos + 1];
-		SdtItem.byRunningStatus	= pHexData[wPos + 3] >> 5;
-		SdtItem.bFreeCaMode		= (pHexData[wPos + 3] & 0x10U)? true : false;
+		SdtItem.wServiceID					= ((WORD)pHexData[wPos + 0] << 8) | (WORD)pHexData[wPos + 1];
+		SdtItem.bEITScheduleFlag			= (pHexData[wPos + 2] & 0x02) != 0;
+		SdtItem.bEITPresentFollowingFlag	= (pHexData[wPos + 2] & 0x01) != 0;
+		SdtItem.byRunningStatus				= pHexData[wPos + 3] >> 5;
+		SdtItem.bFreeCaMode					= (pHexData[wPos + 3] & 0x10U)? true : false;
 
 		// Service Descriptor
 		wDescLen = ((WORD)(pHexData[wPos + 3] & 0x0FU) << 8) | (WORD)pHexData[wPos + 4];

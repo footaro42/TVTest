@@ -16,6 +16,13 @@ public:
 		CHANNELCHANGE_LAST	=CHANNELCHANGE_LOGOONLY
 	};
 
+	enum OSDType {
+		OSD_CHANNEL,
+		OSD_VOLUME,
+		OSD_AUDIO,
+		OSD_RECORDING
+	};
+
 	enum {
 		NOTIFY_EVENTNAME	=0x00000001,
 		NOTIFY_ECMERROR		=0x00000002
@@ -37,6 +44,7 @@ public:
 	ChannelChangeType GetChannelChangeType() const { return m_ChannelChangeType; }
 	bool GetLayeredWindow() const;
 	void OnDwmCompositionChanged();
+	bool IsOSDEnabled(OSDType Type) const;
 	bool IsNotificationBarEnabled() const { return m_fEnableNotificationBar; }
 	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
 	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }
@@ -57,6 +65,7 @@ private:
 	int m_Opacity;
 	int m_FadeTime;
 	ChannelChangeType m_ChannelChangeType;
+	unsigned int m_EnabledOSD;
 
 	bool m_fLayeredWindow;
 	bool m_fCompositionEnabled;

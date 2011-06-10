@@ -508,13 +508,13 @@ LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			GetClientRect(&rc);
 			Page=rc.bottom;
 			switch (LOWORD(wParam)) {
-			case SB_LINEUP:		Pos-=m_FontHeight;	break;
-			case SB_LINEDOWN:	Pos+=m_FontHeight;	break;
-			case SB_PAGEUP:		Pos-=Page;					break;
-			case SB_PAGEDOWN:	Pos+=Page;					break;
-			case SB_THUMBTRACK:	Pos=HIWORD(wParam);			break;
-			case SB_TOP:		Pos=0;						break;
-			case SB_BOTTOM:		Pos=max(Height-Page,0);		break;
+			case SB_LINEUP:		Pos-=m_FontHeight;		break;
+			case SB_LINEDOWN:	Pos+=m_FontHeight;		break;
+			case SB_PAGEUP:		Pos-=Page;				break;
+			case SB_PAGEDOWN:	Pos+=Page;				break;
+			case SB_THUMBTRACK:	Pos=HIWORD(wParam);		break;
+			case SB_TOP:		Pos=0;					break;
+			case SB_BOTTOM:		Pos=max(Height-Page,0);	break;
 			default:	return 0;
 			}
 			SetScrollPos(Pos);
@@ -1004,18 +1004,31 @@ void CChannelPanel::CChannelEventInfo::DrawChannelName(HDC hdc,const RECT *pRect
 
 	if (m_hbmLogo!=NULL) {
 		int LogoWidth,LogoHeight;
+
 		LogoHeight=rc.bottom-rc.top-4;
 		LogoWidth=LogoHeight*16/9;
+		// AlphaBlendでリサイズすると汚いので、予めリサイズした画像を作成しておく
+		if (m_StretchedLogo.IsCreated()) {
+			if (m_StretchedLogo.GetWidth()!=LogoWidth || m_StretchedLogo.GetHeight()!=LogoHeight)
+				m_StretchedLogo.Destroy();
+		}
+		if (!m_StretchedLogo.IsCreated()) {
+			HBITMAP hbm=DrawUtil::ResizeBitmap(m_hbmLogo,LogoWidth,LogoHeight);
+			if (hbm!=NULL)
+				m_StretchedLogo.Attach(hbm);
+		}
 		DrawUtil::DrawBitmap(hdc,rc.left,rc.top+(rc.bottom-rc.top-LogoHeight)/2,
-							 LogoWidth,LogoHeight,m_hbmLogo,NULL,192);
+							 LogoWidth,LogoHeight,
+							 m_StretchedLogo.IsCreated()?m_StretchedLogo.GetHandle():m_hbmLogo,NULL,192);
 		rc.left+=LogoWidth+3;
 	}
 
 	TCHAR szText[MAX_CHANNEL_NAME+16];
 	if (m_ChannelInfo.GetChannelNo()!=0)
-		::wsprintf(szText,TEXT("%d: %s"),m_ChannelInfo.GetChannelNo(),m_ChannelInfo.GetName());
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
+						  m_ChannelInfo.GetChannelNo(),m_ChannelInfo.GetName());
 	else
-		::lstrcpy(szText,m_ChannelInfo.GetName());
+		::lstrcpyn(szText,m_ChannelInfo.GetName(),lengthof(szText));
 	::DrawText(hdc,szText,-1,&rc,
 			   DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX | DT_END_ELLIPSIS);
 }
@@ -1029,11 +1042,10 @@ void CChannelPanel::CChannelEventInfo::DrawEventName(HDC hdc,const RECT *pRect,i
 		SYSTEMTIME stEnd;
 
 		Info.GetEndTime(&stEnd);
-		StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d～%02d:%02d "),
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d～%02d:%02d %s"),
 						  Info.m_stStartTime.wHour,Info.m_stStartTime.wMinute,
-						  stEnd.wHour,stEnd.wMinute);
-		if (Info.GetEventName()!=NULL)
-			::lstrcat(szText,Info.GetEventName());
+						  stEnd.wHour,stEnd.wMinute,
+						  NullToEmptyString(Info.GetEventName()));
 		::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
 				   DT_WORDBREAK | DT_NOPREFIX | DT_END_ELLIPSIS);
 	}

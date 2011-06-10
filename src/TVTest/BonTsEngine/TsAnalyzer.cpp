@@ -76,6 +76,9 @@ void CTsAnalyzer::Reset()
 	// トランスポートストリームID初期化
 	m_TransportStreamID = 0x0000;
 
+	// ネットワークID初期化
+	m_NetworkID = 0x0000;
+
 	// PATテーブルPIDマップ追加
 	m_PidMapManager.MapTarget(PID_PAT, new CPatTable(TABLE_DEBUG), OnPatUpdated, this);
 
@@ -571,6 +574,16 @@ int CTsAnalyzer::GetServiceName(const int Index, LPTSTR pszName, const int MaxLe
 }
 
 
+BYTE CTsAnalyzer::GetServiceType(const int Index)
+{
+	CBlockLock Lock(&m_DecoderLock);
+
+	if (Index >= 0 && (size_t)Index < m_ServiceList.size())
+		return m_ServiceList[Index].ServiceType;
+	return SERVICE_TYPE_INVALID;
+}
+
+
 WORD CTsAnalyzer::GetLogoID(const int Index)
 {
 	CBlockLock Lock(&m_DecoderLock);
@@ -617,7 +630,7 @@ WORD CTsAnalyzer::GetTransportStreamID() const
 
 WORD CTsAnalyzer::GetNetworkID() const
 {
-	return m_NitInfo.NetworkID;
+	return m_NetworkID;
 }
 
 
@@ -1550,6 +1563,8 @@ void CALLBACK CTsAnalyzer::OnSdtUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	if (pSdtTable == NULL)
 		return;
 
+	pThis->m_NetworkID = pSdtTable->GetNetworkID();
+
 	for (WORD SdtIndex = 0 ; SdtIndex < pSdtTable->GetServiceNum() ; SdtIndex++) {
 		// サービスIDを検索
 		const int ServiceIndex = pThis->GetServiceIndexByID(pSdtTable->GetServiceID(SdtIndex));
@@ -1591,7 +1606,7 @@ void CALLBACK CTsAnalyzer::OnNitUpdated(const WORD wPID, CTsPidMapTarget *pMapTa
 	if (pNitTable == NULL)
 		return;
 
-	pThis->m_NitInfo.NetworkID = pNitTable->GetNetworkID();
+	pThis->m_NetworkID = pNitTable->GetNetworkID();
 
 	const CDescBlock *pDescBlock;
 	pDescBlock = pNitTable->GetNetworkDesc();

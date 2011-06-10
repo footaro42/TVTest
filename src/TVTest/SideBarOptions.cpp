@@ -12,61 +12,62 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define CUSTOMZOOM_ICON_INDEX 46
+#define NUM_ZOOM_COMMANDS	16
+#define ZOOM_ICON_FIRST		35
 
 
 static const CSideBar::SideBarItem ItemList[] = {
-	{CM_ZOOM_20,				0},
-	{CM_ZOOM_25,				1},
-	{CM_ZOOM_33,				2},
-	{CM_ZOOM_50,				3},
-	{CM_ZOOM_66,				4},
-	{CM_ZOOM_75,				5},
-	{CM_ZOOM_100,				6},
-	{CM_ZOOM_150,				7},
-	{CM_ZOOM_200,				8},
-	{CM_ZOOM_250,				9},
-	{CM_ZOOM_300,				10},
-	{CM_CUSTOMZOOM_1,			(CUSTOMZOOM_ICON_INDEX+0)},
-	{CM_CUSTOMZOOM_2,			(CUSTOMZOOM_ICON_INDEX+1)},
-	{CM_CUSTOMZOOM_3,			(CUSTOMZOOM_ICON_INDEX+2)},
-	{CM_CUSTOMZOOM_4,			(CUSTOMZOOM_ICON_INDEX+3)},
-	{CM_CUSTOMZOOM_5,			(CUSTOMZOOM_ICON_INDEX+4)},
-	{CM_ASPECTRATIO_DEFAULT,	11},
-	{CM_ASPECTRATIO_16x9,		12},
-	{CM_ASPECTRATIO_LETTERBOX,	13},
-	{CM_ASPECTRATIO_SUPERFRAME,	14},
-	{CM_ASPECTRATIO_SIDECUT,	15},
-	{CM_ASPECTRATIO_4x3,		16},
-	{CM_FULLSCREEN,				17},
-	{CM_ALWAYSONTOP,			18},
-	{CM_DISABLEVIEWER,			19},
-	{CM_CAPTURE,				20},
-	{CM_SAVEIMAGE,				21},
-	{CM_COPY,					22},
-	{CM_CAPTUREPREVIEW,			23},
-	{CM_RESET,					24},
-	{CM_RESETVIEWER,			25},
-	{CM_PANEL,					26},
-	{CM_PROGRAMGUIDE,			27},
-	{CM_STATUSBAR,				28},
-	{CM_VIDEODECODERPROPERTY,	29},
-	{CM_OPTIONS,				30},
-	{CM_STREAMINFO,				31},
-	{CM_SPDIF_TOGGLE,			32},
-	{CM_CHANNELDISPLAYMENU,		33},
-	{CM_CHANNELNO_1,			34},
-	{CM_CHANNELNO_2,			35},
-	{CM_CHANNELNO_3,			36},
-	{CM_CHANNELNO_4,			37},
-	{CM_CHANNELNO_5,			38},
-	{CM_CHANNELNO_6,			39},
-	{CM_CHANNELNO_7,			40},
-	{CM_CHANNELNO_8,			41},
-	{CM_CHANNELNO_9,			42},
-	{CM_CHANNELNO_10,			43},
-	{CM_CHANNELNO_11,			44},
-	{CM_CHANNELNO_12,			45},
+	{CM_ZOOM_20,				ZOOM_ICON_FIRST+0},
+	{CM_ZOOM_25,				ZOOM_ICON_FIRST+1},
+	{CM_ZOOM_33,				ZOOM_ICON_FIRST+2},
+	{CM_ZOOM_50,				ZOOM_ICON_FIRST+3},
+	{CM_ZOOM_66,				ZOOM_ICON_FIRST+4},
+	{CM_ZOOM_75,				ZOOM_ICON_FIRST+5},
+	{CM_ZOOM_100,				ZOOM_ICON_FIRST+6},
+	{CM_ZOOM_150,				ZOOM_ICON_FIRST+7},
+	{CM_ZOOM_200,				ZOOM_ICON_FIRST+8},
+	{CM_ZOOM_250,				ZOOM_ICON_FIRST+9},
+	{CM_ZOOM_300,				ZOOM_ICON_FIRST+10},
+	{CM_CUSTOMZOOM_1,			ZOOM_ICON_FIRST+11},
+	{CM_CUSTOMZOOM_2,			ZOOM_ICON_FIRST+12},
+	{CM_CUSTOMZOOM_3,			ZOOM_ICON_FIRST+13},
+	{CM_CUSTOMZOOM_4,			ZOOM_ICON_FIRST+14},
+	{CM_CUSTOMZOOM_5,			ZOOM_ICON_FIRST+15},
+	{CM_ASPECTRATIO_DEFAULT,	0},
+	{CM_ASPECTRATIO_16x9,		1},
+	{CM_ASPECTRATIO_LETTERBOX,	2},
+	{CM_ASPECTRATIO_SUPERFRAME,	3},
+	{CM_ASPECTRATIO_SIDECUT,	4},
+	{CM_ASPECTRATIO_4x3,		5},
+	{CM_FULLSCREEN,				6},
+	{CM_ALWAYSONTOP,			7},
+	{CM_DISABLEVIEWER,			8},
+	{CM_CAPTURE,				9},
+	{CM_SAVEIMAGE,				10},
+	{CM_COPY,					11},
+	{CM_CAPTUREPREVIEW,			12},
+	{CM_RESET,					13},
+	{CM_RESETVIEWER,			14},
+	{CM_PANEL,					15},
+	{CM_PROGRAMGUIDE,			16},
+	{CM_STATUSBAR,				17},
+	{CM_VIDEODECODERPROPERTY,	18},
+	{CM_OPTIONS,				19},
+	{CM_STREAMINFO,				20},
+	{CM_SPDIF_TOGGLE,			21},
+	{CM_CHANNELDISPLAYMENU,		22},
+	{CM_CHANNELNO_1,			23},
+	{CM_CHANNELNO_2,			24},
+	{CM_CHANNELNO_3,			25},
+	{CM_CHANNELNO_4,			26},
+	{CM_CHANNELNO_5,			27},
+	{CM_CHANNELNO_6,			28},
+	{CM_CHANNELNO_7,			29},
+	{CM_CHANNELNO_8,			30},
+	{CM_CHANNELNO_9,			31},
+	{CM_CHANNELNO_10,			32},
+	{CM_CHANNELNO_11,			33},
+	{CM_CHANNELNO_12,			34},
 };
 
 static const int DefaultItemList[] = {
@@ -97,6 +98,7 @@ CSideBarOptions::CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOpt
 	, m_pZoomOptions(pZoomOptions)
 	, m_fShowPopup(true)
 	, m_fShowToolTips(true)
+	, m_fShowChannelLogo(true)
 	, m_Place(PLACE_LEFT)
 	, m_himlIcons(NULL)
 	, m_pEventHandler(NULL)
@@ -199,7 +201,7 @@ HBITMAP CSideBarOptions::CreateImage()
 									 IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
 
 	if (hbm!=NULL) {
-		// カスタム表示倍率のアイコンを描画する
+		// 表示倍率のアイコンを描画する
 		HBITMAP hbmZoom=(HBITMAP)::LoadImage(hinst,MAKEINTRESOURCE(IDB_SIDEBARZOOM),
 											 IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION);
 
@@ -208,36 +210,36 @@ HBITMAP CSideBarOptions::CreateImage()
 			HBITMAP hbmDstOld=static_cast<HBITMAP>(::SelectObject(hdcDst,hbm));
 			HDC hdcSrc=::CreateCompatibleDC(NULL);
 			HBITMAP hbmSrcOld=static_cast<HBITMAP>(::SelectObject(hdcSrc,hbmZoom));
-			for (int i=0;i<=CM_CUSTOMZOOM_LAST-CM_CUSTOMZOOM_FIRST;i++) {
+			for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
 				CZoomOptions::ZoomRate Zoom;
-				m_pZoomOptions->GetZoomRateByCommand(CM_CUSTOMZOOM_FIRST+i,&Zoom);
+				m_pZoomOptions->GetZoomRateByCommand(ItemList[i].Command,&Zoom);
 				int Percentage=Zoom.Rate*100/Zoom.Factor;
 				if (Percentage<100) {
 					if (Percentage>=10)
-						::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16,0,4,16,
+						::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16,0,4,16,
 								 hdcSrc,(Percentage/10)*4,0,SRCCOPY);
-					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+5,0,4,16,
+					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+5,0,4,16,
 							 hdcSrc,(Percentage%10)*4,0,SRCCOPY);
 					// %
-					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+10,0,6,16,
+					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+10,0,6,16,
 							 hdcSrc,40,0,SRCCOPY);
 				} else {
-					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16,0,3,16,
+					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16,0,3,16,
 							 hdcSrc,(Percentage/100%10)*3,16,SRCCOPY);
-					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+4,0,3,16,
+					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+4,0,3,16,
 							 hdcSrc,(Percentage/10%10)*3,16,SRCCOPY);
-					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+8,0,3,16,
+					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+8,0,3,16,
 							 hdcSrc,(Percentage%10)*3,16,SRCCOPY);
 					// %
-					::BitBlt(hdcDst,(CUSTOMZOOM_ICON_INDEX+i)*16+12,0,4,16,
+					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+12,0,4,16,
 							 hdcSrc,30,16,SRCCOPY);
 				}
 			}
 			::SelectObject(hdcSrc,hbmSrcOld);
 			::DeleteDC(hdcSrc);
-			::DeleteObject(hbmZoom);
 			::SelectObject(hdcDst,hbmDstOld);
 			::DeleteDC(hdcDst);
+			::DeleteObject(hbmZoom);
 		}
 	}
 	return hbm;
@@ -304,6 +306,7 @@ INT_PTR CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 		{
 			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOW,m_fShowPopup);
 			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS,m_fShowToolTips);
+			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOWCHANNELLOGO,m_fShowChannelLogo);
 
 			HBITMAP hbmIcons=CreateImage();
 			m_himlIcons=::ImageList_Create(16,16,ILC_COLOR | ILC_MASK,0,1);
@@ -472,6 +475,11 @@ INT_PTR CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 				m_fShowPopup=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOW);
 				m_fShowToolTips=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOWTOOLTIPS);
 				m_pSideBar->ShowToolTips(m_fShowToolTips);
+				bool fShowChannelLogo=DlgCheckBox_IsChecked(hDlg,IDC_SIDEBAR_SHOWCHANNELLOGO);
+				if (m_fShowChannelLogo!=fShowChannelLogo) {
+					m_fShowChannelLogo=fShowChannelLogo;
+					m_pSideBar->Invalidate();
+				}
 
 				HWND hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST);
 				std::vector<int> ItemList;

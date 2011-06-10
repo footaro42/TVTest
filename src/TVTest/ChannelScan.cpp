@@ -29,7 +29,6 @@ public:
 	enum SortType {
 		SORT_NAME,
 		SORT_CHANNEL,
-		//SORT_SERVICE,
 		SORT_CHANNELNAME,
 		SORT_SERVICEID,
 		SORT_REMOTECONTROLKEYID
@@ -73,13 +72,6 @@ int CALLBACK CChannelListSort::CompareFunc(LPARAM lParam1,LPARAM lParam2,LPARAM 
 	case SORT_CHANNEL:
 		Cmp=pChInfo1->GetChannelIndex()-pChInfo2->GetChannelIndex();
 		break;
-	/*
-	case SORT_SERVICE:
-		Cmp=pChInfo1->GetChannelIndex()-pChInfo2->GetChannelIndex();
-		if (Cmp==0)
-			Cmp=pChInfo1->GetService()-pChInfo2->GetService();
-		break;
-	*/
 	case SORT_CHANNELNAME:
 		Cmp=pChInfo1->GetChannelIndex()-pChInfo2->GetChannelIndex();
 		break;
@@ -216,7 +208,7 @@ void CChannelScan::InsertChannelInfo(int Index,const CChannelInfo *pChInfo)
 	ListView_SetItem(hwndList,&lvi);
 	lvi.iSubItem=2;
 	LPCTSTR pszChannelName=m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetChannelName(pChInfo->GetSpace(),pChInfo->GetChannelIndex());
-	::lstrcpy(szText,pszChannelName!=NULL?pszChannelName:TEXT("\?\?\?"));
+	::lstrcpyn(szText,!IsStringEmpty(pszChannelName)?pszChannelName:TEXT("\?\?\?"),lengthof(szText));
 	ListView_SetItem(hwndList,&lvi);
 	lvi.iSubItem=3;
 	::wsprintf(szText,TEXT("%d"),pChInfo->GetServiceID());
@@ -467,21 +459,21 @@ INT_PTR CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 							if (NotFoundChannels.size()>0) {
 								const int Channels=(int)NotFoundChannels.size();
 								TCHAR szMessage[256+(MAX_CHANNEL_NAME+2)*10];
-								int Length;
+								CStaticStringFormatter Formatter(szMessage,lengthof(szMessage));
 
-								Length=::wsprintf(szMessage,
+								Formatter.AppendFormat(
 									TEXT("元あったチャンネルのうち、以下の%d%sのチャンネルが検出されませんでした。\n\n"),
 									Channels,Channels<10?TEXT("つ"):TEXT(""));
 								for (int i=0;i<Channels;i++) {
 									if (i==10) {
-										Length+=::wsprintf(szMessage+Length,TEXT("...\n"));
+										Formatter.Append(TEXT("...\n"));
 										break;
 									}
-									Length+=::wsprintf(szMessage+Length,TEXT("・%s\n"),
-													   NotFoundChannels[i]->GetName());
+									Formatter.AppendFormat(TEXT("・%s\n"),NotFoundChannels[i]->GetName());
 								}
-								::lstrcpy(szMessage+Length,TEXT("\n検出されなかったチャンネルを残しますか？"));
-								if (::MessageBox(hDlg,szMessage,TEXT("問い合わせ"),MB_YESNO | MB_ICONQUESTION)==IDYES) {
+								Formatter.Append(TEXT("\n検出されなかったチャンネルを残しますか？"));
+								if (::MessageBox(hDlg,Formatter.GetString(),TEXT("問い合わせ"),
+												 MB_YESNO | MB_ICONQUESTION)==IDYES) {
 									for (size_t i=0;i<NotFoundChannels.size();i++) {
 										CChannelInfo *pInfo=new CChannelInfo(*NotFoundChannels[i]);
 										m_ScanningChannelList.AddChannel(pInfo);
@@ -497,11 +489,9 @@ INT_PTR CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 								SortType=CChannelListSort::SORT_SERVICEID;
 							CChannelListSort ListSort(SortType);
 							ListSort.Sort(hwndList);
-							ListSort.UpdateChannelList(hwndList,&m_ScanningChannelList);
+							ListSort.UpdateChannelList(hwndList,m_TuningSpaceList.GetChannelList(Space));
 							m_SortColumn=(int)SortType;
 							m_fSortDescending=false;
-							*m_TuningSpaceList.GetChannelList(Space)=
-												m_ScanningChannelList;
 							if (m_TuningSpaceList.GetTuningSpaceName(Space)==NULL) {
 								m_TuningSpaceList.GetTuningSpaceInfo(Space)->SetName(
 									m_pCoreEngine->m_DtvEngine.m_BonSrcDecoder.GetSpaceName(Space));
@@ -789,8 +779,9 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 			int BitRate=(int)(pCoreEngine->GetBitRateFloat()*100.0f);
 			TCHAR szText[64];
 
-			::wsprintf(szText,TEXT("%d.%02d dB / %d.%02d Mbps"),
-					   Level/100,abs(Level)%100,BitRate/100,BitRate%100);
+			StdUtil::snprintf(szText,lengthof(szText),
+				TEXT("%d.%02d dB / %d.%02d Mbps"),
+				Level/100,abs(Level)%100,BitRate/100,BitRate%100);
 			::SetDlgItemText(hDlg,IDC_CHANNELSCAN_LEVEL,szText);
 		}
 		return TRUE;
@@ -803,7 +794,7 @@ INT_PTR CALLBACK CChannelScan::ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPA
 
 			if (pThis->m_fIgnoreSignalLevel)
 				EstimateRemain+=(pThis->m_NumChannels-(int)wParam)*pThis->m_RetryCount*pThis->m_RetryInterval/1000;
-			::wsprintf(szText,
+			StdUtil::snprintf(szText,lengthof(szText),
 				TEXT("チャンネル %d/%d をスキャンしています... (残り時間 %d:%02d)"),
 				(int)wParam+1,pThis->m_NumChannels,
 				EstimateRemain/60,EstimateRemain%60);
@@ -978,16 +969,38 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 			for (int i=0;i<NumServices;i++) {
 				WORD ServiceID=0;
 				pTsAnalyzer->GetViewableServiceID(i,&ServiceID);
-				int ServiceIndex=pTsAnalyzer->GetServiceIndexByID(ServiceID);
+				const int ServiceIndex=pTsAnalyzer->GetServiceIndexByID(ServiceID);
 				int RemoteControlKeyID=pTsAnalyzer->GetRemoteControlKeyID();
-				if (RemoteControlKeyID==0 && ServiceID<1000)
-					RemoteControlKeyID=ServiceID;
+				if (RemoteControlKeyID==0) {
+					// BSのリモコン番号は本来どこから持ってくればいいのか謎
+					if (NetworkID==4 && ServiceID<230) {
+						if (ServiceID<=109)
+							RemoteControlKeyID=ServiceID%10;
+						else
+							RemoteControlKeyID=ServiceID/10-10;
+					} else if (ServiceID<1000) {
+						RemoteControlKeyID=ServiceID;
+					}
+				}
 				pTsAnalyzer->GetServiceName(ServiceIndex,szName,lengthof(szName));
-				CChannelInfo ChInfo(pThis->m_ScanSpace,0,pThis->m_ScanChannel,
-									RemoteControlKeyID,i,szName);
+				CChannelInfo ChInfo(pThis->m_ScanSpace,pThis->m_ScanChannel,
+									RemoteControlKeyID,szName);
 				ChInfo.SetNetworkID(NetworkID);
 				ChInfo.SetTransportStreamID(TransportStreamID);
 				ChInfo.SetServiceID(ServiceID);
+				const BYTE ServiceType=pTsAnalyzer->GetServiceType(ServiceIndex);
+				if ((ServiceType!=SERVICE_TYPE_DIGITALTV
+						&& ServiceType!=0xA5
+#ifdef TVH264
+						&& ServiceType!=SERVICE_TYPE_DATA
+#endif
+#ifdef TVTEST_RADIO_SUPPORT
+						&& ServiceType!=SERVICE_TYPE_DIGITALAUDIO
+#endif
+						)
+						// こういう直値は良くないが…
+						|| (NetworkID==4 && ServiceID>=140 && ServiceID<190 && ServiceID%10>=2))
+					ChInfo.Enable(false);
 				TRACE(TEXT("Channel found : %s %d %d %d %d\n"),
 					szName,pThis->m_ScanChannel,ChInfo.GetChannelNo(),NetworkID,ServiceID);
 				pThis->m_ScanningChannelList.AddChannel(ChInfo);
@@ -996,8 +1009,8 @@ DWORD WINAPI CChannelScan::ScanProc(LPVOID lpParameter)
 						pThis->m_ScanningChannelList.NumChannels()-1);
 			}
 		} else {
-			CChannelInfo ChInfo(pThis->m_ScanSpace,0,pThis->m_ScanChannel,
-				pTsAnalyzer->GetRemoteControlKeyID(),0,szName);
+			CChannelInfo ChInfo(pThis->m_ScanSpace,pThis->m_ScanChannel,
+								pTsAnalyzer->GetRemoteControlKeyID(),szName);
 			ChInfo.SetNetworkID(NetworkID);
 			ChInfo.SetTransportStreamID(TransportStreamID);
 			WORD ServiceID=0;

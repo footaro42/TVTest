@@ -338,9 +338,12 @@ public:
 	virtual void Reset(void);
 
 // CSdtTable
+	const WORD GetNetworkID(void) const;
 	const WORD GetServiceNum(void) const;
 	const WORD GetServiceIndexByID(const WORD wServiceID);
 	const WORD GetServiceID(const WORD wIndex) const;
+	const bool GetEITScheduleFlag(const WORD wIndex) const;
+	const bool GetEITPresentFollowingFlag(const WORD wIndex) const;
 	const BYTE GetRunningStatus(const WORD wIndex) const;
 	const bool GetFreeCaMode(const WORD wIndex) const;
 	const CDescBlock * GetItemDesc(const WORD wIndex) const;
@@ -352,11 +355,14 @@ protected:
 	struct TAG_SDTITEM
 	{
 		WORD wServiceID;				// Service ID
+		bool bEITScheduleFlag;			// EIT Schedule Flag
+		bool bEITPresentFollowingFlag;	// EIT Present Following Flag
 		BYTE byRunningStatus;			// Running Status
 		bool bFreeCaMode;				// Free CA Mode(true: CA / false: Free)
 		CDescBlock DescBlock;			// Service Descriptor ‘¼
 	};
 
+	WORD m_wNetworkID;
 	vector<TAG_SDTITEM> m_ServiceInfoArray;
 };
 

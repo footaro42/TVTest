@@ -190,7 +190,7 @@ bool CRecentChannelList::Load(LPCTSTR pszFileName)
 				Count=m_MaxChannelHistory;
 			for (int i=0;i<Count;i++) {
 				TCHAR szName[32],szDriverName[MAX_PATH],szChannelName[MAX_CHANNEL_NAME];
-				int Space,Channel,Service,ServiceID;
+				int Space,Channel,ServiceID;
 
 				::wsprintf(szName,TEXT("History%d_Driver"),i);
 				if (!Settings.Read(szName,szDriverName,lengthof(szDriverName))
@@ -206,13 +206,10 @@ bool CRecentChannelList::Load(LPCTSTR pszFileName)
 				::wsprintf(szName,TEXT("History%d_Channel"),i);
 				if (!Settings.Read(szName,&Channel))
 					break;
-				::wsprintf(szName,TEXT("History%d_Service"),i);
-				if (!Settings.Read(szName,&Service))
-					break;
 				::wsprintf(szName,TEXT("History%d_ServiceID"),i);
 				if (!Settings.Read(szName,&ServiceID))
 					break;
-				CChannelInfo ChannelInfo(Space,0,Channel,0,Service,szChannelName);
+				CChannelInfo ChannelInfo(Space,Channel,0,szChannelName);
 				ChannelInfo.SetServiceID(ServiceID);
 				m_ChannelList.push_back(new CChannel(szDriverName,&ChannelInfo));
 			}
@@ -246,8 +243,6 @@ bool CRecentChannelList::Save(LPCTSTR pszFileName) const
 		Settings.Write(szName,pChannelInfo->GetSpace());
 		::wsprintf(szName,TEXT("History%d_Channel"),i);
 		Settings.Write(szName,pChannelInfo->GetChannelIndex());
-		::wsprintf(szName,TEXT("History%d_Service"),i);
-		Settings.Write(szName,pChannelInfo->GetService());
 		::wsprintf(szName,TEXT("History%d_ServiceID"),i);
 		Settings.Write(szName,pChannelInfo->GetServiceID());
 	}

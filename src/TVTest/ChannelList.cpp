@@ -11,12 +11,11 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-CChannelInfo::CChannelInfo(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName)
+CChannelInfo::CChannelInfo(int Space,int ChannelIndex,int No,LPCTSTR pszName)
 	: m_Space(Space)
-	, m_Channel(Channel)
-	, m_ChannelIndex(Index)
+	, m_ChannelIndex(ChannelIndex)
 	, m_ChannelNo(No)
-	, m_Service(Service)
+	, m_PhysicalChannel(0)
 	, m_NetworkID(0)
 	, m_TransportStreamID(0)
 	, m_ServiceID(0)
@@ -34,18 +33,17 @@ CChannelInfo::CChannelInfo(const CChannelInfo &Info)
 
 CChannelInfo &CChannelInfo::operator=(const CChannelInfo &Info)
 {
-	if (&Info==this)
-		return *this;
-	m_Space=Info.m_Space;
-	m_Channel=Info.m_Channel;
-	m_ChannelIndex=Info.m_ChannelIndex;
-	m_ChannelNo=Info.m_ChannelNo;
-	m_Service=Info.m_Service;
-	::lstrcpy(m_szName,Info.m_szName);
-	m_NetworkID=Info.m_NetworkID;
-	m_TransportStreamID=Info.m_TransportStreamID;
-	m_ServiceID=Info.m_ServiceID;
-	m_fEnabled=Info.m_fEnabled;
+	if (&Info!=this) {
+		m_Space=Info.m_Space;
+		m_ChannelIndex=Info.m_ChannelIndex;
+		m_ChannelNo=Info.m_ChannelNo;
+		m_PhysicalChannel=Info.m_PhysicalChannel;
+		::lstrcpy(m_szName,Info.m_szName);
+		m_NetworkID=Info.m_NetworkID;
+		m_TransportStreamID=Info.m_TransportStreamID;
+		m_ServiceID=Info.m_ServiceID;
+		m_fEnabled=Info.m_fEnabled;
+	}
 	return *this;
 }
 
@@ -57,18 +55,18 @@ bool CChannelInfo::SetSpace(int Space)
 }
 
 
-bool CChannelInfo::SetChannel(int Channel)
-{
-	m_Channel=Channel;
-	return true;
-}
-
-
 bool CChannelInfo::SetChannelNo(int ChannelNo)
 {
 	if (ChannelNo<0)
 		return false;
 	m_ChannelNo=ChannelNo;
+	return true;
+}
+
+
+bool CChannelInfo::SetPhysicalChannel(int Channel)
+{
+	m_PhysicalChannel=Channel;
 	return true;
 }
 
@@ -160,12 +158,6 @@ int CChannelList::NumEnableChannels() const
 }
 
 
-bool CChannelList::AddChannel(int Space,int Channel,int Index,int No,int Service,LPCTSTR pszName)
-{
-	return AddChannel(new CChannelInfo(Space,Channel,Index,No,Service,pszName));
-}
-
-
 bool CChannelList::AddChannel(const CChannelInfo &Info)
 {
 	return AddChannel(new CChannelInfo(Info));
@@ -217,14 +209,6 @@ int CChannelList::GetSpace(int Index) const
 }
 
 
-int CChannelList::GetChannel(int Index) const
-{
-	if (Index<0 || Index>=m_NumChannels)
-		return -1;
-	return m_ppList[Index]->GetChannel();
-}
-
-
 int CChannelList::GetChannelIndex(int Index) const
 {
 	if (Index<0 || Index>=m_NumChannels)
@@ -241,20 +225,20 @@ int CChannelList::GetChannelNo(int Index) const
 }
 
 
+int CChannelList::GetPhysicalChannel(int Index) const
+{
+	if (Index<0 || Index>=m_NumChannels)
+		return -1;
+	return m_ppList[Index]->GetPhysicalChannel();
+}
+
+
 LPCTSTR CChannelList::GetName(int Index) const
 {
 	if (Index<0 || Index>=m_NumChannels)
 		//return NULL;
 		return TEXT("");
 	return m_ppList[Index]->GetName();
-}
-
-
-int CChannelList::GetService(int Index) const
-{
-	if (Index<0 || Index>=m_NumChannels)
-		return -1;
-	return m_ppList[Index]->GetService();
 }
 
 
@@ -321,7 +305,7 @@ int CChannelList::Find(int Space,int ChannelIndex,int ServiceID) const
 int CChannelList::FindChannel(int Channel) const
 {
 	for (int i=0;i<m_NumChannels;i++) {
-		if (GetChannel(i)==Channel)
+		if (GetPhysicalChannel(i)==Channel)
 			return i;
 	}
 	return -1;
@@ -444,17 +428,14 @@ void CChannelList::SortSub(SortType Type,bool fDescending,int First,int Last,CCh
 		case SORT_SPACE:
 			Cmp=pCh1->GetSpace()-pCh2->GetSpace();
 			break;
-		case SORT_CHANNEL:
-			Cmp=pCh1->GetChannel()-pCh2->GetChannel();
-			break;
 		case SORT_CHANNELINDEX:
 			Cmp=pCh1->GetChannelIndex()-pCh2->GetChannelIndex();
 			break;
 		case SORT_CHANNELNO:
 			Cmp=pCh1->GetChannelNo()-pCh2->GetChannelNo();
 			break;
-		case SORT_SERVICE:
-			Cmp=pCh1->GetService()-pCh2->GetService();
+		case SORT_PHYSICALCHANNEL:
+			Cmp=pCh1->GetPhysicalChannel()-pCh2->GetPhysicalChannel();
 			break;
 		case SORT_NAME:
 			Cmp=::lstrcmpi(pCh1->GetName(),pCh2->GetName());
@@ -490,23 +471,22 @@ void CChannelList::Sort(SortType Type,bool fDescending)
 }
 
 
-bool CChannelList::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
-						WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
+bool CChannelList::UpdateStreamInfo(int Space,int ChannelIndex,
+	WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
 {
-	int i;
+	if (ServiceID==0)
+		return false;
 
-	for (i=0;i<m_NumChannels;i++) {
+	for (int i=0;i<m_NumChannels;i++) {
 		CChannelInfo *pChannelInfo=m_ppList[i];
 
 		if (pChannelInfo->GetSpace()==Space
 				&& pChannelInfo->GetChannelIndex()==ChannelIndex
-				&& pChannelInfo->GetService()==Service) {
+				&& pChannelInfo->GetServiceID()==ServiceID) {
 			if (NetworkID!=0 && pChannelInfo->GetNetworkID()==0)
 				pChannelInfo->SetNetworkID(NetworkID);
 			if (TransportStreamID!=0 && pChannelInfo->GetTransportStreamID()==0)
 				pChannelInfo->SetTransportStreamID(TransportStreamID);
-			if (ServiceID!=0 && pChannelInfo->GetServiceID()==0)
-				pChannelInfo->SetServiceID(ServiceID);
 		}
 	}
 	return true;
@@ -793,7 +773,7 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 		return false;
 	static const char szComment[]=
 		"; " APP_NAME_A " チャンネル設定ファイル\r\n"
-		"; 名称,チューニング空間,チャンネル,リモコン番号,サービス,サービスID,ネットワークID,TSID,状態\r\n";
+		"; 名称,チューニング空間,チャンネル,リモコン番号,,サービスID,ネットワークID,TSID,状態\r\n";
 	if (!::WriteFile(hFile,szComment,sizeof(szComment)-1,&Write,NULL) || Write!=sizeof(szComment)-1) {
 		::CloseHandle(hFile);
 		return false;
@@ -821,10 +801,11 @@ bool CTuningSpaceList::SaveToFile(LPCTSTR pszFileName) const
 #else
 			::lstrcpy(szName,pChInfo->GetName());
 #endif
-			Length=::wsprintfA(szText,"%s,%d,%d,%d,%d,",
+			Length=::wsprintfA(szText,"%s,%d,%d,%d,,",
 				szName,
-				pChInfo->GetSpace(),pChInfo->GetChannelIndex(),
-				pChInfo->GetChannelNo(),pChInfo->GetService());
+				pChInfo->GetSpace(),
+				pChInfo->GetChannelIndex(),
+				pChInfo->GetChannelNo());
 			if (pChInfo->GetServiceID()!=0)
 				Length+=::wsprintfA(szText+Length,"%d",pChInfo->GetServiceID());
 			szText[Length++]=',';
@@ -902,7 +883,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 	p=pszFile;
 	do {
 		TCHAR szName[MAX_CHANNEL_NAME];
-		int Space,Channel,ControlKey,Service,ServiceID,NetworkID,TransportStreamID;
+		int Space,Channel,ControlKey,ServiceID,NetworkID,TransportStreamID;
 		bool fEnabled;
 
 		while (*p=='\r' || *p=='\n' || *p==' ' || *p=='\t')
@@ -980,7 +961,6 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 		Channel=ParseDigits(&p);
 		SkipSpaces(&p);
 		ControlKey=0;
-		Service=0;
 		ServiceID=0;
 		NetworkID=0;
 		TransportStreamID=0;
@@ -991,32 +971,32 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 			// リモコン番号(オプション)
 			ControlKey=ParseDigits(&p);
 			SkipSpaces(&p);
-			// サービス(オプション)
 			if (*p==',') {
+				// サービスのインデックス(現在は不使用)
 				p++;
 				SkipSpaces(&p);
-				Service=ParseDigits(&p);
+				ParseDigits(&p);
 				SkipSpaces(&p);
-				// サービスID(オプション)
 				if (*p==',') {
+					// サービスID(オプション)
 					p++;
 					SkipSpaces(&p);
 					ServiceID=ParseDigits(&p);
 					SkipSpaces(&p);
-					// ネットワークID(オプション)
 					if (*p==',') {
+						// ネットワークID(オプション)
 						p++;
 						SkipSpaces(&p);
 						NetworkID=ParseDigits(&p);
 						SkipSpaces(&p);
-						// トランスポートストリームID(オプション)
 						if (*p==',') {
+							// トランスポートストリームID(オプション)
 							p++;
 							SkipSpaces(&p);
 							TransportStreamID=ParseDigits(&p);
 							SkipSpaces(&p);
-							// 有効状態(オプション)
 							if (*p==',') {
+								// 有効状態(オプション)
 								p++;
 								SkipSpaces(&p);
 								if (IsDigit(*p)) {
@@ -1030,7 +1010,7 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 			}
 		}
 		{
-			CChannelInfo ChInfo(Space,0,Channel,ControlKey,Service,szName);
+			CChannelInfo ChInfo(Space,Channel,ControlKey,szName);
 			if (ServiceID!=0)
 				ChInfo.SetServiceID(ServiceID);
 			if (NetworkID!=0)
@@ -1050,14 +1030,14 @@ bool CTuningSpaceList::LoadFromFile(LPCTSTR pszFileName)
 }
 
 
-bool CTuningSpaceList::UpdateStreamInfo(int Space,int ChannelIndex,int Service,
-						WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
+bool CTuningSpaceList::UpdateStreamInfo(int Space,int ChannelIndex,
+	WORD NetworkID,WORD TransportStreamID,WORD ServiceID)
 {
 	if (Space<0 || Space>=NumSpaces())
 		return false;
 	m_TuningSpaceList[Space]->GetChannelList()->UpdateStreamInfo(
-			Space,ChannelIndex,Service,NetworkID,TransportStreamID,ServiceID);
-	m_AllChannelList.UpdateStreamInfo(Space,ChannelIndex,Service,
+			Space,ChannelIndex,NetworkID,TransportStreamID,ServiceID);
+	m_AllChannelList.UpdateStreamInfo(Space,ChannelIndex,
 									  NetworkID,TransportStreamID,ServiceID);
 	return true;
 }

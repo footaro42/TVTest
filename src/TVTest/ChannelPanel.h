@@ -78,6 +78,7 @@ private:
 		int m_OriginalChannelIndex;
 		std::vector<CEventInfoData> m_EventList;
 		HBITMAP m_hbmLogo;
+		DrawUtil::CBitmap m_StretchedLogo;
 		bool m_fExpanded;
 	public:
 		CChannelEventInfo(const CChannelInfo *pChannelInfo,int OriginalIndex);

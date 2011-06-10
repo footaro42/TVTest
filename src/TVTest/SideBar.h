@@ -42,6 +42,8 @@ public:
 		virtual void OnCommand(int Command) {}
 		virtual void OnRButtonDown(int x,int y) {}
 		virtual void OnMouseLeave() {}
+		virtual bool GetTooltipText(int Command,LPTSTR pszText,int MaxText) { return false; }
+		virtual bool DrawIcon(int Command,HDC hdc,const RECT &ItemRect,COLORREF ForeColor,HDC hdcBuffer) { return false; }
 		friend class CSideBar;
 	};
 

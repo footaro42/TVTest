@@ -405,9 +405,14 @@ LRESULT CSideBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			{
 				LPNMTTDISPINFO pnmttdi=reinterpret_cast<LPNMTTDISPINFO>(lParam);
 
-				m_pCommandList->GetCommandName(
-					m_pCommandList->IDToIndex(m_ItemList[pnmttdi->hdr.idFrom].Command),
-					pnmttdi->szText,lengthof(pnmttdi->szText));
+				if (m_pEventHandler==NULL
+						|| !m_pEventHandler->GetTooltipText(
+								m_ItemList[pnmttdi->hdr.idFrom].Command,
+								pnmttdi->szText,lengthof(pnmttdi->szText))) {
+					m_pCommandList->GetCommandNameByID(
+						m_ItemList[pnmttdi->hdr.idFrom].Command,
+						pnmttdi->szText,lengthof(pnmttdi->szText));
+				}
 				pnmttdi->lpszText=pnmttdi->szText;
 				pnmttdi->hinst=NULL;
 			}
@@ -556,6 +561,7 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 				&& rc.left<PaintRect.right && rc.right>PaintRect.left
 				&& rc.top<PaintRect.bottom && rc.bottom>PaintRect.top) {
 			COLORREF ForeColor;
+			RECT rcItem;
 
 			if (m_HotItem==i) {
 				Theme::Style Style=m_Theme.HighlightItemStyle;
@@ -580,11 +586,17 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 									   MixColor(m_Theme.ItemStyle.Gradient.Color1,
 												m_Theme.ItemStyle.Gradient.Color2));
 			}
-			DrawUtil::DrawMonoColorDIB(hdc,
-									   rc.left+BUTTON_MARGIN,rc.top+BUTTON_MARGIN,
-									   hdcMemory,
-									   m_ItemList[i].Icon*ICON_WIDTH,0,
-									   ICON_WIDTH,ICON_HEIGHT,ForeColor);
+			rcItem.left=rc.left+BUTTON_MARGIN;
+			rcItem.top=rc.top+BUTTON_MARGIN;
+			rcItem.right=rcItem.left+ICON_WIDTH;
+			rcItem.bottom=rcItem.top+ICON_HEIGHT;
+			if (m_pEventHandler==NULL
+					|| !m_pEventHandler->DrawIcon(m_ItemList[i].Command,hdc,rcItem,ForeColor,hdcMemory)) {
+				DrawUtil::DrawMonoColorDIB(hdc,rcItem.left,rcItem.top,
+										   hdcMemory,
+										   m_ItemList[i].Icon*ICON_WIDTH,0,
+										   ICON_WIDTH,ICON_HEIGHT,ForeColor);
+			}
 		}
 	}
 	/*

@@ -117,7 +117,7 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 						pTuningSpaceInfo->SetName(pszName);
 						CChannelList *pChannelList=pTuningSpaceInfo->GetChannelList();
 						for (int j=0;(pszName=pBonDriver2->EnumChannelName(i,j))!=NULL;j++) {
-							pChannelList->AddChannel(i,0,j,j+1,0,pszName);
+							pChannelList->AddChannel(CChannelInfo(i,j,j+1,pszName));
 						}
 					}
 					m_fDriverSpaceLoaded=true;

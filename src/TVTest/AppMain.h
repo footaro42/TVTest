@@ -26,6 +26,10 @@ class CAppMain
 	bool SetService(int Service);
 	bool GenerateRecordFileName(LPTSTR pszFileName,int MaxFileName) const;
 
+	// ÉRÉsÅ[ã÷é~
+	CAppMain(const CAppMain &);
+	CAppMain &operator=(const CAppMain &);
+
 public:
 	CAppMain();
 	bool Initialize();
