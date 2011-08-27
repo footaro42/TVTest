@@ -1,9 +1,15 @@
 #include <windows.h>
 #include <tchar.h>
 #include "libpng/png.h"
+#include "zlib/zlib.h"
 #include "TVTest_Image.h"
 #include "PNG.h"
 #include "ImageUtil.h"
+
+
+#ifndef PNG_ERROR_TEXT_SUPPORTED
+#define png_error(s1,s2) png_err(s1)
+#endif
 
 
 
@@ -50,12 +56,12 @@ bool SavePNGFile(const ImageSaveInfo *pInfo)
 		return false;
 	}
 	pPNGInfo=png_create_info_struct(pPNG);
-	if (pPNGInfo==NULL){
+	if (pPNGInfo==NULL) {
 		png_destroy_write_struct(&pPNG,NULL);
 		CloseHandle(hFile);
 		return false;
 	}
-	if (setjmp(pPNG->jmpbuf)) {
+	if (setjmp(png_jmpbuf(pPNG))) {
 		png_destroy_write_struct(&pPNG,&pPNGInfo);
 		if (pBuff!=NULL)
 			delete [] pBuff;
@@ -111,12 +117,14 @@ bool SavePNGFile(const ImageSaveInfo *pInfo)
 #endif
 	}
 	png_write_info(pPNG,pPNGInfo);
-	if (pPNGInfo->color_type==PNG_COLOR_TYPE_RGB)
+	if (BitsPerPixel>8)
 		png_set_bgr(pPNG);
-	if (pPNGInfo->interlace_type!=0)
+	/*if (fInterlace)
 		nPasses=png_set_interlace_handling(pPNG);
 	else
 		nPasses=1;
+	 */
+	nPasses=1;
 	nSrcRowBytes=DIB_ROW_BYTES(Width,BitsPerPixel);
 	if (BitsPerPixel==32)
 		pBuff=new BYTE[Width*3];

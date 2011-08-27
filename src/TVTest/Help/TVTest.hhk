@@ -10,6 +10,10 @@
 		<param name="Local" value="programguide.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
+		<param name="Name" value="FAQ">
+		<param name="Local" value="hint.html">
+		</OBJECT>
+	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="コマンドライン">
 		<param name="Local" value="commandline.html">
 		</OBJECT>
@@ -40,10 +44,6 @@
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="パネル">
 		<param name="Local" value="panel.html">
-		</OBJECT>
-	<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="ヒント">
-		<param name="Local" value="hint.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
 		<param name="Name" value="メニュー">

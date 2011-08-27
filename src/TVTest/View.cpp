@@ -291,9 +291,14 @@ bool CViewWindow::SetLogo(HBITMAP hbm)
 void CViewWindow::SetBorder(const Theme::BorderInfo *pInfo)
 {
 	if (m_BorderInfo!=*pInfo) {
+		const bool fResize=m_BorderInfo.Type!=pInfo->Type
+			&& (m_BorderInfo.Type==Theme::BORDER_NONE || pInfo->Type==Theme::BORDER_NONE);
 		m_BorderInfo=*pInfo;
-		if (m_hwnd)
+		if (m_hwnd) {
+			if (fResize)
+				SendSizeMessage();
 			Invalidate();
+		}
 	}
 }
 

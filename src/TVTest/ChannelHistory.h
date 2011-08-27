@@ -3,8 +3,8 @@
 
 
 #include <deque>
-#include "Options.h"
 #include "ChannelList.h"
+#include "Settings.h"
 
 
 class CChannelHistory
@@ -32,7 +32,7 @@ private:
 	int m_CurrentChannel;
 };
 
-class CRecentChannelList : public COptions
+class CRecentChannelList : public CSettingsBase
 {
 public:
 	class CChannel : public ::CChannelInfo
@@ -51,9 +51,9 @@ public:
 	const CChannel *GetChannelInfo(int Index) const;
 	bool Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelInfo);
 	bool SetMenu(HMENU hmenu,bool fClear=true) const;
-// COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 
 private:
 	std::deque<CChannel*> m_ChannelList;

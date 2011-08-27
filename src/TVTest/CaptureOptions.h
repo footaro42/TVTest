@@ -47,11 +47,11 @@ public:
 
 	CCaptureOptions();
 	~CCaptureOptions();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CCaptureOptions
 	int GetSaveFormat() const { return m_SaveFormat; }
 	bool GetWriteComment() const { return m_fSetComment; }
@@ -82,7 +82,7 @@ private:
 	CImageCodec m_ImageCodec;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	static const SIZE m_SizeList[SIZE_LAST+1];
 	struct PercentageType {

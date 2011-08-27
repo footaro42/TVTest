@@ -3,12 +3,18 @@
 #include <Vmr9.h>
 #include "ImageMixer.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
 CImageMixer::CImageMixer(IBaseFilter *pRenderer)
+	: m_pRenderer(pRenderer)
 {
-	m_pRenderer=pRenderer;
 	m_pRenderer->AddRef();
 }
 
@@ -86,12 +92,14 @@ bool CImageMixer_VMR::CreateMemDC()
 
 bool CImageMixer_VMR::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF Color,int Opacity)
 {
+	if (pszText==NULL || pszText[0]==_T('\0') || Opacity<1)
+		return false;
+
 	HDC hdc;
 	HFONT hfontOld;
 	RECT rc;
 	HBITMAP hbm;
-	HBRUSH hbr;
-	COLORREF crTransColor,crOldTextColor;
+	COLORREF crTransColor,crOldTextColor,crOldBkColor;
 	int OldBkMode;
 	RECT rcDest;
 
@@ -99,7 +107,7 @@ bool CImageMixer_VMR::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF C
 		return false;
 	hdc=::CreateDC(TEXT("DISPLAY"),NULL,NULL,NULL);
 	hfontOld=static_cast<HFONT>(::SelectObject(hdc,hfont));
-	::SetRect(&rc,0,0,0,0);
+	::SetRectEmpty(&rc);
 	::DrawText(hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX | DT_CALCRECT);
 	::OffsetRect(&rc,-rc.left,-rc.top);
 	hbm=::CreateCompatibleBitmap(hdc,rc.right,rc.bottom);
@@ -108,18 +116,22 @@ bool CImageMixer_VMR::SetText(LPCTSTR pszText,int x,int y,HFONT hfont,COLORREF C
 	if (hbm==NULL)
 		return false;
 	::SelectObject(m_hdc,hbm);
+#if 0
 	// ‚±‚ê‚¾‚Æ‚È‚º‚©EVR‚Å“§‰ß‚³‚ê‚È‚¢
 	//crTransColor=Color^0x00FFFFFF;
+#else
+	if (GetRValue(Color)<8 && GetGValue(Color)<8 && GetBValue(Color)<8)
+		Color=RGB(8,8,8);
 	crTransColor=RGB(0,0,0);
-	hbr=::CreateSolidBrush(crTransColor);
-	::FillRect(m_hdc,&rc,hbr);
-	::DeleteObject(hbr);
+#endif
 	hfontOld=static_cast<HFONT>(::SelectObject(m_hdc,hfont));
 	crOldTextColor=::SetTextColor(m_hdc,Color);
-	OldBkMode=::SetBkMode(m_hdc,TRANSPARENT);
+	crOldBkColor=::SetBkColor(m_hdc,crTransColor);
+	OldBkMode=::SetBkMode(m_hdc,OPAQUE);
 	::DrawText(m_hdc,pszText,-1,&rc,DT_LEFT | DT_TOP | DT_NOPREFIX);
-	::SetTextColor(m_hdc,crOldTextColor);
 	::SetBkMode(m_hdc,OldBkMode);
+	::SetBkColor(m_hdc,crOldBkColor);
+	::SetTextColor(m_hdc,crOldTextColor);
 	::SelectObject(m_hdc,hfontOld);
 	::SelectObject(m_hdc,m_hbmOld);
 	rcDest.left=x;

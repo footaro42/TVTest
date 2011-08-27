@@ -44,7 +44,12 @@ public:
 	void SetSilent(bool fSilent);
 	bool IsSilent() const { return m_fSilent; }
 	bool LoadSettings();
-	bool SaveSettings();
+	enum {
+		SETTINGS_SAVE_STATUS	=0x0001,
+		SETTINGS_SAVE_OPTIONS	=0x0002,
+		SETTINGS_SAVE_ALL		=SETTINGS_SAVE_STATUS | SETTINGS_SAVE_OPTIONS
+	};
+	bool SaveSettings(unsigned int Flags);
 	bool SaveCurrentChannel();
 	bool IsFirstExecute() const;
 

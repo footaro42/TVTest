@@ -292,8 +292,6 @@ LRESULT CCaptionPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			pCaptionDecoder->SetDRCSMap(NULL);
 
 			ClearCaptionList();
-			SubclassWindow(m_hwndEdit,m_pOldEditProc);
-			::RemoveProp(m_hwndEdit,m_pszPropName);
 			m_hwndEdit=NULL;
 			m_pOldEditProc=NULL;
 		}
@@ -331,6 +329,12 @@ LRESULT CALLBACK CCaptionPanel::EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 
 	case WM_RBUTTONUP:
 		return 0;
+
+	case WM_NCDESTROY:
+		SubclassWindow(hwnd,pThis->m_pOldEditProc);
+		::RemoveProp(hwnd,m_pszPropName);
+		pThis->m_hwndEdit=NULL;
+		break;
 	}
 	return ::CallWindowProc(pThis->m_pOldEditProc,hwnd,uMsg,wParam,lParam);
 }

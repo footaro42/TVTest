@@ -30,7 +30,7 @@ CNFile::~CNFile()
 }
 
 
-const bool CNFile::Open(LPCTSTR lpszName, const BYTE bFlags)
+const bool CNFile::Open(LPCTSTR lpszName, const UINT Flags)
 {
 	if (m_hFile != INVALID_HANDLE_VALUE) {
 		m_LastError = ERROR_BUSY;	// 「要求したリソースは使用中です。」
@@ -45,9 +45,9 @@ const bool CNFile::Open(LPCTSTR lpszName, const BYTE bFlags)
 	// ファイルアクセス属性構築
 	DWORD dwAccess = 0x00000000UL;
 
-	if (bFlags & CNF_READ)
+	if (Flags & CNF_READ)
 		dwAccess |= GENERIC_READ;
-	if (bFlags & CNF_WRITE)
+	if (Flags & CNF_WRITE)
 		dwAccess |= GENERIC_WRITE;
 
 	if (!dwAccess) {
@@ -58,24 +58,32 @@ const bool CNFile::Open(LPCTSTR lpszName, const BYTE bFlags)
 	// ファイル共有属性構築
 	DWORD dwShare = 0x00000000UL;
 
-	if (bFlags & CNF_SHAREREAD)
+	if (Flags & CNF_SHAREREAD)
 		dwShare |= FILE_SHARE_READ;
-	if (bFlags & CNF_SHAREWRITE)
+	if (Flags & CNF_SHAREWRITE)
 		dwShare |= FILE_SHARE_WRITE;
 
 	// ファイル作成属性構築
 	DWORD dwCreate;
 
-	if (bFlags & CNF_NEW)
+	if (Flags & CNF_NEW)
 		dwCreate = CREATE_ALWAYS;
 	else
 		dwCreate = OPEN_EXISTING;
 
+	// ファイル属性/フラグ構築
+	DWORD dwAttributes = FILE_ATTRIBUTE_NORMAL;
+
+	if (Flags & CNF_SEQUENTIALREAD)
+		dwAttributes |= FILE_FLAG_SEQUENTIAL_SCAN;
+	if (Flags & CNF_RANDOMACCESS)
+		dwAttributes |= FILE_FLAG_RANDOM_ACCESS;
+
 	// 長いパス対応
 	LPTSTR pszPath = NULL;
 	const int PathLength = ::lstrlen(lpszName);
-	if (PathLength >= MAX_PATH) {
-		if (lpszName[0] == '\\' && lpszName[1] == '\\') {
+	if (PathLength >= MAX_PATH && ::StrCmpN(lpszName, TEXT("\\\\?"), 3) != 0) {
+		if (lpszName[0] == _T('\\') && lpszName[1] == _T('\\')) {
 			pszPath = new TCHAR[6 + PathLength + 1];
 			::lstrcpy(pszPath, TEXT("\\\\?\\UNC"));
 			::lstrcat(pszPath, &lpszName[1]);
@@ -87,14 +95,34 @@ const bool CNFile::Open(LPCTSTR lpszName, const BYTE bFlags)
 	}
 
 	// ファイルオープン
+	TRACE(TEXT("CNFile::Open() : Open file \"%s\"\n"), pszPath ? pszPath : lpszName);
 	m_hFile = ::CreateFile(pszPath ? pszPath : lpszName,
 						   dwAccess, dwShare, NULL, dwCreate,
-						   FILE_ATTRIBUTE_NORMAL, NULL);
+						   dwAttributes, NULL);
 	delete [] pszPath;
 	if (m_hFile == INVALID_HANDLE_VALUE) {
 		m_LastError = ::GetLastError();
 		return false;
 	}
+
+#if _WIN32_WINNT >= 0x0600
+	// I/O優先度の設定
+	if (Flags & (CNF_PRIORITY_LOW | CNF_PRIORITY_IDLE)) {
+		typedef BOOL (WINAPI *SetFileInformationByHandleFunc)(HANDLE hFile,
+			FILE_INFO_BY_HANDLE_CLASS FileInformationClass, LPVOID lpFileInformation, DWORD dwBufferSize);
+		HMODULE hKernel = ::GetModuleHandle(TEXT("kernel32.dll"));
+		SetFileInformationByHandleFunc pSetFileInformationByHandle =
+			(SetFileInformationByHandleFunc)::GetProcAddress(hKernel, "SetFileInformationByHandle");
+		if (pSetFileInformationByHandle) {
+			FILE_IO_PRIORITY_HINT_INFO PriorityHint;
+			PriorityHint.PriorityHint = (Flags & CNF_PRIORITY_IDLE) ? IoPriorityHintVeryLow : IoPriorityHintLow;
+			TRACE(TEXT("Set file I/O priority hint %d\n"), (int)PriorityHint.PriorityHint);
+			if (!pSetFileInformationByHandle(m_hFile, FileIoPriorityHintInfo, &PriorityHint, sizeof(PriorityHint))) {
+				TRACE(TEXT("ファイルI/O優先度の設定失敗 (Error 0x%x)\n"), ::GetLastError());
+			}
+		}
+	}
+#endif
 
 	m_pszFileName = StdUtil::strdup(lpszName);
 
@@ -315,6 +343,6 @@ DWORD CNFile::GetLastErrorMessage(LPTSTR pszMessage, const DWORD MaxLength) cons
 		m_LastError, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
 		pszMessage, MaxLength, NULL);
 	if (Length == 0)
-		pszMessage[0] = '\0';
+		pszMessage[0] = _T('\0');
 	return Length;
 }

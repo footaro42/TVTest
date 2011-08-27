@@ -13,11 +13,11 @@ class CStatusOptions : public COptions
 public:
 	CStatusOptions(CStatusView *pStatusView);
 	~CStatusOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CStatusOptions
 	bool ApplyOptions();
 	bool GetShowTOTTime() const { return m_fShowTOTTime; }
@@ -50,7 +50,7 @@ private:
 	bool m_fEnablePopupProgramInfo;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	void SetDefaultItemList();
 	void InitListBox(HWND hDlg);

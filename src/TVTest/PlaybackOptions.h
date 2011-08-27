@@ -49,17 +49,18 @@ class CPlaybackOptions : public COptions
 #endif
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	CPlaybackOptions();
 	~CPlaybackOptions();
 // COptions
-	bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+	bool Apply(DWORD Flags) override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CPlaybackOptions
 	LPCTSTR GetAudioDeviceName() const { return m_AudioDeviceName.Get(); }
 	LPCTSTR GetAudioFilterName() const { return m_AudioFilterName.Get(); }

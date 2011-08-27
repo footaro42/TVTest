@@ -46,13 +46,13 @@ static IMFVideoDisplayControl *GetVideoDisplayControl(IBaseFilter *pRenderer)
 
 
 CVideoRenderer_EVR::CVideoRenderer_EVR()
-{
-	//m_hMFPlatLib=NULL;
+	: //m_hMFPlatLib(NULL),
 #ifdef EVR_USE_VIDEO_WINDOW
-	m_hwndVideo=NULL;
-	m_hwndMessageDrain=NULL;
-	m_fShowCursor=true;
+	  m_hwndVideo(NULL)
+	, m_hwndMessageDrain(NULL)
+	, m_fShowCursor(true)
 #endif
+{
 }
 
 
@@ -385,7 +385,13 @@ bool CVideoRenderer_EVR::ShowCursor(bool fShow)
 #ifdef EVR_USE_VIDEO_WINDOW
 	if (m_fShowCursor!=fShow) {
 		if (m_hwndVideo!=NULL) {
-			::SetCursor(fShow?::LoadCursor(NULL,IDC_ARROW):NULL);
+			POINT pt;
+			RECT rc;
+
+			::GetCursorPos(&pt);
+			::GetWindowRect(m_hwndVideo,&rc);
+			if (::PtInRect(&rc,pt))
+				::SetCursor(fShow?::LoadCursor(NULL,IDC_ARROW):NULL);
 		}
 		m_fShowCursor=fShow;
 	}
@@ -521,12 +527,13 @@ LRESULT CALLBACK CVideoRenderer_EVR::VideoWndProc(HWND hwnd,UINT uMsg,WPARAM wPa
 		break;
 
 	case WM_SETCURSOR:
-		{
+		if (LOWORD(lParam)==HTCLIENT) {
 			CVideoRenderer_EVR *pThis=GetThis(hwnd);
 
 			::SetCursor(pThis->m_fShowCursor?::LoadCursor(NULL,IDC_ARROW):NULL);
+			return TRUE;
 		}
-		return TRUE;
+		break;
 
 	case WM_DESTROY:
 		{

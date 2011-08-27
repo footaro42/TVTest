@@ -30,9 +30,9 @@ bool CEpgIcons::Draw(HDC hdcDst,int DstX,int DstY,
 				 hdcSrc,Icon*ICON_WIDTH,0,SRCCOPY);
 	} else {
 		BLENDFUNCTION bf={AC_SRC_OVER,0,Opacity,0};
-		::AlphaBlend(hdcDst,DstX,DstY,Width,Height,
-					 hdcSrc,Icon*ICON_WIDTH,0,Width,Height,
-					 bf);
+		::GdiAlphaBlend(hdcDst,DstX,DstY,Width,Height,
+						hdcSrc,Icon*ICON_WIDTH,0,Width,Height,
+						bf);
 	}
 	return true;
 }

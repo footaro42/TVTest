@@ -63,7 +63,9 @@ bool CInformationPanel::Initialize(HINSTANCE hinst)
 
 
 CInformationPanel::CInformationPanel()
-	: m_hwndProgramInfo(NULL)
+	: CSettingsBase(TEXT("InformationPanel"))
+
+	, m_hwndProgramInfo(NULL)
 	, m_pOldProgramInfoProc(NULL)
 	, m_hwndProgramInfoPrev(NULL)
 	, m_hwndProgramInfoNext(NULL)
@@ -487,7 +489,6 @@ LRESULT CInformationPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 		return 0;
 
 	case WM_DESTROY:
-		SubclassWindow(m_hwndProgramInfo,m_pOldProgramInfoProc);
 		m_BackBrush.Destroy();
 		m_ProgramInfoBackBrush.Destroy();
 		m_Offscreen.Destroy();
@@ -496,7 +497,7 @@ LRESULT CInformationPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 		m_hwndProgramInfoNext=NULL;
 		return 0;
 	}
-	return DefWindowProc(hwnd,uMsg,wParam,lParam);
+	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
 
@@ -599,10 +600,12 @@ LRESULT CALLBACK CInformationPanel::ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPAR
 		return 0;
 
 	case WM_NCDESTROY:
+		SubclassWindow(hwnd,pThis->m_pOldProgramInfoProc);
 		::RemoveProp(hwnd,APP_NAME TEXT("This"));
+		pThis->m_hwndProgramInfo=NULL;
 		break;
 	}
-	return CallWindowProc(pThis->m_pOldProgramInfoProc,hwnd,uMsg,wParam,lParam);
+	return ::CallWindowProc(pThis->m_pOldProgramInfoProc,hwnd,uMsg,wParam,lParam);
 }
 
 
@@ -821,28 +824,20 @@ void CInformationPanel::DrawItem(HDC hdc,LPCTSTR pszText,const RECT &Rect)
 }
 
 
-bool CInformationPanel::Load(LPCTSTR pszFileName)
+bool CInformationPanel::ReadSettings(CSettings &Settings)
 {
-	CSettings Settings;
+	for (int i=0;i<lengthof(m_pszItemNameList);i++) {
+		bool f;
 
-	if (Settings.Open(pszFileName,TEXT("InformationPanel"),CSettings::OPEN_READ)) {
-		for (int i=0;i<lengthof(m_pszItemNameList);i++) {
-			bool f;
-
-			if (Settings.Read(m_pszItemNameList[i],&f))
-				SetItemVisible(i,f);
-		}
+		if (Settings.Read(m_pszItemNameList[i],&f))
+			SetItemVisible(i,f);
 	}
 	return true;
 }
 
 
-bool CInformationPanel::Save(LPCTSTR pszFileName) const
+bool CInformationPanel::WriteSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (!Settings.Open(pszFileName,TEXT("InformationPanel"),CSettings::OPEN_WRITE))
-		return false;
 	for (int i=0;i<lengthof(m_pszItemNameList);i++)
 		Settings.Write(m_pszItemNameList[i],IsItemVisible(i));
 	return true;

@@ -19,8 +19,6 @@ static char THIS_FILE[]=__FILE__;
 // 構築/消滅
 //////////////////////////////////////////////////////////////////////
 
-// stl::vector<BYTE>で書き直した方がいいかもしれない
-
 #define MINBUFSIZE	256UL		// 最小バッファサイズ
 //#define MINADDSIZE	256UL		// 最小追加確保サイズ
 
@@ -71,7 +69,8 @@ CMediaData::CMediaData(const BYTE byFiller, const DWORD dwDataSize)
 
 CMediaData::~CMediaData()
 {
-	free(m_pData);
+	if (m_pData)
+		Free(m_pData);
 }
 
 CMediaData & CMediaData::operator = (const CMediaData &Operand)
@@ -222,7 +221,7 @@ const DWORD CMediaData::GetBuffer(const DWORD dwGetSize)
 		// バッファ確保まだ
 		DWORD dwBuffSize = max(dwGetSize, MINBUFSIZE);
 
-		m_pData = static_cast<BYTE*>(malloc(dwBuffSize));
+		m_pData = static_cast<BYTE*>(Allocate(dwBuffSize));
 		if (m_pData)
 			m_dwBuffSize = dwBuffSize;
 	} else if (dwGetSize > m_dwBuffSize) {
@@ -236,7 +235,7 @@ const DWORD CMediaData::GetBuffer(const DWORD dwGetSize)
 			dwBuffSize = (dwBuffSize / 0x100000UL + 1) * 0x100000UL;
 		}
 
-		BYTE *pNewBuffer = static_cast<BYTE*>(realloc(m_pData, dwBuffSize));
+		BYTE *pNewBuffer = static_cast<BYTE*>(ReAllocate(m_pData, dwBuffSize));
 
 		if (pNewBuffer != NULL) {
 			m_dwBuffSize = dwBuffSize;
@@ -285,7 +284,22 @@ void CMediaData::ClearBuffer(void)
 	m_dwDataSize = 0UL;
 	m_dwBuffSize = 0UL;
 	if (m_pData) {
-		free(m_pData);
+		Free(m_pData);
 		m_pData = NULL;
 	}
+}
+
+void *CMediaData::Allocate(size_t Size)
+{
+	return malloc(Size);
+}
+
+void CMediaData::Free(void *pBuffer)
+{
+	free(pBuffer);
+}
+
+void *CMediaData::ReAllocate(void *pBuffer, size_t Size)
+{
+	return realloc(pBuffer, Size);
 }

@@ -49,6 +49,7 @@ public:
 	bool m_fFullscreen;
 	bool m_fMinimize;
 	bool m_fMaximize;
+	bool m_fTray;
 	int m_WindowLeft;
 	int m_WindowTop;
 	int m_WindowWidth;

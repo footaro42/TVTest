@@ -10,6 +10,8 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define MAX_LOGO_BYTES 1296
+
 #define PNG_SIGNATURE "\x89PNG\r\n\x1A\n"
 
 
@@ -199,7 +201,7 @@ bool CLogoManager::LoadLogoFile(LPCTSTR pszFileName)
 	CBlockLock Lock(&m_Lock);
 
 	HANDLE hFile=::CreateFile(pszFileName,GENERIC_READ,FILE_SHARE_READ,NULL,
-							  OPEN_EXISTING,0,NULL);
+							  OPEN_EXISTING,FILE_FLAG_SEQUENTIAL_SCAN,NULL);
 	if (hFile==INVALID_HANDLE_VALUE)
 		return false;
 
@@ -215,8 +217,7 @@ bool CLogoManager::LoadLogoFile(LPCTSTR pszFileName)
 		return false;
 	}
 
-	BYTE *pBuffer=NULL;
-	WORD BufferSize=0;
+	BYTE *pBuffer=new BYTE[MAX_LOGO_BYTES];
 	for (DWORD i=0;i<FileHeader.NumImages;i++) {
 		LogoImageHeader ImageHeader;
 
@@ -224,16 +225,13 @@ bool CLogoManager::LoadLogoFile(LPCTSTR pszFileName)
 				|| Read!=sizeof(ImageHeader)
 				|| ImageHeader.LogoType>0x05
 				|| ImageHeader.Reserved!=0
-				|| ImageHeader.DataSize==0) {
+				|| ImageHeader.DataSize<=8
+				|| ImageHeader.DataSize>MAX_LOGO_BYTES) {
 			delete [] pBuffer;
 			::CloseHandle(hFile);
 			return false;
 		}
-		if (BufferSize<ImageHeader.DataSize) {
-			delete [] pBuffer;
-			BufferSize=ImageHeader.DataSize+1024;
-			pBuffer=new BYTE[BufferSize];
-		}
+
 		DWORD CRC;
 		if (!::ReadFile(hFile,pBuffer,ImageHeader.DataSize,&Read,NULL)
 					|| Read!=ImageHeader.DataSize

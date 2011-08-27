@@ -25,8 +25,12 @@ static char THIS_FILE[]=__FILE__;
 //////////////////////////////////////////////////////////////////////
 
 CTsPacket::CTsPacket()
-	: CMediaData(TS_PACKETSIZE)
+	 //: CMediaData(TS_PACKETSIZE)
 {
+	_ASSERT(!m_pData);
+
+	GetBuffer(4 + 192);
+
 	// 空のパケットを生成する
 	::ZeroMemory(&m_Header, sizeof(m_Header));
 	::ZeroMemory(&m_AdaptationField, sizeof(m_AdaptationField));
@@ -43,7 +47,12 @@ CTsPacket::CTsPacket(const CTsPacket &Operand)
 {
 	*this = Operand;
 }
-	
+
+CTsPacket::~CTsPacket()
+{
+	ClearBuffer();
+}
+
 CTsPacket & CTsPacket::operator = (const CTsPacket &Operand)
 {
 	if (&Operand != this) {
@@ -191,6 +200,22 @@ void CTsPacket::RestoreFromBuffer(const void *pBuffer)
 	::CopyMemory(&m_AdaptationField,p,sizeof(m_AdaptationField));
 	if (m_AdaptationField.pOptionData)
 		m_AdaptationField.pOptionData=&m_pData[6];
+}
+
+void *CTsPacket::Allocate(size_t Size)
+{
+	// スクランブル解除時に都合がいいように、ペイロードを16バイト境界に合わせる
+	return _aligned_offset_malloc(Size, 16, 4);
+}
+
+void CTsPacket::Free(void *pBuffer)
+{
+	_aligned_free(pBuffer);
+}
+
+void *CTsPacket::ReAllocate(void *pBuffer, size_t Size)
+{
+	return _aligned_offset_realloc(pBuffer, Size, 16, 4);
 }
 
 

@@ -26,13 +26,13 @@ public:
 
 	COperationOptions();
 	~COperationOptions();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // COperationOptions
-	bool Initialize(LPCTSTR pszFileName,const CCommandList *pCommandList);
+	bool Initialize(CSettingsFile &SettingsFile,const CCommandList *pCommandList);
 	bool GetDisplayDragMove() const { return m_fDisplayDragMove; }
 	int GetVolumeStep() const { return m_VolumeStep; }
 	WheelMode GetWheelMode() const { return m_WheelMode; }
@@ -67,7 +67,6 @@ private:
 // CBasicDialog
 	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
-	bool Load(LPCTSTR pszFileName);
 	void InitWheelSettings(int ID,WheelMode Mode) const;
 };
 

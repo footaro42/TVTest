@@ -476,7 +476,7 @@ bool CCoreEngine::SetStereoMode(int Mode)
 {
 	if (Mode<0 || Mode>2)
 		return false;
-	if (Mode!=m_StereoMode) {
+	/*if (Mode!=m_StereoMode)*/ {
 		m_DtvEngine.SetStereoMode(Mode);
 		m_StereoMode=Mode;
 	}
@@ -489,7 +489,7 @@ bool CCoreEngine::SetAutoStereoMode(int Mode)
 	if (Mode<0 || Mode>2)
 		return false;
 	if (Mode!=m_AutoStereoMode) {
-		m_DtvEngine.m_MediaViewer.SetStereoMode(Mode);
+		m_DtvEngine.m_MediaViewer.SetAutoStereoMode(Mode);
 		m_AutoStereoMode=Mode;
 	}
 	return true;

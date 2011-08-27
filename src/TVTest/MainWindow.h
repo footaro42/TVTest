@@ -129,15 +129,25 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	CBasicViewer m_Viewer;
 	CTitleBar m_TitleBar;
 	CFullscreen m_Fullscreen;
+
 	bool m_fShowStatusBar;
+	bool m_fPopupStatusBar;
 	bool m_fShowTitleBar;
 	bool m_fCustomTitleBar;
+	bool m_fPopupTitleBar;
 	bool m_fSplitTitleBar;
 	bool m_fShowSideBar;
 	int m_PanelPaneIndex;
-	static int m_ThinFrameWidth;
-	static bool m_fThinFrameCreate;
-	bool m_fThinFrame;
+	bool m_fCustomFrame;
+	int m_CustomFrameWidth;
+	int m_ThinFrameWidth;
+	enum {
+		FRAME_NORMAL,
+		FRAME_CUSTOM,
+		FRAME_NONE
+	};
+	bool m_fViewWindowEdge;
+
 	bool m_fStandbyInit;
 	bool m_fMinimizeInit;
 	bool m_fSrcFilterReleased;
@@ -150,9 +160,11 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
 	bool m_fClosing;
+
 	int m_WheelCount;
 	int m_PrevWheelMode;
 	DWORD m_PrevWheelTime;
+
 	enum {
 		ASPECTRATIO_DEFAULT,
 		ASPECTRATIO_16x9,
@@ -207,6 +219,8 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	CDisplayBaseEventHandler m_DisplayBaseEventHandler;
 	friend CDisplayBaseEventHandler;
 
+	static ATOM m_atomChildOldWndProcProp;
+
 // CUISkin
 	HWND GetMainWindow() const override { return m_hwnd; }
 	bool InitializeViewer() override;
@@ -242,6 +256,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool OnCreate(const CREATESTRUCT *pcs);
 	void OnSizeChanged(UINT State,int Width,int Height);
 	bool OnSizeChanging(UINT Edge,RECT *pRect);
+	void OnMouseMove(int x,int y);
 	void OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify);
 	void OnTimer(HWND hwnd,UINT id);
 	bool OnInitMenuPopup(HMENU hmenu);
@@ -256,22 +271,27 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool OpenTuner();
 	void SetTitleText(bool fEvent);
 	void RefreshChannelPanel();
+	void HookWindows(HWND hwnd);
+	void HookChildWindow(HWND hwnd);
 
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static DWORD WINAPI ExitWatchThread(LPVOID lpParameter);
+	static LRESULT CALLBACK ChildHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
 public:
 	enum { COMMAND_FROM_MOUSE=8 };
 
 	CMainWindow();
+	~CMainWindow();
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
 	bool Show(int CmdShow);
+	void CreatePanel();
 	void ShowNotificationBar(LPCTSTR pszText,
 							 CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO,
 							 DWORD Duration=0);
 	void AdjustWindowSize(int Width,int Height);
-	bool ReadSettings(CSettings *pSettings);
-	bool WriteSettings(CSettings *pSettings);
+	bool ReadSettings(CSettings &Settings);
+	bool WriteSettings(CSettings &Settings);
 	void SetStatusBarVisible(bool fVisible);
 	bool GetStatusBarVisible() const { return m_fShowStatusBar; }
 	void SetTitleBarVisible(bool fVisible);
@@ -280,10 +300,11 @@ public:
 	bool GetCustomTitleBar() const { return m_fCustomTitleBar; }
 	void SetSplitTitleBar(bool fSplit);
 	bool GetSplitTitleBar() const { return m_fSplitTitleBar; }
-	void SetThinFrame(bool fThinFrame);
-	bool GetThinFrame() const { return m_fThinFrame; }
+	void SetCustomFrame(bool fCustomFrame,int Width=0);
+	bool GetCustomFrame() const { return m_fCustomFrame; }
 	void SetSideBarVisible(bool fVisible);
 	bool GetSideBarVisible() const { return m_fShowSideBar; }
+	bool OnBarMouseLeave(HWND hwnd);
 	int GetPanelPaneIndex() const;
 	bool IsFullscreenPanelVisible() const { return m_Fullscreen.IsPanelVisible(); }
 	int GetAspectRatioType() const { return m_AspectRatioType; }
@@ -302,12 +323,14 @@ public:
 	void ApplyColorScheme(const class CColorScheme *pColorScheme);
 	bool SetLogo(LPCTSTR pszFileName);
 	bool SetViewWindowEdge(bool fEdge);
+	bool GetViewWindowEdge() const { return m_fViewWindowEdge; }
 	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
 	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
 	CStatusView *GetStatusView() const;
 	Layout::CLayoutBase &GetLayoutBase() { return m_LayoutBase; }
 	CTitleBar &GetTitleBar() { return m_TitleBar; }
 	bool UpdateProgramInfo();
+
 	static bool Initialize();
 
 // CUISkin

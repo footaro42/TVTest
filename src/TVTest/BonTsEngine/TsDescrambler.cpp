@@ -44,9 +44,6 @@ private:
 
 	CTsDescrambler *m_pDescrambler;
 	CMulti2Decoder m_Multi2Decoder;
-#ifdef MULTI2_SSE2
-	CMulti2Decoder::DecodeFunc m_pDecodeFunc;
-#endif
 	WORD m_EcmPID;
 	CLocalEvent m_EcmProcessEvent;
 	CCriticalLock m_Multi2Lock;
@@ -239,9 +236,14 @@ CTsDescrambler::CTsDescrambler(IEventHandler *pEventHandler)
 	, m_CurTransportStreamID(0)
 	, m_DescrambleServiceID(0)
 	, m_Queue(&m_BcasCard)
+	, m_Instruction(INSTRUCTION_NORMAL)
 	, m_EmmPID(0xFFFF)
 {
-	m_bEnableSSE2 = IsSSE2Available();
+	if (IsSSSE3Available())
+		m_Instruction = INSTRUCTION_SSSE3;
+	else if (IsSSE2Available())
+		m_Instruction = INSTRUCTION_SSE2;
+
 	Reset();
 }
 
@@ -527,11 +529,36 @@ bool CTsDescrambler::IsSSE2Available()
 #endif
 }
 
-bool CTsDescrambler::EnableSSE2(bool bEnable)
+bool CTsDescrambler::IsSSSE3Available()
 {
-	if (bEnable && !IsSSE2Available())
+#ifdef MULTI2_SSSE3
+	return CMulti2Decoder::IsSSSE3Available();
+#else
+	return false;
+#endif
+}
+
+bool CTsDescrambler::SetInstruction(InstructionType Type)
+{
+	TRACE(TEXT("CTsDescrambler::SetInstruction(%d)\n"), Type);
+
+	switch (Type) {
+	case INSTRUCTION_NORMAL:
+		break;
+	case INSTRUCTION_SSE2:
+		if (!IsSSE2Available())
+			return false;
+		break;
+	case INSTRUCTION_SSSE3:
+		if (!IsSSSE3Available())
+			return false;
+		break;
+	default:
 		return false;
-	m_bEnableSSE2 = bEnable;
+	}
+
+	m_Instruction = Type;
+
 	return true;
 }
 
@@ -849,6 +876,17 @@ bool CEcmProcessor::m_bCardReaderHung = false;
 CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 	: CPsiSingleTable(true)
 	, m_pDescrambler(pDescrambler)
+#ifdef MULTI2_SIMD
+	, m_Multi2Decoder(
+#ifdef MULTI2_SSE2
+		pDescrambler->m_Instruction == CTsDescrambler::INSTRUCTION_SSE2 ? CMulti2Decoder::INSTRUCTION_SSE2 :
+#endif
+#ifdef MULTI2_SSSE3
+		pDescrambler->m_Instruction == CTsDescrambler::INSTRUCTION_SSSE3 ? CMulti2Decoder::INSTRUCTION_SSSE3 :
+#endif
+		CMulti2Decoder::INSTRUCTION_NORMAL
+		)
+#endif
 	, m_EcmPID(0xFFFF)
 	, m_bEcmReceived(false)
 	, m_bLastEcmSucceed(true)
@@ -858,13 +896,6 @@ CEcmProcessor::CEcmProcessor(CTsDescrambler *pDescrambler)
 	, m_bEcmErrorSent(false)
 	, m_LastScramblingCtrl(0)
 {
-#ifdef MULTI2_SSE2
-	if (pDescrambler->m_bEnableSSE2)
-		m_pDecodeFunc = &CMulti2Decoder::DecodeSSE2;
-	else
-		m_pDecodeFunc = &CMulti2Decoder::Decode;
-#endif
-
 	// MULTI2デコーダにシステムキーと初期CBCをセット
 	if (m_pDescrambler->m_BcasCard.IsCardOpen())
 		m_Multi2Decoder.Initialize(m_pDescrambler->m_BcasCard.GetSystemKey(),
@@ -942,11 +973,7 @@ const bool CEcmProcessor::DescramblePacket(CTsPacket *pTsPacket)
 
 	// スクランブル解除
 	if ((bEven && m_bEvenKeyValid) || (!bEven && m_bOddKeyValid)) {
-#ifdef MULTI2_SSE2
-		if ((m_Multi2Decoder.*m_pDecodeFunc)
-#else
 		if (m_Multi2Decoder.Decode
-#endif
 				(pTsPacket->GetPayloadData(),
 				(DWORD)pTsPacket->GetPayloadSize(),
 				ScramblingCtrl)) {

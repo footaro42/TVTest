@@ -27,17 +27,16 @@ class CLogger : public COptions, public CTracer
 	CCriticalLock m_Lock;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	CLogger();
 	~CLogger();
-// COptions
-	bool Read(CSettings *pSettings) override;
-	bool Write(CSettings *pSettings) const override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CLogger
 	bool AddLog(LPCTSTR pszText, ...);
 	bool AddLogV(LPCTSTR pszText,va_list Args);

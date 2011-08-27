@@ -18,15 +18,6 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-static void FillRandomData(BYTE *pData,size_t Size)
-{
-	for (size_t i=0;i<Size;i++)
-		pData[i]=::rand()&0xFF;
-}
-
-
-
-
 CGeneralOptions::CGeneralOptions()
 	: m_DefaultDriverType(DEFAULT_DRIVER_LAST)
 	, m_VideoRendererType(CVideoRenderer::RENDERER_DEFAULT)
@@ -34,12 +25,10 @@ CGeneralOptions::CGeneralOptions()
 	, m_fTemporaryNoDescramble(false)
 	, m_fResident(false)
 	, m_fKeepSingleTask(false)
-#ifdef _M_AMD64
-	, m_fDescrambleUseSSE2(CTsDescrambler::IsSSE2Available())
-#else
-	// SSE2 の方が遅いプロセッサもあるのでデフォルトは false にしておく
-	, m_fDescrambleUseSSE2(false)
-#endif
+	, m_DescrambleInstruction(
+		CTsDescrambler::IsSSSE3Available()?CTsDescrambler::INSTRUCTION_SSSE3:
+		CTsDescrambler::IsSSE2Available()?CTsDescrambler::INSTRUCTION_SSE2:
+		CTsDescrambler::INSTRUCTION_NORMAL)
 	, m_fDescrambleCurServiceOnly(false)
 	, m_fEnableEmmProcess(false)
 {
@@ -84,28 +73,28 @@ bool CGeneralOptions::Apply(DWORD Flags)
 }
 
 
-bool CGeneralOptions::Read(CSettings *pSettings)
+bool CGeneralOptions::ReadSettings(CSettings &Settings)
 {
 	int Value;
 
 	TCHAR szDirectory[MAX_PATH];
-	if (pSettings->Read(TEXT("DriverDirectory"),szDirectory,lengthof(szDirectory))
+	if (Settings.Read(TEXT("DriverDirectory"),szDirectory,lengthof(szDirectory))
 			&& szDirectory[0]!='\0') {
 		::lstrcpy(m_szDriverDirectory,szDirectory);
 		GetAppClass().GetCoreEngine()->SetDriverDirectory(szDirectory);
 	}
-	if (pSettings->Read(TEXT("DefaultDriverType"),&Value)
+	if (Settings.Read(TEXT("DefaultDriverType"),&Value)
 			&& Value>=DEFAULT_DRIVER_NONE && Value<=DEFAULT_DRIVER_CUSTOM)
 		m_DefaultDriverType=(DefaultDriverType)Value;
-	pSettings->Read(TEXT("DefaultDriver"),
-					m_szDefaultDriverName,lengthof(m_szDefaultDriverName));
-	pSettings->Read(TEXT("Driver"),
-					m_szLastDriverName,lengthof(m_szLastDriverName));
+	Settings.Read(TEXT("DefaultDriver"),
+				  m_szDefaultDriverName,lengthof(m_szDefaultDriverName));
+	Settings.Read(TEXT("Driver"),
+				  m_szLastDriverName,lengthof(m_szLastDriverName));
 	TCHAR szDecoder[MAX_MPEG2_DECODER_NAME];
-	if (pSettings->Read(TEXT("Mpeg2Decoder"),szDecoder,lengthof(szDecoder)))
+	if (Settings.Read(TEXT("Mpeg2Decoder"),szDecoder,lengthof(szDecoder)))
 		m_Mpeg2DecoderName.Set(szDecoder);
 	TCHAR szRenderer[16];
-	if (pSettings->Read(TEXT("Renderer"),szRenderer,lengthof(szRenderer))) {
+	if (Settings.Read(TEXT("Renderer"),szRenderer,lengthof(szRenderer))) {
 		if (szRenderer[0]=='\0') {
 			m_VideoRendererType=CVideoRenderer::RENDERER_DEFAULT;
 		} else {
@@ -114,37 +103,52 @@ bool CGeneralOptions::Read(CSettings *pSettings)
 				m_VideoRendererType=Renderer;
 		}
 	}
-	bool fNoDescramble;
-	if (pSettings->Read(TEXT("NoDescramble"),&fNoDescramble) && fNoDescramble)	// Backward compatibility
-		m_CardReaderType=CCoreEngine::CARDREADER_NONE;
-	if (pSettings->Read(TEXT("CardReader"),&Value)
-			&& Value>=CCoreEngine::CARDREADER_NONE && Value<=CCoreEngine::CARDREADER_LAST)
-		m_CardReaderType=(CCoreEngine::CardReaderType)Value;
-	pSettings->Read(TEXT("Resident"),&m_fResident);
-	pSettings->Read(TEXT("KeepSingleTask"),&m_fKeepSingleTask);
-	pSettings->Read(TEXT("DescrambleSSE2"),&m_fDescrambleUseSSE2);
-	pSettings->Read(TEXT("DescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
-	pSettings->Read(TEXT("ProcessEMM"),&m_fEnableEmmProcess);
+	if (Settings.Read(TEXT("CardReader"),&Value)) {
+		if (Value>=CCoreEngine::CARDREADER_NONE && Value<=CCoreEngine::CARDREADER_LAST)
+			m_CardReaderType=(CCoreEngine::CardReaderType)Value;
+	} else {
+		// 以前のバージョンとの互換用
+		bool fNoDescramble;
+		if (Settings.Read(TEXT("NoDescramble"),&fNoDescramble) && fNoDescramble)
+			m_CardReaderType=CCoreEngine::CARDREADER_NONE;
+	}
+
+	bool f;
+	if (Settings.Read(TEXT("DescrambleSSSE3"),&f) && f && CTsDescrambler::IsSSSE3Available()) {
+		m_DescrambleInstruction=CTsDescrambler::INSTRUCTION_SSSE3;
+	} else if (Settings.Read(TEXT("DescrambleSSE2"),&f)) {
+		if (f && CTsDescrambler::IsSSE2Available())
+			m_DescrambleInstruction=CTsDescrambler::INSTRUCTION_SSE2;
+		else
+			m_DescrambleInstruction=CTsDescrambler::INSTRUCTION_NORMAL;
+	}
+
+	Settings.Read(TEXT("DescrambleCurServiceOnly"),&m_fDescrambleCurServiceOnly);
+	Settings.Read(TEXT("ProcessEMM"),&m_fEnableEmmProcess);
+
+	Settings.Read(TEXT("Resident"),&m_fResident);
+	Settings.Read(TEXT("KeepSingleTask"),&m_fKeepSingleTask);
 	return true;
 }
 
 
-bool CGeneralOptions::Write(CSettings *pSettings) const
+bool CGeneralOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("DriverDirectory"),m_szDriverDirectory);
-	pSettings->Write(TEXT("DefaultDriverType"),(int)m_DefaultDriverType);
-	pSettings->Write(TEXT("DefaultDriver"),m_szDefaultDriverName);
-	pSettings->Write(TEXT("Driver"),GetAppClass().GetCoreEngine()->GetDriverFileName());
-	pSettings->Write(TEXT("Mpeg2Decoder"),m_Mpeg2DecoderName.GetSafe());
-	pSettings->Write(TEXT("Renderer"),
-					 CVideoRenderer::EnumRendererName((int)m_VideoRendererType));
-	pSettings->Write(TEXT("NoDescramble"),m_CardReaderType==CCoreEngine::CARDREADER_NONE);	// Backward compatibility
-	pSettings->Write(TEXT("CardReader"),(int)m_CardReaderType);
-	pSettings->Write(TEXT("Resident"),m_fResident);
-	pSettings->Write(TEXT("KeepSingleTask"),m_fKeepSingleTask);
-	pSettings->Write(TEXT("DescrambleSSE2"),m_fDescrambleUseSSE2);
-	pSettings->Write(TEXT("DescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
-	pSettings->Write(TEXT("ProcessEMM"),m_fEnableEmmProcess);
+	Settings.Write(TEXT("DriverDirectory"),m_szDriverDirectory);
+	Settings.Write(TEXT("DefaultDriverType"),(int)m_DefaultDriverType);
+	Settings.Write(TEXT("DefaultDriver"),m_szDefaultDriverName);
+	Settings.Write(TEXT("Driver"),GetAppClass().GetCoreEngine()->GetDriverFileName());
+	Settings.Write(TEXT("Mpeg2Decoder"),m_Mpeg2DecoderName.GetSafe());
+	Settings.Write(TEXT("Renderer"),
+				   CVideoRenderer::EnumRendererName((int)m_VideoRendererType));
+	//Settings.Write(TEXT("NoDescramble"),m_CardReaderType==CCoreEngine::CARDREADER_NONE);
+	Settings.Write(TEXT("CardReader"),(int)m_CardReaderType);
+	Settings.Write(TEXT("DescrambleSSE2"),m_DescrambleInstruction!=CTsDescrambler::INSTRUCTION_NORMAL);
+	Settings.Write(TEXT("DescrambleSSSE3"),m_DescrambleInstruction==CTsDescrambler::INSTRUCTION_SSSE3);
+	Settings.Write(TEXT("DescrambleCurServiceOnly"),m_fDescrambleCurServiceOnly);
+	Settings.Write(TEXT("ProcessEMM"),m_fEnableEmmProcess);
+	Settings.Write(TEXT("Resident"),m_fResident);
+	Settings.Write(TEXT("KeepSingleTask"),m_fKeepSingleTask);
 	return true;
 }
 
@@ -354,19 +358,25 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 			DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_CARDREADER,
 				(int)(m_fTemporaryNoDescramble?CCoreEngine::CARDREADER_NONE:m_CardReaderType));
 
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,m_fResident);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,m_fKeepSingleTask);
-			if (CTsDescrambler::IsSSE2Available())
-				DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,m_fDescrambleUseSSE2);
-			else
-				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
-									IDC_OPTIONS_DESCRAMBLEBENCHMARK,false);
+			DlgComboBox_AddString(hDlg,IDC_OPTIONS_DESCRAMBLEINSTRUCTION,TEXT("なし"));
+			if (CTsDescrambler::IsSSE2Available()) {
+				DlgComboBox_AddString(hDlg,IDC_OPTIONS_DESCRAMBLEINSTRUCTION,TEXT("SSE2"));
+				if (CTsDescrambler::IsSSSE3Available())
+					DlgComboBox_AddString(hDlg,IDC_OPTIONS_DESCRAMBLEINSTRUCTION,TEXT("SSSE3"));
+				DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_DESCRAMBLEINSTRUCTION,(int)m_DescrambleInstruction);
+			} else {
+				DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_DESCRAMBLEINSTRUCTION,0);
+			}
+
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,m_fDescrambleCurServiceOnly);
 			if (m_CardReaderType==CCoreEngine::CARDREADER_NONE)
-				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
-									IDC_OPTIONS_ENABLEEMMPROCESS,false);
+				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLE_FIRST,
+									IDC_OPTIONS_DESCRAMBLE_LAST,false);
 
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ENABLEEMMPROCESS,m_fEnableEmmProcess);
+
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESIDENT,m_fResident);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_KEEPSINGLETASK,m_fKeepSingleTask);
 		}
 		return TRUE;
 
@@ -432,11 +442,8 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 			if (HIWORD(wParam)==CBN_SELCHANGE) {
 				bool fBcas=DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_CARDREADER)>0;
 
-				if (CTsDescrambler::IsSSE2Available())
-					EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2,
-										IDC_OPTIONS_DESCRAMBLEBENCHMARK,fBcas);
-				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY,
-									IDC_OPTIONS_ENABLEEMMPROCESS,fBcas);
+				EnableDlgItems(hDlg,IDC_OPTIONS_DESCRAMBLE_FIRST,
+									IDC_OPTIONS_DESCRAMBLE_LAST,fBcas);
 			}
 			return TRUE;
 
@@ -447,61 +454,7 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					TEXT("結果はばらつきがありますので、数回実行してください。"),
 					TEXT("ベンチマークテスト"),
 					MB_OKCANCEL | MB_ICONINFORMATION)==IDOK) {
-				static const DWORD BENCHMARK_COUNT=400000;
-				HCURSOR hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
-				CMulti2Decoder Multi2Decoder;
-				BYTE SystemKey[32],InitialCbc[8],ScrambleKey[16],PacketData[188];
-				DWORD BenchmarkCount=0,StartTime,NormalTime,SSE2Time;
-
-				FillRandomData(SystemKey,sizeof(SystemKey));
-				FillRandomData(InitialCbc,sizeof(InitialCbc));
-				FillRandomData(PacketData,sizeof(PacketData));
-				Multi2Decoder.Initialize(SystemKey,InitialCbc);
-				NormalTime=SSE2Time=0;
-				do {
-					StartTime=::timeGetTime();
-					for (int i=0;i<BENCHMARK_COUNT;i++) {
-						if (i%10000==0) {
-							FillRandomData(ScrambleKey,sizeof(ScrambleKey));
-							Multi2Decoder.SetScrambleKey(ScrambleKey);
-						}
-						Multi2Decoder.Decode(PacketData+4,sizeof(PacketData)-4,2);
-					}
-					NormalTime+=TickTimeSpan(StartTime,::timeGetTime());
-					StartTime=::timeGetTime();
-					for (int i=0;i<BENCHMARK_COUNT;i++) {
-						if (i%10000==0) {
-							FillRandomData(ScrambleKey,sizeof(ScrambleKey));
-							Multi2Decoder.SetScrambleKey(ScrambleKey);
-						}
-						Multi2Decoder.DecodeSSE2(PacketData+4,sizeof(PacketData)-4,2);
-					}
-					SSE2Time+=TickTimeSpan(StartTime,::timeGetTime());
-					BenchmarkCount+=BENCHMARK_COUNT;
-				} while (NormalTime<1000 && SSE2Time<1000);
-
-				::SetCursor(hcurOld);
-				int Percentage;
-				if (NormalTime>=SSE2Time)
-					Percentage=(int)(NormalTime*100/SSE2Time)-100;
-				else
-					Percentage=-(int)((SSE2Time*100/NormalTime)-100);
-				// 表示されるメッセージに深い意味はない
-				TCHAR szText[256];
-				StdUtil::snprintf(szText,lengthof(szText),
-						   TEXT("%lu 回の実行に掛かった時間\n")
-						   TEXT("SSE2不使用 : %lu ms\n")
-						   TEXT("SSE2使用 : %lu ms\n")
-						   TEXT("SSE2で高速化される割合 : %d %%\n")
-						   TEXT("\n%s"),
-						   BenchmarkCount,NormalTime,SSE2Time,Percentage,
-						   Percentage<=5?
-								TEXT("SSE2を無効にすることをお勧めします。"):
-						   Percentage<10?TEXT("微妙…"):
-								TEXT("SSE2を有効にすることをお勧めします。"));
-				CMessageDialog MessageDialog;
-				MessageDialog.Show(hDlg,CMessageDialog::TYPE_INFO,szText,
-								   TEXT("ベンチマークテスト結果"),NULL,TEXT("ベンチマークテスト"));
+				DescrambleBenchmarkTest(hDlg);
 			}
 			return TRUE;
 		}
@@ -555,17 +508,9 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					SetUpdateFlag(UPDATE_CARDREADER);
 				}
 
-				bool fResident=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESIDENT);
-				if (fResident!=m_fResident) {
-					m_fResident=fResident;
-					SetUpdateFlag(UPDATE_RESIDENT);
-				}
-
-				m_fKeepSingleTask=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_KEEPSINGLETASK);
-
-				m_fDescrambleUseSSE2=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DESCRAMBLEUSESSE2);
+				Sel=(int)DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_DESCRAMBLEINSTRUCTION);
+				if (Sel>=0)
+					m_DescrambleInstruction=(CTsDescrambler::InstructionType)Sel;
 
 				bool fCurOnly=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_DESCRAMBLECURSERVICEONLY);
 				if (fCurOnly!=m_fDescrambleCurServiceOnly) {
@@ -578,6 +523,17 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					m_fEnableEmmProcess=fEmm;
 					SetUpdateFlag(UPDATE_ENABLEEMMPROCESS);
 				}
+
+				bool fResident=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESIDENT);
+				if (fResident!=m_fResident) {
+					m_fResident=fResident;
+					SetUpdateFlag(UPDATE_RESIDENT);
+				}
+
+				m_fKeepSingleTask=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_KEEPSINGLETASK);
+
+				m_fChanged=true;
 			}
 			return TRUE;
 		}
@@ -585,4 +541,182 @@ INT_PTR CGeneralOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 	}
 
 	return FALSE;
+}
+
+
+static void FillRandomData(BYTE *pData,size_t Size)
+{
+	for (size_t i=0;i<Size;i++)
+		pData[i]=::rand()&0xFF;
+}
+
+// ベンチマークテスト
+void CGeneralOptions::DescrambleBenchmarkTest(HWND hwndOwner)
+{
+	static const DWORD BENCHMARK_ROUND=200000;
+	static const DWORD PACKETS_PER_SECOND=10000;
+	HCURSOR hcurOld=::SetCursor(LoadCursor(NULL,IDC_WAIT));
+
+	BYTE SystemKey[32],InitialCbc[8],ScrambleKey[4][16];
+	static const DWORD PACKET_DATA_SIZE=184;
+	BYTE PacketData[PACKET_DATA_SIZE];
+
+	FillRandomData(SystemKey,sizeof(SystemKey));
+	FillRandomData(InitialCbc,sizeof(InitialCbc));
+	FillRandomData(PacketData,sizeof(PacketData));
+	FillRandomData(&ScrambleKey[0][0],sizeof(ScrambleKey));
+
+	CMulti2Decoder Multi2DecoderNormal(
+#ifdef MULTI2_SIMD
+		CMulti2Decoder::INSTRUCTION_NORMAL
+#endif
+		);
+	Multi2DecoderNormal.Initialize(SystemKey,InitialCbc);
+#ifdef MULTI2_SSE2
+	CMulti2Decoder Multi2DecoderSSE2(CMulti2Decoder::INSTRUCTION_SSE2);
+	__declspec(align(16)) BYTE SSE2PacketData[192];
+	bool fSSE2=CMulti2Decoder::IsSSE2Available();
+	if (fSSE2) {
+		Multi2DecoderSSE2.Initialize(SystemKey,InitialCbc);
+		::CopyMemory(SSE2PacketData,PacketData,PACKET_DATA_SIZE);
+	}
+#endif
+#ifdef MULTI2_SSSE3
+	CMulti2Decoder Multi2DecoderSSSE3(CMulti2Decoder::INSTRUCTION_SSSE3);
+	__declspec(align(16)) BYTE SSSE3PacketData[192];
+	bool fSSSE3=CMulti2Decoder::IsSSSE3Available();
+	if (fSSSE3) {
+		Multi2DecoderSSSE3.Initialize(SystemKey,InitialCbc);
+		::CopyMemory(SSSE3PacketData,PacketData,PACKET_DATA_SIZE);
+	}
+#endif
+
+	DWORD BenchmarkCount=0,NormalTime=0;
+#ifdef MULTI2_SSE2
+	DWORD SSE2Time=0;
+#endif
+#ifdef MULTI2_SSSE3
+	DWORD SSSE3Time=0;
+#endif
+
+	do {
+		BYTE ScramblingCtrl=2;
+		DWORD StartTime=::timeGetTime();
+		for (int i=0;i<BENCHMARK_ROUND;i++) {
+			if (i%PACKETS_PER_SECOND==0) {
+				Multi2DecoderNormal.SetScrambleKey(
+					ScrambleKey[(i/PACKETS_PER_SECOND)%lengthof(ScrambleKey)]);
+				ScramblingCtrl=ScramblingCtrl==2?3:2;
+			}
+			Multi2DecoderNormal.Decode(PacketData,PACKET_DATA_SIZE,ScramblingCtrl);
+		}
+		NormalTime+=TickTimeSpan(StartTime,::timeGetTime());
+
+#ifdef MULTI2_SSE2
+		if (fSSE2) {
+			ScramblingCtrl=2;
+			StartTime=::timeGetTime();
+			for (int i=0;i<BENCHMARK_ROUND;i++) {
+				if (i%PACKETS_PER_SECOND==0) {
+					Multi2DecoderSSE2.SetScrambleKey(
+						ScrambleKey[(i/PACKETS_PER_SECOND)%lengthof(ScrambleKey)]);
+					ScramblingCtrl=ScramblingCtrl==2?3:2;
+				}
+				Multi2DecoderSSE2.Decode(SSE2PacketData,PACKET_DATA_SIZE,ScramblingCtrl);
+			}
+			SSE2Time+=TickTimeSpan(StartTime,::timeGetTime());
+
+			// 計算結果のチェック
+			if (::memcmp(PacketData,SSE2PacketData,PACKET_DATA_SIZE)!=0) {
+				::SetCursor(hcurOld);
+				::MessageBox(hwndOwner,TEXT("SSE2での計算結果が不正です。"),NULL,MB_OK | MB_ICONSTOP);
+				return;
+			}
+		}
+#endif
+
+#ifdef MULTI2_SSSE3
+		if (fSSSE3) {
+			ScramblingCtrl=2;
+			StartTime=::timeGetTime();
+			for (int i=0;i<BENCHMARK_ROUND;i++) {
+				if (i%PACKETS_PER_SECOND==0) {
+					Multi2DecoderSSSE3.SetScrambleKey(
+						ScrambleKey[(i/PACKETS_PER_SECOND)%lengthof(ScrambleKey)]);
+					ScramblingCtrl=ScramblingCtrl==2?3:2;
+				}
+				Multi2DecoderSSSE3.Decode(SSSE3PacketData,PACKET_DATA_SIZE,ScramblingCtrl);
+			}
+			SSSE3Time+=TickTimeSpan(StartTime,::timeGetTime());
+
+			// 計算結果のチェック
+			if (::memcmp(PacketData,SSSE3PacketData,PACKET_DATA_SIZE)!=0) {
+				::SetCursor(hcurOld);
+				::MessageBox(hwndOwner,TEXT("SSSE3での計算結果が不正です。"),NULL,MB_OK | MB_ICONSTOP);
+				return;
+			}
+		}
+#endif
+
+		BenchmarkCount+=BENCHMARK_ROUND;
+	} while (NormalTime<1500);
+
+	::SetCursor(hcurOld);
+	TCHAR szText[1024];
+	CStaticStringFormatter Formatter(szText,lengthof(szText));
+	Formatter.AppendFormat(
+		TEXT("%u 回の実行に掛かった時間\n")
+		TEXT("拡張命令なし : %u ms (%d パケット/秒)\n"),
+		BenchmarkCount,
+		NormalTime,::MulDiv(BenchmarkCount,1000,NormalTime));
+#ifdef MULTI2_SSE2
+	int SSE2Percentage;
+	if (fSSE2) {
+		if (NormalTime>=SSE2Time)
+			SSE2Percentage=(int)(NormalTime*100/SSE2Time)-100;
+		else
+			SSE2Percentage=-(int)((SSE2Time*100/NormalTime)-100);
+		Formatter.AppendFormat(
+			TEXT("SSE2 : %u ms (%d パケット/秒) (高速化される割合 %d %%)\n"),
+			SSE2Time,::MulDiv(BenchmarkCount,1000,SSE2Time),SSE2Percentage);
+	}
+#endif
+#ifdef MULTI2_SSSE3
+	int SSSE3Percentage;
+	if (fSSSE3) {
+		if (NormalTime>=SSSE3Time)
+			SSSE3Percentage=(int)(NormalTime*100/SSSE3Time)-100;
+		else
+			SSSE3Percentage=-(int)((SSSE3Time*100/NormalTime)-100);
+		Formatter.AppendFormat(
+			TEXT("SSSE3 : %u ms (%d パケット/秒) (高速化される割合 %d %%)\n"),
+			SSSE3Time,::MulDiv(BenchmarkCount,1000,SSSE3Time),SSSE3Percentage);
+	}
+#endif
+
+#if defined(MULTI2_SSE2) || defined(MULTI2_SSSE3)
+	// 表示されるメッセージに深い意味はない
+	Formatter.AppendFormat(
+		TEXT("\n%s"),
+#ifdef MULTI2_SSSE3
+		fSSSE3 && SSSE3Percentage>=10
+#ifdef MULTI2_SSE2
+			&& SSSE3Time<SSE2Time
+#endif
+			?
+			TEXT("SSSE3にすることをお勧めします。"):
+#endif
+#ifdef MULTI2_SSE2
+		fSSE2 && SSE2Percentage>=10?
+			TEXT("SSE2にすることをお勧めします。"):
+		fSSE2 && SSE2Percentage>=5?
+			TEXT("微妙…"):
+#endif
+		TEXT("<なし> にすることをお勧めします。")
+		);
+#endif
+
+	CMessageDialog MessageDialog;
+	MessageDialog.Show(hwndOwner,CMessageDialog::TYPE_INFO,Formatter.GetString(),
+					   TEXT("ベンチマークテスト結果"),NULL,TEXT("ベンチマークテスト"));
 }

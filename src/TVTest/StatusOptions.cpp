@@ -31,7 +31,8 @@ static const bool IS_HD=
 
 
 CStatusOptions::CStatusOptions(CStatusView *pStatusView)
-	: m_pStatusView(pStatusView)
+	: COptions(TEXT("Status"))
+	, m_pStatusView(pStatusView)
 	, m_fShowTOTTime(false)
 	, m_fEnablePopupProgramInfo(true)
 	, m_fMultiRow(!IS_HD)
@@ -48,13 +49,8 @@ CStatusOptions::~CStatusOptions()
 }
 
 
-bool CStatusOptions::Load(LPCTSTR pszFileName)
+bool CStatusOptions::ReadSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (!Settings.Open(pszFileName,TEXT("Status"),CSettings::OPEN_READ))
-		return false;
-
 	int NumItems;
 	if (Settings.Read(TEXT("NumItems"),&NumItems)
 			&& NumItems>0 && NumItems<=NUM_STATUS_ITEMS) {
@@ -131,13 +127,8 @@ bool CStatusOptions::Load(LPCTSTR pszFileName)
 }
 
 
-bool CStatusOptions::Save(LPCTSTR pszFileName) const
+bool CStatusOptions::WriteSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (!Settings.Open(pszFileName,TEXT("Status"),CSettings::OPEN_WRITE))
-		return false;
-
 	if (Settings.Write(TEXT("NumItems"),NUM_STATUS_ITEMS)) {
 		for (int i=0;i<NUM_STATUS_ITEMS;i++) {
 			TCHAR szKey[32];
@@ -398,6 +389,8 @@ INT_PTR CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				}
 
 				m_pStatusView->EnableSizeAdjustment(true);
+
+				m_fChanged=true;
 			}
 			break;
 		}

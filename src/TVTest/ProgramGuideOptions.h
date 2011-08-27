@@ -41,9 +41,9 @@ public:
 
 	CProgramGuideOptions(CProgramGuide *pProgramGuide,CPluginManager *pPluginManager);
 	~CProgramGuideOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName) override;
-	bool Save(LPCTSTR pszFileName) const override;
+// CSettingsBase
+	bool LoadSettings(CSettingsFile &File) override;
+	bool SaveSettings(CSettingsFile &File) override;
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
 // CProgramGuideOptions

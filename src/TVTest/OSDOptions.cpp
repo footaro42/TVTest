@@ -22,7 +22,7 @@ static char THIS_FILE[]=__FILE__;
 
 COSDOptions::COSDOptions()
 	: m_fShowOSD(true)
-	, m_fPseudoOSD(false)
+	, m_fPseudoOSD(true)
 	, m_TextColor(RGB(0,255,0))
 	, m_Opacity(80)
 	, m_FadeTime(3000)
@@ -70,30 +70,31 @@ COSDOptions::~COSDOptions()
 }
 
 
-bool COSDOptions::Read(CSettings *pSettings)
+bool COSDOptions::ReadSettings(CSettings &Settings)
 {
 	int Value;
 
-	pSettings->Read(TEXT("UseOSD"),&m_fShowOSD);
-	pSettings->Read(TEXT("PseudoOSD"),&m_fPseudoOSD);
-	pSettings->ReadColor(TEXT("OSDTextColor"),&m_TextColor);
-	pSettings->Read(TEXT("OSDOpacity"),&m_Opacity);
-	pSettings->Read(TEXT("OSDFadeTime"),&m_FadeTime);
-	pSettings->Read(TEXT("EnabledOSD"),&m_EnabledOSD);
-	if (pSettings->Read(TEXT("ChannelOSDType"),&Value)
+	Settings.Read(TEXT("UseOSD"),&m_fShowOSD);
+	Settings.Read(TEXT("PseudoOSD"),&m_fPseudoOSD);
+	Settings.ReadColor(TEXT("OSDTextColor"),&m_TextColor);
+	Settings.Read(TEXT("OSDOpacity"),&m_Opacity);
+	Settings.Read(TEXT("OSDFadeTime"),&m_FadeTime);
+	Settings.Read(TEXT("EnabledOSD"),&m_EnabledOSD);
+	if (Settings.Read(TEXT("ChannelOSDType"),&Value)
 			&& Value>=CHANNELCHANGE_FIRST && Value<=CHANNELCHANGE_LAST)
 		m_ChannelChangeType=(ChannelChangeType)Value;
 
-	pSettings->Read(TEXT("EnableNotificationBar"),&m_fEnableNotificationBar);
-	pSettings->Read(TEXT("NotificationBarDuration"),&m_NotificationBarDuration);
+	Settings.Read(TEXT("EnableNotificationBar"),&m_fEnableNotificationBar);
+	Settings.Read(TEXT("NotificationBarDuration"),&m_NotificationBarDuration);
 	bool f;
-	if (pSettings->Read(TEXT("NotifyEventName"),&f))
+	if (Settings.Read(TEXT("NotifyEventName"),&f))
 		EnableNotify(NOTIFY_EVENTNAME,f);
-	if (pSettings->Read(TEXT("NotifyEcmError"),&f))
+	if (Settings.Read(TEXT("NotifyEcmError"),&f))
 		EnableNotify(NOTIFY_ECMERROR,f);
+
 	// Font
 	TCHAR szFont[LF_FACESIZE];
-	if (pSettings->Read(TEXT("NotificationBarFontName"),szFont,LF_FACESIZE)
+	if (Settings.Read(TEXT("NotificationBarFontName"),szFont,LF_FACESIZE)
 			&& szFont[0]!='\0') {
 		lstrcpy(m_NotificationBarFont.lfFaceName,szFont);
 		m_NotificationBarFont.lfEscapement=0;
@@ -106,43 +107,44 @@ bool COSDOptions::Read(CSettings *pSettings)
 		m_NotificationBarFont.lfQuality=DRAFT_QUALITY;
 		m_NotificationBarFont.lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
 	}
-	if (pSettings->Read(TEXT("NotificationBarFontSize"),&Value)) {
+	if (Settings.Read(TEXT("NotificationBarFontSize"),&Value)) {
 		m_NotificationBarFont.lfHeight=Value;
 		m_NotificationBarFont.lfWidth=0;
 	}
-	if (pSettings->Read(TEXT("NotificationBarFontWeight"),&Value))
+	if (Settings.Read(TEXT("NotificationBarFontWeight"),&Value))
 		m_NotificationBarFont.lfWeight=Value;
-	if (pSettings->Read(TEXT("NotificationBarFontItalic"),&Value))
+	if (Settings.Read(TEXT("NotificationBarFontItalic"),&Value))
 		m_NotificationBarFont.lfItalic=Value;
 
-	pSettings->Read(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
-	pSettings->Read(TEXT("DisplayMenuFontAutoSize"),&m_fDisplayMenuFontAutoSize);
+	Settings.Read(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
+	Settings.Read(TEXT("DisplayMenuFontAutoSize"),&m_fDisplayMenuFontAutoSize);
 	return true;
 }
 
 
-bool COSDOptions::Write(CSettings *pSettings) const
+bool COSDOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("UseOSD"),m_fShowOSD);
-	pSettings->Write(TEXT("PseudoOSD"),m_fPseudoOSD);
-	pSettings->WriteColor(TEXT("OSDTextColor"),m_TextColor);
-	pSettings->Write(TEXT("OSDOpacity"),m_Opacity);
-	pSettings->Write(TEXT("OSDFadeTime"),m_FadeTime);
-	pSettings->Write(TEXT("EnabledOSD"),m_EnabledOSD);
-	pSettings->Write(TEXT("ChannelOSDType"),(int)m_ChannelChangeType);
+	Settings.Write(TEXT("UseOSD"),m_fShowOSD);
+	Settings.Write(TEXT("PseudoOSD"),m_fPseudoOSD);
+	Settings.WriteColor(TEXT("OSDTextColor"),m_TextColor);
+	Settings.Write(TEXT("OSDOpacity"),m_Opacity);
+	Settings.Write(TEXT("OSDFadeTime"),m_FadeTime);
+	Settings.Write(TEXT("EnabledOSD"),m_EnabledOSD);
+	Settings.Write(TEXT("ChannelOSDType"),(int)m_ChannelChangeType);
 
-	pSettings->Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
-	pSettings->Write(TEXT("NotificationBarDuration"),m_NotificationBarDuration);
-	pSettings->Write(TEXT("NotifyEventName"),(m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
-	pSettings->Write(TEXT("NotifyEcmError"),(m_NotificationBarFlags&NOTIFY_ECMERROR)!=0);
+	Settings.Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
+	Settings.Write(TEXT("NotificationBarDuration"),m_NotificationBarDuration);
+	Settings.Write(TEXT("NotifyEventName"),(m_NotificationBarFlags&NOTIFY_EVENTNAME)!=0);
+	Settings.Write(TEXT("NotifyEcmError"),(m_NotificationBarFlags&NOTIFY_ECMERROR)!=0);
+
 	// Font
-	pSettings->Write(TEXT("NotificationBarFontName"),m_NotificationBarFont.lfFaceName);
-	pSettings->Write(TEXT("NotificationBarFontSize"),(int)m_NotificationBarFont.lfHeight);
-	pSettings->Write(TEXT("NotificationBarFontWeight"),(int)m_NotificationBarFont.lfWeight);
-	pSettings->Write(TEXT("NotificationBarFontItalic"),(int)m_NotificationBarFont.lfItalic);
+	Settings.Write(TEXT("NotificationBarFontName"),m_NotificationBarFont.lfFaceName);
+	Settings.Write(TEXT("NotificationBarFontSize"),(int)m_NotificationBarFont.lfHeight);
+	Settings.Write(TEXT("NotificationBarFontWeight"),(int)m_NotificationBarFont.lfWeight);
+	Settings.Write(TEXT("NotificationBarFontItalic"),(int)m_NotificationBarFont.lfItalic);
 
-	pSettings->Write(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
-	pSettings->Write(TEXT("DisplayMenuFontAutoSize"),m_fDisplayMenuFontAutoSize);
+	Settings.Write(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
+	Settings.Write(TEXT("DisplayMenuFontAutoSize"),m_fDisplayMenuFontAutoSize);
 	return true;
 }
 
@@ -208,7 +210,7 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	case WM_INITDIALOG:
 		{
 			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOWOSD,m_fShowOSD);
-			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_PSEUDOOSD,m_fPseudoOSD);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_COMPOSITE,!m_fPseudoOSD);
 			m_CurTextColor=m_TextColor;
 			::SetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,m_FadeTime/1000,TRUE);
 			DlgUpDown_SetRange(hDlg,IDC_OSDOPTIONS_FADETIME_UD,1,UD_MAXVAL);
@@ -265,8 +267,8 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			return TRUE;
 
 		case IDC_NOTIFICATIONBAR_ENABLE:
-			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,
-						   DlgCheckBox_IsChecked(hDlg,IDC_NOTIFICATIONBAR_ENABLE));
+			EnableDlgItemsSyncCheckBox(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,
+									   IDC_NOTIFICATIONBAR_ENABLE);
 			return TRUE;
 
 		case IDC_NOTIFICATIONBAR_FONT_CHOOSE:
@@ -286,7 +288,7 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case PSN_APPLY:
 			{
 				m_fShowOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOWOSD);
-				m_fPseudoOSD=DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_PSEUDOOSD);
+				m_fPseudoOSD=!DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_COMPOSITE);
 				m_TextColor=m_CurTextColor;
 				m_FadeTime=::GetDlgItemInt(hDlg,IDC_OSDOPTIONS_FADETIME,NULL,FALSE)*1000;
 				unsigned int EnabledOSD=0;
@@ -313,6 +315,8 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 				m_DisplayMenuFont=m_CurDisplayMenuFont;
 				m_fDisplayMenuFontAutoSize=DlgCheckBox_IsChecked(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE);
+
+				m_fChanged=true;
 			}
 			return TRUE;
 		}

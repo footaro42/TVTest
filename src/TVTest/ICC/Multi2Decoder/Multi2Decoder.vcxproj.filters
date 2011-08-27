@@ -11,12 +11,12 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="Multi2DecoderSSE2.cpp">
+    <ClCompile Include="Multi2DecoderSIMD.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Multi2DecoderSSE2.h">
+    <ClInclude Include="Multi2DecoderSIMD.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

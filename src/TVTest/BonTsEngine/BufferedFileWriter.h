@@ -41,6 +41,7 @@ public:
 	bool IsQueueingEnabled() const;
 	bool SetQueueSize(SIZE_T BlockSize, SIZE_T MaxBlocks);
 	void ClearQueue();
+	bool SetMaxPendingSize(SIZE_T Size);
 
 protected:
 	CNCachedFile *CreateNewFile(LPCTSTR pszFileName, BYTE Flags);
@@ -60,6 +61,7 @@ protected:
 	bool m_bEnableQueueing;
 	SIZE_T m_QueueBlockSize;
 	SIZE_T m_MaxQueueSize;
+	SIZE_T m_MaxPendingSize;
 	struct BufferInfo {
 		BYTE *pData;
 		SIZE_T Size;

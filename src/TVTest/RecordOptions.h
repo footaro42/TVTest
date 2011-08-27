@@ -23,27 +23,30 @@ class CRecordOptions : public COptions
 	unsigned int m_BufferSize;
 	unsigned int m_TimeShiftBufferSize;
 	bool m_fEnableTimeShiftRecording;
+	unsigned int m_MaxPendingSize;
 	bool m_fShowRemainTime;
 	int m_StatusBarRecordCommand;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 public:
 	enum {
 		UPDATE_RECORDSTREAM		=0x00000001UL,
 		UPDATE_TIMESHIFTBUFFER	=0x00000002UL,
-		UPDATE_ENABLETIMESHIFT	=0x00000004UL
+		UPDATE_ENABLETIMESHIFT	=0x00000004UL,
+		UPDATE_MAXPENDINGSIZE	=0x00000008UL
 	};
 
 	CRecordOptions();
 	~CRecordOptions();
 // COptions
-	bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+	bool Apply(DWORD Flags) override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CRecordOptions
 	bool SetSaveFolder(LPCTSTR pszFolder);
 	LPCTSTR GetSaveFolder() const { return m_szSaveFolder; }

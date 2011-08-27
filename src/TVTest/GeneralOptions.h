@@ -22,11 +22,12 @@ public:
 	CGeneralOptions();
 	~CGeneralOptions();
 // COptions
-	bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+	bool Apply(DWORD Flags) override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CGeneralOptions
 	DefaultDriverType GetDefaultDriverType() const;
 	LPCTSTR GetDefaultDriverName() const;
@@ -41,13 +42,15 @@ public:
 	void SetTemporaryNoDescramble(bool fNoDescramble);
 	bool GetResident() const;
 	bool GetKeepSingleTask() const;
-	bool GetDescrambleUseSSE2() const { return m_fDescrambleUseSSE2; }
+	CTsDescrambler::InstructionType GetDescrambleInstruction() const { return m_DescrambleInstruction; }
 	bool GetDescrambleCurServiceOnly() const;
 	bool GetEnableEmmProcess() const;
 
 private:
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+
+	void DescrambleBenchmarkTest(HWND hwndOwner);
 
 	TCHAR m_szDriverDirectory[MAX_PATH];
 	DefaultDriverType m_DefaultDriverType;
@@ -59,7 +62,7 @@ private:
 	bool m_fTemporaryNoDescramble;
 	bool m_fResident;
 	bool m_fKeepSingleTask;
-	bool m_fDescrambleUseSSE2;
+	CTsDescrambler::InstructionType m_DescrambleInstruction;
 	bool m_fDescrambleCurServiceOnly;
 	bool m_fEnableEmmProcess;
 	enum {

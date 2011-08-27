@@ -7,6 +7,7 @@
 #include "Command.h"
 #include "Theme.h"
 #include "Tooltip.h"
+#include "WindowUtil.h"
 
 
 class CSideBar : public CCustomWindow
@@ -82,7 +83,7 @@ protected:
 	std::vector<SideBarItem> m_ItemList;
 	int m_HotItem;
 	int m_ClickItem;
-	bool m_fTrackMouseEvent;
+	CMouseLeaveTrack m_MouseLeaveTrack;
 	CEventHandler *m_pEventHandler;
 	const CCommandList *m_pCommandList;
 

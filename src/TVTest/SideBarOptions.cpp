@@ -94,7 +94,8 @@ static const int DefaultItemList[] = {
 
 
 CSideBarOptions::CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOptions)
-	: m_pSideBar(pSideBar)
+	: COptions(TEXT("SideBar"))
+	, m_pSideBar(pSideBar)
 	, m_pZoomOptions(pZoomOptions)
 	, m_fShowPopup(true)
 	, m_fShowToolTips(true)
@@ -115,62 +116,58 @@ CSideBarOptions::~CSideBarOptions()
 }
 
 
-bool CSideBarOptions::Load(LPCTSTR pszFileName)
+bool CSideBarOptions::ReadSettings(CSettings &Settings)
 {
-	CSettings Settings;
+	int Value,NumItems;
 
-	if (Settings.Open(pszFileName,TEXT("SideBar"),CSettings::OPEN_READ)) {
-		int Value,NumItems;
+	Settings.Read(TEXT("ShowPopup"),&m_fShowPopup);
+	Settings.Read(TEXT("ShowToolTips"),&m_fShowToolTips);
+	Settings.Read(TEXT("ShowChannelLogo"),&m_fShowChannelLogo);
+	if (Settings.Read(TEXT("Place"),&Value)
+			&& Value>=PLACE_FIRST && Value<=PLACE_LAST)
+		m_Place=(PlaceType)Value;
 
-		Settings.Read(TEXT("ShowPopup"),&m_fShowPopup);
-		Settings.Read(TEXT("ShowToolTips"),&m_fShowToolTips);
-		if (Settings.Read(TEXT("Place"),&Value)
-				&& Value>=PLACE_FIRST && Value<=PLACE_LAST)
-			m_Place=(PlaceType)Value;
-		if (Settings.Read(TEXT("ItemCount"),&NumItems) && NumItems>0) {
-			// はまるのを防ぐために、アイテムの種類*2 を上限にしておく
-			if (NumItems>=lengthof(ItemList)*2)
-				NumItems=lengthof(ItemList)*2;
-			m_ItemList.clear();
-			for (int i=0;i<NumItems;i++) {
-				TCHAR szName[32],szCommand[CCommandList::MAX_COMMAND_TEXT];
+	if (Settings.Read(TEXT("ItemCount"),&NumItems) && NumItems>0) {
+		// はまるのを防ぐために、アイテムの種類*2 を上限にしておく
+		if (NumItems>=lengthof(ItemList)*2)
+			NumItems=lengthof(ItemList)*2;
+		m_ItemList.clear();
+		for (int i=0;i<NumItems;i++) {
+			TCHAR szName[32],szCommand[CCommandList::MAX_COMMAND_TEXT];
 
-				::wsprintf(szName,TEXT("Item%d"),i);
-				if (Settings.Read(szName,szCommand,lengthof(szCommand))) {
-					if (szCommand[0]=='\0') {
-						m_ItemList.push_back(ITEM_SEPARATOR);
-					} else {
-						int Command=m_pSideBar->GetCommandList()->ParseText(szCommand);
+			::wsprintf(szName,TEXT("Item%d"),i);
+			if (Settings.Read(szName,szCommand,lengthof(szCommand))) {
+				if (szCommand[0]=='\0') {
+					m_ItemList.push_back(ITEM_SEPARATOR);
+				} else {
+					int Command=m_pSideBar->GetCommandList()->ParseText(szCommand);
 
-						if (Command!=0) {
-							for (int j=0;j<lengthof(ItemList);j++) {
-								if (ItemList[j].Command==Command) {
-									m_ItemList.push_back(Command);
-									break;
-								}
+					if (Command!=0) {
+						for (int j=0;j<lengthof(ItemList);j++) {
+							if (ItemList[j].Command==Command) {
+								m_ItemList.push_back(Command);
+								break;
 							}
 						}
 					}
 				}
 			}
 		}
-		Settings.Close();
 	}
+
 	return true;
 }
 
 
-bool CSideBarOptions::Save(LPCTSTR pszFileName) const
+bool CSideBarOptions::WriteSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (!Settings.Open(pszFileName,TEXT("SideBar"),CSettings::OPEN_WRITE))
-		return false;
-
 	Settings.Clear();
+
 	Settings.Write(TEXT("ShowPopup"),m_fShowPopup);
 	Settings.Write(TEXT("ShowToolTips"),m_fShowToolTips);
+	Settings.Write(TEXT("ShowChannelLogo"),m_fShowChannelLogo);
 	Settings.Write(TEXT("Place"),(int)m_Place);
+
 	Settings.Write(TEXT("ItemCount"),(int)m_ItemList.size());
 	const CCommandList *pCommandList=m_pSideBar->GetCommandList();
 	for (size_t i=0;i<m_ItemList.size();i++) {
@@ -180,9 +177,9 @@ bool CSideBarOptions::Save(LPCTSTR pszFileName) const
 		if (m_ItemList[i]==ITEM_SEPARATOR)
 			Settings.Write(szName,TEXT(""));
 		else
-			Settings.Write(szName,pCommandList->GetCommandText(pCommandList->IDToIndex(m_ItemList[i])));
+			Settings.Write(szName,pCommandList->GetCommandTextByID(m_ItemList[i]));
 	}
-	Settings.Close();
+
 	return true;
 }
 
@@ -498,6 +495,8 @@ INT_PTR CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					m_ItemList=ItemList;
 					ApplyItemList();
 				}
+
+				m_fChanged=true;
 			}
 			break;
 		}

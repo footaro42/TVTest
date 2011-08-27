@@ -14,6 +14,7 @@
 #include "ControlPanelItems.h"
 #include "Accelerator.h"
 #include "Controller.h"
+#include "OptionDialog.h"
 #include "GeneralOptions.h"
 #include "ViewOptions.h"
 #include "OSDOptions.h"
@@ -145,6 +146,8 @@ static CNetworkRemoconOptions NetworkRemoconOptions;
 static CLogger Logger;
 static CRecentChannelList RecentChannelList;
 static CChannelHistory ChannelHistory;
+
+static COptionDialog OptionDialog;
 
 static struct {
 	int Space;
@@ -380,7 +383,7 @@ bool CAppMain::Initialize()
 bool CAppMain::Finalize()
 {
 	AddLog(TEXT("設定を保存しています..."));
-	SaveSettings();
+	SaveSettings(SETTINGS_SAVE_STATUS);
 	SaveChannelSettings();
 	return true;
 }
@@ -1073,138 +1076,125 @@ bool CAppMain::OpenBcasCard(bool fRetry)
 
 bool CAppMain::LoadSettings()
 {
-	CSettings Setting;
+	CSettingsFile SettingsFile;
+	if (!SettingsFile.Open(m_szIniFileName,CSettingsFile::OPEN_READ))
+		return false;
 
-	if (Setting.Open(m_szIniFileName,TEXT("Settings"),CSettings::OPEN_READ)) {
+	CSettings Settings;
+
+	if (SettingsFile.OpenSection(&Settings,TEXT("Settings"))) {
 		int Value;
 		TCHAR szText[MAX_PATH];
 		int Left,Top,Width,Height;
 		bool f;
 
-		if (Setting.Read(TEXT("Volume"),&Value))
+		Settings.Read(TEXT("EnablePlay"),&fEnablePlay);
+		if (Settings.Read(TEXT("Volume"),&Value))
 			CoreEngine.SetVolume(CLAMP(Value,0,CCoreEngine::MAX_VOLUME));
 		int Gain=100,SurroundGain;
-		Setting.Read(TEXT("VolumeNormalizeLevel"),&Gain);
-		if (!Setting.Read(TEXT("SurroundGain"),&SurroundGain))
+		Settings.Read(TEXT("VolumeNormalizeLevel"),&Gain);
+		if (!Settings.Read(TEXT("SurroundGain"),&SurroundGain))
 			SurroundGain=Gain;
 		CoreEngine.SetAudioGainControl(Gain,SurroundGain);
-		Setting.Read(TEXT("ShowInfoWindow"),&fShowPanelWindow);
-		Setting.Read(TEXT("EnablePlay"),&fEnablePlay);
-		if (Setting.Read(TEXT("RecOptionFileName"),szText,MAX_PATH) && szText[0]!='\0')
+		Settings.Read(TEXT("ShowInfoWindow"),&fShowPanelWindow);
+		if (Settings.Read(TEXT("OptionPage"),&Value))
+			OptionDialog.SetCurrentPage(Value);
+
+		if (Settings.Read(TEXT("RecOptionFileName"),szText,MAX_PATH) && szText[0]!='\0')
 			RecordManager.SetFileName(szText);
 		/*
-		if (Setting.Read(TEXT("RecOptionExistsOperation"),&Value))
+		if (Settings.Read(TEXT("RecOptionExistsOperation"),&Value))
 			RecordManager.SetFileExistsOperation(
 								(CRecordManager::FileExistsOperation)Value);
 		*/
 		/*
-		if (Setting.Read(TEXT("RecOptionStopTimeSpec"),&f))
+		if (Settings.Read(TEXT("RecOptionStopTimeSpec"),&f))
 			RecordManager.SetStopTimeSpec(f);
 		unsigned int Time;
-		if (Setting.Read(TEXT("RecOptionStopTime"),&Time))
+		if (Settings.Read(TEXT("RecOptionStopTime"),&Time))
 			RecordManager.SetStopTime(Time);
 		*/
 
 		PanelFrame.GetPosition(&Left,&Top,&Width,&Height);
-		Setting.Read(TEXT("InfoLeft"),&Left);
-		Setting.Read(TEXT("InfoTop"),&Top);
-		Setting.Read(TEXT("InfoWidth"),&Width);
-		Setting.Read(TEXT("InfoHeight"),&Height);
+		Settings.Read(TEXT("InfoLeft"),&Left);
+		Settings.Read(TEXT("InfoTop"),&Top);
+		Settings.Read(TEXT("InfoWidth"),&Width);
+		Settings.Read(TEXT("InfoHeight"),&Height);
 		PanelFrame.SetPosition(Left,Top,Width,Height);
 		PanelFrame.MoveToMonitorInside();
-		if (Setting.Read(TEXT("PanelFloating"),&f))
+		if (Settings.Read(TEXT("PanelFloating"),&f))
 			PanelFrame.SetFloating(f);
-		if (Setting.Read(TEXT("PanelDockingWidth"),&Value))
+		if (Settings.Read(TEXT("PanelDockingWidth"),&Value))
 			PanelFrame.SetDockingWidth(Value);
 
 		ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
-		Setting.Read(TEXT("ProgramGuideLeft"),&Left);
-		Setting.Read(TEXT("ProgramGuideTop"),&Top);
-		Setting.Read(TEXT("ProgramGuideWidth"),&Width);
-		Setting.Read(TEXT("ProgramGuideHeight"),&Height);
+		Settings.Read(TEXT("ProgramGuideLeft"),&Left);
+		Settings.Read(TEXT("ProgramGuideTop"),&Top);
+		Settings.Read(TEXT("ProgramGuideWidth"),&Width);
+		Settings.Read(TEXT("ProgramGuideHeight"),&Height);
 		ProgramGuideFrame.SetPosition(Left,Top,Width,Height);
 		ProgramGuideFrame.MoveToMonitorInside();
-		if (Setting.Read(TEXT("ProgramGuideMaximized"),&f) && f)
+		if (Settings.Read(TEXT("ProgramGuideMaximized"),&f) && f)
 			ProgramGuideFrame.SetMaximize(f);
-		if (Setting.Read(TEXT("ProgramGuideAlwaysOnTop"),&f))
+		if (Settings.Read(TEXT("ProgramGuideAlwaysOnTop"),&f))
 			ProgramGuideFrame.SetAlwaysOnTop(f);
 
 		// Experimental options
-		Setting.Read(TEXT("IncrementUDPPort"),&fIncrementUDPPort);
+		Settings.Read(TEXT("IncrementUDPPort"),&fIncrementUDPPort);
 
-		MainWindow.ReadSettings(&Setting);
-		GeneralOptions.Read(&Setting);
-		ViewOptions.Read(&Setting);
-		OSDOptions.Read(&Setting);
-		PanelOptions.Read(&Setting);
-		OperationOptions.Read(&Setting);
-		PlaybackOptions.Read(&Setting);
-		RecordOptions.Read(&Setting);
-		CaptureOptions.Read(&Setting);
-		Accelerator.Read(&Setting);
-		ControllerManager.Read(&Setting);
-		ChannelScan.Read(&Setting);
-		PluginOptions.Read(&Setting);
-		EpgOptions.Read(&Setting);
+		MainWindow.ReadSettings(Settings);
+		GeneralOptions.ReadSettings(Settings);
+		ViewOptions.ReadSettings(Settings);
+		OSDOptions.ReadSettings(Settings);
+		PanelOptions.ReadSettings(Settings);
+		PlaybackOptions.ReadSettings(Settings);
+		RecordOptions.ReadSettings(Settings);
+		CaptureOptions.ReadSettings(Settings);
+		ControllerManager.ReadSettings(Settings);
+		ChannelScan.ReadSettings(Settings);
+		EpgOptions.ReadSettings(Settings);
 #ifdef NETWORK_REMOCON_SUPPORT
-		NetworkRemoconOptions.Read(&Setting);
+		NetworkRemoconOptions.ReadSettings(Settings);
 #endif
-		Logger.Read(&Setting);
-		ZoomOptions.Read(&Setting);
+		Logger.ReadSettings(Settings);
+		ZoomOptions.ReadSettings(Settings);
 
-		Setting.Close();
+		Settings.Close();
 	}
 
-	StatusOptions.Load(m_szIniFileName);
-	SideBarOptions.Load(m_szIniFileName);
-	ColorSchemeOptions.Load(m_szIniFileName);
-	//Accelerator.Load(m_szIniFileName);
-	//ControllerManager.Load(m_szIniFileName);
-	DriverOptions.Load(m_szIniFileName);
-	ProgramGuideOptions.Load(m_szIniFileName);
-	PluginOptions.Load(m_szIniFileName);
-	RecentChannelList.Load(m_szIniFileName);
-	InfoPanel.Load(m_szIniFileName);
-	PanAndScanOptions.Load(m_szIniFileName);
+	StatusOptions.LoadSettings(SettingsFile);
+	SideBarOptions.LoadSettings(SettingsFile);
+	ColorSchemeOptions.LoadSettings(SettingsFile);
+	DriverOptions.LoadSettings(SettingsFile);
+	ProgramGuideOptions.LoadSettings(SettingsFile);
+	PluginOptions.LoadSettings(SettingsFile);
+	RecentChannelList.LoadSettings(SettingsFile);
+	InfoPanel.LoadSettings(SettingsFile);
+	PanAndScanOptions.LoadSettings(SettingsFile);
 
 	return true;
 }
 
 
-bool CAppMain::SaveSettings()
+bool CAppMain::SaveSettings(unsigned int Flags)
 {
-#ifdef UNICODE
-	if (!::PathFileExists(m_szIniFileName)) {
-		AddLog(TEXT("設定ファイルを作成します。\"%s\""),m_szIniFileName);
-		HANDLE hFile=::CreateFile(m_szIniFileName,GENERIC_WRITE,0,NULL,
-								  CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL);
-		if (hFile==INVALID_HANDLE_VALUE) {
-			if (::GetLastError()!=ERROR_ALREADY_EXISTS) {
-				TCHAR szMessage[256+MAX_PATH];
-				StdUtil::snprintf(szMessage,lengthof(szMessage),
-								  TEXT("設定ファイル \"%s\" が作成できません。(エラーコード 0x%lx)"),
-								  m_szIniFileName,::GetLastError());
-				AddLog(szMessage);
-				if (!m_fSilent)
-					MainWindow.ShowErrorMessage(szMessage);
-			}
-		} else {
-			// Unicode(UTF-16)のiniファイルになるようにBOMを書き出す
-			static const WORD BOM=0xFEFF;
-			DWORD Write;
-			::WriteFile(hFile,&BOM,2,&Write,NULL);
-			::FlushFileBuffers(hFile);
-			::CloseHandle(hFile);
-		}
+	CSettingsFile SettingsFile;
+	if (!SettingsFile.Open(m_szIniFileName,CSettingsFile::OPEN_WRITE))
+		return false;
+	if (SettingsFile.GetLastError()!=ERROR_SUCCESS) {
+		TCHAR szMessage[256+MAX_PATH];
+		StdUtil::snprintf(szMessage,lengthof(szMessage),
+						  TEXT("設定ファイル \"%s\" が作成できません。(エラーコード 0x%lx)"),
+						  m_szIniFileName,SettingsFile.GetLastError());
+		AddLog(szMessage);
+		if (!m_fSilent)
+			MainWindow.ShowErrorMessage(szMessage);
 	}
-#endif
 
-	CSettings Setting;
+	CSettings Settings;
 
-	if (Setting.Open(m_szIniFileName,TEXT("Settings"),CSettings::OPEN_WRITE)) {
-		int Left,Top,Width,Height;
-
-		if (!Setting.Write(TEXT("Version"),VERSION_TEXT)) {
+	if (SettingsFile.OpenSection(&Settings,TEXT("Settings"))) {
+		if (!Settings.Write(TEXT("Version"),VERSION_TEXT)) {
 			TCHAR szMessage[256+MAX_PATH];
 			StdUtil::snprintf(szMessage,lengthof(szMessage),
 							  TEXT("設定ファイル \"%s\" に書き込みできません。(エラーコード 0x%lx)"),
@@ -1216,90 +1206,109 @@ bool CAppMain::SaveSettings()
 			*/
 		}
 
-		Setting.Write(TEXT("Volume"),CoreEngine.GetVolume());
-		int Gain,SurroundGain;
-		CoreEngine.GetAudioGainControl(&Gain,&SurroundGain);
-		Setting.Write(TEXT("VolumeNormalizeLevel"),Gain);
-		Setting.Write(TEXT("SurroundGain"),SurroundGain);
-		Setting.Write(TEXT("ShowInfoWindow"),fShowPanelWindow);
-		Setting.Write(TEXT("EnablePlay"),fEnablePlay);
-		if (RecordManager.GetFileName()!=NULL)
-			Setting.Write(TEXT("RecOptionFileName"),RecordManager.GetFileName());
-		/*
-		Setting.Write(TEXT("RecOptionExistsOperation"),
-										RecordManager.GetFileExistsOperation());
-		*/
-		/*
-		Setting.Write(TEXT("RecOptionStopTimeSpec"),
-											RecordManager.GetStopTimeSpec());
-		Setting.Write(TEXT("RecOptionStopTime"),RecordManager.GetStopTime());
-		*/
+		if ((Flags&SETTINGS_SAVE_STATUS)!=0) {
+			int Left,Top,Width,Height;
 
-		PanelFrame.GetPosition(&Left,&Top,&Width,&Height);
-		Setting.Write(TEXT("InfoLeft"),Left);
-		Setting.Write(TEXT("InfoTop"),Top);
-		Setting.Write(TEXT("InfoWidth"),Width);
-		Setting.Write(TEXT("InfoHeight"),Height);
-		Setting.Write(TEXT("PanelFloating"),PanelFrame.GetFloating());
-		Setting.Write(TEXT("PanelDockingWidth"),PanelFrame.GetDockingWidth());
-		Setting.Write(TEXT("InfoCurTab"),PanelForm.GetCurPageID());
+			Settings.Write(TEXT("EnablePlay"),fEnablePlay);
+			Settings.Write(TEXT("Volume"),CoreEngine.GetVolume());
+			int Gain,SurroundGain;
+			CoreEngine.GetAudioGainControl(&Gain,&SurroundGain);
+			Settings.Write(TEXT("VolumeNormalizeLevel"),Gain);
+			Settings.Write(TEXT("SurroundGain"),SurroundGain);
+			Settings.Write(TEXT("ShowInfoWindow"),fShowPanelWindow);
+			Settings.Write(TEXT("OptionPage"),OptionDialog.GetCurrentPage());
 
-		ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
-		Setting.Write(TEXT("ProgramGuideLeft"),Left);
-		Setting.Write(TEXT("ProgramGuideTop"),Top);
-		Setting.Write(TEXT("ProgramGuideWidth"),Width);
-		Setting.Write(TEXT("ProgramGuideHeight"),Height);
-		Setting.Write(TEXT("ProgramGuideMaximized"),ProgramGuideFrame.GetMaximize());
-		Setting.Write(TEXT("ProgramGuideAlwaysOnTop"),ProgramGuideFrame.GetAlwaysOnTop());
+			if (RecordManager.GetFileName()!=NULL)
+				Settings.Write(TEXT("RecOptionFileName"),RecordManager.GetFileName());
+			/*
+			Settings.Write(TEXT("RecOptionExistsOperation"),
+											RecordManager.GetFileExistsOperation());
+			*/
+			/*
+			Settings.Write(TEXT("RecOptionStopTimeSpec"),RecordManager.GetStopTimeSpec());
+			Settings.Write(TEXT("RecOptionStopTime"),RecordManager.GetStopTime());
+			*/
 
-		CaptureWindow.GetPosition(&Left,&Top,&Width,&Height);
-		Setting.Write(TEXT("CapturePreviewLeft"),Left);
-		Setting.Write(TEXT("CapturePreviewTop"),Top);
-		Setting.Write(TEXT("CapturePreviewWidth"),Width);
-		Setting.Write(TEXT("CapturePreviewHeight"),Height);
-		Setting.Write(TEXT("CaptureStatusBar"),CaptureWindow.IsStatusBarVisible());
+			PanelFrame.GetPosition(&Left,&Top,&Width,&Height);
+			Settings.Write(TEXT("InfoLeft"),Left);
+			Settings.Write(TEXT("InfoTop"),Top);
+			Settings.Write(TEXT("InfoWidth"),Width);
+			Settings.Write(TEXT("InfoHeight"),Height);
+			Settings.Write(TEXT("PanelFloating"),PanelFrame.GetFloating());
+			Settings.Write(TEXT("PanelDockingWidth"),PanelFrame.GetDockingWidth());
+			Settings.Write(TEXT("InfoCurTab"),PanelForm.GetCurPageID());
 
-		StreamInfo.GetPosition(&Left,&Top,&Width,&Height);
-		Setting.Write(TEXT("StreamInfoLeft"),Left);
-		Setting.Write(TEXT("StreamInfoTop"),Top);
-		Setting.Write(TEXT("StreamInfoWidth"),Width);
-		Setting.Write(TEXT("StreamInfoHeight"),Height);
-		Setting.Write(TEXT("IncrementUDPPort"),fIncrementUDPPort);
+			ProgramGuideFrame.GetPosition(&Left,&Top,&Width,&Height);
+			Settings.Write(TEXT("ProgramGuideLeft"),Left);
+			Settings.Write(TEXT("ProgramGuideTop"),Top);
+			Settings.Write(TEXT("ProgramGuideWidth"),Width);
+			Settings.Write(TEXT("ProgramGuideHeight"),Height);
+			Settings.Write(TEXT("ProgramGuideMaximized"),ProgramGuideFrame.GetMaximize());
+			Settings.Write(TEXT("ProgramGuideAlwaysOnTop"),ProgramGuideFrame.GetAlwaysOnTop());
 
-		MainWindow.WriteSettings(&Setting);
-		GeneralOptions.Write(&Setting);
-		ViewOptions.Write(&Setting);
-		OSDOptions.Write(&Setting);
-		PanelOptions.Write(&Setting);
-		OperationOptions.Write(&Setting);
-		PlaybackOptions.Write(&Setting);
-		RecordOptions.Write(&Setting);
-		CaptureOptions.Write(&Setting);
-		Accelerator.Write(&Setting);
-		ControllerManager.Write(&Setting);
-		ChannelScan.Write(&Setting);
-		PluginOptions.Write(&Setting);
-		EpgOptions.Write(&Setting);
-#ifdef NETWORK_REMOCON_SUPPORT
-		NetworkRemoconOptions.Write(&Setting);
-#endif
-		Logger.Write(&Setting);
-		ZoomOptions.Write(&Setting);
+			CaptureWindow.GetPosition(&Left,&Top,&Width,&Height);
+			Settings.Write(TEXT("CapturePreviewLeft"),Left);
+			Settings.Write(TEXT("CapturePreviewTop"),Top);
+			Settings.Write(TEXT("CapturePreviewWidth"),Width);
+			Settings.Write(TEXT("CapturePreviewHeight"),Height);
+			Settings.Write(TEXT("CaptureStatusBar"),CaptureWindow.IsStatusBarVisible());
 
-		Setting.Close();
+			StreamInfo.GetPosition(&Left,&Top,&Width,&Height);
+			Settings.Write(TEXT("StreamInfoLeft"),Left);
+			Settings.Write(TEXT("StreamInfoTop"),Top);
+			Settings.Write(TEXT("StreamInfoWidth"),Width);
+			Settings.Write(TEXT("StreamInfoHeight"),Height);
+			Settings.Write(TEXT("IncrementUDPPort"),fIncrementUDPPort);
+
+			MainWindow.WriteSettings(Settings);
+		}
+
+		Settings.Close();
 	}
 
-	StatusOptions.Save(m_szIniFileName);
-	SideBarOptions.Save(m_szIniFileName);
-	ColorSchemeOptions.Save(m_szIniFileName);
-	Accelerator.Save(m_szIniFileName);
-	//ControllerManager.Save(m_szIniFileName);
-	DriverOptions.Save(m_szIniFileName);
-	ProgramGuideOptions.Save(m_szIniFileName);
-	PluginOptions.Save(m_szIniFileName);
-	RecentChannelList.Save(m_szIniFileName);
-	InfoPanel.Save(m_szIniFileName);
-	PanAndScanOptions.Save(m_szIniFileName);
+	static const struct {
+		CSettingsBase *pSettings;
+		bool fHasStatus;
+	} SettingsList[] = {
+		{&GeneralOptions,			true},
+		{&StatusOptions,			true},
+		{&SideBarOptions,			true},
+		{&PanelOptions,				true},
+		{&DriverOptions,			true},
+		{&PlaybackOptions,			true},
+		{&RecordOptions,			true},
+		{&CaptureOptions,			true},
+		{&PluginOptions,			true},
+		{&ViewOptions,				false},
+		{&OSDOptions,				false},
+		{&ColorSchemeOptions,		false},
+		{&OperationOptions,			false},
+		{&Accelerator,				false},
+		{&ControllerManager,		false},
+		{&ChannelScan,				false},
+		{&EpgOptions,				false},
+		{&ProgramGuideOptions,		false},
+#ifdef NETWORK_REMOCON_SUPPORT
+		{&NetworkRemoconOptions,	false},
+#endif
+		{&Logger,					false},
+	//	{&ZoomOptions,				false},
+	//	{&PanAndScanOptions,		false},
+	};
+
+	for (size_t i=0;i<lengthof(SettingsList);i++) {
+		CSettingsBase *pSettings=SettingsList[i].pSettings;
+		if (((Flags&SETTINGS_SAVE_OPTIONS)!=0 && pSettings->IsChanged())
+				|| ((Flags&SETTINGS_SAVE_STATUS)!=0 && SettingsList[i].fHasStatus)) {
+			if (pSettings->SaveSettings(SettingsFile))
+				pSettings->ClearChanged();
+		}
+	}
+
+	if ((Flags&SETTINGS_SAVE_STATUS)!=0) {
+		RecentChannelList.SaveSettings(SettingsFile);
+		InfoPanel.SaveSettings(SettingsFile);
+	}
 
 	return true;
 }
@@ -2113,7 +2122,7 @@ int CUICore::GetStereoMode() const
 
 bool CUICore::SetStereoMode(int StereoMode)
 {
-	if (StereoMode!=GetStereoMode()) {
+	/*if (StereoMode!=GetStereoMode())*/ {
 		if (!CoreEngine.SetStereoMode(StereoMode))
 			return false;
 		if (m_pSkin!=NULL)
@@ -3036,67 +3045,6 @@ static void ApplyEventInfoFont()
 }
 
 
-
-
-class COptionDialog : public COptionFrame, public CBasicDialog
-{
-public:
-	enum {
-		PAGE_GENERAL,
-		PAGE_VIEW,
-		PAGE_OSD,
-		PAGE_STATUS,
-		PAGE_SIDEBAR,
-		PAGE_PANEL,
-		PAGE_COLORSCHEME,
-		PAGE_OPERATION,
-		PAGE_ACCELERATOR,
-		PAGE_CONTROLLER,
-		PAGE_DRIVER,
-		PAGE_AUDIO,
-		PAGE_RECORD,
-		PAGE_CAPTURE,
-		PAGE_CHANNELSCAN,
-		PAGE_EPG,
-		PAGE_PROGRAMGUIDE,
-		PAGE_PLUGIN,
-#ifdef NETWORK_REMOCON_SUPPORT
-		PAGE_NETWORKREMOCON,
-#endif
-		PAGE_LOG,
-		PAGE_LAST=PAGE_LOG
-	};
-
-	COptionDialog();
-	~COptionDialog();
-	bool Show(HWND hwndOwner,int StartPage=-1);
-
-private:
-	enum { NUM_PAGES=PAGE_LAST+1 };
-	struct PageInfo {
-		LPCTSTR pszTitle;
-		COptions *pOptions;
-		int HelpID;
-	};
-	static const PageInfo m_PageList[NUM_PAGES];
-	int m_CurrentPage;
-	int m_StartPage;
-	DrawUtil::CBitmap m_Icons;
-	DrawUtil::CFont m_TitleFont;
-	bool m_fSettingError;
-
-	void CreatePage(int Page);
-	void SetPage(int Page);
-	COLORREF GetTitleColor(int Page) const;
-
-// COptionFrame
-	void OnSettingError(COptions *pOptions) override;
-
-// CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
-};
-
-
 const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 	{TEXT("一般"),					&GeneralOptions,		HELP_ID_OPTIONS_GENERAL},
 	{TEXT("表示"),					&ViewOptions,			HELP_ID_OPTIONS_VIEW},
@@ -3123,268 +3071,12 @@ const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 };
 
 
-COptionDialog::COptionDialog()
-	: m_CurrentPage(0)
+// 設定ダイアログを表示する
+static bool ShowOptionDialog(HWND hwndOwner,int StartPage=-1)
 {
-}
-
-
-COptionDialog::~COptionDialog()
-{
-	Destroy();
-}
-
-
-void COptionDialog::CreatePage(int Page)
-{
-	if (!m_PageList[Page].pOptions->IsCreated()) {
-		RECT rcPage,rcOptions;
-
-		m_PageList[Page].pOptions->Create(m_hDlg);
-		GetDlgItemRect(m_hDlg,IDC_OPTIONS_PAGEPLACE,&rcPage);
-		m_PageList[Page].pOptions->GetPosition(&rcOptions);
-		m_PageList[Page].pOptions->SetPosition(rcPage.left,rcPage.top,
-											   rcOptions.right-rcOptions.left,
-											   rcOptions.bottom-rcOptions.top);
-	}
-}
-
-
-void COptionDialog::SetPage(int Page)
-{
-	if (Page>=0 && Page<NUM_PAGES && m_CurrentPage!=Page) {
-		if (!m_PageList[Page].pOptions->IsCreated()) {
-			Util::CWaitCursor WaitCursor;
-			CreatePage(Page);
-		}
-		m_PageList[m_CurrentPage].pOptions->SetVisible(false);
-		m_PageList[Page].pOptions->SetVisible(true);
-		m_CurrentPage=Page;
-		DlgListBox_SetCurSel(m_hDlg,IDC_OPTIONS_LIST,Page);
-		InvalidateDlgItem(m_hDlg,IDC_OPTIONS_TITLE);
-	}
-}
-
-
-static COLORREF HSVToRGB(double Hue,double Saturation,double Value)
-{
-	double r,g,b;
-
-	if (Saturation==0.0) {
-		r=g=b=Value;
-	} else {
-		double h,s,v;
-		double f,p,q,t;
-
-		h=Hue*6.0;
-		if (h>=6.0)
-			h-=6.0;
-		s=Saturation;
-		v=Value;
-		f=h-(int)h;
-		p=v*(1.0-s);
-		q=v*(1.0-s*f);
-		t=v*(1.0-s*(1.0-f));
-		switch ((int)h) {
-		case 0: r=v; g=t; b=p; break;
-		case 1: r=q; g=v; b=p; break;
-		case 2: r=p; g=v; b=t; break;
-		case 3: r=p; g=q; b=v; break;
-		case 4: r=t; g=p; b=v; break;
-		case 5: r=v; g=p; b=q; break;
-		}
-	}
-	return RGB((BYTE)(r*255.0+0.5),(BYTE)(g*255.0+0.5),(BYTE)(b*255.0+0.5));
-}
-
-COLORREF COptionDialog::GetTitleColor(int Page) const
-{
-	return HSVToRGB(1.0*(double)Page/(double)NUM_PAGES,0.8,1.0);
-}
-
-
-INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
-{
-	static const int ICON_WIDTH=16,ICON_HEIGHT=16,LIST_MARGIN=1,ICON_TEXT_MARGIN=4;
-
-	switch (uMsg) {
-	case WM_INITDIALOG:
-		{
-			int i;
-
-			COptions::ClearGeneralUpdateFlags();
-			for (i=0;i<NUM_PAGES;i++) {
-				m_PageList[i].pOptions->ClearUpdateFlags();
-				::SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_ADDSTRING,0,i);
-			}
-			if (m_StartPage>=0 && m_StartPage<NUM_PAGES)
-				m_CurrentPage=m_StartPage;
-			CreatePage(m_CurrentPage);
-			m_PageList[m_CurrentPage].pOptions->SetVisible(true);
-			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_SETCURSEL,m_CurrentPage,0);
-
-			m_Icons.Load(hInst,IDB_OPTIONS);
-
-			if (!m_TitleFont.IsCreated()) {
-				HFONT hfont=reinterpret_cast<HFONT>(::SendMessage(hDlg,WM_GETFONT,0,0));
-				LOGFONT lf;
-
-				::GetObject(hfont,sizeof(LOGFONT),&lf);
-				lf.lfWeight=FW_BOLD;
-				m_TitleFont.Create(&lf);
-			}
-		}
-		return TRUE;
-
-	/*
-	case WM_MEASUREITEM:
-		if (wParam==IDC_OPTIONS_LIST) {
-			MEASUREITEMSTRUCT *pmis=reinterpret_cast<MEASUREITEMSTRUCT*>(lParam);
-
-			//pmis->itemHeight=ICON_HEIGHT+LIST_MARGIN*2;
-			pmis->itemHeight=ICON_HEIGHT;
-			return TRUE;
-		}
-	*/
-
-	case WM_DRAWITEM:
-		{
-			LPDRAWITEMSTRUCT pdis=reinterpret_cast<LPDRAWITEMSTRUCT>(lParam);
-
-			if (wParam==IDC_OPTIONS_LIST) {
-				const bool fSelected=(pdis->itemState&ODS_SELECTED)!=0;
-				COLORREF crText,crOldText;
-				int OldBkMode;
-				RECT rc;
-
-				/*
-				::FillRect(pdis->hDC,&pdis->rcItem,
-						   reinterpret_cast<HBRUSH>(fSelected?COLOR_HIGHLIGHT+1:COLOR_WINDOW+1));
-				crOldText=::SetTextColor(pdis->hDC,::GetSysColor(fSelected?COLOR_HIGHLIGHTTEXT:COLOR_WINDOWTEXT));
-				*/
-				if (fSelected) {
-					rc=pdis->rcItem;
-					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
-					DrawUtil::FillGradient(pdis->hDC,&rc,
-										   RGB(0,0,0),GetTitleColor((int)pdis->itemData));
-					crText=RGB(255,255,255);
-				} else {
-					::FillRect(pdis->hDC,&pdis->rcItem,
-							   reinterpret_cast<HBRUSH>(COLOR_WINDOW+1));
-					crText=::GetSysColor(COLOR_WINDOWTEXT);
-				}
-				rc=pdis->rcItem;
-				rc.left+=LIST_MARGIN;
-				HDC hdcMem=::CreateCompatibleDC(pdis->hDC);
-				if (hdcMem!=NULL) {
-					HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,m_Icons.GetHandle()));
-					::TransparentBlt(pdis->hDC,rc.left,rc.top,ICON_WIDTH,ICON_HEIGHT,
-									 hdcMem,(int)pdis->itemData*ICON_WIDTH,0,ICON_WIDTH,ICON_HEIGHT,RGB(255,255,255));
-					::SelectObject(hdcMem,hbmOld);
-					::DeleteDC(hdcMem);
-				}
-				crOldText=::SetTextColor(pdis->hDC,crText);
-				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
-				rc.left+=ICON_WIDTH+ICON_TEXT_MARGIN;
-				::DrawText(pdis->hDC,m_PageList[pdis->itemData].pszTitle,-1,
-						   &rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
-				::SetTextColor(pdis->hDC,crOldText);
-				::SetBkMode(pdis->hDC,OldBkMode);
-				if ((pdis->itemState&ODS_FOCUS)!=0) {
-					rc=pdis->rcItem;
-					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
-					::DrawFocusRect(pdis->hDC,&rc);
-				}
-			} else if (wParam==IDC_OPTIONS_TITLE) {
-				HFONT hfontOld;
-				COLORREF crOldText;
-				int OldBkMode;
-				RECT rc;
-
-				DrawUtil::FillGradient(pdis->hDC,&pdis->rcItem,
-									   RGB(0,0,0),GetTitleColor(m_CurrentPage));
-				hfontOld=SelectFont(pdis->hDC,m_TitleFont.GetHandle());
-				crOldText=::SetTextColor(pdis->hDC,RGB(255,255,255));
-				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
-				rc.left=pdis->rcItem.left+2;
-				rc.top=pdis->rcItem.top;
-				rc.right=pdis->rcItem.right-2;
-				rc.bottom=pdis->rcItem.bottom;
-				::DrawText(pdis->hDC,m_PageList[m_CurrentPage].pszTitle,-1,
-						   &rc,DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-				SelectFont(pdis->hDC,hfontOld);
-				::SetTextColor(pdis->hDC,crOldText);
-				::SetBkMode(pdis->hDC,OldBkMode);
-			}
-		}
-		return TRUE;
-
-	case WM_COMMAND:
-		switch (LOWORD(wParam)) {
-		case IDC_OPTIONS_LIST:
-			if (HIWORD(wParam)==LBN_SELCHANGE) {
-				int NewPage=(int)SendDlgItemMessage(hDlg,IDC_OPTIONS_LIST,LB_GETCURSEL,0,0);
-
-				if (NewPage>=0)
-					SetPage(NewPage);
-			}
-			return TRUE;
-
-		case IDC_OPTIONS_HELP:
-			HtmlHelpClass.ShowContent(m_PageList[m_CurrentPage].HelpID);
-			return TRUE;
-
-		case IDOK:
-		case IDCANCEL:
-			{
-				HCURSOR hcurOld;
-				NMHDR nmh;
-				int i;
-
-				hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
-				nmh.code=LOWORD(wParam)==IDOK?PSN_APPLY:PSN_RESET;
-				m_fSettingError=false;
-				for (i=0;i<NUM_PAGES;i++) {
-					if (m_PageList[i].pOptions->IsCreated()) {
-						m_PageList[i].pOptions->SendMessage(WM_NOTIFY,0,(LPARAM)&nmh);
-						if (m_fSettingError) {
-							::SetCursor(hcurOld);
-							return TRUE;
-						}
-					}
-				}
-				::SetCursor(hcurOld);
-				::EndDialog(hDlg,LOWORD(wParam));
-			}
-			return TRUE;
-		}
-		return TRUE;
-
-	case WM_DESTROY:
-		m_Icons.Destroy();
-		return TRUE;
-	}
-
-	return FALSE;
-}
-
-
-bool COptionDialog::Show(HWND hwndOwner,int StartPage)
-{
-	if (m_hDlg!=NULL)
+	if (!OptionDialog.Show(hwndOwner,StartPage))
 		return false;
-	COptions::SetFrame(this);
-	m_StartPage=StartPage;
-	if (ShowDialog(hwndOwner,hInst,MAKEINTRESOURCE(IDD_OPTIONS))!=IDOK) {
-		return false;
-	}
-	MainWindow.Update();
-	for (int i=0;i<NUM_PAGES;i++) {
-		DWORD Flags=m_PageList[i].pOptions->GetUpdateFlags();
 
-		if (Flags!=0)
-			m_PageList[i].pOptions->Apply(Flags);
-	}
 	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_BUILDMEDIAVIEWER)!=0) {
 		CUICore *pUICore=AppMain.GetUICore();
 
@@ -3400,9 +3092,11 @@ bool COptionDialog::Show(HWND hwndOwner,int StartPage)
 				pUICore->EnableViewer(true);
 		}
 	}
+
 	if ((COptions::GetGeneralUpdateFlags()&COptions::UPDATE_GENERAL_EVENTINFOFONT)!=0) {
 		ApplyEventInfoFont();
 	}
+
 #ifdef NETWORK_REMOCON_SUPPORT
 	if (NetworkRemoconOptions.GetUpdateFlags()!=0) {
 		AppMain.InitializeChannel();
@@ -3410,28 +3104,17 @@ bool COptionDialog::Show(HWND hwndOwner,int StartPage)
 			pNetworkRemocon->GetChannel(&GetChannelReceiver);
 	}
 #endif
+
 	if ((ProgramGuideOptions.GetUpdateFlags()&CProgramGuideOptions::UPDATE_EVENTICONS)!=0)
 		ProgramListPanel.SetVisibleEventIcons(ProgramGuideOptions.GetVisibleEventIcons());
 	ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
-	AppMain.SaveSettings();
+
+	AppMain.SaveSettings(CAppMain::SETTINGS_SAVE_OPTIONS);
+
 	PluginManager.SendSettingsChangeEvent();
+
 	return true;
 }
-
-
-void COptionDialog::OnSettingError(COptions *pOptions)
-{
-	for (int i=0;i<NUM_PAGES;i++) {
-		if (m_PageList[i].pOptions==pOptions) {
-			SetPage(i);
-			m_fSettingError=true;
-			break;
-		}
-	}
-}
-
-
-static COptionDialog OptionDialog;
 
 
 
@@ -3813,18 +3496,22 @@ class CMyEpgLoadEventHandler : public CEpgOptions::CEpgFileLoadEventHandler
 	volatile bool m_fEpgFileLoading;
 
 // CEpgFileLoadEventHandler
-	void OnBeginLoad() {
+	void OnBeginLoad() override
+	{
 		m_fEpgFileLoading=true;
 	}
 
-	void OnEndLoad(bool fSuccess) {
+	void OnEndLoad(bool fSuccess) override
+	{
+		TRACE(TEXT("EPG data loaded\n"));
 		m_fEpgFileLoading=false;
 		if (fSuccess)
 			MainWindow.PostMessage(WM_APP_EPGLOADED,0,0);
 	}
 
 // CEDCBDataLoadEventHandler
-	void OnEnd(bool fSuccess,CEventManager *pEventManager) {
+	void OnEnd(bool fSuccess,CEventManager *pEventManager) override
+	{
 		TRACE(TEXT("EDCB data loaded\n"));
 		if (fSuccess) {
 			CEventManager::ServiceList ServiceList;
@@ -3838,10 +3525,12 @@ class CMyEpgLoadEventHandler : public CEpgOptions::CEpgFileLoadEventHandler
 	}
 
 public:
-	CMyEpgLoadEventHandler() : m_fEpgFileLoading(false) {
+	CMyEpgLoadEventHandler() : m_fEpgFileLoading(false)
+	{
 	}
 
-	bool IsEpgFileLoading() const {
+	bool IsEpgFileLoading() const
+	{
 		return m_fEpgFileLoading;
 	}
 };
@@ -4179,14 +3868,13 @@ public:
 
 class CMyStatusViewEventHandler : public CStatusView::CEventHandler
 {
-	void OnMouseLeave()
+	void OnMouseLeave() override
 	{
-		if (!AppMain.GetUICore()->GetFullscreen()
-				&& !MainWindow.GetStatusBarVisible())
-			m_pStatusView->SetVisible(false);
+		if (!AppMain.GetUICore()->GetFullscreen())
+			MainWindow.OnBarMouseLeave(m_pStatusView->GetHandle());
 	}
 
-	void OnHeightChanged(int Height)
+	void OnHeightChanged(int Height) override
 	{
 		Layout::CWindowContainer *pContainer=
 			dynamic_cast<Layout::CWindowContainer*>(MainWindow.GetLayoutBase().GetContainerByID(CONTAINER_ID_STATUS));
@@ -4210,18 +3898,18 @@ class CTitleBarUtil : public CTitleBar::CEventHandler, public CBarLayout
 public:
 	CTitleBarUtil(bool fMainWindow);
 // CTitleBar::CEventHandler
-	bool OnClose();
-	bool OnMinimize();
-	bool OnMaximize();
-	bool OnFullscreen();
-	void OnMouseLeave();
-	void OnLabelLButtonDown(int x,int y);
-	void OnLabelLButtonDoubleClick(int x,int y);
-	void OnLabelRButtonDown(int x,int y);
-	void OnIconLButtonDown(int x,int y);
-	void OnIconLButtonDoubleClick(int x,int y);
+	bool OnClose() override;
+	bool OnMinimize() override;
+	bool OnMaximize() override;
+	bool OnFullscreen() override;
+	void OnMouseLeave() override;
+	void OnLabelLButtonDown(int x,int y) override;
+	void OnLabelLButtonDoubleClick(int x,int y) override;
+	void OnLabelRButtonDown(int x,int y) override;
+	void OnIconLButtonDown(int x,int y) override;
+	void OnIconLButtonDoubleClick(int x,int y) override;
 // CBarLayout
-	void Layout(RECT *pArea,RECT *pBarRect);
+	void Layout(RECT *pArea,RECT *pBarRect) override;
 // CTitleBarUtil
 	void EndDrag();
 };
@@ -4259,8 +3947,8 @@ bool CTitleBarUtil::OnFullscreen()
 
 void CTitleBarUtil::OnMouseLeave()
 {
-	if (m_fMainWindow && !m_fFixed && !MainWindow.GetTitleBarVisible())
-		m_pTitleBar->SetVisible(false);
+	if (m_fMainWindow && !m_fFixed)
+		MainWindow.OnBarMouseLeave(m_pTitleBar->GetHandle());
 }
 
 void CTitleBarUtil::OnLabelLButtonDown(int x,int y)
@@ -4434,9 +4122,8 @@ private:
 
 	void OnMouseLeave() override
 	{
-		if (!m_fFixed && !AppMain.GetUICore()->GetFullscreen()
-				&& !MainWindow.GetSideBarVisible())
-			m_pSideBar->SetVisible(false);
+		if (!m_fFixed && !AppMain.GetUICore()->GetFullscreen())
+			MainWindow.OnBarMouseLeave(m_pSideBar->GetHandle());
 	}
 
 	bool GetTooltipText(int Command,LPTSTR pszText,int MaxText) override
@@ -4690,7 +4377,7 @@ bool CBasicViewer::Create(HWND hwndParent,int ViewID,int ContainerID,HWND hwndMe
 	const CColorScheme *pColorScheme=ColorSchemeOptions.GetColorScheme();
 	Theme::BorderInfo Border;
 	pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
-	if (!ViewOptions.GetClientEdge())
+	if (!MainWindow.GetViewWindowEdge())
 		Border.Type=Theme::BORDER_NONE;
 	m_ViewWindow.SetBorder(&Border);
 	m_VideoContainer.Create(m_ViewWindow.GetHandle(),
@@ -5461,8 +5148,7 @@ static bool BroadcastControllerFocusMessage(HWND hwnd,bool fSkipSelf,bool fFocus
 
 
 
-int CMainWindow::m_ThinFrameWidth=2;
-bool CMainWindow::m_fThinFrameCreate=false;
+ATOM CMainWindow::m_atomChildOldWndProcProp=0;
 
 
 bool CMainWindow::Initialize()
@@ -5485,13 +5171,20 @@ bool CMainWindow::Initialize()
 
 CMainWindow::CMainWindow()
 	: m_Viewer(&CoreEngine.m_DtvEngine)
+
 	, m_fShowStatusBar(true)
+	, m_fPopupStatusBar(true)
 	, m_fShowTitleBar(true)
 	, m_fCustomTitleBar(true)
+	, m_fPopupTitleBar(true)
 	, m_fSplitTitleBar(true)
 	, m_fShowSideBar(false)
 	, m_PanelPaneIndex(1)
-	, m_fThinFrame(false)
+	, m_fCustomFrame(false)
+	, m_CustomFrameWidth(0)
+	, m_ThinFrameWidth(1)
+	, m_fViewWindowEdge(true)
+
 	, m_fStandbyInit(false)
 	, m_fMinimizeInit(false)
 	, m_fSrcFilterReleased(false)
@@ -5499,9 +5192,11 @@ CMainWindow::CMainWindow()
 	, m_fProgramGuideUpdating(false)
 	, m_fExitOnRecordingStop(false)
 	, m_fClosing(false)
+
 	, m_WheelCount(0)
 	, m_PrevWheelMode(COperationOptions::WHEEL_MODE_NONE)
 	, m_PrevWheelTime(0)
+
 	, m_AspectRatioType(ASPECTRATIO_DEFAULT)
 	, m_AspectRatioResetTime(0)
 	, m_fForceResetPanAndScan(false)
@@ -5528,9 +5223,18 @@ CMainWindow::CMainWindow()
 }
 
 
+CMainWindow::~CMainWindow()
+{
+	Destroy();
+	if (m_atomChildOldWndProcProp!=0) {
+		::GlobalDeleteAtom(m_atomChildOldWndProcProp);
+		m_atomChildOldWndProcProp=0;
+	}
+}
+
+
 bool CMainWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
-	m_fThinFrameCreate=m_fThinFrame;
 	if (m_pCore->GetAlwaysOnTop())
 		ExStyle|=WS_EX_TOPMOST;
 	if (!CreateBasicWindow(NULL,Style,ExStyle,ID,MAIN_WINDOW_CLASS,MAIN_TITLE_TEXT,hInst))
@@ -5542,6 +5246,49 @@ bool CMainWindow::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 bool CMainWindow::Show(int CmdShow)
 {
 	return ::ShowWindow(m_hwnd,m_WindowPosition.fMaximized?SW_SHOWMAXIMIZED:CmdShow)!=FALSE;
+}
+
+
+void CMainWindow::CreatePanel()
+{
+	PanelForm.SetEventHandler(&PanelFormEventHandler);
+	PanelForm.Create(m_hwnd,WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
+	PanelForm.SetTabFont(PanelOptions.GetFont());
+
+	InfoPanel.SetEventHandler(&InformationPanelEventHandler);
+	InfoPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
+	InfoPanel.ShowSignalLevel(!DriverOptions.IsNoSignalLevel(CoreEngine.GetDriverFileName()));
+	PanelForm.AddWindow(&InfoPanel,PANEL_ID_INFORMATION,TEXT("情報"));
+
+	ProgramListPanel.SetEpgProgramList(&EpgProgramList);
+	ProgramListPanel.SetVisibleEventIcons(ProgramGuideOptions.GetVisibleEventIcons());
+	ProgramListPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_VSCROLL);
+	PanelForm.AddWindow(&ProgramListPanel,PANEL_ID_PROGRAMLIST,TEXT("番組表"));
+
+	ChannelPanel.SetEpgProgramList(&EpgProgramList);
+	ChannelPanel.SetEventHandler(&ChannelPanelEventHandler);
+	ChannelPanel.SetLogoManager(&LogoManager);
+	PanelOptions.ApplyChannelPanelOptions(&ChannelPanel);
+	ChannelPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_VSCROLL);
+	PanelForm.AddWindow(&ChannelPanel,PANEL_ID_CHANNEL,TEXT("チャンネル"));
+
+	ControlPanel.SetSendMessageWindow(m_hwnd);
+	InitControlPanel();
+	ControlPanel.Create(PanelForm.GetHandle(),WS_CHILD);
+	PanelForm.AddWindow(&ControlPanel,PANEL_ID_CONTROL,TEXT("操作"));
+
+	CaptionPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
+	PanelForm.AddWindow(&CaptionPanel,PANEL_ID_CAPTION,TEXT("字幕"));
+
+	PanelOptions.InitializePanelForm(&PanelForm);
+	PanelFrame.Create(m_hwnd,
+					  dynamic_cast<Layout::CSplitter*>(m_LayoutBase.GetContainerByID(CONTAINER_ID_PANELSPLITTER)),
+					  CONTAINER_ID_PANEL,&PanelForm,TEXT("パネル"));
+	PanelFrame.SetEventHandler(&PanelEventHandler);
+
+	if (m_fCustomFrame) {
+		HookWindows(PanelFrame.GetPanel()->GetHandle());
+	}
 }
 
 
@@ -5560,6 +5307,8 @@ bool CMainWindow::InitializeViewer()
 			InfoPanel.SetAudioDeviceName(szText);
 		if (fEnableViewer)
 			m_pCore->EnableViewer(true);
+		if (m_fCustomFrame)
+			HookWindows(m_Viewer.GetVideoContainer().GetHandle());
 	} else {
 		InfoPanel.SetVideoDecoderName(NULL);
 		InfoPanel.SetVideoRendererName(NULL);
@@ -5653,11 +5402,11 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 	}
 	if (m_fShowStatusBar)
 		rc.bottom+=StatusView.CalcHeight(rc.right-rc.left);
-	if (m_fThinFrame) {
-		rc.left-=m_ThinFrameWidth;
-		rc.right+=m_ThinFrameWidth;
-		rc.top-=m_ThinFrameWidth;
-		rc.bottom+=m_ThinFrameWidth;
+	if (m_fCustomFrame) {
+		rc.left-=m_CustomFrameWidth;
+		rc.right+=m_CustomFrameWidth;
+		rc.top-=m_CustomFrameWidth;
+		rc.bottom+=m_CustomFrameWidth;
 	} else {
 		CalcPositionFromClientRect(&rc);
 	}
@@ -5686,60 +5435,74 @@ void CMainWindow::AdjustWindowSize(int Width,int Height)
 }
 
 
-bool CMainWindow::ReadSettings(CSettings *pSettings)
+bool CMainWindow::ReadSettings(CSettings &Settings)
 {
 	int Left,Top,Width,Height,Value;
 	bool f;
 
 	GetPosition(&Left,&Top,&Width,&Height);
-	pSettings->Read(TEXT("WindowLeft"),&Left);
-	pSettings->Read(TEXT("WindowTop"),&Top);
-	pSettings->Read(TEXT("WindowWidth"),&Width);
-	pSettings->Read(TEXT("WindowHeight"),&Height);
+	Settings.Read(TEXT("WindowLeft"),&Left);
+	Settings.Read(TEXT("WindowTop"),&Top);
+	Settings.Read(TEXT("WindowWidth"),&Width);
+	Settings.Read(TEXT("WindowHeight"),&Height);
 	SetPosition(Left,Top,Width,Height);
 	MoveToMonitorInside();
-	if (pSettings->Read(TEXT("WindowMaximize"),&f))
+	if (Settings.Read(TEXT("WindowMaximize"),&f))
 		SetMaximize(f);
-	if (pSettings->Read(TEXT("AlwaysOnTop"),&f))
+	if (Settings.Read(TEXT("AlwaysOnTop"),&f))
 		m_pCore->SetAlwaysOnTop(f);
-	if (pSettings->Read(TEXT("ShowStatusBar"),&f))
+	if (Settings.Read(TEXT("ShowStatusBar"),&f))
 		SetStatusBarVisible(f);
-	if (pSettings->Read(TEXT("ShowTitleBar"),&f))
+	Settings.Read(TEXT("PopupStatusBar"),&m_fPopupStatusBar);
+	if (Settings.Read(TEXT("ShowTitleBar"),&f))
 		SetTitleBarVisible(f);
-	if (pSettings->Read(TEXT("PanelDockingIndex"),&Value)
+	Settings.Read(TEXT("PopupTitleBar"),&m_fPopupTitleBar);
+	if (Settings.Read(TEXT("PanelDockingIndex"),&Value)
 			&& (Value==0 || Value==1))
 		m_PanelPaneIndex=Value;
-	if (pSettings->Read(TEXT("ThinFrame"),&f))
-		SetThinFrame(f);
-	if (!m_fThinFrame && pSettings->Read(TEXT("CustomTitleBar"),&f))
+	if (Settings.Read(TEXT("ThinFrameWidth"),&Value))
+		m_ThinFrameWidth=max(Value,1);
+	Value=FRAME_NORMAL;
+	if (!Settings.Read(TEXT("FrameType"),&Value)) {
+		if (Settings.Read(TEXT("ThinFrame"),&f) && f)	// 以前のバージョンとの互換用
+			Value=FRAME_CUSTOM;
+	}
+	SetCustomFrame(Value!=FRAME_NORMAL,Value==FRAME_CUSTOM?m_ThinFrameWidth:0);
+	if (!m_fCustomFrame && Settings.Read(TEXT("CustomTitleBar"),&f))
 		SetCustomTitleBar(f);
-	pSettings->Read(TEXT("SplitTitleBar"),&m_fSplitTitleBar);
-	if (pSettings->Read(TEXT("ShowSideBar"),&f))
+	Settings.Read(TEXT("SplitTitleBar"),&m_fSplitTitleBar);
+	Settings.Read(TEXT("ClientEdge"),&m_fViewWindowEdge);
+	if (Settings.Read(TEXT("ShowSideBar"),&f))
 		SetSideBarVisible(f);
-	pSettings->Read(TEXT("FrameCut"),&m_fFrameCut);
+	Settings.Read(TEXT("FrameCut"),&m_fFrameCut);
 	return true;
 }
 
 
-bool CMainWindow::WriteSettings(CSettings *pSettings)
+bool CMainWindow::WriteSettings(CSettings &Settings)
 {
 	int Left,Top,Width,Height;
 
 	GetPosition(&Left,&Top,&Width,&Height);
-	pSettings->Write(TEXT("WindowLeft"),Left);
-	pSettings->Write(TEXT("WindowTop"),Top);
-	pSettings->Write(TEXT("WindowWidth"),Width);
-	pSettings->Write(TEXT("WindowHeight"),Height);
-	pSettings->Write(TEXT("WindowMaximize"),GetMaximize());
-	pSettings->Write(TEXT("AlwaysOnTop"),m_pCore->GetAlwaysOnTop());
-	pSettings->Write(TEXT("ShowStatusBar"),m_fShowStatusBar);
-	pSettings->Write(TEXT("ShowTitleBar"),m_fShowTitleBar);
-	pSettings->Write(TEXT("PanelDockingIndex"),m_PanelPaneIndex);
-	pSettings->Write(TEXT("ThinFrame"),m_fThinFrame);
-	pSettings->Write(TEXT("CustomTitleBar"),m_fCustomTitleBar);
-	pSettings->Write(TEXT("SplitTitleBar"),m_fSplitTitleBar);
-	pSettings->Write(TEXT("ShowSideBar"),m_fShowSideBar);
-	pSettings->Write(TEXT("FrameCut"),m_fFrameCut);
+	Settings.Write(TEXT("WindowLeft"),Left);
+	Settings.Write(TEXT("WindowTop"),Top);
+	Settings.Write(TEXT("WindowWidth"),Width);
+	Settings.Write(TEXT("WindowHeight"),Height);
+	Settings.Write(TEXT("WindowMaximize"),GetMaximize());
+	Settings.Write(TEXT("AlwaysOnTop"),m_pCore->GetAlwaysOnTop());
+	Settings.Write(TEXT("ShowStatusBar"),m_fShowStatusBar);
+//	Settings.Write(TEXT("PopupStatusBar"),m_fPopupStatusBar);
+	Settings.Write(TEXT("ShowTitleBar"),m_fShowTitleBar);
+//	Settings.Write(TEXT("PopupTitleBar"),m_fPopupTitleBar);
+	Settings.Write(TEXT("PanelDockingIndex"),m_PanelPaneIndex);
+	Settings.Write(TEXT("FrameType"),
+		!m_fCustomFrame?FRAME_NORMAL:(m_CustomFrameWidth==0?FRAME_NONE:FRAME_CUSTOM));
+//	Settings.Write(TEXT("ThinFrameWidth"),m_ThinFrameWidth);
+	Settings.Write(TEXT("CustomTitleBar"),m_fCustomTitleBar);
+	Settings.Write(TEXT("SplitTitleBar"),m_fSplitTitleBar);
+	Settings.Write(TEXT("ClientEdge"),m_fViewWindowEdge);
+	Settings.Write(TEXT("ShowSideBar"),m_fShowSideBar);
+	Settings.Write(TEXT("FrameCut"),m_fFrameCut);
 	return true;
 }
 
@@ -5772,7 +5535,7 @@ void CMainWindow::SetStatusBarVisible(bool fVisible)
 					rc.bottom-=StatusView.GetHeight();
 				SetPosition(&rc);
 			}
-			MainMenu.CheckItem(CM_STATUSBAR,fVisible);
+			//MainMenu.CheckItem(CM_STATUSBAR,fVisible);
 			SideBar.CheckItem(CM_STATUSBAR,fVisible);
 		}
 	}
@@ -5810,7 +5573,7 @@ void CMainWindow::SetTitleBarVisible(bool fVisible)
 			}
 			if (m_fCustomTitleBar && fVisible)
 				m_LayoutBase.SetContainerVisible(CONTAINER_ID_TITLEBAR,true);
-			MainMenu.CheckItem(CM_TITLEBAR,fVisible);
+			//MainMenu.CheckItem(CM_TITLEBAR,fVisible);
 		}
 	}
 }
@@ -5819,8 +5582,8 @@ void CMainWindow::SetTitleBarVisible(bool fVisible)
 void CMainWindow::SetCustomTitleBar(bool fCustom)
 {
 	if (m_fCustomTitleBar!=fCustom) {
-		if (!fCustom && m_fThinFrame)
-			SetThinFrame(false);
+		if (!fCustom && m_fCustomFrame)
+			SetCustomFrame(false);
 		m_fCustomTitleBar=fCustom;
 		if (m_hwnd!=NULL) {
 			if (m_fShowTitleBar) {
@@ -5830,8 +5593,8 @@ void CMainWindow::SetCustomTitleBar(bool fCustom)
 				if (fCustom)
 					m_LayoutBase.SetContainerVisible(CONTAINER_ID_TITLEBAR,true);
 			}
-			MainMenu.CheckItem(CM_CUSTOMTITLEBAR,fCustom);
-			MainMenu.EnableItem(CM_SPLITTITLEBAR,!m_fThinFrame && fCustom);
+			//MainMenu.CheckItem(CM_CUSTOMTITLEBAR,fCustom);
+			MainMenu.EnableItem(CM_SPLITTITLEBAR,!m_fCustomFrame && fCustom);
 		}
 	}
 }
@@ -5873,26 +5636,38 @@ void CMainWindow::SetSplitTitleBar(bool fSplit)
 			pStatusSplitter->ReplacePane(0,pParentSplitter);
 			pStatusSplitter->SetAdjustPane(pParentSplitter->GetID());
 			m_LayoutBase.Adjust();
-			MainMenu.CheckItem(CM_SPLITTITLEBAR,fSplit);
+			//MainMenu.CheckItem(CM_SPLITTITLEBAR,fSplit);
 		}
 	}
 }
 
 
-void CMainWindow::SetThinFrame(bool fThinFrame)
+void CMainWindow::SetCustomFrame(bool fCustomFrame,int Width)
 {
-	if (m_fThinFrame!=fThinFrame) {
-		if (fThinFrame && !m_fCustomTitleBar)
+	if (m_fCustomFrame!=fCustomFrame || (fCustomFrame && m_CustomFrameWidth!=Width)) {
+		if (fCustomFrame && Width<0)
+			return;
+		if (fCustomFrame && !m_fCustomTitleBar)
 			SetCustomTitleBar(true);
-		m_fThinFrame=fThinFrame;
+		m_fCustomFrame=fCustomFrame;
+		if (fCustomFrame)
+			m_CustomFrameWidth=Width;
 		if (m_hwnd!=NULL) {
 			::SetWindowPos(m_hwnd,NULL,0,0,0,0,
 						   SWP_FRAMECHANGED | SWP_DRAWFRAME | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER);
 			CAeroGlass Aero;
-			Aero.EnableNcRendering(m_hwnd,!fThinFrame);
-			MainMenu.CheckItem(CM_THINFRAME,fThinFrame);
-			MainMenu.EnableItem(CM_CUSTOMTITLEBAR,!fThinFrame);
-			MainMenu.EnableItem(CM_SPLITTITLEBAR,!fThinFrame && m_fCustomTitleBar);
+			Aero.EnableNcRendering(m_hwnd,!fCustomFrame);
+			if (fCustomFrame) {
+				HookWindows(m_LayoutBase.GetHandle());
+				HookWindows(PanelForm.GetHandle());
+			}
+			/*
+			MainMenu.CheckRadioItem(CM_WINDOWFRAME_NORMAL,CM_WINDOWFRAME_NONE,
+									!fCustomFrame?CM_WINDOWFRAME_NORMAL:
+									(m_CustomFrameWidth==0?CM_WINDOWFRAME_NONE:CM_WINDOWFRAME_CUSTOM));
+			MainMenu.EnableItem(CM_CUSTOMTITLEBAR,!fCustomFrame);
+			MainMenu.EnableItem(CM_SPLITTITLEBAR,!fCustomFrame && m_fCustomTitleBar);
+			*/
 		}
 	}
 }
@@ -5920,9 +5695,56 @@ void CMainWindow::SetSideBarVisible(bool fVisible)
 			}
 			if (fVisible)
 				m_LayoutBase.SetContainerVisible(CONTAINER_ID_SIDEBAR,true);
-			MainMenu.CheckItem(CM_SIDEBAR,fVisible);
+			//MainMenu.CheckItem(CM_SIDEBAR,fVisible);
 		}
 	}
+}
+
+
+bool CMainWindow::OnBarMouseLeave(HWND hwnd)
+{
+	POINT pt;
+
+	::GetCursorPos(&pt);
+	::ScreenToClient(::GetParent(hwnd),&pt);
+	if (hwnd==m_TitleBar.GetHandle()) {
+		if (!m_fShowTitleBar) {
+			if (!m_fShowSideBar && SideBar.GetVisible()
+					&& SideBarOptions.GetPlace()==CSideBarOptions::PLACE_TOP) {
+				if (::RealChildWindowFromPoint(SideBar.GetParent(),pt)==SideBar.GetHandle())
+					return false;
+			}
+			m_TitleBar.SetVisible(false);
+			if (!m_fShowSideBar && SideBar.GetVisible())
+				SideBar.SetVisible(false);
+			return true;
+		}
+	} else if (hwnd==StatusView.GetHandle()) {
+		if (!m_fShowStatusBar) {
+			if (!m_fShowSideBar && SideBar.GetVisible()
+					&& SideBarOptions.GetPlace()==CSideBarOptions::PLACE_BOTTOM) {
+				if (::RealChildWindowFromPoint(SideBar.GetParent(),pt)==SideBar.GetHandle())
+					return false;
+			}
+			StatusView.SetVisible(false);
+			if (!m_fShowSideBar && SideBar.GetVisible())
+				SideBar.SetVisible(false);
+			return true;
+		}
+	} else if (hwnd==SideBar.GetHandle()) {
+		if (!m_fShowSideBar) {
+			SideBar.SetVisible(false);
+			if (!m_fShowTitleBar && m_TitleBar.GetVisible()
+					&& ::RealChildWindowFromPoint(m_TitleBar.GetParent(),pt)!=m_TitleBar.GetHandle())
+				m_TitleBar.SetVisible(false);
+			if (!m_fShowStatusBar && StatusView.GetVisible()
+					&& ::RealChildWindowFromPoint(StatusView.GetParent(),pt)!=StatusView.GetHandle())
+				StatusView.SetVisible(false);
+			return true;
+		}
+	}
+
+	return false;
 }
 
 
@@ -6016,88 +5838,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return 0;
 
 	case WM_MOUSEMOVE:
-		if (::GetCapture()==hwnd) {
-			POINT pt;
-			RECT rcOld,rc;
-
-			/*
-			pt.x=GET_X_LPARAM(lParam);
-			pt.y=GET_Y_LPARAM(lParam);
-			::ClientToScreen(hwnd,&pt);
-			*/
-			::GetCursorPos(&pt);
-			::GetWindowRect(hwnd,&rcOld);
-			rc.left=m_rcDragStart.left+(pt.x-m_ptDragStartPos.x);
-			rc.top=m_rcDragStart.top+(pt.y-m_ptDragStartPos.y);
-			rc.right=rc.left+(m_rcDragStart.right-m_rcDragStart.left);
-			rc.bottom=rc.top+(m_rcDragStart.bottom-m_rcDragStart.top);
-			bool fSnap=ViewOptions.GetSnapAtWindowEdge();
-			if (::GetKeyState(VK_SHIFT)<0)
-				fSnap=!fSnap;
-			if (fSnap)
-				SnapWindow(hwnd,&rc,
-						   ViewOptions.GetSnapAtWindowEdgeMargin(),
-						   PanelEventHandler.IsAttached()?NULL:PanelFrame.GetHandle());
-			SetPosition(&rc);
-			PanelEventHandler.OnOwnerMovingOrSizing(&rcOld,&rc);
-		} else if (!m_pCore->GetFullscreen()) {
-			POINT pt;
-			RECT rc;
-
-			::GetCursorPos(&pt);
-			::ScreenToClient(hwnd,&pt);
-			if (!m_fShowTitleBar) {
-				m_Viewer.GetViewWindow().GetScreenPosition(&rc);
-				MapWindowRect(NULL,hwnd,&rc);
-				if (TitleBarUtil.IsSpot(&rc,&pt)) {
-					if (!m_TitleBar.GetVisible()) {
-						RECT rcBar;
-						TitleBarUtil.Layout(&rc,&rcBar);
-						m_TitleBar.SetPosition(&rcBar);
-						m_TitleBar.SetVisible(true);
-						::BringWindowToTop(m_TitleBar.GetHandle());
-					}
-				} else {
-					if (m_TitleBar.GetVisible())
-						m_TitleBar.SetVisible(false);
-				}
-			}
-			if (!m_fShowStatusBar) {
-				m_Viewer.GetViewWindow().GetScreenPosition(&rc);
-				MapWindowRect(NULL,hwnd,&rc);
-				rc.top=rc.bottom-StatusView.GetHeight();
-				if (::PtInRect(&rc,pt)) {
-					if (!StatusView.GetVisible()) {
-						StatusView.SetPosition(&rc);
-						StatusView.SetVisible(true);
-						::BringWindowToTop(StatusView.GetHandle());
-					}
-				} else {
-					if (StatusView.GetVisible())
-						StatusView.SetVisible(false);
-				}
-			}
-			if (!m_fShowSideBar && SideBarOptions.ShowPopup()
-					&& (m_fShowTitleBar || !m_TitleBar.GetVisible())
-					&& (m_fShowStatusBar || !StatusView.GetVisible())) {
-				m_Viewer.GetViewWindow().GetScreenPosition(&rc);
-				MapWindowRect(NULL,hwnd,&rc);
-				if (SideBarUtil.IsSpot(&rc,&pt)) {
-					if (!SideBar.GetVisible()) {
-						RECT rcBar;
-						SideBarUtil.Layout(&rc,&rcBar);
-						SideBar.SetPosition(&rcBar);
-						SideBar.SetVisible(true);
-						::BringWindowToTop(SideBar.GetHandle());
-					}
-				} else {
-					if (SideBar.GetVisible())
-						SideBar.SetVisible(false);
-				}
-			}
-		} else {
-			m_Fullscreen.OnMouseMove();
-		}
+		OnMouseMove(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam));
 		return 0;
 
 	case WM_LBUTTONDBLCLK:
@@ -6174,32 +5915,32 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			return TRUE;
 		break;
 
-// ウィンドウ枠を細くするためのコード
+// ウィンドウ枠を独自のものにするためのコード
 	case WM_NCACTIVATE:
-		if (m_fThinFrame)
+		if (m_fCustomFrame)
 			return TRUE;
 		break;
 
 	case WM_NCCALCSIZE:
-		if (m_fThinFrame) {
+		if (m_fCustomFrame) {
 			if (wParam!=0) {
 				NCCALCSIZE_PARAMS *pnccsp=reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
 
-				::InflateRect(&pnccsp->rgrc[0],-m_ThinFrameWidth,-m_ThinFrameWidth);
+				::InflateRect(&pnccsp->rgrc[0],-m_CustomFrameWidth,-m_CustomFrameWidth);
 			}
 			return 0;
 		}
 		break;
 
 	case WM_NCPAINT:
-		if (m_fThinFrame) {
+		if (m_fCustomFrame) {
 			HDC hdc=::GetWindowDC(hwnd);
 			RECT rc,rcEmpty;
 
 			::GetWindowRect(hwnd,&rc);
 			::OffsetRect(&rc,-rc.left,-rc.top);
 			rcEmpty=rc;
-			::InflateRect(&rcEmpty,-m_ThinFrameWidth,-m_ThinFrameWidth);
+			::InflateRect(&rcEmpty,-m_CustomFrameWidth,-m_CustomFrameWidth);
 			DrawUtil::FillBorder(hdc,&rc,&rcEmpty,&rc,
 								 static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
 			::ReleaseDC(hwnd,hdc);
@@ -6208,11 +5949,11 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		break;
 
 	case WM_NCHITTEST:
-		if (m_fThinFrame) {
+		if (m_fCustomFrame) {
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-			int BorderWidth=m_ThinFrameWidth;
+			int BorderWidth=m_CustomFrameWidth;
 			RECT rc;
-			int Code=HTCLIENT;
+			int Code=HTNOWHERE;
 
 			::GetWindowRect(hwnd,&rc);
 			if (x>=rc.left && x<rc.left+BorderWidth) {
@@ -6237,11 +5978,15 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				Code=HTTOP;
 			} else if (y>=rc.bottom-BorderWidth && y<rc.bottom) {
 				Code=HTBOTTOM;
+			} else {
+				POINT pt={x,y};
+				if (::PtInRect(&rc,pt))
+					Code=HTCLIENT;
 			}
 			return Code;
 		}
 		break;
-// ウィンドウ枠を細くするためのコード終わり
+// ウィンドウ枠を独自のものにするためのコード終わり
 
 	case WM_INITMENUPOPUP:
 		if (OnInitMenuPopup(reinterpret_cast<HMENU>(wParam)))
@@ -6753,15 +6498,6 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 	StatusView.AddItem(new CTunerStatusItem);
 	StatusView.AddItem(new CMediaBitRateStatusItem);
 	StatusOptions.ApplyOptions();
-	if (!m_fShowStatusBar) {
-		RECT rc;
-
-		GetClientRect(&rc);
-		rc.top=rc.bottom-StatusView.GetHeight();
-		StatusView.SetPosition(&rc);
-		::BringWindowToTop(StatusView.GetHandle());
-	}
-	StatusView.SetSingleText(TEXT("起動中..."));
 
 	NotificationBar.Create(m_Viewer.GetVideoContainer().GetHandle(),
 						   WS_CHILD | WS_CLIPSIBLINGS);
@@ -6843,11 +6579,25 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 
 	m_LayoutBase.SetTopContainer(pStatusSplitter);
 
+	// 起動状況を表示するために、起動時は常にステータスバーを表示する
+	if (!m_fShowStatusBar) {
+		RECT rc;
+
+		GetClientRect(&rc);
+		rc.top=rc.bottom-StatusView.GetHeight();
+		StatusView.SetPosition(&rc);
+		StatusView.SetVisible(true);
+		::BringWindowToTop(StatusView.GetHandle());
+	}
+	StatusView.SetSingleText(TEXT("起動中..."));
+
 	OSDManager.SetEventHandler(this);
 
-	if (m_fThinFrame) {
+	if (m_fCustomFrame) {
 		CAeroGlass Aero;
 		Aero.EnableNcRendering(m_hwnd,false);
+		HookWindows(m_LayoutBase.GetHandle());
+		//HookWindows(PanelForm.GetHandle());
 	}
 
 	// IME無効化
@@ -6879,14 +6629,6 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 	//MainMenu.CheckItem(CM_CAPTUREPREVIEW,CaptureWindow.GetVisible());
 	MainMenu.CheckItem(CM_DISABLEVIEWER,true);
 	MainMenu.CheckItem(CM_PANEL,fShowPanelWindow);
-	MainMenu.CheckItem(CM_STATUSBAR,m_fShowStatusBar);
-	MainMenu.CheckItem(CM_TITLEBAR,m_fShowTitleBar);
-	MainMenu.CheckItem(CM_SIDEBAR,m_fShowSideBar);
-	MainMenu.CheckItem(CM_THINFRAME,m_fThinFrame);
-	MainMenu.EnableItem(CM_CUSTOMTITLEBAR,!m_fThinFrame);
-	MainMenu.CheckItem(CM_CUSTOMTITLEBAR,m_fCustomTitleBar);
-	MainMenu.CheckItem(CM_SPLITTITLEBAR,m_fSplitTitleBar);
-	MainMenu.EnableItem(CM_SPLITTITLEBAR,!m_fThinFrame && m_fCustomTitleBar);
 
 	HMENU hSysMenu=::GetSystemMenu(m_hwnd,FALSE);
 	::AppendMenu(hSysMenu,MF_SEPARATOR,0,NULL);
@@ -7031,6 +6773,118 @@ SizingEnd:
 }
 
 
+void CMainWindow::OnMouseMove(int x,int y)
+{
+	if (::GetCapture()==m_hwnd) {
+		// ウィンドウ移動中
+		POINT pt;
+		RECT rcOld,rc;
+
+		/*
+		pt.x=x;
+		pt.y=y;
+		::ClientToScreen(hwnd,&pt);
+		*/
+		::GetCursorPos(&pt);
+		::GetWindowRect(m_hwnd,&rcOld);
+		rc.left=m_rcDragStart.left+(pt.x-m_ptDragStartPos.x);
+		rc.top=m_rcDragStart.top+(pt.y-m_ptDragStartPos.y);
+		rc.right=rc.left+(m_rcDragStart.right-m_rcDragStart.left);
+		rc.bottom=rc.top+(m_rcDragStart.bottom-m_rcDragStart.top);
+		bool fSnap=ViewOptions.GetSnapAtWindowEdge();
+		if (::GetKeyState(VK_SHIFT)<0)
+			fSnap=!fSnap;
+		if (fSnap)
+			SnapWindow(m_hwnd,&rc,
+					   ViewOptions.GetSnapAtWindowEdgeMargin(),
+					   PanelEventHandler.IsAttached()?NULL:PanelFrame.GetHandle());
+		SetPosition(&rc);
+		PanelEventHandler.OnOwnerMovingOrSizing(&rcOld,&rc);
+	} else if (!m_pCore->GetFullscreen()) {
+		POINT pt={x,y};
+		RECT rcClient,rcTitle,rcStatus,rcSideBar,rc;
+		bool fShowTitleBar=false,fShowStatusBar=false,fShowSideBar=false;
+
+		m_Viewer.GetViewWindow().GetClientRect(&rcClient);
+		MapWindowRect(m_Viewer.GetViewWindow().GetHandle(),m_LayoutBase.GetHandle(),&rcClient);
+		if (!m_fShowTitleBar && m_fPopupTitleBar) {
+			rc=rcClient;
+			TitleBarUtil.Layout(&rc,&rcTitle);
+			if (::PtInRect(&rcTitle,pt))
+				fShowTitleBar=true;
+		}
+		if (!m_fShowStatusBar && m_fPopupStatusBar) {
+			rcStatus=rcClient;
+			rcStatus.top=rcStatus.bottom-StatusView.CalcHeight(rcClient.right-rcClient.left);
+			if (::PtInRect(&rcStatus,pt))
+				fShowStatusBar=true;
+		}
+		if (!m_fShowSideBar && SideBarOptions.ShowPopup()) {
+			switch (SideBarOptions.GetPlace()) {
+			case CSideBarOptions::PLACE_LEFT:
+			case CSideBarOptions::PLACE_RIGHT:
+				if (!fShowStatusBar && !fShowTitleBar) {
+					SideBarUtil.Layout(&rcClient,&rcSideBar);
+					if (::PtInRect(&rcSideBar,pt))
+						fShowSideBar=true;
+				}
+				break;
+			case CSideBarOptions::PLACE_TOP:
+				if (!m_fShowTitleBar && m_fPopupTitleBar)
+					rcClient.top=rcTitle.bottom;
+				SideBarUtil.Layout(&rcClient,&rcSideBar);
+				if (::PtInRect(&rcSideBar,pt)) {
+					fShowSideBar=true;
+					if (!m_fShowTitleBar && m_fPopupTitleBar)
+						fShowTitleBar=true;
+				}
+				break;
+			case CSideBarOptions::PLACE_BOTTOM:
+				if (!m_fShowStatusBar && m_fPopupStatusBar)
+					rcClient.bottom=rcStatus.top;
+				SideBarUtil.Layout(&rcClient,&rcSideBar);
+				if (::PtInRect(&rcSideBar,pt)) {
+					fShowSideBar=true;
+					if (!m_fShowStatusBar && m_fPopupStatusBar)
+						fShowStatusBar=true;
+				}
+				break;
+			}
+		}
+
+		if (fShowTitleBar) {
+			if (!m_TitleBar.GetVisible()) {
+				m_TitleBar.SetPosition(&rcTitle);
+				m_TitleBar.SetVisible(true);
+				::BringWindowToTop(m_TitleBar.GetHandle());
+			}
+		} else if (!m_fShowTitleBar && m_TitleBar.GetVisible()) {
+			m_TitleBar.SetVisible(false);
+		}
+		if (fShowStatusBar) {
+			if (!StatusView.GetVisible()) {
+				StatusView.SetPosition(&rcStatus);
+				StatusView.SetVisible(true);
+				::BringWindowToTop(StatusView.GetHandle());
+			}
+		} else if (!m_fShowStatusBar && StatusView.GetVisible()) {
+			StatusView.SetVisible(false);
+		}
+		if (fShowSideBar) {
+			if (!SideBar.GetVisible()) {
+				SideBar.SetPosition(&rcSideBar);
+				SideBar.SetVisible(true);
+				::BringWindowToTop(SideBar.GetHandle());
+			}
+		} else if (!m_fShowSideBar && SideBar.GetVisible()) {
+			SideBar.SetVisible(false);
+		}
+	} else {
+		m_Fullscreen.OnMouseMove();
+	}
+}
+
+
 void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 {
 	switch (id) {
@@ -7063,8 +6917,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		return;
 
 	case CM_ZOOMOPTIONS:
-		if (ZoomOptions.Show(GetVideoHostWindow()))
+		if (ZoomOptions.Show(GetVideoHostWindow())) {
 			SideBarOptions.SetSideBarImage();
+			ZoomOptions.SaveSettings(AppMain.GetIniFileName());
+		}
 		return;
 
 	case CM_ASPECTRATIO:
@@ -7114,6 +6970,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 						SetPanAndScan(CM_ASPECTRATIO_DEFAULT);
 					}
 				}
+				PanAndScanOptions.SaveSettings(AppMain.GetIniFileName());
 			}
 		}
 		return;
@@ -7228,7 +7085,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_COPY:
 	case CM_SAVEIMAGE:
-		{
+		if (IsViewerEnabled()) {
 			HCURSOR hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 			BYTE *pDib;
 
@@ -7364,7 +7221,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_CAPTUREOPTIONS:
 		if (IsWindowEnabled(hwnd))
-			OptionDialog.Show(hwnd,COptionDialog::PAGE_CAPTURE);
+			ShowOptionDialog(hwnd,COptionDialog::PAGE_CAPTURE);
 		return;
 
 	case CM_OPENCAPTUREFOLDER:
@@ -7476,7 +7333,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_OPTIONS_RECORD:
 		if (IsWindowEnabled(hwnd))
-			OptionDialog.Show(hwnd,COptionDialog::PAGE_RECORD);
+			ShowOptionDialog(hwnd,COptionDialog::PAGE_RECORD);
 		return;
 
 	case CM_TIMESHIFTRECORDING:
@@ -7575,6 +7432,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				ProgramGuideDisplay.Create(m_Viewer.GetDisplayBase().GetParent()->GetHandle(),
 					WS_CHILD | WS_CLIPCHILDREN);
 				m_Viewer.GetDisplayBase().SetDisplayView(&ProgramGuideDisplay);
+				if (m_fCustomFrame)
+					HookWindows(ProgramGuideDisplay.GetHandle());
 			} else {
 				ProgramGuideFrame.Create(NULL,
 					WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX |
@@ -7619,8 +7478,16 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		SetSideBarVisible(!m_fShowSideBar);
 		return;
 
-	case CM_THINFRAME:
-		SetThinFrame(!m_fThinFrame);
+	case CM_WINDOWFRAME_NORMAL:
+		SetCustomFrame(false);
+		return;
+
+	case CM_WINDOWFRAME_CUSTOM:
+		SetCustomFrame(true,m_ThinFrameWidth);
+		return;
+
+	case CM_WINDOWFRAME_NONE:
+		SetCustomFrame(true,0);
 		return;
 
 	case CM_CUSTOMTITLEBAR:
@@ -7629,6 +7496,10 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_SPLITTITLEBAR:
 		SetSplitTitleBar(!m_fSplitTitleBar);
+		return;
+
+	case CM_VIDEOEDGE:
+		SetViewWindowEdge(!m_fViewWindowEdge);
 		return;
 
 	case CM_VIDEODECODERPROPERTY:
@@ -7656,7 +7527,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			HWND hwndOwner=GetVideoHostWindow();
 
 			if (hwndOwner==NULL || IsWindowEnabled(hwndOwner))
-				OptionDialog.Show(hwndOwner);
+				ShowOptionDialog(hwndOwner);
 		}
 		return;
 
@@ -7780,6 +7651,8 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 										  WS_CHILD | WS_CLIPCHILDREN);
 				ChannelDisplayMenu.SetDriverManager(&DriverManager);
 				ChannelDisplayMenu.SetLogoManager(&LogoManager);
+				if (m_fCustomFrame)
+					HookWindows(ChannelDisplayMenu.GetHandle());
 			}
 			m_Viewer.GetDisplayBase().SetDisplayView(&ChannelDisplayMenu);
 			m_Viewer.GetDisplayBase().SetVisible(true);
@@ -7913,7 +7786,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 	case CM_SIDEBAROPTIONS:
 		if (::IsWindowEnabled(hwnd))
-			OptionDialog.Show(hwnd,COptionDialog::PAGE_SIDEBAR);
+			ShowOptionDialog(hwnd,COptionDialog::PAGE_SIDEBAR);
 		return;
 
 	case CM_DRIVER_BROWSE:
@@ -8449,19 +8322,13 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 
 	case TIMER_ID_VIDEOSIZECHANGED:
 		// 映像サイズの変化に合わせる
-		{
-			RECT rc;
-
-			m_Viewer.GetVideoContainer().GetClientRect(&rc);
-			m_Viewer.GetVideoContainer().SendMessage(WM_SIZE,0,
-													 MAKELPARAM(rc.right,rc.bottom));
-			StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
-			ControlPanel.UpdateItem(CONTROLPANEL_ITEM_VIDEO);
-			if (m_VideoSizeChangedTimerCount==3)
-				::KillTimer(hwnd,TIMER_ID_VIDEOSIZECHANGED);
-			else
-				m_VideoSizeChangedTimerCount++;
-		}
+		m_Viewer.GetVideoContainer().SendSizeMessage();
+		StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
+		ControlPanel.UpdateItem(CONTROLPANEL_ITEM_VIDEO);
+		if (m_VideoSizeChangedTimerCount==3)
+			::KillTimer(hwnd,TIMER_ID_VIDEOSIZECHANGED);
+		else
+			m_VideoSizeChangedTimerCount++;
 		break;
 
 	case TIMER_ID_RESETERRORCOUNT:
@@ -8547,6 +8414,9 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 {
 	if (hmenu==MainMenu.GetMenuHandle()) {
 		bool fFullscreen=m_pCore->GetFullscreen();
+		bool fView=IsViewerEnabled();
+		MainMenu.EnableItem(CM_COPY,fView);
+		MainMenu.EnableItem(CM_SAVEIMAGE,fView);
 		MainMenu.CheckItem(CM_PANEL,
 						   fFullscreen?m_Fullscreen.IsPanelVisible():fShowPanelWindow);
 		MainMenu.CheckItem(CM_FRAMECUT,
@@ -8588,6 +8458,7 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 			}
 		}
 
+		Accelerator.SetMenuAccel(hmenu);
 		if (!AspectRatioIconMenu.OnInitMenuPopup(m_hwnd,hmenu))
 			return false;
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_CHANNEL)) {
@@ -8729,6 +8600,18 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 				CoreEngine.m_DtvEngine.m_MediaViewer.FilterHasProperty(
 									g_DirectShowFilterPropertyList[i].Filter));
 		}
+	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_BAR)) {
+		MainMenu.CheckItem(CM_TITLEBAR,m_fShowTitleBar);
+		MainMenu.CheckItem(CM_STATUSBAR,m_fShowStatusBar);
+		MainMenu.CheckItem(CM_SIDEBAR,m_fShowSideBar);
+		MainMenu.CheckRadioItem(CM_WINDOWFRAME_NORMAL,CM_WINDOWFRAME_NONE,
+								!m_fCustomFrame?CM_WINDOWFRAME_NORMAL:
+								(m_CustomFrameWidth==0?CM_WINDOWFRAME_NONE:CM_WINDOWFRAME_CUSTOM));
+		MainMenu.CheckItem(CM_CUSTOMTITLEBAR,m_fCustomTitleBar);
+		MainMenu.EnableItem(CM_CUSTOMTITLEBAR,!m_fCustomFrame);
+		MainMenu.CheckItem(CM_SPLITTITLEBAR,m_fSplitTitleBar);
+		MainMenu.EnableItem(CM_SPLITTITLEBAR,!m_fCustomFrame && m_fCustomTitleBar);
+		MainMenu.CheckItem(CM_VIDEOEDGE,m_fViewWindowEdge);
 	} else {
 		if (ChannelMenuInitPopup(MainMenu.GetSubMenu(CMainMenu::SUBMENU_SPACE),hmenu))
 			return true;
@@ -9159,7 +9042,7 @@ void CMainWindow::AutoSelectStereoMode()
 	if (m_CurEventStereoMode<0) {
 		m_pCore->SetStereoMode(fDualMono?CoreEngine.GetAutoStereoMode():CCoreEngine::STEREOMODE_STEREO);
 		m_CurEventStereoMode=-1;
-	} else if (m_CurEventStereoMode>0) {
+	} else {
 		int OldStereoMode=m_CurEventStereoMode;
 		m_pCore->SetStereoMode(fDualMono?m_CurEventStereoMode:CCoreEngine::STEREOMODE_STEREO);
 		m_CurEventStereoMode=OldStereoMode;
@@ -9401,26 +9284,22 @@ DWORD WINAPI CMainWindow::ExitWatchThread(LPVOID lpParameter)
 
 LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
-	if (uMsg==WM_CREATE) {
-		CMainWindow *pThis=static_cast<CMainWindow*>(CBasicWindow::OnCreate(hwnd,lParam));
+	CMainWindow *pThis;
 
+	if (uMsg==WM_NCCREATE) {
+		pThis=static_cast<CMainWindow*>(CBasicWindow::OnCreate(hwnd,lParam));
+	} else {
+		pThis=static_cast<CMainWindow*>(GetBasicWindow(hwnd));
+	}
+
+	if (pThis==NULL) {
+		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+	}
+
+	if (uMsg==WM_CREATE) {
 		if (!pThis->OnCreate(reinterpret_cast<LPCREATESTRUCT>(lParam)))
 			return -1;
 		return 0;
-	}
-
-	CMainWindow *pThis=static_cast<CMainWindow*>(GetBasicWindow(hwnd));
-	if (pThis==NULL) {
-		if (uMsg==WM_NCCALCSIZE && m_fThinFrameCreate) {
-			if (wParam!=0) {
-				NCCALCSIZE_PARAMS *pnccsp=reinterpret_cast<NCCALCSIZE_PARAMS*>(lParam);
-
-				::InflateRect(&pnccsp->rgrc[0],-m_ThinFrameWidth,-m_ThinFrameWidth);
-			}
-			return 0;
-		}
-
-		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 	}
 
 	LRESULT Result=0;
@@ -9435,6 +9314,135 @@ LRESULT CALLBACK CMainWindow::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 	}
 
 	return pThis->OnMessage(hwnd,uMsg,wParam,lParam);
+}
+
+
+void CMainWindow::HookWindows(HWND hwnd)
+{
+	if (hwnd!=NULL) {
+		HookChildWindow(hwnd);
+		for (hwnd=::GetWindow(hwnd,GW_CHILD);hwnd!=NULL;hwnd=::GetWindow(hwnd,GW_HWNDNEXT))
+			HookWindows(hwnd);
+	}
+}
+
+
+#define CHILD_PROP_THIS	APP_NAME TEXT("ChildThis")
+
+void CMainWindow::HookChildWindow(HWND hwnd)
+{
+	if (hwnd==NULL)
+		return;
+
+	if (m_atomChildOldWndProcProp==0) {
+		m_atomChildOldWndProcProp=::GlobalAddAtom(APP_NAME TEXT("ChildOldWndProc"));
+		if (m_atomChildOldWndProcProp==0)
+			return;
+	}
+
+	if (::GetProp(hwnd,MAKEINTATOM(m_atomChildOldWndProcProp))==NULL) {
+#ifdef _DEBUG
+		TCHAR szClass[256];
+		::GetClassName(hwnd,szClass,lengthof(szClass));
+		TRACE(TEXT("Hook window %p \"%s\"\n"),hwnd,szClass);
+#endif
+		WNDPROC pOldWndProc=SubclassWindow(hwnd,ChildHookProc);
+		::SetProp(hwnd,MAKEINTATOM(m_atomChildOldWndProcProp),pOldWndProc);
+		::SetProp(hwnd,CHILD_PROP_THIS,this);
+	}
+}
+
+
+LRESULT CALLBACK CMainWindow::ChildHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+{
+	WNDPROC pOldWndProc=static_cast<WNDPROC>(::GetProp(hwnd,MAKEINTATOM(m_atomChildOldWndProcProp)));
+
+	if (pOldWndProc==NULL)
+		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+
+	switch (uMsg) {
+	case WM_NCHITTEST:
+		{
+			CMainWindow *pThis=static_cast<CMainWindow*>(::GetProp(hwnd,CHILD_PROP_THIS));
+
+			if (pThis!=NULL && pThis->m_fCustomFrame && ::GetAncestor(hwnd,GA_ROOT)==pThis->m_hwnd) {
+				POINT pt={GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam)};
+				RECT rc;
+
+				pThis->GetScreenPosition(&rc);
+				if (::PtInRect(&rc,pt)) {
+					int FrameWidth=max(::GetSystemMetrics(SM_CXSIZEFRAME),pThis->m_CustomFrameWidth);
+					int FrameHeight=max(::GetSystemMetrics(SM_CYSIZEFRAME),pThis->m_CustomFrameWidth);
+					int Code=HTNOWHERE;
+
+					if (pt.x<rc.left+FrameWidth) {
+						if (pt.y<rc.top+FrameHeight)
+							Code=HTTOPLEFT;
+						else if (pt.y>=rc.bottom-FrameHeight)
+							Code=HTBOTTOMLEFT;
+						else
+							Code=HTLEFT;
+					} else if (pt.x>=rc.right-FrameWidth) {
+						if (pt.y<rc.top+FrameHeight)
+							Code=HTTOPRIGHT;
+						else if (pt.y>=rc.bottom-FrameHeight)
+							Code=HTBOTTOMRIGHT;
+						else
+							Code=HTRIGHT;
+					} else if (pt.y<rc.top+FrameHeight) {
+						Code=HTTOP;
+					} else if (pt.y>=rc.bottom-FrameHeight) {
+						Code=HTBOTTOM;
+					}
+					if (Code!=HTNOWHERE) {
+						return Code;
+					}
+				}
+			}
+		}
+		break;
+
+	case WM_NCLBUTTONDOWN:
+		{
+			CMainWindow *pThis=static_cast<CMainWindow*>(::GetProp(hwnd,CHILD_PROP_THIS));
+
+			if (pThis!=NULL && pThis->m_fCustomFrame && ::GetAncestor(hwnd,GA_ROOT)==pThis->m_hwnd) {
+				BYTE Flag=0;
+
+				switch (wParam) {
+				case HTTOP:			Flag=WMSZ_TOP;			break;
+				case HTTOPLEFT:		Flag=WMSZ_TOPLEFT;		break;
+				case HTTOPRIGHT:	Flag=WMSZ_TOPRIGHT;		break;
+				case HTLEFT:		Flag=WMSZ_LEFT;			break;
+				case HTRIGHT:		Flag=WMSZ_RIGHT;		break;
+				case HTBOTTOM:		Flag=WMSZ_BOTTOM;		break;
+				case HTBOTTOMLEFT:	Flag=WMSZ_BOTTOMLEFT;	break;
+				case HTBOTTOMRIGHT:	Flag=WMSZ_BOTTOMRIGHT;	break;
+				}
+
+				if (Flag!=0) {
+					::SendMessage(pThis->m_hwnd,WM_SYSCOMMAND,SC_SIZE | Flag,lParam);
+					return 0;
+				}
+			}
+		}
+		break;
+
+	case WM_DESTROY:
+#ifdef _DEBUG
+		{
+			TCHAR szClass[256];
+			::GetClassName(hwnd,szClass,lengthof(szClass));
+			TRACE(TEXT("Unhook window %p \"%s\"\n"),hwnd,szClass);
+		}
+#endif
+		::SetWindowLongPtr(hwnd,GWLP_WNDPROC,reinterpret_cast<LONG_PTR>(pOldWndProc));
+		::RemoveProp(hwnd,MAKEINTATOM(m_atomChildOldWndProcProp));
+		::RemoveProp(hwnd,CHILD_PROP_THIS);
+		break;
+	}
+
+	return ::CallWindowProc(pOldWndProc,hwnd,uMsg,wParam,lParam);
 }
 
 
@@ -9472,6 +9480,7 @@ void CMainWindow::SetWindowVisible()
 
 	if ((ResidentManager.GetStatus()&CResidentManager::STATUS_MINIMIZED)!=0) {
 		ResidentManager.SetStatus(0,CResidentManager::STATUS_MINIMIZED);
+		ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
 		fRestore=true;
 	}
 	if (!GetVisible()) {
@@ -9918,7 +9927,7 @@ void CMainWindow::ApplyColorScheme(const CColorScheme *pColorScheme)
 
 	m_LayoutBase.SetBackColor(pColorScheme->GetColor(CColorScheme::COLOR_SPLITTER));
 	pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
-	if (!ViewOptions.GetClientEdge())
+	if (!m_fViewWindowEdge)
 		Border.Type=Theme::BORDER_NONE;
 	m_Viewer.GetViewWindow().SetBorder(&Border);
 
@@ -9960,13 +9969,16 @@ bool CMainWindow::SetLogo(LPCTSTR pszFileName)
 
 bool CMainWindow::SetViewWindowEdge(bool fEdge)
 {
-	const CColorScheme *pColorScheme=ColorSchemeOptions.GetColorScheme();
-	Theme::BorderInfo Border;
+	if (m_fViewWindowEdge!=fEdge) {
+		const CColorScheme *pColorScheme=ColorSchemeOptions.GetColorScheme();
+		Theme::BorderInfo Border;
 
-	pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
-	if (!fEdge)
-		Border.Type=Theme::BORDER_NONE;
-	m_Viewer.GetViewWindow().SetBorder(&Border);
+		pColorScheme->GetBorderInfo(CColorScheme::BORDER_SCREEN,&Border);
+		if (!fEdge)
+			Border.Type=Theme::BORDER_NONE;
+		m_Viewer.GetViewWindow().SetBorder(&Border);
+		m_fViewWindowEdge=fEdge;
+	}
 	return true;
 }
 
@@ -10053,13 +10065,15 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 	hInst=hInstance;
 
 	// コマンドラインの解析
-	if (pszCmdLine[0]!='\0') {
+	if (pszCmdLine[0]!=_T('\0')) {
 		CmdLineOptions.Parse(pszCmdLine);
 
 		if (CmdLineOptions.m_TvRockDID>=0)
 			CmdLineOptions.m_fSilent=true;
 		if (CmdLineOptions.m_fSilent)
 			AppMain.SetSilent(true);
+		if (CmdLineOptions.m_fTray)
+			CmdLineOptions.m_fMinimize=true;
 	}
 
 //#ifdef TVH264_FOR_1SEG
@@ -10080,7 +10094,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		if (::IsWindow(hwnd)) {
 			ATOM atom;
 
-			if (pszCmdLine[0]!='\0')
+			if (pszCmdLine[0]!=_T('\0'))
 				atom=::GlobalAddAtom(pszCmdLine);
 			else
 				atom=0;
@@ -10218,7 +10232,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 	ResidentManager.SetResident(GeneralOptions.GetResident());
 	ResidentManager.Initialize(MainWindow.GetHandle(),WM_APP_TRAYICON);
-	ResidentManager.SetMinimizeToTray(ViewOptions.GetMinimizeToTray());
+	ResidentManager.SetMinimizeToTray(CmdLineOptions.m_fTray || ViewOptions.GetMinimizeToTray());
 	if (CmdLineOptions.m_fMinimize)
 		MainWindow.InitMinimize();
 
@@ -10251,7 +10265,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 	CoreEngine.SetCardReaderType(GeneralOptions.GetCardReaderType());
 	CoreEngine.SetNoEpg(CmdLineOptions.m_fNoEpg);
 	CoreEngine.m_DtvEngine.SetDescrambleCurServiceOnly(GeneralOptions.GetDescrambleCurServiceOnly());
-	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableSSE2(GeneralOptions.GetDescrambleUseSSE2());
+	CoreEngine.m_DtvEngine.m_TsDescrambler.SetInstruction(GeneralOptions.GetDescrambleInstruction());
 	CoreEngine.m_DtvEngine.m_TsDescrambler.EnableEmmProcess(GeneralOptions.GetEnableEmmProcess());
 	PlaybackOptions.Apply(COptions::UPDATE_ALL);
 	CoreEngine.m_DtvEngine.m_LogoDownloader.SetLogoHandler(&LogoManager);
@@ -10298,7 +10312,9 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		PluginManager.LoadPlugins(szPluginDir,&ExcludePlugins);
 	}
 
-	CommandList.Initialize(&DriverManager,&PluginManager,&ZoomOptions);
+	CommandList.Initialize(&DriverManager,&PluginManager);
+	CommandList.AddCommandCustomizer(&ZoomOptions);
+	CommandList.AddCommandCustomizer(&PanAndScanOptions);
 
 	if (!CmdLineOptions.m_fNoPlugin)
 		PluginOptions.RestorePluginOptions();
@@ -10376,40 +10392,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		StatusView.SetVisible(false);
 	StatusView.SetSingleText(NULL);
 
-	PanelForm.SetEventHandler(&PanelFormEventHandler);
-	PanelForm.Create(MainWindow.GetHandle(),WS_CHILD | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
-	PanelForm.SetTabFont(PanelOptions.GetFont());
-
-	InfoPanel.SetEventHandler(&InformationPanelEventHandler);
-	InfoPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
-	InfoPanel.ShowSignalLevel(!DriverOptions.IsNoSignalLevel(CoreEngine.GetDriverFileName()));
-	PanelForm.AddWindow(&InfoPanel,PANEL_ID_INFORMATION,TEXT("情報"));
-
-	ProgramListPanel.SetEpgProgramList(&EpgProgramList);
-	ProgramListPanel.SetVisibleEventIcons(ProgramGuideOptions.GetVisibleEventIcons());
-	ProgramListPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_VSCROLL);
-	PanelForm.AddWindow(&ProgramListPanel,PANEL_ID_PROGRAMLIST,TEXT("番組表"));
-
-	ChannelPanel.SetEpgProgramList(&EpgProgramList);
-	ChannelPanel.SetEventHandler(&ChannelPanelEventHandler);
-	ChannelPanel.SetLogoManager(&LogoManager);
-	PanelOptions.ApplyChannelPanelOptions(&ChannelPanel);
-	ChannelPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_VSCROLL);
-	PanelForm.AddWindow(&ChannelPanel,PANEL_ID_CHANNEL,TEXT("チャンネル"));
-
-	ControlPanel.SetSendMessageWindow(MainWindow.GetHandle());
-	InitControlPanel();
-	ControlPanel.Create(PanelForm.GetHandle(),WS_CHILD);
-	PanelForm.AddWindow(&ControlPanel,PANEL_ID_CONTROL,TEXT("操作"));
-
-	CaptionPanel.Create(PanelForm.GetHandle(),WS_CHILD | WS_CLIPCHILDREN);
-	PanelForm.AddWindow(&CaptionPanel,PANEL_ID_CAPTION,TEXT("字幕"));
-
-	PanelOptions.InitializePanelForm(&PanelForm);
-	PanelFrame.Create(MainWindow.GetHandle(),
-					  dynamic_cast<Layout::CSplitter*>(MainWindow.GetLayoutBase().GetContainerByID(CONTAINER_ID_PANELSPLITTER)),
-					  CONTAINER_ID_PANEL,&PanelForm,TEXT("パネル"));
-	PanelFrame.SetEventHandler(&PanelEventHandler);
+	MainWindow.CreatePanel();
 	if (fShowPanelWindow
 			&& (!PanelFrame.GetFloating()
 				|| (!CmdLineOptions.m_fStandby && !CmdLineOptions.m_fMinimize))) {
@@ -10419,9 +10402,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 	if (!CmdLineOptions.m_fNoEpg) {
 		EpgOptions.AsyncLoadEpgFile(&EpgProgramList,&EpgLoadEventHandler);
-	}
 
-	if (!CmdLineOptions.m_fNoEpg) {
 		EpgOptions.SetEDCBDataLoadEventHandler(&EpgLoadEventHandler);
 		EpgOptions.AsyncLoadEDCBData();
 	}
@@ -10450,16 +10431,15 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 				AppMain.SetChannel(0,Port-FirstPort);
 			if (CmdLineOptions.m_ControllerChannel>0)
 				SetCommandLineChannel(&CmdLineOptions);
-		} else if (AppMain.IsFirstExecute()) {
-			if (ChannelManager.GetFileAllChannelList()->NumChannels()==0) {
-				if (MainWindow.ShowMessage(
-						TEXT("最初にチャンネルスキャンを行うことをおすすめします。\r\n")
-						TEXT("今すぐチャンネルスキャンを行いますか?"),
-						TEXT("チャンネルスキャンの確認"),
-						MB_YESNO | MB_ICONQUESTION)==IDYES) {
-					OptionDialog.Show(MainWindow.GetHandle(),
-									  COptionDialog::PAGE_CHANNELSCAN);
-				}
+		} else if (AppMain.IsFirstExecute()
+				&& ChannelManager.GetFileAllChannelList()->NumChannels()==0) {
+			if (MainWindow.ShowMessage(
+					TEXT("最初にチャンネルスキャンを行うことをおすすめします。\r\n")
+					TEXT("今すぐチャンネルスキャンを行いますか?"),
+					TEXT("チャンネルスキャンの確認"),
+					MB_YESNO | MB_ICONQUESTION)==IDYES) {
+				ShowOptionDialog(MainWindow.GetHandle(),
+								 COptionDialog::PAGE_CHANNELSCAN);
 			}
 		} else if (CmdLineOptions.IsChannelSpecified()) {
 			SetCommandLineChannel(&CmdLineOptions);
@@ -10476,24 +10456,30 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 			if (i>=0)
 				MainWindow.SendCommand(CM_CHANNEL_FIRST+i);
 		}
-
-		if (CmdLineOptions.m_fRecord)
-			MainWindow.CommandLineRecord(CmdLineOptions.m_RecordFileName.Get(),
-										 &CmdLineOptions.m_RecordStartTime,
-										 CmdLineOptions.m_RecordDelay,
-										 CmdLineOptions.m_RecordDuration);
 	}
 
 	if (CmdLineOptions.m_fStandby)
 		MainWindow.InitStandby();
+
+	if (CmdLineOptions.m_fRecord)
+		MainWindow.CommandLineRecord(CmdLineOptions.m_RecordFileName.Get(),
+									 &CmdLineOptions.m_RecordStartTime,
+									 CmdLineOptions.m_RecordDelay,
+									 CmdLineOptions.m_RecordDuration);
 	if (CmdLineOptions.m_fExitOnRecordEnd)
 		MainWindow.SendCommand(CM_EXITONRECORDINGSTOP);
+
 	if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
 		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList(),false);
 
-	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
-						   AppMain.GetIniFileName(),&CommandList);
-	OperationOptions.Initialize(AppMain.GetIniFileName(),&CommandList);
+	{
+		CSettingsFile SettingsFile;
+
+		SettingsFile.Open(AppMain.GetIniFileName(),CSettingsFile::OPEN_READ);
+		Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
+							   SettingsFile,&CommandList);
+		OperationOptions.Initialize(SettingsFile,&CommandList);
+	}
 
 	SetFocus(MainWindow.GetHandle());
 

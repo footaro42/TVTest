@@ -48,6 +48,16 @@ static const struct {
 	{TEXT("Aspect16x9Left"),			CM_ASPECTRATIO_16x9_LEFT},
 	{TEXT("Aspect16x9Right"),			CM_ASPECTRATIO_16x9_RIGHT},
 #endif
+	{TEXT("PanAndScan1"),				CM_PANANDSCAN_PRESET_FIRST},
+	{TEXT("PanAndScan2"),				CM_PANANDSCAN_PRESET_FIRST+1},
+	{TEXT("PanAndScan3"),				CM_PANANDSCAN_PRESET_FIRST+2},
+	{TEXT("PanAndScan4"),				CM_PANANDSCAN_PRESET_FIRST+3},
+	{TEXT("PanAndScan5"),				CM_PANANDSCAN_PRESET_FIRST+4},
+	{TEXT("PanAndScan6"),				CM_PANANDSCAN_PRESET_FIRST+5},
+	{TEXT("PanAndScan7"),				CM_PANANDSCAN_PRESET_FIRST+6},
+	{TEXT("PanAndScan8"),				CM_PANANDSCAN_PRESET_FIRST+7},
+	{TEXT("PanAndScan9"),				CM_PANANDSCAN_PRESET_FIRST+8},
+	{TEXT("PanAndScan10"),				CM_PANANDSCAN_PRESET_FIRST+9},
 	{TEXT("PanAndScanOptions"),			CM_PANANDSCANOPTIONS},
 	{TEXT("FrameCut"),					CM_FRAMECUT},
 	{TEXT("Fullscreen"),				CM_FULLSCREEN},
@@ -151,7 +161,6 @@ static const struct {
 
 
 CCommandList::CCommandList()
-	: m_pZoomOptions(NULL)
 {
 }
 
@@ -162,8 +171,7 @@ CCommandList::~CCommandList()
 
 
 bool CCommandList::Initialize(const CDriverManager *pDriverManager,
-							  const CPluginManager *pPluginManager,
-							  const CZoomOptions *pZoomOptions)
+							  const CPluginManager *pPluginManager)
 {
 	m_DriverList.clear();
 	if (pDriverManager!=NULL) {
@@ -191,8 +199,6 @@ bool CCommandList::Initialize(const CDriverManager *pDriverManager,
 			}
 		}
 	}
-
-	m_pZoomOptions=pZoomOptions;
 
 	return true;
 }
@@ -260,19 +266,22 @@ int CCommandList::GetCommandName(int Index,LPTSTR pszName,int MaxLength) const
 	if (pszName==NULL || MaxLength<1)
 		return 0;
 	if (Index<0 || Index>=NumCommands()) {
-		pszName[0]='\0';
+		pszName[0]=_T('\0');
 		return 0;
 	}
 	if (Index<lengthof(CommandList)) {
-		int Length=::LoadString(GetAppClass().GetResourceInstance(),
-								CommandList[Index].Command,pszName,MaxLength);
-		if (m_pZoomOptions!=NULL
-				&& CommandList[Index].Command>=CM_CUSTOMZOOM_FIRST
-				&& CommandList[Index].Command<=CM_CUSTOMZOOM_LAST) {
-			CZoomOptions::ZoomRate Zoom;
-			if (m_pZoomOptions->GetZoomRateByCommand(CommandList[Index].Command,&Zoom))
-				Length+=StdUtil::snprintf(pszName+Length,MaxLength-Length,TEXT(" : %d%%"),Zoom.Rate*100/Zoom.Factor);
+		const int Command=CommandList[Index].Command;
+		int Length=0;
+		for (size_t i=0;i<m_CustomizerList.size();i++) {
+			if (m_CustomizerList[i]->IsCommandValid(Command)) {
+				if (m_CustomizerList[i]->GetCommandName(Command,pszName,MaxLength))
+					Length=::lstrlen(pszName);
+				break;
+			}
 		}
+		if (Length==0)
+			Length=::LoadString(GetAppClass().GetResourceInstance(),
+								Command,pszName,MaxLength);
 		return Length;
 	}
 	Base=lengthof(CommandList);
@@ -310,6 +319,7 @@ int CCommandList::IDToIndex(int ID) const
 {
 	int Base;
 
+	// çÄñ⁄Ç™ëΩÇ≠Ç»Ç¡ÇΩÇÁmapÇ†ÇΩÇËÇégÇ¡ÇƒíTÇ∑ÇÊÇ§Ç…íºÇµÇΩï˚Ç™Ç¢Ç¢
 	for (int i=0;i<lengthof(CommandList);i++) {
 		if (CommandList[i].Command==ID)
 			return i;
@@ -331,8 +341,9 @@ int CCommandList::ParseText(LPCTSTR pszText) const
 {
 	int i;
 
-	if (pszText==NULL || pszText[0]=='\0')
+	if (IsStringEmpty(pszText))
 		return 0;
+	// çÄñ⁄Ç™ëΩÇ≠Ç»Ç¡ÇΩÇÁmapÇ†ÇΩÇËÇégÇ¡ÇƒíTÇ∑ÇÊÇ§Ç…íºÇµÇΩï˚Ç™Ç¢Ç¢
 	for (i=0;i<lengthof(CommandList);i++) {
 		if (::lstrcmpi(CommandList[i].pszText,pszText)==0)
 			return CommandList[i].Command;
@@ -350,4 +361,13 @@ int CCommandList::ParseText(LPCTSTR pszText) const
 			return CM_PLUGINCOMMAND_FIRST+i;
 	}
 	return 0;
+}
+
+
+bool CCommandList::AddCommandCustomizer(CCommandCustomizer *pCustomizer)
+{
+	if (pCustomizer==NULL)
+		return false;
+	m_CustomizerList.push_back(pCustomizer);
+	return true;
 }

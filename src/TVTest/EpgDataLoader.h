@@ -9,12 +9,14 @@
 class CEpgDataLoader
 {
 public:
-	class ABSTRACT_DECL CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler)
+	{
 	public:
 		virtual ~CEventHandler() = 0;
 		virtual void OnStart() {}
 		virtual void OnEnd(bool fSuccess,CEventManager *pEventManager) {}
 	};
+
 	CEpgDataLoader();
 	~CEpgDataLoader();
 	bool Load(LPCTSTR pszFolder,HANDLE hAbortEvent=NULL);

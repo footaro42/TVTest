@@ -39,7 +39,7 @@ class CChannelScan : public COptions
 	DWORD m_MaxBitRate;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
@@ -56,8 +56,9 @@ public:
 	~CChannelScan();
 // COptions
 	bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
 	bool Create(HWND hwndOwner);
 // CChannelScan

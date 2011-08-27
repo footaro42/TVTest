@@ -197,7 +197,6 @@ CStatusView::CStatusView()
 	, m_Rows(1)
 	, m_fSingleMode(false)
 	, m_HotItem(-1)
-	, m_fTrackMouseEvent(false)
 	, m_fOnButtonDown(false)
 	, m_pEventHandler(NULL)
 	, m_fBufferedPaint(false)
@@ -319,7 +318,7 @@ LRESULT CStatusView::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 						   SWP_NOZORDER | SWP_NOMOVE);
 
 			m_HotItem=-1;
-			m_fTrackMouseEvent=false;
+			m_MouseLeaveTrack.Initialize(hwnd);
 		}
 		return 0;
 
@@ -378,25 +377,29 @@ LRESULT CStatusView::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					i=-1;
 				if (i!=m_HotItem)
 					SetHotItem(i);
-				// WM_MOUSELEAVE ‚ª‘—‚ç‚ê‚È‚­‚Ä‚à–³Œø‚É‚³‚ê‚éŽ–‚ª‚ ‚é‚æ‚¤‚¾
-				/*if (!m_fTrackMouseEvent)*/ {
-					TRACKMOUSEEVENT tme;
-
-					tme.cbSize=sizeof(TRACKMOUSEEVENT);
-					tme.dwFlags=TME_LEAVE;
-					tme.hwndTrack=hwnd;
-					if (TrackMouseEvent(&tme))
-						m_fTrackMouseEvent=true;
-				}
+				m_MouseLeaveTrack.OnMouseMove();
 			}
 		}
 		return 0;
 
 	case WM_MOUSELEAVE:
-		m_fTrackMouseEvent=false;
-		if (!m_fOnButtonDown) {
-			if (m_HotItem>=0)
-				SetHotItem(-1);
+		{
+			bool fLeave=m_MouseLeaveTrack.OnMouseLeave();
+			if (!m_fOnButtonDown) {
+				if (m_HotItem>=0)
+					SetHotItem(-1);
+				if (fLeave && m_pEventHandler)
+					m_pEventHandler->OnMouseLeave();
+			}
+		}
+		return 0;
+
+	case WM_NCMOUSEMOVE:
+		m_MouseLeaveTrack.OnNcMouseMove();
+		return 0;
+
+	case WM_NCMOUSELEAVE:
+		if (m_MouseLeaveTrack.OnNcMouseLeave()) {
 			if (m_pEventHandler)
 				m_pEventHandler->OnMouseLeave();
 		}
@@ -424,14 +427,14 @@ LRESULT CStatusView::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				break;
 			}
 			m_fOnButtonDown=false;
-			if (!m_fTrackMouseEvent) {
+			if (!m_MouseLeaveTrack.IsClientTrack()) {
 				POINT pt;
 
 				::GetCursorPos(&pt);
 				::ScreenToClient(hwnd,&pt);
 				::GetClientRect(hwnd,&rc);
 				if (::PtInRect(&rc,pt)) {
-					::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM(pt.x,pt.y));
+					::SendMessage(hwnd,WM_MOUSEMOVE,0,MAKELPARAM((SHORT)pt.x,(SHORT)pt.y));
 				} else {
 					SetHotItem(-1);
 					if (m_pEventHandler)
@@ -868,7 +871,7 @@ void CStatusView::Draw(HDC hdc,const RECT *pPaintRect)
 			if (pItem->GetVisible() && pItem->GetWidth()>MaxWidth)
 				MaxWidth=pItem->GetWidth();
 		}
-		if (MaxWidth>m_Offscreen.GetWidth()
+		if (MaxWidth+ITEM_MARGIN*2>m_Offscreen.GetWidth()
 				|| ItemHeight>m_Offscreen.GetHeight())
 			m_Offscreen.Create(MaxWidth+ITEM_MARGIN*2,ItemHeight);
 		hdcDst=m_Offscreen.GetDC();

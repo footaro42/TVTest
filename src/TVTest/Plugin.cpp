@@ -2931,32 +2931,11 @@ CPluginOptions::~CPluginOptions()
 }
 
 
-bool CPluginOptions::Read(CSettings *pSettings)
-{
-	/*
-	unsigned int Timeout;
-	if (pSettings->Read(TEXT("PluginFinalizeTimeout"),&Timeout))
-		CPlugin::SetFinalizeTimeout(Timeout);
-	*/
-	return true;
-}
-
-
-bool CPluginOptions::Write(CSettings *pSettings) const
-{
-	/*
-	pSettings->Write(TEXT("PluginFinalizeTimeout"),
-					 (unsigned int)CPlugin::GetFinalizeTimeout());
-	*/
-	return true;
-}
-
-
-bool CPluginOptions::Load(LPCTSTR pszFileName)
+bool CPluginOptions::LoadSettings(CSettingsFile &File)
 {
 	CSettings Settings;
 
-	if (Settings.Open(pszFileName,TEXT("PluginList"),CSettings::OPEN_READ)) {
+	if (File.OpenSection(&Settings,TEXT("PluginList"))) {
 		int Count;
 
 		if (Settings.Read(TEXT("PluginCount"),&Count) && Count>0) {
@@ -2976,16 +2955,17 @@ bool CPluginOptions::Load(LPCTSTR pszFileName)
 				}
 			}
 		}
+		Settings.Close();
 	}
 	return true;
 }
 
 
-bool CPluginOptions::Save(LPCTSTR pszFileName) const
+bool CPluginOptions::SaveSettings(CSettingsFile &File)
 {
 	CSettings Settings;
 
-	if (Settings.Open(pszFileName,TEXT("PluginList"),CSettings::OPEN_WRITE)) {
+	if (File.OpenSection(&Settings,TEXT("PluginList"))) {
 		Settings.Clear();
 		Settings.Write(TEXT("PluginCount"),(unsigned int)m_EnablePluginList.size());
 		for (size_t i=0;i<m_EnablePluginList.size();i++) {
@@ -2996,6 +2976,7 @@ bool CPluginOptions::Save(LPCTSTR pszFileName) const
 			::wsprintf(szName,TEXT("Plugin%d_Enable"),i);
 			Settings.Write(szName,true);
 		}
+		Settings.Close();
 	}
 	return true;
 }

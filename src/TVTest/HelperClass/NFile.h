@@ -9,17 +9,21 @@ class CNFile
 {
 public:
 	enum {
-		CNF_READ		= 0x01U,
-		CNF_WRITE		= 0x02U,
-		CNF_NEW			= 0x04U,
-		CNF_SHAREREAD	= 0x08U,
-		CNF_SHAREWRITE	= 0x10U
+		CNF_READ			= 0x0001U,
+		CNF_WRITE			= 0x0002U,
+		CNF_NEW				= 0x0004U,
+		CNF_SHAREREAD		= 0x0008U,
+		CNF_SHAREWRITE		= 0x0010U,
+		CNF_SEQUENTIALREAD	= 0x0020U,
+		CNF_RANDOMACCESS	= 0x0040U,
+		CNF_PRIORITY_LOW	= 0x0100U,
+		CNF_PRIORITY_IDLE	= 0x0200U
 	};
 
 	CNFile();
 	virtual ~CNFile();
 
-	virtual const bool Open(LPCTSTR lpszName, const BYTE bFlags);
+	virtual const bool Open(LPCTSTR lpszName, const UINT Flags);
 	virtual const bool Close(void);
 	virtual const bool IsOpen() const;
 

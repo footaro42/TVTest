@@ -377,6 +377,7 @@ CCommandLineOptions::CCommandLineOptions()
 	, m_fFullscreen(false)
 	, m_fMinimize(false)
 	, m_fMaximize(false)
+	, m_fTray(false)
 	, m_WindowLeft(INVALID_WINDOW_POS)
 	, m_WindowTop(INVALID_WINDOW_POS)
 	, m_WindowWidth(0)
@@ -402,6 +403,7 @@ CCommandLineOptions::CCommandLineOptions()
 	/log			終了時にログを保存する
 	/max			最大化状態で起動
 	/min			最小化状態で起動
+	/tray			起動時にタスクトレイに格納
 	/posx			ウィンドウの左位置の指定
 	/posy			ウィンドウの上位置の指定
 	/width			ウィンドウの幅の指定
@@ -483,6 +485,7 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("sid"),&m_ServiceID)
 					&& !Args.GetOption(TEXT("silent"),&m_fSilent)
 					&& !Args.GetOption(TEXT("standby"),&m_fStandby)
+					&& !Args.GetOption(TEXT("tray"),&m_fTray)
 					&& !Args.GetOption(TEXT("tsid"),&m_TransportStreamID)
 					&& !Args.GetOption(TEXT("volume"),&m_Volume)
 					&& !Args.GetOption(TEXT("width"),&m_WindowWidth)) {

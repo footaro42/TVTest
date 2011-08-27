@@ -201,7 +201,8 @@ int CDriverSettingList::Find(LPCTSTR pszFileName) const
 
 
 CDriverOptions::CDriverOptions()
-	: m_pDriverManager(NULL)
+	: COptions(TEXT("DriverSettings"))
+	, m_pDriverManager(NULL)
 {
 }
 
@@ -212,57 +213,53 @@ CDriverOptions::~CDriverOptions()
 }
 
 
-bool CDriverOptions::Load(LPCTSTR pszFileName)
+bool CDriverOptions::ReadSettings(CSettings &Settings)
 {
-	CSettings Settings;
+	int NumDrivers;
 
-	if (Settings.Open(pszFileName,TEXT("DriverSettings"),CSettings::OPEN_READ)) {
-		int NumDrivers;
+	if (Settings.Read(TEXT("DriverCount"),&NumDrivers) && NumDrivers>0) {
+		for (int i=0;i<NumDrivers;i++) {
+			TCHAR szName[64],szFileName[MAX_PATH];
 
-		if (Settings.Read(TEXT("DriverCount"),&NumDrivers) && NumDrivers>0) {
-			for (int i=0;i<NumDrivers;i++) {
-				TCHAR szName[64],szFileName[MAX_PATH];
+			::wsprintf(szName,TEXT("Driver%d_FileName"),i);
+			if (!Settings.Read(szName,szFileName,lengthof(szFileName)))
+				break;
+			if (szFileName[0]!='\0') {
+				CDriverSettings *pSettings=new CDriverSettings(szFileName);
+				int Value;
 
-				::wsprintf(szName,TEXT("Driver%d_FileName"),i);
-				if (!Settings.Read(szName,szFileName,lengthof(szFileName)))
-					break;
-				if (szFileName[0]!='\0') {
-					CDriverSettings *pSettings=new CDriverSettings(szFileName);
-					int Value;
-
-					::wsprintf(szName,TEXT("Driver%d_InitChannelType"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->SetInitialChannelType(Value);
-					::wsprintf(szName,TEXT("Driver%d_InitSpace"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->SetInitialSpace(Value);
-					::wsprintf(szName,TEXT("Driver%d_InitChannel"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->SetInitialChannel(Value);
-					::wsprintf(szName,TEXT("Driver%d_Options"),i);
-					if (Settings.Read(szName,&Value)) {
-						pSettings->SetDescrambleDriver((Value&DRIVER_FLAG_DESCRAMBLEDRIVER)!=0);
-						pSettings->SetNoSignalLevel((Value&DRIVER_FLAG_NOSIGNALLEVEL)!=0);
-						pSettings->SetPurgeStreamOnChannelChange((Value&DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE)!=0);
-						pSettings->SetAllChannels((Value&DRIVER_FLAG_ALLCHANNELS)!=0);
-						pSettings->SetResetChannelChangeErrorCount((Value&DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT)!=0);
-						pSettings->SetIgnoreInitialStream((Value&DRIVER_FLAG_NOTIGNOREINITIALSTREAM)==0);
-					}
-					::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->m_LastSpace=Value;
-					::wsprintf(szName,TEXT("Driver%d_LastChannel"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->m_LastChannel=Value;
-					::wsprintf(szName,TEXT("Driver%d_LastServiceID"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->m_LastServiceID=Value;
-					::wsprintf(szName,TEXT("Driver%d_LastStatus"),i);
-					if (Settings.Read(szName,&Value))
-						pSettings->m_fLastAllChannels=(Value&1)!=0;
-
-					m_SettingList.Add(pSettings);
+				::wsprintf(szName,TEXT("Driver%d_InitChannelType"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->SetInitialChannelType(Value);
+				::wsprintf(szName,TEXT("Driver%d_InitSpace"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->SetInitialSpace(Value);
+				::wsprintf(szName,TEXT("Driver%d_InitChannel"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->SetInitialChannel(Value);
+				::wsprintf(szName,TEXT("Driver%d_Options"),i);
+				if (Settings.Read(szName,&Value)) {
+					pSettings->SetDescrambleDriver((Value&DRIVER_FLAG_DESCRAMBLEDRIVER)!=0);
+					pSettings->SetNoSignalLevel((Value&DRIVER_FLAG_NOSIGNALLEVEL)!=0);
+					pSettings->SetPurgeStreamOnChannelChange((Value&DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE)!=0);
+					pSettings->SetAllChannels((Value&DRIVER_FLAG_ALLCHANNELS)!=0);
+					pSettings->SetResetChannelChangeErrorCount((Value&DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT)!=0);
+					pSettings->SetIgnoreInitialStream((Value&DRIVER_FLAG_NOTIGNOREINITIALSTREAM)==0);
 				}
+				::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->m_LastSpace=Value;
+				::wsprintf(szName,TEXT("Driver%d_LastChannel"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->m_LastChannel=Value;
+				::wsprintf(szName,TEXT("Driver%d_LastServiceID"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->m_LastServiceID=Value;
+				::wsprintf(szName,TEXT("Driver%d_LastStatus"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->m_fLastAllChannels=(Value&1)!=0;
+
+				m_SettingList.Add(pSettings);
 			}
 		}
 	}
@@ -270,50 +267,46 @@ bool CDriverOptions::Load(LPCTSTR pszFileName)
 }
 
 
-bool CDriverOptions::Save(LPCTSTR pszFileName) const
+bool CDriverOptions::WriteSettings(CSettings &Settings)
 {
-	CSettings Settings;
+	int NumDrivers=(int)m_SettingList.NumDrivers();
 
-	if (Settings.Open(pszFileName,TEXT("DriverSettings"),CSettings::OPEN_WRITE)) {
-		int NumDrivers=(int)m_SettingList.NumDrivers();
+	Settings.Write(TEXT("DriverCount"),NumDrivers);
+	for (int i=0;i<NumDrivers;i++) {
+		const CDriverSettings *pSettings=m_SettingList.GetDriverSettings(i);
+		TCHAR szName[64];
 
-		Settings.Write(TEXT("DriverCount"),NumDrivers);
-		for (int i=0;i<NumDrivers;i++) {
-			const CDriverSettings *pSettings=m_SettingList.GetDriverSettings(i);
-			TCHAR szName[64];
-
-			::wsprintf(szName,TEXT("Driver%d_FileName"),i);
-			Settings.Write(szName,pSettings->GetFileName());
-			::wsprintf(szName,TEXT("Driver%d_InitChannelType"),i);
-			Settings.Write(szName,pSettings->GetInitialChannelType());
-			::wsprintf(szName,TEXT("Driver%d_InitSpace"),i);
-			Settings.Write(szName,pSettings->GetInitialSpace());
-			::wsprintf(szName,TEXT("Driver%d_InitChannel"),i);
-			Settings.Write(szName,pSettings->GetInitialChannel());
-			::wsprintf(szName,TEXT("Driver%d_Options"),i);
-			int Flags=0;
-			if (pSettings->GetDescrambleDriver())
-				Flags|=DRIVER_FLAG_DESCRAMBLEDRIVER;
-			if (pSettings->GetNoSignalLevel())
-				Flags|=DRIVER_FLAG_NOSIGNALLEVEL;
-			if (pSettings->GetPurgeStreamOnChannelChange())
-				Flags|=DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE;
-			if (pSettings->GetAllChannels())
-				Flags|=DRIVER_FLAG_ALLCHANNELS;
-			if (pSettings->GetResetChannelChangeErrorCount())
-				Flags|=DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT;
-			if (!pSettings->GetIgnoreInitialStream())
-				Flags|=DRIVER_FLAG_NOTIGNOREINITIALSTREAM;
-			Settings.Write(szName,Flags);
-			::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
-			Settings.Write(szName,pSettings->m_LastSpace);
-			::wsprintf(szName,TEXT("Driver%d_LastChannel"),i);
-			Settings.Write(szName,pSettings->m_LastChannel);
-			::wsprintf(szName,TEXT("Driver%d_LastServiceID"),i);
-			Settings.Write(szName,pSettings->m_LastServiceID);
-			::wsprintf(szName,TEXT("Driver%d_LastStatus"),i);
-			Settings.Write(szName,pSettings->m_fLastAllChannels?0x01U:0x00U);
-		}
+		::wsprintf(szName,TEXT("Driver%d_FileName"),i);
+		Settings.Write(szName,pSettings->GetFileName());
+		::wsprintf(szName,TEXT("Driver%d_InitChannelType"),i);
+		Settings.Write(szName,pSettings->GetInitialChannelType());
+		::wsprintf(szName,TEXT("Driver%d_InitSpace"),i);
+		Settings.Write(szName,pSettings->GetInitialSpace());
+		::wsprintf(szName,TEXT("Driver%d_InitChannel"),i);
+		Settings.Write(szName,pSettings->GetInitialChannel());
+		::wsprintf(szName,TEXT("Driver%d_Options"),i);
+		int Flags=0;
+		if (pSettings->GetDescrambleDriver())
+			Flags|=DRIVER_FLAG_DESCRAMBLEDRIVER;
+		if (pSettings->GetNoSignalLevel())
+			Flags|=DRIVER_FLAG_NOSIGNALLEVEL;
+		if (pSettings->GetPurgeStreamOnChannelChange())
+			Flags|=DRIVER_FLAG_PURGESTREAMONCHANNELCHANGE;
+		if (pSettings->GetAllChannels())
+			Flags|=DRIVER_FLAG_ALLCHANNELS;
+		if (pSettings->GetResetChannelChangeErrorCount())
+			Flags|=DRIVER_FLAG_RESETCHANNELCHANGEERRORCOUNT;
+		if (!pSettings->GetIgnoreInitialStream())
+			Flags|=DRIVER_FLAG_NOTIGNOREINITIALSTREAM;
+		Settings.Write(szName,Flags);
+		::wsprintf(szName,TEXT("Driver%d_LastSpace"),i);
+		Settings.Write(szName,pSettings->m_LastSpace);
+		::wsprintf(szName,TEXT("Driver%d_LastChannel"),i);
+		Settings.Write(szName,pSettings->m_LastChannel);
+		::wsprintf(szName,TEXT("Driver%d_LastServiceID"),i);
+		Settings.Write(szName,pSettings->m_LastServiceID);
+		::wsprintf(szName,TEXT("Driver%d_LastStatus"),i);
+		Settings.Write(szName,pSettings->m_fLastAllChannels?0x01U:0x00U);
 	}
 	return true;
 }
@@ -768,6 +761,7 @@ INT_PTR CDriverOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		switch (((LPNMHDR)lParam)->code) {
 		case PSN_APPLY:
 			m_SettingList=m_CurSettingList;
+			m_fChanged=true;
 			break;
 		}
 		break;

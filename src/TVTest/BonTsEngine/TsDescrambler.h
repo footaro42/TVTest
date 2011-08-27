@@ -70,6 +70,12 @@ public:
 		LPCTSTR pszText;
 	};
 
+	enum InstructionType {
+		INSTRUCTION_NORMAL,
+		INSTRUCTION_SSE2,
+		INSTRUCTION_SSSE3
+	};
+
 	CTsDescrambler(IEventHandler *pEventHandler = NULL);
 	virtual ~CTsDescrambler();
 
@@ -96,7 +102,8 @@ public:
 	bool SetTargetServiceID(WORD ServiceID = 0);
 	WORD GetEcmPIDByServiceID(const WORD ServiceID) const;
 	static bool IsSSE2Available();
-	bool EnableSSE2(bool bEnable);
+	static bool IsSSSE3Available();
+	bool SetInstruction(InstructionType Type);
 	bool SendBcasCommand(const BYTE *pSendData, DWORD SendSize, BYTE *pRecvData, DWORD *pRecvSize);
 
 protected:
@@ -133,7 +140,7 @@ protected:
 	ULONGLONG m_InputPacketCount;
 	ULONGLONG m_ScramblePacketCount;
 
-	bool m_bEnableSSE2;
+	InstructionType m_Instruction;
 
 	WORD m_EmmPID;
 

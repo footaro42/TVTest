@@ -263,7 +263,7 @@ CAccelerator::~CAccelerator()
 }
 
 
-void CAccelerator::FormatAccelText(LPTSTR pszText,int Key,int Modifiers)
+void CAccelerator::FormatAccelText(LPTSTR pszText,int Key,int Modifiers,bool fGlobal)
 {
 	pszText[0]='\0';
 	if ((Modifiers&MOD_SHIFT)!=0)
@@ -278,6 +278,8 @@ void CAccelerator::FormatAccelText(LPTSTR pszText,int Key,int Modifiers)
 			break;
 		}
 	}
+	if (fGlobal)
+		::lstrcat(pszText,TEXT(" (G)"));
 }
 
 
@@ -387,29 +389,21 @@ bool CAccelerator::UnregisterHotKey()
 }
 
 
-bool CAccelerator::Read(CSettings *pSettings)
-{
-	pSettings->Read(TEXT("FuncKeyChangeChannel"),&m_fFunctionKeyChangeChannel);
-	pSettings->Read(TEXT("DigitKeyChangeChannel"),&m_fDigitKeyChangeChannel);
-	pSettings->Read(TEXT("NumPadChangeChannel"),&m_fNumPadChangeChannel);
-	return true;
-}
-
-
-bool CAccelerator::Write(CSettings *pSettings) const
-{
-	pSettings->Write(TEXT("FuncKeyChangeChannel"),m_fFunctionKeyChangeChannel);
-	pSettings->Write(TEXT("DigitKeyChangeChannel"),m_fDigitKeyChangeChannel);
-	pSettings->Write(TEXT("NumPadChangeChannel"),m_fNumPadChangeChannel);
-	return true;
-}
-
-
-bool CAccelerator::Load(LPCTSTR pszFileName)
+bool CAccelerator::LoadSettings(CSettingsFile &File)
 {
 	CSettings Settings;
 
-	if (Settings.Open(pszFileName,TEXT("Accelerator"),CSettings::OPEN_READ)) {
+	if (File.OpenSection(&Settings,TEXT("Settings"))) {
+		Settings.Read(TEXT("FuncKeyChangeChannel"),&m_fFunctionKeyChangeChannel);
+		Settings.Read(TEXT("DigitKeyChangeChannel"),&m_fDigitKeyChangeChannel);
+		Settings.Read(TEXT("NumPadChangeChannel"),&m_fNumPadChangeChannel);
+		Settings.Close();
+	}
+
+	if (m_pCommandList==NULL)
+		return true;
+
+	if (File.OpenSection(&Settings,TEXT("Accelerator"))) {
 		int NumAccel;
 
 		if (Settings.Read(TEXT("AccelCount"),&NumAccel) && NumAccel>=0) {
@@ -445,7 +439,7 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 		Settings.Close();
 	}
 
-	if (Settings.Open(pszFileName,TEXT("AppCommand"),CSettings::OPEN_READ)) {
+	if (File.OpenSection(&Settings,TEXT("AppCommand"))) {
 		int NumCommands;
 
 		if (Settings.Read(TEXT("NumCommands"),&NumCommands) && NumCommands>=0) {
@@ -480,17 +474,26 @@ bool CAccelerator::Load(LPCTSTR pszFileName)
 		}
 		Settings.Close();
 	}
+
 	return true;
 }
 
 
-bool CAccelerator::Save(LPCTSTR pszFileName) const
+bool CAccelerator::SaveSettings(CSettingsFile &File)
 {
 	CSettings Settings;
 
+	if (File.OpenSection(&Settings,TEXT("Settings"))) {
+		Settings.Write(TEXT("FuncKeyChangeChannel"),m_fFunctionKeyChangeChannel);
+		Settings.Write(TEXT("DigitKeyChangeChannel"),m_fDigitKeyChangeChannel);
+		Settings.Write(TEXT("NumPadChangeChannel"),m_fNumPadChangeChannel);
+		Settings.Close();
+	}
+
 	if (m_pCommandList==NULL)
 		return true;
-	if (Settings.Open(pszFileName,TEXT("Accelerator"),CSettings::OPEN_WRITE)) {
+
+	if (File.OpenSection(&Settings,TEXT("Accelerator"))) {
 		Settings.Clear();
 #if 1
 		/* デフォルトと同じ場合は保存しない */
@@ -530,7 +533,7 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 		Settings.Close();
 	}
 
-	if (Settings.Open(pszFileName,TEXT("AppCommand"),CSettings::OPEN_WRITE)) {
+	if (File.OpenSection(&Settings,TEXT("AppCommand"))) {
 		Settings.Clear();
 #if 1
 		/* デフォルトと同じ場合は保存しない */
@@ -569,6 +572,7 @@ bool CAccelerator::Save(LPCTSTR pszFileName) const
 		}
 		Settings.Close();
 	}
+
 	return true;
 }
 
@@ -581,10 +585,10 @@ bool CAccelerator::Create(HWND hwndOwner)
 
 
 bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
-				LPCTSTR pszSettingFileName,const CCommandList *pCommandList)
+							  CSettingsFile &SettingsFile,const CCommandList *pCommandList)
 {
 	m_pCommandList=pCommandList;
-	Load(pszSettingFileName);
+	LoadSettings(SettingsFile);
 	if (m_hAccel==NULL)
 		m_hAccel=CreateAccel();
 	m_pMainMenu=pMainMenu;
@@ -718,7 +722,7 @@ void CAccelerator::SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool f
 	lvi.mask=LVIF_TEXT;
 	lvi.iSubItem=1;
 	if (Key!=0) {
-		FormatAccelText(szText,Key,Mod);
+		FormatAccelText(szText,Key,Mod,fGlobal);
 		lvi.pszText=szText;
 	} else {
 		lvi.pszText=TEXT("");
@@ -830,7 +834,7 @@ INT_PTR CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				if (pKey!=NULL) {
 					lvi.mask=LVIF_TEXT;
 					lvi.iSubItem=1;
-					FormatAccelText(szText,pKey->KeyCode,pKey->Modifiers);
+					FormatAccelText(szText,pKey->KeyCode,pKey->Modifiers,pKey->fGlobal);
 					ListView_SetItem(hwndList,&lvi);
 				}
 				if (AppCommand!=0) {
@@ -916,7 +920,8 @@ INT_PTR CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				lvi.mask=LVIF_TEXT;
 				lvi.iSubItem=1;
 				if (Key>0) {
-					FormatAccelText(szText,GET_ACCEL_KEY(lvi.lParam),GET_ACCEL_MOD(lvi.lParam));
+					FormatAccelText(szText,
+						GET_ACCEL_KEY(lvi.lParam),GET_ACCEL_MOD(lvi.lParam),GET_ACCEL_GLOBAL(lvi.lParam));
 					lvi.pszText=szText;
 				} else {
 					lvi.pszText=TEXT("");
@@ -1161,6 +1166,8 @@ INT_PTR CAccelerator::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_DIGIT);
 				m_fNumPadChangeChannel=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CHANGECH_NUMPAD);
+
+				m_fChanged=true;
 			}
 			break;
 		}

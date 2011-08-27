@@ -25,7 +25,6 @@ CViewOptions::CViewOptions()
 	, m_fNoMaskSideCut(true)
 	, m_FullscreenStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO)
 	, m_MaximizeStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO)
-	, m_fClientEdge(true)
 	, m_fMinimizeToTray(false)
 	, m_fDisablePreviewWhenMinimized(false)
 	, m_fUseLogoIcon(false)
@@ -67,56 +66,54 @@ bool CViewOptions::Apply(DWORD Flags)
 }
 
 
-bool CViewOptions::Read(CSettings *pSettings)
+bool CViewOptions::ReadSettings(CSettings &Settings)
 {
 	int Value;
 
-	pSettings->Read(TEXT("AdjustAspectResizing"),&m_fAdjustAspectResizing);
-	pSettings->Read(TEXT("SnapToWindowEdge"),&m_fSnapAtWindowEdge);
-	pSettings->Read(TEXT("NearCornerResizeOrigin"),&m_fNearCornerResizeOrigin);
-	pSettings->Read(TEXT("PanScanNoResizeWindow"),&m_fPanScanNoResizeWindow);
-	pSettings->Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
-	pSettings->Read(TEXT("NoMaskSideCut"),&m_fNoMaskSideCut);
-	if (pSettings->Read(TEXT("FullscreenStretchMode"),&Value))
+	Settings.Read(TEXT("AdjustAspectResizing"),&m_fAdjustAspectResizing);
+	Settings.Read(TEXT("SnapToWindowEdge"),&m_fSnapAtWindowEdge);
+	Settings.Read(TEXT("NearCornerResizeOrigin"),&m_fNearCornerResizeOrigin);
+	Settings.Read(TEXT("PanScanNoResizeWindow"),&m_fPanScanNoResizeWindow);
+	Settings.Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
+	Settings.Read(TEXT("NoMaskSideCut"),&m_fNoMaskSideCut);
+	if (Settings.Read(TEXT("FullscreenStretchMode"),&Value))
 		m_FullscreenStretchMode=Value==1?CMediaViewer::STRETCH_CUTFRAME:
 										 CMediaViewer::STRETCH_KEEPASPECTRATIO;
-	if (pSettings->Read(TEXT("MaximizeStretchMode"),&Value))
+	if (Settings.Read(TEXT("MaximizeStretchMode"),&Value))
 		m_MaximizeStretchMode=Value==1?CMediaViewer::STRETCH_CUTFRAME:
 									   CMediaViewer::STRETCH_KEEPASPECTRATIO;
-	pSettings->Read(TEXT("ClientEdge"),&m_fClientEdge);
-	pSettings->Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
-	pSettings->Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
-	pSettings->Read(TEXT("UseLogoIcon"),&m_fUseLogoIcon);
-	pSettings->Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
-	pSettings->Read(TEXT("NoScreenSaver"),&m_fNoScreenSaver);
-	pSettings->Read(TEXT("NoMonitorLowPower"),&m_fNoMonitorLowPower);
-	pSettings->Read(TEXT("NoMonitorLowPowerActiveOnly"),&m_fNoMonitorLowPowerActiveOnly);
-	pSettings->Read(TEXT("ShowLogo"),&m_fShowLogo);
-	pSettings->Read(TEXT("LogoFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
+	Settings.Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
+	Settings.Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
+	Settings.Read(TEXT("UseLogoIcon"),&m_fUseLogoIcon);
+	Settings.Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
+	Settings.Read(TEXT("NoScreenSaver"),&m_fNoScreenSaver);
+	Settings.Read(TEXT("NoMonitorLowPower"),&m_fNoMonitorLowPower);
+	Settings.Read(TEXT("NoMonitorLowPowerActiveOnly"),&m_fNoMonitorLowPowerActiveOnly);
+	Settings.Read(TEXT("ShowLogo"),&m_fShowLogo);
+	Settings.Read(TEXT("LogoFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
 	return true;
 }
 
 
-bool CViewOptions::Write(CSettings *pSettings) const
+bool CViewOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
-	pSettings->Write(TEXT("SnapToWindowEdge"),m_fSnapAtWindowEdge);
-	pSettings->Write(TEXT("NearCornerResizeOrigin"),m_fNearCornerResizeOrigin);
-	pSettings->Write(TEXT("PanScanNoResizeWindow"),m_fPanScanNoResizeWindow);
-	pSettings->Write(TEXT("ResetPanScanEventChange"),m_fResetPanScanEventChange);
-	pSettings->Write(TEXT("NoMaskSideCut"),m_fNoMaskSideCut);
-	pSettings->Write(TEXT("FullscreenStretchMode"),(int)m_FullscreenStretchMode);
-	pSettings->Write(TEXT("MaximizeStretchMode"),(int)m_MaximizeStretchMode);
-	pSettings->Write(TEXT("ClientEdge"),m_fClientEdge);
-	pSettings->Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
-	pSettings->Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
-	pSettings->Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
-	pSettings->Write(TEXT("UseLogoIcon"),m_fUseLogoIcon);
-	pSettings->Write(TEXT("NoScreenSaver"),m_fNoScreenSaver);
-	pSettings->Write(TEXT("NoMonitorLowPower"),m_fNoMonitorLowPower);
-	pSettings->Write(TEXT("NoMonitorLowPowerActiveOnly"),m_fNoMonitorLowPowerActiveOnly);
-	pSettings->Write(TEXT("ShowLogo"),m_fShowLogo);
-	pSettings->Write(TEXT("LogoFileName"),m_szLogoFileName);
+	Settings.Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
+	Settings.Write(TEXT("SnapToWindowEdge"),m_fSnapAtWindowEdge);
+	Settings.Write(TEXT("NearCornerResizeOrigin"),m_fNearCornerResizeOrigin);
+	Settings.Write(TEXT("PanScanNoResizeWindow"),m_fPanScanNoResizeWindow);
+	Settings.Write(TEXT("ResetPanScanEventChange"),m_fResetPanScanEventChange);
+	Settings.Write(TEXT("NoMaskSideCut"),m_fNoMaskSideCut);
+	Settings.Write(TEXT("FullscreenStretchMode"),(int)m_FullscreenStretchMode);
+	Settings.Write(TEXT("MaximizeStretchMode"),(int)m_MaximizeStretchMode);
+	Settings.Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
+	Settings.Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
+	Settings.Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
+	Settings.Write(TEXT("UseLogoIcon"),m_fUseLogoIcon);
+	Settings.Write(TEXT("NoScreenSaver"),m_fNoScreenSaver);
+	Settings.Write(TEXT("NoMonitorLowPower"),m_fNoMonitorLowPower);
+	Settings.Write(TEXT("NoMonitorLowPowerActiveOnly"),m_fNoMonitorLowPowerActiveOnly);
+	Settings.Write(TEXT("ShowLogo"),m_fShowLogo);
+	Settings.Write(TEXT("LogoFileName"),m_szLogoFileName);
 	return true;
 }
 
@@ -133,14 +130,27 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTASPECTRESIZING,
-							  m_fAdjustAspectResizing);
+			// ƒEƒBƒ“ƒhƒEÝ’è
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SNAPATWINDOWEDGE,
 							  m_fSnapAtWindowEdge);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ADJUSTASPECTRESIZING,
+							  m_fAdjustAspectResizing);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NEARCORNERRESIZEORIGIN,
 							  m_fNearCornerResizeOrigin);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_PANSCANNORESIZEWINDOW,
 							  m_fPanScanNoResizeWindow);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,m_fMinimizeToTray);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,
+							  m_fDisablePreviewWhenMinimized);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USELOGOICON,
+							  m_fUseLogoIcon);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SHOWLOGO,m_fShowLogo);
+			::SetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,m_szLogoFileName);
+			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LOGOFILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
+			::EnableDlgItems(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
+							 m_fShowLogo);
+
+			// ‰f‘œ•\Ž¦Ý’è
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE,
 							  m_fResetPanScanEventChange);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMASKSIDECUT,
@@ -149,37 +159,23 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				m_FullscreenStretchMode==CMediaViewer::STRETCH_CUTFRAME);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MAXIMIZECUTFRAME,
 				m_MaximizeStretchMode==CMediaViewer::STRETCH_CUTFRAME);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_CLIENTEDGE,m_fClientEdge);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,m_fMinimizeToTray);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,
-							  m_fDisablePreviewWhenMinimized);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE,
 							  m_fIgnoreDisplayExtension);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USELOGOICON,
-							  m_fUseLogoIcon);
+
+			// —}Ž~Ý’è
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOSCREENSAVER,m_fNoScreenSaver);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER,m_fNoMonitorLowPower);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,
 							  m_fNoMonitorLowPowerActiveOnly);
 			EnableDlgItem(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,m_fNoMonitorLowPower);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SHOWLOGO,m_fShowLogo);
-			::SetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,m_szLogoFileName);
-			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LOGOFILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
-			::EnableDlgItems(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
-							 m_fShowLogo);
 		}
 		return TRUE;
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
-		case IDC_OPTIONS_NOMONITORLOWPOWER:
-			EnableDlgItem(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,
-				DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWER));
-			return TRUE;
-
 		case IDC_OPTIONS_SHOWLOGO:
-			::EnableDlgItems(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
-				DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO));
+			EnableDlgItemsSyncCheckBox(hDlg,IDC_OPTIONS_LOGOFILENAME,IDC_OPTIONS_LOGOFILENAME_BROWSE,
+									   IDC_OPTIONS_SHOWLOGO);
 			return TRUE;
 
 		case IDC_OPTIONS_LOGOFILENAME_BROWSE:
@@ -210,6 +206,11 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				}
 			}
 			return TRUE;
+
+		case IDC_OPTIONS_NOMONITORLOWPOWER:
+			EnableDlgItemSyncCheckBox(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY,
+									  IDC_OPTIONS_NOMONITORLOWPOWER);
+			return TRUE;
 		}
 		return TRUE;
 
@@ -220,14 +221,36 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				CAppMain &AppMain=GetAppClass();
 				bool f;
 
-				m_fAdjustAspectResizing=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTASPECTRESIZING);
 				m_fSnapAtWindowEdge=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SNAPATWINDOWEDGE);
+				m_fAdjustAspectResizing=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTASPECTRESIZING);
 				m_fNearCornerResizeOrigin=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NEARCORNERRESIZEORIGIN);
 				m_fPanScanNoResizeWindow=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PANSCANNORESIZEWINDOW);
+				m_fMinimizeToTray=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY);
+				m_fDisablePreviewWhenMinimized=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USELOGOICON);
+				if (m_fUseLogoIcon!=f) {
+					m_fUseLogoIcon=f;
+					GetAppClass().GetUICore()->UpdateIcon();
+				}
+				{
+					bool fLogo=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO);
+					TCHAR szFileName[MAX_PATH];
+
+					::GetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,szFileName,MAX_PATH);
+					if (fLogo!=m_fShowLogo
+							|| ::lstrcmp(szFileName,m_szLogoFileName)!=0) {
+						m_fShowLogo=fLogo;
+						::lstrcpy(m_szLogoFileName,szFileName);
+						SetUpdateFlag(UPDATE_LOGO);
+					}
+				}
+
 				m_fResetPanScanEventChange=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_RESETPANSCANEVENTCHANGE);
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMASKSIDECUT);
@@ -245,30 +268,12 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					CMediaViewer::STRETCH_CUTFRAME:CMediaViewer::STRETCH_KEEPASPECTRATIO;
 				if (::IsZoomed(AppMain.GetUICore()->GetMainWindow()))
 					AppMain.GetCoreEngine()->m_DtvEngine.m_MediaViewer.SetViewStretchMode(m_MaximizeStretchMode);
-				{
-					bool fEdge=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_CLIENTEDGE);
-					if (fEdge!=m_fClientEdge) {
-						m_fClientEdge=fEdge;
-						CMainWindow *pMainWindow=
-							dynamic_cast<CMainWindow*>(GetAppClass().GetUICore()->GetSkin());
-						if (pMainWindow!=NULL)
-							pMainWindow->SetViewWindowEdge(fEdge);
-					}
-				}
-				m_fMinimizeToTray=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY);
-				m_fDisablePreviewWhenMinimized=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW);
 				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_IGNOREDISPLAYSIZE);
 				if (m_fIgnoreDisplayExtension!=f) {
 					m_fIgnoreDisplayExtension=f;
 					SetUpdateFlag(UPDATE_IGNOREDISPLAYEXTENSION);
 				}
-				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_USELOGOICON);
-				if (m_fUseLogoIcon!=f) {
-					m_fUseLogoIcon=f;
-					GetAppClass().GetUICore()->UpdateIcon();
-				}
+
 				m_fNoScreenSaver=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOSCREENSAVER);
 				m_fNoMonitorLowPower=
@@ -276,18 +281,8 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				m_fNoMonitorLowPowerActiveOnly=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NOMONITORLOWPOWERACTIVEONLY);
 				AppMain.GetUICore()->PreventDisplaySave(true);
-				{
-					bool fLogo=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO);
-					TCHAR szFileName[MAX_PATH];
 
-					::GetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,szFileName,MAX_PATH);
-					if (fLogo!=m_fShowLogo
-							|| ::lstrcmp(szFileName,m_szLogoFileName)!=0) {
-						m_fShowLogo=fLogo;
-						::lstrcpy(m_szLogoFileName,szFileName);
-						SetUpdateFlag(UPDATE_LOGO);
-					}
-				}
+				m_fChanged=true;
 			}
 			break;
 		}

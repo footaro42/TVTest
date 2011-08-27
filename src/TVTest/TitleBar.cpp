@@ -68,7 +68,7 @@ CTitleBar::CTitleBar()
 	, m_hbmIcons(NULL)
 	, m_hIcon(NULL)
 	, m_HotItem(-1)
-	, m_fTrackMouseEvent(false)
+	, m_ClickItem(-1)
 	, m_fMaximized(false)
 	, m_fFullscreen(false)
 	, m_pEventHandler(NULL)
@@ -111,7 +111,6 @@ bool CTitleBar::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 void CTitleBar::SetVisible(bool fVisible)
 {
 	m_HotItem=-1;
-	m_fTrackMouseEvent=false;
 	CBasicWindow::SetVisible(fVisible);
 }
 
@@ -229,7 +228,9 @@ LRESULT CTitleBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			}
 
 			m_HotItem=-1;
-			m_fTrackMouseEvent=false;
+			m_ClickItem=-1;
+
+			m_MouseLeaveTrack.Initialize(hwnd);
 		}
 		return 0;
 
@@ -280,16 +281,7 @@ LRESULT CTitleBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					if (m_HotItem>=0)
 						UpdateItem(m_HotItem);
 				}
-				// WM_MOUSELEAVE ‚ª‘—‚ç‚ê‚È‚­‚Ä‚à–³Œø‚É‚³‚ê‚éŽ–‚ª‚ ‚é‚æ‚¤‚¾
-				/*if (!m_fTrackMouseEvent)*/ {
-					TRACKMOUSEEVENT tme;
-
-					tme.cbSize=sizeof(TRACKMOUSEEVENT);
-					tme.dwFlags=TME_LEAVE;
-					tme.hwndTrack=hwnd;
-					if (::TrackMouseEvent(&tme))
-						m_fTrackMouseEvent=true;
-				}
+				m_MouseLeaveTrack.OnMouseMove();
 			}
 		}
 		return 0;
@@ -299,9 +291,21 @@ LRESULT CTitleBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			UpdateItem(m_HotItem);
 			m_HotItem=-1;
 		}
-		m_fTrackMouseEvent=false;
-		if (m_pEventHandler)
-			m_pEventHandler->OnMouseLeave();
+		if (m_MouseLeaveTrack.OnMouseLeave()) {
+			if (m_pEventHandler)
+				m_pEventHandler->OnMouseLeave();
+		}
+		return 0;
+
+	case WM_NCMOUSEMOVE:
+		m_MouseLeaveTrack.OnNcMouseMove();
+		return 0;
+
+	case WM_NCMOUSELEAVE:
+		if (m_MouseLeaveTrack.OnNcMouseLeave()) {
+			if (m_pEventHandler)
+				m_pEventHandler->OnMouseLeave();
+		}
 		return 0;
 
 	case WM_LBUTTONDOWN:

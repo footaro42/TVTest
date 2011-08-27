@@ -42,6 +42,10 @@ public:
 	void ClearBuffer(void);
 
 protected:
+	virtual void *Allocate(size_t Size);
+	virtual void Free(void *pBuffer);
+	virtual void *ReAllocate(void *pBuffer, size_t Size);
+
 	DWORD m_dwDataSize;
 	DWORD m_dwBuffSize;
 	BYTE *m_pData;

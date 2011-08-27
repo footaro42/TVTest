@@ -153,17 +153,24 @@ bool CEventItem::SetEndTime(const SYSTEMTIME &Time)
 int CEventItem::GetGenre(int Level) const
 {
 	if (m_pEventInfo!=NULL) {
+		const CEventInfoData::ContentNibble *pContentNibble;
+
 		if (m_pEventInfo->m_ContentNibble.NibbleCount>0) {
-			int Nibble=Level==0?m_pEventInfo->m_ContentNibble.NibbleList[0].ContentNibbleLevel1:
-								m_pEventInfo->m_ContentNibble.NibbleList[0].ContentNibbleLevel2;
-			if (Nibble<=CEventInfoData::CONTENT_LAST)
-				return Nibble;
+			pContentNibble=&m_pEventInfo->m_ContentNibble;
 		} else if (m_pCommonEventInfo!=NULL
 				&& m_pCommonEventInfo->m_ContentNibble.NibbleCount>0) {
-			int Nibble=Level==0?m_pCommonEventInfo->m_ContentNibble.NibbleList[0].ContentNibbleLevel1:
-								m_pCommonEventInfo->m_ContentNibble.NibbleList[0].ContentNibbleLevel2;
-			if (Nibble<=CEventInfoData::CONTENT_LAST)
-				return Nibble;
+			pContentNibble=&m_pCommonEventInfo->m_ContentNibble;
+		} else {
+			return -1;
+		}
+		for (int i=0;i<pContentNibble->NibbleCount;i++) {
+			if (pContentNibble->NibbleList[i].ContentNibbleLevel1!=0xE) {
+				int Nibble=Level==0?pContentNibble->NibbleList[i].ContentNibbleLevel1:
+									pContentNibble->NibbleList[i].ContentNibbleLevel2;
+				if (Nibble<=CEventInfoData::CONTENT_LAST)
+					return Nibble;
+				break;
+			}
 		}
 	}
 	return -1;
@@ -3340,13 +3347,20 @@ bool CProgramGuide::CEventInfoPopupHandler::GetEventInfo(LPARAM Param,const CEve
 
 bool CProgramGuide::CEventInfoPopupHandler::OnShow(const CEventInfoData *pInfo)
 {
+	int Genre=-1;
+	for (int i=0;i<pInfo->m_ContentNibble.NibbleCount;i++) {
+		if (pInfo->m_ContentNibble.NibbleList[i].ContentNibbleLevel1!=0xE) {
+			Genre=pInfo->m_ContentNibble.NibbleList[i].ContentNibbleLevel1;
+			break;
+		}
+	}
+
 	COLORREF Color;
 	int Red,Green,Blue;
 	Theme::GradientInfo BackGradient;
 
-	if (pInfo->m_ContentNibble.NibbleCount>0
-			&& pInfo->m_ContentNibble.NibbleList[0].ContentNibbleLevel1<=CEventInfoData::CONTENT_LAST)
-		Color=m_pProgramGuide->m_ColorList[COLOR_CONTENT_FIRST+pInfo->m_ContentNibble.NibbleList[0].ContentNibbleLevel1];
+	if (Genre>=0 && Genre<=CEventInfoData::CONTENT_LAST)
+		Color=m_pProgramGuide->m_ColorList[COLOR_CONTENT_FIRST+Genre];
 	else
 		Color=m_pProgramGuide->m_ColorList[COLOR_CONTENT_OTHER];
 	BackGradient.Type=Theme::GRADIENT_NORMAL;

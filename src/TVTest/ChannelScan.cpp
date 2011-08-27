@@ -157,20 +157,20 @@ bool CChannelScan::Apply(DWORD Flags)
 }
 
 
-bool CChannelScan::Read(CSettings *pSettings)
+bool CChannelScan::ReadSettings(CSettings &Settings)
 {
-	pSettings->Read(TEXT("ChannelScanIgnoreSignalLevel"),&m_fIgnoreSignalLevel);
-	pSettings->Read(TEXT("ChannelScanWait"),&m_ScanWait);
-	pSettings->Read(TEXT("ChannelScanRetry"),&m_RetryCount);
+	Settings.Read(TEXT("ChannelScanIgnoreSignalLevel"),&m_fIgnoreSignalLevel);
+	Settings.Read(TEXT("ChannelScanWait"),&m_ScanWait);
+	Settings.Read(TEXT("ChannelScanRetry"),&m_RetryCount);
 	return true;
 }
 
 
-bool CChannelScan::Write(CSettings *pSettings) const
+bool CChannelScan::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("ChannelScanIgnoreSignalLevel"),m_fIgnoreSignalLevel);
-	pSettings->Write(TEXT("ChannelScanWait"),m_ScanWait);
-	pSettings->Write(TEXT("ChannelScanRetry"),m_RetryCount);
+	Settings.Write(TEXT("ChannelScanIgnoreSignalLevel"),m_fIgnoreSignalLevel);
+	Settings.Write(TEXT("ChannelScanWait"),m_ScanWait);
+	Settings.Write(TEXT("ChannelScanRetry"),m_RetryCount);
 	return true;
 }
 
@@ -689,12 +689,16 @@ INT_PTR CChannelScan::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					m_TuningSpaceList.SaveToFile(FilePath.GetPath());
 					SetUpdateFlag(UPDATE_CHANNELLIST);
 				}
+
 				if (m_fRestorePreview)
 					SetUpdateFlag(UPDATE_PREVIEW);
+
 				m_fIgnoreSignalLevel=
 					DlgCheckBox_IsChecked(hDlg,IDC_CHANNELSCAN_IGNORESIGNALLEVEL);
 				m_ScanWait=((unsigned int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_SCANWAIT)+1)*1000;
 				m_RetryCount=(int)DlgComboBox_GetCurSel(hDlg,IDC_CHANNELSCAN_RETRYCOUNT);
+
+				m_fChanged=true;
 			}
 			return TRUE;
 

@@ -117,7 +117,7 @@
       <AdditionalIncludeDirectories>$(IntDir);Resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>strmbasd.lib;comctl32.lib;msimg32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(IntDir);.\ICC\$(Platform)\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableUAC>false</EnableUAC>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
@@ -160,7 +160,7 @@
       <AdditionalIncludeDirectories>$(IntDir);Resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>strmbasd.lib;comctl32.lib;msimg32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(IntDir);.\ICC\$(Platform)\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableUAC>false</EnableUAC>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
@@ -207,7 +207,7 @@
       <AdditionalIncludeDirectories>$(IntDir);Resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>strmbase.lib;comctl32.lib;msimg32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(IntDir);.\ICC\$(Platform)\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableUAC>false</EnableUAC>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
@@ -257,7 +257,7 @@
       <AdditionalIncludeDirectories>$(IntDir);Resource;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>strmbase.lib;comctl32.lib;msimg32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(IntDir);.\ICC\$(Platform)\$(Configuration)\;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <EnableUAC>false</EnableUAC>
       <DelayLoadDLLs>%(DelayLoadDLLs)</DelayLoadDLLs>
@@ -370,6 +370,7 @@
     <ClCompile Include="NetworkRemocon.cpp" />
     <ClCompile Include="NotificationBar.cpp" />
     <ClCompile Include="OperationOptions.cpp" />
+    <ClCompile Include="OptionDialog.cpp" />
     <ClCompile Include="Options.cpp" />
     <ClCompile Include="OSDManager.cpp" />
     <ClCompile Include="OSDOptions.cpp" />
@@ -512,6 +513,7 @@
     <ClInclude Include="NetworkRemocon.h" />
     <ClInclude Include="NotificationBar.h" />
     <ClInclude Include="OperationOptions.h" />
+    <ClInclude Include="OptionDialog.h" />
     <ClInclude Include="Options.h" />
     <ClInclude Include="OSDManager.h" />
     <ClInclude Include="OSDOptions.h" />

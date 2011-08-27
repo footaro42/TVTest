@@ -294,7 +294,7 @@
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}"
 			>
 			<File
-				RelativePath=".\Multi2DecoderSSE2.cpp"
+				RelativePath=".\Multi2DecoderSIMD.cpp"
 				>
 			</File>
 		</Filter>
@@ -304,7 +304,7 @@
 			UniqueIdentifier="{93995380-89BD-4b04-88EB-625FBE52EBFB}"
 			>
 			<File
-				RelativePath=".\Multi2DecoderSSE2.h"
+				RelativePath=".\Multi2DecoderSIMD.h"
 				>
 			</File>
 		</Filter>

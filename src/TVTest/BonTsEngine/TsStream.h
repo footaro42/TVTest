@@ -22,6 +22,7 @@ public:
 	CTsPacket(const BYTE *pHexData);
 	CTsPacket(const CTsPacket &Operand);
 	CTsPacket & operator = (const CTsPacket &Operand);
+	~CTsPacket();
 
 	enum	// ParsePacket() エラーコード
 	{
@@ -69,6 +70,12 @@ public:
 	enum { BUFFER_SIZE=TS_PACKETSIZE+sizeof(TAG_TSPACKETHEADER)+sizeof(TAG_ADAPTFIELDHEADER) };
 	void StoreToBuffer(void *pBuffer);
 	void RestoreFromBuffer(const void *pBuffer);
+
+private:
+// CMediaData
+	void *Allocate(size_t Size) override;
+	void Free(void *pBuffer) override;
+	void *ReAllocate(void *pBuffer, size_t Size) override;
 };
 
 

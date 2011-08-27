@@ -202,7 +202,8 @@ public:
 		EVENT_SDT_UPDATED,
 		EVENT_NIT_UPDATED,
 		EVENT_PCR_UPDATED,
-		NUM_EVENTS,
+		EVENT_INVALID,
+		NUM_EVENTS = EVENT_INVALID,
 		EVENT_LAST = NUM_EVENTS - 1
 	};
 	class IAnalyzerEventHandler {
@@ -242,6 +243,7 @@ protected:
 	NitInfo m_NitInfo;
 
 	std::vector<IAnalyzerEventHandler*> m_EventHandlerList;
+	EventType m_DecoderEvent;
 
 private:
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);

@@ -18,11 +18,11 @@ public:
 	CViewOptions();
 	~CViewOptions();
 // COptions
-	bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+	bool Apply(DWORD Flags) override;
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CViewOptions
 	bool GetAdjustAspectResizing() const { return m_fAdjustAspectResizing; }
 	bool GetSnapAtWindowEdge() const { return m_fSnapAtWindowEdge; }
@@ -33,7 +33,6 @@ public:
 	bool GetNoMaskSideCut() const { return m_fNoMaskSideCut; }
 	CMediaViewer::ViewStretchMode GetFullscreenStretchMode() const { return m_FullscreenStretchMode; }
 	CMediaViewer::ViewStretchMode GetMaximizeStretchMode() const { return m_MaximizeStretchMode; }
-	bool GetClientEdge() const { return m_fClientEdge; }
 	bool GetMinimizeToTray() const { return m_fMinimizeToTray; }
 	bool GetDisablePreviewWhenMinimized() const { return m_fDisablePreviewWhenMinimized; }
 	bool GetUseLogoIcon() const { return m_fUseLogoIcon; }
@@ -46,7 +45,7 @@ public:
 
 private:
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	bool m_fAdjustAspectResizing;
 	bool m_fSnapAtWindowEdge;
@@ -57,7 +56,6 @@ private:
 	bool m_fNoMaskSideCut;
 	CMediaViewer::ViewStretchMode m_FullscreenStretchMode;
 	CMediaViewer::ViewStretchMode m_MaximizeStretchMode;
-	bool m_fClientEdge;
 	bool m_fMinimizeToTray;
 	bool m_fDisablePreviewWhenMinimized;
 	bool m_fUseLogoIcon;

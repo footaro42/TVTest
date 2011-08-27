@@ -20,6 +20,7 @@ CBufferedFileWriter::CBufferedFileWriter(IEventHandler *pEventHandler)
 	, m_bEnableQueueing(false)
 	, m_QueueBlockSize(CNCachedFile::DEFBUFFSIZE / 188 * 188)
 	, m_MaxQueueSize(16)
+	, m_MaxPendingSize(0x20000000)
 	, m_hThread(NULL)
 {
 	m_EndEvent.Create();
@@ -50,7 +51,7 @@ const bool CBufferedFileWriter::InputMedia(CMediaData *pMediaData, const DWORD d
 		return false;
 	*/
 
-	if (m_bEnableQueueing || m_pOutFile)
+	if (m_bEnableQueueing || (m_pOutFile && !m_bPause))
 		PushData(pMediaData->GetData(), pMediaData->GetSize());
 
 	OutputMedia(pMediaData);
@@ -298,6 +299,19 @@ void CBufferedFileWriter::ClearQueue()
 }
 
 
+bool CBufferedFileWriter::SetMaxPendingSize(SIZE_T Size)
+{
+	if (Size == 0)
+		return false;
+
+	CBlockLock Lock(&m_QueueLock);
+
+	m_MaxPendingSize = Size;
+
+	return true;
+}
+
+
 bool CBufferedFileWriter::PushData(const BYTE *pData, SIZE_T DataSize)
 {
 	CBlockLock Lock(&m_QueueLock);
@@ -321,7 +335,8 @@ bool CBufferedFileWriter::PushData(const BYTE *pData, SIZE_T DataSize)
 	BufferInfo Info;
 
 	if (m_WriteQueue.size() < m_MaxQueueSize
-			|| (m_pOutFile && !m_bPause)) {
+			|| (m_pOutFile && !m_bPause
+				&& m_WriteQueue.size() * m_QueueBlockSize < m_MaxPendingSize)) {
 		try {
 			Info.pData = new BYTE[m_QueueBlockSize];
 		} catch (std::bad_alloc) {

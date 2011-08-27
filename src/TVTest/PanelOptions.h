@@ -24,20 +24,17 @@ class CPanelOptions : public COptions
 public:
 	CPanelOptions(CPanelFrame *pPanelFrame);
 	~CPanelOptions();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CPanelOptions
 	bool InitializePanelForm(CPanelForm *pPanelForm);
 	void ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel);
 	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
-	void SetSnapAtMainWindow(bool fSnap);
 	int GetSnapMargin() const { return m_SnapMargin; }
-	bool SetSnapMargin(int Margin);
 	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
-	void SetAttachToMainWindow(bool fAttach);
 	const LOGFONT *GetFont() const { return &m_Font; }
 	int GetFirstTab() const;
 
@@ -63,7 +60,7 @@ private:
 	int m_EventsPerChannel;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	static LRESULT CALLBACK TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };

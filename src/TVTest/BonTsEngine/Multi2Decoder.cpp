@@ -20,6 +20,78 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#ifdef MULTI2_SIMD
+
+#if defined(MULTI2_SIMD_ICC) && !defined(__INTEL_COMPILER)
+
+// ICCでコンパイルしたライブラリの使用
+#include "../ICC/Multi2Decoder/Multi2DecoderSIMD.h"
+#pragma comment(lib, "Multi2Decoder.lib")
+
+#else
+
+#include "../ICC/Multi2Decoder/Multi2DecoderSIMD.cpp"
+
+#endif
+
+class CSIMDInitializer
+{
+public:
+	CSIMDInitializer() {
+		Multi2DecoderSIMD::Initialize();
+	}
+};
+
+static CSIMDInitializer SIMDInitializer;
+
+#endif	// MULTI2_SIMD
+
+
+// デスクランブルの統計を取る
+#ifdef MULTI2_STATISTICS
+
+class CMulti2Statistics
+{
+public:
+	CMulti2Statistics()
+	{
+		Reset();
+	}
+
+	~CMulti2Statistics()
+	{
+		TRACE(TEXT("Multi2 statistics\n"));
+		TRACE(TEXT("  Packets %u / Size %llu bytes\n"), m_PacketCount, m_Size);
+		for (size_t i = 0; i < _countof(m_SizeCount); i++) {
+			TRACE(TEXT("  Data size %3d : %u\n"), (int)i, m_SizeCount[i]);
+		}
+	}
+
+	void Reset()
+	{
+		m_PacketCount = 0;
+		ZeroMemory(m_SizeCount, sizeof(m_SizeCount));
+		m_Size = 0;
+	}
+
+	void OnDecode(DWORD Size)
+	{
+		m_PacketCount++;
+		m_SizeCount[Size]++;
+		m_Size += Size;
+	}
+
+private:
+	DWORD m_PacketCount;
+	DWORD m_SizeCount[185];
+	ULONGLONG m_Size;
+};
+
+static CMulti2Statistics Multi2Statistics;
+
+#endif	// MULTI2_STATISTICS
+
+
 inline void CMulti2Decoder::DATKEY::SetHexData(const BYTE *pHexData)
 {
 	// バイトオーダー変換
@@ -27,7 +99,7 @@ inline void CMulti2Decoder::DATKEY::SetHexData(const BYTE *pHexData)
 	Data[7] = pHexData[0];	Data[6] = pHexData[1];	Data[5] = pHexData[2];	Data[4] = pHexData[3];
 	Data[3] = pHexData[4];	Data[2] = pHexData[5];	Data[1] = pHexData[6];	Data[0] = pHexData[7];
 #else
-#ifndef WIN64
+#ifndef _WIN64
 	dwLeft  = _byteswap_ulong(*reinterpret_cast<const DWORD*>(pHexData + 0));
 	dwRight = _byteswap_ulong(*reinterpret_cast<const DWORD*>(pHexData + 4));
 #else
@@ -43,7 +115,7 @@ inline void CMulti2Decoder::DATKEY::GetHexData(BYTE *pHexData) const
 	pHexData[0] = Data[7];	pHexData[1] = Data[6];	pHexData[2] = Data[5];	pHexData[3] = Data[4];
 	pHexData[4] = Data[3];	pHexData[5] = Data[2];	pHexData[6] = Data[1];	pHexData[7] = Data[0];
 #else
-#ifndef WIN64
+#ifndef _WIN64
 	*reinterpret_cast<DWORD*>(pHexData + 0) = _byteswap_ulong(dwLeft);
 	*reinterpret_cast<DWORD*>(pHexData + 4) = _byteswap_ulong(dwRight);
 #else
@@ -65,7 +137,7 @@ inline void CMulti2Decoder::SYSKEY::SetHexData(const BYTE *pHexData)
 	Data[27] = pHexData[24];	Data[26] = pHexData[25];	Data[25] = pHexData[26];	Data[24] = pHexData[27];
 	Data[31] = pHexData[28];	Data[30] = pHexData[29];	Data[29] = pHexData[30];	Data[28] = pHexData[31];
 #else
-#ifndef WIN64
+#ifndef _WIN64
 	const DWORD *p = reinterpret_cast<const DWORD*>(pHexData);
 	dwKey1 = _byteswap_ulong(p[0]);
 	dwKey2 = _byteswap_ulong(p[1]);
@@ -98,7 +170,7 @@ inline void CMulti2Decoder::SYSKEY::GetHexData(BYTE *pHexData) const
 	pHexData[24] = Data[27];	pHexData[25] = Data[26];	pHexData[26] = Data[25];	pHexData[27] = Data[24];
 	pHexData[28] = Data[31];	pHexData[29] = Data[30];	pHexData[30] = Data[29];	pHexData[31] = Data[28];
 #else
-#ifndef WIN64
+#ifndef _WIN64
 	DWORD *p = reinterpret_cast<DWORD*>(pHexData);
 	p[0] = _byteswap_ulong(dwKey1);
 	p[1] = _byteswap_ulong(dwKey2);
@@ -119,16 +191,49 @@ inline void CMulti2Decoder::SYSKEY::GetHexData(BYTE *pHexData) const
 }
 
 
-CMulti2Decoder::CMulti2Decoder(void)
+CMulti2Decoder::CMulti2Decoder(
+#ifdef MULTI2_SIMD
+	InstructionType Instruction
+#endif
+	)
 	: m_bIsSysKeyValid(false)
 	, m_bIsWorkKeyValid(false)
+#ifdef MULTI2_SIMD
+	, m_Instruction(Instruction)
+	, m_pSSE2WorkKeyOdd(NULL)
+	, m_pSSE2WorkKeyEven(NULL)
+#endif
 {
-
+#ifdef MULTI2_SIMD
+	if (m_Instruction != INSTRUCTION_NORMAL) {
+		Multi2DecoderSIMD::AllocWorkKey(&m_pSSE2WorkKeyOdd, &m_pSSE2WorkKeyEven);
+	}
+	switch (m_Instruction) {
+	default:
+	case INSTRUCTION_NORMAL:
+		m_pDecodeFunc = Multi2DecoderSIMD::Decode;
+		break;
+#ifdef MULTI2_SSE2
+	case INSTRUCTION_SSE2:
+		m_pDecodeFunc = Multi2DecoderSIMD::DecodeSSE2;
+		break;
+#endif
+#ifdef MULTI2_SSSE3
+	case INSTRUCTION_SSSE3:
+		m_pDecodeFunc = Multi2DecoderSIMD::DecodeSSSE3;
+		break;
+#endif
+	}
+#endif
 }
 
 CMulti2Decoder::~CMulti2Decoder(void)
 {
-
+#ifdef MULTI2_SIMD
+	if (m_Instruction != INSTRUCTION_NORMAL) {
+		Multi2DecoderSIMD::FreeWorkKey(&m_pSSE2WorkKeyOdd, &m_pSSE2WorkKeyEven);
+	}
+#endif
 }
 
 const bool CMulti2Decoder::Initialize(const BYTE *pSystemKey, const BYTE *pInitialCbc)
@@ -169,6 +274,13 @@ const bool CMulti2Decoder::SetScrambleKey(const BYTE *pScrambleKey)
 	KeySchedule(m_WorkKeyOdd, m_SystemKey, ScrKeyOdd);
 	KeySchedule(m_WorkKeyEven, m_SystemKey, ScrKeyEven);
 
+#ifdef MULTI2_SIMD
+	if (m_Instruction != INSTRUCTION_NORMAL) {
+		Multi2DecoderSIMD::SetWorkKey(m_pSSE2WorkKeyOdd, m_WorkKeyOdd);
+		Multi2DecoderSIMD::SetWorkKey(m_pSSE2WorkKeyEven, m_WorkKeyEven);
+	}
+#endif
+
 	m_bIsWorkKeyValid = true;
 
 	return true;
@@ -180,8 +292,21 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 	else if(!m_bIsSysKeyValid || !m_bIsWorkKeyValid)return false;	// スクランブルキー未設定
 	else if((byScrCtrl != 2U) && (byScrCtrl != 3U))return false;	// スクランブル制御不正
 
+#ifdef MULTI2_STATISTICS
+	Multi2Statistics.OnDecode(dwSize);
+#endif
+
 	// ワークキー選択
 	const SYSKEY &WorkKey = (byScrCtrl == 3)? m_WorkKeyOdd : m_WorkKeyEven;
+
+#ifdef MULTI2_SIMD
+
+	m_pDecodeFunc(pData, dwSize,
+				  &WorkKey,
+				  (byScrCtrl == 3) ? m_pSSE2WorkKeyOdd : m_pSSE2WorkKeyEven,
+				  &m_InitialCbc);
+
+#else	// MULTI2_SIMD
 
 	DATKEY CbcData = m_InitialCbc;
 	//DWORD RemainSize = dwSize / sizeof(DATKEY) * sizeof(DATKEY);
@@ -245,10 +370,12 @@ const bool CMulti2Decoder::Decode(BYTE *pData, const DWORD dwSize, const BYTE by
 #endif
 	}
 
+#endif	// MULTI2_SIMD
+
 	return true;
 }
 
-inline void CMulti2Decoder::KeySchedule(SYSKEY &WorkKey, const SYSKEY &SysKey, DATKEY &DataKey)
+void CMulti2Decoder::KeySchedule(SYSKEY &WorkKey, const SYSKEY &SysKey, DATKEY &DataKey)
 {
 	// Key Schedule
 	RoundFuncPi1(DataKey);									// π1
@@ -312,332 +439,26 @@ inline void CMulti2Decoder::RoundFuncPi4(DATKEY &Block, const DWORD dwK4)
 
 inline const DWORD CMulti2Decoder::LeftRotate(const DWORD dwValue, const DWORD dwRotate)
 {
-#ifndef MULTI2_USE_INTRINSIC
 	// 左ローテート
+#ifndef MULTI2_USE_INTRINSIC
 	return (dwValue << dwRotate) | (dwValue >> (32UL - dwRotate));
 #else
-	// 実はわざわざ書き換えなくても、上のコードでもrolが使われる
+	// 実は上のコードでもrolが使われる
 	return _lrotl(dwValue, dwRotate);
 #endif
 }
 
 
-
-
-/*
-	SSE2対応
-	elick氏のコードを参考にしています。まだ最適化が可能だと思います。
-*/
-#ifdef MULTI2_SSE2
-
-#ifndef MULTI2_SSE2_ICC
-
-// VCだとICCに比べて大分遅くなってしまいます。この辺はやはりICCが優秀。
-
-
-#define MM_SHUFFLE4(a, b, c, d) (((a) << 6) | ((b) << 4) | ((c) << 2) | (d))
-
-#define MM_SHIFT_COUNT(n) (ShiftCount##n)
-#define MM_ROTATE(v, l, r) LeftRotate(v, MM_SHIFT_COUNT(l), MM_SHIFT_COUNT(r))
-
-
-static __m128i ShiftCount1;
-static __m128i ShiftCount2;
-static __m128i ShiftCount4;
-static __m128i ShiftCount8;
-static __m128i ShiftCount16;
-
-static __m128i ShiftCount31;
-static __m128i ShiftCount30;
-static __m128i ShiftCount28;
-static __m128i ShiftCount24;
-
-static __m128i Immediate1;
-
-static __m128i SwapMask;
-
-class CSSE2Initializer
-{
-public:
-	CSSE2Initializer()
-	{
-		if (IsSSE2Available()) {
-			TRACE(TEXT("Multi2Decoder SSE2 available\n"));
-
-			ShiftCount1 = _mm_set_epi32(0, 0, 0, 1);
-			ShiftCount2 = _mm_set_epi32(0, 0, 0, 2);
-			ShiftCount4 = _mm_set_epi32(0, 0, 0, 4);
-			ShiftCount8 = _mm_set_epi32(0, 0, 0, 8);
-			ShiftCount16 = _mm_set_epi32(0, 0, 0, 16);
-
-			ShiftCount31 = _mm_set_epi32(0, 0, 0, 31);
-			ShiftCount30 = _mm_set_epi32(0, 0, 0, 30);
-			ShiftCount28 = _mm_set_epi32(0, 0, 0, 28);
-			ShiftCount24 = _mm_set_epi32(0, 0, 0, 24);
-
-			Immediate1 = _mm_set1_epi32(1);
-
-			SwapMask = _mm_set1_epi32(0xFF00FF00);
-		}
-	}
-
-	static bool IsSSE2Available()
-	{
-#ifndef WIN64
-		bool b;
-
-		__asm {
-			mov		eax, 1
-			cpuid
-			bt		edx, 26
-			setc	b
-		}
-
-		return b;
-#elif defined(_M_X64)
-		return true;
-#else
-		return ::IsProcessorFeaturePresent(PF_XMMI64_INSTRUCTIONS_AVAILABLE) != FALSE;
-#endif
-	}
-};
-
-static CSSE2Initializer SSE2Initializer;
-
-
-inline void CMulti2Decoder::RoundFuncPi1SSE2(__m128i &Left, __m128i &Right)
-{
-	Right = _mm_xor_si128(Right, Left);
-}
-
-inline void CMulti2Decoder::RoundFuncPi2SSE2(__m128i &Left, __m128i &Right, DWORD Key1)
-{
-	__m128i t0,t1,t2;
-
-	t0 = _mm_add_epi32(Right, _mm_set1_epi32(Key1));
-	t1 = _mm_sub_epi32(_mm_add_epi32(MM_ROTATE(t0, 1, 31), t0), _mm_set1_epi32(1));
-	t2 = _mm_xor_si128(MM_ROTATE(t1, 4, 28), t1);
-
-	Left = _mm_xor_si128(Left, t2);
-}
-
-inline void CMulti2Decoder::RoundFuncPi3SSE2(__m128i &Left, __m128i &Right, DWORD Key2, DWORD Key3)
-{
-	__m128i t0,t1,t2,t3,t4,t5;
-
-	t0 = _mm_add_epi32(Left, _mm_set1_epi32(Key2));
-	t1 = _mm_add_epi32(_mm_add_epi32(MM_ROTATE(t0, 2, 30), t0), _mm_set1_epi32(1));
-	t2 = _mm_xor_si128(MM_ROTATE(t1, 8, 24), t1);
-	t3 = _mm_add_epi32(t2, _mm_set1_epi32(Key3));
-	t4 = _mm_sub_epi32(MM_ROTATE(t3, 1, 31), t3);
-	t5 = _mm_xor_si128(MM_ROTATE(t4, 16, 16), _mm_or_si128(t4, Left));
-
-	Right = _mm_xor_si128(Right, t5);
-}
-
-inline void CMulti2Decoder::RoundFuncPi4SSE2(__m128i &Left, __m128i &Right, DWORD Key4)
-{
-	__m128i t0,t1;
-
-	t0 = _mm_add_epi32(Right, _mm_set1_epi32(Key4));
-	t1 = _mm_add_epi32(_mm_add_epi32(MM_ROTATE(t0, 2, 30), t0), _mm_set1_epi32(1));
-
-	Left = _mm_xor_si128(Left, t1);
-}
-
-inline __m128i CMulti2Decoder::LeftRotate(const __m128i &Value, const __m128i &Rotate, const __m128i &InvRotate)
-{
-	return _mm_or_si128(_mm_sll_epi32(Value, Rotate), _mm_srl_epi32(Value, InvRotate));
-}
-
-inline __m128i CMulti2Decoder::ByteSwap128(const __m128i &Value)
-{
-	__m128i src = Value;
-	__m128i tmp = _mm_and_si128(src, SwapMask);
-	tmp = _mm_srl_epi32(tmp, MM_SHIFT_COUNT(8));
-	src = _mm_sll_epi32(src, MM_SHIFT_COUNT(8));
-	src = _mm_and_si128(src, SwapMask);
-	src = _mm_or_si128(src, tmp);
-	return MM_ROTATE(src, 16, 16);
-}
-
-const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYTE byScrCtrl) const
-{
-	if(!byScrCtrl)return true;										// スクランブルなし
-	else if(!m_bIsSysKeyValid || !m_bIsWorkKeyValid)return false;	// スクランブルキー未設定
-	else if((byScrCtrl != 2U) && (byScrCtrl != 3U))return false;	// スクランブル制御不正
-
-	// ワークキー選択
-	const SYSKEY &WorkKey = (byScrCtrl == 3) ? m_WorkKeyOdd : m_WorkKeyEven;
-
-	DWORD RemainSize = dwSize & 0xFFFFFFE0UL;
-	BYTE *pEnd = pData + RemainSize;
-	BYTE *p = pData;
-
-	// CBCモード
-	__m128i Cbc = _mm_set_epi32(0, 0,
-								_byteswap_ulong(m_InitialCbc.dwRight),
-								_byteswap_ulong(m_InitialCbc.dwLeft));
-	while (p < pEnd) {
-		__m128i Src1, Src2, Left, Right;
-
-		// r2 l2 r1 l1
-		Src1 = _mm_loadu_si128((__m128i*)p);
-		// r4 l4 r3 l3
-		Src2 = _mm_loadu_si128((__m128i*)(p + 16));
-
-		Left = ByteSwap128(Src1);
-		Right = ByteSwap128(Src2);
-
-		{
-			// r2 r1 l2 l1
-			__m128i x = _mm_shuffle_epi32(Left, MM_SHUFFLE4(3, 1, 2, 0));
-
-			// r4 r3 l4 l3
-			__m128i y = _mm_shuffle_epi32(Right, MM_SHUFFLE4(3, 1, 2, 0));
-
-			// l4 l2 l3 l1
-			Left = _mm_unpacklo_epi32(x, y);
-
-			// r4 r2 r3 r1
-			Right = _mm_unpackhi_epi32(x, y);
-		}
-
-		for (int i = 0 ; i < SCRAMBLE_ROUND ; i++) {
-			RoundFuncPi4SSE2(Left, Right, WorkKey.dwKey8);
-			RoundFuncPi3SSE2(Left, Right, WorkKey.dwKey6, WorkKey.dwKey7);
-			RoundFuncPi2SSE2(Left, Right, WorkKey.dwKey5);
-			RoundFuncPi1SSE2(Left, Right);
-			RoundFuncPi4SSE2(Left, Right, WorkKey.dwKey4);
-			RoundFuncPi3SSE2(Left, Right, WorkKey.dwKey2, WorkKey.dwKey3);
-			RoundFuncPi2SSE2(Left, Right, WorkKey.dwKey1);
-			RoundFuncPi1SSE2(Left, Right);
-		}
-
-		{
-			// l4 l3 l2 l1
-			__m128i a = _mm_shuffle_epi32(Left, MM_SHUFFLE4(3, 1, 2, 0));
-
-			// r4 r3 r2 r1
-			__m128i b = _mm_shuffle_epi32(Right, MM_SHUFFLE4(3, 1, 2, 0));
-
-			// r2 l2 r1 l1
-			__m128i x = _mm_unpacklo_epi32(a, b);
-
-			// r4 l4 r3 l3
-			__m128i y = _mm_unpackhi_epi32(a, b);
-
-			x = _mm_xor_si128(ByteSwap128(x), _mm_or_si128(_mm_slli_si128(Src1, 8), Cbc));
-			y = _mm_xor_si128(ByteSwap128(y), _mm_loadu_si128((__m128i*)(p + 8)));
-			_mm_storeu_si128((__m128i*)p, x);
-			_mm_storeu_si128((__m128i*)p + 1, y);
-
-			Cbc = _mm_srli_si128(Src2, 8);
-		}
-
-		p += 32;
-	}
-
-	DATKEY CbcData;
-	CbcData.SetHexData(Cbc.m128i_u8);
-
-	RemainSize= dwSize & 0x00000018UL;
-	pEnd = p + RemainSize;
-	while (p < pEnd) {
-		DATKEY SrcData;
-
-		SrcData.SetHexData(p);
-		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
-			RoundFuncPi4(SrcData, WorkKey.dwKey8);
-			RoundFuncPi3(SrcData, WorkKey.dwKey6, WorkKey.dwKey7);
-			RoundFuncPi2(SrcData, WorkKey.dwKey5);
-			RoundFuncPi1(SrcData);
-			RoundFuncPi4(SrcData, WorkKey.dwKey4);
-			RoundFuncPi3(SrcData, WorkKey.dwKey2, WorkKey.dwKey3);
-			RoundFuncPi2(SrcData, WorkKey.dwKey1);
-			RoundFuncPi1(SrcData);
-		}
-		SrcData ^= CbcData;
-		CbcData.SetHexData(p);
-		SrcData.GetHexData(p);
-		p += sizeof(DATKEY);
-	}
-
-	// OFBモード
-	RemainSize = dwSize & 0x00000007UL;
-	if (RemainSize > 0) {
-		for (int Round = 0 ; Round < SCRAMBLE_ROUND ; Round++) {
-			RoundFuncPi1(CbcData);
-			RoundFuncPi2(CbcData, WorkKey.dwKey1);
-			RoundFuncPi3(CbcData, WorkKey.dwKey2, WorkKey.dwKey3);
-			RoundFuncPi4(CbcData, WorkKey.dwKey4);
-			RoundFuncPi1(CbcData);
-			RoundFuncPi2(CbcData, WorkKey.dwKey5);
-			RoundFuncPi3(CbcData, WorkKey.dwKey6, WorkKey.dwKey7);
-			RoundFuncPi4(CbcData, WorkKey.dwKey8);
-		}
-
-		BYTE Remain[sizeof(DATKEY)];
-		CbcData.GetHexData(Remain);
-		switch (RemainSize) {
-		default: __assume(0);
-		case 7: p[6] ^= Remain[6];
-		case 6: p[5] ^= Remain[5];
-		case 5: p[4] ^= Remain[4];
-		case 4: p[3] ^= Remain[3];
-		case 3: p[2] ^= Remain[2];
-		case 2: p[1] ^= Remain[1];
-		case 1: p[0] ^= Remain[0];
-		}
-	}
-
-	return true;
-}
+#ifdef MULTI2_SIMD
 
 bool CMulti2Decoder::IsSSE2Available()
 {
-	return CSSE2Initializer::IsSSE2Available();
+	return Multi2DecoderSIMD::IsSSE2Available();
 }
 
-
-#else	// MULTI2_SSE2_ICC
-
-// ICCでコンパイルしたライブラリの使用
-
-#include "../ICC/Multi2Decoder/Multi2DecoderSSE2.h"
-#pragma comment(lib, "Multi2Decoder.lib")
-
-
-class CSSE2Initializer
+bool CMulti2Decoder::IsSSSE3Available()
 {
-public:
-	CSSE2Initializer() {
-		Multi2DecoderSSE2::Initialize();
-	}
-};
-
-static CSSE2Initializer SSE2Initializer;
-
-
-const bool CMulti2Decoder::DecodeSSE2(BYTE *pData, const DWORD dwSize, const BYTE byScrCtrl) const
-{
-	if(!byScrCtrl)return true;										// スクランブルなし
-	else if(!m_bIsSysKeyValid || !m_bIsWorkKeyValid)return false;	// スクランブルキー未設定
-	else if((byScrCtrl != 2U) && (byScrCtrl != 3U))return false;	// スクランブル制御不正
-
-	// スクランブル解除
-	return Multi2DecoderSSE2::Decode(pData, dwSize,
-		(byScrCtrl == 3) ? &m_WorkKeyOdd : &m_WorkKeyEven,
-		m_InitialCbc.dwLeft, m_InitialCbc.dwRight);
+	return Multi2DecoderSIMD::IsSSSE3Available();
 }
 
-
-bool CMulti2Decoder::IsSSE2Available()
-{
-	return Multi2DecoderSSE2::IsSSE2Available();
-}
-
-
-#endif	// MULTI2_SSE2_ICC
-
-#endif	// MULTI2_SSE2
+#endif	// MULTI2_SIMD

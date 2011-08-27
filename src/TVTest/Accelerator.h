@@ -52,14 +52,12 @@ class CAccelerator : public COptions, public CRawInput::CEventHandler
 	bool m_fDigitKeyChangeChannel;
 	bool m_fNumPadChangeChannel;
 
-// COptions
-	bool Load(LPCTSTR pszFileName);
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 // CAccelerator
 	static const KeyInfo m_DefaultAccelList[];
 	static const AppCommandInfo m_DefaultAppCommandList[];
-	static void FormatAccelText(LPTSTR pszText,int Key,int Modifiers);
+	static void FormatAccelText(LPTSTR pszText,int Key,int Modifiers,bool fGlobal=false);
 	void SetMenuAccelText(HMENU hmenu,int Command);
 	HACCEL CreateAccel();
 	bool RegisterHotKey();
@@ -69,21 +67,20 @@ class CAccelerator : public COptions, public CRawInput::CEventHandler
 	void SetAccelItem(HWND hwndList,int Index,BYTE Mod,WORD Key,bool fGlobal,BYTE AppCommand);
 	static void SetDlgItemStatus(HWND hDlg);
 // CRawInput::CEventHandler
-	void OnInput(int Type);
-	void OnUnknownInput(const BYTE *pData,int Size);
+	void OnInput(int Type) override;
+	void OnUnknownInput(const BYTE *pData,int Size) override;
 
 public:
 	CAccelerator();
 	~CAccelerator();
 // COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
-	bool Save(LPCTSTR pszFileName) const;
+	bool LoadSettings(CSettingsFile &File) override;
+	bool SaveSettings(CSettingsFile &File) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CAccelerator
 	bool Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
-					LPCTSTR pszSettingFileName,const CCommandList *pCommandList);
+					CSettingsFile &SettingsFile,const CCommandList *pCommandList);
 	void Finalize();
 	bool TranslateMessage(HWND hwnd,LPMSG pmsg);
 	int TranslateHotKey(WPARAM wParam,LPARAM lParam) const;

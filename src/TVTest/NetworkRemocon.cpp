@@ -351,29 +351,29 @@ CNetworkRemoconOptions::~CNetworkRemoconOptions()
 }
 
 
-bool CNetworkRemoconOptions::Read(CSettings *pSettings)
+bool CNetworkRemoconOptions::ReadSettings(CSettings &Settings)
 {
 	TCHAR szText[16];
 
-	pSettings->Read(TEXT("UseNetworkRemocon"),&m_fUseNetworkRemocon);
-	if (pSettings->Read(TEXT("NetworkRemoconAddress"),szText,lengthof(szText)))
+	Settings.Read(TEXT("UseNetworkRemocon"),&m_fUseNetworkRemocon);
+	if (Settings.Read(TEXT("NetworkRemoconAddress"),szText,lengthof(szText)))
 		::WideCharToMultiByte(CP_ACP,0,szText,-1,
 							  m_szAddress,lengthof(m_szAddress),NULL,NULL);
-	pSettings->Read(TEXT("NetworkRemoconPort"),&m_Port);
-	pSettings->Read(TEXT("NetworkRemoconChFile"),
-					m_szChannelFileName,lengthof(m_szChannelFileName));
+	Settings.Read(TEXT("NetworkRemoconPort"),&m_Port);
+	Settings.Read(TEXT("NetworkRemoconChFile"),
+				  m_szChannelFileName,lengthof(m_szChannelFileName));
 	return true;
 }
 
 
-bool CNetworkRemoconOptions::Write(CSettings *pSettings) const
+bool CNetworkRemoconOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("UseNetworkRemocon"),m_fUseNetworkRemocon);
+	Settings.Write(TEXT("UseNetworkRemocon"),m_fUseNetworkRemocon);
 	WCHAR szAddress[16];
 	::MultiByteToWideChar(CP_ACP,0,m_szAddress,-1,szAddress,lengthof(szAddress));
-	pSettings->Write(TEXT("NetworkRemoconAddress"),szAddress);
-	pSettings->Write(TEXT("NetworkRemoconPort"),m_Port);
-	pSettings->Write(TEXT("NetworkRemoconChFile"),m_szChannelFileName);
+	Settings.Write(TEXT("NetworkRemoconAddress"),szAddress);
+	Settings.Write(TEXT("NetworkRemoconPort"),m_Port);
+	Settings.Write(TEXT("NetworkRemoconChFile"),m_szChannelFileName);
 	return true;
 }
 
@@ -597,6 +597,8 @@ INT_PTR CNetworkRemoconOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM
 				::lstrcpy(m_szChannelFileName,szChannelFile);
 				if (fUpdate)
 					SetUpdateFlag(UPDATE_NETWORKREMOCON);
+
+				m_fChanged=true;
 			}
 			return TRUE;
 		}

@@ -75,7 +75,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="strmbasd.lib comctl32.lib msimg32.lib"
+				AdditionalDependencies=""
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
 				EnableUAC="false"
@@ -168,7 +168,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="strmbasd.lib comctl32.lib msimg32.lib"
+				AdditionalDependencies=""
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
 				EnableUAC="false"
@@ -267,7 +267,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
+				AdditionalDependencies=""
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
 				EnableUAC="false"
@@ -368,7 +368,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="strmbase.lib comctl32.lib msimg32.lib"
+				AdditionalDependencies=""
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;$(IntDir)\&quot;;&quot;.\ICC\$(PlatformName)\$(ConfigurationName)\&quot;"
 				EnableUAC="false"
@@ -602,6 +602,10 @@
 			</File>
 			<File
 				RelativePath=".\OperationOptions.cpp"
+				>
+			</File>
+			<File
+				RelativePath=".\OptionDialog.cpp"
 				>
 			</File>
 			<File
@@ -992,6 +996,10 @@
 			</File>
 			<File
 				RelativePath=".\OperationOptions.h"
+				>
+			</File>
+			<File
+				RelativePath=".\OptionDialog.h"
 				>
 			</File>
 			<File

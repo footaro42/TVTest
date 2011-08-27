@@ -1,6 +1,12 @@
 #include "stdafx.h"
 #include "WindowUtil.h"
 
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
 
 
 
@@ -175,4 +181,99 @@ void SnapWindow(HWND hwnd,RECT *prc,int Margin,HWND hwndExclude)
 		prc->top+=YOffset;
 	prc->right=prc->left+(Info.rcOriginal.right-Info.rcOriginal.left);
 	prc->bottom=prc->top+(Info.rcOriginal.bottom-Info.rcOriginal.top);
+}
+
+
+
+
+CMouseLeaveTrack::CMouseLeaveTrack()
+	: m_hwnd(NULL)
+	, m_fClientTrack(false)
+	, m_fNonClientTrack(false)
+{
+}
+
+void CMouseLeaveTrack::Initialize(HWND hwnd)
+{
+	m_hwnd=hwnd;
+	m_fClientTrack=false;
+	m_fNonClientTrack=false;
+}
+
+bool CMouseLeaveTrack::OnMouseMove()
+{
+	// WM_MOUSELEAVE ‚ª‘—‚ç‚ê‚È‚­‚Ä‚à–³Œø‚É‚³‚ê‚éŽ–‚ª‚ ‚é‚æ‚¤‚¾
+	/*if (!m_fClientTrack)*/ {
+		TRACKMOUSEEVENT tme;
+
+		tme.cbSize=sizeof(tme);
+		tme.dwFlags=TME_LEAVE;
+		tme.hwndTrack=m_hwnd;
+		if (!::TrackMouseEvent(&tme))
+			return false;
+		m_fClientTrack=true;
+	}
+	return true;
+}
+
+bool CMouseLeaveTrack::OnMouseLeave()
+{
+	m_fClientTrack=false;
+	//return !IsCursorInWindow();
+	return !m_fNonClientTrack;
+}
+
+bool CMouseLeaveTrack::OnNcMouseMove()
+{
+	/*if (!m_fNonClientTrack)*/ {
+		TRACKMOUSEEVENT tme;
+
+		tme.cbSize=sizeof(tme);
+		tme.dwFlags=TME_LEAVE | TME_NONCLIENT;
+		tme.hwndTrack=m_hwnd;
+		if (!::TrackMouseEvent(&tme))
+			return false;
+		m_fNonClientTrack=true;
+	}
+	return true;
+}
+
+bool CMouseLeaveTrack::OnNcMouseLeave()
+{
+	m_fNonClientTrack=false;
+	//return !IsCursorInWindow();
+	return !m_fClientTrack;
+}
+
+bool CMouseLeaveTrack::OnMessage(UINT Msg,WPARAM wParam,LPARAM lParam)
+{
+	switch (Msg) {
+	case WM_MOUSEMOVE:
+		OnMouseMove();
+		return true;
+
+	case WM_MOUSELEAVE:
+		OnMouseLeave();
+		return true;
+
+	case WM_NCMOUSEMOVE:
+		OnNcMouseMove();
+		return true;
+
+	case WM_NCMOUSELEAVE:
+		OnNcMouseLeave();
+		return true;
+	}
+
+	return false;
+}
+
+bool CMouseLeaveTrack::IsCursorInWindow() const
+{
+	DWORD Pos=::GetMessagePos();
+	POINT pt={GET_X_LPARAM(Pos),GET_Y_LPARAM(Pos)};
+	RECT rc;
+
+	::GetWindowRect(m_hwnd,&rc);
+	return ::PtInRect(&rc,pt)!=FALSE;
 }

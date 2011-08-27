@@ -38,12 +38,6 @@
     <ClCompile Include="pngrutil.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
-    <ClCompile Include="pngset.c">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="pngtest.c">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
     <ClCompile Include="pngtrans.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
@@ -59,12 +53,18 @@
     <ClCompile Include="pngwutil.c">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="pngset.c">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="png.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="pngconf.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="pnglibconf.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

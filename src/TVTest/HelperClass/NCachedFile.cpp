@@ -34,23 +34,23 @@ CNCachedFile::~CNCachedFile()
 }
 
 
-const bool CNCachedFile::Open(LPCTSTR lpszName, const BYTE bFlags)
+const bool CNCachedFile::Open(LPCTSTR lpszName, const UINT Flags)
 {
-	return Open(lpszName, bFlags, DEFBUFFSIZE);
+	return Open(lpszName, Flags, DEFBUFFSIZE);
 }
 
 
-const bool CNCachedFile::Open(LPCTSTR lpszName, const BYTE bFlags, const DWORD dwBuffSize)
+const bool CNCachedFile::Open(LPCTSTR lpszName, const UINT Flags, const DWORD dwBuffSize)
 {
 	if (IsOpen()) {
 		m_LastError = ERROR_BUSY;	// 「要求したリソースは使用中です。」
 		return false;
 	}
 
-	if ((bFlags & CNFile::CNF_WRITE) && !(bFlags & CNFile::CNF_READ)) {
+	if ((Flags & CNFile::CNF_WRITE) && !(Flags & CNFile::CNF_READ)) {
 		// ライトキャッシュ有効
 		m_bIsWritable = true;
-	} else if (!(bFlags & CNFile::CNF_WRITE) && (bFlags & CNFile::CNF_READ) && !(bFlags & CNFile::CNF_NEW)) {
+	} else if (!(Flags & CNFile::CNF_WRITE) && (Flags & CNFile::CNF_READ) && !(Flags & CNFile::CNF_NEW)) {
 		// リードキャッシュ有効
 		m_bIsWritable = false;
 	} else {
@@ -65,7 +65,7 @@ const bool CNCachedFile::Open(LPCTSTR lpszName, const BYTE bFlags, const DWORD d
 	}
 
 	// ファイルオープン
-	if (!CNFile::Open(lpszName, bFlags))
+	if (!CNFile::Open(lpszName, Flags))
 		return false;
 
 	// バッファ確保
@@ -244,3 +244,42 @@ const bool CNCachedFile::Flush(void)
 
 	return true;
 }
+
+
+#if 0
+// SetFileBandwidthReservation の使い方がよく分からない
+const bool CNCachedFile::ReserveBandwidth(DWORD BytesPerSecond)
+{
+	if (m_hFile == INVALID_HANDLE_VALUE) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return false;
+	}
+
+	HMODULE hKernel=::GetModuleHandle(TEXT("kernel32.dll"));
+	if (!hKernel) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return false;
+	}
+
+	typedef BOOL (WINAPI *SetFileBandwidthReservationFunc)(HANDLE hFile,
+		DWORD nPeriodMilliseconds, DWORD nBytesPerPeriod, BOOL bDiscardable,
+		LPDWORD lpTransferSize, LPDWORD lpNumOutstandingRequests);
+	SetFileBandwidthReservationFunc pSetFileBandwidthReservation =
+		(SetFileBandwidthReservationFunc)::GetProcAddress(hKernel, "SetFileBandwidthReservation");
+	if (!pSetFileBandwidthReservation) {
+		m_LastError = ERROR_INVALID_FUNCTION;
+		return false;
+	}
+
+	DWORD TransferSize, NumOutstandingRequests;
+	if (!pSetFileBandwidthReservation(m_hFile, 1000, BytesPerSecond, FALSE,
+									  &TransferSize, &NumOutstandingRequests)) {
+		m_LastError = ::GetLastError();
+		return false;
+	}
+
+	m_LastError = ERROR_SUCCESS;
+
+	return true;
+}
+#endif

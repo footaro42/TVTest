@@ -87,20 +87,20 @@ CControllerManager::~CControllerManager()
 }
 
 
-bool CControllerManager::Read(CSettings *pSettings)
+bool CControllerManager::ReadSettings(CSettings &Settings)
 {
 	TCHAR szText[256];
 
-	if (pSettings->Read(TEXT("CurController"),szText,lengthof(szText)))
+	if (Settings.Read(TEXT("CurController"),szText,lengthof(szText)))
 		m_CurController.Set(szText);
 	return true;
 }
 
 
-bool CControllerManager::Write(CSettings *pSettings) const
+bool CControllerManager::WriteSettings(CSettings &Settings)
 {
 	if (!m_CurController.IsEmpty())
-		pSettings->Write(TEXT("CurController"),m_CurController.Get());
+		Settings.Write(TEXT("CurController"),m_CurController.Get());
 	return true;
 }
 
@@ -580,7 +580,7 @@ INT_PTR CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 
 				pController->GetButtonInfo(CurButton,&Button);
 				::SelectObject(hdcMem,m_hbmSelButtons);
-				::TransparentBlt(ps.hdc,
+				::GdiTransparentBlt(ps.hdc,
 					m_ImageRect.left+Button.ImageButtonRect.Left,
 					m_ImageRect.top+Button.ImageButtonRect.Top,
 					Button.ImageButtonRect.Width,
@@ -675,8 +675,10 @@ INT_PTR CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 				const CController *pCurController=GetCurController();
 
 				InitDlgItems();
-				if (pCurController!=NULL)
+				if (pCurController!=NULL) {
 					m_CurController.Set(pCurController->GetName());
+					m_fChanged=true;
+				}
 			}
 			return TRUE;
 

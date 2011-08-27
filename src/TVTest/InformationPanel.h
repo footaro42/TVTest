@@ -7,7 +7,7 @@
 #include "DrawUtil.h"
 
 
-class CInformationPanel : public CPanelForm::CPage
+class CInformationPanel : public CPanelForm::CPage, public CSettingsBase
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler) {
@@ -91,6 +91,9 @@ public:
 	~CInformationPanel();
 // CBasicWindow
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CInformationPanel
 	void ResetStatistics();
 	bool IsVisible() const;
@@ -116,8 +119,6 @@ public:
 	void SetProgramInfo(LPCTSTR pszInfo);
 	bool GetProgramInfoNext() const { return m_fNextProgramInfo; }
 	bool SetEventHandler(CEventHandler *pHandler);
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
 };
 
 

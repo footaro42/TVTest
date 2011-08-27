@@ -63,24 +63,24 @@ void CEpgOptions::Finalize()
 }
 
 
-bool CEpgOptions::Read(CSettings *pSettings)
+bool CEpgOptions::ReadSettings(CSettings &Settings)
 {
-	pSettings->Read(TEXT("SaveEpgData"),&m_fSaveEpgFile);
-	pSettings->Read(TEXT("EpgDataFileName"),m_szEpgFileName,lengthof(m_szEpgFileName));
-	pSettings->Read(TEXT("EpgUpdateWhenStandby"),&m_fUpdateWhenStandby);
-	pSettings->Read(TEXT("UseEpgData"),&m_fUseEDCBData);
-	pSettings->Read(TEXT("EpgDataFolder"),m_szEDCBDataFolder,lengthof(m_szEDCBDataFolder));
+	Settings.Read(TEXT("SaveEpgData"),&m_fSaveEpgFile);
+	Settings.Read(TEXT("EpgDataFileName"),m_szEpgFileName,lengthof(m_szEpgFileName));
+	Settings.Read(TEXT("EpgUpdateWhenStandby"),&m_fUpdateWhenStandby);
+	Settings.Read(TEXT("UseEpgData"),&m_fUseEDCBData);
+	Settings.Read(TEXT("EpgDataFolder"),m_szEDCBDataFolder,lengthof(m_szEDCBDataFolder));
 
-	pSettings->Read(TEXT("SaveLogoData"),&m_fSaveLogoFile);
-	pSettings->Read(TEXT("LogoDataFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
+	Settings.Read(TEXT("SaveLogoData"),&m_fSaveLogoFile);
+	Settings.Read(TEXT("LogoDataFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
 
 	bool fSaveLogo;
-	if (pSettings->Read(TEXT("SaveRawLogo"),&fSaveLogo))
+	if (Settings.Read(TEXT("SaveRawLogo"),&fSaveLogo))
 		m_pLogoManager->SetSaveLogo(fSaveLogo);
-	if (pSettings->Read(TEXT("SaveBmpLogo"),&fSaveLogo))
+	if (Settings.Read(TEXT("SaveBmpLogo"),&fSaveLogo))
 		m_pLogoManager->SetSaveLogoBmp(fSaveLogo);
 	TCHAR szLogoDir[MAX_PATH];
-	if (pSettings->Read(TEXT("LogoDirectory"),szLogoDir,MAX_PATH)) {
+	if (Settings.Read(TEXT("LogoDirectory"),szLogoDir,MAX_PATH)) {
 		m_pLogoManager->SetLogoDirectory(szLogoDir);
 	} else {
 		// TVLogoMark ‚ÌƒƒS‚ª‚ ‚ê‚Î—˜—p‚·‚é
@@ -90,26 +90,26 @@ bool CEpgOptions::Read(CSettings *pSettings)
 			m_pLogoManager->SetLogoDirectory(TEXT(".\\Plugins\\Logo"));
 	}
 
-	pSettings->Read(TEXT("EventInfoFont"),&m_EventInfoFont);
+	Settings.Read(TEXT("EventInfoFont"),&m_EventInfoFont);
 	return true;
 }
 
 
-bool CEpgOptions::Write(CSettings *pSettings) const
+bool CEpgOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("SaveEpgData"),m_fSaveEpgFile);
-	pSettings->Write(TEXT("EpgDataFileName"),m_szEpgFileName);
-	pSettings->Write(TEXT("EpgUpdateWhenStandby"),m_fUpdateWhenStandby);
-	pSettings->Write(TEXT("UseEpgData"),m_fUseEDCBData);
-	pSettings->Write(TEXT("EpgDataFolder"),m_szEDCBDataFolder);
+	Settings.Write(TEXT("SaveEpgData"),m_fSaveEpgFile);
+	Settings.Write(TEXT("EpgDataFileName"),m_szEpgFileName);
+	Settings.Write(TEXT("EpgUpdateWhenStandby"),m_fUpdateWhenStandby);
+	Settings.Write(TEXT("UseEpgData"),m_fUseEDCBData);
+	Settings.Write(TEXT("EpgDataFolder"),m_szEDCBDataFolder);
 
-	pSettings->Write(TEXT("SaveLogoData"),m_fSaveLogoFile);
-	pSettings->Write(TEXT("LogoDataFileName"),m_szLogoFileName);
-	pSettings->Write(TEXT("SaveRawLogo"),m_pLogoManager->GetSaveLogo());
-	pSettings->Write(TEXT("SaveBmpLogo"),m_pLogoManager->GetSaveLogoBmp());
-	pSettings->Write(TEXT("LogoDirectory"),m_pLogoManager->GetLogoDirectory());
+	Settings.Write(TEXT("SaveLogoData"),m_fSaveLogoFile);
+	Settings.Write(TEXT("LogoDataFileName"),m_szLogoFileName);
+	Settings.Write(TEXT("SaveRawLogo"),m_pLogoManager->GetSaveLogo());
+	Settings.Write(TEXT("SaveBmpLogo"),m_pLogoManager->GetSaveLogoBmp());
+	Settings.Write(TEXT("LogoDirectory"),m_pLogoManager->GetLogoDirectory());
 
-	pSettings->Write(TEXT("EventInfoFont"),&m_EventInfoFont);
+	Settings.Write(TEXT("EventInfoFont"),&m_EventInfoFont);
 	return true;
 }
 
@@ -507,6 +507,8 @@ INT_PTR CEpgOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					m_EventInfoFont=m_CurEventInfoFont;
 					SetGeneralUpdateFlag(UPDATE_GENERAL_EVENTINFOFONT);
 				}
+
+				m_fChanged=true;
 			}
 			break;
 		}

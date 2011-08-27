@@ -64,11 +64,11 @@ public:
 
 	CControllerManager();
 	~CControllerManager();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CControllerManager
 	bool AddController(CController *pController);
 	bool DeleteController(LPCTSTR pszName);
@@ -103,9 +103,9 @@ private:
 	CTooltip m_Tooltip;
 
 // CController::CEventHandler
-	bool OnButtonDown(CController *pController,int Index);
+	bool OnButtonDown(CController *pController,int Index) override;
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 // CControllerManager
 	int FindController(LPCTSTR pszName) const;
 	void InitDlgItems();

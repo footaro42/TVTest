@@ -8,7 +8,8 @@
 #include "Options.h"
 
 
-class CNetworkRemoconReceiver {
+class CNetworkRemoconReceiver
+{
 public:
 	virtual void OnReceive(LPCSTR pszText) = 0;
 };
@@ -41,7 +42,8 @@ public:
 	CChannelList &GetChannelList() { return m_ChannelList; }
 };
 
-class CNetworkRemoconOptions : public COptions {
+class CNetworkRemoconOptions : public COptions
+{
 	enum {
 		UPDATE_NETWORKREMOCON = 0x00000001UL
 	};
@@ -54,7 +56,7 @@ class CNetworkRemoconOptions : public COptions {
 	unsigned int m_TempPort;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	bool GetChannelFilePath(LPTSTR pszPath) const;
 
@@ -62,11 +64,12 @@ public:
 	CNetworkRemoconOptions();
 	~CNetworkRemoconOptions();
 // COptions
-	//bool Apply(DWORD Flags);
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+	//bool Apply(DWORD Flags) override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CNetworkRemoconOptions
 	unsigned int GetPort() const { return m_Port; }
 	bool SetTempEnable(bool fEnable);

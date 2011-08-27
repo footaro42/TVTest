@@ -201,11 +201,12 @@ class CPluginOptions : public COptions
 public:
 	CPluginOptions(CPluginManager *pPluginManager);
 	~CPluginOptions();
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
-	bool Create(HWND hwndOwner);
+// CSettingsBase
+	bool LoadSettings(CSettingsFile &File) override;
+	bool SaveSettings(CSettingsFile &File) override;
+// CBasicDialog
+	bool Create(HWND hwndOwner) override;
+// CPluginOptions
 	bool RestorePluginOptions();
 	bool StorePluginOptions();
 };

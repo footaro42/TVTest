@@ -380,10 +380,10 @@ public:
 	CColorSchemeOptions();
 	~CColorSchemeOptions();
 // COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
+	bool LoadSettings(CSettingsFile &File) override;
+	bool SaveSettings(CSettingsFile &File) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CColorSchemeOptions
 	bool SetApplyCallback(ApplyFunc pCallback);
 	bool ApplyColorScheme() const;
@@ -403,7 +403,7 @@ private:
 	CColorPalette m_ColorPalette;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	bool Apply(const CColorScheme *pColorScheme) const;
 	void GetCurrentSettings(CColorScheme *pColorScheme);

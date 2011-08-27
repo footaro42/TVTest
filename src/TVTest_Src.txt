@@ -1,28 +1,30 @@
 
 
-    TVTest ver.0.7.20 ソース
+    TVTest ver.0.7.21r2 ソース
 
 
 ◆ ファイル構成
 
-  ・TVTest_0.7.20_Src.zip  ソースファイル
-  ・TVTest_SDK_110123.zip  プラグイン開発用 SDK
+  ・TVTest_0.7.21r2_Src.zip  ソースファイル
+  ・TVTest_SDK_110123.zip    プラグイン開発用 SDK
 
 
 ◆ ソースについて
 
-  Visual Studio 2008 と 2010 のプロジェクトファイルが付いています。
+  Visual Studio 2010 と 2008 のプロジェクトファイルが付いています。
   (こちらでは普段 Visual Studio 2010 SP1 と Intel C++ Composer XE 2011 でビルド
    しています)
   一部 ATL を使用しているので Express Edition ではビルドできないと思います。
 
   ビルドには DirectX SDK と DirectShow の BaseClasses ライブラリ(Windows SDK に
   付属)、FAAD2 ライブラリが必要です。
+  BaseClasses は SDK の Samples\Multimedia\DirectShow\BaseClasses にあります。
+
   TVTest_Image.dll のビルドには libjpeg/libpng/zlib の各ソースファイルが必要で
   す。
 
   Intel C++ Compiler (ICC) が無い場合は BonTsEngine\Multi2Decoder.h の
-  #define MULTI2_SSE2_ICC をコメントアウトしてください。
+  #define MULTI2_SIMD_ICC をコメントアウトしてください。
   ICC が有る場合は ICC\ICC.sln をビルドして Multi2Decoder.lib を作成ください。
   (ICC 用のソリューション/プロジェクトなので ICC が無いとビルドできません)
 

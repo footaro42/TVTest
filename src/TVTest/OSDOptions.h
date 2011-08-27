@@ -30,11 +30,11 @@ public:
 
 	COSDOptions();
 	~COSDOptions();
-// COptions
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // COSDOptions
 	bool GetShowOSD() const { return m_fShowOSD; }
 	bool GetPseudoOSD() const { return m_fPseudoOSD; }
@@ -54,7 +54,7 @@ public:
 
 private:
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	void EnableNotify(unsigned int Type,bool fEnabled);
 

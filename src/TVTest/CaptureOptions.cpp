@@ -45,22 +45,23 @@ const CCaptureOptions::PercentageType CCaptureOptions::m_PercentageList[PERCENTA
 
 
 CCaptureOptions::CCaptureOptions()
+	: m_SaveFormat(0)
+	, m_JPEGQuality(90)
+	, m_PNGCompressionLevel(6)
+	, m_fCaptureSaveToFile(true)
+	, m_fSetComment(false)
+	, m_CaptureSizeType(SIZE_TYPE_ORIGINAL)
+	, m_CaptureSize(
+#ifndef TVH264_FOR_1SEG
+		SIZE_1920x1080
+#else
+		SIZE_320x180
+#endif
+		)
+	, m_CapturePercentage(PERCENTAGE_50)
 {
 	GetAppClass().GetAppDirectory(m_szSaveFolder);
 	::lstrcpy(m_szFileName,TEXT("Capture"));
-	m_SaveFormat=0;
-	m_JPEGQuality=90;
-	m_PNGCompressionLevel=6;
-	m_fCaptureSaveToFile=true;
-	m_fSetComment=false;
-	m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
-	m_CaptureSize=
-#ifndef TVH264_FOR_1SEG
-		SIZE_1920x1080;
-#else
-		SIZE_320x180;
-#endif
-	m_CapturePercentage=PERCENTAGE_50;
 }
 
 
@@ -70,22 +71,22 @@ CCaptureOptions::~CCaptureOptions()
 }
 
 
-bool CCaptureOptions::Read(CSettings *pSettings)
+bool CCaptureOptions::ReadSettings(CSettings &Settings)
 {
-	pSettings->Read(TEXT("CaptureFolder"),m_szSaveFolder,lengthof(m_szSaveFolder));
-	pSettings->Read(TEXT("CaptureFileName"),m_szFileName,lengthof(m_szFileName));
+	Settings.Read(TEXT("CaptureFolder"),m_szSaveFolder,lengthof(m_szSaveFolder));
+	Settings.Read(TEXT("CaptureFileName"),m_szFileName,lengthof(m_szFileName));
 	TCHAR szFormat[32];
-	if (pSettings->Read(TEXT("CaptureSaveFormat"),szFormat,lengthof(szFormat))) {
+	if (Settings.Read(TEXT("CaptureSaveFormat"),szFormat,lengthof(szFormat))) {
 		int Format=m_ImageCodec.FormatNameToIndex(szFormat);
 		if (Format>=0)
 			m_SaveFormat=Format;
 	}
-	pSettings->Read(TEXT("CaptureIconSaveFile"),&m_fCaptureSaveToFile);
-	pSettings->Read(TEXT("CaptureSetComment"),&m_fSetComment);
-	pSettings->Read(TEXT("JpegQuality"),&m_JPEGQuality);
-	pSettings->Read(TEXT("PngCompressionLevel"),&m_PNGCompressionLevel);
+	Settings.Read(TEXT("CaptureIconSaveFile"),&m_fCaptureSaveToFile);
+	Settings.Read(TEXT("CaptureSetComment"),&m_fSetComment);
+	Settings.Read(TEXT("JpegQuality"),&m_JPEGQuality);
+	Settings.Read(TEXT("PngCompressionLevel"),&m_PNGCompressionLevel);
 	int Size;
-	if (pSettings->Read(TEXT("CaptureSizeType"),&Size)
+	if (Settings.Read(TEXT("CaptureSizeType"),&Size)
 			&& Size>=0 && Size<=SIZE_TYPE_LAST) {
 		if (Size==SIZE_TYPE_RAW)
 			m_CaptureSizeType=SIZE_TYPE_ORIGINAL;
@@ -93,8 +94,8 @@ bool CCaptureOptions::Read(CSettings *pSettings)
 			m_CaptureSizeType=Size;
 	}
 	int Width,Height;
-	if (pSettings->Read(TEXT("CaptureWidth"),&Width)
-			&& pSettings->Read(TEXT("CaptureHeight"),&Height)) {
+	if (Settings.Read(TEXT("CaptureWidth"),&Width)
+			&& Settings.Read(TEXT("CaptureHeight"),&Height)) {
 		for (int i=0;i<=SIZE_LAST;i++) {
 			if (m_SizeList[i].cx==Width && m_SizeList[i].cy==Height) {
 				m_CaptureSize=i;
@@ -103,8 +104,8 @@ bool CCaptureOptions::Read(CSettings *pSettings)
 		}
 	}
 	int Num,Denom;
-	if (pSettings->Read(TEXT("CaptureRatioNum"),&Num)
-			&& pSettings->Read(TEXT("CaptureRatioDenom"),&Denom)) {
+	if (Settings.Read(TEXT("CaptureRatioNum"),&Num)
+			&& Settings.Read(TEXT("CaptureRatioDenom"),&Denom)) {
 		for (int i=0;i<=PERCENTAGE_LAST;i++) {
 			if (m_PercentageList[i].Num==Num
 					&& m_PercentageList[i].Denom==Denom) {
@@ -117,21 +118,20 @@ bool CCaptureOptions::Read(CSettings *pSettings)
 }
 
 
-bool CCaptureOptions::Write(CSettings *pSettings) const
+bool CCaptureOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("CaptureFolder"),m_szSaveFolder);
-	pSettings->Write(TEXT("CaptureFileName"),m_szFileName);
-	pSettings->Write(TEXT("CaptureSaveFormat"),
-									m_ImageCodec.EnumSaveFormat(m_SaveFormat));
-	pSettings->Write(TEXT("CaptureIconSaveFile"),m_fCaptureSaveToFile);
-	pSettings->Write(TEXT("CaptureSetComment"),m_fSetComment);
-	pSettings->Write(TEXT("JpegQuality"),m_JPEGQuality);
-	pSettings->Write(TEXT("PngCompressionLevel"),m_PNGCompressionLevel);
-	pSettings->Write(TEXT("CaptureSizeType"),m_CaptureSizeType);
-	pSettings->Write(TEXT("CaptureWidth"),m_SizeList[m_CaptureSize].cx);
-	pSettings->Write(TEXT("CaptureHeight"),m_SizeList[m_CaptureSize].cy);
-	pSettings->Write(TEXT("CaptureRatioNum"),m_PercentageList[m_CapturePercentage].Num);
-	pSettings->Write(TEXT("CaptureRatioDenom"),m_PercentageList[m_CapturePercentage].Denom);
+	Settings.Write(TEXT("CaptureFolder"),m_szSaveFolder);
+	Settings.Write(TEXT("CaptureFileName"),m_szFileName);
+	Settings.Write(TEXT("CaptureSaveFormat"),m_ImageCodec.EnumSaveFormat(m_SaveFormat));
+	Settings.Write(TEXT("CaptureIconSaveFile"),m_fCaptureSaveToFile);
+	Settings.Write(TEXT("CaptureSetComment"),m_fSetComment);
+	Settings.Write(TEXT("JpegQuality"),m_JPEGQuality);
+	Settings.Write(TEXT("PngCompressionLevel"),m_PNGCompressionLevel);
+	Settings.Write(TEXT("CaptureSizeType"),m_CaptureSizeType);
+	Settings.Write(TEXT("CaptureWidth"),m_SizeList[m_CaptureSize].cx);
+	Settings.Write(TEXT("CaptureHeight"),m_SizeList[m_CaptureSize].cy);
+	Settings.Write(TEXT("CaptureRatioNum"),m_PercentageList[m_CapturePercentage].Num);
+	Settings.Write(TEXT("CaptureRatioDenom"),m_PercentageList[m_CapturePercentage].Denom);
 	return true;
 }
 
@@ -490,6 +490,8 @@ INT_PTR CCaptureOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					DlgCheckBox_IsChecked(hDlg,IDC_CAPTUREOPTIONS_ICONSAVEFILE);
 				m_fSetComment=
 					DlgCheckBox_IsChecked(hDlg,IDC_CAPTUREOPTIONS_SETCOMMENT);
+
+				m_fChanged=true;
 			}
 			break;
 		}

@@ -6,6 +6,7 @@
 #include "Theme.h"
 #include "DrawUtil.h"
 #include "Tooltip.h"
+#include "WindowUtil.h"
 
 
 class CTitleBar : public CCustomWindow
@@ -74,7 +75,7 @@ private:
 	HICON m_hIcon;
 	int m_HotItem;
 	int m_ClickItem;
-	bool m_fTrackMouseEvent;
+	CMouseLeaveTrack m_MouseLeaveTrack;
 	bool m_fMaximized;
 	bool m_fFullscreen;
 	CEventHandler *m_pEventHandler;

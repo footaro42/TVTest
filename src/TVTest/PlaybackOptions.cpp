@@ -83,62 +83,62 @@ bool CPlaybackOptions::Apply(DWORD Flags)
 }
 
 
-bool CPlaybackOptions::Read(CSettings *pSettings)
+bool CPlaybackOptions::ReadSettings(CSettings &Settings)
 {
 	int Value;
 
 	TCHAR szAudioDevice[MAX_AUDIO_DEVICE_NAME];
-	if (pSettings->Read(TEXT("AudioDevice"),szAudioDevice,lengthof(szAudioDevice)))
+	if (Settings.Read(TEXT("AudioDevice"),szAudioDevice,lengthof(szAudioDevice)))
 		m_AudioDeviceName.Set(szAudioDevice);
 	TCHAR szAudioFilter[MAX_AUDIO_FILTER_NAME];
-	if (pSettings->Read(TEXT("AudioFilter"),szAudioFilter,lengthof(szAudioFilter)))
+	if (Settings.Read(TEXT("AudioFilter"),szAudioFilter,lengthof(szAudioFilter)))
 		m_AudioFilterName.Set(szAudioFilter);
-	if (pSettings->Read(TEXT("SpdifMode"),&Value))
+	if (Settings.Read(TEXT("SpdifMode"),&Value))
 		m_SpdifOptions.Mode=(CAacDecFilter::SpdifMode)Value;
-	pSettings->Read(TEXT("SpdifChannels"),&m_SpdifOptions.PassthroughChannels);
-	pSettings->Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
-	pSettings->Read(TEXT("RestoreMute"),&m_fRestoreMute);
-	pSettings->Read(TEXT("Mute"),&m_fMute);
-	pSettings->Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
-	pSettings->Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
-	pSettings->Read(TEXT("PTSSync"),&m_fEnablePTSSync);
-	pSettings->Read(TEXT("AdjustAudioStreamTime"),&m_fAdjustAudioStreamTime);
-	pSettings->Read(TEXT("MinTimerResolution"),&m_fMinTimerResolution);
-	pSettings->Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
+	Settings.Read(TEXT("SpdifChannels"),&m_SpdifOptions.PassthroughChannels);
+	Settings.Read(TEXT("DownMixSurround"),&m_fDownMixSurround);
+	Settings.Read(TEXT("RestoreMute"),&m_fRestoreMute);
+	Settings.Read(TEXT("Mute"),&m_fMute);
+	Settings.Read(TEXT("RestorePlayStatus"),&m_fRestorePlayStatus);
+	Settings.Read(TEXT("UseAudioRendererClock"),&m_fUseAudioRendererClock);
+	Settings.Read(TEXT("PTSSync"),&m_fEnablePTSSync);
+	Settings.Read(TEXT("AdjustAudioStreamTime"),&m_fAdjustAudioStreamTime);
+	Settings.Read(TEXT("MinTimerResolution"),&m_fMinTimerResolution);
+	Settings.Read(TEXT("PacketBuffering"),&m_fPacketBuffering);
 	unsigned int BufferLength;
-	if (pSettings->Read(TEXT("PacketBufferLength"),&BufferLength))
+	if (Settings.Read(TEXT("PacketBufferLength"),&BufferLength))
 		m_PacketBufferLength=min(BufferLength,MAX_PACKET_BUFFER_LENGTH);
-	if (pSettings->Read(TEXT("PacketBufferPoolPercentage"),&m_PacketBufferPoolPercentage))
+	if (Settings.Read(TEXT("PacketBufferPoolPercentage"),&m_PacketBufferPoolPercentage))
 		m_PacketBufferPoolPercentage=CLAMP(m_PacketBufferPoolPercentage,0,100);
-	if (pSettings->Read(TEXT("StreamThreadPriority"),&m_StreamThreadPriority))
+	if (Settings.Read(TEXT("StreamThreadPriority"),&m_StreamThreadPriority))
 		m_StreamThreadPriority=CLAMP(m_StreamThreadPriority,THREAD_PRIORITY_NORMAL,THREAD_PRIORITY_HIGHEST);
 #ifdef TVH264
-	pSettings->Read(TEXT("AdjustFrameRate"),&m_fAdjustFrameRate);
+	Settings.Read(TEXT("AdjustFrameRate"),&m_fAdjustFrameRate);
 #endif
 	return true;
 }
 
 
-bool CPlaybackOptions::Write(CSettings *pSettings) const
+bool CPlaybackOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("AudioDevice"),m_AudioDeviceName.GetSafe());
-	pSettings->Write(TEXT("AudioFilter"),m_AudioFilterName.GetSafe());
-	pSettings->Write(TEXT("SpdifMode"),(int)m_SpdifOptions.Mode);
-	pSettings->Write(TEXT("SpdifChannels"),m_SpdifOptions.PassthroughChannels);
-	pSettings->Write(TEXT("DownMixSurround"),m_fDownMixSurround);
-	pSettings->Write(TEXT("RestoreMute"),m_fRestoreMute);
-	pSettings->Write(TEXT("Mute"),GetAppClass().GetCoreEngine()->GetMute());
-	pSettings->Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
-	pSettings->Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
-	pSettings->Write(TEXT("PTSSync"),m_fEnablePTSSync);
-	pSettings->Write(TEXT("AdjustAudioStreamTime"),m_fAdjustAudioStreamTime);
-	pSettings->Write(TEXT("MinTimerResolution"),m_fMinTimerResolution);
-	pSettings->Write(TEXT("PacketBuffering"),m_fPacketBuffering);
-	pSettings->Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
-	pSettings->Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
-	pSettings->Write(TEXT("StreamThreadPriority"),m_StreamThreadPriority);
+	Settings.Write(TEXT("AudioDevice"),m_AudioDeviceName.GetSafe());
+	Settings.Write(TEXT("AudioFilter"),m_AudioFilterName.GetSafe());
+	Settings.Write(TEXT("SpdifMode"),(int)m_SpdifOptions.Mode);
+	Settings.Write(TEXT("SpdifChannels"),m_SpdifOptions.PassthroughChannels);
+	Settings.Write(TEXT("DownMixSurround"),m_fDownMixSurround);
+	Settings.Write(TEXT("RestoreMute"),m_fRestoreMute);
+	Settings.Write(TEXT("Mute"),GetAppClass().GetCoreEngine()->GetMute());
+	Settings.Write(TEXT("RestorePlayStatus"),m_fRestorePlayStatus);
+	Settings.Write(TEXT("UseAudioRendererClock"),m_fUseAudioRendererClock);
+	Settings.Write(TEXT("PTSSync"),m_fEnablePTSSync);
+	Settings.Write(TEXT("AdjustAudioStreamTime"),m_fAdjustAudioStreamTime);
+	Settings.Write(TEXT("MinTimerResolution"),m_fMinTimerResolution);
+	Settings.Write(TEXT("PacketBuffering"),m_fPacketBuffering);
+	Settings.Write(TEXT("PacketBufferLength"),(unsigned int)m_PacketBufferLength);
+	Settings.Write(TEXT("PacketBufferPoolPercentage"),m_PacketBufferPoolPercentage);
+	Settings.Write(TEXT("StreamThreadPriority"),m_StreamThreadPriority);
 #ifdef TVH264
-	pSettings->Write(TEXT("AdjustFrameRate"),m_fAdjustFrameRate);
+	Settings.Write(TEXT("AdjustFrameRate"),m_fAdjustFrameRate);
 #endif
 	return true;
 }
@@ -399,6 +399,8 @@ INT_PTR CPlaybackOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 					SetUpdateFlag(UPDATE_ADJUSTFRAMERATE);
 				}
 #endif
+
+				m_fChanged=true;
 			}
 			break;
 		}

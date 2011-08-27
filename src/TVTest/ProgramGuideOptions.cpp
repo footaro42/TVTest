@@ -40,11 +40,11 @@ CProgramGuideOptions::~CProgramGuideOptions()
 }
 
 
-bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
+bool CProgramGuideOptions::LoadSettings(CSettingsFile &File)
 {
 	CSettings Settings;
 
-	if (Settings.Open(pszFileName,TEXT("ProgramGuide"),CSettings::OPEN_READ)) {
+	if (File.OpenSection(&Settings,TEXT("ProgramGuide"))) {
 		int Value;
 
 		Settings.Read(TEXT("OnScreen"),&m_fOnScreen);
@@ -165,7 +165,7 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 		Settings.Close();
 	}
 
-	if (Settings.Open(pszFileName,TEXT("ProgramGuideTools"),CSettings::OPEN_READ)) {
+	if (File.OpenSection(&Settings,TEXT("ProgramGuideTools"))) {
 		unsigned int NumTools;
 
 		if (Settings.Read(TEXT("ToolCount"),&NumTools) && NumTools>0) {
@@ -189,15 +189,16 @@ bool CProgramGuideOptions::Load(LPCTSTR pszFileName)
 		}
 		Settings.Close();
 	}
+
 	return true;
 }
 
 
-bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
+bool CProgramGuideOptions::SaveSettings(CSettingsFile &File)
 {
 	CSettings Settings;
 
-	if (Settings.Open(pszFileName,TEXT("ProgramGuide"),CSettings::OPEN_WRITE)) {
+	if (File.OpenSection(&Settings,TEXT("ProgramGuide"))) {
 		Settings.Write(TEXT("OnScreen"),m_fOnScreen);
 		Settings.Write(TEXT("BeginHour"),m_BeginHour);
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
@@ -248,7 +249,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		Settings.Close();
 	}
 
-	if (Settings.Open(pszFileName,TEXT("ProgramGuideTools"),CSettings::OPEN_WRITE)) {
+	if (File.OpenSection(&Settings,TEXT("ProgramGuideTools"))) {
 		const CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 
 		Settings.Clear();
@@ -264,6 +265,7 @@ bool CProgramGuideOptions::Save(LPCTSTR pszFileName) const
 		}
 		Settings.Close();
 	}
+
 	return true;
 }
 
@@ -725,6 +727,8 @@ INT_PTR CProgramGuideOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM l
 						pToolList->Add(reinterpret_cast<CProgramGuideTool*>(lvi.lParam));
 					}
 				}
+
+				m_fChanged=true;
 			}
 			break;
 

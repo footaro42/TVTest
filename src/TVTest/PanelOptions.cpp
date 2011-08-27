@@ -75,45 +75,24 @@ void CPanelOptions::ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel)
 }
 
 
-void CPanelOptions::SetSnapAtMainWindow(bool fSnap)
-{
-	m_fSnapAtMainWindow=fSnap;
-}
-
-
-bool CPanelOptions::SetSnapMargin(int Margin)
-{
-	if (Margin<1)
-		return false;
-	m_SnapMargin=Margin;
-	return true;
-}
-
-
-void CPanelOptions::SetAttachToMainWindow(bool fAttach)
-{
-	m_fAttachToMainWindow=fAttach;
-}
-
-
-bool CPanelOptions::Read(CSettings *pSettings)
+bool CPanelOptions::ReadSettings(CSettings &Settings)
 {
 	int Value;
 
-	if (pSettings->Read(TEXT("InfoCurTab"),&Value)
+	if (Settings.Read(TEXT("InfoCurTab"),&Value)
 			&& Value>=PANEL_ID_FIRST && Value<=PANEL_ID_LAST)
 		m_LastTab=Value;
-	if (pSettings->Read(TEXT("PanelFirstTab"),&Value)
+	if (Settings.Read(TEXT("PanelFirstTab"),&Value)
 			&& Value>=-1 && Value<=PANEL_ID_LAST)
 		m_FirstTab=Value;
-	pSettings->Read(TEXT("PanelSnapAtMainWindow"),&m_fSnapAtMainWindow);
-	pSettings->Read(TEXT("PanelAttachToMainWindow"),&m_fAttachToMainWindow);
-	if (pSettings->Read(TEXT("PanelOpacity"),&m_Opacity))
+	Settings.Read(TEXT("PanelSnapAtMainWindow"),&m_fSnapAtMainWindow);
+	Settings.Read(TEXT("PanelAttachToMainWindow"),&m_fAttachToMainWindow);
+	if (Settings.Read(TEXT("PanelOpacity"),&m_Opacity))
 		m_pPanelFrame->SetOpacity(m_Opacity*255/100);
 
 	// Font
 	TCHAR szFont[LF_FACESIZE];
-	if (pSettings->Read(TEXT("PanelFontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
+	if (Settings.Read(TEXT("PanelFontName"),szFont,LF_FACESIZE) && szFont[0]!='\0') {
 		::lstrcpy(m_Font.lfFaceName,szFont);
 		m_Font.lfEscapement=0;
 		m_Font.lfOrientation=0;
@@ -125,20 +104,20 @@ bool CPanelOptions::Read(CSettings *pSettings)
 		m_Font.lfQuality=DRAFT_QUALITY;
 		m_Font.lfPitchAndFamily=DEFAULT_PITCH | FF_DONTCARE;
 	}
-	if (pSettings->Read(TEXT("PanelFontSize"),&Value)) {
+	if (Settings.Read(TEXT("PanelFontSize"),&Value)) {
 		m_Font.lfHeight=Value;
 		m_Font.lfWidth=0;
 	}
-	if (pSettings->Read(TEXT("PanelFontWeight"),&Value))
+	if (Settings.Read(TEXT("PanelFontWeight"),&Value))
 		m_Font.lfWeight=Value;
-	if (pSettings->Read(TEXT("PanelFontItalic"),&Value))
+	if (Settings.Read(TEXT("PanelFontItalic"),&Value))
 		m_Font.lfItalic=Value;
-	pSettings->Read(TEXT("CaptionPanelFontSpec"),&m_fSpecCaptionFont);
-	if (!pSettings->Read(TEXT("CaptionPanelFont"),&m_CaptionFont))
+	Settings.Read(TEXT("CaptionPanelFontSpec"),&m_fSpecCaptionFont);
+	if (!Settings.Read(TEXT("CaptionPanelFont"),&m_CaptionFont))
 		m_CaptionFont=m_Font;
 
 	int TabCount;
-	if (pSettings->Read(TEXT("PanelTabCount"),&TabCount) && TabCount>0) {
+	if (Settings.Read(TEXT("PanelTabCount"),&TabCount) && TabCount>0) {
 		if (TabCount>NUM_PANELS)
 			TabCount=NUM_PANELS;
 		int j=0;
@@ -147,7 +126,7 @@ bool CPanelOptions::Read(CSettings *pSettings)
 			int ID;
 
 			::wsprintf(szName,TEXT("PanelTab%d_ID"),i);
-			if (pSettings->Read(szName,&ID)
+			if (Settings.Read(szName,&ID)
 					&& ID>=PANEL_ID_FIRST && ID<=PANEL_ID_LAST) {
 				int k;
 				for (k=0;k<j;k++) {
@@ -158,7 +137,7 @@ bool CPanelOptions::Read(CSettings *pSettings)
 					bool fVisible=true;
 
 					::wsprintf(szName,TEXT("PanelTab%d_Visible"),i);
-					pSettings->Read(szName,&fVisible);
+					Settings.Read(szName,&fVisible);
 					m_TabList[j].ID=ID;
 					m_TabList[j].fVisible=fVisible;
 					j++;
@@ -181,45 +160,46 @@ bool CPanelOptions::Read(CSettings *pSettings)
 		}
 	}
 
-	pSettings->Read(TEXT("ChannelPanelDetailToolTip"),&m_fChannelDetailToolTip);
-	pSettings->Read(TEXT("ChannelPanelEventsPerChannel"),&m_EventsPerChannel);
+	Settings.Read(TEXT("ChannelPanelDetailToolTip"),&m_fChannelDetailToolTip);
+	Settings.Read(TEXT("ChannelPanelEventsPerChannel"),&m_EventsPerChannel);
 
 	return true;
 }
 
 
-bool CPanelOptions::Write(CSettings *pSettings) const
+bool CPanelOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("PanelFirstTab"),m_FirstTab);
-	pSettings->Write(TEXT("PanelSnapAtMainWindow"),m_fSnapAtMainWindow);
-	pSettings->Write(TEXT("PanelAttachToMainWindow"),m_fAttachToMainWindow);
-	pSettings->Write(TEXT("PanelOpacity"),m_Opacity);
+	Settings.Write(TEXT("PanelFirstTab"),m_FirstTab);
+	Settings.Write(TEXT("PanelSnapAtMainWindow"),m_fSnapAtMainWindow);
+	Settings.Write(TEXT("PanelAttachToMainWindow"),m_fAttachToMainWindow);
+	Settings.Write(TEXT("PanelOpacity"),m_Opacity);
+
 	// Font
-	pSettings->Write(TEXT("PanelFontName"),m_Font.lfFaceName);
-	pSettings->Write(TEXT("PanelFontSize"),(int)m_Font.lfHeight);
-	pSettings->Write(TEXT("PanelFontWeight"),(int)m_Font.lfWeight);
-	pSettings->Write(TEXT("PanelFontItalic"),(int)m_Font.lfItalic);
-	pSettings->Write(TEXT("CaptionPanelFontSpec"),m_fSpecCaptionFont);
-	pSettings->Write(TEXT("CaptionPanelFont"),&m_CaptionFont);
+	Settings.Write(TEXT("PanelFontName"),m_Font.lfFaceName);
+	Settings.Write(TEXT("PanelFontSize"),(int)m_Font.lfHeight);
+	Settings.Write(TEXT("PanelFontWeight"),(int)m_Font.lfWeight);
+	Settings.Write(TEXT("PanelFontItalic"),(int)m_Font.lfItalic);
+	Settings.Write(TEXT("CaptionPanelFontSpec"),m_fSpecCaptionFont);
+	Settings.Write(TEXT("CaptionPanelFont"),&m_CaptionFont);
+
 	// Tab order
-	pSettings->Write(TEXT("PanelTabCount"),NUM_PANELS);
+	Settings.Write(TEXT("PanelTabCount"),NUM_PANELS);
 	for (int i=0;i<NUM_PANELS;i++) {
 		TCHAR szName[32];
 
 		::wsprintf(szName,TEXT("PanelTab%d_ID"),i);
-		pSettings->Write(szName,m_TabList[i].ID);
+		Settings.Write(szName,m_TabList[i].ID);
 		::wsprintf(szName,TEXT("PanelTab%d_Visible"),i);
-		pSettings->Write(szName,m_TabList[i].fVisible);
+		Settings.Write(szName,m_TabList[i].fVisible);
 	}
+
 	// Channel panel
 	CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
 	if (pPanel!=NULL) {
 		CChannelPanel *pChannelPanel=dynamic_cast<CChannelPanel*>(pPanel->GetPageByID(PANEL_ID_CHANNEL));
 		if (pChannelPanel!=NULL) {
-			pSettings->Write(TEXT("ChannelPanelDetailToolTip"),
-							 pChannelPanel->GetDetailToolTip());
-			pSettings->Write(TEXT("ChannelPanelEventsPerChannel"),
-							 pChannelPanel->GetEventsPerChannel());
+			Settings.Write(TEXT("ChannelPanelDetailToolTip"),pChannelPanel->GetDetailToolTip());
+			Settings.Write(TEXT("ChannelPanelEventsPerChannel"),pChannelPanel->GetEventsPerChannel());
 		}
 	}
 	return true;
@@ -464,6 +444,8 @@ INT_PTR CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 						pCaptionPanel->SetFont(m_fSpecCaptionFont?
 											   &m_CaptionFont:&m_Font);
 				}
+
+				m_fChanged=true;
 			}
 			break;
 		}

@@ -5,11 +5,11 @@
 #pragma once
 
 #ifndef WINVER
-#define WINVER 0x0502		// Windows XP SP1
+#define WINVER 0x0600		// Windows Vista
 #endif
 
 #ifndef _WIN32_WINNT
-#define _WIN32_WINNT 0x0502	// Windows XP SP1
+#define _WIN32_WINNT 0x0600	// Windows Vista
 #endif
 
 #ifndef _WIN32_IE
@@ -31,13 +31,11 @@
 #include <shlwapi.h>
 #include <streams.h>	// DirectShow BaseClasses
 
-#ifndef WM_MOUSEHWHEEL
-#define WM_MOUSEHWHEEL 0x020E
-#endif
-
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC
+#endif
 #include <crtdbg.h>
+#ifdef _DEBUG
 #undef strdup
 #define strdup strdup
 #define DEBUG_NEW new(_NORMAL_BLOCK,__FILE__,__LINE__)

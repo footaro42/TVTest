@@ -15,8 +15,8 @@ public:
 	virtual ~CNCachedFile();
 
 	enum { DEFBUFFSIZE = 0x00200000UL };
-	const bool Open(LPCTSTR lpszName, const BYTE bFlags);
-	const bool Open(LPCTSTR lpszName, const BYTE bFlags, const DWORD dwBuffSize);
+	const bool Open(LPCTSTR lpszName, const UINT Flags);
+	const bool Open(LPCTSTR lpszName, const UINT Flags, const DWORD dwBuffSize);
 	const bool Close(void);
 
 	const DWORD Read(void *pBuff, const DWORD dwLen);
@@ -28,6 +28,8 @@ public:
 
 	const ULONGLONG GetPos(void);
 	const bool SetPos(const ULONGLONG llPos);
+
+	//const bool ReserveBandwidth(DWORD BytesPerSecond);
 
 protected:
 	BOOL m_bIsWritable;

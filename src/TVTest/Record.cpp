@@ -1143,95 +1143,99 @@ int CRecordManager::FormatFileName(LPTSTR pszFileName,int MaxFileName,const Even
 		::GetLocalTime(&stStart);
 	}
 	p=pszFormat;
-	for (i=0;i<MaxFileName-1 && *p!='\0';) {
-		if (*p=='%') {
+	for (i=0;i<MaxFileName-1 && *p!=_T('\0');) {
+		if (*p==_T('%')) {
 			p++;
-			if (*p=='%') {
-				pszFileName[i++]='%';
+			if (*p==_T('%')) {
+				pszFileName[i++]=_T('%');
 				p++;
 			} else {
 				TCHAR szKeyword[32];
-				int j;
+				size_t j;
 
-				for (j=0;*p!='%' && *p!='\0';) {
+				for (j=0;p[j]!=_T('%') && p[j]!=_T('\0');j++) {
 					if (j<lengthof(szKeyword)-1)
-						szKeyword[j++]=*p;
-					p++;
+						szKeyword[j]=p[j];
 				}
-				if (*p=='%')
-					p++;
-				szKeyword[j]='\0';
-				int Remain=MaxFileName-i;
-				if (::lstrcmpi(szKeyword,TEXT("date"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d%02d%02d"),
-										 stStart.wYear,stStart.wMonth,stStart.wDay);
-				} else if (::lstrcmpi(szKeyword,TEXT("year"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wYear);
-				} else if (::lstrcmpi(szKeyword,TEXT("year2"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wYear%100);
-				} else if (::lstrcmpi(szKeyword,TEXT("month"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wMonth);
-				} else if (::lstrcmpi(szKeyword,TEXT("month2"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wMonth);
-				} else if (::lstrcmpi(szKeyword,TEXT("day"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wDay);
-				} else if (::lstrcmpi(szKeyword,TEXT("day2"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wDay);
-				} else if (::lstrcmpi(szKeyword,TEXT("time"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d%02d%02d"),
-										 stStart.wHour,stStart.wMinute,stStart.wSecond);
-				} else if (::lstrcmpi(szKeyword,TEXT("hour"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wHour);
-				} else if (::lstrcmpi(szKeyword,TEXT("hour2"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wHour);
-				} else if (::lstrcmpi(szKeyword,TEXT("minute"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wMinute);
-				} else if (::lstrcmpi(szKeyword,TEXT("minute2"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wMinute);
-				} else if (::lstrcmpi(szKeyword,TEXT("second"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wSecond);
-				} else if (::lstrcmpi(szKeyword,TEXT("second2"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wSecond);
-				} else if (::lstrcmpi(szKeyword,TEXT("day-of-week"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%s"),
-										 GetDayOfWeekText(stStart.wDayOfWeek));
-				} else if (::lstrcmpi(szKeyword,TEXT("channel-name"))==0) {
-					if (pEventInfo->pszChannelName!=NULL)
-						i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszChannelName);
-				} else if (::lstrcmpi(szKeyword,TEXT("channel-no"))==0) {
-					if (pEventInfo->ChannelNo!=0)
-						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),pEventInfo->ChannelNo);
-				} else if (::lstrcmpi(szKeyword,TEXT("channel-no2"))==0) {
-					if (pEventInfo->ChannelNo!=0)
-						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),pEventInfo->ChannelNo);
-				} else if (::lstrcmpi(szKeyword,TEXT("channel-no3"))==0) {
-					if (pEventInfo->ChannelNo!=0)
-						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%03d"),pEventInfo->ChannelNo);
-				} else if (::lstrcmpi(szKeyword,TEXT("event-name"))==0) {
-					if (pEventInfo->pszEventName!=NULL)
-						i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszEventName);
-				} else if (::lstrcmpi(szKeyword,TEXT("event-id"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%04X"),pEventInfo->EventID);
-				} else if (::lstrcmpi(szKeyword,TEXT("service-name"))==0) {
-					if (pEventInfo->pszServiceName!=NULL)
-						i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszServiceName);
-				} else if (::lstrcmpi(szKeyword,TEXT("service-id"))==0) {
-					if (pEventInfo->ServiceID!=0)
-						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%04X"),pEventInfo->ServiceID);
-				} else if (::lstrcmpi(szKeyword,TEXT("tot-date"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d%02d%02d"),
-						pEventInfo->stTotTime.wYear,pEventInfo->stTotTime.wMonth,pEventInfo->stTotTime.wDay);
-				} else if (::lstrcmpi(szKeyword,TEXT("tot-time"))==0) {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d%02d%02d"),
-						pEventInfo->stTotTime.wHour,pEventInfo->stTotTime.wMinute,pEventInfo->stTotTime.wSecond);
+				if (j<=lengthof(szKeyword)-1 && p[j]==_T('%')) {
+					const int Remain=MaxFileName-i;
+
+					p+=j+1;
+					szKeyword[j]=_T('\0');
+					if (::lstrcmpi(szKeyword,TEXT("date"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d%02d%02d"),
+											 stStart.wYear,stStart.wMonth,stStart.wDay);
+					} else if (::lstrcmpi(szKeyword,TEXT("year"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wYear);
+					} else if (::lstrcmpi(szKeyword,TEXT("year2"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wYear%100);
+					} else if (::lstrcmpi(szKeyword,TEXT("month"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wMonth);
+					} else if (::lstrcmpi(szKeyword,TEXT("month2"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wMonth);
+					} else if (::lstrcmpi(szKeyword,TEXT("day"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wDay);
+					} else if (::lstrcmpi(szKeyword,TEXT("day2"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wDay);
+					} else if (::lstrcmpi(szKeyword,TEXT("time"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d%02d%02d"),
+											 stStart.wHour,stStart.wMinute,stStart.wSecond);
+					} else if (::lstrcmpi(szKeyword,TEXT("hour"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wHour);
+					} else if (::lstrcmpi(szKeyword,TEXT("hour2"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wHour);
+					} else if (::lstrcmpi(szKeyword,TEXT("minute"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wMinute);
+					} else if (::lstrcmpi(szKeyword,TEXT("minute2"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wMinute);
+					} else if (::lstrcmpi(szKeyword,TEXT("second"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),stStart.wSecond);
+					} else if (::lstrcmpi(szKeyword,TEXT("second2"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),stStart.wSecond);
+					} else if (::lstrcmpi(szKeyword,TEXT("day-of-week"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%s"),
+											 GetDayOfWeekText(stStart.wDayOfWeek));
+					} else if (::lstrcmpi(szKeyword,TEXT("channel-name"))==0) {
+						if (pEventInfo->pszChannelName!=NULL)
+							i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszChannelName);
+					} else if (::lstrcmpi(szKeyword,TEXT("channel-no"))==0) {
+						if (pEventInfo->ChannelNo!=0)
+							i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d"),pEventInfo->ChannelNo);
+					} else if (::lstrcmpi(szKeyword,TEXT("channel-no2"))==0) {
+						if (pEventInfo->ChannelNo!=0)
+							i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d"),pEventInfo->ChannelNo);
+					} else if (::lstrcmpi(szKeyword,TEXT("channel-no3"))==0) {
+						if (pEventInfo->ChannelNo!=0)
+							i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%03d"),pEventInfo->ChannelNo);
+					} else if (::lstrcmpi(szKeyword,TEXT("event-name"))==0) {
+						if (pEventInfo->pszEventName!=NULL)
+							i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszEventName);
+					} else if (::lstrcmpi(szKeyword,TEXT("event-id"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%04X"),pEventInfo->EventID);
+					} else if (::lstrcmpi(szKeyword,TEXT("service-name"))==0) {
+						if (pEventInfo->pszServiceName!=NULL)
+							i+=MapFileNameCopy(&pszFileName[i],Remain,pEventInfo->pszServiceName);
+					} else if (::lstrcmpi(szKeyword,TEXT("service-id"))==0) {
+						if (pEventInfo->ServiceID!=0)
+							i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%04X"),pEventInfo->ServiceID);
+					} else if (::lstrcmpi(szKeyword,TEXT("tot-date"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%d%02d%02d"),
+							pEventInfo->stTotTime.wYear,pEventInfo->stTotTime.wMonth,pEventInfo->stTotTime.wDay);
+					} else if (::lstrcmpi(szKeyword,TEXT("tot-time"))==0) {
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%02d%02d%02d"),
+							pEventInfo->stTotTime.wHour,pEventInfo->stTotTime.wMinute,pEventInfo->stTotTime.wSecond);
+					} else {
+						TRACE(TEXT("Unknown keyword %%%s%%\n"),szKeyword);
+						i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%%%s%%"),szKeyword);
+					}
 				} else {
-					i+=StdUtil::snprintf(&pszFileName[i],Remain,TEXT("%%%s%%"),szKeyword);
+					pszFileName[i++]=_T('%');
 				}
 			}
 		} else {
 #ifndef UNICODE
 			if (::IsDBCSLeadByteEx(CP_ACP,*p)) {
-				if (i+1==MaxFileName)
+				if (i+1==MaxFileName || *(p+1)==_T('\0'))
 					break;
 				pszFileName[i++]=*p++;
 			}
@@ -1239,7 +1243,7 @@ int CRecordManager::FormatFileName(LPTSTR pszFileName,int MaxFileName,const Even
 			pszFileName[i++]=*p++;
 		}
 	}
-	pszFileName[i]='\0';
+	pszFileName[i]=_T('\0');
 	return i;
 }
 

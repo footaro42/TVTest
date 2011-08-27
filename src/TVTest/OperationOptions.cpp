@@ -40,66 +40,80 @@ COperationOptions::~COperationOptions()
 }
 
 
-bool COperationOptions::Read(CSettings *pSettings)
+bool COperationOptions::ReadSettings(CSettings &Settings)
 {
 	int Value;
 
-	pSettings->Read(TEXT("DisplayDragMove"),&m_fDisplayDragMove);
-	pSettings->Read(TEXT("VolumeStep"),&m_VolumeStep);
+	Settings.Read(TEXT("DisplayDragMove"),&m_fDisplayDragMove);
+	Settings.Read(TEXT("VolumeStep"),&m_VolumeStep);
 
-	if (pSettings->Read(TEXT("WheelMode"),&Value)
+	if (Settings.Read(TEXT("WheelMode"),&Value)
 			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelMode=(WheelMode)Value;
-	if (pSettings->Read(TEXT("WheelShiftMode"),&Value)
+	if (Settings.Read(TEXT("WheelShiftMode"),&Value)
 			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelShiftMode=(WheelMode)Value;
-	if (pSettings->Read(TEXT("WheelCtrlMode"),&Value)
+	if (Settings.Read(TEXT("WheelCtrlMode"),&Value)
 			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelCtrlMode=(WheelMode)Value;
-	if (pSettings->Read(TEXT("WheelTiltMode"),&Value)
+	if (Settings.Read(TEXT("WheelTiltMode"),&Value)
 			&& Value>=WHEEL_MODE_FIRST && Value<=WHEEL_MODE_LAST)
 		m_WheelTiltMode=(WheelMode)Value;
 
-	pSettings->Read(TEXT("StatusBarWheel"),&m_fStatusBarWheel);
-	pSettings->Read(TEXT("ReverseWheelChannel"),&m_fWheelChannelReverse);
-	pSettings->Read(TEXT("ReverseWheelVolume"),&m_fWheelVolumeReverse);
-	if (pSettings->Read(TEXT("WheelChannelDelay"),&Value)) {
+	Settings.Read(TEXT("StatusBarWheel"),&m_fStatusBarWheel);
+	Settings.Read(TEXT("ReverseWheelChannel"),&m_fWheelChannelReverse);
+	Settings.Read(TEXT("ReverseWheelVolume"),&m_fWheelVolumeReverse);
+	if (Settings.Read(TEXT("WheelChannelDelay"),&Value)) {
 		if (Value<WHEEL_CHANNEL_DELAY_MIN)
 			Value=WHEEL_CHANNEL_DELAY_MIN;
 		m_WheelChannelDelay=Value;
 	}
-	pSettings->Read(TEXT("WheelZoomStep"),&m_WheelZoomStep);
+	Settings.Read(TEXT("WheelZoomStep"),&m_WheelZoomStep);
+
+	if (m_pCommandList!=NULL) {
+		TCHAR szText[CCommandList::MAX_COMMAND_TEXT];
+
+		if (Settings.Read(TEXT("LeftDoubleClickCommand"),szText,lengthof(szText))) {
+			m_LeftDoubleClickCommand=m_pCommandList->ParseText(szText);
+		}
+		if (Settings.Read(TEXT("RightClickCommand"),szText,lengthof(szText))) {
+			m_RightClickCommand=m_pCommandList->ParseText(szText);
+		}
+		if (Settings.Read(TEXT("MiddleClickCommand"),szText,lengthof(szText))) {
+			m_MiddleClickCommand=m_pCommandList->ParseText(szText);
+		}
+	}
 
 	return true;
 }
 
 
-inline LPCTSTR GetCommandText(const CCommandList *pCommandList,int Command)
+static LPCTSTR GetCommandText(const CCommandList *pCommandList,int Command)
 {
 	if (Command==0)
 		return TEXT("");
 	return pCommandList->GetCommandTextByID(Command);
 }
 
-bool COperationOptions::Write(CSettings *pSettings) const
+bool COperationOptions::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("DisplayDragMove"),m_fDisplayDragMove);
-	pSettings->Write(TEXT("VolumeStep"),m_VolumeStep);
-	pSettings->Write(TEXT("WheelMode"),(int)m_WheelMode);
-	pSettings->Write(TEXT("WheelShiftMode"),(int)m_WheelShiftMode);
-	pSettings->Write(TEXT("WheelCtrlMode"),(int)m_WheelCtrlMode);
-	pSettings->Write(TEXT("WheelTiltMode"),(int)m_WheelTiltMode);
-	pSettings->Write(TEXT("StatusBarWheel"),m_fStatusBarWheel);
-	pSettings->Write(TEXT("ReverseWheelChannel"),m_fWheelChannelReverse);
-	pSettings->Write(TEXT("ReverseWheelVolume"),m_fWheelVolumeReverse);
-	pSettings->Write(TEXT("WheelChannelDelay"),m_WheelChannelDelay);
-	pSettings->Write(TEXT("WheelZoomStep"),m_WheelZoomStep);
+	Settings.Write(TEXT("DisplayDragMove"),m_fDisplayDragMove);
+	Settings.Write(TEXT("VolumeStep"),m_VolumeStep);
+	Settings.Write(TEXT("WheelMode"),(int)m_WheelMode);
+	Settings.Write(TEXT("WheelShiftMode"),(int)m_WheelShiftMode);
+	Settings.Write(TEXT("WheelCtrlMode"),(int)m_WheelCtrlMode);
+	Settings.Write(TEXT("WheelTiltMode"),(int)m_WheelTiltMode);
+	Settings.Write(TEXT("StatusBarWheel"),m_fStatusBarWheel);
+	Settings.Write(TEXT("ReverseWheelChannel"),m_fWheelChannelReverse);
+	Settings.Write(TEXT("ReverseWheelVolume"),m_fWheelVolumeReverse);
+	Settings.Write(TEXT("WheelChannelDelay"),m_WheelChannelDelay);
+	Settings.Write(TEXT("WheelZoomStep"),m_WheelZoomStep);
 	if (m_pCommandList!=NULL) {
-		pSettings->Write(TEXT("LeftDoubleClickCommand"),
+		Settings.Write(TEXT("LeftDoubleClickCommand"),
 			GetCommandText(m_pCommandList,m_LeftDoubleClickCommand));
-		pSettings->Write(TEXT("RightClickCommand"),
+		Settings.Write(TEXT("RightClickCommand"),
 			GetCommandText(m_pCommandList,m_RightClickCommand));
-		pSettings->Write(TEXT("MiddleClickCommand"),
+		Settings.Write(TEXT("MiddleClickCommand"),
 			GetCommandText(m_pCommandList,m_MiddleClickCommand));
 	}
 	return true;
@@ -113,40 +127,10 @@ bool COperationOptions::Create(HWND hwndOwner)
 }
 
 
-bool COperationOptions::Load(LPCTSTR pszFileName)
-{
-	CSettings Settings;
-
-	if (Settings.Open(pszFileName,TEXT("Settings"),CSettings::OPEN_READ)) {
-		TCHAR szText[CCommandList::MAX_COMMAND_TEXT];
-
-		if (Settings.Read(TEXT("LeftDoubleClickCommand"),szText,lengthof(szText))) {
-			if (szText[0]=='\0')
-				m_LeftDoubleClickCommand=0;
-			else
-				m_LeftDoubleClickCommand=m_pCommandList->ParseText(szText);
-		}
-		if (Settings.Read(TEXT("RightClickCommand"),szText,lengthof(szText))) {
-			if (szText[0]=='\0')
-				m_RightClickCommand=0;
-			else
-				m_RightClickCommand=m_pCommandList->ParseText(szText);
-		}
-		if (Settings.Read(TEXT("MiddleClickCommand"),szText,lengthof(szText))) {
-			if (szText[0]=='\0')
-				m_MiddleClickCommand=0;
-			else
-				m_MiddleClickCommand=m_pCommandList->ParseText(szText);
-		}
-	}
-	return true;
-}
-
-
-bool COperationOptions::Initialize(LPCTSTR pszFileName,const CCommandList *pCommandList)
+bool COperationOptions::Initialize(CSettingsFile &SettingsFile,const CCommandList *pCommandList)
 {
 	m_pCommandList=pCommandList;
-	Load(pszFileName);
+	LoadSettings(SettingsFile);
 	return true;
 }
 
@@ -241,6 +225,8 @@ INT_PTR COperationOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPar
 						DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_MIDDLECLICKCOMMAND));
 
 				m_VolumeStep=DlgEdit_GetInt(hDlg,IDC_OPTIONS_VOLUMESTEP);
+
+				m_fChanged=true;
 			}
 			break;
 		}

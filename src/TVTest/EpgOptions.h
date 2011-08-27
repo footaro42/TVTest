@@ -67,7 +67,7 @@ private:
 	LOGFONT m_CurEventInfoFont;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	bool GetEpgFileFullPath(LPTSTR pszFileName);
 	static DWORD WINAPI LoadThread(LPVOID lpParameter);
@@ -75,10 +75,13 @@ private:
 public:
 	CEpgOptions(CCoreEngine *pCoreEngine,CLogoManager *pLogoManager);
 	~CEpgOptions();
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
+// CBasicDialog
+	bool Create(HWND hwndOwner) override;
+// CEpgOptions
 	void Finalize();
-	bool Read(CSettings *pSettings);
-	bool Write(CSettings *pSettings) const;
-	bool Create(HWND hwndOwner);
 	bool LoadEpgFile(CEpgProgramList *pEpgList);
 	bool AsyncLoadEpgFile(CEpgProgramList *pEpgList,CEpgFileLoadEventHandler *pEventHandler=NULL);
 	bool SaveEpgFile(CEpgProgramList *pEpgList);

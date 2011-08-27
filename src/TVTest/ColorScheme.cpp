@@ -967,15 +967,21 @@ CColorSchemeOptions::~CColorSchemeOptions()
 }
 
 
-bool CColorSchemeOptions::Load(LPCTSTR pszFileName)
+bool CColorSchemeOptions::LoadSettings(CSettingsFile &File)
 {
-	return m_pColorScheme->Load(pszFileName);
+	TCHAR szFileName[MAX_PATH];
+	if (!File.GetFileName(szFileName,lengthof(szFileName)))
+		return false;
+	return m_pColorScheme->Load(szFileName);
 }
 
 
-bool CColorSchemeOptions::Save(LPCTSTR pszFileName) const
+bool CColorSchemeOptions::SaveSettings(CSettingsFile &File)
 {
-	return m_pColorScheme->Save(pszFileName);
+	TCHAR szFileName[MAX_PATH];
+	if (!File.GetFileName(szFileName,lengthof(szFileName)))
+		return false;
+	return m_pColorScheme->Save(szFileName);
 }
 
 
@@ -1636,6 +1642,7 @@ INT_PTR CColorSchemeOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 		case PSN_APPLY:
 			GetCurrentSettings(m_pColorScheme);
 			Apply(m_pColorScheme);
+			m_fChanged=true;
 			break;
 
 		case PSN_RESET:

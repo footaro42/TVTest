@@ -21,6 +21,13 @@ COptions::COptions()
 }
 
 
+COptions::COptions(LPCTSTR pszSection)
+	: CSettingsBase(pszSection)
+	, m_UpdateFlags(0)
+{
+}
+
+
 COptions::~COptions()
 {
 }

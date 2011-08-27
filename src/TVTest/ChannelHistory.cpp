@@ -91,7 +91,8 @@ CChannelHistory::CChannel::CChannel(LPCTSTR pszDriverName,const CChannelInfo *pC
 
 
 CRecentChannelList::CRecentChannelList()
-	: m_MaxChannelHistory(20)
+	: CSettingsBase(TEXT("RecentChannel"))
+	, m_MaxChannelHistory(20)
 	, m_MaxChannelHistoryMenu(20)
 {
 }
@@ -176,57 +177,47 @@ bool CRecentChannelList::SetMenu(HMENU hmenu,bool fClear) const
 }
 
 
-bool CRecentChannelList::Load(LPCTSTR pszFileName)
+bool CRecentChannelList::ReadSettings(CSettings &Settings)
 {
 	m_ChannelList.clear();
 
-	CSettings Settings;
+	int Count;
 
-	if (Settings.Open(pszFileName,TEXT("RecentChannel"),CSettings::OPEN_READ)) {
-		int Count;
+	if (Settings.Read(TEXT("Count"),&Count) && Count>0) {
+		if (Count>m_MaxChannelHistory)
+			Count=m_MaxChannelHistory;
+		for (int i=0;i<Count;i++) {
+			TCHAR szName[32],szDriverName[MAX_PATH],szChannelName[MAX_CHANNEL_NAME];
+			int Space,Channel,ServiceID;
 
-		if (Settings.Read(TEXT("Count"),&Count) && Count>0) {
-			if (Count>m_MaxChannelHistory)
-				Count=m_MaxChannelHistory;
-			for (int i=0;i<Count;i++) {
-				TCHAR szName[32],szDriverName[MAX_PATH],szChannelName[MAX_CHANNEL_NAME];
-				int Space,Channel,ServiceID;
-
-				::wsprintf(szName,TEXT("History%d_Driver"),i);
-				if (!Settings.Read(szName,szDriverName,lengthof(szDriverName))
-						|| szDriverName[0]=='\0')
-					break;
-				::wsprintf(szName,TEXT("History%d_Name"),i);
-				if (!Settings.Read(szName,szChannelName,lengthof(szChannelName))
-						|| szChannelName[0]=='\0')
-					break;
-				::wsprintf(szName,TEXT("History%d_Space"),i);
-				if (!Settings.Read(szName,&Space))
-					break;
-				::wsprintf(szName,TEXT("History%d_Channel"),i);
-				if (!Settings.Read(szName,&Channel))
-					break;
-				::wsprintf(szName,TEXT("History%d_ServiceID"),i);
-				if (!Settings.Read(szName,&ServiceID))
-					break;
-				CChannelInfo ChannelInfo(Space,Channel,0,szChannelName);
-				ChannelInfo.SetServiceID(ServiceID);
-				m_ChannelList.push_back(new CChannel(szDriverName,&ChannelInfo));
-			}
+			::wsprintf(szName,TEXT("History%d_Driver"),i);
+			if (!Settings.Read(szName,szDriverName,lengthof(szDriverName))
+					|| szDriverName[0]=='\0')
+				break;
+			::wsprintf(szName,TEXT("History%d_Name"),i);
+			if (!Settings.Read(szName,szChannelName,lengthof(szChannelName))
+					|| szChannelName[0]=='\0')
+				break;
+			::wsprintf(szName,TEXT("History%d_Space"),i);
+			if (!Settings.Read(szName,&Space))
+				break;
+			::wsprintf(szName,TEXT("History%d_Channel"),i);
+			if (!Settings.Read(szName,&Channel))
+				break;
+			::wsprintf(szName,TEXT("History%d_ServiceID"),i);
+			if (!Settings.Read(szName,&ServiceID))
+				break;
+			CChannelInfo ChannelInfo(Space,Channel,0,szChannelName);
+			ChannelInfo.SetServiceID(ServiceID);
+			m_ChannelList.push_back(new CChannel(szDriverName,&ChannelInfo));
 		}
-		Settings.Close();
 	}
 	return true;
 }
 
 
-bool CRecentChannelList::Save(LPCTSTR pszFileName) const
+bool CRecentChannelList::WriteSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (!Settings.Open(pszFileName,TEXT("RecentChannel"),CSettings::OPEN_WRITE))
-		return false;
-
 	const int Channels=NumChannels();
 
 	Settings.Clear();
@@ -246,7 +237,6 @@ bool CRecentChannelList::Save(LPCTSTR pszFileName) const
 		::wsprintf(szName,TEXT("History%d_ServiceID"),i);
 		Settings.Write(szName,pChannelInfo->GetServiceID());
 	}
-	Settings.Close();
 	return true;
 }
 

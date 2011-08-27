@@ -1090,7 +1090,9 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 	CAppMain &AppMain=GetAppClass();
 	CNFile File;
 
-	if (!File.Open(pszFileName,CNFile::CNF_READ | CNFile::CNF_SHAREREAD)) {
+	if (!File.Open(pszFileName,
+				   CNFile::CNF_READ | CNFile::CNF_SHAREREAD |
+				   CNFile::CNF_SEQUENTIALREAD | CNFile::CNF_PRIORITY_LOW)) {
 		AppMain.AddLog(TEXT("EPGファイルを開けません。(エラーコード 0x%lu)"),
 					   File.GetLastError());
 		return false;

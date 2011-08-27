@@ -35,26 +35,35 @@ CTsAnalyzer::~CTsAnalyzer()
 
 const bool CTsAnalyzer::InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex)
 {
-	CBlockLock Lock(&m_DecoderLock);
+	{
+		CBlockLock Lock(&m_DecoderLock);
 
-	/*
-	if (dwInputIndex >= GetInputNum())
-		return false;
+		/*
+		if (dwInputIndex >= GetInputNum())
+			return false;
 
-	CTsPacket *pTsPacket = dynamic_cast<CTsPacket *>(pMediaData);
+		CTsPacket *pTsPacket = dynamic_cast<CTsPacket *>(pMediaData);
 
-	// 入力メディアデータは互換性がない
-	if (!pTsPacket)
-		return false;
-	*/
+		// 入力メディアデータは互換性がない
+		if (!pTsPacket)
+			return false;
+		*/
 
-	CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
+		CTsPacket *pTsPacket = static_cast<CTsPacket *>(pMediaData);
 
-	// PIDルーティング
-	m_PidMapManager.StorePacket(pTsPacket);
+		m_DecoderEvent = EVENT_INVALID;
 
-	// 次のフィルタにデータを渡す
-	OutputMedia(pMediaData);
+		// PIDルーティング
+		m_PidMapManager.StorePacket(pTsPacket);
+
+		// 次のフィルタにデータを渡す
+		OutputMedia(pMediaData);
+	}
+
+	// イベントが発生していたら通知する
+	if (m_DecoderEvent != EVENT_INVALID) {
+		SendDecoderEvent((DWORD)m_DecoderEvent);
+	}
 
 	return true;
 }
@@ -1389,7 +1398,14 @@ void CTsAnalyzer::CallEventHandler(EventType Type)
 		m_EventHandlerList[i]->OnEvent(this, Type);
 	}
 
-	SendDecoderEvent((DWORD)Type);
+#if 0
+	//SendDecoderEvent((DWORD)Type);
+#else
+#ifdef _DEBUG
+	if (m_DecoderEvent != EVENT_INVALID) ::DebugBreak();
+#endif
+	m_DecoderEvent = Type;
+#endif
 }
 
 

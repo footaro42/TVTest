@@ -70,11 +70,11 @@ CLogger::~CLogger()
 }
 
 
-bool CLogger::Read(CSettings *pSettings)
+bool CLogger::ReadSettings(CSettings &Settings)
 {
 	CBlockLock Lock(&m_Lock);
 
-	pSettings->Read(TEXT("OutputLogToFile"),&m_fOutputToFile);
+	Settings.Read(TEXT("OutputLogToFile"),&m_fOutputToFile);
 	if (m_fOutputToFile && m_LogList.size()>0) {
 		TCHAR szFileName[MAX_PATH];
 
@@ -85,9 +85,9 @@ bool CLogger::Read(CSettings *pSettings)
 }
 
 
-bool CLogger::Write(CSettings *pSettings) const
+bool CLogger::WriteSettings(CSettings &Settings)
 {
-	pSettings->Write(TEXT("OutputLogToFile"),m_fOutputToFile);
+	Settings.Write(TEXT("OutputLogToFile"),m_fOutputToFile);
 	return true;
 }
 
@@ -298,6 +298,8 @@ INT_PTR CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 						SaveToFile(szFileName,true);
 					}
 					m_fOutputToFile=fOutput;
+
+					m_fChanged=true;
 				}
 			}
 			return TRUE;

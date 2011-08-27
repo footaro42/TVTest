@@ -27,11 +27,11 @@ public:
 
 	CSideBarOptions(CSideBar *pSideBar,const CZoomOptions *pZoomOptions);
 	~CSideBarOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName);
-	bool Save(LPCTSTR pszFileName) const;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CSideBarOptions
 	bool ApplySideBarOptions();
 	bool SetSideBarImage();
@@ -54,7 +54,7 @@ protected:
 	CEventHandler *m_pEventHandler;
 
 // CBasicDialog
-	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
+	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 
 	HBITMAP CreateImage();
 	void ApplyItemList() const;

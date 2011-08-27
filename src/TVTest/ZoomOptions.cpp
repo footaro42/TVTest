@@ -3,6 +3,7 @@
 #include "AppMain.h"
 #include "ZoomOptions.h"
 #include "DialogUtil.h"
+#include "HelperClass/StdUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -46,7 +47,8 @@ CZoomOptions::ZoomInfo CZoomOptions::m_ZoomList[NUM_ZOOM] = {
 
 
 CZoomOptions::CZoomOptions(const CCommandList *pCommandList)
-	: m_pCommandList(pCommandList)
+	: CCommandCustomizer(CM_CUSTOMZOOM_FIRST,CM_CUSTOMZOOM_LAST)
+	, m_pCommandList(pCommandList)
 {
 	for (int i=0;i<NUM_ZOOM;i++)
 		m_Order[i]=i;
@@ -65,43 +67,7 @@ bool CZoomOptions::Show(HWND hwndOwner)
 }
 
 
-bool CZoomOptions::SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const
-{
-	for (int i=::GetMenuItemCount(hmenu)-3;i>=0;i--)
-		::DeleteMenu(hmenu,i,MF_BYPOSITION);
-	int Pos=0;
-	for (int i=0;i<NUM_ZOOM;i++) {
-		const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
-		if (pInfo->fVisible) {
-			TCHAR szText[64];
-			UINT Flags=MF_BYPOSITION | MF_STRING | MF_ENABLED;
-
-			if (pCurRate!=NULL
-					&& pCurRate->Rate*100/pCurRate->Factor==
-						pInfo->Zoom.Rate*100/pInfo->Zoom.Factor)
-				Flags|=MF_CHECKED;
-			StdUtil::snprintf(szText,lengthof(szText),TEXT("%d%%"),
-							  pInfo->Zoom.Rate*100/pInfo->Zoom.Factor);
-			::InsertMenu(hmenu,Pos++,Flags,pInfo->Command,szText);
-		}
-	}
-	return true;
-}
-
-
-bool CZoomOptions::GetZoomRateByCommand(int Command,ZoomRate *pRate) const
-{
-	for (int i=0;i<NUM_ZOOM;i++) {
-		if (m_ZoomList[i].Command==Command) {
-			*pRate=m_ZoomList[i].Zoom;
-			return true;
-		}
-	}
-	return false;
-}
-
-
-bool CZoomOptions::Read(CSettings *pSettings)
+bool CZoomOptions::ReadSettings(CSettings &Settings)
 {
 	TCHAR szText[256];
 
@@ -110,12 +76,12 @@ bool CZoomOptions::Read(CSettings *pSettings)
 		int Rate;
 
 		::wsprintf(szText,TEXT("CustomZoom%d"),i+1);
-		if (pSettings->Read(szText,&Rate) && Rate>0 && Rate<=MAX_RATE)
+		if (Settings.Read(szText,&Rate) && Rate>0 && Rate<=MAX_RATE)
 			m_ZoomList[j].Zoom.Rate=Rate;
 	}
 
 	int ListCount;
-	if (pSettings->Read(TEXT("ZoomListCount"),&ListCount) && ListCount>0) {
+	if (Settings.Read(TEXT("ZoomListCount"),&ListCount) && ListCount>0) {
 		if (ListCount>NUM_ZOOM)
 			ListCount=NUM_ZOOM;
 		int Count=0;
@@ -123,7 +89,7 @@ bool CZoomOptions::Read(CSettings *pSettings)
 			TCHAR szName[32];
 
 			::wsprintf(szName,TEXT("ZoomList%d"),i);
-			if (pSettings->Read(szName,szText,lengthof(szText))) {
+			if (Settings.Read(szName,szText,lengthof(szText))) {
 				LPTSTR p=szText;
 				while (*p!=_T('\0') && *p!=_T(','))
 					p++;
@@ -165,17 +131,17 @@ bool CZoomOptions::Read(CSettings *pSettings)
 }
 
 
-bool CZoomOptions::Write(CSettings *pSettings) const
+bool CZoomOptions::WriteSettings(CSettings &Settings)
 {
 	TCHAR szText[256];
 
 	int j=CM_ZOOM_LAST-CM_ZOOM_FIRST+1;
 	for (int i=0;i<=CM_CUSTOMZOOM_LAST-CM_CUSTOMZOOM_FIRST;i++,j++) {
 		::wsprintf(szText,TEXT("CustomZoom%d"),i+1);
-		pSettings->Write(szText,m_ZoomList[j].Zoom.Rate);
+		Settings.Write(szText,m_ZoomList[j].Zoom.Rate);
 	}
 
-	pSettings->Write(TEXT("ZoomListCount"),NUM_ZOOM);
+	Settings.Write(TEXT("ZoomListCount"),NUM_ZOOM);
 	for (int i=0;i<NUM_ZOOM;i++) {
 		const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
 		TCHAR szName[32];
@@ -183,9 +149,47 @@ bool CZoomOptions::Write(CSettings *pSettings) const
 		::wsprintf(szName,TEXT("ZoomList%d"),i);
 		StdUtil::snprintf(szText,lengthof(szText),TEXT("%s,%d"),
 						  m_pCommandList->GetCommandTextByID(pInfo->Command),pInfo->fVisible?1:0);
-		pSettings->Write(szName,szText);
+		Settings.Write(szName,szText);
 	}
 	return true;
+}
+
+
+bool CZoomOptions::SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const
+{
+	for (int i=::GetMenuItemCount(hmenu)-3;i>=0;i--)
+		::DeleteMenu(hmenu,i,MF_BYPOSITION);
+	int Pos=0;
+	bool fCheck=false;
+	for (int i=0;i<NUM_ZOOM;i++) {
+		const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
+		if (pInfo->fVisible) {
+			TCHAR szText[64];
+			UINT Flags=MF_BYPOSITION | MF_STRING | MF_ENABLED;
+
+			if (!fCheck && pCurRate!=NULL
+					&& pCurRate->GetPercentage()==pInfo->Zoom.GetPercentage()) {
+				Flags|=MF_CHECKED;
+				fCheck=true;
+			}
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("%d%%"),
+							  pInfo->Zoom.GetPercentage());
+			::InsertMenu(hmenu,Pos++,Flags,pInfo->Command,szText);
+		}
+	}
+	return true;
+}
+
+
+bool CZoomOptions::GetZoomRateByCommand(int Command,ZoomRate *pRate) const
+{
+	for (int i=0;i<NUM_ZOOM;i++) {
+		if (m_ZoomList[i].Command==Command) {
+			*pRate=m_ZoomList[i].Zoom;
+			return true;
+		}
+	}
+	return false;
 }
 
 
@@ -276,7 +280,7 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 							m_fChanging=true;
 							::LoadString(GetAppClass().GetResourceInstance(),m_ZoomList[Index].Command,szText,lengthof(szText));
-							::wsprintf(szText+::lstrlen(szText),TEXT(" - %d%%"),Rate);
+							::wsprintf(szText+::lstrlen(szText),TEXT(" : %d%%"),Rate);
 							lvi.mask=LVIF_TEXT | LVIF_PARAM;
 							lvi.pszText=szText;
 							lvi.lParam=PACK_LPARAM(Index,Rate,100);
@@ -362,4 +366,15 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	}
 
 	return FALSE;
+}
+
+
+bool CZoomOptions::GetCommandName(int Command,LPTSTR pszName,int MaxLength)
+{
+	ZoomRate Zoom;
+	if (!GetZoomRateByCommand(Command,&Zoom))
+		return false;
+	int Length=::LoadString(GetAppClass().GetResourceInstance(),Command,pszName,MaxLength);
+	StdUtil::snprintf(pszName+Length,MaxLength-Length,TEXT(" : %d%%"),Zoom.GetPercentage());
+	return true;
 }

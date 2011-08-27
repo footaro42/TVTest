@@ -14,7 +14,8 @@
 class CChannelDisplayMenu : public CDisplayView
 {
 public:
-	class ABSTRACT_DECL CEventHandler {
+	class ABSTRACT_CLASS(CEventHandler)
+	{
 	protected:
 		class CChannelDisplayMenu *m_pChannelDisplayMenu;
 	public:

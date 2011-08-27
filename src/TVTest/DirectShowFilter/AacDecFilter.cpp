@@ -488,10 +488,13 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 
 	if (bDualMono != m_bDualMono) {
 		m_bDualMono = bDualMono;
-		if (bDualMono)
+		if (bDualMono) {
 			m_StereoMode = m_AutoStereoMode;
-		else if (m_AutoStereoMode != STEREOMODE_STEREO)
+			TRACE(TEXT("CAacDecFilter : Change stereo mode %d\n"), m_StereoMode);
+		} else if (m_AutoStereoMode != STEREOMODE_STEREO) {
 			m_StereoMode = STEREOMODE_STEREO;
+			TRACE(TEXT("CAacDecFilter : Reset stereo mode\n"));
+		}
 	}
 
 	m_byCurChannelNum = byChannels;
@@ -815,6 +818,7 @@ bool CAacDecFilter::SetStereoMode(int StereoMode)
 	case STEREOMODE_LEFT:
 	case STEREOMODE_RIGHT:
 		m_StereoMode = StereoMode;
+		TRACE(TEXT("CAacDecFilter : Stereo mode %d\n"), StereoMode);
 		return true;
 	}
 	return false;
@@ -829,6 +833,7 @@ bool CAacDecFilter::SetAutoStereoMode(int StereoMode)
 	case STEREOMODE_LEFT:
 	case STEREOMODE_RIGHT:
 		m_AutoStereoMode = StereoMode;
+		TRACE(TEXT("CAacDecFilter : Auto stereo mode %d\n"), StereoMode);
 		return true;
 	}
 	return false;

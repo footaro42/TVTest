@@ -44,9 +44,9 @@ class CDriverOptions : public COptions
 public:
 	CDriverOptions();
 	~CDriverOptions();
-// COptions
-	bool Load(LPCTSTR pszFileName) override;
-	bool Save(LPCTSTR pszFileName) const override;
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
 // CDriverOptions
