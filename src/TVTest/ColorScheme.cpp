@@ -540,13 +540,12 @@ bool CColorScheme::SetName(LPCTSTR pszName)
 }
 
 
-bool CColorScheme::Load(LPCTSTR pszFileName)
+bool CColorScheme::Load(CSettings &Settings)
 {
-	CSettings Settings;
 	TCHAR szText[128];
 	int i;
 
-	if (!Settings.Open(pszFileName,TEXT("ColorScheme"),CSettings::OPEN_READ))
+	if (!Settings.SetSection(TEXT("ColorScheme")))
 		return false;
 	if (Settings.Read(TEXT("Name"),szText,lengthof(szText)))
 		SetName(szText);
@@ -688,11 +687,9 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 		}
 	}
 
-	Settings.Close();
-
 	for (i=0;i<NUM_BORDERS;i++)
 		m_BorderList[i]=m_BorderInfoList[i].DefaultType;
-	if (Settings.Open(pszFileName,TEXT("Style"),CSettings::OPEN_READ)) {
+	if (Settings.SetSection(TEXT("Style"))) {
 		for (i=0;i<NUM_BORDERS;i++) {
 			if (Settings.Read(m_BorderInfoList[i].pszText,szText,lengthof(szText))) {
 				if (::lstrcmpi(szText,TEXT("none"))==0) {
@@ -706,20 +703,17 @@ bool CColorScheme::Load(LPCTSTR pszFileName)
 					m_BorderList[i]=Theme::BORDER_RAISED;
 			}
 		}
-		Settings.Close();
 	}
 
-	SetFileName(pszFileName);
 	return true;
 }
 
 
-bool CColorScheme::Save(LPCTSTR pszFileName) const
+bool CColorScheme::Save(CSettings &Settings) const
 {
-	CSettings Settings;
 	int i;
 
-	if (!Settings.Open(pszFileName,TEXT("ColorScheme"),CSettings::OPEN_WRITE))
+	if (!Settings.SetSection(TEXT("ColorScheme")))
 		return false;
 	Settings.Write(TEXT("Name"),m_Name.GetSafe());
 	for (i=0;i<NUM_COLORS;i++)
@@ -734,18 +728,44 @@ bool CColorScheme::Save(LPCTSTR pszFileName) const
 		::wsprintf(szName,TEXT("%sDirection"),m_GradientInfoList[i].pszText);
 		Settings.Write(szName,GradientDirectionList[m_GradientList[i].Direction]);
 	}
-	Settings.Close();
 
-	if (Settings.Open(pszFileName,TEXT("Style"),CSettings::OPEN_WRITE)) {
+	if (Settings.SetSection(TEXT("Style"))) {
 		static const LPCTSTR pszTypeName[] = {
 			TEXT("none"),	TEXT("solid"),	TEXT("sunken"),	TEXT("raised")
 		};
 
 		for (i=0;i<NUM_BORDERS;i++)
 			Settings.Write(m_BorderInfoList[i].pszText,pszTypeName[m_BorderList[i]]);
-		Settings.Close();
 	}
+
 	return true;
+}
+
+
+bool CColorScheme::Load(LPCTSTR pszFileName)
+{
+	CSettings Settings;
+
+	if (!Settings.Open(pszFileName,CSettings::OPEN_READ))
+		return false;
+
+	if (!Load(Settings))
+		return false;
+
+	SetFileName(pszFileName);
+
+	return true;
+}
+
+
+bool CColorScheme::Save(LPCTSTR pszFileName) const
+{
+	CSettings Settings;
+
+	if (!Settings.Open(pszFileName,CSettings::OPEN_WRITE))
+		return false;
+
+	return Save(Settings);
 }
 
 
@@ -967,21 +987,15 @@ CColorSchemeOptions::~CColorSchemeOptions()
 }
 
 
-bool CColorSchemeOptions::LoadSettings(CSettingsFile &File)
+bool CColorSchemeOptions::LoadSettings(CSettings &Settings)
 {
-	TCHAR szFileName[MAX_PATH];
-	if (!File.GetFileName(szFileName,lengthof(szFileName)))
-		return false;
-	return m_pColorScheme->Load(szFileName);
+	return m_pColorScheme->Load(Settings);
 }
 
 
-bool CColorSchemeOptions::SaveSettings(CSettingsFile &File)
+bool CColorSchemeOptions::SaveSettings(CSettings &Settings)
 {
-	TCHAR szFileName[MAX_PATH];
-	if (!File.GetFileName(szFileName,lengthof(szFileName)))
-		return false;
-	return m_pColorScheme->Save(szFileName);
+	return m_pColorScheme->Save(Settings);
 }
 
 

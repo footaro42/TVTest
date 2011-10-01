@@ -479,18 +479,20 @@ bool CCaptionDRCSMap::Load(LPCTSTR pszFileName)
 	Clear();
 
 	CSettings Settings;
-	if (Settings.Open(pszFileName,TEXT("Settings"),CSettings::OPEN_READ)) {
-		Settings.Read(TEXT("SaveBMP"),&m_fSaveBMP);
-		Settings.Read(TEXT("SaveRaw"),&m_fSaveRaw);
-		TCHAR szDir[MAX_PATH];
-		if (Settings.Read(TEXT("SaveDirectory"),szDir,MAX_PATH) && szDir[0]!='\0') {
-			if (::PathIsRelative(szDir)) {
-				TCHAR szTmp[MAX_PATH];
-				GetAppClass().GetAppDirectory(szTmp);
-				::PathAppend(szTmp,szDir);
-				::PathCanonicalize(m_szSaveDirectory,szTmp);
-			} else {
-				::lstrcpy(m_szSaveDirectory,szDir);
+	if (Settings.Open(pszFileName,CSettings::OPEN_READ)) {
+		if (Settings.SetSection(TEXT("Settings"))) {
+			Settings.Read(TEXT("SaveBMP"),&m_fSaveBMP);
+			Settings.Read(TEXT("SaveRaw"),&m_fSaveRaw);
+			TCHAR szDir[MAX_PATH];
+			if (Settings.Read(TEXT("SaveDirectory"),szDir,MAX_PATH) && szDir[0]!='\0') {
+				if (::PathIsRelative(szDir)) {
+					TCHAR szTmp[MAX_PATH];
+					GetAppClass().GetAppDirectory(szTmp);
+					::PathAppend(szTmp,szDir);
+					::PathCanonicalize(m_szSaveDirectory,szTmp);
+				} else {
+					::lstrcpy(m_szSaveDirectory,szDir);
+				}
 			}
 		}
 		Settings.Close();

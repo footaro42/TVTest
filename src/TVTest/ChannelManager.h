@@ -12,9 +12,12 @@ class CChannelManager
 	int m_CurrentChannel;
 	int m_CurrentServiceID;
 	int m_ChangingChannel;
+
 	CTuningSpaceList m_TuningSpaceList;
 	CTuningSpaceList m_DriverTuningSpaceList;
 	bool m_fUseDriverChannelList;
+	bool m_fChannelFileHasStreamIDs;
+
 #ifdef NETWORK_REMOCON_SUPPORT
 	bool m_fNetworkRemocon;
 	CChannelList *m_pNetworkRemoconChannelList;
@@ -28,9 +31,10 @@ public:
 		SPACE_INVALID=-2,
 		SPACE_ALL=-1
 	};
+
 	CChannelManager();
 	~CChannelManager();
-	void Clear();
+	void Reset();
 	bool LoadChannelList(LPCTSTR pszFileName);
 	bool SetTuningSpaceList(const CTuningSpaceList *pList);
 	bool MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecoder);
@@ -59,12 +63,14 @@ public:
 	LPCTSTR GetTuningSpaceName(int Space) const;
 	int FindChannelInfo(const CChannelInfo *pInfo) const;
 	int NumSpaces() const;
+
 #ifdef NETWORK_REMOCON_SUPPORT
 	bool SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList=NULL);
 	bool IsNetworkRemoconMode() const { return m_fNetworkRemocon; }
 	int GetNetworkRemoconCurrentChannel() const { return m_NetworkRemoconCurrentChannel; }
 	bool SetNetworkRemoconCurrentChannel(int Channel);
 #endif
+
 	bool UpdateStreamInfo(int Space,int ChannelIndex,
 						  WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);

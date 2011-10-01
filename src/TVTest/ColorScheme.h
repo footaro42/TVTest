@@ -301,6 +301,8 @@ public:
 	LPCTSTR GetName() const { return m_Name.Get(); }
 	bool SetName(LPCTSTR pszName);
 	LPCTSTR GetFileName() const { return m_FileName.Get(); }
+	bool Load(CSettings &Settings);
+	bool Save(CSettings &Settings) const;
 	bool Load(LPCTSTR pszFileName);
 	bool Save(LPCTSTR pszFileName) const;
 	bool SetFileName(LPCTSTR pszFileName);
@@ -380,8 +382,8 @@ public:
 	CColorSchemeOptions();
 	~CColorSchemeOptions();
 // COptions
-	bool LoadSettings(CSettingsFile &File) override;
-	bool SaveSettings(CSettingsFile &File) override;
+	bool LoadSettings(CSettings &Settings) override;
+	bool SaveSettings(CSettings &Settings) override;
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
 // CColorSchemeOptions

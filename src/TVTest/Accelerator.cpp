@@ -389,21 +389,18 @@ bool CAccelerator::UnregisterHotKey()
 }
 
 
-bool CAccelerator::LoadSettings(CSettingsFile &File)
+bool CAccelerator::LoadSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (File.OpenSection(&Settings,TEXT("Settings"))) {
+	if (Settings.SetSection(TEXT("Settings"))) {
 		Settings.Read(TEXT("FuncKeyChangeChannel"),&m_fFunctionKeyChangeChannel);
 		Settings.Read(TEXT("DigitKeyChangeChannel"),&m_fDigitKeyChangeChannel);
 		Settings.Read(TEXT("NumPadChangeChannel"),&m_fNumPadChangeChannel);
-		Settings.Close();
 	}
 
 	if (m_pCommandList==NULL)
 		return true;
 
-	if (File.OpenSection(&Settings,TEXT("Accelerator"))) {
+	if (Settings.SetSection(TEXT("Accelerator"))) {
 		int NumAccel;
 
 		if (Settings.Read(TEXT("AccelCount"),&NumAccel) && NumAccel>=0) {
@@ -436,10 +433,9 @@ bool CAccelerator::LoadSettings(CSettingsFile &File)
 				}
 			}
 		}
-		Settings.Close();
 	}
 
-	if (File.OpenSection(&Settings,TEXT("AppCommand"))) {
+	if (Settings.SetSection(TEXT("AppCommand"))) {
 		int NumCommands;
 
 		if (Settings.Read(TEXT("NumCommands"),&NumCommands) && NumCommands>=0) {
@@ -472,28 +468,24 @@ bool CAccelerator::LoadSettings(CSettingsFile &File)
 				}
 			}
 		}
-		Settings.Close();
 	}
 
 	return true;
 }
 
 
-bool CAccelerator::SaveSettings(CSettingsFile &File)
+bool CAccelerator::SaveSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (File.OpenSection(&Settings,TEXT("Settings"))) {
+	if (Settings.SetSection(TEXT("Settings"))) {
 		Settings.Write(TEXT("FuncKeyChangeChannel"),m_fFunctionKeyChangeChannel);
 		Settings.Write(TEXT("DigitKeyChangeChannel"),m_fDigitKeyChangeChannel);
 		Settings.Write(TEXT("NumPadChangeChannel"),m_fNumPadChangeChannel);
-		Settings.Close();
 	}
 
 	if (m_pCommandList==NULL)
 		return true;
 
-	if (File.OpenSection(&Settings,TEXT("Accelerator"))) {
+	if (Settings.SetSection(TEXT("Accelerator"))) {
 		Settings.Clear();
 #if 1
 		/* デフォルトと同じ場合は保存しない */
@@ -530,10 +522,9 @@ bool CAccelerator::SaveSettings(CSettingsFile &File)
 				Settings.Write(szName,(int)(m_KeyList[i].Modifiers | (m_KeyList[i].fGlobal?0x80:0x00)));
 			}
 		}
-		Settings.Close();
 	}
 
-	if (File.OpenSection(&Settings,TEXT("AppCommand"))) {
+	if (Settings.SetSection(TEXT("AppCommand"))) {
 		Settings.Clear();
 #if 1
 		/* デフォルトと同じ場合は保存しない */
@@ -570,7 +561,6 @@ bool CAccelerator::SaveSettings(CSettingsFile &File)
 				Settings.Write(szName,m_AppCommandList[i].AppCommand);
 			}
 		}
-		Settings.Close();
 	}
 
 	return true;
@@ -585,10 +575,10 @@ bool CAccelerator::Create(HWND hwndOwner)
 
 
 bool CAccelerator::Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
-							  CSettingsFile &SettingsFile,const CCommandList *pCommandList)
+							  CSettings &Settings,const CCommandList *pCommandList)
 {
 	m_pCommandList=pCommandList;
-	LoadSettings(SettingsFile);
+	LoadSettings(Settings);
 	if (m_hAccel==NULL)
 		m_hAccel=CreateAccel();
 	m_pMainMenu=pMainMenu;

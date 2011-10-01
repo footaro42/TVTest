@@ -188,7 +188,8 @@ bool CControllerManager::LoadControllerSettings(LPCTSTR pszName)
 
 	if (!Info.pController->GetIniFileName(szFileName,lengthof(szFileName)))
 		return false;
-	if (Settings.Open(szFileName,Info.pController->GetIniFileSection(),CSettings::OPEN_READ)) {
+	if (Settings.Open(szFileName,CSettings::OPEN_READ)
+			&& Settings.SetSection(Info.pController->GetIniFileSection())) {
 		const int NumButtons=Info.pController->NumButtons();
 		const CCommandList *pCommandList=GetAppClass().GetCommandList();
 
@@ -203,7 +204,6 @@ bool CControllerManager::LoadControllerSettings(LPCTSTR pszName)
 		}
 		if (!Info.pController->IsActiveOnly())
 			Settings.Read(TEXT("ActiveOnly"),&Info.Settings.fActiveOnly);
-		Settings.Close();
 		Info.fSettingsLoaded=true;
 	}
 	return true;
@@ -225,7 +225,8 @@ bool CControllerManager::SaveControllerSettings(LPCTSTR pszName) const
 
 	if (!Info.pController->GetIniFileName(szFileName,lengthof(szFileName)))
 		return false;
-	if (Settings.Open(szFileName,Info.pController->GetIniFileSection(),CSettings::OPEN_WRITE)) {
+	if (Settings.Open(szFileName,CSettings::OPEN_WRITE)
+			&& Settings.SetSection(Info.pController->GetIniFileSection())) {
 		const int NumButtons=Info.pController->NumButtons();
 		const CCommandList *pCommandList=GetAppClass().GetCommandList();
 
@@ -240,7 +241,6 @@ bool CControllerManager::SaveControllerSettings(LPCTSTR pszName) const
 		}
 		if (!Info.pController->IsActiveOnly())
 			Settings.Write(TEXT("ActiveOnly"),Info.Settings.fActiveOnly);
-		Settings.Close();
 	}
 	return true;
 }

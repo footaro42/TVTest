@@ -23,8 +23,8 @@ public:
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
 
 // CBufferedFileWriter
-	const bool OpenFile(LPCTSTR pszFileName, BYTE Flags = 0);
-	const bool RelayFile(LPCTSTR pszFileName, BYTE Flags = 0);
+	const bool OpenFile(LPCTSTR pszFileName, UINT Flags = 0);
+	const bool RelayFile(LPCTSTR pszFileName, UINT Flags = 0);
 	void CloseFile(void);
 	const bool IsOpen() const;
 
@@ -44,7 +44,7 @@ public:
 	bool SetMaxPendingSize(SIZE_T Size);
 
 protected:
-	CNCachedFile *CreateNewFile(LPCTSTR pszFileName, BYTE Flags);
+	CNCachedFile *CreateNewFile(LPCTSTR pszFileName, UINT Flags);
 	bool PushData(const BYTE *pData, SIZE_T DataSize);
 	static unsigned int __stdcall ThreadProc(LPVOID lpParameter);
 

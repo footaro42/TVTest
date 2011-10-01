@@ -30,7 +30,7 @@ public:
 	class ABSTRACT_CLASS_DECL IEventHandler {
 	public:
 		virtual ~IEventHandler() {}
-		virtual void OnLogoData(const LogoInfo *pInfo) = 0;
+		virtual void OnLogoData(const CLogoDataModule *pModule, const LogoInfo *pInfo) = 0;
 	};
 
 	CLogoDataModule(DWORD DownloadID, WORD BlockSize, WORD ModuleID, DWORD ModuleSize, BYTE ModuleVersion,
@@ -40,9 +40,17 @@ public:
 	{
 	}
 
+	bool EnumLogoData()
+	{
+		if (!IsComplete())
+			return false;
+		OnComplete(m_pData, m_ModuleSize);
+		return true;
+	}
+
 private:
 // CDataModule
-	virtual void OnComplete(const BYTE *pData, const DWORD ModuleSize);
+	virtual void OnComplete(const BYTE *pData, const DWORD ModuleSize) override;
 
 	IEventHandler *m_pEventHandler;
 };
@@ -97,7 +105,7 @@ void CLogoDataModule::OnComplete(const BYTE *pData, const DWORD ModuleSize)
 			Info.DataSize = DataSize;
 			Info.pData = &pData[Pos];
 
-			m_pEventHandler->OnLogoData(&Info);
+			m_pEventHandler->OnLogoData(this, &Info);
 		}
 
 		Pos += DataSize;
@@ -111,24 +119,29 @@ class CDsmccSection : public CPsiStreamTable
 					, public CLogoDataModule::IEventHandler
 {
 public:
-	typedef void (CALLBACK *LogoDataCallback)(const CLogoDownloader::LogoData *pData, void *pParam);
+	typedef void (CALLBACK *LogoDataCallback)(CLogoDownloader::LogoData *pData, DWORD DownloadID, void *pParam);
 
-	CDsmccSection(LogoDataCallback pCallback, void *pCallbackParam);
+	CDsmccSection(LogoDataCallback pCallback, void *pCallbackParam
+#ifdef _DEBUG
+				  , WORD PID
+#endif
+				  );
 	~CDsmccSection();
+	bool EnumLogoData(DWORD DownloadID);
 
 private:
 // CPsiStreamTable
-	virtual const bool OnTableUpdate(const CPsiSection *pCurSection);
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection) override;
 
 // CDownloadInfoIndicationParser::IEventHandler
 	virtual void OnDataModule(const CDownloadInfoIndicationParser::MessageInfo *pMessageInfo,
-							  const CDownloadInfoIndicationParser::ModuleInfo *pModuleInfo);
+							  const CDownloadInfoIndicationParser::ModuleInfo *pModuleInfo) override;
 
 // CDownloadDataBlockParser::IEventHandler
-	virtual void OnDataBlock(const CDownloadDataBlockParser::DataBlockInfo *pDataBlock);
+	virtual void OnDataBlock(const CDownloadDataBlockParser::DataBlockInfo *pDataBlock) override;
 
 // CLogoDataModule::IEventHandler
-	virtual void OnLogoData(const CLogoDataModule::LogoInfo *pInfo);
+	virtual void OnLogoData(const CLogoDataModule *pModule, const CLogoDataModule::LogoInfo *pInfo) override;
 
 	CDownloadInfoIndicationParser m_DII;
 	CDownloadDataBlockParser m_DDB;
@@ -138,14 +151,24 @@ private:
 
 	LogoDataCallback m_pLogoDataCallback;
 	void *m_pLogoDataCallbackParam;
+#ifdef _DEBUG
+	const WORD m_PID;
+#endif
 };
 
-CDsmccSection::CDsmccSection(LogoDataCallback pCallback, void *pCallbackParam)
+CDsmccSection::CDsmccSection(LogoDataCallback pCallback, void *pCallbackParam
+#ifdef _DEBUG
+							 , WORD PID
+#endif
+							 )
 	: CPsiStreamTable(NULL, true, true)
 	, m_DII(this)
 	, m_DDB(this)
 	, m_pLogoDataCallback(pCallback)
 	, m_pLogoDataCallbackParam(pCallbackParam)
+#ifdef _DEBUG
+	, m_PID(PID)
+#endif
 {
 }
 
@@ -154,6 +177,19 @@ CDsmccSection::~CDsmccSection()
 	for (LogoDataMap::iterator itr = m_LogoDataMap.begin(); itr != m_LogoDataMap.end(); itr++) {
 		delete itr->second;
 	}
+}
+
+bool CDsmccSection::EnumLogoData(DWORD DownloadID)
+{
+	for (LogoDataMap::iterator itr = m_LogoDataMap.begin(); itr != m_LogoDataMap.end(); itr++) {
+		if (itr->second->GetDownloadID() == DownloadID) {
+			if (itr->second->IsComplete()) {
+				return itr->second->EnumLogoData();
+			}
+		}
+	}
+
+	return false;
 }
 
 const bool CDsmccSection::OnTableUpdate(const CPsiSection *pCurSection)
@@ -184,8 +220,10 @@ void CDsmccSection::OnDataModule(const CDownloadInfoIndicationParser::MessageInf
 				&& ::StrCmpNA(pModuleInfo->ModuleDesc.Name.pText, "CS_LOGO-0", 9) != 0))
 		return;
 
-	TRACE(TEXT("DII Logo Data : Download ID %08lX / Module ID %04X / Module size %lu\n"),
-		  pMessageInfo->DownloadID, pModuleInfo->ModuleID, pModuleInfo->ModuleSize);
+#ifdef _DEBUG
+	TRACE(TEXT("DII Logo Data [PID %04x] : Download ID %08lX / Module ID %04X / Module size %lu\n"),
+		  m_PID, pMessageInfo->DownloadID, pModuleInfo->ModuleID, pModuleInfo->ModuleSize);
+#endif
 
 	LogoDataMap::iterator itr = m_LogoDataMap.find(pModuleInfo->ModuleID);
 	if (itr == m_LogoDataMap.end()) {
@@ -215,7 +253,7 @@ void CDsmccSection::OnDataBlock(const CDownloadDataBlockParser::DataBlockInfo *p
 	}
 }
 
-void CDsmccSection::OnLogoData(const CLogoDataModule::LogoInfo *pInfo)
+void CDsmccSection::OnLogoData(const CLogoDataModule *pModule, const CLogoDataModule::LogoInfo *pInfo)
 {
 	CLogoDownloader::LogoData LogoData;
 
@@ -227,12 +265,12 @@ void CDsmccSection::OnLogoData(const CLogoDataModule::LogoInfo *pInfo)
 		LogoData.ServiceList[i].ServiceID = pInfo->ServiceList[i].ServiceID;
 	}
 	LogoData.LogoID = pInfo->LogoID;
-	LogoData.LogoVersion = 0;	// これはどこから持ってくるんだろう…(共通バージョンを使う?)
+	LogoData.LogoVersion = 0;
 	LogoData.LogoType = pInfo->LogoType;
 	LogoData.DataSize = pInfo->DataSize;
 	LogoData.pData = pInfo->pData;
 
-	m_pLogoDataCallback(&LogoData, m_pLogoDataCallbackParam);
+	m_pLogoDataCallback(&LogoData, pModule->GetDownloadID(), m_pLogoDataCallbackParam);
 }
 
 
@@ -258,8 +296,11 @@ void CLogoDownloader::Reset()
 	m_PidMapManager.UnmapAllTarget();
 	m_PidMapManager.MapTarget(PID_PAT, new CPatTable, OnPatUpdated, this);
 	m_PidMapManager.MapTarget(PID_CDT, new CCdtTable(this));
+	m_PidMapManager.MapTarget(PID_SDTT, new CSdttTable(this));
 
 	m_ServiceList.clear();
+
+	m_VersionMap.clear();
 }
 
 
@@ -288,37 +329,90 @@ void CLogoDownloader::SetLogoHandler(ILogoHandler *pHandler)
 
 void CLogoDownloader::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSection)
 {
-	// CDTからロゴ取得
-	const CCdtTable *pCdtTable = dynamic_cast<const CCdtTable*>(pTable);
+	const BYTE TableID = pSection->GetTableID();
 
-	if (m_pLogoHandler
-			&& pCdtTable->GetDataType() == CCdtTable::DATATYPE_LOGO) {
-		const WORD DataSize = pCdtTable->GetDataModuleSize();
-		const BYTE *pData = pCdtTable->GetDataModuleByte();
+	if (TableID == CCdtTable::TABLE_ID) {
+		// CDTからロゴ取得
+		const CCdtTable *pCdtTable = dynamic_cast<const CCdtTable*>(pTable);
 
-		if (DataSize > 7 && pData) {
-			LogoData Data;
+		if (pCdtTable
+				&& pCdtTable->GetDataType() == CCdtTable::DATATYPE_LOGO
+				&& m_pLogoHandler) {
+			const WORD DataSize = pCdtTable->GetDataModuleSize();
+			const BYTE *pData = pCdtTable->GetDataModuleByte();
 
-			Data.OriginalNetworkID = pCdtTable->GetOriginalNetworkId();
-			Data.LogoID = ((WORD)(pData[1] & 0x01) << 8) | (WORD)pData[2];
-			Data.LogoVersion = ((WORD)(pData[3] & 0x0F) << 8) | (WORD)pData[4];
-			Data.LogoType = pData[0];
-			Data.DataSize = ((WORD)pData[5] << 8) | (WORD)pData[6];
-			Data.pData = &pData[7];
-			if (Data.LogoType <= 0x05
-					&& Data.DataSize <= DataSize - 7)
-				m_pLogoHandler->OnLogo(&Data);
+			if (DataSize > 7 && pData) {
+				LogoData Data;
+
+				Data.OriginalNetworkID = pCdtTable->GetOriginalNetworkId();
+				Data.LogoID = ((WORD)(pData[1] & 0x01) << 8) | (WORD)pData[2];
+				Data.LogoVersion = ((WORD)(pData[3] & 0x0F) << 8) | (WORD)pData[4];
+				Data.LogoType = pData[0];
+				Data.DataSize = ((WORD)pData[5] << 8) | (WORD)pData[6];
+				Data.pData = &pData[7];
+				if (Data.LogoType <= 0x05
+						&& Data.DataSize <= DataSize - 7)
+					m_pLogoHandler->OnLogo(&Data);
+			}
+		}
+	} else if (TableID == CSdttTable::TABLE_ID) {
+		// SDTTからバージョンを取得
+		// (SDTTを元にダウンロードするのが本来だと思うが、SDTTがあまり流れて来ないのでこのような形になっている)
+		const CSdttTable *pSdttTable = dynamic_cast<const CSdttTable*>(pTable);
+
+		if (pSdttTable && pSdttTable->IsCommon()) {
+			std::vector<DWORD> UpdatedDownloadIDList;
+
+			const CSdttTable::ContentInfo *pInfo;
+			for (BYTE i = 0; (pInfo = pSdttTable->GetContentInfo(i)) != NULL; i++) {
+				const CBaseDesc *pDesc;
+				for (WORD j = 0; (pDesc = pInfo->DescBlock.GetDescByIndex(j)) != NULL; j++) {
+					if (pDesc->GetTag() == CDownloadContentDesc::DESC_TAG) {
+						const CDownloadContentDesc *pDownloadContentDesc =
+							dynamic_cast<const CDownloadContentDesc *>(pDesc);
+						if (pDownloadContentDesc) {
+							const DWORD DownloadID = pDownloadContentDesc->GetDownloadID();
+							TRACE(TEXT("Download version 0x%x = 0x%03x\n"), DownloadID, pInfo->NewVersion);
+							std::map<DWORD, WORD>::iterator itrVersion = m_VersionMap.find(DownloadID);
+							if (itrVersion == m_VersionMap.end()
+									|| itrVersion->second != pInfo->NewVersion) {
+								m_VersionMap[DownloadID] = pInfo->NewVersion;
+								UpdatedDownloadIDList.push_back(DownloadID);
+							}
+						}
+					}
+				}
+			}
+
+			if (!UpdatedDownloadIDList.empty()) {
+				for (std::vector<ServiceInfo>::iterator itrService = m_ServiceList.begin();
+						itrService != m_ServiceList.end(); itrService++) {
+					for (size_t i = 0; i < itrService->EsList.size(); i++) {
+						CDsmccSection *pDsmccSection =
+							dynamic_cast<CDsmccSection*>(m_PidMapManager.GetMapTarget(itrService->EsList[i]));
+						if (pDsmccSection) {
+							for (size_t j = 0; j < UpdatedDownloadIDList.size(); j++)
+								pDsmccSection->EnumLogoData(UpdatedDownloadIDList[j]);
+						}
+					}
+				}
+			}
 		}
 	}
 }
 
 
-void CALLBACK CLogoDownloader::OnLogoDataModule(const LogoData *pData, void *pParam)
+void CALLBACK CLogoDownloader::OnLogoDataModule(LogoData *pData, DWORD DownloadID, void *pParam)
 {
 	CLogoDownloader *pThis = static_cast<CLogoDownloader*>(pParam);
 
-	if (pThis->m_pLogoHandler)
+	if (pThis->m_pLogoHandler) {
+		std::map<DWORD, WORD>::iterator itrVersion = pThis->m_VersionMap.find(DownloadID);
+		if (itrVersion != pThis->m_VersionMap.end())
+			pData->LogoVersion = itrVersion->second;
+
 		pThis->m_pLogoHandler->OnLogo(pData);
+	}
 }
 
 
@@ -452,7 +546,12 @@ bool CLogoDownloader::MapDataEs(const int Index)
 		  Info.ServiceID, (ULONG)Info.EsList.size());
 
 	for (size_t i = 0; i < Info.EsList.size(); i++) {
-		m_PidMapManager.MapTarget(Info.EsList[i], new CDsmccSection(OnLogoDataModule, this));
+		m_PidMapManager.MapTarget(Info.EsList[i],
+								  new CDsmccSection(OnLogoDataModule, this
+#ifdef _DEBUG
+													, Info.EsList[i]
+#endif
+													));
 	}
 
 	return true;

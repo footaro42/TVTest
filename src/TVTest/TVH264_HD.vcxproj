@@ -318,6 +318,7 @@
     <ClCompile Include="Help.cpp" />
     <ClCompile Include="Image.cpp" />
     <ClCompile Include="InformationPanel.cpp" />
+    <ClCompile Include="IniFile.cpp" />
     <ClCompile Include="InitialSettings.cpp" />
     <ClCompile Include="Layout.cpp" />
     <ClCompile Include="Logger.cpp" />
@@ -361,6 +362,7 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
     <ClCompile Include="StreamInfo.cpp" />
+    <ClCompile Include="StringUtility.cpp" />
     <ClCompile Include="Taskbar.cpp" />
     <ClCompile Include="Theme.cpp" />
     <ClCompile Include="TitleBar.cpp" />
@@ -461,6 +463,7 @@
     <ClInclude Include="Help\HelpID.h" />
     <ClInclude Include="Image.h" />
     <ClInclude Include="InformationPanel.h" />
+    <ClInclude Include="IniFile.h" />
     <ClInclude Include="InitialSettings.h" />
     <ClInclude Include="Layout.h" />
     <ClInclude Include="Logger.h" />
@@ -501,6 +504,7 @@
     <ClInclude Include="StatusView.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="StreamInfo.h" />
+    <ClInclude Include="StringUtility.h" />
     <ClInclude Include="Taskbar.h" />
     <ClInclude Include="Theme.h" />
     <ClInclude Include="TitleBar.h" />

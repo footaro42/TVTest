@@ -32,7 +32,7 @@ public:
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
 // COperationOptions
-	bool Initialize(CSettingsFile &SettingsFile,const CCommandList *pCommandList);
+	bool Initialize(CSettings &Settings,const CCommandList *pCommandList);
 	bool GetDisplayDragMove() const { return m_fDisplayDragMove; }
 	int GetVolumeStep() const { return m_VolumeStep; }
 	WheelMode GetWheelMode() const { return m_WheelMode; }

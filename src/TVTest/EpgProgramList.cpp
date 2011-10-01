@@ -331,49 +331,6 @@ const CEventInfoData *CEpgServiceInfo::GetEventInfo(WORD EventID)
 
 
 
-class CGlobalLock
-{
-	HANDLE m_hMutex;
-	CGlobalLock(const CGlobalLock &);
-	CGlobalLock &operator=(const CGlobalLock &);
-
-public:
-	CGlobalLock::CGlobalLock(LPCTSTR pszName)
-	{
-		SECURITY_DESCRIPTOR sd;
-		SECURITY_ATTRIBUTES sa;
-		::ZeroMemory(&sd,sizeof(sd));
-		::InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
-		::SetSecurityDescriptorDacl(&sd,TRUE,NULL,FALSE);
-		::ZeroMemory(&sa,sizeof(sa));
-		sa.nLength=sizeof(sa);
-		sa.lpSecurityDescriptor=&sd;
-		m_hMutex=::CreateMutex(&sa,FALSE,pszName);
-	}
-
-	CGlobalLock::~CGlobalLock()
-	{
-		if (m_hMutex!=NULL)
-			::CloseHandle(m_hMutex);
-	}
-
-	bool Wait(DWORD Timeout=INFINITE)
-	{
-		if (m_hMutex==NULL)
-			return false;
-		return ::WaitForSingleObject(m_hMutex,Timeout)==WAIT_OBJECT_0;
-	}
-
-	void Release()
-	{
-		if (m_hMutex!=NULL)
-			::ReleaseMutex(m_hMutex);
-	}
-};
-
-
-
-
 CEpgProgramList::CEpgProgramList(CEventManager *pEventManager)
 	: m_pEventManager(pEventManager)
 {
@@ -1408,10 +1365,12 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 			szName[i]=_T(':');
 	}
 	::lstrcat(szName,TEXT(":Lock"));
-	CGlobalLock GlobalLock(szName);
-	if (!GlobalLock.Wait(10000)) {
-		AppMain.AddLog(TEXT("EPGファイルがロックされているため保存できません。"));
-		return false;
+	CGlobalLock GlobalLock;
+	if (GlobalLock.Create(szName)) {
+		if (!GlobalLock.Wait(10000)) {
+			AppMain.AddLog(TEXT("EPGファイルがロックされているため保存できません。"));
+			return false;
+		}
 	}
 
 	// ファイルが読み込んだ時から更新されている場合読み込み直す

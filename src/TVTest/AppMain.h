@@ -6,6 +6,7 @@
 #include "UICore.h"
 #include "ChannelManager.h"
 #include "Record.h"
+#include "Settings.h"
 
 
 class CCommandList;
@@ -21,6 +22,7 @@ class CAppMain
 	TCHAR m_szIniFileName[MAX_PATH];
 	TCHAR m_szDefaultChannelFileName[MAX_PATH];
 	TCHAR m_szChannelSettingFileName[MAX_PATH];
+	CSettings m_Settings;
 	bool m_fFirstExecute;
 
 	bool SetService(int Service);
@@ -50,6 +52,7 @@ public:
 		SETTINGS_SAVE_ALL		=SETTINGS_SAVE_STATUS | SETTINGS_SAVE_OPTIONS
 	};
 	bool SaveSettings(unsigned int Flags);
+	void InitializeCommandSettings();
 	bool SaveCurrentChannel();
 	bool IsFirstExecute() const;
 

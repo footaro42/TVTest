@@ -19,6 +19,8 @@ public:
 	bool IsBlockDownloaded(const WORD BlockNumber) const;
 
 protected:
+	bool SetBlockDownloaded(const WORD BlockNumber);
+
 	virtual void OnComplete(const BYTE *pData, const DWORD ModuleSize) {}
 
 	DWORD m_DownloadID;
@@ -29,7 +31,7 @@ protected:
 	WORD m_NumBlocks;
 	WORD m_NumDownloadedBlocks;
 	BYTE *m_pData;
-	DWORD m_BlockDownloaded;
+	UINT_PTR m_BlockDownloaded;
 	DWORD *m_pBlockDownloaded;
 };
 

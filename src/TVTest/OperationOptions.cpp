@@ -127,10 +127,10 @@ bool COperationOptions::Create(HWND hwndOwner)
 }
 
 
-bool COperationOptions::Initialize(CSettingsFile &SettingsFile,const CCommandList *pCommandList)
+bool COperationOptions::Initialize(CSettings &Settings,const CCommandList *pCommandList)
 {
 	m_pCommandList=pCommandList;
-	LoadSettings(SettingsFile);
+	LoadSettings(Settings);
 	return true;
 }
 

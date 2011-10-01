@@ -26,10 +26,10 @@ CDataModule::CDataModule(DWORD DownloadID, WORD BlockSize, WORD ModuleID, DWORD 
 	, m_BlockDownloaded(0)
 	, m_pBlockDownloaded(NULL)
 {
-	if (m_NumBlocks > 32) {
+	if (m_NumBlocks > sizeof(m_BlockDownloaded) * 8) {
 		SIZE_T Length = (m_NumBlocks + 31) / 32;
 		m_pBlockDownloaded = new DWORD[Length];
-		::ZeroMemory(m_pBlockDownloaded, Length * 4);
+		::ZeroMemory(m_pBlockDownloaded, Length * sizeof(DWORD));
 	}
 }
 
@@ -60,12 +60,11 @@ bool CDataModule::StoreBlock(const WORD BlockNumber, const void *pData, const WO
 		return false;
 
 	::CopyMemory(&m_pData[Offset], pData, Size);
-	if (m_NumBlocks <= 32)
-		m_BlockDownloaded |= 1UL << BlockNumber;
-	else
-		m_pBlockDownloaded[BlockNumber >> 5] = 1UL << (BlockNumber & 0x1F);
+
+	SetBlockDownloaded(BlockNumber);
 	m_NumDownloadedBlocks++;
-	if (m_NumDownloadedBlocks == m_NumBlocks) {
+
+	if (IsComplete()) {
 		TRACE(TEXT("Download complete : Download ID %08lX / Module ID %04X\n"),
 			  m_DownloadID,m_ModuleID);
 		OnComplete(m_pData, m_ModuleSize);
@@ -78,9 +77,20 @@ bool CDataModule::IsBlockDownloaded(const WORD BlockNumber) const
 {
 	if (BlockNumber >= m_NumBlocks)
 		return false;
-	if (m_NumBlocks <= 32)
-		return (m_BlockDownloaded & (1UL << BlockNumber)) != 0;
+	if (m_NumBlocks <= sizeof(m_BlockDownloaded) * 8)
+		return (m_BlockDownloaded & ((ULONG_PTR)1 << BlockNumber)) != 0;
 	return (m_pBlockDownloaded[BlockNumber >> 5] & (1UL << (BlockNumber & 0x1F))) != 0;
+}
+
+bool CDataModule::SetBlockDownloaded(const WORD BlockNumber)
+{
+	if (BlockNumber >= m_NumBlocks)
+		return false;
+	if (m_NumBlocks <= sizeof(m_BlockDownloaded) * 8)
+		m_BlockDownloaded |= (ULONG_PTR)1 << BlockNumber;
+	else
+		m_pBlockDownloaded[BlockNumber >> 5] |= 1UL << (BlockNumber & 0x1F);
+	return true;
 }
 
 

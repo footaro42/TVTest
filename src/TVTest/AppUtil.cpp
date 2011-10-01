@@ -144,7 +144,9 @@ bool CPortQuery::Query(HWND hwnd,WORD *pUDPPort,WORD MaxPort
 
 	m_hwndSelf=hwnd;
 	m_UDPPortList.clear();
+#ifdef NETWORK_REMOCON_SUPPORT
 	m_RemoconPortList.clear();
+#endif
 	::EnumWindows(EnumProc,reinterpret_cast<LPARAM>(this));
 	if (m_UDPPortList.size()>0) {
 		WORD UDPPort;
@@ -191,15 +193,20 @@ BOOL CALLBACK CPortQuery::EnumProc(HWND hwnd,LPARAM lParam)
 
 		if (::SendMessageTimeout(hwnd,WM_APP_QUERYPORT,0,0,
 								 SMTO_NORMAL | SMTO_ABORTIFHUNG,1000,&Result)) {
-			WORD UDPPort=LOWORD(Result),RemoconPort=HIWORD(Result);
+			WORD UDPPort=LOWORD(Result);
+#ifdef NETWORK_REMOCON_SUPPORT
+			WORD RemoconPort=HIWORD(Result);
+#endif
 
 			TRACE(TEXT("CPortQuery::EnumProc %d %d\n"),UDPPort,RemoconPort);
 			pThis->m_UDPPortList.push_back(UDPPort);
 #ifdef NETWORK_REMOCON_SUPPORT
 			if (RemoconPort>0)
 				pThis->m_RemoconPortList.push_back(RemoconPort);
-#endif
 			GetAppClass().AddLog(TEXT("既に起動している") APP_NAME TEXT("が見付かりました。(UDPポート %d / リモコンポート %d)"),UDPPort,RemoconPort);
+#else
+			GetAppClass().AddLog(TEXT("既に起動している") APP_NAME TEXT("が見付かりました。(UDPポート %d)"),UDPPort);
+#endif
 		}
 	}
 	return TRUE;

@@ -735,6 +735,53 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0xC9] Download Content 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CDownloadContentDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0xC9U};
+
+	CDownloadContentDesc();
+	CDownloadContentDesc(const CDownloadContentDesc &Operand);
+	CDownloadContentDesc & operator = (const CDownloadContentDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CDownloadContentDesc
+	bool GetReboot() const;
+	bool GetAddOn() const;
+	DWORD GetComponentSize() const;
+	DWORD GetDownloadID() const;
+	DWORD GetTimeOutValueDII() const;
+	DWORD GetLeakRate() const;
+	BYTE GetComponentTag() const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	struct DownloadContentInfo
+	{
+		bool bReboot;
+		bool bAddOn;
+		bool bCompatibilityFlag;
+		bool bModuleInfoFlag;
+		bool bTextInfoFlag;
+		DWORD ComponentSize;
+		DWORD DownloadID;
+		DWORD TimeOutValueDII;
+		DWORD LeakRate;
+		BYTE ComponentTag;
+	};
+
+	DownloadContentInfo m_Info;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 

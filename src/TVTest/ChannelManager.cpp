@@ -14,7 +14,7 @@ static char THIS_FILE[]=__FILE__;
 
 CChannelManager::CChannelManager()
 {
-	Clear();
+	Reset();
 }
 
 
@@ -23,15 +23,18 @@ CChannelManager::~CChannelManager()
 }
 
 
-void CChannelManager::Clear()
+void CChannelManager::Reset()
 {
-	m_TuningSpaceList.Clear();
-	m_DriverTuningSpaceList.Clear();
 	m_CurrentSpace=SPACE_INVALID;
 	m_CurrentChannel=-1;
 	m_CurrentServiceID=-1;
 	m_ChangingChannel=-1;
+
+	m_TuningSpaceList.Clear();
+	m_DriverTuningSpaceList.Clear();
 	m_fUseDriverChannelList=false;
+	m_fChannelFileHasStreamIDs=false;
+
 #ifdef NETWORK_REMOCON_SUPPORT
 	m_fNetworkRemocon=false;
 	m_pNetworkRemoconChannelList=NULL;
@@ -161,8 +164,8 @@ bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
 					const CChannelInfo *pChInfo=pList->GetChannelInfo(j);
 					LPCTSTR pszChannel=pChInfo->GetName();
 
-					if (_tcsnicmp(pszChannel,szChannel,Length)==0
-							&& (pszChannel[Length]==' ' || pszChannel[Length]=='\0')) {
+					if (::StrCmpNI(pszChannel,szChannel,Length)==0
+							&& (pszChannel[Length]==_T(' ') || pszChannel[Length]==_T('\0'))) {
 						Space=i;
 						ChannelIndex=pChInfo->GetChannelIndex();
 						fOK=true;
@@ -205,32 +208,57 @@ bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
 
 bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 {
-	bool fOK=false;
-
 	if (::PathMatchSpec(pszFileName,TEXT("*.ch2"))
 #ifdef TVH264
 		|| ::PathMatchSpec(pszFileName,TEXT("*.ch1"))
 #endif
 		) {
 		// 新しい形式のチャンネル設定ファイル
-		fOK=m_TuningSpaceList.LoadFromFile(pszFileName);
+		if (!m_TuningSpaceList.LoadFromFile(pszFileName))
+			return false;
+
+		// 古いバージョンのチャンネルファイルはTSIDやNIDが無い場合がある
+		m_fChannelFileHasStreamIDs=true;
+		for (int i=0;i<m_TuningSpaceList.NumSpaces();i++) {
+			const CTuningSpaceInfo *pSpace=m_TuningSpaceList.GetTuningSpaceInfo(i);
+			if (pSpace!=NULL) {
+				const int NumChannels=pSpace->NumChannels();
+				for (int j=0;j<NumChannels;j++) {
+					const CChannelInfo *pChannel=pSpace->GetChannelInfo(j);
+					if (pChannel!=NULL) {
+						if (pChannel->GetServiceID()==0
+								|| pChannel->GetNetworkID()==0
+								|| pChannel->GetTransportStreamID()==0) {
+							m_fChannelFileHasStreamIDs=false;
+							goto Break;
+						}
+					}
+				}
+			}
+		}
+	Break:
+		;
 	} else if (::PathMatchSpec(pszFileName,TEXT("*.ch"))) {
 		// 古い形式のチャンネル設定ファイル(cap_hdus等との互換用)
-		fOK=LoadOldChannelFile(pszFileName);
-	}
-	if (!fOK)
+		if (!LoadOldChannelFile(pszFileName))
+			return false;
+		m_fChannelFileHasStreamIDs=false;
+	} else {
 		return false;
+	}
+
 	for (int i=0;i<m_DriverTuningSpaceList.NumSpaces();i++) {
 		CTuningSpaceInfo *pTuningSpace=m_TuningSpaceList.GetTuningSpaceInfo(i);
 
 		if (pTuningSpace!=NULL) {
 			const CTuningSpaceInfo *pDriverTuningSpace=m_DriverTuningSpaceList.GetTuningSpaceInfo(i);
 			const CChannelList *pDriverChannelList=pDriverTuningSpace->GetChannelList();
-			CChannelList *pChannelList=pTuningSpace->GetChannelList();
 
 			pTuningSpace->SetName(pDriverTuningSpace->GetName());
-			for (int j=0;j<pChannelList->NumChannels();j++) {
-				CChannelInfo *pChInfo=pChannelList->GetChannelInfo(j);
+
+			const int NumChannels=pTuningSpace->NumChannels();
+			for (int j=0;j<NumChannels;j++) {
+				CChannelInfo *pChInfo=pTuningSpace->GetChannelInfo(j);
 
 				if (pChInfo->GetPhysicalChannel()==0) {
 					int Channel=pDriverChannelList->GetPhysicalChannel(pChInfo->GetChannelIndex());
@@ -241,6 +269,7 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 			}
 		}
 	}
+
 	return true;
 }
 
@@ -254,39 +283,42 @@ bool CChannelManager::SetTuningSpaceList(const CTuningSpaceList *pList)
 
 bool CChannelManager::MakeDriverTuningSpaceList(const CBonSrcDecoder *pSrcDecoder)
 {
-	int NumSpaces=pSrcDecoder->NumSpaces();
+	const int NumSpaces=pSrcDecoder->NumSpaces();
 
 	m_DriverTuningSpaceList.Clear();
 	if (!m_DriverTuningSpaceList.Reserve(NumSpaces))
 		return false;
+
 	for (int i=0;i<NumSpaces;i++) {
 		CChannelList *pList=m_DriverTuningSpaceList.GetChannelList(i);
 		LPCTSTR pszName;
 
 		for (int j=0;(pszName=pSrcDecoder->GetChannelName(i,j))!=NULL;j++) {
+			CChannelInfo ChInfo(i,j,j+1,pszName);
+
 			LPCTSTR p=pszName;
 			int Channel=0;
-
 			while (*p!=_T('\0')) {
 				if (*p>=_T('0') && *p<=_T('9')) {
 					do {
 						Channel=Channel*10+(*p-_T('0'));
 						p++;
 					} while (*p>=_T('0') && *p<=_T('9'));
-					if (::_tcsnicmp(p,TEXT("ch"),2)!=0)
+					if (::StrCmpNI(p,TEXT("ch"),2)!=0)
 						Channel=0;
 				} else {
 					p++;
 				}
 			}
-			CChannelInfo ChInfo(i,j,j+1,pszName);
 			ChInfo.SetPhysicalChannel(Channel);
+
 			pList->AddChannel(ChInfo);
 		}
-		m_DriverTuningSpaceList.GetTuningSpaceInfo(i)->SetName(
-												pSrcDecoder->GetSpaceName(i));
+		m_DriverTuningSpaceList.GetTuningSpaceInfo(i)->SetName(pSrcDecoder->GetSpaceName(i));
 	}
+
 	m_DriverTuningSpaceList.MakeAllChannelList();
+
 	return true;
 }
 
@@ -571,8 +603,9 @@ bool CChannelManager::UpdateStreamInfo(int Space,int ChannelIndex,
 	} else
 #endif
 	{
-		m_TuningSpaceList.UpdateStreamInfo(Space,ChannelIndex,
-										NetworkID,TransportStreamID,ServiceID);
+		if (!m_fChannelFileHasStreamIDs)
+			m_TuningSpaceList.UpdateStreamInfo(Space,ChannelIndex,
+											   NetworkID,TransportStreamID,ServiceID);
 	}
 	return true;
 }
@@ -580,10 +613,15 @@ bool CChannelManager::UpdateStreamInfo(int Space,int ChannelIndex,
 
 bool CChannelManager::LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName)
 {
+	if (m_TuningSpaceList.IsEmpty() || m_fChannelFileHasStreamIDs)
+		return true;
+
 	CSettings Settings;
 	int SpaceCount;
 
-	if (!Settings.Open(pszFileName,::PathFindFileName(pszDriverName),CSettings::OPEN_READ))
+	TRACE(TEXT("ストリーム情報の読み込み : \"%s\" [%s]\n"),pszFileName,pszDriverName);
+	if (!Settings.Open(pszFileName,CSettings::OPEN_READ)
+			|| !Settings.SetSection(::PathFindFileName(pszDriverName)))
 		return false;
 	if (Settings.Read(TEXT("SpaceCount"),&SpaceCount) && SpaceCount>0) {
 		for (int i=0;i<SpaceCount;i++) {
@@ -626,10 +664,15 @@ bool CChannelManager::LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverN
 
 bool CChannelManager::SaveChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName)
 {
+	if (m_TuningSpaceList.IsEmpty() || m_fChannelFileHasStreamIDs)
+		return true;
+
 	CSettings Settings;
 	int SpaceCount;
 
-	if (!Settings.Open(pszFileName,::PathFindFileName(pszDriverName),CSettings::OPEN_WRITE))
+	TRACE(TEXT("ストリーム情報の保存 : \"%s\" [%s]\n"),pszFileName,pszDriverName);
+	if (!Settings.Open(pszFileName,CSettings::OPEN_WRITE)
+			|| !Settings.SetSection(::PathFindFileName(pszDriverName)))
 		return false;
 	SpaceCount=m_TuningSpaceList.NumSpaces();
 	Settings.Clear();

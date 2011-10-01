@@ -42,8 +42,8 @@ public:
 	CProgramGuideOptions(CProgramGuide *pProgramGuide,CPluginManager *pPluginManager);
 	~CProgramGuideOptions();
 // CSettingsBase
-	bool LoadSettings(CSettingsFile &File) override;
-	bool SaveSettings(CSettingsFile &File) override;
+	bool LoadSettings(CSettings &Settings) override;
+	bool SaveSettings(CSettings &Settings) override;
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
 // CProgramGuideOptions

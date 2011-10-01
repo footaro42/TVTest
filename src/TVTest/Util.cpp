@@ -11,104 +11,6 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-LONGLONG StringToInt64(LPCTSTR pszString)
-{
-	return _ttoi64(pszString);
-}
-
-
-ULONGLONG StringToUInt64(LPCTSTR pszString)
-{
-	ULONGLONG Value=0;
-	LPCTSTR p;
-
-	p=pszString;
-	while (*p>=_T('0') && *p<=_T('9')) {
-		Value=Value*10+(*p-_T('0'));
-		p++;
-	}
-	return Value;
-}
-
-
-bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix)
-{
-	return _i64tot_s(Value,pszString,MaxLength,Radix)==0;
-}
-
-
-bool UInt64ToString(ULONGLONG Value,LPTSTR pszString,int MaxLength,int Radix)
-{
-	return _ui64tot_s(Value,pszString,MaxLength,Radix)==0;
-}
-
-
-__declspec(restrict) LPSTR DuplicateString(LPCSTR pszString)
-{
-	if (pszString==NULL)
-		return NULL;
-
-	const size_t Length=lstrlenA(pszString)+1;
-	LPSTR pszNewString=new char[Length];
-	::CopyMemory(pszNewString,pszString,Length);
-	return pszNewString;
-}
-
-
-__declspec(restrict) LPWSTR DuplicateString(LPCWSTR pszString)
-{
-	if (pszString==NULL)
-		return NULL;
-
-	const size_t Length=lstrlenW(pszString)+1;
-	LPWSTR pszNewString=new WCHAR[Length];
-	::CopyMemory(pszNewString,pszString,Length*sizeof(WCHAR));
-	return pszNewString;
-}
-
-
-bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString)
-{
-	if (ppszString==NULL)
-		return false;
-	delete [] *ppszString;
-	*ppszString=DuplicateString(pszNewString);
-	return true;
-}
-
-
-bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString)
-{
-	if (ppszString==NULL)
-		return false;
-	delete [] *ppszString;
-	*ppszString=DuplicateString(pszNewString);
-	return true;
-}
-
-
-int RemoveTrailingWhitespace(LPTSTR pszString)
-{
-	if (pszString==NULL)
-		return 0;
-	LPTSTR pSpace=NULL;
-	LPTSTR p=pszString;
-	while (*p!=_T('\0')) {
-		if (*p==_T(' ') || *p==_T('\r') || *p==_T('\n') || *p==_T('\t')) {
-			if (pSpace==NULL)
-				pSpace=p;
-		} else if (pSpace!=NULL) {
-			pSpace=NULL;
-		}
-		p++;
-	}
-	if (pSpace==NULL)
-		return 0;
-	*pSpace=_T('\0');
-	return (int)(p-pSpace);
-}
-
-
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2)
 {
 	return pRect1->left<pRect2->right && pRect1->right>pRect2->left
@@ -1267,4 +1169,60 @@ bool CLocalTime::GetTime(FILETIME *pTime) const
 bool CLocalTime::GetTime(SYSTEMTIME *pTime) const
 {
 	return ::FileTimeToSystemTime(&m_Time,pTime)!=0;
+}
+
+
+CGlobalLock::CGlobalLock()
+	: m_hMutex(NULL)
+	, m_fOwner(false)
+{
+}
+
+CGlobalLock::~CGlobalLock()
+{
+	Close();
+}
+
+bool CGlobalLock::Create(LPCTSTR pszName)
+{
+	if (m_hMutex!=NULL)
+		return false;
+	SECURITY_DESCRIPTOR sd;
+	SECURITY_ATTRIBUTES sa;
+	::ZeroMemory(&sd,sizeof(sd));
+	::InitializeSecurityDescriptor(&sd,SECURITY_DESCRIPTOR_REVISION);
+	::SetSecurityDescriptorDacl(&sd,TRUE,NULL,FALSE);
+	::ZeroMemory(&sa,sizeof(sa));
+	sa.nLength=sizeof(sa);
+	sa.lpSecurityDescriptor=&sd;
+	m_hMutex=::CreateMutex(&sa,FALSE,pszName);
+	m_fOwner=false;
+	return m_hMutex!=NULL;
+}
+
+bool CGlobalLock::Wait(DWORD Timeout)
+{
+	if (m_hMutex==NULL)
+		return false;
+	if (::WaitForSingleObject(m_hMutex,Timeout)==WAIT_TIMEOUT)
+		return false;
+	m_fOwner=true;
+	return true;
+}
+
+void CGlobalLock::Close()
+{
+	if (m_hMutex!=NULL) {
+		Release();
+		::CloseHandle(m_hMutex);
+		m_hMutex=NULL;
+	}
+}
+
+void CGlobalLock::Release()
+{
+	if (m_hMutex!=NULL && m_fOwner) {
+		::ReleaseMutex(m_hMutex);
+		m_fOwner=false;
+	}
 }

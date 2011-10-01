@@ -384,7 +384,6 @@ bool CAppMain::Finalize()
 {
 	AddLog(TEXT("設定を保存しています..."));
 	SaveSettings(SETTINGS_SAVE_STATUS);
-	SaveChannelSettings();
 	return true;
 }
 
@@ -456,7 +455,7 @@ bool CAppMain::InitializeChannel()
 	TCHAR szNetworkDriverName[MAX_PATH];
 #endif
 
-	ChannelManager.Clear();
+	ChannelManager.Reset();
 	ChannelManager.MakeDriverTuningSpaceList(&CoreEngine.m_DtvEngine.m_BonSrcDecoder);
 
 	if (!fNetworkDriver) {
@@ -553,7 +552,8 @@ bool CAppMain::InitializeChannel()
 	}
 	if (ChannelManager.LoadChannelList(ChannelFilePath.GetPath()))
 		Logger.AddLog(TEXT("チャンネル設定を \"%s\" から読み込みました。"),
-												ChannelFilePath.GetFileName());
+					  ChannelFilePath.GetFileName());
+
 	TCHAR szFileName[MAX_PATH];
 	bool fLoadChannelSettings=true;
 	if (!fNetworkDriver) {
@@ -585,11 +585,6 @@ bool CAppMain::InitializeChannel()
 	}
 
 	ChannelManager.SetUseDriverChannelList(fNetworkDriver);
-	/*
-	ChannelManager.SetCurrentSpace(
-		(!fNetworkDriver && ChannelManager.GetAllChannelList()->NumChannels()>0)?
-											CChannelManager::SPACE_ALL:0);
-	*/
 	ChannelManager.SetCurrentChannel(
 		RestoreChannelInfo.fAllChannels?CChannelManager::SPACE_ALL:max(RestoreChannelInfo.Space,0),
 		-1);
@@ -1076,13 +1071,18 @@ bool CAppMain::OpenBcasCard(bool fRetry)
 
 bool CAppMain::LoadSettings()
 {
-	CSettingsFile SettingsFile;
-	if (!SettingsFile.Open(m_szIniFileName,CSettingsFile::OPEN_READ))
+	CSettings &Settings=m_Settings;
+
+	if (!Settings.Open(m_szIniFileName,CSettings::OPEN_READ)) {
+		TCHAR szMessage[64+MAX_PATH];
+		StdUtil::snprintf(szMessage,lengthof(szMessage),
+						  TEXT("設定ファイル \"%s\" を開けません。"),
+						  m_szIniFileName);
+		AddLog(szMessage);
 		return false;
+	}
 
-	CSettings Settings;
-
-	if (SettingsFile.OpenSection(&Settings,TEXT("Settings"))) {
+	if (Settings.SetSection(TEXT("Settings"))) {
 		int Value;
 		TCHAR szText[MAX_PATH];
 		int Left,Top,Width,Height;
@@ -1139,6 +1139,24 @@ bool CAppMain::LoadSettings()
 		if (Settings.Read(TEXT("ProgramGuideAlwaysOnTop"),&f))
 			ProgramGuideFrame.SetAlwaysOnTop(f);
 
+		CaptureWindow.GetPosition(&Left,&Top,&Width,&Height);
+		Settings.Read(TEXT("CapturePreviewLeft"),&Left);
+		Settings.Read(TEXT("CapturePreviewTop"),&Top);
+		Settings.Read(TEXT("CapturePreviewWidth"),&Width);
+		Settings.Read(TEXT("CapturePreviewHeight"),&Height);
+		CaptureWindow.SetPosition(Left,Top,Width,Height);
+		CaptureWindow.MoveToMonitorInside();
+		if (Settings.Read(TEXT("CaptureStatusBar"),&f))
+			CaptureWindow.ShowStatusBar(f);
+
+		StreamInfo.GetPosition(&Left,&Top,&Width,&Height);
+		Settings.Read(TEXT("StreamInfoLeft"),&Left);
+		Settings.Read(TEXT("StreamInfoTop"),&Top);
+		Settings.Read(TEXT("StreamInfoWidth"),&Width);
+		Settings.Read(TEXT("StreamInfoHeight"),&Height);
+		StreamInfo.SetPosition(Left,Top,Width,Height);
+		//StreamInfo.MoveToMonitorInside();
+
 		// Experimental options
 		Settings.Read(TEXT("IncrementUDPPort"),&fIncrementUDPPort);
 
@@ -1158,19 +1176,17 @@ bool CAppMain::LoadSettings()
 #endif
 		Logger.ReadSettings(Settings);
 		ZoomOptions.ReadSettings(Settings);
-
-		Settings.Close();
 	}
 
-	StatusOptions.LoadSettings(SettingsFile);
-	SideBarOptions.LoadSettings(SettingsFile);
-	ColorSchemeOptions.LoadSettings(SettingsFile);
-	DriverOptions.LoadSettings(SettingsFile);
-	ProgramGuideOptions.LoadSettings(SettingsFile);
-	PluginOptions.LoadSettings(SettingsFile);
-	RecentChannelList.LoadSettings(SettingsFile);
-	InfoPanel.LoadSettings(SettingsFile);
-	PanAndScanOptions.LoadSettings(SettingsFile);
+	StatusOptions.LoadSettings(Settings);
+	SideBarOptions.LoadSettings(Settings);
+	ColorSchemeOptions.LoadSettings(Settings);
+	DriverOptions.LoadSettings(Settings);
+	ProgramGuideOptions.LoadSettings(Settings);
+	PluginOptions.LoadSettings(Settings);
+	RecentChannelList.LoadSettings(Settings);
+	InfoPanel.LoadSettings(Settings);
+	PanAndScanOptions.LoadSettings(Settings);
 
 	return true;
 }
@@ -1178,33 +1194,20 @@ bool CAppMain::LoadSettings()
 
 bool CAppMain::SaveSettings(unsigned int Flags)
 {
-	CSettingsFile SettingsFile;
-	if (!SettingsFile.Open(m_szIniFileName,CSettingsFile::OPEN_WRITE))
-		return false;
-	if (SettingsFile.GetLastError()!=ERROR_SUCCESS) {
-		TCHAR szMessage[256+MAX_PATH];
+	CSettings Settings;
+	if (!Settings.Open(m_szIniFileName,CSettings::OPEN_WRITE)) {
+		TCHAR szMessage[64+MAX_PATH];
 		StdUtil::snprintf(szMessage,lengthof(szMessage),
-						  TEXT("設定ファイル \"%s\" が作成できません。(エラーコード 0x%lx)"),
-						  m_szIniFileName,SettingsFile.GetLastError());
+						  TEXT("設定ファイル \"%s\" を開けません。"),
+						  m_szIniFileName);
 		AddLog(szMessage);
 		if (!m_fSilent)
 			MainWindow.ShowErrorMessage(szMessage);
+		return false;
 	}
 
-	CSettings Settings;
-
-	if (SettingsFile.OpenSection(&Settings,TEXT("Settings"))) {
-		if (!Settings.Write(TEXT("Version"),VERSION_TEXT)) {
-			TCHAR szMessage[256+MAX_PATH];
-			StdUtil::snprintf(szMessage,lengthof(szMessage),
-							  TEXT("設定ファイル \"%s\" に書き込みできません。(エラーコード 0x%lx)"),
-							  m_szIniFileName,::GetLastError());
-			AddLog(szMessage);
-			/*
-			if (!m_fSilent)
-				MainWindow.ShowErrorMessage(szMessage);
-			*/
-		}
+	if (Settings.SetSection(TEXT("Settings"))) {
+		Settings.Write(TEXT("Version"),VERSION_TEXT);
 
 		if ((Flags&SETTINGS_SAVE_STATUS)!=0) {
 			int Left,Top,Width,Height;
@@ -1262,8 +1265,6 @@ bool CAppMain::SaveSettings(unsigned int Flags)
 
 			MainWindow.WriteSettings(Settings);
 		}
-
-		Settings.Close();
 	}
 
 	static const struct {
@@ -1300,17 +1301,27 @@ bool CAppMain::SaveSettings(unsigned int Flags)
 		CSettingsBase *pSettings=SettingsList[i].pSettings;
 		if (((Flags&SETTINGS_SAVE_OPTIONS)!=0 && pSettings->IsChanged())
 				|| ((Flags&SETTINGS_SAVE_STATUS)!=0 && SettingsList[i].fHasStatus)) {
-			if (pSettings->SaveSettings(SettingsFile))
+			if (pSettings->SaveSettings(Settings))
 				pSettings->ClearChanged();
 		}
 	}
 
 	if ((Flags&SETTINGS_SAVE_STATUS)!=0) {
-		RecentChannelList.SaveSettings(SettingsFile);
-		InfoPanel.SaveSettings(SettingsFile);
+		RecentChannelList.SaveSettings(Settings);
+		InfoPanel.SaveSettings(Settings);
 	}
 
 	return true;
+}
+
+
+void CAppMain::InitializeCommandSettings()
+{
+	Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
+						   m_Settings,&CommandList);
+	OperationOptions.Initialize(m_Settings,&CommandList);
+
+	m_Settings.Close();
 }
 
 
@@ -3573,14 +3584,15 @@ class CMyProgramGuideEventHandler : public CProgramGuide::CEventHandler
 			int Index=FindChannel(pChannelList,pServiceInfo);
 			if (Index>=0) {
 #ifdef NETWORK_REMOCON_SUPPORT
-				if (pNetworkRemocon==NULL) {
-					MainWindow.PostCommand(CM_CHANNEL_FIRST+Index);
+				if (pNetworkRemocon!=NULL) {
+					MainWindow.PostCommand(CM_CHANNELNO_FIRST+
+										   pChannelList->GetChannelInfo(Index)->GetChannelNo()-1);
 				} else
 #endif
 				{
-					MainWindow.PostCommand(CM_CHANNELNO_FIRST+
-										   pChannelList->GetChannelInfo(Index)->GetChannelNo()-1);
+					MainWindow.PostCommand(CM_CHANNEL_FIRST+Index);
 				}
+				return;
 			}
 		}
 		for (int i=0;i<ChannelManager.NumSpaces();i++) {
@@ -3743,9 +3755,11 @@ class CMyCaptureWindowEvent : public CCaptureWindow::CEventHandler
 {
 	void OnRestoreSettings() override
 	{
+#if 0
 		CSettings Settings;
 
-		if (Settings.Open(AppMain.GetIniFileName(),TEXT("Settings"),CSettings::OPEN_READ)) {
+		if (Settings.Open(AppMain.GetIniFileName(),CSettings::OPEN_READ)
+				&& Settings.SetSection(TEXT("Settings"))) {
 			int Left,Top,Width,Height;
 			m_pCaptureWindow->GetPosition(&Left,&Top,&Width,&Height);
 			Settings.Read(TEXT("CapturePreviewLeft"),&Left);
@@ -3759,6 +3773,7 @@ class CMyCaptureWindowEvent : public CCaptureWindow::CEventHandler
 			if (Settings.Read(TEXT("CaptureStatusBar"),&fStatusBar))
 				m_pCaptureWindow->ShowStatusBar(fStatusBar);
 		}
+#endif
 	}
 
 	bool OnClose() override
@@ -3786,9 +3801,11 @@ class CStreamInfoEventHandler : public CStreamInfo::CEventHandler
 {
 	void OnRestoreSettings() override
 	{
+#if 0
 		CSettings Settings;
 
-		if (Settings.Open(AppMain.GetIniFileName(),TEXT("Settings"),CSettings::OPEN_READ)) {
+		if (Settings.Open(AppMain.GetIniFileName(),CSettings::OPEN_READ)
+				&& Settings.SetSection(TEXT("Settings"))) {
 			int Left,Top,Width,Height;
 
 			StreamInfo.GetPosition(&Left,&Top,&Width,&Height);
@@ -3799,6 +3816,7 @@ class CStreamInfoEventHandler : public CStreamInfo::CEventHandler
 			StreamInfo.SetPosition(Left,Top,Width,Height);
 			//StreamInfo.MoveToMonitorInside();
 		}
+#endif
 	}
 
 	bool OnClose() override
@@ -6164,7 +6182,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					&& !AppMain.IsChannelScanning()
 					&& !m_fProgramGuideUpdating) {
 				ShowNotificationBar(TEXT("このチャンネルは放送休止中です"),
-									CNotificationBar::MESSAGE_ERROR);
+									CNotificationBar::MESSAGE_INFO);
 			}
 
 			delete pInfo;
@@ -6240,15 +6258,17 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return 0;
 
 	case WM_APP_QUERYPORT:
-#ifdef NETWORK_REMOCON_SUPPORT
 		// 使っているポートを返す
 		if (!m_fClosing && CoreEngine.IsNetworkDriver()) {
 			WORD Port=ChannelManager.GetCurrentChannel()+
 										(CoreEngine.IsUDPDriver()?1234:2230);
+#ifdef NETWORK_REMOCON_SUPPORT
 			WORD RemoconPort=pNetworkRemocon!=NULL?pNetworkRemocon->GetPort():0;
 			return MAKELRESULT(Port,RemoconPort);
-		}
+#else
+			return MAKELRESULT(Port,0);
 #endif
+		}
 		return 0;
 
 	case WM_APP_FILEWRITEERROR:
@@ -6403,6 +6423,8 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		NotifyBalloonTip.Finalize();
 
 		fEnablePlay=IsViewerEnabled();
+
+		AppMain.SaveChannelSettings();
 
 		CoreEngine.m_DtvEngine.SetTracer(&Logger);
 		CoreEngine.Close();
@@ -8352,7 +8374,7 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 bool CMainWindow::UpdateProgramInfo()
 {
 	const bool fNext=InfoPanel.GetProgramInfoNext();
-	TCHAR szText[2048],szTemp[1024];
+	TCHAR szText[4096],szTemp[1024];
 	CStaticStringFormatter Formatter(szText,lengthof(szText));
 
 	if (fNext)
@@ -9739,19 +9761,36 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 {
 	CCommandLineOptions CmdLine;
 
-	SendCommand(CM_SHOW);
 	PluginManager.SendExecuteEvent(pszCmdLine);
+
 	CmdLine.Parse(pszCmdLine);
+
+	if (!CmdLine.m_fMinimize && !CmdLine.m_fTray) {
+		SendCommand(CM_SHOW);
+
+		if (CmdLine.m_fFullscreen)
+			m_pCore->SetFullscreen(true);
+		else if (CmdLine.m_fMaximize)
+			SetMaximize(true);
+	}
+
 	if (CmdLine.m_fSilent || CmdLine.m_TvRockDID>=0)
 		AppMain.SetSilent(true);
 	if (CmdLine.m_fSaveLog)
 		CmdLineOptions.m_fSaveLog=true;
-	if (CmdLine.m_fFullscreen)
-		m_pCore->SetFullscreen(true);
-	if (!CmdLine.m_DriverName.IsEmpty())
-		AppMain.SetDriver(CmdLine.m_DriverName.Get());
-	if (CmdLine.IsChannelSpecified())
-		SetCommandLineChannel(&CmdLine);
+
+	if (!CmdLine.m_DriverName.IsEmpty()) {
+		if (AppMain.SetDriver(CmdLine.m_DriverName.Get())) {
+			if (CmdLine.IsChannelSpecified())
+				SetCommandLineChannel(&CmdLine);
+			else
+				AppMain.RestoreChannel();
+		}
+	} else {
+		if (CmdLine.IsChannelSpecified())
+			SetCommandLineChannel(&CmdLine);
+	}
+
 	if (CmdLine.m_fRecord) {
 		if (CmdLine.m_fRecordCurServiceOnly)
 			CmdLineOptions.m_fRecordCurServiceOnly=true;
@@ -9759,12 +9798,15 @@ bool CMainWindow::OnExecute(LPCTSTR pszCmdLine)
 						  &CmdLine.m_RecordStartTime,
 						  CmdLine.m_RecordDelay,
 						  CmdLine.m_RecordDuration);
-	} else if (CmdLine.m_fRecordStop)
+	} else if (CmdLine.m_fRecordStop) {
 		AppMain.StopRecord();
+	}
+
 	if (CmdLine.m_Volume>=0)
 		m_pCore->SetVolume(min(CmdLine.m_Volume,CCoreEngine::MAX_VOLUME),false);
 	if (CmdLine.m_fMute)
 		m_pCore->SetMute(true);
+
 	return true;
 }
 
@@ -9985,6 +10027,8 @@ bool CMainWindow::SetViewWindowEdge(bool fEdge)
 
 bool CMainWindow::GetOSDWindow(HWND *phwndParent,RECT *pRect,bool *pfForcePseudoOSD)
 {
+	if (!GetVisible() || ::IsIconic(m_hwnd))
+		return false;
 	if (m_Viewer.GetVideoContainer().GetVisible()) {
 		*phwndParent=m_Viewer.GetVideoContainer().GetHandle();
 	} else {
@@ -10472,14 +10516,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 	if (fShowPanelWindow && PanelForm.GetCurPageID()==PANEL_ID_CHANNEL)
 		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList(),false);
 
-	{
-		CSettingsFile SettingsFile;
-
-		SettingsFile.Open(AppMain.GetIniFileName(),CSettingsFile::OPEN_READ);
-		Accelerator.Initialize(MainWindow.GetHandle(),&MainMenu,
-							   SettingsFile,&CommandList);
-		OperationOptions.Initialize(SettingsFile,&CommandList);
-	}
+	AppMain.InitializeCommandSettings();
 
 	SetFocus(MainWindow.GetHandle());
 

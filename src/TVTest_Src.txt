@@ -1,17 +1,17 @@
 
 
-    TVTest ver.0.7.21r2 ソース
+    TVTest ver.0.7.22 ソース
 
 
 ◆ ファイル構成
 
-  ・TVTest_0.7.21r2_Src.zip  ソースファイル
-  ・TVTest_SDK_110123.zip    プラグイン開発用 SDK
+  ・TVTest_0.7.22_Src.zip  ソースファイル
+  ・TVTest_SDK_110123.zip  プラグイン開発用 SDK
 
 
 ◆ ソースについて
 
-  Visual Studio 2010 と 2008 のプロジェクトファイルが付いています。
+  Visual Studio 2010 のプロジェクトファイルが付いています。
   (こちらでは普段 Visual Studio 2010 SP1 と Intel C++ Composer XE 2011 でビルド
    しています)
   一部 ATL を使用しているので Express Edition ではビルドできないと思います。

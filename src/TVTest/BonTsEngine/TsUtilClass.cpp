@@ -18,7 +18,7 @@ static char THIS_FILE[]=__FILE__;
 //////////////////////////////////////////////////////////////////////
 
 CDynamicReferenceable::CDynamicReferenceable()
-	: m_dwRefCount(0UL)
+	: m_RefCount(0)
 {
 
 }
@@ -31,26 +31,26 @@ CDynamicReferenceable::~CDynamicReferenceable()
 void CDynamicReferenceable::AddRef(void)
 {
 	// 参照カウントインクリメント
-	m_dwRefCount++;
+	::InterlockedIncrement(&m_RefCount);
 }
 
 void CDynamicReferenceable::ReleaseRef(void)
 {
 	// 参照カウントデクリメント
-	if(m_dwRefCount){
+#ifndef _DEBUG
+	if (::InterlockedDecrement(&m_RefCount) == 0) {
 		// インスタンス開放
-		if(!(--m_dwRefCount))delete this;
-		}
-#ifdef _DEBUG
-	else{
+		delete this;
+	}
+#else
+	const LONG Count = ::InterlockedDecrement(&m_RefCount);
+	if (Count == 0) {
+		// インスタンス開放
+		delete this;
+	} else if (Count < 0) {
 		::DebugBreak();
-		}
+	}
 #endif
-}
-
-DWORD CDynamicReferenceable::GetRefCount(void) const
-{
-	return m_dwRefCount;
 }
 
 
@@ -82,22 +82,25 @@ void CCriticalLock::Unlock(void)
 	::LeaveCriticalSection(&m_CriticalSection);
 }
 
-// 手抜きのためにTimeOutより実際の待ち時間は増える
 bool CCriticalLock::TryLock(DWORD TimeOut)
 {
-	bool bLocked=false;
+	bool bLocked = false;
 
-	if (TimeOut==0) {
+	if (TimeOut == 0) {
 		if (::TryEnterCriticalSection(&m_CriticalSection))
-			bLocked=true;
+			bLocked = true;
 	} else {
-		for (DWORD i=TimeOut;i>0;i--) {
+		// こういうのは無理に Critical section 使わない方がいいかも...
+		const DWORD StartTime = ::GetTickCount();
+		while (true) {
 			if (::TryEnterCriticalSection(&m_CriticalSection)) {
-				bLocked=true;
+				bLocked = true;
 				break;
 			}
-			Sleep(1);
-		}
+			if (::GetTickCount() - StartTime >= TimeOut)
+				break;
+			::Sleep(1);
+		};
 	}
 	return bLocked;
 }

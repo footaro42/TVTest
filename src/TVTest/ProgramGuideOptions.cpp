@@ -40,11 +40,9 @@ CProgramGuideOptions::~CProgramGuideOptions()
 }
 
 
-bool CProgramGuideOptions::LoadSettings(CSettingsFile &File)
+bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (File.OpenSection(&Settings,TEXT("ProgramGuide"))) {
+	if (Settings.SetSection(TEXT("ProgramGuide"))) {
 		int Value;
 
 		Settings.Read(TEXT("OnScreen"),&m_fOnScreen);
@@ -161,11 +159,9 @@ bool CProgramGuideOptions::LoadSettings(CSettingsFile &File)
 		Settings.Read(TEXT("SearchWidth"),&Width);
 		Settings.Read(TEXT("SearchHeight"),&Height);
 		pProgramSearch->SetPosition(Left,Top,Width,Height);
-
-		Settings.Close();
 	}
 
-	if (File.OpenSection(&Settings,TEXT("ProgramGuideTools"))) {
+	if (Settings.SetSection(TEXT("ProgramGuideTools"))) {
 		unsigned int NumTools;
 
 		if (Settings.Read(TEXT("ToolCount"),&NumTools) && NumTools>0) {
@@ -187,18 +183,15 @@ bool CProgramGuideOptions::LoadSettings(CSettingsFile &File)
 				pToolList->Add(new CProgramGuideTool(szToolName,szCommand));
 			}
 		}
-		Settings.Close();
 	}
 
 	return true;
 }
 
 
-bool CProgramGuideOptions::SaveSettings(CSettingsFile &File)
+bool CProgramGuideOptions::SaveSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (File.OpenSection(&Settings,TEXT("ProgramGuide"))) {
+	if (Settings.SetSection(TEXT("ProgramGuide"))) {
 		Settings.Write(TEXT("OnScreen"),m_fOnScreen);
 		Settings.Write(TEXT("BeginHour"),m_BeginHour);
 		Settings.Write(TEXT("ViewHours"),m_ViewHours);
@@ -245,11 +238,9 @@ bool CProgramGuideOptions::SaveSettings(CSettingsFile &File)
 		Settings.Write(TEXT("SearchTop"),Top);
 		Settings.Write(TEXT("SearchWidth"),Width);
 		Settings.Write(TEXT("SearchHeight"),Height);
-
-		Settings.Close();
 	}
 
-	if (File.OpenSection(&Settings,TEXT("ProgramGuideTools"))) {
+	if (Settings.SetSection(TEXT("ProgramGuideTools"))) {
 		const CProgramGuideToolList *pToolList=m_pProgramGuide->GetToolList();
 
 		Settings.Clear();
@@ -263,7 +254,6 @@ bool CProgramGuideOptions::SaveSettings(CSettingsFile &File)
 			::wsprintf(szName,TEXT("Tool%u_Command"),(UINT)i);
 			Settings.Write(szName,pTool->GetCommand());
 		}
-		Settings.Close();
 	}
 
 	return true;

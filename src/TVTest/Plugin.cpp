@@ -2931,11 +2931,9 @@ CPluginOptions::~CPluginOptions()
 }
 
 
-bool CPluginOptions::LoadSettings(CSettingsFile &File)
+bool CPluginOptions::LoadSettings(CSettings &Settings)
 {
-	CSettings Settings;
-
-	if (File.OpenSection(&Settings,TEXT("PluginList"))) {
+	if (Settings.SetSection(TEXT("PluginList"))) {
 		int Count;
 
 		if (Settings.Read(TEXT("PluginCount"),&Count) && Count>0) {
@@ -2955,29 +2953,28 @@ bool CPluginOptions::LoadSettings(CSettingsFile &File)
 				}
 			}
 		}
-		Settings.Close();
 	}
+
 	return true;
 }
 
 
-bool CPluginOptions::SaveSettings(CSettingsFile &File)
+bool CPluginOptions::SaveSettings(CSettings &Settings)
 {
-	CSettings Settings;
+	if (!Settings.SetSection(TEXT("PluginList")))
+		return false;
 
-	if (File.OpenSection(&Settings,TEXT("PluginList"))) {
-		Settings.Clear();
-		Settings.Write(TEXT("PluginCount"),(unsigned int)m_EnablePluginList.size());
-		for (size_t i=0;i<m_EnablePluginList.size();i++) {
-			TCHAR szName[32];
+	Settings.Clear();
+	Settings.Write(TEXT("PluginCount"),(unsigned int)m_EnablePluginList.size());
+	for (size_t i=0;i<m_EnablePluginList.size();i++) {
+		TCHAR szName[32];
 
-			::wsprintf(szName,TEXT("Plugin%d_Name"),i);
-			Settings.Write(szName,m_EnablePluginList[i]);
-			::wsprintf(szName,TEXT("Plugin%d_Enable"),i);
-			Settings.Write(szName,true);
-		}
-		Settings.Close();
+		::wsprintf(szName,TEXT("Plugin%d_Name"),i);
+		Settings.Write(szName,m_EnablePluginList[i]);
+		::wsprintf(szName,TEXT("Plugin%d_Enable"),i);
+		Settings.Write(szName,true);
 	}
+
 	return true;
 }
 

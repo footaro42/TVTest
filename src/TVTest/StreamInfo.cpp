@@ -383,11 +383,10 @@ void CStreamInfo::SetService()
 				else
 					Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("サービス%d"),i+1);
 				StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
-								  TEXT(",%d,%d,%d,%d,%d,%d,%d"),
+								  TEXT(",%d,%d,%d,,%d,%d,%d"),
 								  pChannelInfo->GetSpace(),
 								  pChannelInfo->GetChannelIndex(),
 								  RemoteControlKeyID,
-								  i,
 								  pServiceInfo->ServiceID,NID,TSID);
 				tvis.item.pszText=szText;
 				TreeView_InsertItem(hwndTree,&tvis);

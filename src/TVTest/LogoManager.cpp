@@ -449,21 +449,29 @@ void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
 
 	const ULONGLONG Key=GetMapKey(pData->OriginalNetworkID,pData->LogoID,pData->LogoType);
 	LogoMap::iterator itr=m_LogoMap.find(Key);
-	bool fUpdated=false;
+	bool fUpdated=false,fDataUpdated=false;
 	CLogoData *pLogoData;
 	if (itr!=m_LogoMap.end()) {
 		// バージョンが新しい場合のみ更新
 		if (CompareLogoVersion(itr->second->GetLogoVersion(),pData->LogoVersion)<0) {
-			pLogoData=new CLogoData(pData);
-			delete itr->second;
-			itr->second=pLogoData;
-			//m_LogoMap[Key]=pLogoData;
+			// BS/CSはバージョンが共通のため、データを比較して更新を確認する
+			if (pData->DataSize!=itr->second->GetDataSize()
+					|| ::memcmp(pData->pData,itr->second->GetData(),pData->DataSize)!=0) {
+				pLogoData=new CLogoData(pData);
+				delete itr->second;
+				itr->second=pLogoData;
+				//m_LogoMap[Key]=pLogoData;
+				fDataUpdated=true;
+			} else {
+				itr->second->SetLogoVersion(pData->LogoVersion);
+			}
 			fUpdated=true;
 		}
 	} else {
 		pLogoData=new CLogoData(pData);
 		m_LogoMap.insert(std::pair<ULONGLONG,CLogoData*>(Key,pLogoData));
 		fUpdated=true;
+		fDataUpdated=true;
 	}
 
 	if (fUpdated)
@@ -476,7 +484,7 @@ void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
 		}
 	}
 
-	if (fUpdated && (m_fSaveLogo || m_fSaveBmp)) {
+	if (fDataUpdated && (m_fSaveLogo || m_fSaveBmp)) {
 		TCHAR szFilePath[MAX_PATH],szDirectory[MAX_PATH],szFileName[MAX_PATH];
 
 		if (!GetAbsolutePath(m_szLogoDirectory,szDirectory,lengthof(szDirectory)))

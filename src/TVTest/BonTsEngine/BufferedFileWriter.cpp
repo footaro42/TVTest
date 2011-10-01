@@ -1,5 +1,4 @@
 #include "stdafx.h"
-#include <new>
 #include "BufferedFileWriter.h"
 
 #ifdef _DEBUG
@@ -23,7 +22,6 @@ CBufferedFileWriter::CBufferedFileWriter(IEventHandler *pEventHandler)
 	, m_MaxPendingSize(0x20000000)
 	, m_hThread(NULL)
 {
-	m_EndEvent.Create();
 }
 
 
@@ -60,7 +58,7 @@ const bool CBufferedFileWriter::InputMedia(CMediaData *pMediaData, const DWORD d
 }
 
 
-CNCachedFile *CBufferedFileWriter::CreateNewFile(LPCTSTR pszFileName, BYTE Flags)
+CNCachedFile *CBufferedFileWriter::CreateNewFile(LPCTSTR pszFileName, UINT Flags)
 {
 	CNCachedFile *pFile = new CNCachedFile;
 
@@ -76,7 +74,7 @@ CNCachedFile *CBufferedFileWriter::CreateNewFile(LPCTSTR pszFileName, BYTE Flags
 }
 
 
-const bool CBufferedFileWriter::OpenFile(LPCTSTR pszFileName, BYTE Flags)
+const bool CBufferedFileWriter::OpenFile(LPCTSTR pszFileName, UINT Flags)
 {
 	if (!pszFileName) {
 		SetError(TEXT("引数が不正です。"));
@@ -99,7 +97,7 @@ const bool CBufferedFileWriter::OpenFile(LPCTSTR pszFileName, BYTE Flags)
 	m_bPause = false;
 
 	// 書き出しスレッド開始
-	m_EndEvent.Reset();
+	m_EndEvent.Create();
 	m_hThread = (HANDLE)::_beginthreadex(NULL, 0, ThreadProc, this, 0, NULL);
 	if (!m_hThread) {
 		CloseFile();
@@ -113,7 +111,7 @@ const bool CBufferedFileWriter::OpenFile(LPCTSTR pszFileName, BYTE Flags)
 }
 
 
-const bool CBufferedFileWriter::RelayFile(LPCTSTR pszFileName, BYTE Flags)
+const bool CBufferedFileWriter::RelayFile(LPCTSTR pszFileName, UINT Flags)
 {
 	if (!pszFileName) {
 		SetError(TEXT("引数が不正です。"));
@@ -146,12 +144,17 @@ void CBufferedFileWriter::CloseFile(void)
 
 	// 書き出しスレッド終了
 	if (m_hThread) {
+		Trace(TEXT("ファイル書き出しスレッドを停止しています..."));
 		m_EndEvent.Set();
-		if (::WaitForSingleObject(m_hThread, 10000) != WAIT_OBJECT_0)
+		if (::WaitForSingleObject(m_hThread, 10000) != WAIT_OBJECT_0) {
+			Trace(TEXT("ファイル書き出しスレッドが応答しないため強制終了します。"));
 			::TerminateThread(m_hThread, -1);
+		}
 		::CloseHandle(m_hThread);
 		m_hThread = NULL;
 	}
+
+	m_EndEvent.Close();
 
 	// ファイルを閉じる
 	if (m_pOutFile) {
@@ -339,7 +342,7 @@ bool CBufferedFileWriter::PushData(const BYTE *pData, SIZE_T DataSize)
 				&& m_WriteQueue.size() * m_QueueBlockSize < m_MaxPendingSize)) {
 		try {
 			Info.pData = new BYTE[m_QueueBlockSize];
-		} catch (std::bad_alloc) {
+		} catch (...) {
 			return false;
 		}
 	} else {
@@ -357,10 +360,11 @@ bool CBufferedFileWriter::PushData(const BYTE *pData, SIZE_T DataSize)
 unsigned int __stdcall CBufferedFileWriter::ThreadProc(LPVOID lpParameter)
 {
 	CBufferedFileWriter *pThis = static_cast<CBufferedFileWriter*>(lpParameter);
+	DWORD Wait = 0;
 
-	while (!pThis->m_EndEvent.IsSignaled()) {
+	while (pThis->m_EndEvent.Wait(Wait) == WAIT_TIMEOUT) {
 		if (pThis->m_bPause) {
-			::Sleep(100);
+			Wait = 100;
 			continue;
 		}
 
@@ -376,17 +380,19 @@ unsigned int __stdcall CBufferedFileWriter::ThreadProc(LPVOID lpParameter)
 			if (bResult) {
 				pThis->m_llWriteSize += Info.Size;
 				pThis->m_llWriteCount++;
+				Wait = 0;
 			} else {
 				if (!pThis->m_bWriteError) {
 					pThis->SendDecoderEvent(EID_WRITE_ERROR);
 					pThis->m_bWriteError = true;
 				}
+				Wait = 10;
 			}
 		} else {
 			pThis->m_QueueLock.Unlock();
-			::Sleep(50);
+			Wait = 50;
 		}
-	}
+	};
 
 	return 0;
 }

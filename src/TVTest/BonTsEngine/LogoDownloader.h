@@ -2,6 +2,7 @@
 
 
 #include <vector>
+#include <map>
 #include "MediaDecoder.h"
 #include "TsTable.h"
 
@@ -17,8 +18,8 @@ public:
 	virtual ~CLogoDownloader();
 
 // IMediaDecoder
-	virtual void Reset(void);
-	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
+	virtual void Reset(void) override;
+	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL) override;
 
 // CLogoDownloader
 	struct LogoService {
@@ -48,9 +49,9 @@ public:
 
 private:
 // CPsiStreamTable::ISectionHandler
-	virtual void OnSection(CPsiStreamTable *pTable, const CPsiSection *pSection);
+	virtual void OnSection(CPsiStreamTable *pTable, const CPsiSection *pSection) override;
 
-	static void CALLBACK OnLogoDataModule(const LogoData *pData, void *pParam);
+	static void CALLBACK OnLogoDataModule(LogoData *pData, DWORD DownloadID, void *pParam);
 
 	static void CALLBACK OnPatUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
 	static void CALLBACK OnPmtUpdated(const WORD wPID, CTsPidMapTarget *pMapTarget, CTsPidMapManager *pMapManager, const PVOID pParam);
@@ -71,4 +72,6 @@ private:
 		std::vector<WORD> EsList;
 	};
 	std::vector<ServiceInfo> m_ServiceList;
+
+	std::map<DWORD, WORD> m_VersionMap;
 };

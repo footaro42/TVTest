@@ -59,6 +59,7 @@ private:
 		WORD GetOriginalNetworkID() const { return m_OriginalNetworkID; }
 		WORD GetLogoID() const { return m_LogoID; }
 		WORD GetLogoVersion() const { return m_LogoVersion; }
+		void SetLogoVersion(WORD Version) { m_LogoVersion=Version; }
 		BYTE GetLogoType() const { return m_LogoType; }
 		WORD GetDataSize() const { return m_DataSize; }
 		const BYTE *GetData() const { return m_pData; }

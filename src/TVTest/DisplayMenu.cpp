@@ -235,7 +235,8 @@ void CChannelDisplayMenu::LoadSettings()
 
 	GetAppClass().GetAppDirectory(szIniFileName);
 	::PathAppend(szIniFileName,TEXT("Tuner.ini"));
-	if (Settings.Open(szIniFileName,TEXT("TunerSettings"),CSettings::OPEN_READ)) {
+	if (Settings.Open(szIniFileName,CSettings::OPEN_READ)
+			&& Settings.SetSection(TEXT("TunerSettings"))) {
 		m_TunerInfoList.clear();
 		for (int i=0;;i++) {
 			TCHAR szName[64],*p;
@@ -279,7 +280,6 @@ void CChannelDisplayMenu::LoadSettings()
 				Info.fUseDriverChannel=false;
 			m_TunerInfoList.push_back(Info);
 		}
-		Settings.Close();
 	}
 }
 

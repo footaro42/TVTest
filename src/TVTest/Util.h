@@ -3,31 +3,8 @@
 
 
 #include "HelperClass/StdUtil.h"
+#include "StringUtility.h"
 
-
-LONGLONG StringToInt64(LPCTSTR pszString);
-ULONGLONG StringToUInt64(LPCTSTR pszString);
-bool Int64ToString(LONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
-bool UInt64ToString(ULONGLONG Value,LPTSTR pszString,int MaxLength,int Radix=10);
-
-__declspec(restrict) LPSTR DuplicateString(LPCSTR pszString);
-__declspec(restrict) LPWSTR DuplicateString(LPCWSTR pszString);
-bool ReplaceString(LPSTR *ppszString,LPCSTR pszNewString);
-bool ReplaceString(LPWSTR *ppszString,LPCWSTR pszNewString);
-int RemoveTrailingWhitespace(LPTSTR pszString);
-
-inline bool IsStringEmpty(LPCSTR pszString) {
-	return pszString==NULL || pszString[0]=='\0';
-}
-inline bool IsStringEmpty(LPCWSTR pszString) {
-	return pszString==NULL || pszString[0]==L'\0';
-}
-inline LPCSTR NullToEmptyString(LPCSTR pszString) {
-	return pszString!=NULL?pszString:"";
-}
-inline LPCWSTR NullToEmptyString(LPCWSTR pszString) {
-	return pszString!=NULL?pszString:L"";
-}
 
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2);
 
@@ -179,6 +156,24 @@ public:
 	void SetCurrentTime();
 	bool GetTime(FILETIME *pTime) const;
 	bool GetTime(SYSTEMTIME *pTime) const;
+};
+
+class CGlobalLock
+{
+	HANDLE m_hMutex;
+	bool m_fOwner;
+
+	// delete
+	CGlobalLock(const CGlobalLock &);
+	CGlobalLock &operator=(const CGlobalLock &);
+
+public:
+	CGlobalLock();
+	~CGlobalLock();
+	bool Create(LPCTSTR pszName);
+	bool Wait(DWORD Timeout=INFINITE);
+	void Close();
+	void Release();
 };
 
 namespace Util

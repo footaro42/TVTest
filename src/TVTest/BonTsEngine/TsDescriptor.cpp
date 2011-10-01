@@ -14,6 +14,12 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+inline DWORD MSBFirst32(const BYTE *p)
+{
+	return ((DWORD)p[0] << 24) | ((DWORD)p[1] << 16) | ((DWORD)p[2] << 8) | (DWORD)p[3];
+}
+
+
 /////////////////////////////////////////////////////////////////////////////
 // 記述子の基底クラス
 /////////////////////////////////////////////////////////////////////////////
@@ -1794,6 +1800,115 @@ const bool CLocalTimeOffsetDesc::StoreContents(const BYTE *pPayload)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0xC9] Download Content 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CDownloadContentDesc::CDownloadContentDesc()
+{
+	Reset();
+}
+
+CDownloadContentDesc::CDownloadContentDesc(const CDownloadContentDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CDownloadContentDesc & CDownloadContentDesc::operator = (const CDownloadContentDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CDownloadContentDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CDownloadContentDesc *pSrcDesc = dynamic_cast<const CDownloadContentDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_Info = pSrcDesc->m_Info;
+	}
+}
+
+void CDownloadContentDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	::ZeroMemory(&m_Info, sizeof(m_Info));
+}
+
+bool CDownloadContentDesc::GetReboot() const
+{
+	return m_Info.bReboot;
+}
+
+bool CDownloadContentDesc::GetAddOn() const
+{
+	return m_Info.bAddOn;
+}
+
+DWORD CDownloadContentDesc::GetComponentSize() const
+{
+	return m_Info.ComponentSize;
+}
+
+DWORD CDownloadContentDesc::GetDownloadID() const
+{
+	return m_Info.DownloadID;
+}
+
+DWORD CDownloadContentDesc::GetTimeOutValueDII() const
+{
+	return m_Info.TimeOutValueDII;
+}
+
+DWORD CDownloadContentDesc::GetLeakRate() const
+{
+	return m_Info.LeakRate;
+}
+
+BYTE CDownloadContentDesc::GetComponentTag() const
+{
+	return m_Info.ComponentTag;
+}
+
+const bool CDownloadContentDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 18)
+		return false;
+
+	m_Info.bReboot = (pPayload[0] & 0x80) != 0;
+	m_Info.bAddOn = (pPayload[0] & 0x40) != 0;
+	m_Info.bCompatibilityFlag = (pPayload[0] & 0x20) != 0;
+	m_Info.bModuleInfoFlag = (pPayload[0] & 0x10) != 0;
+	m_Info.bTextInfoFlag = (pPayload[0] & 0x80) != 0;
+	m_Info.ComponentSize = MSBFirst32(&pPayload[1]);
+	m_Info.DownloadID = MSBFirst32(&pPayload[5]);
+	m_Info.TimeOutValueDII = MSBFirst32(&pPayload[9]);
+	m_Info.LeakRate = ((DWORD)pPayload[13] << 14) | ((DWORD)pPayload[14] << 6) | (DWORD)(pPayload[15] >> 2);
+	m_Info.ComponentTag = pPayload[16];
+
+	// 未使用なのでとりあえず後回し
+	/*
+	if (m_Info.bCompatibilityFlag) {
+	}
+
+	if (m_Info.bModuleInfoFlag) {
+	}
+
+	//private_data_length
+	//private_data_byte
+
+	if (m_Info.bTextInfoFlag) {
+	}
+	*/
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
@@ -1941,6 +2056,7 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 	case CSeriesDesc::DESC_TAG						: return new CSeriesDesc;
 	case CEventGroupDesc::DESC_TAG					: return new CEventGroupDesc;
 	case CLocalTimeOffsetDesc::DESC_TAG				: return new CLocalTimeOffsetDesc;
+	case CDownloadContentDesc::DESC_TAG				: return new CDownloadContentDesc;
 	default											: return new CBaseDesc;
 	}
 }

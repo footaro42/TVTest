@@ -169,7 +169,7 @@ void CEventInfoPopup::SetEventInfo(const CEventInfoData *pEventInfo)
 		}
 	}
 
-	TCHAR szText[2048];
+	TCHAR szText[4096];
 	CStaticStringFormatter Formatter(szText,lengthof(szText));
 	Formatter.AppendFormat(TEXT("%s%s%s"),
 						   NullToEmptyString(m_EventInfo.GetEventText()),

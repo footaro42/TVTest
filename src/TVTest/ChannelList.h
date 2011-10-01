@@ -29,6 +29,7 @@ public:
 	int GetSpace() const { return m_Space; }
 	bool SetSpace(int Space);
 	int GetChannelIndex() const { return m_ChannelIndex; }
+	bool SetChannelIndex(int Channel);
 	bool SetChannelNo(int ChannelNo);
 	int GetChannelNo() const { return m_ChannelNo; }
 	int GetPhysicalChannel() const { return m_PhysicalChannel; }
@@ -47,16 +48,14 @@ public:
 
 class CChannelList
 {
-	int m_NumChannels;
-	class CChannelInfo **m_ppList;
-	int m_ListLength;
+	std::vector<CChannelInfo*> m_ChannelList;
 
 public:
 	CChannelList();
-	CChannelList(const CChannelList &List);
+	CChannelList(const CChannelList &Src);
 	~CChannelList();
-	CChannelList &operator=(const CChannelList &List);
-	int NumChannels() const { return m_NumChannels; }
+	CChannelList &operator=(const CChannelList &Src);
+	int NumChannels() const { return (int)m_ChannelList.size(); }
 	int NumEnableChannels() const;
 	bool AddChannel(const CChannelInfo &Info);
 	bool AddChannel(CChannelInfo *pInfo);
@@ -72,7 +71,7 @@ public:
 	void Clear();
 	int Find(const CChannelInfo *pInfo) const;
 	int Find(int Space,int ChannelIndex,int ServiceID=-1) const;
-	int FindChannel(int Channel) const;
+	int FindPhysicalChannel(int Channel) const;
 	int FindChannelNo(int No) const;
 	int FindServiceID(WORD ServiceID) const;
 	int GetNextChannelNo(int ChannelNo,bool fWrap=false) const;
@@ -85,16 +84,14 @@ public:
 		SORT_PHYSICALCHANNEL,
 		SORT_NAME,
 		SORT_NETWORKID,
-		SORT_SERVICEID
+		SORT_SERVICEID,
+		SORT_TRAILER
 	};
-	void Sort(SortType Type,bool fDescending=false);
+	bool Sort(SortType Type,bool fDescending=false);
 	bool UpdateStreamInfo(int Space,int ChannelIndex,
 		WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool HasRemoteControlKeyID() const;
 	bool HasMultiService() const;
-
-private:
-	void SortSub(SortType Type,bool fDescending,int First,int Last,CChannelInfo **ppTemp);
 };
 
 class CTuningSpaceInfo
@@ -121,6 +118,8 @@ public:
 	bool Create(const CChannelList *pList=NULL,LPCTSTR pszName=NULL);
 	CChannelList *GetChannelList() { return m_pChannelList; }
 	const CChannelList *GetChannelList() const { return m_pChannelList; }
+	CChannelInfo *GetChannelInfo(int Index);
+	const CChannelInfo *GetChannelInfo(int Index) const;
 	LPCTSTR GetName() const { return m_Name.Get(); }
 	bool SetName(LPCTSTR pszName);
 	TuningSpaceType GetType() const { return m_Space; }
@@ -139,6 +138,7 @@ public:
 	~CTuningSpaceList();
 	CTuningSpaceList &operator=(const CTuningSpaceList &List);
 	int NumSpaces() const { return (int)m_TuningSpaceList.size(); }
+	bool IsEmpty() const { return m_TuningSpaceList.empty(); }
 	CTuningSpaceInfo *GetTuningSpaceInfo(int Space);
 	const CTuningSpaceInfo *GetTuningSpaceInfo(int Space) const;
 	CChannelList *GetChannelList(int Space);

@@ -81,11 +81,10 @@ private:
 
 	HANDLE m_hStreamRecvThread;
 	CCriticalLock m_StreamLock;
-	volatile bool m_bKillSignal;
+	CLocalEvent m_EndEvent;
 	volatile bool m_bPauseSignal;
 
 	volatile bool m_bIsPlaying;
-	DWORD m_dwLastError;
 
 	CBitRateCalculator m_BitRateCalculator;
 	DWORD m_StreamRemain;

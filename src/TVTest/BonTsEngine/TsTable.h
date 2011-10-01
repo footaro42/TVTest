@@ -527,6 +527,63 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// SDTTテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CSdttTable : public CPsiStreamTable
+{
+public:
+	enum { TABLE_ID = 0xC3 };
+
+	struct ScheduleDescription
+	{
+		SYSTEMTIME StartTime;				// start_time
+		DWORD Duration;						// duration
+	};
+
+	struct ContentInfo
+	{
+		BYTE GroupID;						// group_id
+		WORD TargetVersion;					// target_version
+		WORD NewVersion;					// new_version
+		BYTE DownloadLevel;					// donwload_level
+		BYTE VersionIndicator;				// version_indicator
+		BYTE ScheduleTimeShiftInformation;	// schedule_time-shift_information
+		std::vector<ScheduleDescription> ScheduleList;
+		CDescBlock DescBlock;				// 記述子領域
+	};
+
+	CSdttTable(ISectionHandler *pHandler = NULL);
+	virtual ~CSdttTable();
+
+// CPsiStreamTable
+	virtual void Reset(void);
+
+// CSdttTable
+	const BYTE GetMakerID() const;
+	const BYTE GetModelID() const;
+	const bool IsCommon() const;
+	const WORD GetTransportStreamID() const;
+	const WORD GetOriginalNetworkID() const;
+	const WORD GetServiceID() const;
+	const BYTE GetNumOfContents() const;
+	const ContentInfo * GetContentInfo(const BYTE Index) const;
+	const bool IsSchedule(DWORD Index) const;
+	const CDescBlock * GetContentDesc(DWORD Index) const;
+
+protected:
+	virtual const bool OnTableUpdate(const CPsiSection *pCurSection);
+
+	BYTE m_MakerID;				// maker_id
+	BYTE m_ModelID;				// model_id
+	WORD m_TransportStreamID;	// transport_stream_id
+	WORD m_OriginalNetworkID;	// original_network_id
+	WORD m_ServiceID;			// service_id
+	std::vector<ContentInfo> m_ContentList;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PCR抽象化クラス
 // 元々Demuxの箇所にあったものだが使ってないようだったので、Table側に移動
 // 現時点で使えるものとは言い難い

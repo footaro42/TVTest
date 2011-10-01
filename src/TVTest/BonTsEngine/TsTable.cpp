@@ -1527,6 +1527,168 @@ const bool CCdtTable::OnTableUpdate(const CPsiSection *pCurSection)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// SDTTテーブル抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CSdttTable::CSdttTable(ISectionHandler *pHandler)
+	: CPsiStreamTable(pHandler)
+{
+	Reset();
+}
+
+CSdttTable::~CSdttTable()
+{
+}
+
+void CSdttTable::Reset(void)
+{
+	CPsiStreamTable::Reset();
+	m_MakerID = 0;
+	m_ModelID = 0;
+	m_TransportStreamID = 0xFFFF;
+	m_OriginalNetworkID = 0xFFFF;
+	m_ServiceID = 0xFFFF;
+	m_ContentList.clear();
+}
+
+const BYTE CSdttTable::GetMakerID() const
+{
+	return m_MakerID;
+}
+
+const BYTE CSdttTable::GetModelID() const
+{
+	return m_ModelID;
+}
+
+const bool CSdttTable::IsCommon() const
+{
+	return m_MakerID == 0xFF && m_ModelID == 0xFE;
+}
+
+const WORD CSdttTable::GetTransportStreamID() const
+{
+	return m_TransportStreamID;
+}
+
+const WORD CSdttTable::GetOriginalNetworkID() const
+{
+	return m_OriginalNetworkID;
+}
+
+const WORD CSdttTable::GetServiceID() const
+{
+	return m_ServiceID;
+}
+
+const BYTE CSdttTable::GetNumOfContents() const
+{
+	return (BYTE)m_ContentList.size();
+}
+
+const CSdttTable::ContentInfo * CSdttTable::GetContentInfo(const BYTE Index) const
+{
+	if ((size_t)Index >= m_ContentList.size())
+		return NULL;
+
+	return &m_ContentList[Index];
+}
+
+const bool CSdttTable::IsSchedule(DWORD Index) const
+{
+	if (Index >= m_ContentList.size())
+		return false;
+
+	return !m_ContentList[Index].ScheduleList.empty();
+}
+
+const CDescBlock * CSdttTable::GetContentDesc(DWORD Index) const
+{
+	if (Index >= m_ContentList.size())
+		return NULL;
+
+	return &m_ContentList[Index].DescBlock;
+}
+
+const bool CSdttTable::OnTableUpdate(const CPsiSection *pCurSection)
+{
+	const WORD DataSize = pCurSection->GetPayloadSize();
+	const BYTE *pHexData = pCurSection->GetPayloadData();
+
+	if (DataSize < 7)
+		return false;
+	if (pCurSection->GetTableID() != TABLE_ID)
+		return false;
+
+	m_MakerID = (BYTE)(pCurSection->GetTableIdExtension() >> 8);
+	m_ModelID = (BYTE)(pCurSection->GetTableIdExtension() & 0xFF);
+	m_TransportStreamID = ((WORD)pHexData[0] << 8) | (WORD)pHexData[1];
+	m_OriginalNetworkID = ((WORD)pHexData[2] << 8) | (WORD)pHexData[3];
+	m_ServiceID = ((WORD)pHexData[4] << 8) | (WORD)pHexData[5];
+
+	/*
+	TRACE(TEXT("\n------- SDTT -------\nMaker 0x%02x / Model 0x%02x / TSID 0x%04x / NID %d / SID 0x%04x\n"),
+		  m_MakerID, m_ModelID, m_TransportStreamID, m_OriginalNetworkID, m_ServiceID);
+	*/
+
+	m_ContentList.clear();
+	const int NumOfContents = pHexData[6];
+	DWORD Pos = 7;
+	for (int i = 0; i < NumOfContents; i++) {
+		if (Pos + 8 > DataSize)
+			break;
+
+		ContentInfo Content;
+
+		Content.GroupID = pHexData[Pos] >> 4;
+		Content.TargetVersion = ((WORD)(pHexData[Pos] & 0x0F) << 8) | (WORD)pHexData[Pos + 1];
+		Content.NewVersion = ((WORD)pHexData[Pos + 2] << 4) | (WORD)(pHexData[Pos + 3] >> 4);
+		Content.DownloadLevel = (pHexData[Pos + 3] >> 2) & 0x03;
+		Content.VersionIndicator = pHexData[Pos + 3] & 0x03;
+
+		const WORD ContentDescLength = ((WORD)pHexData[Pos + 4] << 4) | (WORD)(pHexData[Pos + 5] >> 4);
+		const WORD ScheduleDescLength = ((WORD)pHexData[Pos + 6] << 4) | (WORD)(pHexData[Pos + 7] >> 4);
+		if (ContentDescLength < ScheduleDescLength
+				|| Pos + ContentDescLength > DataSize)
+			break;
+
+		Content.ScheduleTimeShiftInformation = pHexData[Pos + 7] & 0x0F;
+
+		Pos += 8;
+
+		if (ScheduleDescLength) {
+			for (DWORD j = 0; j + 8 <= ScheduleDescLength; j += 8) {
+				ScheduleDescription Schedule;
+
+				CAribTime::AribToSystemTime(&pHexData[Pos + j], &Schedule.StartTime);
+				Schedule.Duration = CAribTime::AribBcdToSecond(&pHexData[Pos + j + 5]);
+
+				Content.ScheduleList.push_back(Schedule);
+			}
+
+			Pos += ScheduleDescLength;
+		}
+
+		const WORD DescLength = ContentDescLength - ScheduleDescLength;
+		if (DescLength > 0) {
+			Content.DescBlock.ParseBlock(&pHexData[Pos], DescLength);
+			Pos += DescLength;
+		}
+
+		m_ContentList.push_back(Content);
+
+		/*
+		TRACE(TEXT("[%d/%d] : Group 0x%02x / Target ver. 0x%03x / New ver. 0x%03x / Download level %d / Version indicator %d\n"),
+			  i + 1, NumOfContents,
+			  Content.GroupID, Content.TargetVersion, Content.NewVersion, Content.DownloadLevel, Content.VersionIndicator);
+		*/
+	}
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PCR抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 

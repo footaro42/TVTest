@@ -74,13 +74,13 @@ public:
 	CAccelerator();
 	~CAccelerator();
 // COptions
-	bool LoadSettings(CSettingsFile &File) override;
-	bool SaveSettings(CSettingsFile &File) override;
+	bool LoadSettings(CSettings &Settings) override;
+	bool SaveSettings(CSettings &Settings) override;
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
 // CAccelerator
 	bool Initialize(HWND hwndHotKey,CMainMenu *pMainMenu,
-					CSettingsFile &SettingsFile,const CCommandList *pCommandList);
+					CSettings &Settings,const CCommandList *pCommandList);
 	void Finalize();
 	bool TranslateMessage(HWND hwnd,LPMSG pmsg);
 	int TranslateHotKey(WPARAM wParam,LPARAM lParam) const;

@@ -44,9 +44,10 @@ class CChannelScan : public COptions
 	void InsertChannelInfo(int Index,const CChannelInfo *pChInfo);
 	void SetChannelList(int Space);
 	CChannelInfo *GetSelectedChannelInfo() const;
-	bool LoadPreset(LPCTSTR pszFileName,CChannelList *pChannelList,int Space);
+	bool LoadPreset(LPCTSTR pszFileName,CChannelList *pChannelList,int Space,bool *pfCorrupted);
+	bool SetPreset(bool fAuto);
 	float GetSignalLevel();
-	static DWORD WINAPI ScanProc(LPVOID lpParameter);
+	static unsigned int __stdcall ScanProc(LPVOID lpParameter);
 	static INT_PTR CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static INT_PTR CALLBACK ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static CChannelScan *GetThis(HWND hDlg);
@@ -55,12 +56,12 @@ public:
 	CChannelScan(CCoreEngine *pCoreEngine);
 	~CChannelScan();
 // COptions
-	bool Apply(DWORD Flags);
+	bool Apply(DWORD Flags) override;
 // CSettingsBase
 	bool ReadSettings(CSettings &Settings) override;
 	bool WriteSettings(CSettings &Settings) override;
 // CBasicDialog
-	bool Create(HWND hwndOwner);
+	bool Create(HWND hwndOwner) override;
 // CChannelScan
 	bool SetTuningSpaceList(const CTuningSpaceList *pTuningSpaceList);
 	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
