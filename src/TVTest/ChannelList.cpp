@@ -480,7 +480,7 @@ bool CChannelList::HasRemoteControlKeyID() const
 
 bool CChannelList::HasMultiService() const
 {
-	for (size_t i=0;i<m_ChannelList.size()-1;i++) {
+	for (size_t i=0;i+1<m_ChannelList.size();i++) {
 		const CChannelInfo *pChannelInfo1=m_ChannelList[i];
 
 		for (size_t j=i+1;j<m_ChannelList.size();j++) {

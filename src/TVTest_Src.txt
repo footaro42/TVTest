@@ -1,12 +1,12 @@
 
 
-    TVTest ver.0.7.22 ソース
+    TVTest ver.0.7.22r2 ソース
 
 
 ◆ ファイル構成
 
-  ・TVTest_0.7.22_Src.zip  ソースファイル
-  ・TVTest_SDK_110123.zip  プラグイン開発用 SDK
+  ・TVTest_0.7.22r2_Src.zip  ソースファイル
+  ・TVTest_SDK_110123.zip    プラグイン開発用 SDK
 
 
 ◆ ソースについて
