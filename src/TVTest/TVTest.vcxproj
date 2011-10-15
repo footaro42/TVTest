@@ -348,11 +348,13 @@
     <ClCompile Include="DirectShowFilter\TsSrcStream.cpp" />
     <ClCompile Include="DirectShowFilter\VideoRenderer.cpp" />
     <ClCompile Include="DirectShowFilter\VMR9Renderless.cpp" />
+    <ClCompile Include="EpgChannelSettings.cpp" />
     <ClCompile Include="EpgDataLoader.cpp" />
     <ClCompile Include="EpgOptions.cpp" />
     <ClCompile Include="EpgProgramList.cpp" />
     <ClCompile Include="EpgUtil.cpp" />
     <ClCompile Include="EventInfoPopup.cpp" />
+    <ClCompile Include="Favorites.cpp" />
     <ClCompile Include="GeneralOptions.cpp" />
     <ClCompile Include="Help.cpp" />
     <ClCompile Include="HelperClass\NCachedFile.cpp" />
@@ -491,11 +493,13 @@
     <ClInclude Include="DirectShowFilter\VideoInfo.h" />
     <ClInclude Include="DirectShowFilter\VideoRenderer.h" />
     <ClInclude Include="DirectShowFilter\VMR9Renderless.h" />
+    <ClInclude Include="EpgChannelSettings.h" />
     <ClInclude Include="EpgDataLoader.h" />
     <ClInclude Include="EpgOptions.h" />
     <ClInclude Include="EpgProgramList.h" />
     <ClInclude Include="EpgUtil.h" />
     <ClInclude Include="EventInfoPopup.h" />
+    <ClInclude Include="Favorites.h" />
     <ClInclude Include="GeneralOptions.h" />
     <ClInclude Include="Help.h" />
     <ClInclude Include="HelperClass\NCachedFile.h" />

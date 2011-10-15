@@ -5,6 +5,7 @@
 #pragma once
 
 
+#include <deque>
 #include "MediaDecoder.h"
 #include "IBonDriver.h"
 #include "IBonDriver2.h"
@@ -30,6 +31,7 @@ public:
 		ERR_NOTPLAYING,		// 再生されていない
 		ERR_ALREADYPLAYING,	// 既に再生されている
 		ERR_TIMEOUT,		// タイムアウト
+		ERR_PENDING,		// 
 		ERR_INTERNAL		// 内部エラー
 	};
 
@@ -37,8 +39,9 @@ public:
 	virtual ~CBonSrcDecoder();
 
 // IMediaDecoder
-	virtual void Reset(void);
-	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL);
+	virtual void Reset(void) override;
+	virtual void ResetGraph(void) override;
+	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL) override;
 
 // CBonSrcDecoder
 	const bool OpenTuner(HMODULE hBonDrvDll);
@@ -72,20 +75,55 @@ public:
 	bool IsPurgeStreamOnChannelChange() const { return m_bPurgeStreamOnChannelChange; }
 
 private:
-	static unsigned int __stdcall StreamRecvThread(LPVOID pParam);
-	bool LockStream();
-	void UnlockStream();
+	struct StreamingRequest
+	{
+		enum RequestType
+		{
+			TYPE_SETCHANNEL,
+			TYPE_SETCHANNEL2,
+			TYPE_PURGESTREAM,
+			TYPE_RESET
+		};
+
+		RequestType Type;
+		bool bProcessing;
+
+		union
+		{
+			struct {
+				BYTE Channel;
+			} SetChannel;
+			struct {
+				DWORD Space;
+				DWORD Channel;
+			} SetChannel2;
+		};
+	};
+
+	static unsigned int __stdcall StreamingThread(LPVOID pParam);
+	void StreamingMain();
+
+	void ResetStatus();
+	void AddRequest(const StreamingRequest &Request);
+	void AddRequests(const StreamingRequest *pRequestList, int RequestCount);
+	bool WaitAllRequests(DWORD Timeout);
+	bool HasPendingRequest();
+	void SetRequestTimeoutError();
 
 	IBonDriver *m_pBonDriver;
 	IBonDriver2 *m_pBonDriver2;	
 
 	HANDLE m_hStreamRecvThread;
-	CCriticalLock m_StreamLock;
 	CLocalEvent m_EndEvent;
-	volatile bool m_bPauseSignal;
+	std::deque<StreamingRequest> m_RequestQueue;
+	CCriticalLock m_RequestLock;
+	CLocalEvent m_RequestEvent;
+	DWORD m_RequestTimeout;
+	BOOL m_bRequestResult;
 
 	volatile bool m_bIsPlaying;
 
+	float m_SignalLevel;
 	CBitRateCalculator m_BitRateCalculator;
 	DWORD m_StreamRemain;
 

@@ -80,7 +80,7 @@ public:
 	void OnRButtonDown(int x,int y);
 
 private:
-	DrawUtil::CBitmap m_Icons;
+	DrawUtil::CMonoColorBitmap m_Icons;
 };
 
 class CControlPanelButton : public CControlPanelItem

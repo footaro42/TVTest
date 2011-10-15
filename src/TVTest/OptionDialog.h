@@ -51,7 +51,8 @@ private:
 	static const PageInfo m_PageList[NUM_PAGES];
 	int m_CurrentPage;
 	int m_StartPage;
-	DrawUtil::CBitmap m_Icons;
+	//DrawUtil::CBitmap m_Icons;
+	HIMAGELIST m_himlIcons;
 	DrawUtil::CFont m_TitleFont;
 	bool m_fSettingError;
 	bool m_fApplied;

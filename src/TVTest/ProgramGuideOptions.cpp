@@ -40,6 +40,17 @@ CProgramGuideOptions::~CProgramGuideOptions()
 }
 
 
+static bool CSVNextValue(LPTSTR *ppszText)
+{
+	LPTSTR p=*ppszText;
+	while (*p==_T(' ') || *p==_T('\t'))
+		p++;
+	if (*p!=_T(','))
+		return false;
+	*ppszText=p+1;
+	return true;
+}
+
 bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 {
 	if (Settings.SetSection(TEXT("ProgramGuide"))) {
@@ -116,6 +127,10 @@ bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 		if (Settings.Read(TEXT("Filter"),&Filter))
 			m_pProgramGuide->SetFilter(Filter);
 
+		bool fExcludeNoEvent;
+		if (Settings.Read(TEXT("ExcludeNoEventServices"),&fExcludeNoEvent))
+			m_pProgramGuide->SetExcludeNoEventServices(fExcludeNoEvent);
+
 		int Width,Height;
 		m_pProgramGuide->GetInfoPopupSize(&Width,&Height);
 		if (Settings.Read(TEXT("InfoPopupWidth"),&Width)
@@ -185,6 +200,33 @@ bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 		}
 	}
 
+	if (Settings.SetSection(TEXT("ProgramGuideService"))) {
+		int ServiceCount;
+		if (Settings.Read(TEXT("ExcludeServiceCount"),&ServiceCount) && ServiceCount>0) {
+			for (int i=0;i<ServiceCount;i++) {
+				TCHAR szName[32],szText[64];
+
+				::wsprintf(szName,TEXT("ExcludeService%d"),i);
+				if (!Settings.Read(szName,szText,lengthof(szText))
+						|| szText[0]==_T('\0'))
+					break;
+
+				LPTSTR p=szText;
+				WORD NetworkID=(WORD)_tcstoul(p,&p,0);
+				if (!CSVNextValue(&p))
+					continue;
+				WORD TransportStreamID=(WORD)_tcstoul(p,&p,0);
+				if (!CSVNextValue(&p))
+					continue;
+				WORD ServiceID=(WORD)_tcstoul(p,&p,0);
+				if (ServiceID==0)
+					continue;
+
+				m_pProgramGuide->SetExcludeService(NetworkID,TransportStreamID,ServiceID,true);
+			}
+		}
+	}
+
 	return true;
 }
 
@@ -211,6 +253,7 @@ bool CProgramGuideOptions::SaveSettings(CSettings &Settings)
 		Settings.Write(TEXT("DragScroll"),m_pProgramGuide->GetDragScroll());
 		Settings.Write(TEXT("ShowToolTip"),m_pProgramGuide->GetShowToolTip());
 		Settings.Write(TEXT("Filter"),m_pProgramGuide->GetFilter());
+		Settings.Write(TEXT("ExcludeNoEventServices"),m_pProgramGuide->GetExcludeNoEventServices());
 
 		int Width,Height;
 		m_pProgramGuide->GetInfoPopupSize(&Width,&Height);
@@ -253,6 +296,24 @@ bool CProgramGuideOptions::SaveSettings(CSettings &Settings)
 			Settings.Write(szName,pTool->GetName());
 			::wsprintf(szName,TEXT("Tool%u_Command"),(UINT)i);
 			Settings.Write(szName,pTool->GetCommand());
+		}
+	}
+
+	if (Settings.SetSection(TEXT("ProgramGuideService"))) {
+		CProgramGuide::ServiceInfoList ExcludeServiceList;
+
+		if (m_pProgramGuide->GetExcludeServiceList(&ExcludeServiceList)) {
+			Settings.Clear();
+			Settings.Write(TEXT("ExcludeServiceCount"),(unsigned int)ExcludeServiceList.size());
+			for (size_t i=0;i<ExcludeServiceList.size();i++) {
+				TCHAR szName[32],szText[64];
+				::wsprintf(szName,TEXT("ExcludeService%u"),(unsigned int)i);
+				::wsprintf(szText,TEXT("%u,%u,%u"),
+						   ExcludeServiceList[i].NetworkID,
+						   ExcludeServiceList[i].TransportStreamID,
+						   ExcludeServiceList[i].ServiceID);
+				Settings.Write(szName,szText);
+			}
 		}
 	}
 

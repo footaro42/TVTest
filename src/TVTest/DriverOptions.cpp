@@ -47,6 +47,7 @@ public:
 	int m_LastSpace;
 	int m_LastChannel;
 	int m_LastServiceID;
+	int m_LastTransportStreamID;
 	bool m_fLastAllChannels;
 
 	CDriverSettings(LPCTSTR pszFileName);
@@ -92,6 +93,7 @@ CDriverSettings::CDriverSettings(LPCTSTR pszFileName)
 	, m_LastSpace(-1)
 	, m_LastChannel(-1)
 	, m_LastServiceID(-1)
+	, m_LastTransportStreamID(-1)
 	, m_fLastAllChannels(false)
 {
 }
@@ -224,7 +226,7 @@ bool CDriverOptions::ReadSettings(CSettings &Settings)
 			::wsprintf(szName,TEXT("Driver%d_FileName"),i);
 			if (!Settings.Read(szName,szFileName,lengthof(szFileName)))
 				break;
-			if (szFileName[0]!='\0') {
+			if (szFileName[0]!=_T('\0')) {
 				CDriverSettings *pSettings=new CDriverSettings(szFileName);
 				int Value;
 
@@ -255,6 +257,9 @@ bool CDriverOptions::ReadSettings(CSettings &Settings)
 				::wsprintf(szName,TEXT("Driver%d_LastServiceID"),i);
 				if (Settings.Read(szName,&Value))
 					pSettings->m_LastServiceID=Value;
+				::wsprintf(szName,TEXT("Driver%d_LastTSID"),i);
+				if (Settings.Read(szName,&Value))
+					pSettings->m_LastTransportStreamID=Value;
 				::wsprintf(szName,TEXT("Driver%d_LastStatus"),i);
 				if (Settings.Read(szName,&Value))
 					pSettings->m_fLastAllChannels=(Value&1)!=0;
@@ -305,6 +310,8 @@ bool CDriverOptions::WriteSettings(CSettings &Settings)
 		Settings.Write(szName,pSettings->m_LastChannel);
 		::wsprintf(szName,TEXT("Driver%d_LastServiceID"),i);
 		Settings.Write(szName,pSettings->m_LastServiceID);
+		::wsprintf(szName,TEXT("Driver%d_LastTSID"),i);
+		Settings.Write(szName,pSettings->m_LastTransportStreamID);
 		::wsprintf(szName,TEXT("Driver%d_LastStatus"),i);
 		Settings.Write(szName,pSettings->m_fLastAllChannels?0x01U:0x00U);
 	}
@@ -343,6 +350,7 @@ bool CDriverOptions::GetInitialChannel(LPCTSTR pszFileName,ChannelInfo *pChannel
 			pChannelInfo->Space=pSettings->m_LastSpace;
 			pChannelInfo->Channel=-1;
 			pChannelInfo->ServiceID=-1;
+			pChannelInfo->TransportStreamID=-1;
 			//pChannelInfo->fAllChannels=false;
 			pChannelInfo->fAllChannels=pSettings->m_fLastAllChannels;
 			return true;
@@ -350,12 +358,14 @@ bool CDriverOptions::GetInitialChannel(LPCTSTR pszFileName,ChannelInfo *pChannel
 			pChannelInfo->Space=pSettings->m_LastSpace;
 			pChannelInfo->Channel=pSettings->m_LastChannel;
 			pChannelInfo->ServiceID=pSettings->m_LastServiceID;
+			pChannelInfo->TransportStreamID=pSettings->m_LastTransportStreamID;
 			pChannelInfo->fAllChannels=pSettings->m_fLastAllChannels;
 			return true;
 		case CDriverSettings::INITIALCHANNEL_CUSTOM:
 			pChannelInfo->Space=pSettings->GetInitialSpace();
 			pChannelInfo->Channel=pSettings->GetInitialChannel();
 			pChannelInfo->ServiceID=-1;
+			pChannelInfo->TransportStreamID=-1;
 			pChannelInfo->fAllChannels=pSettings->GetAllChannels();
 			return true;
 		}
@@ -381,6 +391,7 @@ bool CDriverOptions::SetLastChannel(LPCTSTR pszFileName,const ChannelInfo *pChan
 	pSettings->m_LastSpace=pChannelInfo->Space;
 	pSettings->m_LastChannel=pChannelInfo->Channel;
 	pSettings->m_LastServiceID=pChannelInfo->ServiceID;
+	pSettings->m_LastTransportStreamID=pChannelInfo->TransportStreamID;
 	pSettings->m_fLastAllChannels=pChannelInfo->fAllChannels;
 	return true;
 }

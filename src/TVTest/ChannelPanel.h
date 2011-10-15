@@ -69,7 +69,7 @@ private:
 	int m_ItemHeight;
 	int m_ExpandedItemHeight;
 	ThemeInfo m_Theme;
-	DrawUtil::CBitmap m_Chevron;
+	DrawUtil::CMonoColorBitmap m_Chevron;
 	int m_EventsPerChannel;
 	int m_ExpandEvents;
 	int m_ScrollPos;

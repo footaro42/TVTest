@@ -3,7 +3,6 @@
 #include "StatusItems.h"
 #include "AppMain.h"
 #include "Menu.h"
-#include "HelperClass/StdUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -209,10 +208,9 @@ void CAudioChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 	if (App.GetCoreEngine()->m_DtvEngine.m_MediaViewer.IsSpdifPassthrough()) {
 		if (!m_Icons.IsCreated())
 			m_Icons.Load(App.GetResourceInstance(),IDB_PASSTHROUGH);
-		RECT rcIcon=rc;
-		rcIcon.right=rcIcon.left+16;
-		DrawIcon(hdc,&rcIcon,m_Icons.GetHandle(),0,0,16,16);
-		rc.left=rcIcon.right+4;
+		m_Icons.Draw(hdc,rc.left,rc.top+((rc.bottom-rc.top)-16)/2,
+					 ::GetTextColor(hdc));
+		rc.left+=16+4;
 	}
 
 	TCHAR szText[64];
@@ -451,7 +449,7 @@ void CCaptureStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
 	if (!m_Icons.IsCreated())
 		m_Icons.Load(GetAppClass().GetResourceInstance(),IDB_CAPTURE);
-	DrawIcon(hdc,pRect,m_Icons.GetHandle(),0,0,16,16);
+	DrawIcon(hdc,pRect,m_Icons);
 }
 
 void CCaptureStatusItem::OnLButtonDown(int x,int y)
@@ -521,9 +519,8 @@ void CSignalLevelStatusItem::Draw(HDC hdc,const RECT *pRect)
 	int Length=0;
 
 	if (m_fShowSignalLevel) {
-		int Level=(int)(CoreEngine.GetSignalLevel()*100.0f);
 		Length=StdUtil::snprintf(szText,lengthof(szText),
-								 TEXT("%d.%02d dB / "),Level/100,abs(Level)%100);
+								 TEXT("%.2f dB / "),CoreEngine.GetSignalLevel());
 	}
 	unsigned int BitRate=CoreEngine.GetBitRate()*100/(1024*1024);
 	StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
@@ -837,4 +834,33 @@ void CMediaBitRateStatusItem::Draw(HDC hdc,const RECT *pRect)
 void CMediaBitRateStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
 	DrawText(hdc,pRect,TEXT("V 12504 Kbps / A 185 Kbps"));
+}
+
+
+CFavoritesStatusItem::CFavoritesStatusItem()
+	: CStatusItem(STATUS_ITEM_FAVORITES,16)
+{
+	m_MinWidth=16;
+}
+
+void CFavoritesStatusItem::Draw(HDC hdc,const RECT *pRect)
+{
+	if (!m_IconBitmap.IsCreated())
+		m_IconBitmap.Load(GetAppClass().GetResourceInstance(),IDB_STATUSBAR_FAVORITES);
+	DrawIcon(hdc,pRect,m_IconBitmap);
+}
+
+void CFavoritesStatusItem::OnLButtonDown(int x,int y)
+{
+	POINT pt;
+	UINT Flags;
+
+	GetMenuPos(&pt,&Flags);
+	GetAppClass().GetUICore()->PopupSubMenu(CMainMenu::SUBMENU_FAVORITES,
+											&pt,Flags | TPM_RIGHTBUTTON);
+}
+
+void CFavoritesStatusItem::OnRButtonDown(int x,int y)
+{
+	GetAppClass().GetUICore()->DoCommand(CM_ADDTOFAVORITES);
 }

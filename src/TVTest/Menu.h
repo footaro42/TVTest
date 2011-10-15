@@ -26,12 +26,13 @@ public:
 		SUBMENU_CHANNEL			= 5,
 		SUBMENU_SERVICE			= 6,
 		SUBMENU_SPACE			= 7,
-		SUBMENU_CHANNELHISTORY	= 8,
-		SUBMENU_VOLUME			= 10,
-		SUBMENU_AUDIO			= 11,
-		SUBMENU_BAR				= 25,
-		SUBMENU_PLUGIN			= 26,
-		SUBMENU_FILTERPROPERTY	= 28
+		SUBMENU_FAVORITES		= 8,
+		SUBMENU_CHANNELHISTORY	= 9,
+		SUBMENU_VOLUME			= 11,
+		SUBMENU_AUDIO			= 12,
+		SUBMENU_BAR				= 26,
+		SUBMENU_PLUGIN			= 27,
+		SUBMENU_FILTERPROPERTY	= 29
 	};
 	CMainMenu();
 	~CMainMenu();
@@ -49,6 +50,8 @@ public:
 
 class CMenuPainter
 {
+	int ItemStateToID(UINT State) const;
+
 	CUxTheme m_UxTheme;
 	bool m_fFlatMenu;
 
@@ -58,11 +61,16 @@ public:
 	void Initialize(HWND hwnd);
 	void Finalize();
 	void GetFont(LOGFONT *pFont);
-	COLORREF GetTextColor(bool fHighlight=false);
-	void DrawItemBackground(HDC hdc,const RECT &Rect,bool fHighlight=false);
+	COLORREF GetTextColor(UINT State=0);
+	void DrawItemBackground(HDC hdc,const RECT &Rect,UINT State=0);
 	void GetItemMargins(MARGINS *pMargins);
 	void GetMargins(MARGINS *pMargins);
 	void GetBorderSize(SIZE *pSize);
+	void DrawItemText(HDC hdc,UINT State,LPCTSTR pszText,const RECT &Rect,
+					  DWORD Flags=DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+	bool GetItemTextExtent(HDC hdc,UINT State,LPCTSTR pszText,RECT *pExtent,
+						   DWORD Flags=DT_LEFT | DT_SINGLELINE | DT_VCENTER);
+	void DrawIcon(HIMAGELIST himl,int Icon,HDC hdc,int x,int y,UINT State=0);
 	void DrawBackground(HDC hdc,const RECT &Rect);
 	void DrawBorder(HDC hdc,const RECT &Rect);
 	void DrawSeparator(HDC hdc,const RECT &Rect);
@@ -87,6 +95,7 @@ class CChannelMenu
 	int m_LogoWidth;
 	int m_LogoHeight;
 	CMenuPainter m_MenuPainter;
+	DrawUtil::CBitmap m_LogoFrameImage;
 	MARGINS m_Margins;
 	int m_MenuLogoMargin;
 	CTooltip m_Tooltip;
@@ -161,28 +170,39 @@ public:
 
 class CIconMenu
 {
-	enum {
-		ICON_MARGIN=1,
-		TEXT_MARGIN=3
-	};
-	HMENU m_hmenu;
-	HIMAGELIST m_hImageList;
-	UINT m_FirstID;
-	UINT m_LastID;
-	int m_CheckItem;
-
 public:
+	struct ItemInfo
+	{
+		UINT ID;
+		int Image;
+	};
+
 	CIconMenu();
 	~CIconMenu();
 	bool Initialize(HMENU hmenu,HINSTANCE hinst,LPCTSTR pszImageName,
-					int IconWidth,COLORREF crMask,
-					UINT FirstID,UINT LastID);
+					int IconWidth,const ItemInfo *pItemList,int ItemCount);
 	void Finalize();
 	bool OnInitMenuPopup(HWND hwnd,HMENU hmenu);
 	bool OnMeasureItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
 	bool OnDrawItem(HWND hwnd,WPARAM wParam,LPARAM lParam);
-	void SetCheckItem(int Item) { m_CheckItem=Item; }
-	int GetCheckItem() const { return m_CheckItem; }
+	bool CheckItem(UINT ID,bool fCheck);
+	bool CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID);
+
+private:
+	enum {
+		ICON_MARGIN=1,
+		TEXT_MARGIN=3
+	};
+	enum {
+		ITEM_DATA_IMAGEMASK	=0x0000FFFFUL,
+		ITEM_DATA_CHECKED	=0x00010000UL
+	};
+
+	HMENU m_hmenu;
+	std::vector<ItemInfo> m_ItemList;
+	HIMAGELIST m_hImageList;
+	std::vector<HBITMAP> m_BitmapList;
+	CMenuPainter m_MenuPainter;
 };
 
 class CDropDownMenu

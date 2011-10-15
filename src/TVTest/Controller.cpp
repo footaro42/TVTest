@@ -140,7 +140,7 @@ bool CControllerManager::DeleteController(LPCTSTR pszName)
 	for (std::vector<ControllerInfo>::iterator itr=m_ControllerList.begin();
 		 	itr!=m_ControllerList.end();itr++) {
 		if (::lstrcmpi(itr->pController->GetName(),pszName)==0) {
-			if (itr->fSettingsLoaded)
+			if (itr->fSettingsChanged)
 				SaveControllerSettings(pszName);
 			delete itr->pController;
 			m_ControllerList.erase(itr);
@@ -154,7 +154,7 @@ bool CControllerManager::DeleteController(LPCTSTR pszName)
 void CControllerManager::DeleteAllControllers()
 {
 	for (size_t i=0;i<m_ControllerList.size();i++) {
-		if (m_ControllerList[i].fSettingsLoaded)
+		if (m_ControllerList[i].fSettingsChanged)
 			SaveControllerSettings(m_ControllerList[i].pController->GetName());
 	}
 	for (size_t i=0;i<m_ControllerList.size();i++)
@@ -217,7 +217,7 @@ bool CControllerManager::SaveControllerSettings(LPCTSTR pszName) const
 		return false;
 
 	const ControllerInfo &Info=m_ControllerList[Index];
-	if (!Info.fSettingsLoaded)
+	if (!Info.fSettingsChanged)
 		return true;
 
 	CSettings Settings;
@@ -366,8 +366,8 @@ void CControllerManager::InitDlgItems()
 		const int NumButtons=pController->NumButtons();
 
 		if (!Info.fSettingsLoaded) {
-			LoadControllerSettings(pController->GetName());
-			m_CurSettingsList[Sel]=Info.Settings;
+			if (LoadControllerSettings(pController->GetName()))
+				m_CurSettingsList[Sel]=Info.Settings;
 		}
 
 		bool fActiveOnly=pController->IsActiveOnly();
@@ -515,8 +515,7 @@ INT_PTR CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					if (!m_CurController.IsEmpty()
 							&& ::lstrcmpi(m_CurController.Get(),Info.pController->GetName())==0)
 						Sel=(int)i;
-					if (Info.fSettingsLoaded)
-						m_CurSettingsList[i]=Info.Settings;
+					m_CurSettingsList[i]=Info.Settings;
 				}
 				DlgComboBox_SetCurSel(hDlg,IDC_CONTROLLER_LIST,Sel);
 			}
@@ -754,14 +753,17 @@ INT_PTR CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 					ControllerInfo &Info=m_ControllerList[i];
 					ControllerSettings &CurSettings=m_CurSettingsList[i];
 
-					if (Info.pController->IsEnabled()) {
-						if (CurSettings.fActiveOnly!=Info.Settings.fActiveOnly) {
-							Info.pController->Enable(false);
-							Info.Settings.fActiveOnly=CurSettings.fActiveOnly;
-							Info.pController->Enable(true);
+					if (Info.Settings!=CurSettings) {
+						if (Info.pController->IsEnabled()) {
+							if (CurSettings.fActiveOnly!=Info.Settings.fActiveOnly) {
+								Info.pController->Enable(false);
+								Info.Settings.fActiveOnly=CurSettings.fActiveOnly;
+								Info.pController->Enable(true);
+							}
 						}
+						Info.Settings=CurSettings;
+						Info.fSettingsChanged=true;
 					}
-					Info.Settings=CurSettings;
 				}
 			}
 			break;
@@ -785,4 +787,21 @@ INT_PTR CControllerManager::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPa
 	}
 
 	return FALSE;
+}
+
+
+
+
+bool CControllerManager::ControllerSettings::operator==(const ControllerSettings &Operand) const
+{
+	if (AssignList.size()!=Operand.AssignList.size()
+			|| fActiveOnly!=Operand.fActiveOnly)
+		return false;
+
+	for (size_t i=0;i<AssignList.size();i++) {
+		if (AssignList[i]!=Operand.AssignList[i])
+			return false;
+	}
+
+	return true;
 }

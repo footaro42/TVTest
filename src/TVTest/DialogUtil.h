@@ -28,9 +28,15 @@
 	::SendDlgItemMessage(hwndDlg,ID,LB_GETCOUNT,0,0)
 #define DlgListBox_AddString(hwndDlg,ID,pszString) \
 	::SendDlgItemMessage(hwndDlg,ID,LB_ADDSTRING,0,(LPARAM)(pszString))
+#define DlgListBox_AddItem(hwndDlg,ID,Data) \
+	::SendDlgItemMessage(hwndDlg,ID,LB_ADDSTRING,0,Data)
 #define DlgListBox_InsertString(hwndDlg,ID,Index,pszString) \
 	::SendDlgItemMessage(hwndDlg,ID,LB_INSERTSTRING,Index,(LPARAM)(pszString))
+#define DlgListBox_InsertItem(hwndDlg,ID,Index,Data) \
+	::SendDlgItemMessage(hwndDlg,ID,LB_INSERTSTRING,Index,Data)
 #define DlgListBox_DeleteString(hwndDlg,ID,Index) \
+	::SendDlgItemMessage(hwndDlg,ID,LB_DELETESTRING,Index,0)
+#define DlgListBox_DeleteItem(hwndDlg,ID,Index) \
 	::SendDlgItemMessage(hwndDlg,ID,LB_DELETESTRING,Index,0)
 #define DlgListBox_GetString(hwndDlg,ID,Index,pszString) \
 	::SendDlgItemMessage(hwndDlg,ID,LB_GETTEXT,Index,(LPARAM)(pszString))
@@ -71,9 +77,15 @@
 	::SendDlgItemMessage(hwndDlg,ID,CB_GETCOUNT,0,0)
 #define DlgComboBox_AddString(hwndDlg,ID,pszString) \
 	::SendDlgItemMessage(hwndDlg,ID,CB_ADDSTRING,0,(LPARAM)(pszString))
+#define DlgComboBox_AddItem(hwndDlg,ID,Data) \
+	::SendDlgItemMessage(hwndDlg,ID,CB_ADDSTRING,0,Data)
 #define DlgComboBox_InsertString(hwndDlg,ID,Index,pszString) \
 	::SendDlgItemMessage(hwndDlg,ID,CB_INSERTSTRING,Index,(LPARAM)(pszString))
+#define DlgComboBox_InsertItem(hwndDlg,ID,Index,Data) \
+	::SendDlgItemMessage(hwndDlg,ID,CB_INSERTSTRING,Index,Data)
 #define DlgComboBox_DeleteString(hwndDlg,ID,Index) \
+	::SendDlgItemMessage(hwndDlg,ID,CB_DELETESTRING,Index,0)
+#define DlgComboBox_DeleteItem(hwndDlg,ID,Index) \
 	::SendDlgItemMessage(hwndDlg,ID,CB_DELETESTRING,Index,0)
 #define DlgComboBox_GetItemData(hwndDlg,ID,Index) \
 	::SendDlgItemMessage(hwndDlg,ID,CB_GETITEMDATA,Index,0)

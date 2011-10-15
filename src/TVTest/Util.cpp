@@ -11,6 +11,41 @@ static char THIS_FILE[]=__FILE__;
 
 
 
+int HexCharToInt(TCHAR Code)
+{
+	if (Code>=_T('0') && Code<=_T('9'))
+		return Code-_T('0');
+	if (Code>=_T('A') && Code<=_T('F'))
+		return Code-_T('A')+10;
+	if (Code>=_T('a') && Code<=_T('f'))
+		return Code-_T('a')+10;
+	return 0;
+}
+
+
+unsigned int HexStringToUInt(LPCTSTR pszString,int Length,LPCTSTR *ppszEnd)
+{
+	unsigned int Value=0;
+	int i;
+	for (i=0;i<Length;i++) {
+		TCHAR Code=pszString[i];
+		unsigned int v;
+		if (Code>=_T('0') && Code<=_T('9'))
+			v=Code-_T('0');
+		else if (Code>=_T('A') && Code<=_T('F'))
+			v=Code-_T('A')+10;
+		else if (Code>=_T('a') && Code<=_T('f'))
+			v=Code-_T('a')+10;
+		else
+			break;
+		Value=(Value<<4) | v;
+	}
+	if (ppszEnd!=NULL)
+		*ppszEnd=pszString+i;
+	return Value;
+}
+
+
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2)
 {
 	return pRect1->left<pRect2->right && pRect1->right>pRect2->left

@@ -246,8 +246,8 @@ void CAudioControlItem::Draw(HDC hdc,const RECT &Rect)
 	if (App.GetCoreEngine()->m_DtvEngine.m_MediaViewer.IsSpdifPassthrough()) {
 		if (!m_Icons.IsCreated())
 			m_Icons.Load(App.GetResourceInstance(),IDB_PASSTHROUGH);
-		DrawUtil::DrawMonoColorDIB(hdc,rc.left,rc.top+((rc.bottom-rc.top)-16)/2,
-								   m_Icons.GetHandle(),0,0,16,16,::GetTextColor(hdc));
+		m_Icons.Draw(hdc,rc.left,rc.top+((rc.bottom-rc.top)-16)/2,
+					 ::GetTextColor(hdc));
 		rc.left+=16+4;
 	}
 

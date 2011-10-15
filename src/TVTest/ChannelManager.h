@@ -17,6 +17,7 @@ class CChannelManager
 	CTuningSpaceList m_DriverTuningSpaceList;
 	bool m_fUseDriverChannelList;
 	bool m_fChannelFileHasStreamIDs;
+	TVTest::String m_ChannelFileName;
 
 #ifdef NETWORK_REMOCON_SUPPORT
 	bool m_fNetworkRemocon;
@@ -62,7 +63,9 @@ public:
 	const CTuningSpaceList *GetDriverTuningSpaceList() const { return &m_DriverTuningSpaceList; }
 	LPCTSTR GetTuningSpaceName(int Space) const;
 	int FindChannelInfo(const CChannelInfo *pInfo) const;
+	int FindChannelByIDs(int Space,WORD NetworkID,WORD TransportStreamID,WORD ServiceID) const;
 	int NumSpaces() const;
+	bool GetChannelFileName(LPTSTR pszFileName,int MaxLength) const;
 
 #ifdef NETWORK_REMOCON_SUPPORT
 	bool SetNetworkRemoconMode(bool fNetworkRemocon,CChannelList *pList=NULL);

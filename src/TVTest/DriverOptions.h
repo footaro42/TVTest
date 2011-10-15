@@ -55,6 +55,7 @@ public:
 		int Space;
 		int Channel;
 		int ServiceID;
+		int TransportStreamID;
 		bool fAllChannels;
 	};
 	bool GetInitialChannel(LPCTSTR pszFileName,ChannelInfo *pChannelInfo) const;

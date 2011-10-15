@@ -15,6 +15,11 @@ class CLogoManager;
 class CControllerManager;
 class CEpgProgramList;
 
+namespace TVTest
+{
+	class CFavoritesManager;
+}
+
 class CAppMain
 {
 	CUICore m_UICore;
@@ -22,6 +27,7 @@ class CAppMain
 	TCHAR m_szIniFileName[MAX_PATH];
 	TCHAR m_szDefaultChannelFileName[MAX_PATH];
 	TCHAR m_szChannelSettingFileName[MAX_PATH];
+	TCHAR m_szFavoritesFileName[MAX_PATH];
 	CSettings m_Settings;
 	bool m_fFirstExecute;
 
@@ -41,6 +47,7 @@ public:
 	bool GetAppDirectory(LPTSTR pszDirectory) const;
 	bool GetDriverDirectory(LPTSTR pszDirectory) const;
 	LPCTSTR GetIniFileName() const { return m_szIniFileName; }
+	LPCTSTR GetFavoritesFileName() const { return m_szFavoritesFileName; }
 	void AddLog(LPCTSTR pszText, ...);
 	void OnError(const CBonErrorHandler *pErrorHandler,LPCTSTR pszTitle=NULL);
 	void SetSilent(bool fSilent);
@@ -106,6 +113,7 @@ public:
 	CEpgProgramList *GetEpgProgramList() const;
 	CLogoManager *GetLogoManager() const;
 	CControllerManager *GetControllerManager() const;
+	TVTest::CFavoritesManager *GetFavoritesManager() const;
 };
 
 

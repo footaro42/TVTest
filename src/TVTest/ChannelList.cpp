@@ -314,6 +314,19 @@ int CChannelList::FindServiceID(WORD ServiceID) const
 }
 
 
+int CChannelList::FindByIDs(WORD NetworkID,WORD TransportStreamID,WORD ServiceID) const
+{
+	for (size_t i=0;i<m_ChannelList.size();i++) {
+		const CChannelInfo *pChannelInfo=m_ChannelList[i];
+		if ((NetworkID==0 || pChannelInfo->GetNetworkID()==NetworkID)
+				&& (TransportStreamID==0 || pChannelInfo->GetTransportStreamID()==TransportStreamID)
+				&& (ServiceID==0 || pChannelInfo->GetServiceID()==ServiceID))
+			return (int)i;
+	}
+	return -1;
+}
+
+
 int CChannelList::GetNextChannelNo(int ChannelNo,bool fWrap) const
 {
 	int Channel,Min,No;

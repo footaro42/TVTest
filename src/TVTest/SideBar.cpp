@@ -1,7 +1,6 @@
 #include "stdafx.h"
 #include "TVTest.h"
 #include "SideBar.h"
-#include "DrawUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -12,11 +11,6 @@ static char THIS_FILE[]=__FILE__;
 
 
 #define SIDE_BAR_CLASS APP_NAME TEXT(" Side Bar")
-#define ICON_WIDTH			16
-#define ICON_HEIGHT			16
-#define PADDING_WIDTH		1
-#define BUTTON_MARGIN		3
-#define SEPARATOR_WIDTH		8
 
 
 
@@ -49,8 +43,10 @@ bool CSideBar::Initialize(HINSTANCE hinst)
 
 CSideBar::CSideBar(const CCommandList *pCommandList)
 	: m_fShowTooltips(true)
-	, m_hbmIcons(NULL)
 	, m_fVertical(true)
+	, m_IconWidth(16)
+	, m_IconHeight(16)
+	, m_SeparatorWidth(8)
 	, m_HotItem(-1)
 	, m_ClickItem(-1)
 	, m_pEventHandler(NULL)
@@ -73,6 +69,11 @@ CSideBar::CSideBar(const CCommandList *pCommandList)
 	m_Theme.CheckItemStyle.Border.Color=RGB(192,192,192);
 	m_Theme.Border.Type=Theme::BORDER_RAISED;
 	m_Theme.Border.Color=RGB(192,192,192);
+
+	m_ItemMargin.left=3;
+	m_ItemMargin.top=3;
+	m_ItemMargin.right=3;
+	m_ItemMargin.bottom=3;
 }
 
 
@@ -81,8 +82,6 @@ CSideBar::~CSideBar()
 	Destroy();
 	if (m_pEventHandler!=NULL)
 		m_pEventHandler->m_pSideBar=NULL;
-	if (m_hbmIcons!=NULL)
-		::DeleteObject(m_hbmIcons);
 }
 
 
@@ -95,18 +94,24 @@ bool CSideBar::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 
 int CSideBar::GetBarWidth() const
 {
-	return (m_fVertical?ICON_WIDTH:ICON_HEIGHT)+BUTTON_MARGIN*2+PADDING_WIDTH*2;
+	RECT rc;
+	Theme::GetBorderWidths(&m_Theme.Border,&rc);
+	int Width;
+	if (m_fVertical) {
+		Width=m_IconWidth+m_ItemMargin.left+m_ItemMargin.right+rc.left+rc.right;
+	} else {
+		Width=m_IconHeight+m_ItemMargin.top+m_ItemMargin.bottom+rc.top+rc.bottom;
+	}
+	return Width;
 }
 
 
-bool CSideBar::SetIconImage(HBITMAP hbm,COLORREF crTransparent)
+bool CSideBar::SetIconImage(HBITMAP hbm)
 {
 	if (hbm==NULL)
 		return false;
-	if (m_hbmIcons!=NULL)
-		::DeleteObject(m_hbmIcons);
-	m_hbmIcons=hbm;
-	m_IconTransparentColor=crTransparent;
+	if (!m_IconBitmap.Create(hbm))
+		return false;
 	if (m_hwnd!=NULL)
 		Invalidate();
 	return true;
@@ -427,8 +432,9 @@ LRESULT CSideBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				int x,y;
 
 				::GetWindowRect(hwnd,&rcBar);
+				Theme::SubtractBorderRect(&m_Theme.Border,&rcBar);
 				::GetWindowRect(pnmh->hwndFrom,&rcTip);
-				x=rcBar.right-PADDING_WIDTH;
+				x=rcBar.right;
 				y=rcTip.top;
 				HMONITOR hMonitor=::MonitorFromRect(&rcTip,MONITOR_DEFAULTTONULL);
 				if (hMonitor!=NULL) {
@@ -437,7 +443,7 @@ LRESULT CSideBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					mi.cbSize=sizeof(mi);
 					if (::GetMonitorInfo(hMonitor,&mi)) {
 						if (x>=mi.rcMonitor.right-16)
-							x=(rcBar.left+PADDING_WIDTH)-(rcTip.right-rcTip.left);
+							x=rcBar.left-(rcTip.right-rcTip.left);
 					}
 				}
 				::SetWindowPos(pnmh->hwndFrom,HWND_TOPMOST,
@@ -459,28 +465,32 @@ LRESULT CSideBar::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 void CSideBar::GetItemRect(int Item,RECT *pRect) const
 {
-	int Offset=PADDING_WIDTH;
+	const int ItemWidth=m_IconWidth+m_ItemMargin.left+m_ItemMargin.right;
+	const int ItemHeight=m_IconHeight+m_ItemMargin.top+m_ItemMargin.bottom;
+	int Offset=0;
 
 	for (int i=0;i<Item;i++) {
 		if (m_ItemList[i].Command==ITEM_SEPARATOR) {
-			Offset+=SEPARATOR_WIDTH;
+			Offset+=m_SeparatorWidth;
 		} else {
 			if (m_fVertical)
-				Offset+=ICON_HEIGHT+BUTTON_MARGIN*2;
+				Offset+=ItemHeight;
 			else
-				Offset+=ICON_WIDTH+BUTTON_MARGIN*2;
+				Offset+=ItemWidth;
 		}
 	}
+	RECT rcBorder;
+	Theme::GetBorderWidths(&m_Theme.Border,&rcBorder);
 	if (m_fVertical) {
-		pRect->left=PADDING_WIDTH;
-		pRect->right=PADDING_WIDTH+ICON_WIDTH+BUTTON_MARGIN*2;
-		pRect->top=Offset;
-		pRect->bottom=Offset+(m_ItemList[Item].Command==ITEM_SEPARATOR?SEPARATOR_WIDTH:ICON_HEIGHT+BUTTON_MARGIN*2);
+		pRect->left=rcBorder.left;
+		pRect->right=rcBorder.left+ItemWidth;
+		pRect->top=rcBorder.top+Offset;
+		pRect->bottom=pRect->top+(m_ItemList[Item].Command==ITEM_SEPARATOR?m_SeparatorWidth:ItemHeight);
 	} else {
-		pRect->top=PADDING_WIDTH;
-		pRect->bottom=PADDING_WIDTH+ICON_HEIGHT+BUTTON_MARGIN*2;
-		pRect->left=Offset;
-		pRect->right=Offset+(m_ItemList[Item].Command==ITEM_SEPARATOR?SEPARATOR_WIDTH:ICON_WIDTH+BUTTON_MARGIN*2);
+		pRect->top=rcBorder.top;
+		pRect->bottom=rcBorder.top+ItemHeight;
+		pRect->left=rcBorder.left+Offset;
+		pRect->right=pRect->left+(m_ItemList[Item].Command==ITEM_SEPARATOR?m_SeparatorWidth:ItemWidth);
 	}
 }
 
@@ -539,8 +549,6 @@ static Theme::GradientDirection GetGradientDirection(bool fVertical,Theme::Gradi
 void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 {
 	RECT rcClient,rc;
-	HDC hdcMemory;
-	HBITMAP hbmOld;
 
 	GetClientRect(&rcClient);
 	rc=rcClient;
@@ -555,8 +563,8 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 	Gradient=m_Theme.ItemStyle.Gradient;
 	Gradient.Direction=GetGradientDirection(m_fVertical,Gradient.Direction);
 	Theme::FillGradient(hdc,&rc,&Gradient);
-	hdcMemory=::CreateCompatibleDC(hdc);
-	hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,m_hbmIcons));
+	HDC hdcMemory=::CreateCompatibleDC(hdc);
+	HBITMAP hbmOld=static_cast<HBITMAP>(::GetCurrentObject(hdcMemory,OBJ_BITMAP));
 	for (int i=0;i<(int)m_ItemList.size();i++) {
 		GetItemRect(i,&rc);
 		if (m_ItemList[i].Command!=ITEM_SEPARATOR
@@ -588,16 +596,16 @@ void CSideBar::Draw(HDC hdc,const RECT &PaintRect)
 									   MixColor(m_Theme.ItemStyle.Gradient.Color1,
 												m_Theme.ItemStyle.Gradient.Color2));
 			}
-			rcItem.left=rc.left+BUTTON_MARGIN;
-			rcItem.top=rc.top+BUTTON_MARGIN;
-			rcItem.right=rcItem.left+ICON_WIDTH;
-			rcItem.bottom=rcItem.top+ICON_HEIGHT;
+			rcItem.left=rc.left+m_ItemMargin.left;
+			rcItem.top=rc.top+m_ItemMargin.top;
+			rcItem.right=rcItem.left+m_IconWidth;
+			rcItem.bottom=rcItem.top+m_IconHeight;
 			if (m_pEventHandler==NULL
 					|| !m_pEventHandler->DrawIcon(m_ItemList[i].Command,hdc,rcItem,ForeColor,hdcMemory)) {
-				DrawUtil::DrawMonoColorDIB(hdc,rcItem.left,rcItem.top,
-										   hdcMemory,
-										   m_ItemList[i].Icon*ICON_WIDTH,0,
-										   ICON_WIDTH,ICON_HEIGHT,ForeColor);
+				m_IconBitmap.Draw(hdc,rcItem.left,rcItem.top,
+								  ForeColor,
+								  m_ItemList[i].Icon*m_IconWidth,0,
+								  m_IconWidth,m_IconHeight);
 			}
 		}
 	}

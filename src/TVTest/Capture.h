@@ -115,9 +115,9 @@ private:
 	};
 
 	class CCaptureStatusItem : public CStatusItem {
-		HBITMAP m_hbmIcon;
+		DrawUtil::CMonoColorBitmap &m_IconBitmap;
 	public:
-		CCaptureStatusItem(HBITMAP hbmIcon);
+		CCaptureStatusItem(DrawUtil::CMonoColorBitmap &IconBitmap);
 		LPCTSTR GetName() const { return TEXT("キャプチャ"); }
 		void Draw(HDC hdc,const RECT *pRect);
 		void OnLButtonDown(int x,int y);
@@ -126,9 +126,9 @@ private:
 
 	/*
 	class CContinuousStatusItem : public CStatusItem {
-		HBITMAP m_hbmIcon;
+		DrawUtil::CMonoColorBitmap &m_IconBitmap;
 	public:
-		CContinuousStatusItem(HBITMAP hbmIcon);
+		CContinuousStatusItem(DrawUtil::CMonoColorBitmap &IconBitmap);
 		LPCTSTR GetName() const { return TEXT("連写"); }
 		void Draw(HDC hdc,const RECT *pRect);
 		void OnLButtonDown(int x,int y);
@@ -138,9 +138,9 @@ private:
 
 	class CSaveStatusItem : public CStatusItem {
 		CCaptureWindow *m_pCaptureWindow;
-		HBITMAP m_hbmIcon;
+		DrawUtil::CMonoColorBitmap &m_IconBitmap;
 	public:
-		CSaveStatusItem(CCaptureWindow *pCaptureWindow,HBITMAP hbmIcon);
+		CSaveStatusItem(CCaptureWindow *pCaptureWindow,DrawUtil::CMonoColorBitmap &IconBitmap);
 		LPCTSTR GetName() const { return TEXT("保存"); }
 		void Draw(HDC hdc,const RECT *pRect);
 		void OnLButtonDown(int x,int y);
@@ -148,9 +148,9 @@ private:
 
 	class CCopyStatusItem : public CStatusItem {
 		CCaptureWindow *m_pCaptureWindow;
-		HBITMAP m_hbmIcon;
+		DrawUtil::CMonoColorBitmap &m_IconBitmap;
 	public:
-		CCopyStatusItem(CCaptureWindow *pCaptureWindow,HBITMAP hbmIcon);
+		CCopyStatusItem(CCaptureWindow *pCaptureWindow,DrawUtil::CMonoColorBitmap &IconBitmap);
 		LPCTSTR GetName() const { return TEXT("コピー"); }
 		void Draw(HDC hdc,const RECT *pRect);
 		void OnLButtonDown(int x,int y);
@@ -162,7 +162,7 @@ private:
 	CPreviewEventHandler m_PreviewEventHandler;
 	CStatusView m_Status;
 	bool m_fShowStatusBar;
-	DrawUtil::CBitmap m_StatusIcons;
+	DrawUtil::CMonoColorBitmap m_StatusIcons;
 	CCaptureImage *m_pImage;
 	CEventHandler *m_pEventHandler;
 	bool m_fCreateFirst;

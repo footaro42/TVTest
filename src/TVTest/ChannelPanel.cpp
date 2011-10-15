@@ -465,7 +465,7 @@ LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 				m_EventInfoPopupManager.Initialize(hwnd,&m_EventInfoPopupHandler);
 			else
 				CreateTooltip();
-			m_Chevron.Load(m_hinst,MAKEINTRESOURCE(IDB_CHEVRON),LR_CREATEDIBSECTION);
+			m_Chevron.Load(m_hinst,IDB_CHEVRON);
 		}
 		return 0;
 
@@ -625,9 +625,6 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 	COLORREF crOldTextColor=::GetTextColor(hdc);
 	int OldBkMode=::SetBkMode(hdc,TRANSPARENT);
 
-	HDC hdcMem=::CreateCompatibleDC(hdc);
-	HBITMAP hbmOld=DrawUtil::SelectObject(hdcMem,m_Chevron);
-
 	RECT rcClient,rc;
 	GetClientRect(&rcClient);
 	rc.top=-m_ScrollPos;
@@ -648,12 +645,10 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 			rc.left=CHANNEL_LEFT_MARGIN;
 			rc.right-=CHEVRON_WIDTH+CHANNEL_RIGHT_MARGIN;
 			pChannelInfo->DrawChannelName(hdc,&rc);
-			DrawUtil::DrawMonoColorDIB(hdc,
-									   rc.right,rc.top+((rc.bottom-rc.top)-CHEVRON_HEIGHT)/2,
-									   hdcMem,
-									   pChannelInfo->IsExpanded()?CHEVRON_WIDTH:0,0,
-									   CHEVRON_WIDTH,CHEVRON_HEIGHT,
-									   Style.TextColor);
+			m_Chevron.Draw(hdc,rc.right,rc.top+((rc.bottom-rc.top)-CHEVRON_HEIGHT)/2,
+						   Style.TextColor,
+						   pChannelInfo->IsExpanded()?CHEVRON_WIDTH:0,0,
+						   CHEVRON_WIDTH,CHEVRON_HEIGHT);
 		}
 
 		int NumEvents=pChannelInfo->IsExpanded()?m_ExpandEvents:m_EventsPerChannel;
@@ -688,9 +683,6 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 		rc.bottom=prcPaint->bottom;
 		DrawUtil::Fill(hdc,&rc,m_Theme.MarginColor);
 	}
-
-	::SelectObject(hdcMem,hbmOld);
-	::DeleteDC(hdcMem);
 
 	::SetTextColor(hdc,crOldTextColor);
 	::SetBkMode(hdc,OldBkMode);

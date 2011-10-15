@@ -5,6 +5,26 @@
 #include <vector>
 
 
+inline bool IsBSNetworkID(WORD NetworkID) { return NetworkID==4; }
+inline bool IsCSNetworkID(WORD NetworkID) { return NetworkID>=6 && NetworkID<=10; }
+
+enum NetworkType
+{
+	NETWORK_TERRESTRIAL,
+	NETWORK_BS,
+	NETWORK_CS
+};
+
+inline NetworkType GetNetworkType(WORD NetworkID)
+{
+	if (IsBSNetworkID(NetworkID))
+		return NETWORK_BS;
+	if (IsCSNetworkID(NetworkID))
+		return NETWORK_CS;
+	return NETWORK_TERRESTRIAL;
+}
+
+
 #define FIRST_UHF_CHANNEL 13
 #define MAX_CHANNEL_NAME 64
 
@@ -74,6 +94,7 @@ public:
 	int FindPhysicalChannel(int Channel) const;
 	int FindChannelNo(int No) const;
 	int FindServiceID(WORD ServiceID) const;
+	int FindByIDs(WORD NetworkID,WORD TransportStreamID,WORD ServiceID) const;
 	int GetNextChannelNo(int ChannelNo,bool fWrap=false) const;
 	int GetPrevChannelNo(int ChannelNo,bool fWrap=false) const;
 	int GetMaxChannelNo() const;

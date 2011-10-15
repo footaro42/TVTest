@@ -20,10 +20,11 @@ enum {
 	STATUS_ITEM_PROGRAMINFO,
 	STATUS_ITEM_BUFFERING,
 	STATUS_ITEM_TUNER,
-	STATUS_ITEM_MEDIABITRATE
+	STATUS_ITEM_MEDIABITRATE,
+	STATUS_ITEM_FAVORITES
 };
 #define STATUS_ITEM_FIRST	STATUS_ITEM_CHANNEL
-#define STATUS_ITEM_LAST	STATUS_ITEM_MEDIABITRATE
+#define STATUS_ITEM_LAST	STATUS_ITEM_FAVORITES
 
 
 class CChannelStatusItem : public CStatusItem
@@ -74,7 +75,7 @@ public:
 	void OnRButtonDown(int x,int y);
 
 private:
-	DrawUtil::CBitmap m_Icons;
+	DrawUtil::CMonoColorBitmap m_Icons;
 };
 
 class CRecordStatusItem : public CStatusItem
@@ -112,7 +113,7 @@ public:
 	void OnRButtonDown(int x,int y);
 
 private:
-	DrawUtil::CBitmap m_Icons;
+	DrawUtil::CMonoColorBitmap m_Icons;
 };
 
 class CErrorStatusItem : public CStatusItem
@@ -217,6 +218,20 @@ public:
 	LPCTSTR GetName() const { return TEXT("ビットレート"); }
 	void Draw(HDC hdc,const RECT *pRect);
 	void DrawPreview(HDC hdc,const RECT *pRect);
+};
+
+class CFavoritesStatusItem : public CStatusItem
+{
+public:
+	CFavoritesStatusItem();
+// CStatusItem
+	LPCTSTR GetName() const { return TEXT("お気に入り"); }
+	void Draw(HDC hdc,const RECT *pRect);
+	void OnLButtonDown(int x,int y);
+	void OnRButtonDown(int x,int y);
+
+private:
+	DrawUtil::CMonoColorBitmap m_IconBitmap;
 };
 
 

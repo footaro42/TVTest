@@ -492,14 +492,12 @@ LRESULT CCaptureWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lPara
 		//m_Status.SetEventHandler(pThis);
 		if (m_Status.NumItems()==0) {
 			if (!m_StatusIcons.IsCreated()) {
-				m_StatusIcons.Load(GetAppClass().GetResourceInstance(),
-								   MAKEINTRESOURCE(IDB_CAPTURE),
-								   LR_CREATEDIBSECTION);
+				m_StatusIcons.Load(GetAppClass().GetResourceInstance(),IDB_CAPTURE);
 			}
-			m_Status.AddItem(new CCaptureStatusItem(m_StatusIcons.GetHandle()));
-			//m_Status.AddItem(new CContinuousStatusItem(m_StatusIcons.GetHandle()));
-			m_Status.AddItem(new CSaveStatusItem(this,m_StatusIcons.GetHandle()));
-			m_Status.AddItem(new CCopyStatusItem(this,m_StatusIcons.GetHandle()));
+			m_Status.AddItem(new CCaptureStatusItem(m_StatusIcons));
+			//m_Status.AddItem(new CContinuousStatusItem(m_StatusIcons));
+			m_Status.AddItem(new CSaveStatusItem(this,m_StatusIcons));
+			m_Status.AddItem(new CCopyStatusItem(this,m_StatusIcons));
 		}
 		if (m_pImage!=NULL) {
 			m_Preview.SetImage(m_pImage);
@@ -597,16 +595,16 @@ bool CCaptureWindow::CPreviewEventHandler::OnKeyDown(UINT KeyCode,UINT Flags)
 
 
 
-CCaptureWindow::CCaptureStatusItem::CCaptureStatusItem(HBITMAP hbmIcon)
+CCaptureWindow::CCaptureStatusItem::CCaptureStatusItem(DrawUtil::CMonoColorBitmap &IconBitmap)
 	: CStatusItem(STATUS_ITEM_CAPTURE,16)
-	, m_hbmIcon(hbmIcon)
+	, m_IconBitmap(IconBitmap)
 {
 	m_MinWidth=16;
 }
 
 void CCaptureWindow::CCaptureStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	DrawIcon(hdc,pRect,m_hbmIcon,0,0,16,16);
+	DrawIcon(hdc,pRect,m_IconBitmap);
 }
 
 void CCaptureWindow::CCaptureStatusItem::OnLButtonDown(int x,int y)
@@ -637,16 +635,16 @@ void CCaptureWindow::CCaptureStatusItem::OnRButtonDown(int x,int y)
 // その昔に連写機能を付けようとした名残…
 #if 0
 
-CCaptureWindow::CContinuousStatusItem::CContinuousStatusItem(HBITMAP hbmIcon)
+CCaptureWindow::CContinuousStatusItem::CContinuousStatusItem(DrawUtil::CMonoColorBitmap &IconBitmap)
 	: CStatusItem(STATUS_ITEM_CONTINUOUS,16)
-	, m_hbmIcon(hbmIcon)
+	, m_IconBitmap(IconBitmap)
 {
 	m_MinWidth=16;
 }
 
 void CCaptureWindow::CContinuousStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	DrawIcon(hdc,pRect,m_hbmIcon,16,0,16,16);
+	DrawIcon(hdc,pRect,m_IconBitmap,16);
 }
 
 void CCaptureWindow::CContinuousStatusItem::OnLButtonDown(int x,int y)
@@ -676,17 +674,18 @@ void CCaptureWindow::CContinuousStatusItem::OnRButtonDown(int x,int y)
 #endif
 
 
-CCaptureWindow::CSaveStatusItem::CSaveStatusItem(CCaptureWindow *pCaptureWindow,HBITMAP hbmIcon)
+CCaptureWindow::CSaveStatusItem::CSaveStatusItem(CCaptureWindow *pCaptureWindow,
+												 DrawUtil::CMonoColorBitmap &IconBitmap)
 	: CStatusItem(STATUS_ITEM_SAVE,16)
 	, m_pCaptureWindow(pCaptureWindow)
-	, m_hbmIcon(hbmIcon)
+	, m_IconBitmap(IconBitmap)
 {
 	m_MinWidth=16;
 }
 
 void CCaptureWindow::CSaveStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	DrawIcon(hdc,pRect,m_hbmIcon,32,0,16,16);
+	DrawIcon(hdc,pRect,m_IconBitmap,32);
 }
 
 void CCaptureWindow::CSaveStatusItem::OnLButtonDown(int x,int y)
@@ -695,17 +694,18 @@ void CCaptureWindow::CSaveStatusItem::OnLButtonDown(int x,int y)
 }
 
 
-CCaptureWindow::CCopyStatusItem::CCopyStatusItem(CCaptureWindow *pCaptureWindow,HBITMAP hbmIcon)
+CCaptureWindow::CCopyStatusItem::CCopyStatusItem(CCaptureWindow *pCaptureWindow,
+												 DrawUtil::CMonoColorBitmap &IconBitmap)
 	: CStatusItem(STATUS_ITEM_COPY,16)
 	, m_pCaptureWindow(pCaptureWindow)
-	, m_hbmIcon(hbmIcon)
+	, m_IconBitmap(IconBitmap)
 {
 	m_MinWidth=16;
 }
 
 void CCaptureWindow::CCopyStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	DrawIcon(hdc,pRect,m_hbmIcon,48,0,16,16);
+	DrawIcon(hdc,pRect,m_IconBitmap,48);
 }
 
 void CCaptureWindow::CCopyStatusItem::OnLButtonDown(int x,int y)

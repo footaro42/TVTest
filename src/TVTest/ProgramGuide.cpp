@@ -4,7 +4,7 @@
 #include "ProgramGuide.h"
 #include "DialogUtil.h"
 #include "LogoManager.h"
-#include "HelperClass/StdUtil.h"
+#include "EpgChannelSettings.h"
 #include "Help/HelpID.h"
 #include "resource.h"
 
@@ -796,10 +796,15 @@ bool CServiceInfo::SaveiEpgFile(const CEventInfoData *pEventInfo,LPCTSTR pszFile
 	else
 		szEventName[0]='\0';
 	if (fVersion2) {
+		char szStation[16];
+		StdUtil::snprintf(szStation,lengthof(szText),
+						  m_ServiceData.IsBS()?"BSDT%03d":
+						  m_ServiceData.IsCS()?"CSDT%03d":"DFS%05x",
+						  m_ServiceData.m_ServiceID);
 		Length=::wnsprintfA(szText,sizeof(szText),
 			"Content-type: application/x-tv-program-digital-info; charset=shift_jis\r\n"
 			"version: 2\r\n"
-			"station: DFS%05x\r\n"
+			"station: %s\r\n"
 			"station-name: %s\r\n"
 			"year: %d\r\n"
 			"month: %02d\r\n"
@@ -808,14 +813,14 @@ bool CServiceInfo::SaveiEpgFile(const CEventInfoData *pEventInfo,LPCTSTR pszFile
 			"end: %02d:%02d\r\n"
 			"program-title: %s\r\n"
 			"program-id: %d\r\n",
-			m_ServiceData.m_ServiceID,szServiceName,
+			szStation,szServiceName,
 			stStart.wYear,stStart.wMonth,stStart.wDay,
 			stStart.wHour,stStart.wMinute,
 			stEnd.wHour,stEnd.wMinute,
 			szEventName,pEventInfo->m_EventID);
 	} else {
 		Length=::wnsprintfA(szText,sizeof(szText),
-			"Content-type: application/x-tv-program-digital-info; charset=shift_jis\r\n"
+			"Content-type: application/x-tv-program-info; charset=shift_jis\r\n"
 			"version: 1\r\n"
 			"station: %s\r\n"
 			"year: %d\r\n"
@@ -970,6 +975,7 @@ CProgramGuide::CProgramGuide()
 	, m_EventInfoPopupHandler(this)
 	, m_fShowToolTip(true)
 	, m_CurrentTuningSpace(-2)
+	, m_fExcludeNoEventServices(true)
 	, m_pDriverManager(NULL)
 	, m_BeginHour(-1)
 	, m_fUpdating(false)
@@ -1112,6 +1118,12 @@ bool CProgramGuide::UpdateList(bool fUpdateList)
 	m_ServiceList.Clear();
 	for (int i=0;i<m_ChannelList.NumChannels();i++) {
 		const CChannelInfo *pChannelInfo=m_ChannelList.GetChannelInfo(i);
+
+		if (IsExcludeService(pChannelInfo->GetNetworkID(),
+							 pChannelInfo->GetTransportStreamID(),
+							 pChannelInfo->GetServiceID()))
+			continue;
+
 		if (fUpdateList)
 			m_pProgramList->UpdateService(
 				pChannelInfo->GetNetworkID(),
@@ -1121,6 +1133,7 @@ bool CProgramGuide::UpdateList(bool fUpdateList)
 			pChannelInfo->GetNetworkID(),
 			pChannelInfo->GetTransportStreamID(),
 			pChannelInfo->GetServiceID());
+
 		ProgramGuide::CServiceInfo *pService;
 
 		if (pServiceInfo!=NULL) {
@@ -1132,24 +1145,21 @@ bool CProgramGuide::UpdateList(bool fUpdateList)
 				pService->AddEvent(new CEventInfoData(itrEvent->second));
 			}
 			pService->SortEvents();
-
-			HBITMAP hbmLogo=GetAppClass().GetLogoManager()->GetAssociatedLogoBitmap(
-				pService->GetNetworkID(),pService->GetServiceID(),CLogoManager::LOGOTYPE_SMALL);
-			if (hbmLogo!=NULL)
-				pService->SetLogo(hbmLogo);
-
-			if (m_ListMode==LIST_WEEK && pServiceInfo->m_ServiceData==CurServiceInfo)
-				m_WeekListService=(int)m_ServiceList.NumServices();
-
-#if 1
-			m_ServiceList.Add(pService);
-		}
-#else
 		} else {
+			if (m_fExcludeNoEventServices)
+				continue;
 			pService=new ProgramGuide::CServiceInfo(pChannelInfo);
 		}
+
+		HBITMAP hbmLogo=GetAppClass().GetLogoManager()->GetAssociatedLogoBitmap(
+			pService->GetNetworkID(),pService->GetServiceID(),CLogoManager::LOGOTYPE_SMALL);
+		if (hbmLogo!=NULL)
+			pService->SetLogo(hbmLogo);
+
+		if (m_ListMode==LIST_WEEK && pServiceInfo->m_ServiceData==CurServiceInfo)
+			m_WeekListService=(int)m_ServiceList.NumServices();
+
 		m_ServiceList.Add(pService);
-#endif
 	}
 
 	if (m_ListMode==LIST_WEEK && m_WeekListService<0) {
@@ -1404,8 +1414,8 @@ void CProgramGuide::DrawHeaderBackground(HDC hdc,const RECT &Rect,bool fCur) con
 
 
 void CProgramGuide::DrawServiceHeader(ProgramGuide::CServiceInfo *pServiceInfo,
-									  HDC hdc,const RECT &Rect,HDC hdcChevron,int Chevron,
-									  bool fLeftAlign) const
+									  HDC hdc,const RECT &Rect,int Chevron,
+									  bool fLeftAlign)
 {
 	bool fCur=pServiceInfo->GetNetworkID()==m_CurrentChannel.NetworkID
 		//&& pServiceInfo->GetTransportStreamID()==m_CurrentChannel.TransportStreamID
@@ -1433,15 +1443,10 @@ void CProgramGuide::DrawServiceHeader(ProgramGuide::CServiceInfo *pServiceInfo,
 		rc.left+=LogoWidth+HEADER_MARGIN_LEFT;
 	}
 
-	if (hdcChevron!=NULL) {
-		rc.right-=CHEVRON_WIDTH;
-		DrawUtil::DrawMonoColorDIB(hdc,
-								   rc.right,rc.top+((rc.bottom-rc.top)-CHEVRON_HEIGHT)/2,
-								   hdcChevron,Chevron*CHEVRON_WIDTH,0,
-								   CHEVRON_WIDTH,CHEVRON_HEIGHT,
-								   TextColor);
-		rc.right-=HEADER_MARGIN_RIGHT;
-	}
+	rc.right-=CHEVRON_WIDTH;
+	m_Chevron.Draw(hdc,rc.right,rc.top+((rc.bottom-rc.top)-CHEVRON_HEIGHT)/2,
+				   TextColor,Chevron*CHEVRON_WIDTH,0,CHEVRON_WIDTH,CHEVRON_HEIGHT);
+	rc.right-=HEADER_MARGIN_RIGHT;
 
 	::DrawText(hdc,pServiceInfo->GetServiceName(),-1,&rc,
 			   (fLeftAlign || hbmLogo!=NULL?DT_LEFT:DT_CENTER) |
@@ -1604,9 +1609,6 @@ void CProgramGuide::Draw(HDC hdc,const RECT &PaintRect)
 
 	if (m_ServiceList.NumServices()>0) {
 		if (PaintRect.top<HeaderHeight) {
-			HDC hdcMem=::CreateCompatibleDC(hdc);
-			HBITMAP hbmOld=DrawUtil::SelectObject(hdcMem,m_Chevron);
-
 			rc.left=rcClient.left+m_TimeBarWidth;
 			rc.top=0;
 			rc.right=rcClient.right-m_TimeBarWidth;
@@ -1618,12 +1620,12 @@ void CProgramGuide::Draw(HDC hdc,const RECT &PaintRect)
 				for (size_t i=0;i<m_ServiceList.NumServices();i++) {
 					rc.right=rc.left+(m_ItemWidth+m_ItemMargin*2);
 					if (rc.left<PaintRect.right && rc.right>PaintRect.left)
-						DrawServiceHeader(m_ServiceList.GetItem(i),hdc,rc,hdcMem,2);
+						DrawServiceHeader(m_ServiceList.GetItem(i),hdc,rc,2);
 					rc.left=rc.right;
 				}
 			} else if (m_ListMode==LIST_WEEK) {
 				rc.bottom=m_HeaderHeight;
-				DrawServiceHeader(m_ServiceList.GetItem(m_WeekListService),hdc,rc,hdcMem,3,true);
+				DrawServiceHeader(m_ServiceList.GetItem(m_WeekListService),hdc,rc,3,true);
 				rc.left=m_TimeBarWidth-m_ScrollPos.x;
 				rc.top=rc.bottom;
 				rc.bottom+=m_HeaderHeight;
@@ -1640,9 +1642,6 @@ void CProgramGuide::Draw(HDC hdc,const RECT &PaintRect)
 			}
 			::SelectClipRgn(hdc,NULL);
 			::DeleteObject(hrgn);
-
-			::SelectObject(hdcMem,hbmOld);
-			::DeleteDC(hdcMem);
 		}
 
 		hrgn=::CreateRectRgnIndirect(&rcGuide);
@@ -2167,6 +2166,58 @@ bool CProgramGuide::EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const
 	if (CCoreEngine::IsNetworkDriverFileName(pDriverInfo->GetFileName()))
 		return EnumDriver(pIndex,pszName,MaxName);
 	::lstrcpyn(pszName,pDriverInfo->GetFileName(),MaxName);
+	return true;
+}
+
+
+bool CProgramGuide::SetExcludeNoEventServices(bool fExclude)
+{
+	m_fExcludeNoEventServices=fExclude;
+	return true;
+}
+
+
+bool CProgramGuide::SetExcludeServiceList(const ServiceInfoList &List)
+{
+	m_ExcludeServiceList=List;
+	return true;
+}
+
+
+bool CProgramGuide::GetExcludeServiceList(ServiceInfoList *pList) const
+{
+	if (pList==NULL)
+		return false;
+	*pList=m_ExcludeServiceList;
+	return true;
+}
+
+
+bool CProgramGuide::IsExcludeService(WORD NetworkID,WORD TransportStreamID,WORD ServiceID) const
+{
+	for (auto i=m_ExcludeServiceList.begin();i!=m_ExcludeServiceList.end();i++) {
+		if ((NetworkID==0 || i->NetworkID==NetworkID)
+				&& (TransportStreamID==0 || i->TransportStreamID==TransportStreamID)
+				&& i->ServiceID==ServiceID)
+			return true;
+	}
+	return false;
+}
+
+
+bool CProgramGuide::SetExcludeService(WORD NetworkID,WORD TransportStreamID,WORD ServiceID,bool fExclude)
+{
+	for (auto i=m_ExcludeServiceList.begin();i!=m_ExcludeServiceList.end();i++) {
+		if (i->NetworkID==NetworkID
+				&& i->TransportStreamID==TransportStreamID
+				&& i->ServiceID==ServiceID) {
+			if (!fExclude)
+				m_ExcludeServiceList.erase(i);
+			return true;
+		}
+	}
+	if (fExclude)
+		m_ExcludeServiceList.push_back(ServiceInfo(NetworkID,TransportStreamID,ServiceID));
 	return true;
 }
 
@@ -2837,11 +2888,12 @@ LRESULT CProgramGuide::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 					int CurDriver=-1;
 					int i=-1;
 					while (EnumDriver(&i,szText,lengthof(szText))) {
+						if (::lstrcmpi(m_szDriverFileName,szText)==0)
+							CurDriver=i;
+						::PathRemoveExtension(szText);
 						CopyToMenuText(szText,szMenu,lengthof(szMenu));
 						::AppendMenu(hmenuDriver,MFT_STRING | MFS_ENABLED,
 									 CM_PROGRAMGUIDE_DRIVER_FIRST+i,szMenu);
-						if (::lstrcmpi(m_szDriverFileName,szText)==0)
-							CurDriver=i;
 					}
 					if (CurDriver>=0)
 						::CheckMenuRadioItem(hmenuDriver,CM_PROGRAMGUIDE_DRIVER_FIRST,
@@ -3132,6 +3184,19 @@ void CProgramGuide::OnCommand(int id)
 			m_ProgramSearch.Create(m_hwnd);
 		} else {
 			m_ProgramSearch.Destroy();
+		}
+		return;
+
+	case CM_PROGRAMGUIDE_CHANNELSETTINGS:
+		{
+			CEpgChannelSettings Settings(this);
+
+			POINT pt={0,0};
+			::ClientToScreen(m_hwnd,&pt);
+			Settings.SetPosition(pt.x,pt.y,0,0);
+
+			if (Settings.Show(m_hwnd))
+				UpdateProgramGuide(false);
 		}
 		return;
 
@@ -3454,7 +3519,8 @@ public:
 		DrawText(hdc,pRect,szText);
 	}
 
-	void OnFocus(bool fFocus) {
+	void OnFocus(bool fFocus)
+	{
 		if (fFocus) {
 			int i;
 			TCHAR szText[256];
@@ -3464,8 +3530,10 @@ public:
 				m_Menu.AppendItem(new CDropDownMenu::CItem(CM_PROGRAMGUIDE_TUNINGSPACE_FIRST+i,szText));
 			m_Menu.AppendSeparator();
 			i=-1;
-			while (m_pProgramGuide->EnumDriver(&i,szText,lengthof(szText)))
+			while (m_pProgramGuide->EnumDriver(&i,szText,lengthof(szText))) {
+				::PathRemoveExtension(szText);
 				m_Menu.AppendItem(new CDropDownMenu::CItem(CM_PROGRAMGUIDE_DRIVER_FIRST+i,szText));
+			}
 			RECT rc;
 			POINT pt;
 			GetRect(&rc);

@@ -18,6 +18,8 @@ public:
 	CServiceInfoData(WORD NetworkID,WORD TSID,WORD ServiceID);
 	bool operator==(const CServiceInfoData &Info) const;
 	bool operator!=(const CServiceInfoData &Info) const { return !(*this==Info); }
+	bool IsBS() const;
+	bool IsCS() const;
 };
 
 class CEventInfoData
@@ -80,6 +82,7 @@ public:
 	bool m_fCommonEvent;
 	CommonEventInfo m_CommonEventInfo;
 	ULONGLONG m_UpdateTime;
+	bool m_fDatabase;
 
 	CEventInfoData();
 	CEventInfoData(const CEventInfoData &Info);
@@ -156,17 +159,25 @@ class CEpgProgramList
 	}
 	const CEventInfoData *GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID);
 	bool SetCommonEventInfo(CEventInfoData *pInfo);
+	bool SetEventExtText(CEventInfoData *pInfo);
+	bool CopyEventExtText(CEventInfoData *pDstInfo,const CEventInfoData *pSrcInfo);
 	bool Merge(CEpgProgramList *pSrcList);
 
 public:
+	enum {
+		SERVICE_UPDATE_DISCARD_OLD_EVENTS	= 0x0001U,
+		SERVICE_UPDATE_DISCARD_ENDED_EVENTS	= 0x0002U
+	};
+
 	CEpgProgramList(CEventManager *pEventManager);
 	~CEpgProgramList();
-	bool UpdateService(const CEventManager::ServiceInfo *pService);
+	bool UpdateService(const CEventManager::ServiceInfo *pService,UINT Flags=0);
 	bool UpdateService(CEventManager *pEventManager,
-					   const CEventManager::ServiceInfo *pService);
-	bool UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID);
-	bool UpdateServices(WORD NetworkID,WORD TSID);
-	bool UpdateProgramList();
+					   const CEventManager::ServiceInfo *pService,
+					   UINT Flags=0);
+	bool UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID,UINT Flags=0);
+	bool UpdateServices(WORD NetworkID,WORD TSID,UINT Flags=0);
+	bool UpdateProgramList(UINT Flags=0);
 	void Clear();
 	int NumServices() const;
 	CEpgServiceInfo *EnumService(int ServiceIndex);

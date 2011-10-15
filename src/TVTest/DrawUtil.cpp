@@ -480,7 +480,7 @@ bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 }
 
 
-HBITMAP CreateDIB(int Width,int Height,int BitCount)
+HBITMAP CreateDIB(int Width,int Height,int BitCount,void **ppBits)
 {
 	struct {
 		BITMAPINFOHEADER bmiHeader;
@@ -495,7 +495,12 @@ HBITMAP CreateDIB(int Width,int Height,int BitCount)
 	bmi.bmiHeader.biPlanes=1;
 	bmi.bmiHeader.biBitCount=BitCount;
 	bmi.bmiHeader.biCompression=BI_RGB;
-	return ::CreateDIBSection(NULL,(BITMAPINFO*)&bmi,DIB_RGB_COLORS,&pBits,NULL,0);
+	HBITMAP hbm=::CreateDIBSection(NULL,(BITMAPINFO*)&bmi,DIB_RGB_COLORS,&pBits,NULL,0);
+	if (hbm==NULL)
+		return NULL;
+	if (ppBits!=NULL)
+		*ppBits=pBits;
+	return hbm;
 }
 
 
@@ -1010,6 +1015,233 @@ int CBitmap::GetHeight() const
 			return bm.bmHeight;
 	}
 	return 0;
+}
+
+
+CMonoColorBitmap::CMonoColorBitmap()
+	: m_hbm(NULL)
+{
+}
+
+CMonoColorBitmap::~CMonoColorBitmap()
+{
+	Destroy();
+}
+
+bool CMonoColorBitmap::Load(HINSTANCE hinst,LPCTSTR pszName)
+{
+	HBITMAP hbmSrc=static_cast<HBITMAP>(::LoadImage(hinst,pszName,IMAGE_BITMAP,0,0,LR_CREATEDIBSECTION));
+	if (hbmSrc==NULL)
+		return false;
+
+	bool fResult=Create(hbmSrc);
+
+	::DeleteObject(hbmSrc);
+
+	return fResult;
+}
+
+bool CMonoColorBitmap::Create(HBITMAP hbmSrc)
+{
+	Destroy();
+
+	if (hbmSrc==NULL)
+		return false;
+
+	BITMAP bm;
+	::GetObject(hbmSrc,sizeof(bm),&bm);
+	if ((bm.bmBitsPixel!=8 && bm.bmBitsPixel!=24 && bm.bmBitsPixel!=32)
+			|| bm.bmBits==NULL)
+		return false;
+
+	void *pBits;
+	m_hbm=CreateDIB(bm.bmWidth,bm.bmHeight,32,&pBits);
+	if (m_hbm==NULL)
+		return false;
+
+	if (bm.bmBitsPixel==32) {
+		::CopyMemory(pBits,bm.bmBits,bm.bmWidth*4*bm.bmHeight);
+		m_fColorImage=true;
+	} else {
+		BYTE *p=static_cast<BYTE*>(bm.bmBits);
+		BYTE *q=static_cast<BYTE*>(pBits);
+		for (int y=0;y<bm.bmHeight;y++) {
+			if (bm.bmBitsPixel==8) {
+				for (int x=0;x<bm.bmWidth;x++) {
+					q[3]=p[x];
+					q+=4;
+				}
+			} else {
+				for (int x=0;x<bm.bmWidth;x++) {
+					q[3]=p[x*3];
+					q+=4;
+				}
+			}
+			p+=(bm.bmWidth*bm.bmBitsPixel+31)/32*4;
+		}
+		m_fColorImage=false;
+	}
+
+	m_Color=CLR_INVALID;
+
+	return true;
+}
+
+void CMonoColorBitmap::Destroy()
+{
+	if (m_hbm!=NULL) {
+		::DeleteObject(m_hbm);
+		m_hbm=NULL;
+	}
+}
+
+bool CMonoColorBitmap::Draw(HDC hdc,int DstX,int DstY,COLORREF Color,int SrcX,int SrcY,int Width,int Height)
+{
+	if (m_hbm==NULL)
+		return false;
+
+	BITMAP bm;
+	if (::GetObject(m_hbm,sizeof(bm),&bm)!=sizeof(bm))
+		return false;
+
+	if (Width<=0)
+		Width=bm.bmWidth;
+	if (Height<=0)
+		Height=bm.bmHeight;
+	if (SrcX<0 || SrcY<0 || SrcX+Width>bm.bmWidth || SrcY+Height>bm.bmHeight)
+		return false;
+
+	if (!m_fColorImage)
+		SetColor(Color);
+
+	HDC hdcMemory=::CreateCompatibleDC(hdc);
+	if (hdcMemory==NULL)
+		return false;
+	HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMemory,m_hbm));
+	BLENDFUNCTION bf={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
+	::GdiAlphaBlend(hdc,DstX,DstY,Width,Height,
+					hdcMemory,SrcX,SrcY,Width,Height,bf);
+	::SelectObject(hdcMemory,hbmOld);
+	::DeleteDC(hdcMemory);
+
+	return true;
+}
+
+HIMAGELIST CMonoColorBitmap::CreateImageList(int IconWidth,COLORREF Color)
+{
+	if (m_hbm==NULL || IconWidth<1)
+		return NULL;
+
+	BITMAP bm;
+	if (::GetObject(m_hbm,sizeof(bm),&bm)!=sizeof(bm)
+			|| bm.bmWidth<IconWidth)
+		return NULL;
+
+	HIMAGELIST himl=::ImageList_Create(IconWidth,bm.bmHeight,ILC_COLOR32,0,1);
+	if (himl==NULL)
+		return NULL;
+
+	if (!m_fColorImage)
+		SetColor(Color);
+
+	::ImageList_Add(himl,m_hbm,NULL);
+
+	return himl;
+}
+
+void CMonoColorBitmap::SetColor(COLORREF Color)
+{
+	if (m_Color!=Color) {
+		BITMAP bm;
+		if (::GetObject(m_hbm,sizeof(bm),&bm)!=sizeof(bm))
+			return;
+
+		const UINT Red=GetRValue(Color),Green=GetGValue(Color),Blue=GetBValue(Color);
+		BYTE *p=static_cast<BYTE*>(bm.bmBits);
+		for (int y=0;y<bm.bmHeight;y++) {
+			for (int x=0;x<bm.bmWidth;x++) {
+#define DIVIDE_BY_255(v) ((((v)+1)*257)>>16)
+				UINT Alpha=p[3];
+				p[0]=(BYTE)DIVIDE_BY_255(Blue*Alpha);
+				p[1]=(BYTE)DIVIDE_BY_255(Green*Alpha);
+				p[2]=(BYTE)DIVIDE_BY_255(Red*Alpha);
+				p+=4;
+			}
+		}
+		m_Color=Color;
+	}
+}
+
+
+CMemoryDC::CMemoryDC()
+	: m_hdc(NULL)
+{
+}
+
+CMemoryDC::CMemoryDC(HDC hdc)
+	: m_hdc(NULL)
+{
+	Create(hdc);
+}
+
+CMemoryDC::~CMemoryDC()
+{
+	Delete();
+}
+
+bool CMemoryDC::Create(HDC hdc)
+{
+	Delete();
+
+	m_hdc=::CreateCompatibleDC(hdc);
+	if (m_hdc==NULL)
+		return false;
+	m_hbmOld=static_cast<HBITMAP>(::GetCurrentObject(m_hdc,OBJ_BITMAP));
+	return true;
+}
+
+void CMemoryDC::Delete()
+{
+	if (m_hdc!=NULL) {
+		::SelectObject(m_hdc,m_hbmOld);
+		::DeleteDC(m_hdc);
+		m_hdc=NULL;
+	}
+}
+
+bool CMemoryDC::SetBitmap(HBITMAP hbm)
+{
+	if (m_hdc==NULL || hbm==NULL)
+		return false;
+	::SelectObject(m_hdc,hbm);
+	return true;
+}
+
+bool CMemoryDC::Draw(HDC hdc,int DstX,int DstY,int SrcX,int SrcY,int Width,int Height)
+{
+	if (m_hdc==NULL || hdc==NULL || Width<1 || Height<1)
+		return false;
+	return ::BitBlt(hdc,DstX,DstY,Width,Height,m_hdc,SrcX,SrcY,SRCCOPY)!=FALSE;
+}
+
+bool CMemoryDC::DrawStretch(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
+							int SrcX,int SrcY,int SrcWidth,int SrcHeight,int Mode)
+{
+	if (m_hdc==NULL || hdc==NULL)
+		return false;
+	int OldStretchMode=::SetStretchBltMode(hdc,Mode);
+	::StretchBlt(hdc,DstX,DstY,DstWidth,DstHeight,m_hdc,SrcX,SrcY,SrcWidth,SrcHeight,SRCCOPY);
+	::SetStretchBltMode(hdc,OldStretchMode);
+	return true;
+}
+
+bool CMemoryDC::DrawAlpha(HDC hdc,int DstX,int DstY,int SrcX,int SrcY,int Width,int Height)
+{
+	if (m_hdc==NULL || hdc==NULL)
+		return false;
+	BLENDFUNCTION bf={AC_SRC_OVER,0,255,AC_SRC_ALPHA};
+	::GdiAlphaBlend(hdc,DstX,DstY,Width,Height,m_hdc,SrcX,SrcY,Width,Height,bf);
+	return true;
 }
 
 

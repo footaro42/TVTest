@@ -726,9 +726,8 @@ void CInformationPanel::Draw(HDC hdc,const RECT &PaintRect)
 	if (GetDrawItemRect(ITEM_SIGNALLEVEL,&rc,PaintRect)) {
 		int Length=0;
 		if (m_fSignalLevel) {
-			int SignalLevel=(int)(m_SignalLevel*100.0f);
-			Length=StdUtil::snprintf(szText,lengthof(szText),TEXT("%d.%02d dB / "),
-									 SignalLevel/100,abs(SignalLevel)%100);
+			Length=StdUtil::snprintf(szText,lengthof(szText),
+									 TEXT("%.2f dB / "),m_SignalLevel);
 		}
 		unsigned int BitRate=m_BitRate*100/(1024*1024);
 		StdUtil::snprintf(szText+Length,lengthof(szText)-Length,

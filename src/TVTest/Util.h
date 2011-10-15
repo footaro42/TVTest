@@ -6,6 +6,9 @@
 #include "StringUtility.h"
 
 
+int HexCharToInt(TCHAR Code);
+unsigned int HexStringToUInt(LPCTSTR pszString,int Length,LPCTSTR *ppszEnd=NULL);
+
 bool IsRectIntersect(const RECT *pRect1,const RECT *pRect2);
 
 float LevelToDeciBel(int Level);

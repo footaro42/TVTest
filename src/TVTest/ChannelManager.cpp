@@ -34,6 +34,7 @@ void CChannelManager::Reset()
 	m_DriverTuningSpaceList.Clear();
 	m_fUseDriverChannelList=false;
 	m_fChannelFileHasStreamIDs=false;
+	m_ChannelFileName.clear();
 
 #ifdef NETWORK_REMOCON_SUPPORT
 	m_fNetworkRemocon=false;
@@ -208,6 +209,9 @@ bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
 
 bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 {
+	if (IsStringEmpty(pszFileName))
+		return false;
+
 	if (::PathMatchSpec(pszFileName,TEXT("*.ch2"))
 #ifdef TVH264
 		|| ::PathMatchSpec(pszFileName,TEXT("*.ch1"))
@@ -246,6 +250,8 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 	} else {
 		return false;
 	}
+
+	m_ChannelFileName=pszFileName;
 
 	for (int i=0;i<m_DriverTuningSpaceList.NumSpaces();i++) {
 		CTuningSpaceInfo *pTuningSpace=m_TuningSpaceList.GetTuningSpaceInfo(i);
@@ -560,11 +566,39 @@ int CChannelManager::FindChannelInfo(const CChannelInfo *pInfo) const
 }
 
 
+int CChannelManager::FindChannelByIDs(int Space,WORD NetworkID,WORD TransportStreamID,WORD ServiceID) const
+{
+	const CChannelList *pChannelList;
+
+	if (Space==SPACE_ALL)
+		pChannelList=m_TuningSpaceList.GetAllChannelList();
+	else
+		pChannelList=m_TuningSpaceList.GetChannelList(Space);
+	if (pChannelList==nullptr)
+		return -1;
+
+	return pChannelList->FindByIDs(NetworkID,TransportStreamID,ServiceID);
+}
+
+
 int CChannelManager::NumSpaces() const
 {
 	if (m_fUseDriverChannelList)
 		return m_DriverTuningSpaceList.NumSpaces();
 	return max(m_TuningSpaceList.NumSpaces(),m_DriverTuningSpaceList.NumSpaces());
+}
+
+
+bool CChannelManager::GetChannelFileName(LPTSTR pszFileName,int MaxLength) const
+{
+	if (pszFileName==NULL
+			|| m_ChannelFileName.empty()
+			|| MaxLength<=(int)m_ChannelFileName.length())
+		return false;
+
+	::lstrcpy(pszFileName,m_ChannelFileName.c_str());
+
+	return true;
 }
 
 

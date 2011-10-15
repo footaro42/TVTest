@@ -48,12 +48,25 @@ bool CServiceInfoData::operator==(const CServiceInfoData &Info) const
 }
 
 
+bool CServiceInfoData::IsBS() const
+{
+	return IsBSNetworkID(m_NetworkID);
+}
+
+
+bool CServiceInfoData::IsCS() const
+{
+	return IsCSNetworkID(m_NetworkID);
+}
+
+
 
 
 CEventInfoData::CEventInfoData()
 	: m_fValidStartTime(false)
 	, m_fCommonEvent(false)
 	, m_UpdateTime(0)
+	, m_fDatabase(false)
 {
 }
 
@@ -106,6 +119,7 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 		m_fCommonEvent=Info.m_fCommonEvent;
 		m_CommonEventInfo=Info.m_CommonEventInfo;
 		m_UpdateTime=Info.m_UpdateTime;
+		m_fDatabase=Info.m_fDatabase;
 	}
 	return *this;
 }
@@ -135,6 +149,7 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 		m_fCommonEvent=Info.m_fCommonEvent;
 		m_CommonEventInfo=Info.m_CommonEventInfo;
 		m_UpdateTime=Info.m_UpdateTime;
+		m_fDatabase=Info.m_fDatabase;
 	}
 	return *this;
 }
@@ -344,14 +359,15 @@ CEpgProgramList::~CEpgProgramList()
 }
 
 
-bool CEpgProgramList::UpdateService(const CEventManager::ServiceInfo *pService)
+bool CEpgProgramList::UpdateService(const CEventManager::ServiceInfo *pService,UINT Flags)
 {
-	return UpdateService(m_pEventManager,pService);
+	return UpdateService(m_pEventManager,pService,Flags);
 }
 
 
 bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
-									const CEventManager::ServiceInfo *pService)
+									const CEventManager::ServiceInfo *pService,
+									UINT Flags)
 {
 	CBlockLock Lock(&m_Lock);
 
@@ -386,13 +402,14 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 			FILETIME ft;
 			::SystemTimeToFileTime(&Info.m_stStartTime, &ft);
 			StartTime = (((ULONGLONG)ft.dwHighDateTime << 32)
-				| (ULONGLONG)ft.dwLowDateTime) / 10000000ULL;
+						| (ULONGLONG)ft.dwLowDateTime) / FILETIME_SECOND;
 		}
 		bool operator<(const EventTime &Obj) const {
 			return StartTime < Obj.StartTime;
 		}
 	};
 	std::set<EventTime> EventTimeTable;
+	bool fHasExtText=false;
 
 #ifdef _DEBUG
 	SYSTEMTIME stOldestTime,stNewestTime;
@@ -421,10 +438,13 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 #endif
 
 		EventTimeTable.insert(EventTime(EventData));
+
+		if (!IsStringEmpty(EventData.GetEventExtText()))
+			fHasExtText=true;
 	}
 
 #ifdef _DEBUG
-	TRACE(TEXT("CEpgProgramList::UpdateService() (%d) %d/%d %d:%02d - %d/%d %d:%02d %u Events\n"),
+	TRACE(TEXT("CEpgProgramList::UpdateService() [%d] %d/%d %d:%02d - %d/%d %d:%02d %u Events\n"),
 		  pService->ServiceID,
 		  stOldestTime.wMonth,stOldestTime.wDay,stOldestTime.wHour,stOldestTime.wMinute,
 		  stNewestTime.wMonth,stNewestTime.wDay,stNewestTime.wHour,stNewestTime.wMinute,
@@ -440,19 +460,52 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 	if (!ServiceInsertResult.second) {
 		CEpgServiceInfo *pOldServiceInfo=ServiceInsertResult.first->second;
 
-		if (pOldServiceInfo->m_fMergeOldEvents) {
+		if (pOldServiceInfo->m_fMergeOldEvents
+				&& (Flags&SERVICE_UPDATE_DISCARD_OLD_EVENTS)==0) {
 			// 既存のイベントで新しいリストに無いものを追加する
-			unsigned int OldEventCount=0;
-			CEventInfoList::EventMap::iterator itrEvent;
 
-			for (itrEvent=pOldServiceInfo->m_EventList.EventDataMap.begin();
+			const bool fDiscardEndedEvents=(Flags&SERVICE_UPDATE_DISCARD_ENDED_EVENTS)!=0;
+			ULONGLONG CurTime;
+			if (fDiscardEndedEvents) {
+				SYSTEMTIME st;
+				FILETIME ft;
+				GetCurrentJST(&st);
+				::SystemTimeToFileTime(&st,&ft);
+				CurTime=(((ULONGLONG)ft.dwHighDateTime<<32) | ((ULONGLONG)ft.dwLowDateTime))/FILETIME_SECOND;
+			}
+
+			bool fMergeOldEvents=false;
+#ifdef _DEBUG
+			unsigned int MergeEventCount=0;
+			unsigned int MergeExtTextCount=0;
+#endif
+
+			for (CEventInfoList::EventMap::iterator itrEvent=pOldServiceInfo->m_EventList.EventDataMap.begin();
 					itrEvent!=pOldServiceInfo->m_EventList.EventDataMap.end();
 					itrEvent++) {
-				if (pServiceInfo->m_EventList.EventDataMap.find(itrEvent->second.m_EventID)!=
-						pServiceInfo->m_EventList.EventDataMap.end())
+				if (!itrEvent->second.m_fDatabase)
 					continue;
 
+				CEventInfoList::EventMap::iterator itrEventNew=
+					pServiceInfo->m_EventList.EventDataMap.find(itrEvent->second.m_EventID);
+				if (itrEventNew!=pServiceInfo->m_EventList.EventDataMap.end()) {
+					if (!fHasExtText
+							&& CopyEventExtText(&itrEventNew->second,&itrEvent->second)) {
+						itrEventNew->second.m_fDatabase=true;
+						fMergeOldEvents=true;
+#ifdef _DEBUG
+						MergeExtTextCount++;
+#endif
+					}
+					continue;
+				}
+
 				EventTime Time(itrEvent->second);
+
+				if (fDiscardEndedEvents
+						&& Time.StartTime+Time.Duration<CurTime)
+					continue;
+
 				std::set<EventTime>::iterator itrUpper=EventTimeTable.upper_bound(Time);
 				bool fSkip=false;
 				std::set<EventTime>::iterator itr;
@@ -491,14 +544,18 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 				if (!fSkip) {
 					pServiceInfo->m_EventList.EventDataMap.insert(
 						std::pair<WORD,CEventInfoData>(itrEvent->second.m_EventID,itrEvent->second));
-					OldEventCount++;
+					fMergeOldEvents=true;
+#ifdef _DEBUG
+					MergeEventCount++;
+#endif
 				}
 			}
-			if (OldEventCount==0)
+			if (!fMergeOldEvents)
 				pServiceInfo->m_fMergeOldEvents=false;
+
 #ifdef _DEBUG
-			TRACE(TEXT("古いイベントの生き残り %u (Total %u)\n"),
-				  OldEventCount,(unsigned int)pServiceInfo->m_EventList.EventDataMap.size());
+			TRACE(TEXT("古いイベント %u / 拡張テキスト %u\n"),
+				  MergeEventCount,MergeExtTextCount);
 #endif
 		}
 
@@ -512,7 +569,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 }
 
 
-bool CEpgProgramList::UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID)
+bool CEpgProgramList::UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID,UINT Flags)
 {
 	CBlockLock Lock(&m_Lock);
 
@@ -522,13 +579,13 @@ bool CEpgProgramList::UpdateService(WORD NetworkID,WORD TSID,WORD ServiceID)
 	for (size_t i=0;i<ServiceList.size();i++) {
 		if ((TSID==0 || ServiceList[i].TransportStreamID==TSID)
 				&& ServiceList[i].ServiceID==ServiceID)
-			return UpdateService(&ServiceList[i]);
+			return UpdateService(&ServiceList[i],Flags);
 	}
 	return false;
 }
 
 
-bool CEpgProgramList::UpdateServices(WORD NetworkID,WORD TSID)
+bool CEpgProgramList::UpdateServices(WORD NetworkID,WORD TSID,UINT Flags)
 {
 	if (NetworkID==0 && TSID==0)
 		return false;
@@ -542,7 +599,7 @@ bool CEpgProgramList::UpdateServices(WORD NetworkID,WORD TSID)
 	for (size_t i=0;i<ServiceList.size();i++) {
 		if ((NetworkID==0 || ServiceList[i].OriginalNetworkID==NetworkID)
 				&& (TSID==0 || ServiceList[i].TransportStreamID==TSID)) {
-			if (UpdateService(&ServiceList[i]))
+			if (UpdateService(&ServiceList[i],Flags))
 				fUpdated=true;
 		}
 	}
@@ -550,7 +607,7 @@ bool CEpgProgramList::UpdateServices(WORD NetworkID,WORD TSID)
 }
 
 
-bool CEpgProgramList::UpdateProgramList()
+bool CEpgProgramList::UpdateProgramList(UINT Flags)
 {
 	CBlockLock Lock(&m_Lock);
 
@@ -559,7 +616,7 @@ bool CEpgProgramList::UpdateProgramList()
 		return false;
 	bool fUpdated=false;
 	for (size_t i=0;i<ServiceList.size();i++) {
-		if (UpdateService(&ServiceList[i]))
+		if (UpdateService(&ServiceList[i],Flags))
 			fUpdated=true;
 	}
 	return fUpdated;
@@ -632,13 +689,15 @@ bool CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
 		pInfo->m_NetworkID=NetworkID;
 		pInfo->m_TSID=TSID;
 		pInfo->m_ServiceID=ServiceID;
+		SetCommonEventInfo(pInfo);
+		SetEventExtText(pInfo);
 	} else {
 		const CEventInfoData *pEventInfo=GetEventInfo(NetworkID,TSID,ServiceID,EventID);
 		if (pEventInfo==NULL)
 			return false;
 		*pInfo=*pEventInfo;
+		SetCommonEventInfo(pInfo);
 	}
-	SetCommonEventInfo(pInfo);
 
 	return true;
 }
@@ -657,6 +716,7 @@ bool CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
 		pInfo->m_TSID=TSID;
 		pInfo->m_ServiceID=ServiceID;
 		SetCommonEventInfo(pInfo);
+		SetEventExtText(pInfo);
 		return true;
 	}
 
@@ -726,6 +786,7 @@ const CEventInfoData *CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WOR
 
 bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 {
+	// イベント共有の参照先から情報を取得する
 	if (pInfo->m_fCommonEvent) {
 		CEventManager::CEventInfo EventInfo;
 		if (m_pEventManager->GetEventInfo(pInfo->m_NetworkID,
@@ -736,6 +797,9 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 			pInfo->SetEventName(EventInfo.GetEventName());
 			pInfo->SetEventText(EventInfo.GetEventText());
 			pInfo->SetEventExtText(EventInfo.GetEventExtendedText());
+			pInfo->m_FreeCaMode=EventInfo.GetFreeCaMode()?
+								CEventInfoData::FREE_CA_MODE_SCRAMBLED:
+								CEventInfoData::FREE_CA_MODE_UNSCRAMBLED;
 			pInfo->m_VideoInfo=EventInfo.GetVideoInfo();
 			pInfo->m_AudioList=EventInfo.GetAudioList();
 			pInfo->m_ContentNibble=EventInfo.GetContentNibble();
@@ -749,12 +813,40 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 			pInfo->SetEventName(pCommonEvent->GetEventName());
 			pInfo->SetEventText(pCommonEvent->GetEventText());
 			pInfo->SetEventExtText(pCommonEvent->GetEventExtText());
+			pInfo->m_FreeCaMode=pCommonEvent->m_FreeCaMode;
 			pInfo->m_VideoInfo=pCommonEvent->m_VideoInfo;
 			pInfo->m_AudioList=pCommonEvent->m_AudioList;
 			pInfo->m_ContentNibble=pCommonEvent->m_ContentNibble;
 		}
 	}
 	return true;
+}
+
+
+bool CEpgProgramList::SetEventExtText(CEventInfoData *pInfo)
+{
+	if (IsStringEmpty(pInfo->GetEventExtText())) {
+		const CEventInfoData *pEvent=GetEventInfo(pInfo->m_NetworkID,
+												  pInfo->m_TSID,
+												  pInfo->m_CommonEventInfo.ServiceID,
+												  pInfo->m_CommonEventInfo.EventID);
+		if (pEvent==NULL)
+			return false;
+		return CopyEventExtText(pInfo,pEvent);
+	}
+	return true;
+}
+
+
+bool CEpgProgramList::CopyEventExtText(CEventInfoData *pDstInfo,const CEventInfoData *pSrcInfo)
+{
+	if (IsStringEmpty(pDstInfo->GetEventExtText())
+			&& !IsStringEmpty(pSrcInfo->GetEventExtText())
+			&& CompareText(pDstInfo->GetEventName(),pSrcInfo->GetEventName())) {
+		pDstInfo->SetEventExtText(pSrcInfo->GetEventExtText());
+		return true;
+	}
+	return false;
 }
 
 
@@ -875,7 +967,7 @@ struct ServiceInfoHeader2 {
 	}
 };
 
-#define MAX_EPG_TEXT_LENGTH 1024
+#define MAX_EPG_TEXT_LENGTH 4096
 #define MAX_CONTENT_NIBBLE_COUNT 7
 
 #define EVENTINFO_FLAG_RUNNINGSTATUSMASK	0x07
@@ -1171,6 +1263,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 					::lstrcpyn(pEventData->m_AudioList[0].szText,pszText,CEventInfoData::AudioInfo::MAX_TEXT);
 					delete [] pszText;
 				}
+				pEventData->m_fDatabase=true;
 			} else {
 				EventInfoHeader2 EventHeader2;
 				CCrc32 CRC;
@@ -1323,6 +1416,8 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 						}
 					}
 				}
+
+				pEventData->m_fDatabase=true;
 
 				DWORD CRC32;
 				if (File.Read(&CRC32,sizeof(DWORD))!=sizeof(DWORD))

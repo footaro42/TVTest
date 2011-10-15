@@ -167,6 +167,24 @@ public:
 		FILTER_WELFARE		=0x00080000U
 	};
 
+	struct ServiceInfo
+	{
+		WORD NetworkID;
+		WORD TransportStreamID;
+		WORD ServiceID;
+
+		ServiceInfo() { Clear(); }
+		ServiceInfo(WORD NID,WORD TSID,WORD SID)
+			: NetworkID(NID), TransportStreamID(TSID), ServiceID(SID) {}
+		void Clear() {
+			NetworkID=0;
+			TransportStreamID=0;
+			ServiceID=0;
+		}
+	};
+
+	typedef std::vector<ServiceInfo> ServiceInfoList;
+
 	class ABSTRACT_CLASS(CFrame)
 	{
 	protected:
@@ -223,140 +241,14 @@ public:
 		friend class CProgramGuide;
 	};
 
-private:
-	CEpgProgramList *m_pProgramList;
-	ProgramGuide::CServiceList m_ServiceList;
-	ProgramGuide::CEventLayoutList m_EventLayoutList;
-	ListMode m_ListMode;
-	int m_WeekListService;
-	int m_LinesPerHour;
-	DrawUtil::CFont m_Font;
-	DrawUtil::CFont m_TitleFont;
-	DrawUtil::CFont m_TimeFont;
-	int m_FontHeight;
-	int m_LineMargin;
-	int m_ItemWidth;
-	int m_ItemMargin;
-	int m_TextLeftMargin;
-	int m_HeaderHeight;
-	int m_TimeBarWidth;
-	POINT m_ScrollPos;
-	POINT m_OldScrollPos;
-	bool m_fDragScroll;
-	HCURSOR m_hDragCursor1;
-	HCURSOR m_hDragCursor2;
-	struct {
-		POINT StartCursorPos;
-		POINT StartScrollPos;
-	} m_DragInfo;
-	DrawUtil::CBitmap m_Chevron;
-	CEpgIcons m_EpgIcons;
-	UINT m_VisibleEventIcons;
-	bool m_fBarShadow;
-	CEventInfoPopup m_EventInfoPopup;
-	CEventInfoPopupManager m_EventInfoPopupManager;
-	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
-								 , public CEventInfoPopup::CEventHandler
-	{
-		CProgramGuide *m_pProgramGuide;
-	// CEventInfoPopupManager::CEventHandler
-		bool HitTest(int x,int y,LPARAM *pParam);
-		bool GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
-		bool OnShow(const CEventInfoData *pInfo);
-	// CEventInfoPopup::CEventHandler
-		bool OnMenuPopup(HMENU hmenu);
-		void OnMenuSelected(int Command);
-	public:
-		CEventInfoPopupHandler(CProgramGuide *pProgramGuide);
-	};
-	friend CEventInfoPopupHandler;
-	CEventInfoPopupHandler m_EventInfoPopupHandler;
-	bool m_fShowToolTip;
-	CTooltip m_Tooltip;
-	CChannelList m_ChannelList;
-	CTuningSpaceList m_TuningSpaceList;
-	int m_CurrentTuningSpace;
-	struct ServiceInfo {
-		WORD NetworkID;
-		WORD TransportStreamID;
-		WORD ServiceID;
-		ServiceInfo() : NetworkID(0), TransportStreamID(0), ServiceID(0) {}
-		void Clear() {
-			NetworkID=0;
-			TransportStreamID=0;
-			ServiceID=0;
-		}
-	};
-	ServiceInfo m_CurrentChannel;
-	TCHAR m_szDriverFileName[MAX_PATH];
-	const CDriverManager *m_pDriverManager;
-	int m_BeginHour;
-	SYSTEMTIME m_stFirstTime;
-	SYSTEMTIME m_stLastTime;
-	SYSTEMTIME m_stCurTime;
-	int m_Day;
-	int m_Hours;
-	struct {
-		bool fValid;
-		int ListIndex;
-		int EventIndex;
-	} m_CurItem;
-	bool m_fUpdating;
-	CEventHandler *m_pEventHandler;
-	CFrame *m_pFrame;
-	CProgramCustomizer *m_pProgramCustomizer;
-	COLORREF m_ColorList[NUM_COLORS];
-	Theme::GradientInfo m_ChannelNameBackGradient;
-	Theme::GradientInfo m_CurChannelNameBackGradient;
-	Theme::GradientInfo m_TimeBarMarginGradient;
-	Theme::GradientInfo m_TimeBarBackGradient[TIME_BAR_BACK_COLORS];
-	CProgramGuideToolList m_ToolList;
-	int m_WheelScrollLines;
-	unsigned int m_Filter;
-
-	CProgramSearch m_ProgramSearch;
-	class CProgramSearchEventHandler : public CProgramSearch::CEventHandler {
-		CProgramGuide *m_pProgramGuide;
-	public:
-		CProgramSearchEventHandler(CProgramGuide *pProgramGuide);
-		bool Search(LPCTSTR pszKeyword);
-	};
-	friend CProgramSearchEventHandler;
-	CProgramSearchEventHandler m_ProgramSearchEventHandler;
-
-	static const LPCTSTR m_pszWindowClass;
-	static HINSTANCE m_hinst;
-
-	bool UpdateList(bool fUpdateList=false);
-	bool UpdateService(ProgramGuide::CServiceInfo *pService,bool fUpdateEpg);
-	bool SetTuningSpace(int Space);
-	void CalcLayout();
-	void DrawEventList(const ProgramGuide::CEventLayout *pLayout,
-					   HDC hdc,const RECT &Rect,const RECT &PaintRect) const;
-	void DrawHeaderBackground(HDC hdc,const RECT &Rect,bool fCur) const;
-	void DrawServiceHeader(ProgramGuide::CServiceInfo *pServiceInfo,
-						   HDC hdc,const RECT &Rect,HDC hdcChevron,int Chevron,
-						   bool fLeftAlign=false) const;
-	void DrawDayHeader(int Day,HDC hdc,const RECT &Rect) const;
-	void DrawTimeBar(HDC hdc,const RECT &Rect,bool fRight);
-	void Draw(HDC hdc,const RECT &PaintRect);
-	int GetCurTimeLinePos() const;
-	void GetProgramGuideRect(RECT *pRect) const;
-	void Scroll(int XOffset,int YOffset);
-	void SetScrollBar();
-	void SetCaption();
-	void SetTooltip();
-	bool EventHitTest(int x,int y,int *pListIndex,int *pEventIndex,RECT *pItemRect=NULL) const;
-	void OnCommand(int id);
-// CCustomWindow
-	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
-
-public:
 	static bool Initialize(HINSTANCE hinst);
+
 	CProgramGuide();
 	~CProgramGuide();
+
 // CBasicWindow
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+
 // CProgramGuide
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	void Clear();
@@ -371,6 +263,14 @@ public:
 	int GetCurrentTuningSpace() const { return m_CurrentTuningSpace; }
 	bool GetTuningSpaceName(int Space,LPTSTR pszName,int MaxName) const;
 	bool EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const;
+
+	bool GetExcludeNoEventServices() const { return m_fExcludeNoEventServices; }
+	bool SetExcludeNoEventServices(bool fExclude);
+	bool SetExcludeServiceList(const ServiceInfoList &List);
+	bool GetExcludeServiceList(ServiceInfoList *pList) const;
+	bool IsExcludeService(WORD NetworkID,WORD TransportStreamID,WORD ServiceID) const;
+	bool SetExcludeService(WORD NetworkID,WORD TransportStreamID,WORD ServiceID,bool fExclude);
+
 	ListMode GetListMode() const { return m_ListMode; }
 	bool SetServiceListMode();
 	bool SetWeekListMode(int Service);
@@ -411,6 +311,128 @@ public:
 	void GetInfoPopupSize(int *pWidth,int *pHeight) { m_EventInfoPopup.GetSize(pWidth,pHeight); }
 	bool SetInfoPopupSize(int Width,int Height) { return m_EventInfoPopup.SetSize(Width,Height); }
 	bool OnClose();
+
+private:
+	CEpgProgramList *m_pProgramList;
+	ProgramGuide::CServiceList m_ServiceList;
+	ProgramGuide::CEventLayoutList m_EventLayoutList;
+	ListMode m_ListMode;
+	int m_WeekListService;
+	int m_LinesPerHour;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_TitleFont;
+	DrawUtil::CFont m_TimeFont;
+	int m_FontHeight;
+	int m_LineMargin;
+	int m_ItemWidth;
+	int m_ItemMargin;
+	int m_TextLeftMargin;
+	int m_HeaderHeight;
+	int m_TimeBarWidth;
+	POINT m_ScrollPos;
+	POINT m_OldScrollPos;
+	bool m_fDragScroll;
+	HCURSOR m_hDragCursor1;
+	HCURSOR m_hDragCursor2;
+	struct {
+		POINT StartCursorPos;
+		POINT StartScrollPos;
+	} m_DragInfo;
+	DrawUtil::CMonoColorBitmap m_Chevron;
+	CEpgIcons m_EpgIcons;
+	UINT m_VisibleEventIcons;
+	bool m_fBarShadow;
+	CEventInfoPopup m_EventInfoPopup;
+	CEventInfoPopupManager m_EventInfoPopupManager;
+	class CEventInfoPopupHandler : public CEventInfoPopupManager::CEventHandler
+								 , public CEventInfoPopup::CEventHandler
+	{
+		CProgramGuide *m_pProgramGuide;
+	// CEventInfoPopupManager::CEventHandler
+		bool HitTest(int x,int y,LPARAM *pParam);
+		bool GetEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
+		bool OnShow(const CEventInfoData *pInfo);
+	// CEventInfoPopup::CEventHandler
+		bool OnMenuPopup(HMENU hmenu);
+		void OnMenuSelected(int Command);
+	public:
+		CEventInfoPopupHandler(CProgramGuide *pProgramGuide);
+	};
+	friend CEventInfoPopupHandler;
+	CEventInfoPopupHandler m_EventInfoPopupHandler;
+	bool m_fShowToolTip;
+	CTooltip m_Tooltip;
+	CChannelList m_ChannelList;
+	CTuningSpaceList m_TuningSpaceList;
+	int m_CurrentTuningSpace;
+	ServiceInfo m_CurrentChannel;
+	bool m_fExcludeNoEventServices;
+	ServiceInfoList m_ExcludeServiceList;
+	TCHAR m_szDriverFileName[MAX_PATH];
+	const CDriverManager *m_pDriverManager;
+
+	int m_BeginHour;
+	SYSTEMTIME m_stFirstTime;
+	SYSTEMTIME m_stLastTime;
+	SYSTEMTIME m_stCurTime;
+	int m_Day;
+	int m_Hours;
+
+	struct {
+		bool fValid;
+		int ListIndex;
+		int EventIndex;
+	} m_CurItem;
+	bool m_fUpdating;
+	CEventHandler *m_pEventHandler;
+	CFrame *m_pFrame;
+	CProgramCustomizer *m_pProgramCustomizer;
+	COLORREF m_ColorList[NUM_COLORS];
+	Theme::GradientInfo m_ChannelNameBackGradient;
+	Theme::GradientInfo m_CurChannelNameBackGradient;
+	Theme::GradientInfo m_TimeBarMarginGradient;
+	Theme::GradientInfo m_TimeBarBackGradient[TIME_BAR_BACK_COLORS];
+	CProgramGuideToolList m_ToolList;
+	int m_WheelScrollLines;
+	unsigned int m_Filter;
+
+	CProgramSearch m_ProgramSearch;
+	class CProgramSearchEventHandler : public CProgramSearch::CEventHandler {
+		CProgramGuide *m_pProgramGuide;
+	public:
+		CProgramSearchEventHandler(CProgramGuide *pProgramGuide);
+		bool Search(LPCTSTR pszKeyword);
+	};
+	friend CProgramSearchEventHandler;
+	CProgramSearchEventHandler m_ProgramSearchEventHandler;
+
+	static const LPCTSTR m_pszWindowClass;
+	static HINSTANCE m_hinst;
+
+	bool UpdateList(bool fUpdateList=false);
+	bool UpdateService(ProgramGuide::CServiceInfo *pService,bool fUpdateEpg);
+	bool SetTuningSpace(int Space);
+	void CalcLayout();
+	void DrawEventList(const ProgramGuide::CEventLayout *pLayout,
+					   HDC hdc,const RECT &Rect,const RECT &PaintRect) const;
+	void DrawHeaderBackground(HDC hdc,const RECT &Rect,bool fCur) const;
+	void DrawServiceHeader(ProgramGuide::CServiceInfo *pServiceInfo,
+						   HDC hdc,const RECT &Rect,int Chevron,
+						   bool fLeftAlign=false);
+	void DrawDayHeader(int Day,HDC hdc,const RECT &Rect) const;
+	void DrawTimeBar(HDC hdc,const RECT &Rect,bool fRight);
+	void Draw(HDC hdc,const RECT &PaintRect);
+	int GetCurTimeLinePos() const;
+	void GetProgramGuideRect(RECT *pRect) const;
+	void Scroll(int XOffset,int YOffset);
+	void SetScrollBar();
+	void SetCaption();
+	void SetTooltip();
+	bool EventHitTest(int x,int y,int *pListIndex,int *pEventIndex,RECT *pItemRect=NULL) const;
+	void OnCommand(int id);
+
+// CCustomWindow
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
 class CCalendarBar : public CBasicWindow

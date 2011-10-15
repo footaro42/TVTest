@@ -28,16 +28,19 @@ namespace TVTest
 	{
 		Close();
 
+		TRACE(TEXT("CIniFile::Open( \"%s\", 0x%x)\n"),pszFileName,Flags);
+
 		if (IsStringEmpty(pszFileName)
 				|| (Flags & (OPEN_READ | OPEN_WRITE))==0)
 			return false;
 
 		String MutexName;
-		MutexName=APP_NAME_W L"_Ini_Mutex_";
+		MutexName=APP_NAME L"_Ini_Mutex_";
 		MutexName+=pszFileName;
 		StringUtility::Replace(MutexName,L'\\',L':');
 		if (m_FileLock.Create(MutexName.c_str())) {
 			if (!m_FileLock.Wait(5000)) {
+				TRACE(TEXT("Ini file locked\n"));
 				m_FileLock.Close();
 				//return false;
 			}
@@ -87,6 +90,7 @@ namespace TVTest
 					delete [] pBuffer;
 				}
 			} else {
+				TRACE(TEXT("Ini file open failed 0x%x\n"),::GetLastError());
 				throw __LINE__;
 			}
 		} catch (...) {
@@ -463,6 +467,18 @@ namespace TVTest
 		//TRACE(L"INIƒZƒNƒVƒ‡ƒ“ì¬ : [%s]\n",pszName);
 
 		m_SectionList.push_back(CSectionData(pszName));
+
+		if (!IsStringEmpty(pszName)
+				&& m_SectionList.size()>1) {
+			auto i=m_SectionList.rbegin();
+			i++;
+			if (!i->SectionName.empty()
+					&& (i->Entries.empty()
+						|| !i->Entries.back().Name.empty()
+						|| !i->Entries.back().Value.empty())) {
+				i->Entries.push_back(CEntry());
+			}
+		}
 
 		return true;
 	}

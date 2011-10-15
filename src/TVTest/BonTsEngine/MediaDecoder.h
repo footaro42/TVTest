@@ -28,7 +28,7 @@ public:
 	virtual ~CMediaDecoder() = 0;
 
 	virtual void Reset(void);
-	void ResetGraph(void);
+	virtual void ResetGraph(void);
 
 	virtual const DWORD GetInputNum(void) const;
 	virtual const DWORD GetOutputNum(void) const;

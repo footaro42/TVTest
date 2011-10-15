@@ -592,85 +592,66 @@ bool CLayoutBase::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 }
 
 
-CLayoutBase *CLayoutBase::GetThis(HWND hwnd)
-{
-	return reinterpret_cast<CLayoutBase*>(::GetWindowLongPtr(hwnd,GWLP_USERDATA));
-}
-
-
-LRESULT CALLBACK CLayoutBase::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
+LRESULT CLayoutBase::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_CREATE:
 		{
-			CLayoutBase *pThis=static_cast<CLayoutBase*>(OnCreate(hwnd,lParam));
-
-			pThis->m_pFocusContainer=NULL;
+			m_pFocusContainer=NULL;
 		}
 		return 0;
 
 	case WM_SIZE:
 		{
-			CLayoutBase *pThis=GetThis(hwnd);
 			RECT rc;
 
 			rc.left=0;
 			rc.top=0;
 			rc.right=LOWORD(lParam);
 			rc.bottom=HIWORD(lParam);
-			if (pThis->m_pContainer!=NULL)
-				pThis->m_pContainer->SetPosition(rc);
+			if (m_pContainer!=NULL)
+				m_pContainer->SetPosition(rc);
 		}
 		return 0;
 
 	case WM_PAINT:
 		{
-			CLayoutBase *pThis=GetThis(hwnd);
 			PAINTSTRUCT ps;
 
 			::BeginPaint(hwnd,&ps);
-			::FillRect(ps.hdc,&ps.rcPaint,pThis->GetBackBrush());
+			::FillRect(ps.hdc,&ps.rcPaint,GetBackBrush());
 			::EndPaint(hwnd,&ps);
 		}
 		return 0;
 
 	case WM_LBUTTONDOWN:
-		{
-			CLayoutBase *pThis=GetThis(hwnd);
+		if (m_pContainer!=NULL) {
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
+			CContainer *pContainer=GetContainerFromPoint(x,y);
 
-			if (pThis->m_pContainer!=NULL) {
-				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-				CContainer *pContainer=pThis->GetContainerFromPoint(x,y);
-
-				if (pContainer!=NULL)
-					pContainer->OnLButtonDown(x,y);
-				pThis->m_pFocusContainer=pContainer;
-			}
+			if (pContainer!=NULL)
+				pContainer->OnLButtonDown(x,y);
+			m_pFocusContainer=pContainer;
 		}
 		return 0;
 
 	case WM_LBUTTONUP:
-		{
-			CLayoutBase *pThis=GetThis(hwnd);
+		if (m_pFocusContainer!=NULL) {
+			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
-			if (pThis->m_pFocusContainer!=NULL) {
-				int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
-
-				pThis->m_pFocusContainer->OnLButtonUp(x,y);
-				pThis->m_pFocusContainer=NULL;
-			}
+			m_pFocusContainer->OnLButtonUp(x,y);
+			m_pFocusContainer=NULL;
 		}
 		return 0;
 
 	case WM_MOUSEMOVE:
 		{
-			CLayoutBase *pThis=GetThis(hwnd);
 			int x=GET_X_LPARAM(lParam),y=GET_Y_LPARAM(lParam);
 
-			if (pThis->m_pFocusContainer!=NULL) {
-				pThis->m_pFocusContainer->OnMouseMove(x,y);
+			if (m_pFocusContainer!=NULL) {
+				m_pFocusContainer->OnMouseMove(x,y);
 			} else {
-				CContainer *pContainer=pThis->GetContainerFromPoint(x,y);
+				CContainer *pContainer=GetContainerFromPoint(x,y);
 
 				if (pContainer!=NULL)
 					pContainer->OnMouseMove(x,y);
@@ -681,14 +662,6 @@ LRESULT CALLBACK CLayoutBase::WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM l
 	case WM_COMMAND:
 	case WM_NOTIFY:
 		return ::SendMessage(::GetParent(hwnd),uMsg,wParam,lParam);
-
-	case WM_DESTROY:
-		{
-			CLayoutBase *pThis=GetThis(hwnd);
-
-			pThis->OnDestroy();
-		}
-		return 0;
 	}
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }

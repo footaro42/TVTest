@@ -130,6 +130,9 @@ static const struct {
 	{TEXT("ServiceMenu"),				CM_SERVICEMENU},
 	{TEXT("TuningSpaceMenu"),			CM_TUNINGSPACEMENU},
 	{TEXT("RecentChannelMenu"),			CM_RECENTCHANNELMENU},
+	{TEXT("AddToFavorites"),			CM_ADDTOFAVORITES},
+	{TEXT("OrganizeFavorites"),			CM_ORGANIZEFAVORITES},
+	{TEXT("FavoritesMenu"),				CM_FAVORITESMENU},
 	{TEXT("Channel1"),					CM_CHANNELNO_1},
 	{TEXT("Channel2"),					CM_CHANNELNO_2},
 	{TEXT("Channel3"),					CM_CHANNELNO_3},
@@ -319,7 +322,7 @@ int CCommandList::IDToIndex(int ID) const
 {
 	int Base;
 
-	// 項目が多くなったらmapあたりを使って探すように直した方がいい
+	// 項目が多くなったらmapあたりを使って探すように直す
 	for (int i=0;i<lengthof(CommandList);i++) {
 		if (CommandList[i].Command==ID)
 			return i;
@@ -343,7 +346,7 @@ int CCommandList::ParseText(LPCTSTR pszText) const
 
 	if (IsStringEmpty(pszText))
 		return 0;
-	// 項目が多くなったらmapあたりを使って探すように直した方がいい
+	// 項目が多くなったらmapあたりを使って探すように直す
 	for (i=0;i<lengthof(CommandList);i++) {
 		if (::lstrcmpi(CommandList[i].pszText,pszText)==0)
 			return CommandList[i].Command;

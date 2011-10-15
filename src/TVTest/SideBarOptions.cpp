@@ -245,7 +245,7 @@ HBITMAP CSideBarOptions::CreateImage()
 
 bool CSideBarOptions::ApplySideBarOptions()
 {
-	m_pSideBar->SetIconImage(CreateImage(),RGB(255,255,255));
+	SetSideBarImage();
 	ApplyItemList();
 	m_pSideBar->ShowToolTips(m_fShowToolTips);
 	m_pSideBar->SetVertical(m_Place==PLACE_LEFT || m_Place==PLACE_RIGHT);
@@ -255,7 +255,12 @@ bool CSideBarOptions::ApplySideBarOptions()
 
 bool CSideBarOptions::SetSideBarImage()
 {
-	return m_pSideBar->SetIconImage(CreateImage(),RGB(255,255,255));
+	HBITMAP hbm=CreateImage();
+	if (hbm==NULL)
+		return false;
+	bool fResult=m_pSideBar->SetIconImage(hbm);
+	::DeleteObject(hbm);
+	return fResult;
 }
 
 
@@ -306,9 +311,11 @@ INT_PTR CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 			DlgCheckBox_Check(hDlg,IDC_SIDEBAR_SHOWCHANNELLOGO,m_fShowChannelLogo);
 
 			HBITMAP hbmIcons=CreateImage();
-			m_himlIcons=::ImageList_Create(16,16,ILC_COLOR | ILC_MASK,0,1);
-			::ImageList_AddMasked(m_himlIcons,hbmIcons,RGB(255,255,255));
+			DrawUtil::CMonoColorBitmap Bitmap;
+			Bitmap.Create(hbmIcons);
 			::DeleteObject(hbmIcons);
+			m_himlIcons=Bitmap.CreateImageList(16,::GetSysColor(COLOR_WINDOWTEXT));
+			Bitmap.Destroy();
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_SIDEBAR_ITEMLIST);
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);

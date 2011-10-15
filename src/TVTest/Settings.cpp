@@ -13,28 +13,7 @@ using namespace TVTest;
 
 static unsigned int StrToUInt(LPCTSTR pszValue)
 {
-	unsigned int uValue;
-	LPCTSTR p;
-
-	uValue=0;
-	p=pszValue;
-	while (*p>=_T('0') && *p<=_T('9')) {
-		uValue=uValue*10+(*p-_T('0'));
-		p++;
-	}
-	return uValue;
-}
-
-
-static int HexToNum(TCHAR cCode)
-{
-	if (cCode>=_T('0') && cCode<=_T('9'))
-		return cCode-_T('0');
-	if (cCode>=_T('A') && cCode<=_T('F'))
-		return cCode-_T('A')+10;
-	if (cCode>=_T('a') && cCode<=_T('f'))
-		return cCode-_T('a')+10;
-	return 0;
+	return (unsigned int)_tcstoul(pszValue,nullptr,0);
 }
 
 
@@ -211,11 +190,11 @@ bool CSettings::ReadColor(LPCTSTR pszValueName,COLORREF *pcrData)
 {
 	TCHAR szText[8];
 
-	if (!Read(pszValueName,szText,lengthof(szText)) || szText[0]!=_T('#') || lstrlen(szText)!=7)
+	if (!Read(pszValueName,szText,lengthof(szText)) || szText[0]!=_T('#') || lstrlen(szText)<7)
 		return false;
-	*pcrData=RGB((HexToNum(szText[1])<<4) | HexToNum(szText[2]),
-				 (HexToNum(szText[3])<<4) | HexToNum(szText[4]),
-				 (HexToNum(szText[5])<<4) | HexToNum(szText[6]));
+	*pcrData=RGB(HexStringToUInt(&szText[1],2),
+				 HexStringToUInt(&szText[3],2),
+				 HexStringToUInt(&szText[5],2));
 	return true;
 }
 

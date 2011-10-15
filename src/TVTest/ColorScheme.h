@@ -2,6 +2,7 @@
 #define COLOR_SCHEME_H
 
 
+#include <vector>
 #include "Options.h"
 #include "ColorPalette.h"
 #include "Theme.h"
@@ -360,18 +361,21 @@ private:
 
 class CColorSchemeList
 {
-	int m_NumColorSchemes;
-	CColorScheme **m_ppList;
-
 public:
 	CColorSchemeList();
 	~CColorSchemeList();
-	int NumColorSchemes() const { return m_NumColorSchemes; }
+	int NumColorSchemes() const { return (int)m_List.size(); }
 	bool Add(CColorScheme *pColorScheme);
+	bool Insert(int Index,CColorScheme *pColorScheme);
 	bool Load(LPCTSTR pszDirectory);
 	void Clear();
 	CColorScheme *GetColorScheme(int Index);
 	bool SetColorScheme(int Index,const CColorScheme *pColorScheme);
+	int FindByName(LPCTSTR pszName,int FirstIndex=0) const;
+	void SortByName();
+
+private:
+	std::vector<CColorScheme*> m_List;
 };
 
 class CColorSchemeOptions : public COptions
@@ -410,6 +414,8 @@ private:
 	bool Apply(const CColorScheme *pColorScheme) const;
 	void GetCurrentSettings(CColorScheme *pColorScheme);
 	static const LPCTSTR m_pszExtension;
+
+	static INT_PTR CALLBACK SaveDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

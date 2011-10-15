@@ -31,6 +31,8 @@ protected:
 	void DrawText(HDC hdc,const RECT *pRect,LPCTSTR pszText,DWORD Flags=0) const;
 	void DrawIcon(HDC hdc,const RECT *pRect,HBITMAP hbm,int SrcX=0,int SrcY=0,
 				  int IconWidth=16,int IconHeight=16,bool fEnabled=true) const;
+	void DrawIcon(HDC hdc,const RECT *pRect,DrawUtil::CMonoColorBitmap &Bitmap,
+				  int SrcX=0,int SrcY=0,int IconWidth=16,int IconHeight=16,bool fEnabled=true) const;
 
 public:
 	CStatusItem(int ID,int DefaultWidth);
@@ -104,7 +106,8 @@ public:
 	bool GetItemRectByIndex(int Index,RECT *pRect) const;
 	bool GetItemClientRect(int ID,RECT *pRect) const;
 	int GetItemHeight() const;
-	void GetItemMargin(RECT *pRect) const;
+	bool SetItemMargin(const RECT &Margin);
+	void GetItemMargin(RECT *pMargin) const;
 	int GetFontHeight() const { return m_FontHeight; }
 	int GetIntegralWidth() const;
 	void SetSingleText(LPCTSTR pszText);
@@ -127,9 +130,11 @@ public:
 
 private:
 	static HINSTANCE m_hinst;
+
 	DrawUtil::CFont m_Font;
 	int m_FontHeight;
 	int m_ItemHeight;
+	RECT m_ItemMargin;
 	bool m_fMultiRow;
 	int m_MaxRows;
 	int m_Rows;

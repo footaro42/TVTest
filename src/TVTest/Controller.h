@@ -60,6 +60,9 @@ public:
 	struct ControllerSettings {
 		std::vector<WORD> AssignList;
 		bool fActiveOnly;
+
+		bool operator==(const ControllerSettings &Operand) const;
+		bool operator!=(const ControllerSettings &Operand) const { return !(*this==Operand); }
 	};
 
 	CControllerManager();
@@ -88,8 +91,15 @@ private:
 	struct ControllerInfo {
 		CController *pController;
 		bool fSettingsLoaded;
+		bool fSettingsChanged;
 		ControllerSettings Settings;
-		ControllerInfo(CController *p) : pController(p), fSettingsLoaded(false) {}
+
+		ControllerInfo(CController *p)
+			: pController(p)
+			, fSettingsLoaded(false)
+			, fSettingsChanged(false)
+		{
+		}
 	};
 
 	std::vector<ControllerInfo> m_ControllerList;

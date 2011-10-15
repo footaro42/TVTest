@@ -16,6 +16,7 @@ static char THIS_FILE[]=__FILE__;
 
 COptionDialog::COptionDialog()
 	: m_CurrentPage(0)
+	, m_himlIcons(NULL)
 {
 }
 
@@ -126,7 +127,7 @@ static COLORREF HSVToRGB(double Hue,double Saturation,double Value)
 
 COLORREF COptionDialog::GetTitleColor(int Page) const
 {
-	return HSVToRGB(1.0*(double)Page/(double)NUM_PAGES,0.8,1.0);
+	return HSVToRGB(1.0*(double)Page/(double)NUM_PAGES,0.4,0.9);
 }
 
 
@@ -150,7 +151,10 @@ INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			m_PageList[m_CurrentPage].pOptions->SetVisible(true);
 			DlgListBox_SetCurSel(hDlg,IDC_OPTIONS_LIST,m_CurrentPage);
 
-			m_Icons.Load(GetAppClass().GetResourceInstance(),IDB_OPTIONS);
+			//m_Icons.Load(GetAppClass().GetResourceInstance(),IDB_OPTIONS);
+			m_himlIcons=::ImageList_LoadImage(GetAppClass().GetResourceInstance(),
+											  MAKEINTRESOURCE(IDB_OPTIONS),
+											  16,1,0,IMAGE_BITMAP,LR_CREATEDIBSECTION);
 
 			HFONT hfont=reinterpret_cast<HFONT>(::SendMessage(hDlg,WM_GETFONT,0,0));
 			LOGFONT lf;
@@ -183,14 +187,12 @@ INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				int OldBkMode;
 				RECT rc;
 
-				/*
-				::FillRect(pdis->hDC,&pdis->rcItem,
-						   reinterpret_cast<HBRUSH>(fSelected?COLOR_HIGHLIGHT+1:COLOR_WINDOW+1));
-				crOldText=::SetTextColor(pdis->hDC,::GetSysColor(fSelected?COLOR_HIGHLIGHTTEXT:COLOR_WINDOWTEXT));
-				*/
 				if (fSelected) {
 					rc=pdis->rcItem;
-					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
+					rc.right=rc.left+LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
+					::FillRect(pdis->hDC,&rc,reinterpret_cast<HBRUSH>(COLOR_WINDOW+1));
+					rc.left=rc.right;
+					rc.right=pdis->rcItem.right;
 					DrawUtil::FillGradient(pdis->hDC,&rc,
 										   RGB(0,0,0),GetTitleColor((int)pdis->itemData));
 					crText=RGB(255,255,255);
@@ -201,6 +203,7 @@ INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				}
 				rc=pdis->rcItem;
 				rc.left+=LIST_MARGIN;
+				/*
 				HDC hdcMem=::CreateCompatibleDC(pdis->hDC);
 				if (hdcMem!=NULL) {
 					HBITMAP hbmOld=static_cast<HBITMAP>(::SelectObject(hdcMem,m_Icons.GetHandle()));
@@ -209,6 +212,10 @@ INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					::SelectObject(hdcMem,hbmOld);
 					::DeleteDC(hdcMem);
 				}
+				*/
+				::ImageList_Draw(m_himlIcons,(int)pdis->itemData,pdis->hDC,rc.left,rc.top,ILD_TRANSPARENT);
+				if (fSelected)
+					::ImageList_Draw(m_himlIcons,(int)pdis->itemData,pdis->hDC,rc.left,rc.top,ILD_TRANSPARENT);
 				crOldText=::SetTextColor(pdis->hDC,crText);
 				OldBkMode=::SetBkMode(pdis->hDC,TRANSPARENT);
 				rc.left+=ICON_WIDTH+ICON_TEXT_MARGIN;
@@ -216,7 +223,7 @@ INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 						   &rc,DT_LEFT | DT_SINGLELINE | DT_VCENTER | DT_NOPREFIX);
 				::SetTextColor(pdis->hDC,crOldText);
 				::SetBkMode(pdis->hDC,OldBkMode);
-				if ((pdis->itemState&ODS_FOCUS)!=0) {
+				if ((pdis->itemState & (ODS_FOCUS | ODS_NOFOCUSRECT))==ODS_FOCUS) {
 					rc=pdis->rcItem;
 					rc.left+=LIST_MARGIN+ICON_WIDTH+ICON_TEXT_MARGIN/2;
 					::DrawFocusRect(pdis->hDC,&rc);
@@ -289,7 +296,11 @@ INT_PTR COptionDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		return TRUE;
 
 	case WM_DESTROY:
-		m_Icons.Destroy();
+		//m_Icons.Destroy();
+		if (m_himlIcons!=NULL) {
+			::ImageList_Destroy(m_himlIcons);
+			m_himlIcons=NULL;
+		}
 		m_TitleFont.Destroy();
 		return TRUE;
 	}

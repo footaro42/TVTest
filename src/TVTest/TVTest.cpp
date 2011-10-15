@@ -38,6 +38,7 @@
 #include "CommandLine.h"
 #include "InitialSettings.h"
 #include "ChannelHistory.h"
+#include "Favorites.h"
 #include "Help.h"
 #include "StreamInfo.h"
 #include "MiscDialog.h"
@@ -63,6 +64,9 @@
 static char THIS_FILE[]=__FILE__;
 #define new DEBUG_NEW
 #endif
+
+
+using namespace TVTest;
 
 
 static HINSTANCE hInst;
@@ -146,6 +150,8 @@ static CNetworkRemoconOptions NetworkRemoconOptions;
 static CLogger Logger;
 static CRecentChannelList RecentChannelList;
 static CChannelHistory ChannelHistory;
+static CFavoritesManager FavoritesManager;
+static CFavoritesMenu FavoritesMenu;
 
 static COptionDialog OptionDialog;
 
@@ -153,8 +159,8 @@ static struct {
 	int Space;
 	int Channel;
 	int ServiceID;
+	int TransportStreamID;
 	bool fAllChannels;
-	TCHAR szDriverName[MAX_PATH];
 } RestoreChannelInfo;
 
 static bool fEnablePlay=true;
@@ -360,6 +366,8 @@ bool CAppMain::Initialize()
 	::PathRenameExtension(m_szDefaultChannelFileName,CHANNEL_FILE_EXTENSION);
 	::lstrcpy(m_szChannelSettingFileName,szModuleFileName);
 	::PathRenameExtension(m_szChannelSettingFileName,TEXT(".ch.ini"));
+	::lstrcpy(m_szFavoritesFileName,szModuleFileName);
+	::PathRenameExtension(m_szFavoritesFileName,TEXT(".tvfavorites"));
 	/*
 	// サンプルをデフォルトとして扱う
 	if (!PathFileExists(m_szDefaultChannelFileName)) {
@@ -576,11 +584,13 @@ bool CAppMain::InitializeChannel()
 		RestoreChannelInfo.Space=InitChInfo.Space;
 		RestoreChannelInfo.Channel=InitChInfo.Channel;
 		RestoreChannelInfo.ServiceID=InitChInfo.ServiceID;
+		RestoreChannelInfo.TransportStreamID=InitChInfo.TransportStreamID;
 		RestoreChannelInfo.fAllChannels=InitChInfo.fAllChannels;
 	} else {
 		RestoreChannelInfo.Space=-1;
 		RestoreChannelInfo.Channel=-1;
 		RestoreChannelInfo.ServiceID=-1;
+		RestoreChannelInfo.TransportStreamID=-1;
 		RestoreChannelInfo.fAllChannels=false;
 	}
 
@@ -659,9 +669,17 @@ bool CAppMain::RestoreChannel()
 			int Index=pList->Find(RestoreChannelInfo.Space,
 								  RestoreChannelInfo.Channel,
 								  RestoreChannelInfo.ServiceID);
-			if (Index<0 && RestoreChannelInfo.ServiceID>0)
-				Index=pList->Find(RestoreChannelInfo.Space,
-								  RestoreChannelInfo.Channel);
+			if (Index<0) {
+				if (RestoreChannelInfo.TransportStreamID>0 && RestoreChannelInfo.ServiceID>0) {
+					Index=pList->FindByIDs(0,
+										   (WORD)RestoreChannelInfo.TransportStreamID,
+										   (WORD)RestoreChannelInfo.ServiceID);
+				}
+				if (Index<0 && RestoreChannelInfo.ServiceID>0) {
+					Index=pList->Find(RestoreChannelInfo.Space,
+									  RestoreChannelInfo.Channel);
+				}
+			}
 			if (Index>=0)
 				return AppMain.SetChannel(Space,Index);
 		}
@@ -742,7 +760,7 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 	if (pPrevChInfo==NULL
 			|| pChInfo->GetSpace()!=pPrevChInfo->GetSpace()
 			|| pChInfo->GetChannelIndex()!=pPrevChInfo->GetChannelIndex()) {
-		if (ServiceID<=0 /*&& pChInfo->GetService()>0*/ && pChInfo->GetServiceID()>0)
+		if (ServiceID<=0 && pChInfo->GetServiceID()>0)
 			ServiceID=pChInfo->GetServiceID();
 
 		LPCTSTR pszTuningSpace=ChannelManager.GetDriverTuningSpaceList()->GetTuningSpaceName(pChInfo->GetSpace());
@@ -782,39 +800,26 @@ bool CAppMain::SetChannel(int Space,int Channel,int ServiceID/*=-1*/)
 bool CAppMain::FollowChannelChange(WORD TransportStreamID,WORD ServiceID)
 {
 	const CChannelList *pChannelList;
-	const CChannelInfo *pChannelInfo;
-	int i,j;
 	int Space,Channel;
 	bool fFound=false;
 
 	pChannelList=ChannelManager.GetCurrentRealChannelList();
 	if (pChannelList!=NULL) {
-		for (i=0;i<pChannelList->NumChannels();i++) {
-			pChannelInfo=pChannelList->GetChannelInfo(i);
-			if (pChannelInfo->GetTransportStreamID()==TransportStreamID
-					&& pChannelInfo->GetServiceID()==ServiceID) {
-				Space=ChannelManager.GetCurrentSpace();
-				Channel=i;
+		Channel=pChannelList->FindByIDs(0,TransportStreamID,ServiceID);
+		if (Channel>=0) {
+			Space=ChannelManager.GetCurrentSpace();
+			fFound=true;
+		}
+	} else {
+		for (int i=0;i<ChannelManager.NumSpaces();i++) {
+			pChannelList=ChannelManager.GetChannelList(i);
+			Channel=pChannelList->FindByIDs(0,TransportStreamID,ServiceID);
+			if (Channel>=0) {
+				Space=i;
 				fFound=true;
 				break;
 			}
 		}
-	} else {
-		for (i=0;i<ChannelManager.NumSpaces();i++) {
-			pChannelList=ChannelManager.GetChannelList(i);
-			for (j=0;j<pChannelList->NumChannels();j++) {
-				pChannelInfo=pChannelList->GetChannelInfo(j);
-				if (pChannelInfo->GetTransportStreamID()==TransportStreamID
-						&& pChannelInfo->GetServiceID()==ServiceID) {
-					Space=i;
-					Channel=j;
-					fFound=true;
-					goto End;
-				}
-			}
-		}
-	End:
-		;
 	}
 	if (!fFound)
 		return false;
@@ -886,11 +891,13 @@ bool CAppMain::SetServiceByID(WORD ServiceID,int *pServiceIndex/*=NULL*/)
 
 bool CAppMain::SetDriver(LPCTSTR pszFileName)
 {
-	if (pszFileName==NULL)
+	if (IsStringEmpty(pszFileName))
 		return false;
 	if (CoreEngine.IsDriverOpen()
 			&& ::lstrcmpi(CoreEngine.GetDriverFileName(),pszFileName)==0)
 		return true;
+
+	TRACE(TEXT("CAppMain::SetDriver(%s)\n"),pszFileName);
 
 	HCURSOR hcurOld=::SetCursor(::LoadCursor(NULL,IDC_WAIT));
 	bool fOK;
@@ -949,29 +956,37 @@ bool CAppMain::SetDriver(LPCTSTR pszFileName)
 
 bool CAppMain::SetDriverAndChannel(LPCTSTR pszDriverFileName,const CChannelInfo *pChannelInfo)
 {
-	if (pszDriverFileName==NULL || pChannelInfo==NULL)
+	if (IsStringEmpty(pszDriverFileName) || pChannelInfo==NULL)
 		return false;
 	if (RecordManager.IsRecording()) {
 		if (!RecordOptions.ConfirmChannelChange(m_UICore.GetSkin()->GetVideoHostWindow()))
 			return false;
 	}
-	if (::lstrcmpi(CoreEngine.GetDriverFileName(),pszDriverFileName)!=0) {
-		if (!SetDriver(pszDriverFileName))
-			return false;
-	}
+	if (!SetDriver(pszDriverFileName))
+		return false;
 	const CChannelList *pList=ChannelManager.GetChannelList(pChannelInfo->GetSpace());
 	if (pList==NULL)
 		return false;
 	int Index=pList->Find(-1,pChannelInfo->GetChannelIndex(),
 						  pChannelInfo->GetServiceID());
-	if (Index<0)
-		return false;
+	if (Index<0) {
+		if (pChannelInfo->GetServiceID()!=0
+				&& pChannelInfo->GetTransportStreamID()!=0) {
+			Index=pList->FindByIDs(pChannelInfo->GetNetworkID(),
+								   pChannelInfo->GetTransportStreamID(),
+								   pChannelInfo->GetServiceID());
+		}
+		if (Index<0)
+			return false;
+	}
 	return AppMain.SetChannel(pChannelInfo->GetSpace(),Index);
 }
 
 
 bool CAppMain::OpenTuner()
 {
+	TRACE(TEXT("CAppMain::OpenTuner()\n"));
+
 	bool fOK=true;
 
 	if (!CoreEngine.IsDriverSpecified())
@@ -1006,6 +1021,8 @@ bool CAppMain::OpenTuner()
 
 bool CAppMain::CloseTuner()
 {
+	TRACE(TEXT("CAppMain::CloseTuner()\n"));
+
 	if (CoreEngine.IsBcasCardOpen()) {
 		if (CoreEngine.CloseBcasCard()) {
 			Logger.AddLog(TEXT("カードリーダを閉じました。"));
@@ -1013,6 +1030,7 @@ bool CAppMain::CloseTuner()
 	}
 	if (CoreEngine.IsDriverOpen()) {
 		CoreEngine.UnloadDriver();
+		SaveCurrentChannel();
 		ChannelManager.SetCurrentChannel(ChannelManager.GetCurrentSpace(),-1);
 		Logger.AddLog(TEXT("ドライバを閉じました。"));
 		m_UICore.OnTunerClosed();
@@ -1023,6 +1041,8 @@ bool CAppMain::CloseTuner()
 
 bool CAppMain::OpenBcasCard(bool fRetry)
 {
+	TRACE(TEXT("CAppMain::OpenBcasCard()\n"));
+
 	if (!CoreEngine.IsBcasCardOpen()) {
 		if (!CoreEngine.OpenBcasCard()) {
 			Logger.AddLog(TEXT("カードリーダがオープンできません。"));
@@ -1288,7 +1308,7 @@ bool CAppMain::SaveSettings(unsigned int Flags)
 		{&ControllerManager,		false},
 		{&ChannelScan,				false},
 		{&EpgOptions,				false},
-		{&ProgramGuideOptions,		false},
+		{&ProgramGuideOptions,		true},
 #ifdef NETWORK_REMOCON_SUPPORT
 		{&NetworkRemoconOptions,	false},
 #endif
@@ -1329,19 +1349,17 @@ bool CAppMain::SaveCurrentChannel()
 {
 	if (!IsStringEmpty(CoreEngine.GetDriverFileName())) {
 		const CChannelInfo *pInfo=ChannelManager.GetCurrentRealChannelInfo();
-		CDriverOptions::ChannelInfo ChInfo;
 
 		if (pInfo!=NULL) {
+			CDriverOptions::ChannelInfo ChInfo;
+
 			ChInfo.Space=pInfo->GetSpace();
 			ChInfo.Channel=pInfo->GetChannelIndex();
 			ChInfo.ServiceID=pInfo->GetServiceID();
-		} else {
-			ChInfo.Space=-1;
-			ChInfo.Channel=-1;
-			ChInfo.ServiceID=-1;
+			ChInfo.TransportStreamID=pInfo->GetTransportStreamID();
+			ChInfo.fAllChannels=ChannelManager.GetCurrentSpace()==CChannelManager::SPACE_ALL;
+			DriverOptions.SetLastChannel(CoreEngine.GetDriverFileName(),&ChInfo);
 		}
-		ChInfo.fAllChannels=ChannelManager.GetCurrentSpace()==CChannelManager::SPACE_ALL;
-		DriverOptions.SetLastChannel(CoreEngine.GetDriverFileName(),&ChInfo);
 	}
 	return true;
 }
@@ -1619,6 +1637,12 @@ CUICore *CAppMain::GetUICore()
 }
 
 
+const CCommandList *CAppMain::GetCommandList() const
+{
+	return &CommandList;
+}
+
+
 const CChannelManager *CAppMain::GetChannelManager() const
 {
 	return &ChannelManager;
@@ -1637,12 +1661,6 @@ const CDriverManager *CAppMain::GetDriverManager() const
 }
 
 
-CControllerManager *CAppMain::GetControllerManager() const
-{
-	return &ControllerManager;
-}
-
-
 CEpgProgramList *CAppMain::GetEpgProgramList() const
 {
 	return &EpgProgramList;
@@ -1655,9 +1673,15 @@ CLogoManager *CAppMain::GetLogoManager() const
 }
 
 
-const CCommandList *CAppMain::GetCommandList() const
+CControllerManager *CAppMain::GetControllerManager() const
 {
-	return &CommandList;
+	return &ControllerManager;
+}
+
+
+CFavoritesManager *CAppMain::GetFavoritesManager() const
+{
+	return &FavoritesManager;
 }
 
 
@@ -1811,6 +1835,10 @@ bool CTunerSelectMenu::Create(HWND hwnd)
 		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0) {
 			continue;
 		}
+		TCHAR szFileName[MAX_PATH];
+		::lstrcpyn(szFileName,pDriverInfo->GetFileName(),lengthof(szFileName));
+		::PathRemoveExtension(szFileName);
+
 		const CTuningSpaceList *pTuningSpaceList;
 		if (pDriverInfo->LoadTuningSpaceList(CDriverInfo::LOADTUNINGSPACE_NOLOADDRIVER)
 				&& (pTuningSpaceList=pDriverInfo->GetAvailableTuningSpaceList())!=NULL) {
@@ -1850,14 +1878,14 @@ bool CTunerSelectMenu::Create(HWND hwnd)
 
 				StdUtil::snprintf(szTemp,lengthof(szTemp),TEXT("%s [%s]"),
 								  pDriverInfo->GetTunerName(),
-								  pDriverInfo->GetFileName());
+								  szFileName);
 				CopyToMenuText(szTemp,szText,lengthof(szText));
 			} else {
-				CopyToMenuText(pDriverInfo->GetFileName(),szText,lengthof(szText));
+				CopyToMenuText(szFileName,szText,lengthof(szText));
 			}
 			m_Menu.Append(hmenuDriver,szText);
 		} else {
-			m_Menu.AppendUnformatted(CM_DRIVER_FIRST+i,pDriverInfo->GetFileName());
+			m_Menu.AppendUnformatted(CM_DRIVER_FIRST+i,szFileName);
 		}
 	}
 	return true;
@@ -2657,8 +2685,9 @@ void CUICore::InitTunerMenu(HMENU hmenu)
 	int CurDriver=-1;
 	for (i=0;i<DriverManager.NumDrivers();i++) {
 		const CDriverInfo *pDriverInfo=DriverManager.GetDriverInfo(i);
-
-		Menu.AppendUnformatted(CM_DRIVER_FIRST+i,pDriverInfo->GetFileName());
+		::lstrcpyn(szText,pDriverInfo->GetFileName(),lengthof(szText));
+		::PathRemoveExtension(szText);
+		Menu.AppendUnformatted(CM_DRIVER_FIRST+i,szText);
 		if (::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())==0)
 			CurDriver=i;
 	}
@@ -3063,7 +3092,7 @@ const COptionDialog::PageInfo COptionDialog::m_PageList[] = {
 	{TEXT("ステータスバー"),		&StatusOptions,			HELP_ID_OPTIONS_STATUSBAR},
 	{TEXT("サイドバー"),			&SideBarOptions,		HELP_ID_OPTIONS_SIDEBAR},
 	{TEXT("パネル"),				&PanelOptions,			HELP_ID_OPTIONS_PANEL},
-	{TEXT("配色"),					&ColorSchemeOptions,	HELP_ID_OPTIONS_COLORSCHEME},
+	{TEXT("テーマ/配色"),			&ColorSchemeOptions,	HELP_ID_OPTIONS_COLORSCHEME},
 	{TEXT("操作"),					&OperationOptions,		HELP_ID_OPTIONS_OPERATION},
 	{TEXT("キー割り当て"),			&Accelerator,			HELP_ID_OPTIONS_ACCELERATOR},
 	{TEXT("リモコン"),				&ControllerManager,		HELP_ID_OPTIONS_CONTROLLER},
@@ -5923,6 +5952,8 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			}
 			if (ChannelMenu.OnMeasureItem(hwnd,wParam,lParam))
 				return TRUE;
+			if (FavoritesMenu.OnMeasureItem(hwnd,wParam,lParam))
+				return TRUE;
 		}
 		break;
 
@@ -5930,6 +5961,8 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		if (AspectRatioIconMenu.OnDrawItem(hwnd,wParam,lParam))
 			return TRUE;
 		if (ChannelMenu.OnDrawItem(hwnd,wParam,lParam))
+			return TRUE;
+		if (FavoritesMenu.OnDrawItem(hwnd,wParam,lParam))
 			return TRUE;
 		break;
 
@@ -6014,10 +6047,14 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 	case WM_UNINITMENUPOPUP:
 		if (ChannelMenu.OnUninitMenuPopup(hwnd,wParam,lParam))
 			return 0;
+		if (FavoritesMenu.OnUninitMenuPopup(hwnd,wParam,lParam))
+			return 0;
 		break;
 
 	case WM_MENUSELECT:
 		if (ChannelMenu.OnMenuSelect(hwnd,wParam,lParam))
+			return 0;
+		if (FavoritesMenu.OnMenuSelect(hwnd,wParam,lParam))
 			return 0;
 		break;
 
@@ -6375,6 +6412,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 	case WM_THEMECHANGED:
 		ChannelMenu.Destroy();
+		FavoritesMenu.Destroy();
 		return 0;
 
 	case WM_CLOSE:
@@ -6415,6 +6453,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 #endif
 		ResidentManager.Finalize();
 		ChannelMenu.Destroy();
+		FavoritesMenu.Destroy();
 		MainMenu.Destroy();
 		Accelerator.Finalize();
 		ControllerManager.DeleteAllControllers();
@@ -6424,6 +6463,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 		fEnablePlay=IsViewerEnabled();
 
+		AppMain.SaveCurrentChannel();
 		AppMain.SaveChannelSettings();
 
 		CoreEngine.m_DtvEngine.SetTracer(&Logger);
@@ -6439,7 +6479,7 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		::SetPriorityClass(::GetCurrentProcess(),BELOW_NORMAL_PRIORITY_CLASS);
 
 		if (!CmdLineOptions.m_fNoEpg) {
-			EpgProgramList.UpdateProgramList();
+			EpgProgramList.UpdateProgramList(CEpgProgramList::SERVICE_UPDATE_DISCARD_ENDED_EVENTS);
 			EpgOptions.SaveEpgFile(&EpgProgramList);
 		}
 		EpgOptions.SaveLogoFile();
@@ -6457,9 +6497,11 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 		m_PanelPaneIndex=GetPanelPaneIndex();
 
+		if (FavoritesManager.GetModified())
+			FavoritesManager.Save(AppMain.GetFavoritesFileName());
+
 		// Finalize()ではエラー時にダイアログを出すことがあるので、
 		// 終了監視の外に出す必要がある
-		AppMain.SaveCurrentChannel();
 		AppMain.Finalize();
 		return 0;
 
@@ -6479,6 +6521,9 @@ LRESULT CMainWindow::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 {
+	RECT rc;
+	GetClientRect(&rc);
+	m_LayoutBase.SetPosition(&rc);
 	m_LayoutBase.Create(m_hwnd,
 						WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_CLIPSIBLINGS);
 
@@ -6519,6 +6564,7 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 	StatusView.AddItem(new CBufferingStatusItem);
 	StatusView.AddItem(new CTunerStatusItem);
 	StatusView.AddItem(new CMediaBitRateStatusItem);
+	StatusView.AddItem(new CFavoritesStatusItem);
 	StatusOptions.ApplyOptions();
 
 	NotificationBar.Create(m_Viewer.GetVideoContainer().GetHandle(),
@@ -6656,12 +6702,28 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 	::AppendMenu(hSysMenu,MF_SEPARATOR,0,NULL);
 	::AppendMenu(hSysMenu,MF_STRING | MF_ENABLED,SC_ABOUT,TEXT("バージョン情報(&A)"));
 
+	static const CIconMenu::ItemInfo AspectRatioMenuItems[] = {
+		{CM_ASPECTRATIO_DEFAULT,	0},
+		{CM_ASPECTRATIO_16x9,		1},
+		{CM_ASPECTRATIO_LETTERBOX,	2},
+		{CM_ASPECTRATIO_SUPERFRAME,	3},
+		{CM_ASPECTRATIO_SIDECUT,	4},
+		{CM_ASPECTRATIO_4x3,		5},
+		{CM_ASPECTRATIO_32x9,		6},
+		{CM_ASPECTRATIO_16x9_LEFT,	7},
+		{CM_ASPECTRATIO_16x9_RIGHT,	8},
+		{CM_FRAMECUT,				9},
+		{CM_PANANDSCANOPTIONS,		10},
+	};
 	HMENU hmenuAspectRatio=MainMenu.GetSubMenu(CMainMenu::SUBMENU_ASPECTRATIO);
 	AspectRatioIconMenu.Initialize(hmenuAspectRatio,
-								   hInst,MAKEINTRESOURCE(IDB_PANSCAN),16,RGB(192,192,192),
-								   CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_3D_LAST);
-	if (m_AspectRatioType<ASPECTRATIO_CUSTOM)
-		AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_FIRST+m_AspectRatioType);
+								   hInst,MAKEINTRESOURCE(IDB_PANSCAN),16,
+								   AspectRatioMenuItems,lengthof(AspectRatioMenuItems));
+	if (m_AspectRatioType<ASPECTRATIO_CUSTOM) {
+		AspectRatioIconMenu.CheckRadioItem(
+			CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_3D_LAST,
+			CM_ASPECTRATIO_FIRST+m_AspectRatioType);
+	}
 	m_DefaultAspectRatioMenuItemCount=::GetMenuItemCount(hmenuAspectRatio);
 
 	TaskbarManager.Initialize(m_hwnd);
@@ -6681,7 +6743,10 @@ bool CMainWindow::OnCreate(const CREATESTRUCT *pcs)
 
 void CMainWindow::OnSizeChanged(UINT State,int Width,int Height)
 {
-	if (State==SIZE_MINIMIZED) {
+	const bool fMinimized=State==SIZE_MINIMIZED;
+	const bool fMaximized=State==SIZE_MAXIMIZED;
+
+	if (fMinimized) {
 		ResidentManager.SetStatus(CResidentManager::STATUS_MINIMIZED,
 								  CResidentManager::STATUS_MINIMIZED);
 		if (ViewOptions.GetDisablePreviewWhenMinimized()) {
@@ -6694,8 +6759,7 @@ void CMainWindow::OnSizeChanged(UINT State,int Width,int Height)
 		SetWindowVisible();
 	}
 
-	if (State==SIZE_MAXIMIZED
-			&& (!m_fShowTitleBar || m_fCustomTitleBar)) {
+	if (fMaximized && (!m_fShowTitleBar || m_fCustomTitleBar)) {
 		HMONITOR hMonitor=::MonitorFromWindow(m_hwnd,MONITOR_DEFAULTTONEAREST);
 		MONITORINFO mi;
 
@@ -6707,10 +6771,10 @@ void CMainWindow::OnSizeChanged(UINT State,int Width,int Height)
 		Width=sz.cx;
 		Height=sz.cy;
 	}
-	m_TitleBar.SetMaximizeMode(State==SIZE_MAXIMIZED);
+	m_TitleBar.SetMaximizeMode(fMaximized);
 
 	// ウィンドウ枠を細くしていると最小化時に変なサイズにされる
-	if (State==SIZE_MINIMIZED)
+	if (fMinimized)
 		return;
 
 	m_LayoutBase.SetPosition(0,0,Width,Height);
@@ -7620,10 +7684,6 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 			else
 				pChannel=ChannelHistory.Forward();
 			if (pChannel!=NULL) {
-				if (RecordManager.IsRecording()) {
-					if (!RecordOptions.ConfirmChannelChange(GetVideoHostWindow()))
-						return;
-				}
 				AppMain.SetDriverAndChannel(pChannel->GetDriverFileName(),pChannel);
 			}
 		}
@@ -7747,6 +7807,7 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 	case CM_CHANNELMENU:
 	case CM_SERVICEMENU:
 	case CM_TUNINGSPACEMENU:
+	case CM_FAVORITESMENU:
 	case CM_RECENTCHANNELMENU:
 		{
 			int SubMenu;
@@ -7761,6 +7822,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 				break;
 			case CM_TUNINGSPACEMENU:
 				SubMenu=CMainMenu::SUBMENU_SPACE;
+				break;
+			case CM_FAVORITESMENU:
+				SubMenu=CMainMenu::SUBMENU_FAVORITES;
 				break;
 			case CM_RECENTCHANNELMENU:
 				SubMenu=CMainMenu::SUBMENU_CHANNELHISTORY;
@@ -7867,6 +7931,22 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		ChannelPanel.SetEventsPerChannel(id-CM_CHANNELPANEL_EVENTS_1+1);
 		return;
 
+	case CM_ADDTOFAVORITES:
+		{
+			const CChannelInfo *pChannel=ChannelManager.GetCurrentRealChannelInfo();
+			if (pChannel!=NULL)
+				FavoritesManager.AddChannel(pChannel,CoreEngine.GetDriverFileName());
+		}
+		return;
+
+	case CM_ORGANIZEFAVORITES:
+		{
+			COrganizeFavoritesDialog Dialog(&FavoritesManager);
+
+			Dialog.Show(GetVideoHostWindow());
+		}
+		return;
+
 	default:
 		if (id>=CM_AUDIOSTREAM_FIRST && id<=CM_AUDIOSTREAM_LAST) {
 			m_pCore->SetAudioStream(id-CM_AUDIOSTREAM_FIRST);
@@ -7963,11 +8043,9 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 		}
 
 		if (id>=CM_DRIVER_FIRST && id<=CM_DRIVER_LAST) {
-			int Driver=id-CM_DRIVER_FIRST;
+			const CDriverInfo *pDriverInfo=DriverManager.GetDriverInfo(id-CM_DRIVER_FIRST);
 
-			if (Driver<DriverManager.NumDrivers()) {
-				const CDriverInfo *pDriverInfo=DriverManager.GetDriverInfo(Driver);
-
+			if (pDriverInfo!=NULL) {
 				if (!CoreEngine.IsDriverOpen()
 						|| ::lstrcmpi(pDriverInfo->GetFileName(),CoreEngine.GetDriverFileName())!=0) {
 					if (AppMain.SetDriver(pDriverInfo->GetFileName())) {
@@ -8001,6 +8079,45 @@ void CMainWindow::OnCommand(HWND hwnd,int id,HWND hwndCtl,UINT codeNotify)
 
 			if (pChannel!=NULL)
 				AppMain.SetDriverAndChannel(pChannel->GetDriverFileName(),pChannel);
+			return;
+		}
+
+		if (id>=CM_FAVORITECHANNEL_FIRST && id<=CM_FAVORITECHANNEL_LAST) {
+			CFavoritesManager::ChannelInfo ChannelInfo;
+
+			if (FavoritesManager.GetChannelByCommand(id,&ChannelInfo)) {
+				if (!ChannelInfo.fForceBonDriverChange
+						&& CoreEngine.IsDriverOpen()) {
+					int Space=ChannelManager.GetCurrentSpace();
+					if (Space!=CChannelManager::SPACE_INVALID) {
+						int Index=ChannelManager.FindChannelByIDs(Space,
+							ChannelInfo.Channel.GetNetworkID(),
+							ChannelInfo.Channel.GetTransportStreamID(),
+							ChannelInfo.Channel.GetServiceID());
+						if (Index<0 && Space!=CChannelManager::SPACE_ALL) {
+							for (Space=0;Space<ChannelManager.NumSpaces();Space++) {
+								Index=ChannelManager.FindChannelByIDs(Space,
+									ChannelInfo.Channel.GetNetworkID(),
+									ChannelInfo.Channel.GetTransportStreamID(),
+									ChannelInfo.Channel.GetServiceID());
+								if (Index>=0)
+									break;
+							}
+						}
+						if (Index>=0) {
+							if (RecordManager.IsRecording()) {
+								if (!RecordOptions.ConfirmChannelChange(GetVideoHostWindow()))
+									return;
+							}
+							AppMain.SetChannel(Space,Index);
+							return;
+						}
+					}
+				}
+
+				AppMain.SetDriverAndChannel(ChannelInfo.BonDriverFileName.c_str(),
+											&ChannelInfo.Channel);
+			}
 			return;
 		}
 
@@ -8110,10 +8227,12 @@ void CMainWindow::OnTimer(HWND hwnd,UINT id)
 					StatusView.UpdateItem(STATUS_ITEM_VIDEOSIZE);
 					ControlPanel.UpdateItem(CONTROLPANEL_ITEM_VIDEO);
 					/*
-					MainMenu.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
+					MainMenu.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_3D_LAST,
 											CM_ASPECTRATIO_DEFAULT);
 					*/
-					AspectRatioIconMenu.SetCheckItem(CM_ASPECTRATIO_DEFAULT);
+					AspectRatioIconMenu.CheckRadioItem(
+						CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_3D_LAST,
+						CM_ASPECTRATIO_DEFAULT);
 					SideBar.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
 										   CM_ASPECTRATIO_DEFAULT);
 				}
@@ -8441,8 +8560,6 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 		MainMenu.EnableItem(CM_SAVEIMAGE,fView);
 		MainMenu.CheckItem(CM_PANEL,
 						   fFullscreen?m_Fullscreen.IsPanelVisible():fShowPanelWindow);
-		MainMenu.CheckItem(CM_FRAMECUT,
-						   CoreEngine.m_DtvEngine.m_MediaViewer.GetViewStretchMode()==CMediaViewer::STRETCH_CUTFRAME);
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_ZOOM)) {
 		CZoomOptions::ZoomRate Zoom;
 		GetZoomRate(&Zoom.Rate,&Zoom.Factor);
@@ -8453,6 +8570,13 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_PLUGIN)) {
 		PluginManager.SetMenu(hmenu);
 		Accelerator.SetMenuAccel(hmenu);
+	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_FAVORITES)) {
+		//FavoritesManager.SetMenu(hmenu);
+		FavoritesMenu.Create(&FavoritesManager.GetRootFolder(),
+							 CM_FAVORITECHANNEL_FIRST,hmenu,m_hwnd,
+							 CFavoritesMenu::FLAG_SHOWEVENTINFO | CFavoritesMenu::FLAG_SHOWLOGO);
+		::EnableMenuItem(hmenu,CM_ADDTOFAVORITES,
+						 MF_BYCOMMAND | (ChannelManager.GetCurrentRealChannelInfo()!=NULL?MF_ENABLED:MF_GRAYED));
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_CHANNELHISTORY)) {
 		RecentChannelList.SetMenu(hmenu);
 	} else if (hmenu==MainMenu.GetSubMenu(CMainMenu::SUBMENU_ASPECTRATIO)) {
@@ -8479,6 +8603,9 @@ bool CMainWindow::OnInitMenuPopup(HMENU hmenu)
 							 CM_PANANDSCAN_PRESET_FIRST+i,szText);
 			}
 		}
+
+		AspectRatioIconMenu.CheckItem(CM_FRAMECUT,
+			CoreEngine.m_DtvEngine.m_MediaViewer.GetViewStretchMode()==CMediaViewer::STRETCH_CUTFRAME);
 
 		Accelerator.SetMenuAccel(hmenu);
 		if (!AspectRatioIconMenu.OnInitMenuPopup(m_hwnd,hmenu))
@@ -9283,7 +9410,8 @@ bool CMainWindow::SetPanAndScan(int Command)
 	m_AspectRatioType=Type;
 	m_AspectRatioResetTime=0;
 
-	AspectRatioIconMenu.SetCheckItem(
+	AspectRatioIconMenu.CheckRadioItem(
+		CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_3D_LAST,
 		m_AspectRatioType<ASPECTRATIO_CUSTOM?CM_ASPECTRATIO_FIRST+m_AspectRatioType:0);
 	SideBar.CheckRadioItem(CM_ASPECTRATIO_FIRST,CM_ASPECTRATIO_LAST,
 		m_AspectRatioType<ASPECTRATIO_CUSTOM?CM_ASPECTRATIO_FIRST+m_AspectRatioType:0);
@@ -9731,28 +9859,53 @@ static bool SetCommandLineChannel(const CCommandLineOptions *pCmdLine)
 #endif
 
 	const CChannelList *pChannelList;
-	int i,j;
 
-	for (i=0;(pChannelList=ChannelManager.GetChannelList(i))!=NULL;i++) {
-		if (pCmdLine->m_TuningSpace>=0 && i!=pCmdLine->m_TuningSpace)
-			continue;
-		for (j=0;j<pChannelList->NumChannels();j++) {
-			const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
+	for (int i=0;(pChannelList=ChannelManager.GetChannelList(i))!=NULL;i++) {
+		if (pCmdLine->m_TuningSpace<0 || i==pCmdLine->m_TuningSpace) {
+			for (int j=0;j<pChannelList->NumChannels();j++) {
+				const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
 
-			if ((pCmdLine->m_Channel==0
-					|| pCmdLine->m_Channel==pChannelInfo->GetPhysicalChannel())
-				&& (pCmdLine->m_ControllerChannel==0
-					|| pCmdLine->m_ControllerChannel==pChannelInfo->GetChannelNo())
-				&& (pCmdLine->m_ServiceID==0
-					|| pCmdLine->m_ServiceID==pChannelInfo->GetServiceID())
-				&& (pCmdLine->m_NetworkID==0
-					|| pCmdLine->m_NetworkID==pChannelInfo->GetNetworkID())
-				&& (pCmdLine->m_TransportStreamID==0
-					|| pCmdLine->m_TransportStreamID==pChannelInfo->GetTransportStreamID())) {
-				return AppMain.SetChannel(i,j);
+				if ((pCmdLine->m_Channel==0
+						|| pCmdLine->m_Channel==pChannelInfo->GetPhysicalChannel())
+					&& (pCmdLine->m_ControllerChannel==0
+						|| pCmdLine->m_ControllerChannel==pChannelInfo->GetChannelNo())
+					&& (pCmdLine->m_ServiceID==0
+						|| pCmdLine->m_ServiceID==pChannelInfo->GetServiceID())
+					&& (pCmdLine->m_NetworkID==0
+						|| pCmdLine->m_NetworkID==pChannelInfo->GetNetworkID())
+					&& (pCmdLine->m_TransportStreamID==0
+						|| pCmdLine->m_TransportStreamID==pChannelInfo->GetTransportStreamID())) {
+					return AppMain.SetChannel(i,j);
+				}
 			}
 		}
 	}
+
+	if (pCmdLine->m_ServiceID>0
+			&& (pCmdLine->m_Channel>0 || pCmdLine->m_ControllerChannel>0
+				|| pCmdLine->m_NetworkID>0 || pCmdLine->m_TransportStreamID>0)) {
+		for (int i=0;(pChannelList=ChannelManager.GetChannelList(i))!=NULL;i++) {
+			if (pCmdLine->m_TuningSpace<0 || i==pCmdLine->m_TuningSpace) {
+				for (int j=0;j<pChannelList->NumChannels();j++) {
+					const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(j);
+
+					if ((pCmdLine->m_Channel==0
+							|| pCmdLine->m_Channel==pChannelInfo->GetPhysicalChannel())
+						&& (pCmdLine->m_ControllerChannel==0
+							|| pCmdLine->m_ControllerChannel==pChannelInfo->GetChannelNo())
+						&& (pCmdLine->m_NetworkID==0
+							|| pCmdLine->m_NetworkID==pChannelInfo->GetNetworkID())
+						&& (pCmdLine->m_TransportStreamID==0
+							|| pCmdLine->m_TransportStreamID==pChannelInfo->GetTransportStreamID())) {
+						return AppMain.SetChannel(i,j,pCmdLine->m_ServiceID);
+					}
+				}
+			}
+		}
+	}
+
+	Logger.AddLog(TEXT("コマンドラインで指定されたチャンネルが見付かりません。"));
+
 	return false;
 }
 
@@ -10110,6 +10263,8 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 
 	// コマンドラインの解析
 	if (pszCmdLine[0]!=_T('\0')) {
+		Logger.AddLog(TEXT("コマンドラインオプション : %s"),pszCmdLine);
+
 		CmdLineOptions.Parse(pszCmdLine);
 
 		if (CmdLineOptions.m_TvRockDID>=0)
@@ -10256,7 +10411,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 			MessageBox(NULL,TEXT("ウィンドウが作成できません。"),NULL,MB_OK | MB_ICONSTOP);
 		return 0;
 	}
-	if (nCmdShow==SW_SHOWMINIMIZED || nCmdShow==SW_MINIMIZE)
+	if (nCmdShow==SW_SHOWMINIMIZED || nCmdShow==SW_SHOWMINNOACTIVE || nCmdShow==SW_MINIMIZE)
 		CmdLineOptions.m_fMinimize=true;
 	if (CmdLineOptions.m_fStandby && CmdLineOptions.m_fMinimize)
 		CmdLineOptions.m_fMinimize=false;
@@ -10264,7 +10419,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		MainWindow.Show(nCmdShow);
 		MainWindow.Update();
 	} else {
-		::ShowWindow(MainWindow.GetHandle(),SW_HIDE);
+		//::ShowWindow(MainWindow.GetHandle(),SW_HIDE);
 	}
 	if (!MainWindow.GetTitleBarVisible() || MainWindow.GetCustomTitleBar()) {
 		// この段階でスタイルを変えないとおかしくなる
@@ -10471,8 +10626,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 				Port=CmdLineOptions.m_UDPPort;
 			else if (RestoreChannelInfo.Channel>=0 && RestoreChannelInfo.Channel<10)
 				Port=FirstPort+RestoreChannelInfo.Channel;
-			//if (Port!=FirstPort)
-				AppMain.SetChannel(0,Port-FirstPort);
+			AppMain.SetChannel(0,Port-FirstPort,CmdLineOptions.m_ServiceID);
 			if (CmdLineOptions.m_ControllerChannel>0)
 				SetCommandLineChannel(&CmdLineOptions);
 		} else if (AppMain.IsFirstExecute()
@@ -10517,6 +10671,7 @@ static int ApplicationMain(HINSTANCE hInstance,LPCTSTR pszCmdLine,int nCmdShow)
 		ChannelPanel.SetChannelList(ChannelManager.GetCurrentChannelList(),false);
 
 	AppMain.InitializeCommandSettings();
+	FavoritesManager.Load(AppMain.GetFavoritesFileName());
 
 	SetFocus(MainWindow.GetHandle());
 

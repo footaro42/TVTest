@@ -49,7 +49,7 @@ bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 					  HDC hdcSrc,int SrcX,int SrcY,int Width,int Height,COLORREF Color);
 bool DrawMonoColorDIB(HDC hdcDst,int DstX,int DstY,
 					  HBITMAP hbm,int SrcX,int SrcY,int Width,int Height,COLORREF Color);
-HBITMAP CreateDIB(int Width,int Height,int BitCount);
+HBITMAP CreateDIB(int Width,int Height,int BitCount,void **ppBits=NULL);
 HBITMAP ResizeBitmap(HBITMAP hbmSrc,int Width,int Height,int BitCount=24,int StretchMode=STRETCH_HALFTONE);
 
 int CalcWrapTextLines(HDC hdc,LPCTSTR pszText,int Width);
@@ -138,6 +138,50 @@ inline HBRUSH SelectObject(HDC hdc,const CBrush &Brush) {
 inline HBITMAP SelectObject(HDC hdc,const CBitmap &Bitmap) {
 	return static_cast<HBITMAP>(::SelectObject(hdc,Bitmap.GetHandle()));
 }
+
+class CMonoColorBitmap
+{
+public:
+	CMonoColorBitmap();
+	~CMonoColorBitmap();
+	bool Load(HINSTANCE hinst,LPCTSTR pszName);
+	bool Load(HINSTANCE hinst,int ID) { return Load(hinst,MAKEINTRESOURCE(ID)); }
+	bool Create(HBITMAP hbm);
+	void Destroy();
+	HBITMAP GetHandle() const { return m_hbm; }
+	bool IsCreated() const { return m_hbm!=NULL; }
+	bool Draw(HDC hdc,int DstX,int DstY,COLORREF Color,int SrcX=0,int SrcY=0,int Width=0,int Height=0);
+	HIMAGELIST CreateImageList(int IconWidth,COLORREF Color);
+
+private:
+	void SetColor(COLORREF Color);
+
+	HBITMAP m_hbm;
+	COLORREF m_Color;
+	bool m_fColorImage;
+};
+
+class CMemoryDC
+{
+public:
+	CMemoryDC();
+	CMemoryDC(HDC hdc);
+	~CMemoryDC();
+	bool Create(HDC hdc=NULL);
+	void Delete();
+	bool IsCreated() const { return m_hdc!=NULL; }
+	bool SetBitmap(HBITMAP hbmSrc);
+	bool SetBitmap(CBitmap &Bitmap) { return SetBitmap(Bitmap.GetHandle()); }
+	bool Draw(HDC hdc,int DstX,int DstY,int SrcX,int SrcY,int Width,int Height);
+	bool DrawStretch(HDC hdc,int DstX,int DstY,int DstWidth,int DstHeight,
+					 int SrcX,int SrcY,int SrcWidth,int SrcHeight,
+					 int Mode=STRETCH_HALFTONE);
+	bool DrawAlpha(HDC hdc,int DstX,int DstY,int SrcX,int SrcY,int Width,int Height);
+
+private:
+	HDC m_hdc;
+	HBITMAP m_hbmOld;
+};
 
 class COffscreen {
 	HDC m_hdc;

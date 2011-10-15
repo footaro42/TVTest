@@ -32,11 +32,9 @@ bool CBasicDialog::IsCreated() const
 bool CBasicDialog::Destroy()
 {
 	if (m_hDlg!=NULL) {
-		if (m_fModeless)
-			return ::DestroyWindow(m_hDlg)!=FALSE;
-		::EndDialog(m_hDlg,0);
+		return ::DestroyWindow(m_hDlg)!=FALSE;
 	}
-	return m_hDlg==NULL;
+	return true;
 }
 
 

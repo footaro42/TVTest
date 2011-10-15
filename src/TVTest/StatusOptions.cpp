@@ -79,8 +79,6 @@ bool CStatusOptions::ReadSettings(CSettings &Settings)
 			}
 		}
 		NumItems=j;
-		for (i=0;i<NumItems;i++)
-			m_ItemList[i]=ItemList[i];
 		if (NumItems<NUM_STATUS_ITEMS) {
 			for (i=0;i<NUM_STATUS_ITEMS;i++) {
 				for (k=0;k<NumItems;k++) {
@@ -91,6 +89,8 @@ bool CStatusOptions::ReadSettings(CSettings &Settings)
 					m_ItemList[j++]=m_ItemList[i];
 			}
 		}
+		for (i=0;i<NumItems;i++)
+			m_ItemList[i]=ItemList[i];
 	}
 
 	// Font
@@ -173,6 +173,7 @@ void CStatusOptions::SetDefaultItemList()
 	} DefaultItemList[NUM_STATUS_ITEMS] = {
 		{STATUS_ITEM_TUNER,			IS_HD},
 		{STATUS_ITEM_CHANNEL,		true},
+		{STATUS_ITEM_FAVORITES,		false},
 		{STATUS_ITEM_VIDEOSIZE,		true},
 		{STATUS_ITEM_VOLUME,		true},
 		{STATUS_ITEM_AUDIOCHANNEL,	true},
@@ -313,7 +314,8 @@ INT_PTR CStatusOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 						break;
 				}
 			case ODA_FOCUS:
-				::DrawFocusRect(pdis->hDC,&pdis->rcItem);
+				if ((pdis->itemState & ODS_NOFOCUSRECT)==0)
+					::DrawFocusRect(pdis->hDC,&pdis->rcItem);
 				break;
 			}
 		}

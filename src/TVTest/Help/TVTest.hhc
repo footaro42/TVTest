@@ -93,7 +93,7 @@
 			<param name="Local" value="options\panel.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-			<param name="Name" value="配色">
+			<param name="Name" value="テーマ/配色">
 			<param name="Local" value="options\colorscheme.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">

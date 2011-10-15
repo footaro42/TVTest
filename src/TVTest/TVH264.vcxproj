@@ -309,11 +309,13 @@
     <ClCompile Include="DrawUtil.cpp" />
     <ClCompile Include="DriverManager.cpp" />
     <ClCompile Include="DriverOptions.cpp" />
+    <ClCompile Include="EpgChannelSettings.cpp" />
     <ClCompile Include="EpgDataLoader.cpp" />
     <ClCompile Include="EpgOptions.cpp" />
     <ClCompile Include="EpgProgramList.cpp" />
     <ClCompile Include="EpgUtil.cpp" />
     <ClCompile Include="EventInfoPopup.cpp" />
+    <ClCompile Include="Favorites.cpp" />
     <ClCompile Include="GeneralOptions.cpp" />
     <ClCompile Include="Help.cpp" />
     <ClCompile Include="Image.cpp" />
@@ -453,11 +455,13 @@
     <ClInclude Include="DrawUtil.h" />
     <ClInclude Include="DriverManager.h" />
     <ClInclude Include="DriverOptions.h" />
+    <ClInclude Include="EpgChannelSettings.h" />
     <ClInclude Include="EpgDataLoader.h" />
     <ClInclude Include="EpgOptions.h" />
     <ClInclude Include="EpgProgramList.h" />
     <ClInclude Include="EpgUtil.h" />
     <ClInclude Include="EventInfoPopup.h" />
+    <ClInclude Include="Favorites.h" />
     <ClInclude Include="GeneralOptions.h" />
     <ClInclude Include="Help.h" />
     <ClInclude Include="Help\HelpID.h" />

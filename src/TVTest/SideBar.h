@@ -5,6 +5,7 @@
 #include <vector>
 #include "BasicWindow.h"
 #include "Command.h"
+#include "DrawUtil.h"
 #include "Theme.h"
 #include "Tooltip.h"
 #include "WindowUtil.h"
@@ -56,7 +57,7 @@ public:
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
 // CSideBar
 	int GetBarWidth() const;
-	bool SetIconImage(HBITMAP hbm,COLORREF crTransparent);
+	bool SetIconImage(HBITMAP hbm);
 	void DeleteAllItems();
 	bool AddItem(const SideBarItem *pItem);
 	bool AddItems(const SideBarItem *pItemList,int NumItems);
@@ -76,10 +77,13 @@ public:
 protected:
 	CTooltip m_Tooltip;
 	bool m_fShowTooltips;
-	HBITMAP m_hbmIcons;
-	COLORREF m_IconTransparentColor;
+	DrawUtil::CMonoColorBitmap m_IconBitmap;
 	bool m_fVertical;
 	ThemeInfo m_Theme;
+	RECT m_ItemMargin;
+	int m_IconWidth;
+	int m_IconHeight;
+	int m_SeparatorWidth;
 	std::vector<SideBarItem> m_ItemList;
 	int m_HotItem;
 	int m_ClickItem;

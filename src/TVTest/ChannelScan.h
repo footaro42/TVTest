@@ -16,10 +16,10 @@ class CChannelScan : public COptions
 	CCoreEngine *m_pCoreEngine;
 	int m_ScanSpace;
 	int m_ScanChannel;
-	int m_NumChannels;
 	const CTuningSpaceList *m_pOriginalTuningSpaceList;
 	CTuningSpaceList m_TuningSpaceList;
 	CChannelList m_ScanningChannelList;
+	std::vector<TVTest::String> m_BonDriverChannelList;
 	bool m_fScanService;
 	bool m_fIgnoreSignalLevel;
 	unsigned int m_ScanWait;
@@ -31,7 +31,7 @@ class CChannelScan : public COptions
 	HWND m_hScanDlg;
 	HANDLE m_hScanThread;
 	HANDLE m_hCancelEvent;
-	bool m_fOK;
+	bool m_fCancelled;
 	int m_SortColumn;
 	bool m_fSortDescending;
 	bool m_fChanging;

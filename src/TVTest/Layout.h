@@ -50,9 +50,9 @@ public:
 	CWindowContainer(int ID);
 	~CWindowContainer();
 // CContainer
-	void SetPosition(const RECT &Pos);
-	void GetMinSize(SIZE *pSize) const;
-	void SetVisible(bool fVisible);
+	void SetPosition(const RECT &Pos) override;
+	void GetMinSize(SIZE *pSize) const override;
+	void SetVisible(bool fVisible) override;
 // CWindowContainer
 	void SetWindow(CBasicWindow *pWindow);
 	CBasicWindow *GetWindow() const { return m_pWindow; }
@@ -85,13 +85,13 @@ public:
 	CSplitter(int ID);
 	~CSplitter();
 // CContainer
-	void SetPosition(const RECT &Pos);
-	void GetMinSize(SIZE *pSize) const;
-	int NumChildContainers() const;
-	CContainer *GetChildContainer(int Index) const;
-	void OnLButtonDown(int x,int y);
-	void OnLButtonUp(int x,int y);
-	void OnMouseMove(int x,int y);
+	void SetPosition(const RECT &Pos) override;
+	void GetMinSize(SIZE *pSize) const override;
+	int NumChildContainers() const override;
+	CContainer *GetChildContainer(int Index) const override;
+	void OnLButtonDown(int x,int y) override;
+	void OnLButtonUp(int x,int y) override;
+	void OnMouseMove(int x,int y) override;
 // CSplitter
 	bool SetPane(int Index,CContainer *pContainer);
 	bool ReplacePane(int Index,CContainer *pContainer);
@@ -110,7 +110,7 @@ public:
 };
 
 
-class CLayoutBase : public CBasicWindow
+class CLayoutBase : public CCustomWindow
 {
 public:
 	class ABSTRACT_CLASS(CEventHandler) {
@@ -124,7 +124,7 @@ public:
 
 	CLayoutBase();
 	~CLayoutBase();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
 	bool SetTopContainer(CContainer *pContainer);
 	CContainer *GetTopContainer() const { return m_pContainer; }
 	CContainer *GetContainerByID(int ID) const;
@@ -147,15 +147,14 @@ protected:
 	COLORREF m_BackColor;
 	DrawUtil::CBrush m_BackBrush;
 
+	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+
 	void SetBasePointer(CContainer *pContainer,CLayoutBase *pBase);
 	CContainer *GetChildContainerByID(const CContainer *pContainer,int ID) const;
 	CContainer *GetChildContainerFromPoint(const CContainer *pContainer,int x,int y) const;
 
 	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
-
-	static CLayoutBase *GetThis(HWND hwnd);
-	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 }	// namespace Layout
