@@ -72,7 +72,6 @@ private:
 	void SetEventInfo(const CEventInfoData *pEventInfo);
 	void CalcTitleHeight();
 	void GetCloseButtonRect(RECT *pRect) const;
-	bool CopyText(LPCWSTR pszText) const;
 };
 
 class CEventInfoPopupManager

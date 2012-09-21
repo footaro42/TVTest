@@ -17,8 +17,6 @@
 #define MAIN_WINDOW_CLASS		APP_NAME TEXT(" Window")
 #define FULLSCREEN_WINDOW_CLASS	APP_NAME TEXT(" Fullscreen")
 
-#define MAIN_TITLE_TEXT APP_NAME
-
 // (*) が付いたものは、変えると異なるバージョン間での互換性が無くなるので注意
 #define WM_APP_SERVICEUPDATE	(WM_APP+0)
 #define WM_APP_CHANNELCHANGE	(WM_APP+1)
@@ -35,6 +33,7 @@
 #define WM_APP_EPGLOADED		(WM_APP+12)
 #define WM_APP_PLUGINMESSAGE	(WM_APP+13)
 #define WM_APP_CARDREADERHUNG	(WM_APP+14)
+#define WM_APP_SERVICECHANGED	(WM_APP+15)
 
 enum {
 	CONTAINER_ID_VIEW=1,
@@ -66,8 +65,11 @@ public:
 	bool BuildViewer();
 	bool CloseViewer();
 	CViewWindow &GetViewWindow() { return m_ViewWindow; }
+	const CViewWindow &GetViewWindow() const { return m_ViewWindow; }
 	CVideoContainerWindow &GetVideoContainer() { return m_VideoContainer; }
+	const CVideoContainerWindow &GetVideoContainer() const { return m_VideoContainer; }
 	CDisplayBase &GetDisplayBase() { return m_DisplayBase; }
+	const CDisplayBase &GetDisplayBase() const { return m_DisplayBase; }
 };
 
 class CFullscreen : public CCustomWindow
@@ -121,8 +123,111 @@ public:
 	static bool Initialize();
 };
 
-class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEventHandler
+class CMainWindow
+	: public CBasicWindow
+	, public CUISkin
+	, public COSDManager::CEventHandler
 {
+public:
+	enum { COMMAND_FROM_MOUSE=8 };
+
+	struct ResumeInfo {
+		CChannelSpec Channel;
+		bool fOpenTuner;
+		bool fSetChannel;
+		bool fPlay;
+		bool fFullscreen;
+
+		ResumeInfo()
+			: fOpenTuner(false)
+			, fSetChannel(false)
+			, fPlay(false)
+			, fFullscreen(false)
+		{
+		}
+	};
+
+	CMainWindow();
+	~CMainWindow();
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
+	bool Show(int CmdShow);
+	void CreatePanel();
+	void ShowNotificationBar(LPCTSTR pszText,
+							 CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO,
+							 DWORD Duration=0);
+	void AdjustWindowSize(int Width,int Height);
+	bool ReadSettings(CSettings &Settings);
+	bool WriteSettings(CSettings &Settings);
+	void SetStatusBarVisible(bool fVisible);
+	bool GetStatusBarVisible() const { return m_fShowStatusBar; }
+	void SetTitleBarVisible(bool fVisible);
+	bool GetTitleBarVisible() const { return m_fShowTitleBar; }
+	void SetCustomTitleBar(bool fCustom);
+	bool GetCustomTitleBar() const { return m_fCustomTitleBar; }
+	void SetSplitTitleBar(bool fSplit);
+	bool GetSplitTitleBar() const { return m_fSplitTitleBar; }
+	void SetCustomFrame(bool fCustomFrame,int Width=0);
+	bool GetCustomFrame() const { return m_fCustomFrame; }
+	void SetSideBarVisible(bool fVisible);
+	bool GetSideBarVisible() const { return m_fShowSideBar; }
+	bool OnBarMouseLeave(HWND hwnd);
+	int GetPanelPaneIndex() const;
+	bool IsFullscreenPanelVisible() const { return m_Fullscreen.IsPanelVisible(); }
+	int GetAspectRatioType() const { return m_AspectRatioType; }
+	bool InitStandby();
+	bool InitMinimize();
+	ResumeInfo &GetResumeInfo() { return m_Resume; }
+	bool IsMinimizeToTray() const;
+	bool ConfirmExit();
+	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz);
+	void SendCommand(int Command) { SendMessage(WM_COMMAND,Command,0); }
+	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
+	bool CommandLineRecord(LPCTSTR pszFileName,const FILETIME *pStartTime,int Delay,int Duration);
+
+	bool BeginChannelNoInput(int Digits);
+	void EndChannelNoInput();
+	bool OnChannelNoInput(int Number);
+
+	bool BeginProgramGuideUpdate(LPCTSTR pszBonDriver=NULL,const CChannelList *pChannelList=NULL,bool fStandby=false);
+	enum {
+		EPG_UPDATE_END_CLOSE_TUNER = 0x0001U,
+		EPG_UPDATE_END_RESUME      = 0x0002U,
+		EPG_UPDATE_END_DEFAULT     = EPG_UPDATE_END_CLOSE_TUNER | EPG_UPDATE_END_RESUME
+	};
+	void OnProgramGuideUpdateEnd(unsigned int Flags=EPG_UPDATE_END_DEFAULT);
+	void EndProgramGuideUpdate(unsigned int Flags=EPG_UPDATE_END_DEFAULT);
+
+	void UpdatePanel();
+	void ApplyColorScheme(const class CColorScheme *pColorScheme);
+	bool SetLogo(LPCTSTR pszFileName);
+	bool SetViewWindowEdge(bool fEdge);
+	bool GetViewWindowEdge() const { return m_fViewWindowEdge; }
+	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
+	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
+
+	CStatusView *GetStatusView() const;
+	Layout::CLayoutBase &GetLayoutBase() { return m_LayoutBase; }
+	CDisplayBase &GetDisplayBase() { return m_Viewer.GetDisplayBase(); }
+	CTitleBar &GetTitleBar() { return m_TitleBar; }
+
+	bool UpdateProgramInfo();
+
+	enum {
+		PROGRAMGUIDE_SHOW_ONSCREEN = 0x0001U,
+		PROGRAMGUIDE_SHOW_POPUP    = 0x0002U
+	};
+	struct ProgramGuideSpaceInfo {
+		LPCTSTR pszTuner;
+		int Space;
+	};
+	bool ShowProgramGuide(bool fShow,unsigned int Flags=0,const ProgramGuideSpaceInfo *pSpaceInfo=NULL);
+
+	static bool Initialize();
+
+// CUISkin
+	HWND GetVideoHostWindow() const override;
+
+private:
 	enum { UPDATE_TIMER_INTERVAL=500 };
 
 	Layout::CLayoutBase m_LayoutBase;
@@ -150,12 +255,20 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 
 	bool m_fStandbyInit;
 	bool m_fMinimizeInit;
-	bool m_fSrcFilterReleased;
-	CChannelSpec m_RestoreChannelSpec;
-	bool m_fRestorePreview;
-	bool m_fRestoreFullscreen;
+	ResumeInfo m_Resume;
+
+	struct EpgChannelGroup {
+		int Space;
+		int Channel;
+		DWORD Time;
+		CChannelList ChannelList;
+	};
 	bool m_fProgramGuideUpdating;
-	int m_ProgramGuideUpdateStartChannel;
+	int m_EpgUpdateCurChannel;
+	std::vector<EpgChannelGroup> m_EpgUpdateChannelList;
+	Util::CClock m_EpgAccumulateClock;
+	bool m_fEpgUpdateChannelChange;
+
 	bool m_fExitOnRecordingStop;
 	POINT m_ptDragStartPos;
 	RECT m_rcDragStart;
@@ -219,6 +332,17 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	CDisplayBaseEventHandler m_DisplayBaseEventHandler;
 	friend CDisplayBaseEventHandler;
 
+	struct ChannelNoInputInfo {
+		bool fInputting;
+		int Digits;
+		int CurDigit;
+		int Number;
+		ChannelNoInputInfo() : fInputting(false) {}
+	};
+	ChannelNoInputInfo m_ChannelNoInput;
+	DWORD m_ChannelNoInputTimeout;
+	CTimer m_ChannelNoInputTimer;
+
 	static ATOM m_atomChildOldWndProcProp;
 
 // CUISkin
@@ -227,6 +351,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	bool FinalizeViewer() override;
 	bool EnableViewer(bool fEnable) override;
 	bool IsViewerEnabled() const override;
+	HWND GetViewerWindow() const override;
 	bool SetZoomRate(int Rate,int Factor) override;
 	bool GetZoomRate(int *pRate,int *pFactor) override;
 	bool SetPanAndScan(const PanAndScanInfo &Info) override;
@@ -242,7 +367,7 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	void OnTunerOpened() override;
 	void OnTunerClosed() override;
 	void OnChannelListChanged() override;
-	void OnChannelChanged(bool fSpaceChanged) override;
+	void OnChannelChanged(unsigned int Status) override;
 	void OnServiceChanged() override;
 	void OnRecordingStarted() override;
 	void OnRecordingStopped() override;
@@ -268,8 +393,8 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	void ShowAudioOSD();
 	void SetWindowVisible();
 	void ShowFloatingWindows(bool fShow);
-	bool OpenTuner();
-	void SetTitleText(bool fEvent);
+	bool ResumeTuner();
+	bool SetEpgUpdateNextChannel();
 	void RefreshChannelPanel();
 	void HookWindows(HWND hwnd);
 	void HookChildWindow(HWND hwnd);
@@ -277,64 +402,6 @@ class CMainWindow : public CBasicWindow, public CUISkin, public COSDManager::CEv
 	static LRESULT CALLBACK WndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	static DWORD WINAPI ExitWatchThread(LPVOID lpParameter);
 	static LRESULT CALLBACK ChildHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
-
-public:
-	enum { COMMAND_FROM_MOUSE=8 };
-
-	CMainWindow();
-	~CMainWindow();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	bool Show(int CmdShow);
-	void CreatePanel();
-	void ShowNotificationBar(LPCTSTR pszText,
-							 CNotificationBar::MessageType Type=CNotificationBar::MESSAGE_INFO,
-							 DWORD Duration=0);
-	void AdjustWindowSize(int Width,int Height);
-	bool ReadSettings(CSettings &Settings);
-	bool WriteSettings(CSettings &Settings);
-	void SetStatusBarVisible(bool fVisible);
-	bool GetStatusBarVisible() const { return m_fShowStatusBar; }
-	void SetTitleBarVisible(bool fVisible);
-	bool GetTitleBarVisible() const { return m_fShowTitleBar; }
-	void SetCustomTitleBar(bool fCustom);
-	bool GetCustomTitleBar() const { return m_fCustomTitleBar; }
-	void SetSplitTitleBar(bool fSplit);
-	bool GetSplitTitleBar() const { return m_fSplitTitleBar; }
-	void SetCustomFrame(bool fCustomFrame,int Width=0);
-	bool GetCustomFrame() const { return m_fCustomFrame; }
-	void SetSideBarVisible(bool fVisible);
-	bool GetSideBarVisible() const { return m_fShowSideBar; }
-	bool OnBarMouseLeave(HWND hwnd);
-	int GetPanelPaneIndex() const;
-	bool IsFullscreenPanelVisible() const { return m_Fullscreen.IsPanelVisible(); }
-	int GetAspectRatioType() const { return m_AspectRatioType; }
-	bool InitStandby();
-	bool InitMinimize();
-	bool IsMinimizeToTray() const;
-	bool ConfirmExit();
-	void OnMouseWheel(WPARAM wParam,LPARAM lParam,bool fHorz);
-	void SendCommand(int Command) { SendMessage(WM_COMMAND,Command,0); }
-	void PostCommand(int Command) { PostMessage(WM_COMMAND,Command,0); }
-	bool CommandLineRecord(LPCTSTR pszFileName,const FILETIME *pStartTime,int Delay,int Duration);
-	bool BeginProgramGuideUpdate(bool fStandby=false);
-	void OnProgramGuideUpdateEnd(bool fRelease=true);
-	void EndProgramGuideUpdate(bool fRelease=true);
-	void UpdatePanel();
-	void ApplyColorScheme(const class CColorScheme *pColorScheme);
-	bool SetLogo(LPCTSTR pszFileName);
-	bool SetViewWindowEdge(bool fEdge);
-	bool GetViewWindowEdge() const { return m_fViewWindowEdge; }
-	bool GetExitOnRecordingStop() const { return m_fExitOnRecordingStop; }
-	void SetExitOnRecordingStop(bool fExit) { m_fExitOnRecordingStop=fExit; }
-	CStatusView *GetStatusView() const;
-	Layout::CLayoutBase &GetLayoutBase() { return m_LayoutBase; }
-	CTitleBar &GetTitleBar() { return m_TitleBar; }
-	bool UpdateProgramInfo();
-
-	static bool Initialize();
-
-// CUISkin
-	HWND GetVideoHostWindow() const override;
 };
 
 

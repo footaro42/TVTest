@@ -23,12 +23,23 @@ CEpgDataLoader::CEpgDataLoader()
 CEpgDataLoader::~CEpgDataLoader()
 {
 	if (m_hThread!=NULL) {
-		if (m_hAbortEvent!=NULL)
-			::SetEvent(m_hAbortEvent);
-		if (::WaitForSingleObject(m_hThread,10000)==WAIT_TIMEOUT)
-			::TerminateThread(m_hThread, -1);
+		if (::WaitForSingleObject(m_hThread,0)==WAIT_TIMEOUT) {
+			if (m_hAbortEvent!=NULL)
+				::SetEvent(m_hAbortEvent);
+
+			auto pCancelSynchronousIo=
+				GET_MODULE_FUNCTION(TEXT("kernel32.dll"),CancelSynchronousIo);
+			if (pCancelSynchronousIo!=NULL)
+				pCancelSynchronousIo(m_hThread);
+
+			if (::WaitForSingleObject(m_hThread,10000)==WAIT_TIMEOUT) {
+				TRACE(TEXT("Terminate EPG data loading thread\n"));
+				::TerminateThread(m_hThread,-1);
+			}
+		}
 		::CloseHandle(m_hThread);
 	}
+
 	if (m_hAbortEvent!=NULL)
 		::CloseHandle(m_hAbortEvent);
 }
@@ -39,8 +50,8 @@ bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 	if (pszFileName==NULL)
 		return false;
 
-	static const DWORD MAX_READ_SIZE=0x1000000UL;
-	static const DWORD BUFFER_SIZE=188*1024;
+	static const DWORD MAX_READ_SIZE=0x1000000UL;	// 16MiB
+	static const DWORD BUFFER_SIZE=188*4096;
 	HANDLE hFile;
 	LARGE_INTEGER FileSize;
 	DWORD ReadSize,RemainSize;
@@ -64,13 +75,15 @@ bool CEpgDataLoader::LoadFromFile(LPCTSTR pszFileName)
 		Offset.QuadPart=(FileSize.QuadPart-MAX_READ_SIZE)/188*188;
 		::SetFilePointerEx(hFile,Offset,NULL,FILE_BEGIN);
 	}
-	pBuffer=new BYTE[min(BUFFER_SIZE,ReadSize)];
+	try {
+		pBuffer=new BYTE[min(BUFFER_SIZE,ReadSize)];
+	} catch (...) {
+		::CloseHandle(hFile);
+		return false;
+	}
 	m_EventManager.Reset();
 	for (RemainSize=ReadSize;RemainSize>=188;RemainSize-=Size) {
-		if (RemainSize<BUFFER_SIZE)
-			Size=RemainSize;
-		else
-			Size=BUFFER_SIZE;
+		Size=min(RemainSize,BUFFER_SIZE);
 		if (!::ReadFile(hFile,pBuffer,Size,&Read,NULL))
 			break;
 		BYTE *p=pBuffer,*pEnd=pBuffer+Read/188*188;
@@ -129,16 +142,16 @@ bool CEpgDataLoader::Load(LPCTSTR pszFolder,HANDLE hAbortEvent)
 
 bool CEpgDataLoader::LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler)
 {
-	if (pszFolder==NULL)
+	if (IsStringEmpty(pszFolder))
 		return false;
+
 	if (m_hThread!=NULL) {
-		if (m_hAbortEvent!=NULL)
-			::SetEvent(m_hAbortEvent);
-		if (::WaitForSingleObject(m_hThread,5000)==WAIT_TIMEOUT)
+		if (::WaitForSingleObject(m_hThread,0)==WAIT_TIMEOUT)
 			return false;
 		::CloseHandle(m_hThread);
 		m_hThread=NULL;
 	}
+
 	m_Folder.Set(pszFolder);
 	m_pEventHandler=pEventHandler;
 	if (m_hAbortEvent==NULL)
@@ -148,24 +161,43 @@ bool CEpgDataLoader::LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler)
 	m_hThread=(HANDLE)::_beginthreadex(NULL,0,LoadThread,this,0,NULL);
 	if (m_hThread==NULL)
 		return false;
+
 	return true;
+}
+
+
+bool CEpgDataLoader::IsLoading() const
+{
+	return m_hThread!=NULL
+		&& ::WaitForSingleObject(m_hThread,0)==WAIT_TIMEOUT;
 }
 
 
 bool CEpgDataLoader::Abort(DWORD Timeout)
 {
-	if (m_hThread==NULL || m_hAbortEvent==NULL)
-		return false;
-	::SetEvent(m_hAbortEvent);
+	if (m_hThread==NULL)
+		return true;
+	if (m_hAbortEvent!=NULL)
+		::SetEvent(m_hAbortEvent);
 	if (::WaitForSingleObject(m_hThread,Timeout)==WAIT_TIMEOUT)
 		return false;
 	return true;
 }
 
 
-unsigned int __stdcall CEpgDataLoader::LoadThread(LPVOID lpParameter)
+bool CEpgDataLoader::Wait(DWORD Timeout)
 {
-	CEpgDataLoader *pThis=static_cast<CEpgDataLoader*>(lpParameter);
+	if (m_hThread!=NULL) {
+		if (::WaitForSingleObject(m_hThread,Timeout)==WAIT_TIMEOUT)
+			return false;
+	}
+	return true;
+}
+
+
+unsigned int __stdcall CEpgDataLoader::LoadThread(void *pParameter)
+{
+	CEpgDataLoader *pThis=static_cast<CEpgDataLoader*>(pParameter);
 
 	if (pThis->m_pEventHandler!=NULL)
 		pThis->m_pEventHandler->OnStart();

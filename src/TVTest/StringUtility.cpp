@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "StringUtility.h"
+#include "Util.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -169,7 +170,7 @@ namespace TVTest
 
 		int CompareNoCase(const String &String1,const String &String2,String::size_type Length)
 		{
-			return ::StrCmpNIW(String1.c_str(),String2.c_str(),Length);
+			return ::StrCmpNIW(String1.c_str(),String2.c_str(),(int)Length);
 		}
 
 		int CompareNoCase(const String &String1,LPCWSTR pszString2,String::size_type Length)
@@ -180,7 +181,7 @@ namespace TVTest
 				return 1;
 			}
 
-			return ::StrCmpNIW(String1.c_str(),pszString2,Length);
+			return ::StrCmpNIW(String1.c_str(),pszString2,(int)Length);
 		}
 
 		bool Trim(String &Str,LPCWSTR pszSpaces)
@@ -288,6 +289,56 @@ namespace TVTest
 						break;
 					if (pszDelimiter!=nullptr)
 						pDst->append(pszDelimiter);
+				}
+			}
+
+			return true;
+		}
+
+		bool Encode(LPCWSTR pszSrc,String *pDst,LPCWSTR pszEncodeChars)
+		{
+			if (pszSrc==nullptr || pDst==nullptr)
+				return false;
+
+			pDst->clear();
+
+			LPCWSTR p=pszSrc;
+			while (*p!=L'\0') {
+				bool fEncode=false;
+
+				if (*p<=0x19 || *p==L'%')
+					fEncode=true;
+				else if (pszEncodeChars!=nullptr)
+					fEncode=::StrChr(pszEncodeChars,*p)!=nullptr;
+				if (fEncode) {
+					WCHAR szCode[8];
+					StdUtil::snprintf(szCode,_countof(szCode),L"%%%04X",*p);
+					*pDst+=szCode;
+				} else {
+					pDst->push_back(*p);
+				}
+				p++;
+			}
+
+			return true;
+		}
+
+		bool Decode(LPCWSTR pszSrc,String *pDst)
+		{
+			if (pszSrc==nullptr || pDst==nullptr)
+				return false;
+
+			pDst->clear();
+
+			LPCWSTR p=pszSrc;
+			while (*p!=L'\0') {
+				if (*p==L'%') {
+					p++;
+					WCHAR Code=(WCHAR)HexStringToUInt(p,4,&p);
+					pDst->push_back(Code);
+				} else {
+					pDst->push_back(*p);
+					p++;
 				}
 			}
 

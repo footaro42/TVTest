@@ -137,8 +137,11 @@ bool CRichEditUtil::AppendText(HWND hwndEdit,LPCTSTR pszText,const CHARFORMAT2 *
 
 bool CRichEditUtil::CopyAllText(HWND hwndEdit)
 {
+	POINT ptScroll;
 	CHARRANGE cr,crOld;
 
+	::SendMessage(hwndEdit,WM_SETREDRAW,FALSE,0);
+	::SendMessage(hwndEdit,EM_GETSCROLLPOS,0,reinterpret_cast<LPARAM>(&ptScroll));
 	::SendMessage(hwndEdit,EM_HIDESELECTION,TRUE,0);
 	::SendMessage(hwndEdit,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&crOld));
 	cr.cpMin=0;
@@ -147,6 +150,8 @@ bool CRichEditUtil::CopyAllText(HWND hwndEdit)
 	::SendMessage(hwndEdit,WM_COPY,0,0);
 	::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&crOld));
 	::SendMessage(hwndEdit,EM_HIDESELECTION,FALSE,0);
+	::SendMessage(hwndEdit,EM_SETSCROLLPOS,0,reinterpret_cast<LPARAM>(&ptScroll));
+	::SendMessage(hwndEdit,WM_SETREDRAW,TRUE,0);
 	return true;
 }
 
@@ -202,21 +207,34 @@ int CRichEditUtil::GetMaxLineWidth(HWND hwndEdit)
 }
 
 
-bool CRichEditUtil::DetectURL(HWND hwndEdit,const CHARFORMAT *pcf,int FirstLine,int LastLine)
+bool CRichEditUtil::DetectURL(HWND hwndEdit,const CHARFORMAT *pcf,int FirstLine,int LastLine,
+							  unsigned int Flags,CharRangeList *pCharRangeList)
 {
 	const int LineCount=(int)::SendMessage(hwndEdit,EM_GETLINECOUNT,0,0);
 	if (LastLine<0 || LastLine>LineCount)
 		LastLine=LineCount;
+
 	CHARFORMAT2 cfLink;
 	CharFormatToCharFormat2(pcf,&cfLink);
-	cfLink.dwMask|=CFM_UNDERLINE | CFM_LINK | CFM_COLOR;
-	cfLink.dwEffects|=CFE_UNDERLINE | CFE_LINK;
-	cfLink.crTextColor=RGB(0,0,255);
+	if ((Flags & URL_NO_LINK)==0) {
+		// ƒŠƒ“ƒN‚Ì•¶ŽšF‚ÍÝ’è‚Å‚«‚È‚¢–Í—l
+		cfLink.dwMask|=CFM_UNDERLINE | CFM_LINK/* | CFM_COLOR*/;
+		cfLink.dwEffects|=CFE_UNDERLINE | CFE_LINK;
+		//cfLink.crTextColor=::GetSysColor(COLOR_HOTLIGHT);
+	} else {
+		cfLink.dwMask|=CFM_UNDERLINE;
+		cfLink.dwEffects|=CFE_UNDERLINE;
+	}
+
 	CHARRANGE cr,crOld;
 	bool fDetect=false;
 
+	if (pCharRangeList!=NULL)
+		pCharRangeList->clear();
+
 	::SendMessage(hwndEdit,WM_SETREDRAW,FALSE,0);
 	::SendMessage(hwndEdit,EM_EXGETSEL,0,reinterpret_cast<LPARAM>(&crOld));
+
 	for (int i=FirstLine;i<LastLine;) {
 		const int LineIndex=(int)::SendMessage(hwndEdit,EM_LINEINDEX,i,0);
 		TCHAR szText[2048],*p;
@@ -235,79 +253,132 @@ bool CRichEditUtil::DetectURL(HWND hwndEdit,const CHARFORMAT *pcf,int FirstLine,
 				break;
 			p+=Length;
 			TotalLength+=Length;
-			if (*(p-1)=='\r' || *(p-1)=='\n')
+			if (*(p-1)==_T('\r') || *(p-1)==_T('\n'))
 				break;
 		}
 		if (TotalLength>0) {
-			szText[TotalLength]='\0';
+			szText[TotalLength]=_T('\0');
 			LPCTSTR q=szText;
 			while (SearchNextURL(&q,&Length)) {
 				cr.cpMin=LineIndex+(LONG)(q-szText);
 				cr.cpMax=cr.cpMin+Length;
 				::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&cr));
 				::SendMessage(hwndEdit,EM_SETCHARFORMAT,SCF_SELECTION,reinterpret_cast<LPARAM>(&cfLink));
+				if (pCharRangeList!=NULL)
+					pCharRangeList->push_back(cr);
 				fDetect=true;
 				q+=Length;
 			}
 		}
 	}
+
 	::SendMessage(hwndEdit,EM_EXSETSEL,0,reinterpret_cast<LPARAM>(&crOld));
 	::SendMessage(hwndEdit,WM_SETREDRAW,TRUE,0);
 	::InvalidateRect(hwndEdit,NULL,TRUE);
+
 	return fDetect;
 }
 
 
 bool CRichEditUtil::SearchNextURL(LPCTSTR *ppszText,int *pLength)
 {
-	LPCTSTR p=*ppszText;
-	int Length=::lstrlen(p);
+	static const struct {
+		LPCTSTR pszPrefix;
+		int Length;
+	} URLPrefixList[] = {
+		{TEXT("http://"),	7},
+		{TEXT("https://"),	8},
+		{TEXT("www."),		4},
+	};
 
-	for (int i=0;i<Length-7;i++) {
-		if (::CompareString(LOCALE_USER_DEFAULT,NORM_IGNOREWIDTH,
-							&p[i],7,TEXT("http://"),7)==CSTR_EQUAL
-				|| ::CompareString(LOCALE_USER_DEFAULT,NORM_IGNOREWIDTH,
-							&p[i],4,TEXT("www."),4)==CSTR_EQUAL) {
-			int URLLength=4;
-			if (p[i]<0x0080) {
-				while (i+URLLength<Length && p[i+URLLength]>0x0020 && p[i+URLLength]<0x0080)
-					URLLength++;
-			} else {
-				while (i+URLLength<Length && p[i+URLLength]>0xFF00 && p[i+URLLength]<=0xFF5E)
-					URLLength++;
+	LPCTSTR p=*ppszText;
+	const int TextLength=::lstrlen(p);
+
+	for (int i=0;i<TextLength-4;i++) {
+		for (int j=0;j<lengthof(URLPrefixList);j++) {
+			if (i+URLPrefixList[j].Length<TextLength
+					&& ::CompareString(LOCALE_USER_DEFAULT,NORM_IGNOREWIDTH,
+							&p[i],URLPrefixList[j].Length,
+							URLPrefixList[j].pszPrefix,URLPrefixList[j].Length)==CSTR_EQUAL) {
+				int URLLength=URLPrefixList[j].Length;
+				if (p[i]<0x0080) {
+					while (i+URLLength<TextLength && p[i+URLLength]>0x0020 && p[i+URLLength]<0x0080)
+						URLLength++;
+				} else {
+					while (i+URLLength<TextLength && p[i+URLLength]>0xFF00 && p[i+URLLength]<=0xFF5E)
+						URLLength++;
+				}
+				*ppszText=p+i;
+				*pLength=URLLength;
+				return true;
 			}
-			*ppszText=p+i;
-			*pLength=URLLength;
-			return true;
 		}
 	}
+
 	return false;
 }
 
 
 bool CRichEditUtil::HandleLinkClick(const ENLINK *penl)
 {
-	if (penl==NULL || penl->chrg.cpMax-penl->chrg.cpMin>=256)
+	if (penl==NULL)
+		return false;
+
+	return OpenLink(penl->nmhdr.hwndFrom,penl->chrg);
+}
+
+
+bool CRichEditUtil::HandleLinkClick(HWND hwndEdit,const POINT &Pos,const CharRangeList &LinkList)
+{
+	int Index=LinkHitTest(hwndEdit,Pos,LinkList);
+	if (Index<0)
+		return false;
+
+	return OpenLink(hwndEdit,LinkList[Index]);
+}
+
+
+int CRichEditUtil::LinkHitTest(HWND hwndEdit,const POINT &Pos,const CharRangeList &LinkList)
+{
+	if (hwndEdit==NULL || LinkList.empty())
+		return -1;
+
+	POINTL pt={Pos.x,Pos.y};
+	LONG Index=(LONG)::SendMessage(hwndEdit,EM_CHARFROMPOS,0,reinterpret_cast<LPARAM>(&pt));
+	for (size_t i=0;i<LinkList.size();i++) {
+		if (LinkList[i].cpMin<=Index && LinkList[i].cpMax>Index) {
+			return (int)i;
+		}
+	}
+
+	return -1;
+}
+
+
+bool CRichEditUtil::OpenLink(HWND hwndEdit,const CHARRANGE &Range)
+{
+	if (Range.cpMax-Range.cpMin>=256)
 		return false;
 
 	TCHAR szText[256];
 	int Length;
 
 	TEXTRANGE tr;
-	tr.chrg=penl->chrg;
+	tr.chrg=Range;
 	tr.lpstrText=szText;
-	Length=(int)::SendMessage(penl->nmhdr.hwndFrom,EM_GETTEXTRANGE,0,reinterpret_cast<LPARAM>(&tr));
+	Length=(int)::SendMessage(hwndEdit,EM_GETTEXTRANGE,0,reinterpret_cast<LPARAM>(&tr));
 	if (Length<=0)
 		return false;
 
 	TCHAR szURL[256+7];
 	Length=::LCMapString(LOCALE_USER_DEFAULT,LCMAP_HALFWIDTH,
 						 szText,Length,szURL,lengthof(szURL));
-	szURL[Length]='\0';
+	szURL[Length]=_T('\0');
 	if (::StrCmpN(szURL,TEXT("www."),4)==0) {
 		::lstrcpy(szText,szURL);
 		::wsprintf(szURL,TEXT("http://%s"),szText);
 	}
 	::ShellExecute(NULL,TEXT("open"),szURL,NULL,NULL,SW_SHOWNORMAL);
+
 	return true;
 }

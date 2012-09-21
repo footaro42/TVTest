@@ -14,6 +14,7 @@ public:
 
 	CDynamicString m_IniFileName;
 	CDynamicString m_DriverName;
+	CDynamicString m_CasLibraryName;
 	bool m_fNoDriver;
 	bool m_fNoDescramble;
 	bool m_fSingleTask;
@@ -62,6 +63,21 @@ public:
 	bool m_fNoPlugin;
 	std::vector<CDynamicString> m_NoLoadPlugins;
 	CDynamicString m_PluginsDirectory;
+
+	bool m_fShowProgramGuide;
+	bool m_fProgramGuideOnly;
+	CDynamicString m_ProgramGuideTuner;
+	int m_ProgramGuideSpace;
+
+	bool m_fHomeDisplay;
+	bool m_fChannelDisplay;
+
+	struct IniEntry {
+		CDynamicString Section;
+		CDynamicString Name;
+		CDynamicString Value;
+	};
+	std::vector<IniEntry> m_IniValueList;
 };
 
 

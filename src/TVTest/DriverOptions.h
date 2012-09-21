@@ -42,6 +42,27 @@ class CDriverOptions : public COptions
 	CDriverSettings *GetCurSelDriverSettings() const;
 
 public:
+	struct ChannelInfo {
+		int Space;
+		int Channel;
+		int ServiceID;
+		int TransportStreamID;
+		bool fAllChannels;
+	};
+
+	struct BonDriverOptions {
+		bool fNoDescramble;
+		bool fNoSignalLevel;
+		bool fIgnoreInitialStream;
+		bool fPurgeStreamOnChannelChange;
+		bool fResetChannelChangeErrorCount;
+		DWORD FirstChannelSetDelay;
+		DWORD MinChannelChangeInterval;
+
+		BonDriverOptions();
+		BonDriverOptions(LPCTSTR pszBonDriverName);
+	};
+
 	CDriverOptions();
 	~CDriverOptions();
 // CSettingsBase
@@ -51,20 +72,12 @@ public:
 	bool Create(HWND hwndOwner) override;
 // CDriverOptions
 	bool Initialize(CDriverManager *pDriverManager);
-	struct ChannelInfo {
-		int Space;
-		int Channel;
-		int ServiceID;
-		int TransportStreamID;
-		bool fAllChannels;
-	};
 	bool GetInitialChannel(LPCTSTR pszFileName,ChannelInfo *pChannelInfo) const;
 	bool SetLastChannel(LPCTSTR pszFileName,const ChannelInfo *pChannelInfo);
-	bool IsDescrambleDriver(LPCTSTR pszFileName) const;
+	bool IsNoDescramble(LPCTSTR pszFileName) const;
 	bool IsNoSignalLevel(LPCTSTR pszFileName) const;
-	bool IsIgnoreInitialStream(LPCTSTR pszFileName) const;
-	bool IsPurgeStreamOnChannelChange(LPCTSTR pszFileName) const;
 	bool IsResetChannelChangeErrorCount(LPCTSTR pszFileName) const;
+	bool GetBonDriverOptions(LPCTSTR pszFileName,BonDriverOptions *pOptions) const;
 };
 
 

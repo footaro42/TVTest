@@ -782,6 +782,51 @@ protected:
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0xCB] CA Contract Info 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class CCaContractInfoDesc : public CBaseDesc
+{
+public:
+	enum {DESC_TAG = 0xCBU};
+
+	CCaContractInfoDesc();
+	CCaContractInfoDesc(const CCaContractInfoDesc &Operand);
+	CCaContractInfoDesc & operator = (const CCaContractInfoDesc &Operand);
+
+// CBaseDesc
+	virtual void CopyDesc(const CBaseDesc *pOperand);
+	virtual void Reset(void);
+
+// CCAContractInfoDesc
+	enum {
+		MAX_NUM_OF_COMPONENT = 12,
+		MAX_VERIFICATION_INFO_LENGTH = 172,
+		MAX_FEE_NAME = 256
+	};
+
+	WORD GetCaSystemID() const;
+	BYTE GetCaUnitID() const;
+	BYTE GetNumOfComponent() const;
+	BYTE GetComponentTag(BYTE Index) const;
+	BYTE GetContractVerificationInfoLength() const;
+	BYTE GetContractVerificationInfo(BYTE *pInfo, BYTE MaxLength) const;
+	int GetFeeName(LPTSTR pszName, int MaxName) const;
+
+protected:
+	virtual const bool StoreContents(const BYTE *pPayload);
+
+	WORD m_CaSystemID;
+	BYTE m_CaUnitID;
+	BYTE m_NumOfComponent;
+	BYTE m_ComponentTag[MAX_NUM_OF_COMPONENT];
+	BYTE m_ContractVerificationInfoLength;
+	BYTE m_ContractVerificationInfo[MAX_VERIFICATION_INFO_LENGTH];
+	TCHAR m_szFeeName[MAX_FEE_NAME];
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 

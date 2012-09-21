@@ -20,7 +20,9 @@ public:
 		OSD_CHANNEL,
 		OSD_VOLUME,
 		OSD_AUDIO,
-		OSD_RECORDING
+		OSD_RECORDING,
+		OSD_CHANNELNOINPUT,
+		OSD_TRAILER_
 	};
 
 	enum {
@@ -49,8 +51,8 @@ public:
 	int GetNotificationBarDuration() const { return m_NotificationBarDuration; }
 	const LOGFONT *GetNotificationBarFont() const { return &m_NotificationBarFont; }
 	bool IsNotifyEnabled(unsigned int Type) const;
-	const LOGFONT *GetDisplayMenuFont() const { return &m_DisplayMenuFont; }
-	bool IsDisplayMenuFontAutoSize() const { return m_fDisplayMenuFontAutoSize; }
+	const LOGFONT *GetDisplayFont() const { return &m_DisplayFont; }
+	bool IsDisplayFontAutoSize() const { return m_fDisplayFontAutoSize; }
 
 private:
 // CBasicDialog
@@ -76,9 +78,9 @@ private:
 	LOGFONT m_NotificationBarFont;
 	LOGFONT m_CurNotificationBarFont;
 
-	LOGFONT m_DisplayMenuFont;
-	LOGFONT m_CurDisplayMenuFont;
-	bool m_fDisplayMenuFontAutoSize;
+	LOGFONT m_DisplayFont;
+	LOGFONT m_DisplayFontCur;
+	bool m_fDisplayFontAutoSize;
 };
 
 

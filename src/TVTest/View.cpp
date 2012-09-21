@@ -459,6 +459,12 @@ CDisplayView::~CDisplayView()
 }
 
 
+bool CDisplayView::IsMessageNeed(const MSG *pMsg) const
+{
+	return false;
+}
+
+
 void CDisplayView::SetVisible(bool fVisible)
 {
 	if (m_pDisplayBase!=NULL)
@@ -518,6 +524,90 @@ void CDisplayView::DrawCloseButton(HDC hdc) const
 }
 
 
+bool CDisplayView::GetItemStyle(ItemType Type,Theme::Style *pStyle) const
+{
+	switch (Type) {
+	case ITEM_STYLE_NORMAL:
+	case ITEM_STYLE_NORMAL_1:
+	case ITEM_STYLE_NORMAL_2:
+		pStyle->Gradient.Type=Theme::GRADIENT_NORMAL;
+		pStyle->Gradient.Direction=Theme::DIRECTION_VERT;
+		if (Type!=ITEM_STYLE_NORMAL_2) {
+			pStyle->Gradient.Color1=RGB(48,48,48);
+			pStyle->Gradient.Color2=RGB(48,48,48);
+		} else {
+			pStyle->Gradient.Color1=RGB(24,24,24);
+			pStyle->Gradient.Color2=RGB(24,24,24);
+		}
+		pStyle->Border.Type=Theme::BORDER_NONE;
+		pStyle->TextColor=RGB(255,255,255);
+		break;
+
+	case ITEM_STYLE_HOT:
+		pStyle->Gradient.Type=Theme::GRADIENT_NORMAL;
+		pStyle->Gradient.Direction=Theme::DIRECTION_VERT;
+		pStyle->Gradient.Color1=RGB(128,128,128);
+		pStyle->Gradient.Color2=RGB(96,96,96);
+		pStyle->Border.Type=Theme::BORDER_SOLID;
+		pStyle->Border.Color=RGB(144,144,144);
+		pStyle->TextColor=RGB(255,255,255);
+		break;
+
+	case ITEM_STYLE_SELECTED:
+	case ITEM_STYLE_CURRENT:
+		pStyle->Gradient.Type=Theme::GRADIENT_NORMAL;
+		pStyle->Gradient.Direction=Theme::DIRECTION_HORZ;
+		pStyle->Gradient.Color1=RGB(96,96,96);
+		pStyle->Gradient.Color2=RGB(128,128,128);
+		if (Type==ITEM_STYLE_CURRENT) {
+			pStyle->Border.Type=Theme::BORDER_SOLID;
+			pStyle->Border.Color=RGB(144,144,144);
+		} else {
+			pStyle->Border.Type=Theme::BORDER_NONE;
+		}
+		pStyle->TextColor=RGB(255,255,255);
+		break;
+
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+
+bool CDisplayView::GetBackgroundStyle(BackgroundType Type,Theme::GradientInfo *pGradient) const
+{
+	switch (Type) {
+	case BACKGROUND_STYLE_CONTENT:
+		pGradient->Type=Theme::GRADIENT_NORMAL;
+		pGradient->Direction=Theme::DIRECTION_HORZ;
+		pGradient->Color1=RGB(36,36,36);
+		pGradient->Color2=RGB(16,16,16);
+		break;
+
+	case BACKGROUND_STYLE_CATEGORIES:
+		pGradient->Type=Theme::GRADIENT_NORMAL;
+		pGradient->Direction=Theme::DIRECTION_HORZ;
+		pGradient->Color1=RGB(24,24,80);
+		pGradient->Color2=RGB(24,24,32);
+		break;
+
+	default:
+		return false;
+	}
+
+	return true;
+}
+
+
+int CDisplayView::GetDefaultFontSize(int Width,int Height) const
+{
+	int Size=min(Width/40,Height/24);
+	return max(Size,12);
+}
+
+
 
 
 CDisplayBase::CDisplayBase()
@@ -567,9 +657,12 @@ bool CDisplayBase::SetVisible(bool fVisible)
 		return false;
 	if (m_fVisible==fVisible)
 		return true;
+
 	bool fFocus=!fVisible && m_pDisplayView->GetHandle()==::GetFocus();
+
 	if (m_pEventHandler!=NULL && !m_pEventHandler->OnVisibleChange(fVisible))
 		return false;
+
 	if (fVisible) {
 		if (m_pParentWindow!=NULL) {
 			RECT rc;
@@ -583,9 +676,16 @@ bool CDisplayBase::SetVisible(bool fVisible)
 	} else {
 		m_pDisplayView->SetDisplayVisible(false);
 	}
+
 	m_fVisible=fVisible;
-	if (fFocus && m_pParentWindow!=NULL)
-		::SetFocus(m_pParentWindow->GetHandle());
+
+	if (fFocus && m_pParentWindow!=NULL) {
+		if (m_pParentWindow->GetVisible())
+			::SetFocus(m_pParentWindow->GetHandle());
+		else
+			::SetFocus(::GetAncestor(m_pParentWindow->GetHandle(),GA_ROOT));
+	}
+
 	return true;
 }
 

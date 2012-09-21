@@ -32,16 +32,20 @@
 #define STREAM_TYPE_INVALID			0xFF	// 無効
 
 // service_type
-#define SERVICE_TYPE_DIGITALTV			0x01	// デジタルTVサービス
-#define SERVICE_TYPE_DIGITALAUDIO		0x02	// デジタル音声サービス
-#define SERVICE_TYPE_DATA				0xC0	// データサービス
-#define SERVICE_TYPE_TEMPORARYVIDEO		0xA1	// 臨時映像サービス
-#define SERVICE_TYPE_TEMPORARYAUDIO		0xA2	// 臨時音声サービス
-#define SERVICE_TYPE_TEMPORARYDATA		0xA3	// 臨時データサービス
-#define SERVICE_TYPE_ENGINEERING		0xA4	// エンジニアリングサービス
-#define SERVICE_TYPE_ACCUMULATIONDATA	0xA8	// 事前蓄積用データサービス
-#define SERVICE_TYPE_BOOKMARKLISTDATA	0xAA	// ブックマーク一覧データサービス
-#define SERVICE_TYPE_INVALID			0xFF	// 無効
+#define SERVICE_TYPE_DIGITALTV				0x01	// デジタルTVサービス
+#define SERVICE_TYPE_DIGITALAUDIO			0x02	// デジタル音声サービス
+#define SERVICE_TYPE_TEMPORARYVIDEO			0xA1	// 臨時映像サービス
+#define SERVICE_TYPE_TEMPORARYAUDIO			0xA2	// 臨時音声サービス
+#define SERVICE_TYPE_TEMPORARYDATA			0xA3	// 臨時データサービス
+#define SERVICE_TYPE_ENGINEERING			0xA4	// エンジニアリングサービス
+#define SERVICE_TYPE_PROMOTIONVIDEO			0xA5	// プロモーション映像サービス
+#define SERVICE_TYPE_PROMOTIONAUDIO			0xA6	// プロモーション音声サービス
+#define SERVICE_TYEP_PROMOTIONDATA			0xA7	// プロモーションデータサービス
+#define SERVICE_TYPE_ACCUMULATIONDATA		0xA8	// 事前蓄積用データサービス
+#define SERVICE_TYPE_ACCUMULATIONONLYDATA	0xA9	// 蓄積専用データサービス
+#define SERVICE_TYPE_BOOKMARKLISTDATA		0xAA	// ブックマーク一覧データサービス
+#define SERVICE_TYPE_DATA					0xC0	// データサービス
+#define SERVICE_TYPE_INVALID				0xFF	// 無効
 
 // ISO 639 language code
 #define LANGUAGE_CODE_JPN	0x6A706EUL	// 日本語

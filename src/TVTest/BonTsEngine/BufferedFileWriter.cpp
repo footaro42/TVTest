@@ -147,8 +147,20 @@ void CBufferedFileWriter::CloseFile(void)
 		Trace(TEXT("ファイル書き出しスレッドを停止しています..."));
 		m_EndEvent.Set();
 		if (::WaitForSingleObject(m_hThread, 10000) != WAIT_OBJECT_0) {
-			Trace(TEXT("ファイル書き出しスレッドが応答しないため強制終了します。"));
-			::TerminateThread(m_hThread, -1);
+			typedef BOOL (WINAPI *CancelSynchronousIoPtr)(HANDLE);
+			CancelSynchronousIoPtr pCancelSynchronousIo=
+				reinterpret_cast<CancelSynchronousIoPtr>(::GetProcAddress(
+					::GetModuleHandle(TEXT("kernel32.dll")),"CancelSynchronousIo"));
+			if (pCancelSynchronousIo!=NULL) {
+				pCancelSynchronousIo(m_hThread);
+				if (::WaitForSingleObject(m_hThread, 5000) != WAIT_OBJECT_0) {
+					Trace(TEXT("ファイル書き出しスレッドが応答しないため強制終了します。"));
+					::TerminateThread(m_hThread, -1);
+				}
+			} else {
+				Trace(TEXT("ファイル書き出しスレッドが応答しないため強制終了します。"));
+				::TerminateThread(m_hThread, -1);
+			}
 		}
 		::CloseHandle(m_hThread);
 		m_hThread = NULL;

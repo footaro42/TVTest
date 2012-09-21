@@ -27,6 +27,7 @@ public:
 	bool SetAlpha(BYTE Alpha);
 	bool SetOpaque() { return SetAlpha(255); }
 
+	static bool Initialize();
 	static bool IsSupported();
 
 private:

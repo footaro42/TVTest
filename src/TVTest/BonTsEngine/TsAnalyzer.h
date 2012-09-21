@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <map>
 #include "MediaDecoder.h"
 #include "TsStream.h"
 #include "TsDescriptor.h"
@@ -23,11 +24,18 @@ public:
 		LOGOID_INVALID = 0xFFFF
 	};
 
+	enum { MAX_SERVICE_NAME = 256 };
+
 	struct EsInfo {
 		WORD PID;
 		BYTE ComponentTag;
 		EsInfo() : PID(PID_INVALID), ComponentTag(COMPONENTTAG_INVALID) {}
 		EsInfo(WORD pid, BYTE Tag) : PID(pid), ComponentTag(Tag) {}
+	};
+
+	struct EcmInfo {
+		WORD CaSystemID;
+		WORD PID;
 	};
 
 	struct ServiceInfo {
@@ -41,15 +49,47 @@ public:
 		std::vector<EsInfo> DataCarrouselEsList;
 		WORD PcrPID;
 		ULONGLONG PcrTimeStamp;
-		WORD EcmPID;
+		std::vector<EcmInfo> EcmList;
 		BYTE RunningStatus;
 		bool bIsCaService;
-		TCHAR szServiceName[256];
+		TCHAR szServiceName[MAX_SERVICE_NAME];
 		BYTE ServiceType;
 		WORD LogoID;
 	};
 
 	typedef std::vector<ServiceInfo> ServiceList;
+
+	struct SdtServiceInfo {
+		WORD ServiceID;
+		BYTE RunningStatus;
+		bool bFreeCaMode;
+		TCHAR szServiceName[MAX_SERVICE_NAME];
+		BYTE ServiceType;
+	};
+
+	typedef std::vector<SdtServiceInfo> SdtServiceList;
+
+	struct SdtTsInfo {
+		WORD TransportStreamID;
+		WORD OriginalNetworkID;
+		SdtServiceList ServiceList;
+	};
+
+	typedef std::vector<SdtTsInfo> SdtTsList;
+	typedef std::map<DWORD, SdtTsInfo> SdtTsMap;
+	static DWORD GetSdtTsMapKey(WORD NetworkID, WORD TransportStreamID) {
+		return ((DWORD)NetworkID << 16) | (DWORD)TransportStreamID;
+	}
+
+	typedef CServiceListDesc::ServiceInfo NetworkServiceInfo;
+
+	struct NetworkTsInfo {
+		WORD TransportStreamID;
+		WORD OriginalNetworkID;
+		std::vector<NetworkServiceInfo> ServiceList;
+	};
+
+	typedef std::vector<NetworkTsInfo> NetworkTsList;
 
 	CTsAnalyzer(IEventHandler *pEventHandler = NULL);
 	virtual ~CTsAnalyzer();
@@ -88,28 +128,26 @@ public:
 	bool GetDataCarrouselEsPID(const int Index, const WORD DataCarrouselIndex, WORD *pDataCarrouselPID);
 	bool GetPcrPID(const int Index, WORD *pPcrPID);
 	bool GetPcrTimeStamp(const int Index, ULONGLONG *pTimeStamp);
-	bool GetEcmPID(const int Index, WORD *pEcmPID);
 	int GetServiceName(const int Index, LPTSTR pszName, const int MaxLength);
 	BYTE GetServiceType(const int Index);
 	WORD GetLogoID(const int Index);
 
 	bool GetServiceList(ServiceList *pList);
 	bool GetViewableServiceList(ServiceList *pList);
-
 	WORD GetTransportStreamID() const;
 	WORD GetNetworkID() const;
 	BYTE GetBroadcastingID() const;
 	int GetNetworkName(LPTSTR pszName, int MaxLength);
 	BYTE GetRemoteControlKeyID() const;
 	int GetTsName(LPTSTR pszName, int MaxLength);
+	bool GetSdtServiceList(SdtServiceList *pList);
+	bool GetSdtTsList(SdtTsList *pList);
+	bool GetNetworkTsList(NetworkTsList *pList);
+	bool IsSdtUpdated() const;
+	bool IsNitUpdated() const;
+	bool IsSdtComplete() const;
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
-	WORD GetEventID(const int ServiceIndex, const bool bNext = false);
-	bool GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemTime, const bool bNext = false);
-	DWORD GetEventDuration(const int ServiceIndex, const bool bNext = false);
-	int GetEventName(const int ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext = false);
-	int GetEventText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
-	int GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bUseEventGroup = true, const bool bNext = false);
 	struct EventSeriesInfo {
 		WORD SeriesID;
 		BYTE RepeatLabel;
@@ -120,7 +158,7 @@ public:
 		WORD LastEpisodeNumber;
 		TCHAR szSeriesName[CSeriesDesc::MAX_SERIES_NAME];
 	};
-	bool GetEventSeriesInfo(const int ServiceIndex, EventSeriesInfo *pInfo, const bool bNext = false);
+
 	struct EventVideoInfo {
 		enum { MAX_TEXT = 64 };
 		BYTE StreamContent;
@@ -129,6 +167,7 @@ public:
 		DWORD LanguageCode;
 		TCHAR szText[MAX_TEXT];
 	};
+
 	struct EventAudioInfo {
 		enum { MAX_TEXT = 64 };
 		BYTE StreamContent;
@@ -143,11 +182,14 @@ public:
 		DWORD LanguageCode2;
 		TCHAR szText[MAX_TEXT];
 	};
+
 	typedef std::vector<EventAudioInfo> EventAudioList;
+
 	struct EventContentNibble {
 		int NibbleCount;
 		CContentDesc::Nibble NibbleList[7];
 	};
+
 	struct EventInfo {
 		WORD EventID;
 		bool bValidStartTime;
@@ -165,6 +207,15 @@ public:
 		EventAudioList Audio;
 		EventContentNibble ContentNibble;
 	};
+
+	WORD GetEventID(const int ServiceIndex, const bool bNext = false);
+	bool GetEventStartTime(const int ServiceIndex, SYSTEMTIME *pSystemTime, const bool bNext = false);
+	DWORD GetEventDuration(const int ServiceIndex, const bool bNext = false);
+	bool GetEventTime(const int ServiceIndex, SYSTEMTIME *pTime, DWORD *pDuration, const bool bNext = false);
+	int GetEventName(const int ServiceIndex, LPTSTR pszName, int MaxLength, const bool bNext = false);
+	int GetEventText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bNext = false);
+	int GetEventExtendedText(const int ServiceIndex, LPTSTR pszText, int MaxLength, const bool bUseEventGroup = true, const bool bNext = false);
+	bool GetEventSeriesInfo(const int ServiceIndex, EventSeriesInfo *pInfo, const bool bNext = false);
 	bool GetEventVideoInfo(const int ServiceIndex, EventVideoInfo *pInfo, const bool bNext = false);
 	bool GetEventAudioInfo(const int ServiceIndex, const int AudioIndex, EventAudioInfo *pInfo, bool bNext = false);
 	bool GetEventAudioList(const int ServiceIndex, EventAudioList *pList, const bool bNext = false);
@@ -184,6 +235,7 @@ public:
 		DWORD SymbolRate;
 		BYTE FECInner;
 	};
+
 	struct TerrestrialDeliverySystemInfo {
 		WORD TransportStreamID;
 		WORD AreaCode;
@@ -191,8 +243,10 @@ public:
 		BYTE TransmissionMode;
 		std::vector<WORD> Frequency;
 	};
+
 	typedef std::vector<SatelliteDeliverySystemInfo> SatelliteDeliverySystemList;
 	typedef std::vector<TerrestrialDeliverySystemInfo> TerrestrialDeliverySystemList;
+
 	bool GetSatelliteDeliverySystemList(SatelliteDeliverySystemList *pList);
 	bool GetTerrestrialDeliverySystemList(TerrestrialDeliverySystemList *pList);
 
@@ -206,13 +260,16 @@ public:
 		NUM_EVENTS = EVENT_INVALID,
 		EVENT_LAST = NUM_EVENTS - 1
 	};
-	class IAnalyzerEventHandler {
+
+	class IAnalyzerEventHandler
+	{
 	public:
 		IAnalyzerEventHandler();
 		virtual ~IAnalyzerEventHandler();
 		virtual void OnEvent(CTsAnalyzer *pAnalyzer, EventType Type) = 0;
 		virtual void OnReset(CTsAnalyzer *pAnalyzer);
 	};
+
 	bool AddEventHandler(IAnalyzerEventHandler *pHandler);
 	bool RemoveEventHandler(IAnalyzerEventHandler *pHandler);
 
@@ -221,6 +278,7 @@ protected:
 	void NotifyResetEvent();
 
 #ifdef TS_ANALYZER_EIT_SUPPORT
+	const class CEitPfTable *GetEitPfTableByServiceID(const WORD ServiceID, int *pIndex = NULL) const;
 	const CDescBlock *GetHEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
 #ifdef TS_ANALYZER_L_EIT_SUPPORT
 	const CDescBlock *GetLEitItemDesc(const int ServiceIndex, const bool bNext = false) const;
@@ -230,15 +288,25 @@ protected:
 
 	CTsPidMapManager m_PidMapManager;
 
-	ServiceList m_ServiceList;
 	WORD m_TransportStreamID;
 	WORD m_NetworkID;
 
+	bool m_bSdtUpdated;
+	bool m_bNitUpdated;
+
+	ServiceList m_ServiceList;
+	SdtServiceList m_SdtServiceList;
+	SdtTsMap m_SdtTsMap;
+	NetworkTsList m_NetworkTsList;
+
 	struct NitInfo {
+		BYTE BroadcastingFlag;
 		BYTE BroadcastingID;
 		BYTE RemoteControlKeyID;
 		TCHAR szNetworkName[32];
 		TCHAR szTSName[32];
+
+		void Clear() { ::ZeroMemory(this, sizeof(*this)); }
 	};
 	NitInfo m_NitInfo;
 

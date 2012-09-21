@@ -53,9 +53,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BonTsEngine\BcasCard.cpp">
-      <Filter>BonTsEngine\Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="BonTsEngine\Bitstream.cpp">
       <Filter>BonTsEngine\Source Files</Filter>
     </ClCompile>
@@ -72,9 +69,6 @@
       <Filter>BonTsEngine\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="BonTsEngine\CaptionParser.cpp">
-      <Filter>BonTsEngine\Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="BonTsEngine\CardReader.cpp">
       <Filter>BonTsEngine\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="BonTsEngine\EventManager.cpp">
@@ -110,13 +104,7 @@
     <ClCompile Include="BonTsEngine\MediaViewer.cpp">
       <Filter>BonTsEngine\Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="BonTsEngine\Multi2Decoder.cpp">
-      <Filter>BonTsEngine\Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="BonTsEngine\TsAnalyzer.cpp">
-      <Filter>BonTsEngine\Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="BonTsEngine\TsDescrambler.cpp">
       <Filter>BonTsEngine\Source Files</Filter>
     </ClCompile>
     <ClCompile Include="BonTsEngine\TsDescriptor.cpp">
@@ -261,9 +249,6 @@
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="DialogUtil.cpp">
-      <Filter>ソース ファイル</Filter>
-    </ClCompile>
-    <ClCompile Include="DisplayMenu.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
     <ClCompile Include="DrawUtil.cpp">
@@ -461,11 +446,29 @@
     <ClCompile Include="EpgChannelSettings.cpp">
       <Filter>ソース ファイル</Filter>
     </ClCompile>
+    <ClCompile Include="BonTsEngine\CasProcessor.cpp">
+      <Filter>BonTsEngine\Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="RegExp.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="MenuOptions.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="ChannelDisplay.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="HomeDisplay.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="ProgramGuideFavorites.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
+    <ClCompile Include="FeaturedEvents.cpp">
+      <Filter>ソース ファイル</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="BonTsEngine\BcasCard.h">
-      <Filter>BonTsEngine\Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="BonTsEngine\Bitstream.h">
       <Filter>BonTsEngine\Header Files</Filter>
     </ClInclude>
@@ -482,9 +485,6 @@
       <Filter>BonTsEngine\Header Files</Filter>
     </ClInclude>
     <ClInclude Include="BonTsEngine\CaptionParser.h">
-      <Filter>BonTsEngine\Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="BonTsEngine\CardReader.h">
       <Filter>BonTsEngine\Header Files</Filter>
     </ClInclude>
     <ClInclude Include="BonTsEngine\Common.h">
@@ -526,13 +526,7 @@
     <ClInclude Include="BonTsEngine\MediaViewer.h">
       <Filter>BonTsEngine\Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="BonTsEngine\Multi2Decoder.h">
-      <Filter>BonTsEngine\Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="BonTsEngine\TsAnalyzer.h">
-      <Filter>BonTsEngine\Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="BonTsEngine\TsDescrambler.h">
       <Filter>BonTsEngine\Header Files</Filter>
     </ClInclude>
     <ClInclude Include="BonTsEngine\TsDescriptor.h">
@@ -683,9 +677,6 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="DialogUtil.h">
-      <Filter>ヘッダー ファイル</Filter>
-    </ClInclude>
-    <ClInclude Include="DisplayMenu.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="DrawUtil.h">
@@ -896,6 +887,27 @@
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
     <ClInclude Include="EpgChannelSettings.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="BonTsEngine\CasProcessor.h">
+      <Filter>BonTsEngine\Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="RegExp.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="MenuOptions.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="ChannelDisplay.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="HomeDisplay.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="ProgramGuideFavorites.h">
+      <Filter>ヘッダー ファイル</Filter>
+    </ClInclude>
+    <ClInclude Include="FeaturedEvents.h">
       <Filter>ヘッダー ファイル</Filter>
     </ClInclude>
   </ItemGroup>

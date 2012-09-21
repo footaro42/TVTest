@@ -3,31 +3,24 @@
 
 
 #ifndef TVH264
-
 #define APP_NAME_A	"TVTest"
-
-#define VERSION_MAJOR	0
-#define VERSION_MINOR	7
-#define VERSION_BUILD	23
-
-#define VERSION_TEXT_A	"0.7.23"
-
 #else
-
 #define APP_NAME_A	"TVH264"
+#endif
 
-#define VERSION_MAJOR	0
-#define VERSION_MINOR	5
-#define VERSION_BUILD	3
+#define VERSION_MAJOR		0
+#define VERSION_MINOR		8
+#define VERSION_BUILD		0
+#define VERSION_REVISION	0
 
-#define VERSION_TEXT_A	"0.5.3"
+#define VERSION_TEXT_A	"0.8.0"
 
+#ifdef TVH264
 // ÉèÉìÉZÉOå¸ÇØ
 #if !defined(TVH264_FOR_1SEG) && defined(BONTSENGINE_1SEG_SUPPORT)
 #define TVH264_FOR_1SEG
 #endif
-
-#endif	// TVH264
+#endif
 
 #define LTEXT_(text)	L##text
 #define LTEXT(text)		LTEXT_(text)

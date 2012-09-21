@@ -6,13 +6,14 @@
 #include "EpgProgramList.h"
 #include "EpgUtil.h"
 #include "ChannelList.h"
-#include "DriverManager.h"
 #include "Theme.h"
 #include "DrawUtil.h"
 #include "ProgramSearch.h"
+#include "ProgramGuideFavorites.h"
 #include "EventInfoPopup.h"
 #include "Tooltip.h"
 #include "StatusView.h"
+#include "Settings.h"
 
 
 namespace ProgramGuide
@@ -31,6 +32,7 @@ namespace ProgramGuide
 		void Clear();
 		size_t Length() const { return m_LayoutList.size(); }
 		void Add(CEventLayout *pLayout);
+		CEventLayout *operator[](size_t Index);
 		const CEventLayout *operator[](size_t Index) const;
 	};
 
@@ -43,15 +45,64 @@ namespace ProgramGuide
 		size_t NumServices() const { return m_ServiceList.size(); }
 		CServiceInfo *GetItem(size_t Index);
 		const CServiceInfo *GetItem(size_t Index) const;
-		CServiceInfo *FindItem(WORD TransportStreamID,WORD ServiceID);
-		const CServiceInfo *FindItem(WORD TransportStreamID,WORD ServiceID) const;
-		CEventInfoData *FindEvent(WORD TransportStreamID,WORD ServiceID,WORD EventID);
-		const CEventInfoData *FindEvent(WORD TransportStreamID,WORD ServiceID,WORD EventID) const;
+		CServiceInfo *GetItemByIDs(WORD TransportStreamID,WORD ServiceID);
+		const CServiceInfo *GetItemByIDs(WORD TransportStreamID,WORD ServiceID) const;
+		int FindItemByIDs(WORD TransportStreamID,WORD ServiceID) const;
+		CEventInfoData *GetEventByIDs(WORD TransportStreamID,WORD ServiceID,WORD EventID);
+		const CEventInfoData *GetEventByIDs(WORD TransportStreamID,WORD ServiceID,WORD EventID) const;
 		void Add(CServiceInfo *pInfo);
 		void Clear();
 	};
 
 }
+
+// 番組表のチャンネル一覧取得クラス
+class ABSTRACT_CLASS(CProgramGuideChannelProvider)
+{
+public:
+	virtual ~CProgramGuideChannelProvider();
+	virtual bool Update();
+	virtual bool GetName(LPTSTR pszName,int MaxName) const = 0;
+	virtual size_t GetGroupCount() const = 0;
+	virtual bool GetGroupName(size_t Group,LPTSTR pszName,int MaxName) const = 0;
+	virtual size_t GetChannelCount(size_t Group) const = 0;
+	virtual const CChannelInfo *GetChannelInfo(size_t Group,size_t Channel) const = 0;
+	virtual bool GetBonDriver(LPTSTR pszFileName,int MaxLength) const = 0;
+	virtual bool GetBonDriverFileName(size_t Group,size_t Channel,LPTSTR pszFileName,int MaxLength) const = 0;
+};
+
+class CProgramGuideBaseChannelProvider : public CProgramGuideChannelProvider
+{
+public:
+	CProgramGuideBaseChannelProvider();
+	CProgramGuideBaseChannelProvider(const CTuningSpaceList *pSpaceList,LPCTSTR pszBonDriver);
+	~CProgramGuideBaseChannelProvider();
+// CProgramGuideChannelProvider
+	virtual bool GetName(LPTSTR pszName,int MaxName) const override;
+	virtual size_t GetGroupCount() const override;
+	virtual bool GetGroupName(size_t Group,LPTSTR pszName,int MaxName) const override;
+	virtual size_t GetChannelCount(size_t Group) const override;
+	virtual const CChannelInfo *GetChannelInfo(size_t Group,size_t Channel) const override;
+	virtual bool GetBonDriver(LPTSTR pszFileName,int MaxLength) const override;
+	virtual bool GetBonDriverFileName(size_t Group,size_t Channel,LPTSTR pszFileName,int MaxLength) const override;
+// CProgramGuideBaseChannelProvider
+	bool SetTuningSpaceList(const CTuningSpaceList *pList);
+	bool SetBonDriverFileName(LPCTSTR pszFileName);
+	bool HasAllChannelGroup() const;
+
+protected:
+	CTuningSpaceList m_TuningSpaceList;
+	TVTest::String m_BonDriverFileName;
+};
+
+// 番組表のチャンネル一覧取得管理クラス
+class ABSTRACT_CLASS(CProgramGuideChannelProviderManager)
+{
+public:
+	virtual ~CProgramGuideChannelProviderManager();
+	virtual size_t GetChannelProviderCount() const = 0;
+	virtual CProgramGuideChannelProvider *GetChannelProvider(size_t Index) const = 0;
+};
 
 class CProgramGuideTool
 {
@@ -113,16 +164,23 @@ public:
 		DAY_3DAYSAFTERTOMORROW,
 		DAY_4DAYSAFTERTOMORROW,
 		DAY_5DAYSAFTERTOMORROW,
-		DAY_LAST=DAY_5DAYSAFTERTOMORROW
+		DAY_6DAYSAFTERTOMORROW,
+		DAY_FIRST=DAY_TODAY,
+		DAY_LAST=DAY_6DAYSAFTERTOMORROW
 	};
 	enum {
 		COLOR_BACK,
-		COLOR_TEXT,
+		COLOR_EVENTTITLE,
+		COLOR_EVENTTEXT,
 		COLOR_CHANNELNAMETEXT,
 		COLOR_CURCHANNELNAMETEXT,
 		COLOR_TIMETEXT,
 		COLOR_TIMELINE,
 		COLOR_CURTIMELINE,
+		COLOR_HIGHLIGHT_TITLE,
+		COLOR_HIGHLIGHT_TEXT,
+		COLOR_HIGHLIGHT_BACK,
+		COLOR_HIGHLIGHT_BORDER,
 		COLOR_CONTENT_NEWS,
 		COLOR_CONTENT_SPORTS,
 		COLOR_CONTENT_INFORMATION,
@@ -197,6 +255,9 @@ public:
 		virtual void OnSpaceChanged() {}
 		virtual void OnListModeChanged() {}
 		virtual void OnTimeRangeChanged() {}
+		virtual void OnFavoritesChanged() {}
+		virtual bool OnCommand(int Command) { return false; }
+		virtual void OnMenuInitialize(HMENU hmenu) {}
 		virtual bool SetAlwaysOnTop(bool fTop) { return false; }
 		virtual bool GetAlwaysOnTop() const { return false; }
 		friend class CProgramGuide;
@@ -212,7 +273,7 @@ public:
 		virtual bool OnClose() { return true; }
 		virtual void OnDestroy() {}
 		virtual void OnServiceTitleLButtonDown(LPCTSTR pszDriverFileName,const CServiceInfoData *pServiceInfo) {}
-		virtual bool OnBeginUpdate() { return true; }
+		virtual bool OnBeginUpdate(LPCTSTR pszBonDriver,const CChannelList *pChannelList) = 0;
 		virtual void OnEndUpdate() {}
 		virtual bool OnRefresh() { return true; }
 		virtual bool OnKeyDown(UINT KeyCode,UINT Flags) { return false; }
@@ -243,7 +304,7 @@ public:
 
 	static bool Initialize(HINSTANCE hinst);
 
-	CProgramGuide();
+	CProgramGuide(CEventSearchOptions &EventSearchOptions);
 	~CProgramGuide();
 
 // CBasicWindow
@@ -253,16 +314,18 @@ public:
 	bool SetEpgProgramList(CEpgProgramList *pList);
 	void Clear();
 	bool UpdateProgramGuide(bool fUpdateList=false);
-	bool SetTuningSpaceList(LPCTSTR pszDriverFileName,const CTuningSpaceList *pList,int Space);
-	const CChannelList *GetChannelList() const { return &m_ChannelList; }
+	bool SetChannelProviderManager(CProgramGuideChannelProviderManager *pManager);
+	bool EnumChannelProvider(int Index,LPTSTR pszName,int MaxName) const;
+	bool SetCurrentChannelProvider(int Provider,int Group);
+	int GetCurrentChannelProvider() const { return m_CurrentChannelProvider; }
+	int GetChannelGroupCount() const;
+	bool GetChannelGroupName(int Group,LPTSTR pszName,int MaxName) const;
+	bool SetCurrentChannelGroup(int Group);
+	int GetCurrentChannelGroup() const { return m_CurrentChannelGroup; }
+	bool GetChannelList(CChannelList *pList,bool fVisibleOnly) const;
 	const ProgramGuide::CServiceList &GetServiceList() const { return m_ServiceList; }
-	bool UpdateChannelList();
-	bool SetDriverList(const CDriverManager *pDriverManager);
 	void SetCurrentService(WORD NetworkID,WORD TSID,WORD ServiceID);
 	void ClearCurrentService() { SetCurrentService(0,0,0); }
-	int GetCurrentTuningSpace() const { return m_CurrentTuningSpace; }
-	bool GetTuningSpaceName(int Space,LPTSTR pszName,int MaxName) const;
-	bool EnumDriver(int *pIndex,LPTSTR pszName,int MaxName) const;
 
 	bool GetExcludeNoEventServices() const { return m_fExcludeNoEventServices; }
 	bool SetExcludeNoEventServices(bool fExclude);
@@ -280,8 +343,13 @@ public:
 	bool GetTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
 	bool GetCurrentTimeRange(SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
 	bool GetDayTimeRange(int Day,SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
+	bool ScrollToTime(const SYSTEMTIME &Time);
+	bool ScrollToCurrentTime();
 	bool SetViewDay(int Day);
 	int GetViewDay() const { return m_Day; }
+	bool JumpEvent(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID);
+	bool JumpEvent(const CEventInfoData &EventInfo);
+
 	int GetLinesPerHour() const { return m_LinesPerHour; }
 	int GetItemWidth() const { return m_ItemWidth; }
 	bool SetUIOptions(int LinesPerHour,int ItemWidth,int LineMargin);
@@ -298,7 +366,6 @@ public:
 	void SetEventHandler(CEventHandler *pEventHandler);
 	void SetFrame(CFrame *pFrame);
 	void SetProgramCustomizer(CProgramCustomizer *pProgramCustomizer);
-	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
 	int GetWheelScrollLines() const { return m_WheelScrollLines; }
 	void SetWheelScrollLines(int Lines) { m_WheelScrollLines=Lines; }
 	bool GetDragScroll() const { return m_fDragScroll; }
@@ -307,10 +374,21 @@ public:
 	unsigned int GetFilter() const { return m_Filter; }
 	void SetVisibleEventIcons(UINT VisibleIcons);
 	UINT GetVisibleEventIcons() const { return m_VisibleEventIcons; }
-	CProgramSearch *GetProgramSearch() { return &m_ProgramSearch; }
+
 	void GetInfoPopupSize(int *pWidth,int *pHeight) { m_EventInfoPopup.GetSize(pWidth,pHeight); }
 	bool SetInfoPopupSize(int Width,int Height) { return m_EventInfoPopup.SetSize(Width,Height); }
-	bool OnClose();
+
+	CProgramSearchDialog *GetProgramSearch() { return &m_ProgramSearch; }
+	bool ShowProgramSearch(bool fShow);
+
+	void SetMessage(LPCTSTR pszMessage,bool fUpdate=true);
+	void SetEpgUpdateProgress(int Pos,int End,DWORD RemainingTime);
+
+	CProgramGuideToolList *GetToolList() { return &m_ToolList; }
+	CProgramGuideFavorites *GetFavorites() { return &m_Favorites; }
+
+	bool OnCloseFrame();
+	void OnShowFrame(bool fShow);
 
 private:
 	CEpgProgramList *m_pProgramList;
@@ -362,14 +440,14 @@ private:
 	CEventInfoPopupHandler m_EventInfoPopupHandler;
 	bool m_fShowToolTip;
 	CTooltip m_Tooltip;
-	CChannelList m_ChannelList;
-	CTuningSpaceList m_TuningSpaceList;
-	int m_CurrentTuningSpace;
+
+	CProgramGuideChannelProviderManager *m_pChannelProviderManager;
+	CProgramGuideChannelProvider *m_pChannelProvider;
+	int m_CurrentChannelProvider;
+	int m_CurrentChannelGroup;
 	ServiceInfo m_CurrentChannel;
 	bool m_fExcludeNoEventServices;
 	ServiceInfoList m_ExcludeServiceList;
-	TCHAR m_szDriverFileName[MAX_PATH];
-	const CDriverManager *m_pDriverManager;
 
 	int m_BeginHour;
 	SYSTEMTIME m_stFirstTime;
@@ -378,12 +456,13 @@ private:
 	int m_Day;
 	int m_Hours;
 
-	struct {
-		bool fValid;
+	struct EventSelectInfo {
+		bool fSelected;
 		int ListIndex;
 		int EventIndex;
-	} m_CurItem;
-	bool m_fUpdating;
+	};
+	EventSelectInfo m_CurEventItem;
+
 	CEventHandler *m_pEventHandler;
 	CFrame *m_pFrame;
 	CProgramCustomizer *m_pProgramCustomizer;
@@ -396,15 +475,32 @@ private:
 	int m_WheelScrollLines;
 	unsigned int m_Filter;
 
-	CProgramSearch m_ProgramSearch;
-	class CProgramSearchEventHandler : public CProgramSearch::CEventHandler {
+	bool m_fEpgUpdating;
+	struct {
+		int Pos;
+		int End;
+		DWORD RemainingTime;
+		void Clear() { Pos=0; End=0; RemainingTime=0; }
+	} m_EpgUpdateProgress;
+
+	CProgramSearchDialog m_ProgramSearch;
+	class CProgramSearchEventHandler : public CProgramSearchDialog::CEventHandler
+	{
 		CProgramGuide *m_pProgramGuide;
 	public:
 		CProgramSearchEventHandler(CProgramGuide *pProgramGuide);
-		bool Search(LPCTSTR pszKeyword);
+		bool OnSearch() override;
+		void OnEndSearch() override;
+		bool OnClose() override;
+		bool OnRButtonClick(const CEventInfoData *pEventInfo,LPARAM Param) override;
+		void OnHighlightChange(bool fHighlight) override;
 	};
 	friend CProgramSearchEventHandler;
 	CProgramSearchEventHandler m_ProgramSearchEventHandler;
+
+	TVTest::String m_Message;
+
+	CProgramGuideFavorites m_Favorites;
 
 	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
@@ -422,60 +518,137 @@ private:
 	void DrawDayHeader(int Day,HDC hdc,const RECT &Rect) const;
 	void DrawTimeBar(HDC hdc,const RECT &Rect,bool fRight);
 	void Draw(HDC hdc,const RECT &PaintRect);
+	void DrawMessage(HDC hdc,const RECT &ClientRect) const;
 	int GetCurTimeLinePos() const;
 	void GetProgramGuideRect(RECT *pRect) const;
+	void GetProgramGuideSize(SIZE *pSize) const;
+	void GetPageSize(SIZE *pSize) const;
 	void Scroll(int XOffset,int YOffset);
+	void SetScrollPos(const POINT &Pos);
 	void SetScrollBar();
 	void SetCaption();
 	void SetTooltip();
+	ProgramGuide::CEventItem *GetEventItem(int ListIndex,int EventIndex);
+	const ProgramGuide::CEventItem *GetEventItem(int ListIndex,int EventIndex) const;
+	bool GetEventRect(int ListIndex,int EventIndex,RECT *pRect) const;
+	bool RedrawEvent(int ListIndex,int EventIndex);
 	bool EventHitTest(int x,int y,int *pListIndex,int *pEventIndex,RECT *pItemRect=NULL) const;
+	bool SelectEvent(int ListIndex,int EventIndex);
+	bool SelectEventByPosition(int x,int y);
+	bool SelectEventByIDs(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID);
 	void OnCommand(int id);
+	void ShowPopupMenu(int x,int y);
+	void AppendToolMenu(HMENU hmenu) const;
+	bool ExecuteiEpgAssociate(const ProgramGuide::CServiceInfo *pServiceInfo,const CEventInfoData *pEventInfo);
+	bool ExecuteTool(int Tool,const ProgramGuide::CServiceInfo *pServiceInfo,const CEventInfoData *pEventInfo);
 
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };
 
-class CCalendarBar : public CBasicWindow
+namespace ProgramGuideBar
 {
-	bool m_fUseBufferedPaint;
-	CBufferedPaint m_BufferedPaint;
 
-public:
-	CCalendarBar();
-	~CCalendarBar();
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0);
-	void EnableBufferedPaint(bool fEnable) { m_fUseBufferedPaint=fEnable; }
-	bool SetButtons(const SYSTEMTIME *pDateList,int Days,int FirstCommand);
-	void SelectButton(int Button);
-	void UnselectButton();
-	void GetBarSize(SIZE *pSize);
-	bool OnNotify(LPARAM lParam,LRESULT *pResult);
-};
+	class ABSTRACT_CLASS(CProgramGuideBar)
+	{
+	public:
+		struct ThemeInfo {
+			const CStatusView::ThemeInfo *pStatusTheme;
+		};
+
+		CProgramGuideBar(CProgramGuide *pProgramGuide);
+		virtual ~CProgramGuideBar();
+		virtual bool CreateBar(HWND hwndParent,DWORD Style) = 0;
+		virtual bool IsBarCreated() const = 0;
+		virtual void DestroyBar() = 0;
+		virtual bool SetBarVisible(bool fVisible) = 0;
+		bool IsBarVisible() const { return m_fVisible; }
+		void EnableBufferedPaint(bool fEnable) { m_fUseBufferedPaint=fEnable; }
+		virtual void GetBarSize(SIZE *pSize) = 0;
+		virtual void SetBarPosition(int x,int y,int Width,int Height) = 0;
+		virtual void SetTheme(const ThemeInfo &Theme) {}
+
+		virtual void OnDateChanged() {}
+		virtual void OnSpaceChanged() {}
+		virtual void OnTimeRangeChanged() {}
+		virtual void OnFavoritesChanged() {}
+		virtual bool OnSetCursor(HWND hwnd,int HitTestCode) { return false; }
+		virtual bool OnNotify(LPARAM lParam,LRESULT *pResult) { return false; }
+
+	protected:
+		CProgramGuide *m_pProgramGuide;
+		bool m_fVisible;
+		bool m_fUseBufferedPaint;
+	};
+
+}
+
+class CProgramGuideFrameSettings;
 
 class ABSTRACT_CLASS(CProgramGuideFrameBase) : public CProgramGuide::CFrame
 {
 public:
-	CProgramGuideFrameBase(CProgramGuide *pProgramGuide);
+	enum {
+		TOOLBAR_TUNER_MENU,
+		TOOLBAR_DATE_MENU,
+		TOOLBAR_FAVORITES,
+		TOOLBAR_DATE,
+		TOOLBAR_TIME,
+		TOOLBAR_NUM
+	};
+
+	CProgramGuideFrameBase(CProgramGuide *pProgramGuide,CProgramGuideFrameSettings *pSettings);
 	virtual ~CProgramGuideFrameBase() = 0;
 	void SetStatusTheme(const CStatusView::ThemeInfo *pTheme);
+	bool SetToolbarVisible(int Toolbar,bool fVisible);
+	bool GetToolbarVisible(int Toolbar) const;
 
 protected:
 	CProgramGuide *m_pProgramGuide;
-	CStatusView m_StatusView[2];
-	CCalendarBar m_CalendarBar;
-	RECT m_StatusMargin;
-	int m_StatusItemMargin;
+	CProgramGuideFrameSettings *m_pSettings;
+	ProgramGuideBar::CProgramGuideBar *m_ToolbarList[TOOLBAR_NUM];
+	RECT m_ToolbarMargin;
+	POINT m_ToolbarGap;
 
 // CProgramGuide::CFrame
 	void OnDateChanged() override;
 	void OnSpaceChanged() override;
 	void OnListModeChanged() override;
 	void OnTimeRangeChanged() override;
+	void OnFavoritesChanged() override;
+	bool OnCommand(int Command) override;
+	void OnMenuInitialize(HMENU hmenu) override;
 
 	LRESULT DefaultMessageHandler(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
 	void OnWindowCreate(HWND hwnd,bool fBufferedPaint);
 	void OnWindowDestroy();
 	void OnSizeChanged(int Width,int Height);
+	virtual void OnLayoutChange() {}
+};
+
+class CProgramGuideFrameSettings : public CSettingsBase
+{
+public:
+	CProgramGuideFrameSettings();
+
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
+
+// CProgramGuideFrameSettings
+	bool SetToolbarVisible(int Toolbar,bool fVisible);
+	bool GetToolbarVisible(int Toolbar) const;
+
+private:
+	struct ToolbarInfo {
+		bool fVisible;
+	};
+
+	enum {
+		TOOLBAR_STATUS_VISIBLE = 0x0001U
+	};
+
+	ToolbarInfo m_ToolbarList[CProgramGuideFrameBase::TOOLBAR_NUM];
 };
 
 class CProgramGuideFrame : public CProgramGuideFrameBase, public CCustomWindow
@@ -483,7 +656,7 @@ class CProgramGuideFrame : public CProgramGuideFrameBase, public CCustomWindow
 public:
 	static bool Initialize(HINSTANCE hinst);
 
-	CProgramGuideFrame(CProgramGuide *pProgramGuide);
+	CProgramGuideFrame(CProgramGuide *pProgramGuide,CProgramGuideFrameSettings *pSettings);
 	~CProgramGuideFrame();
 	CProgramGuide *GetProgramGuide() { return m_pProgramGuide; }
 // CBasicWindow
@@ -496,10 +669,14 @@ private:
 	CAeroGlass m_AeroGlass;
 	bool m_fAlwaysOnTop;
 
+// CProgramGuideFrameBase
+	void OnLayoutChange() override;
 // CProgramGuide::CFrame
 	void SetCaption(LPCTSTR pszCaption) override;
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+// CProgramGuideFrame
+	void SetAeroGlass();
 
 	static const LPCTSTR m_pszWindowClass;
 	static HINSTANCE m_hinst;
@@ -524,7 +701,7 @@ public:
 
 	static bool Initialize(HINSTANCE hinst);
 
-	CProgramGuideDisplay(CProgramGuide *pProgramGuide);
+	CProgramGuideDisplay(CProgramGuide *pProgramGuide,CProgramGuideFrameSettings *pSettings);
 	~CProgramGuideDisplay();
 // CBasicWindow
 	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
@@ -538,10 +715,13 @@ private:
 	static HINSTANCE m_hinst;
 
 // CDisplayView
+	bool Close() override;
 	bool OnVisibleChange(bool fVisible) override;
 // CProgramGuide::CFrame
 	bool SetAlwaysOnTop(bool fTop) override;
 	bool GetAlwaysOnTop() const override;
+// CProgramGuideFrameBase
+	void OnLayoutChange() override;
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };

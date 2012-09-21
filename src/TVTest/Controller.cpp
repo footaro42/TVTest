@@ -138,7 +138,7 @@ bool CControllerManager::DeleteController(LPCTSTR pszName)
 	if (pszName==NULL)
 		return false;
 	for (std::vector<ControllerInfo>::iterator itr=m_ControllerList.begin();
-		 	itr!=m_ControllerList.end();itr++) {
+		 	itr!=m_ControllerList.end();++itr) {
 		if (::lstrcmpi(itr->pController->GetName(),pszName)==0) {
 			if (itr->fSettingsChanged)
 				SaveControllerSettings(pszName);

@@ -19,13 +19,8 @@ static char THIS_FILE[]=__FILE__;
 
 
 
-class CProgramItemInfo {
-	CEventInfoData m_EventInfo;
-	WORD m_EventID;
-	int m_NameLines;
-	int m_TextLines;
-	LPCTSTR GetEventText() const;
-
+class CProgramItemInfo
+{
 public:
 	CProgramItemInfo(const CEventInfoData &EventInfo);
 	//~CProgramItemInfo();
@@ -39,6 +34,19 @@ public:
 	void DrawTitle(HDC hdc,const RECT *pRect,int LineHeight);
 	void DrawText(HDC hdc,const RECT *pRect,int LineHeight);
 	bool IsChanged(const CProgramItemInfo *pItem) const;
+
+private:
+	enum {
+		MAX_EVENT_TITLE = 256
+	};
+
+	CEventInfoData m_EventInfo;
+	WORD m_EventID;
+	int m_NameLines;
+	int m_TextLines;
+
+	LPCTSTR GetEventText() const;
+	void GetEventTitleText(LPTSTR pszText,int MaxLength) const;
 };
 
 
@@ -48,6 +56,54 @@ CProgramItemInfo::CProgramItemInfo(const CEventInfoData &EventInfo)
 	m_EventID=EventInfo.m_EventID;
 	m_NameLines=0;
 	m_TextLines=0;
+}
+
+
+int CProgramItemInfo::CalcTitleLines(HDC hdc,int Width)
+{
+	TCHAR szText[MAX_EVENT_TITLE];
+
+	GetEventTitleText(szText,lengthof(szText));
+	m_NameLines=DrawUtil::CalcWrapTextLines(hdc,szText,Width);
+	return m_NameLines;
+}
+
+
+int CProgramItemInfo::CalcTextLines(HDC hdc,int Width)
+{
+	LPCTSTR pszEventText=GetEventText();
+
+	if (pszEventText!=NULL)
+		m_TextLines=DrawUtil::CalcWrapTextLines(hdc,pszEventText,Width);
+	else
+		m_TextLines=0;
+	return m_TextLines;
+}
+
+
+void CProgramItemInfo::DrawTitle(HDC hdc,const RECT *pRect,int LineHeight)
+{
+	TCHAR szText[MAX_EVENT_TITLE];
+
+	GetEventTitleText(szText,lengthof(szText));
+	DrawUtil::DrawWrapText(hdc,szText,pRect,LineHeight);
+}
+
+
+void CProgramItemInfo::DrawText(HDC hdc,const RECT *pRect,int LineHeight)
+{
+	LPCTSTR pszEventText=GetEventText();
+	if (pszEventText!=NULL) {
+		DrawUtil::DrawWrapText(hdc,pszEventText,pRect,LineHeight);
+	}
+}
+
+
+bool CProgramItemInfo::IsChanged(const CProgramItemInfo *pItem) const
+{
+	return m_EventID!=pItem->m_EventID
+		|| memcmp(&m_EventInfo.m_stStartTime,&pItem->m_EventInfo.m_stStartTime,sizeof(SYSTEMTIME))!=0
+		|| m_EventInfo.m_DurationSec!=pItem->m_EventInfo.m_DurationSec;
 }
 
 
@@ -83,55 +139,14 @@ LPCTSTR CProgramItemInfo::GetEventText() const
 }
 
 
-int CProgramItemInfo::CalcTitleLines(HDC hdc,int Width)
+void CProgramItemInfo::GetEventTitleText(LPTSTR pszText,int MaxLength) const
 {
-	TCHAR szText[256];
+	TCHAR szTime[EpgUtil::MAX_EVENT_TIME_LENGTH];
 
-	StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d %s"),
-					  m_EventInfo.m_stStartTime.wHour,m_EventInfo.m_stStartTime.wMinute,
-					  NullToEmptyString(m_EventInfo.GetEventName()));
-	m_NameLines=DrawUtil::CalcWrapTextLines(hdc,szText,Width);
-	return m_NameLines;
-}
-
-
-int CProgramItemInfo::CalcTextLines(HDC hdc,int Width)
-{
-	LPCTSTR pszEventText=GetEventText();
-
-	if (pszEventText!=NULL)
-		m_TextLines=DrawUtil::CalcWrapTextLines(hdc,pszEventText,Width);
-	else
-		m_TextLines=0;
-	return m_TextLines;
-}
-
-
-void CProgramItemInfo::DrawTitle(HDC hdc,const RECT *pRect,int LineHeight)
-{
-	TCHAR szText[256];
-
-	StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d %s"),
-					  m_EventInfo.m_stStartTime.wHour,m_EventInfo.m_stStartTime.wMinute,
-					  NullToEmptyString(m_EventInfo.GetEventName()));
-	DrawUtil::DrawWrapText(hdc,szText,pRect,LineHeight);
-}
-
-
-void CProgramItemInfo::DrawText(HDC hdc,const RECT *pRect,int LineHeight)
-{
-	LPCTSTR pszEventText=GetEventText();
-	if (pszEventText!=NULL) {
-		DrawUtil::DrawWrapText(hdc,pszEventText,pRect,LineHeight);
-	}
-}
-
-
-bool CProgramItemInfo::IsChanged(const CProgramItemInfo *pItem) const
-{
-	return m_EventID!=pItem->m_EventID
-		|| memcmp(&m_EventInfo.m_stStartTime,&pItem->m_EventInfo.m_stStartTime,sizeof(SYSTEMTIME))!=0
-		|| m_EventInfo.m_DurationSec!=pItem->m_EventInfo.m_DurationSec;
+	EpgUtil::FormatEventTime(&m_EventInfo,szTime,lengthof(szTime),
+							 EpgUtil::EVENT_TIME_HOUR_2DIGITS | EpgUtil::EVENT_TIME_START_ONLY);
+	StdUtil::snprintf(pszText,MaxLength,TEXT("%s %s"),
+					  szTime,NullToEmptyString(m_EventInfo.GetEventName()));
 }
 
 
@@ -389,7 +404,7 @@ bool CProgramListPanel::UpdateListInfo(WORD NetworkID,WORD TransportStreamID,WOR
 	fChanged=false;
 	i=0;
 	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
-			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();itrEvent++) {
+			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();++itrEvent) {
 		SYSTEMTIME stEnd;
 
 		itrEvent->second.GetEndTime(&stEnd);
@@ -750,6 +765,7 @@ LRESULT CProgramListPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lP
 			case SB_LINEDOWN:	Pos+=LineHeight;	break;
 			case SB_PAGEUP:		Pos-=Page;			break;
 			case SB_PAGEDOWN:	Pos+=Page;			break;
+			case SB_THUMBPOSITION:
 			case SB_THUMBTRACK:	Pos=HIWORD(wParam);	break;
 			case SB_TOP:		Pos=0;				break;
 			case SB_BOTTOM:		Pos=Max;			break;

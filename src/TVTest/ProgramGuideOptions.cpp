@@ -53,8 +53,11 @@ static bool CSVNextValue(LPTSTR *ppszText)
 
 bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 {
+	CProgramSearchDialog *pProgramSearch=m_pProgramGuide->GetProgramSearch();
+
 	if (Settings.SetSection(TEXT("ProgramGuide"))) {
 		int Value;
+		bool f;
 
 		Settings.Read(TEXT("OnScreen"),&m_fOnScreen);
 		if (Settings.Read(TEXT("BeginHour"),&Value)
@@ -91,7 +94,6 @@ bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 		Settings.Read(TEXT("EventIcons"),&m_VisibleEventIcons);
 		m_pProgramGuide->SetVisibleEventIcons(m_VisibleEventIcons);
 
-		bool f;
 		if (Settings.Read(TEXT("ShowToolTip"),&f))
 			m_pProgramGuide->SetShowToolTip(f);
 
@@ -137,16 +139,16 @@ bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 				|| Settings.Read(TEXT("InfoPopupHeight"),&Height))
 			m_pProgramGuide->SetInfoPopupSize(Width,Height);
 
-		CProgramSearch *pProgramSearch=m_pProgramGuide->GetProgramSearch();
+		// 検索履歴
 		int NumSearchKeywords;
 		if (Settings.Read(TEXT("NumSearchKeywords"),&NumSearchKeywords)
 				&& NumSearchKeywords>0) {
-			if (NumSearchKeywords>CProgramSearch::MAX_KEYWORD_HISTORY)
-				NumSearchKeywords=CProgramSearch::MAX_KEYWORD_HISTORY;
+			if (NumSearchKeywords>CProgramSearchDialog::MAX_KEYWORD_HISTORY)
+				NumSearchKeywords=CProgramSearchDialog::MAX_KEYWORD_HISTORY;
 			LPTSTR *ppszKeywords=new LPTSTR[NumSearchKeywords];
 			int j=0;
 			for (int i=0;i<NumSearchKeywords;i++) {
-				TCHAR szName[32],szKeyword[CProgramSearch::MAX_KEYWORD_LENGTH];
+				TCHAR szName[32],szKeyword[CEventSearchSettings::MAX_KEYWORD_LENGTH];
 
 				::wsprintf(szName,TEXT("SearchKeyword%d"),i);
 				if (Settings.Read(szName,szKeyword,lengthof(szKeyword))
@@ -154,19 +156,24 @@ bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 					ppszKeywords[j++]=DuplicateString(szKeyword);
 			}
 			if (j>0) {
-				pProgramSearch->SetKeywordHistory(ppszKeywords,j);
+				pProgramSearch->GetOptions().SetKeywordHistory(ppszKeywords,j);
 				for (j--;j>=0;j--)
 					delete [] ppszKeywords[j];
 			}
 			delete [] ppszKeywords;
 		}
-		for (int i=0;i<CProgramSearch::NUM_COLUMNS;i++) {
+
+		if (Settings.Read(TEXT("HighlightSearchResult"),&f))
+			pProgramSearch->SetHighlightResult(f);
+
+		for (int i=0;i<CProgramSearchDialog::NUM_COLUMNS;i++) {
 			TCHAR szName[32];
 
 			::wsprintf(szName,TEXT("SearchColumn%d_Width"),i);
 			if (Settings.Read(szName,&Value))
 				pProgramSearch->SetColumnWidth(i,Value);
 		}
+
 		int Left,Top;
 		pProgramSearch->GetPosition(&Left,&Top,&Width,&Height);
 		Settings.Read(TEXT("SearchLeft"),&Left);
@@ -227,12 +234,67 @@ bool CProgramGuideOptions::LoadSettings(CSettings &Settings)
 		}
 	}
 
+	CProgramGuideFavorites *pFavorites=m_pProgramGuide->GetFavorites();
+	bool fFavoritesExists=false;
+	if (Settings.SetSection(TEXT("ProgramGuideFavorites"))) {
+		int FavoritesCount;
+
+		if (Settings.Read(TEXT("FavoritesCount"),&FavoritesCount)) {
+			fFavoritesExists=true;
+
+			if (FavoritesCount>=0) {
+				CProgramGuideFavorites::FavoriteInfo FavoriteInfo;
+
+				for (int i=0;i<FavoritesCount;i++) {
+					TCHAR szName[32];
+
+					::wsprintf(szName,TEXT("Favorite%d_Name"),i);
+					if (!Settings.Read(szName,&FavoriteInfo.Name)
+							|| FavoriteInfo.Name.empty())
+						break;
+					::wsprintf(szName,TEXT("Favorite%d_Group"),i);
+					if (!Settings.Read(szName,&FavoriteInfo.Group))
+						break;
+					::wsprintf(szName,TEXT("Favorite%d_Label"),i);
+					if (!Settings.Read(szName,&FavoriteInfo.Label))
+						break;
+					FavoriteInfo.SetDefaultColors();
+					::wsprintf(szName,TEXT("Favorite%d_BackColor"),i);
+					Settings.ReadColor(szName,&FavoriteInfo.BackColor);
+					::wsprintf(szName,TEXT("Favorite%d_TextColor"),i);
+					Settings.ReadColor(szName,&FavoriteInfo.TextColor);
+
+					pFavorites->Add(FavoriteInfo);
+				}
+			}
+		}
+
+		bool fFixedWidth;
+		if (Settings.Read(TEXT("FixedWidth"),&fFixedWidth))
+			pFavorites->SetFixedWidth(fFixedWidth);
+	}
+	if (!fFavoritesExists) {
+		CProgramGuideFavorites::FavoriteInfo FavoriteInfo;
+
+		FavoriteInfo.Name=TEXT("お気に入りチャンネル");
+		FavoriteInfo.Group=0;
+		FavoriteInfo.Label=TEXT("お気に入り");
+		FavoriteInfo.SetDefaultColors();
+		pFavorites->Add(FavoriteInfo);
+	}
+
+	if (Settings.SetSection(TEXT("ProgramGuideSearchSettings"))) {
+		pProgramSearch->GetOptions().LoadSearchSettings(Settings,TEXT("Settings"));
+	}
+
 	return true;
 }
 
 
 bool CProgramGuideOptions::SaveSettings(CSettings &Settings)
 {
+	const CProgramSearchDialog *pProgramSearch=m_pProgramGuide->GetProgramSearch();
+
 	if (Settings.SetSection(TEXT("ProgramGuide"))) {
 		Settings.Write(TEXT("OnScreen"),m_fOnScreen);
 		Settings.Write(TEXT("BeginHour"),m_BeginHour);
@@ -260,21 +322,24 @@ bool CProgramGuideOptions::SaveSettings(CSettings &Settings)
 		Settings.Write(TEXT("InfoPopupWidth"),Width);
 		Settings.Write(TEXT("InfoPopupHeight"),Height);
 
-		const CProgramSearch *pProgramSearch=m_pProgramGuide->GetProgramSearch();
-		int NumSearchKeywords=pProgramSearch->GetKeywordHistoryCount();
+		int NumSearchKeywords=pProgramSearch->GetOptions().GetKeywordHistoryCount();
 		Settings.Write(TEXT("NumSearchKeywords"),NumSearchKeywords);
 		for (int i=0;i<NumSearchKeywords;i++) {
 			TCHAR szName[32];
 
 			::wsprintf(szName,TEXT("SearchKeyword%d"),i);
-			Settings.Write(szName,pProgramSearch->GetKeywordHistory(i));
+			Settings.Write(szName,pProgramSearch->GetOptions().GetKeywordHistory(i));
 		}
-		for (int i=0;i<CProgramSearch::NUM_COLUMNS;i++) {
+
+		Settings.Write(TEXT("HighlightSearchResult"),pProgramSearch->GetHighlightResult());
+
+		for (int i=0;i<CProgramSearchDialog::NUM_COLUMNS;i++) {
 			TCHAR szName[32];
 
 			::wsprintf(szName,TEXT("SearchColumn%d_Width"),i);
 			Settings.Write(szName,pProgramSearch->GetColumnWidth(i));
 		}
+
 		int Left,Top;
 		pProgramSearch->GetPosition(&Left,&Top,&Width,&Height);
 		Settings.Write(TEXT("SearchLeft"),Left);
@@ -315,6 +380,36 @@ bool CProgramGuideOptions::SaveSettings(CSettings &Settings)
 				Settings.Write(szName,szText);
 			}
 		}
+	}
+
+	if (Settings.SetSection(TEXT("ProgramGuideFavorites"))) {
+		const CProgramGuideFavorites *pFavorites=m_pProgramGuide->GetFavorites();
+		const int FavoritesCount=(int)pFavorites->GetCount();
+
+		Settings.Clear();
+		Settings.Write(TEXT("FavoritesCount"),FavoritesCount);
+		for (int i=0;i<FavoritesCount;i++) {
+			const CProgramGuideFavorites::FavoriteInfo *pFavoriteInfo=pFavorites->Get(i);
+			TCHAR szName[32];
+
+			::wsprintf(szName,TEXT("Favorite%d_Name"),i);
+			Settings.Write(szName,pFavoriteInfo->Name);
+			::wsprintf(szName,TEXT("Favorite%d_Group"),i);
+			Settings.Write(szName,pFavoriteInfo->Group);
+			::wsprintf(szName,TEXT("Favorite%d_Label"),i);
+			Settings.Write(szName,pFavoriteInfo->Label);
+			::wsprintf(szName,TEXT("Favorite%d_BackColor"),i);
+			Settings.WriteColor(szName,pFavoriteInfo->BackColor);
+			::wsprintf(szName,TEXT("Favorite%d_TextColor"),i);
+			Settings.WriteColor(szName,pFavoriteInfo->TextColor);
+		}
+
+		Settings.Write(TEXT("FixedWidth"),pFavorites->GetFixedWidth());
+	}
+
+	if (Settings.SetSection(TEXT("ProgramGuideSearchSettings"))) {
+		Settings.Clear();
+		pProgramSearch->GetOptions().SaveSearchSettings(Settings,TEXT("Settings"));
 	}
 
 	return true;

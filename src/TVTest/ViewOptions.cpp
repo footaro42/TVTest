@@ -20,19 +20,23 @@ CViewOptions::CViewOptions()
 	, m_fSnapAtWindowEdge(false)
 	, m_SnapAtWindowEdgeMargin(8)
 	, m_fNearCornerResizeOrigin(false)
-	, m_fPanScanNoResizeWindow(true)
+	, m_fZoomKeepAspectRatio(false)
+	, m_PanScanAdjustWindowMode(ADJUSTWINDOW_WIDTH)
+	, m_fMinimizeToTray(false)
+	, m_fDisablePreviewWhenMinimized(false)
+	, m_fUseLogoIcon(false)
+	, m_fShowTitleEventTime(false)
+	, m_fShowLogo(true)
+
 	, m_fResetPanScanEventChange(true)
 	, m_fNoMaskSideCut(true)
 	, m_FullscreenStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO)
 	, m_MaximizeStretchMode(CMediaViewer::STRETCH_KEEPASPECTRATIO)
-	, m_fMinimizeToTray(false)
-	, m_fDisablePreviewWhenMinimized(false)
-	, m_fUseLogoIcon(false)
 	, m_fIgnoreDisplayExtension(false)
+
 	, m_fNoScreenSaver(false)
 	, m_fNoMonitorLowPower(false)
 	, m_fNoMonitorLowPowerActiveOnly(false)
-	, m_fShowLogo(true)
 {
 	::lstrcpy(m_szLogoFileName,APP_NAME TEXT("_Logo.bmp"));
 }
@@ -73,7 +77,22 @@ bool CViewOptions::ReadSettings(CSettings &Settings)
 	Settings.Read(TEXT("AdjustAspectResizing"),&m_fAdjustAspectResizing);
 	Settings.Read(TEXT("SnapToWindowEdge"),&m_fSnapAtWindowEdge);
 	Settings.Read(TEXT("NearCornerResizeOrigin"),&m_fNearCornerResizeOrigin);
-	Settings.Read(TEXT("PanScanNoResizeWindow"),&m_fPanScanNoResizeWindow);
+	Settings.Read(TEXT("ZoomKeepAspectRatio"),&m_fZoomKeepAspectRatio);
+	if (Settings.Read(TEXT("PanScanAdjustWindow"),&Value)
+			&& Value>=ADJUSTWINDOW_FIRST && Value<=ADJUSTWINDOW_LAST) {
+		m_PanScanAdjustWindowMode=(AdjustWindowMode)Value;
+	} else {
+		// 以前のバージョンとの互換用
+		bool f;
+		if (Settings.Read(TEXT("PanScanNoResizeWindow"),&f))
+			m_PanScanAdjustWindowMode=f?ADJUSTWINDOW_WIDTH:ADJUSTWINDOW_FIT;
+	}
+	Settings.Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
+	Settings.Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
+	Settings.Read(TEXT("UseLogoIcon"),&m_fUseLogoIcon);
+	Settings.Read(TEXT("TitleEventTime"),&m_fShowTitleEventTime);
+	Settings.Read(TEXT("ShowLogo"),&m_fShowLogo);
+	Settings.Read(TEXT("LogoFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
 	Settings.Read(TEXT("ResetPanScanEventChange"),&m_fResetPanScanEventChange);
 	Settings.Read(TEXT("NoMaskSideCut"),&m_fNoMaskSideCut);
 	if (Settings.Read(TEXT("FullscreenStretchMode"),&Value))
@@ -82,15 +101,11 @@ bool CViewOptions::ReadSettings(CSettings &Settings)
 	if (Settings.Read(TEXT("MaximizeStretchMode"),&Value))
 		m_MaximizeStretchMode=Value==1?CMediaViewer::STRETCH_CUTFRAME:
 									   CMediaViewer::STRETCH_KEEPASPECTRATIO;
-	Settings.Read(TEXT("MinimizeToTray"),&m_fMinimizeToTray);
-	Settings.Read(TEXT("DisablePreviewWhenMinimized"),&m_fDisablePreviewWhenMinimized);
-	Settings.Read(TEXT("UseLogoIcon"),&m_fUseLogoIcon);
 	Settings.Read(TEXT("IgnoreDisplayExtension"),&m_fIgnoreDisplayExtension);
 	Settings.Read(TEXT("NoScreenSaver"),&m_fNoScreenSaver);
 	Settings.Read(TEXT("NoMonitorLowPower"),&m_fNoMonitorLowPower);
 	Settings.Read(TEXT("NoMonitorLowPowerActiveOnly"),&m_fNoMonitorLowPowerActiveOnly);
-	Settings.Read(TEXT("ShowLogo"),&m_fShowLogo);
-	Settings.Read(TEXT("LogoFileName"),m_szLogoFileName,lengthof(m_szLogoFileName));
+
 	return true;
 }
 
@@ -100,20 +115,23 @@ bool CViewOptions::WriteSettings(CSettings &Settings)
 	Settings.Write(TEXT("AdjustAspectResizing"),m_fAdjustAspectResizing);
 	Settings.Write(TEXT("SnapToWindowEdge"),m_fSnapAtWindowEdge);
 	Settings.Write(TEXT("NearCornerResizeOrigin"),m_fNearCornerResizeOrigin);
-	Settings.Write(TEXT("PanScanNoResizeWindow"),m_fPanScanNoResizeWindow);
+	Settings.Write(TEXT("ZoomKeepAspectRatio"),m_fZoomKeepAspectRatio);
+	Settings.Write(TEXT("PanScanAdjustWindow"),(int)m_PanScanAdjustWindowMode);
+	Settings.Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
+	Settings.Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
+	Settings.Write(TEXT("UseLogoIcon"),m_fUseLogoIcon);
+	Settings.Write(TEXT("TitleEventTime"),m_fShowTitleEventTime);
+	Settings.Write(TEXT("ShowLogo"),m_fShowLogo);
+	Settings.Write(TEXT("LogoFileName"),m_szLogoFileName);
 	Settings.Write(TEXT("ResetPanScanEventChange"),m_fResetPanScanEventChange);
 	Settings.Write(TEXT("NoMaskSideCut"),m_fNoMaskSideCut);
 	Settings.Write(TEXT("FullscreenStretchMode"),(int)m_FullscreenStretchMode);
 	Settings.Write(TEXT("MaximizeStretchMode"),(int)m_MaximizeStretchMode);
-	Settings.Write(TEXT("MinimizeToTray"),m_fMinimizeToTray);
-	Settings.Write(TEXT("DisablePreviewWhenMinimized"),m_fDisablePreviewWhenMinimized);
 	Settings.Write(TEXT("IgnoreDisplayExtension"),m_fIgnoreDisplayExtension);
-	Settings.Write(TEXT("UseLogoIcon"),m_fUseLogoIcon);
 	Settings.Write(TEXT("NoScreenSaver"),m_fNoScreenSaver);
 	Settings.Write(TEXT("NoMonitorLowPower"),m_fNoMonitorLowPower);
 	Settings.Write(TEXT("NoMonitorLowPowerActiveOnly"),m_fNoMonitorLowPowerActiveOnly);
-	Settings.Write(TEXT("ShowLogo"),m_fShowLogo);
-	Settings.Write(TEXT("LogoFileName"),m_szLogoFileName);
+
 	return true;
 }
 
@@ -137,13 +155,27 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 							  m_fAdjustAspectResizing);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_NEARCORNERRESIZEORIGIN,
 							  m_fNearCornerResizeOrigin);
-			DlgCheckBox_Check(hDlg,IDC_OPTIONS_PANSCANNORESIZEWINDOW,
-							  m_fPanScanNoResizeWindow);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_ZOOMKEEPASPECTRATIO,m_fZoomKeepAspectRatio);
+			{
+				static const LPCTSTR AdjustWindowModeList[] = {
+					TEXT("サイズを変えない"),
+					TEXT("幅のみ変える"),
+					TEXT("幅と高さを変える"),
+				};
+				for (int i=0;i<lengthof(AdjustWindowModeList);i++) {
+					DlgComboBox_AddString(hDlg,IDC_OPTIONS_PANSCANADJUSTWINDOW,
+										  AdjustWindowModeList[i]);
+				}
+				DlgComboBox_SetCurSel(hDlg,IDC_OPTIONS_PANSCANADJUSTWINDOW,
+									  m_PanScanAdjustWindowMode);
+			}
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZETOTRAY,m_fMinimizeToTray);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_MINIMIZEDISABLEPREVIEW,
 							  m_fDisablePreviewWhenMinimized);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_USELOGOICON,
 							  m_fUseLogoIcon);
+			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SHOWTITLEEVENTTIME,
+							  m_fShowTitleEventTime);
 			DlgCheckBox_Check(hDlg,IDC_OPTIONS_SHOWLOGO,m_fShowLogo);
 			::SetDlgItemText(hDlg,IDC_OPTIONS_LOGOFILENAME,m_szLogoFileName);
 			::SendDlgItemMessage(hDlg,IDC_OPTIONS_LOGOFILENAME,EM_LIMITTEXT,MAX_PATH-1,0);
@@ -227,8 +259,10 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ADJUSTASPECTRESIZING);
 				m_fNearCornerResizeOrigin=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_NEARCORNERRESIZEORIGIN);
-				m_fPanScanNoResizeWindow=
-					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_PANSCANNORESIZEWINDOW);
+				m_fZoomKeepAspectRatio=
+					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_ZOOMKEEPASPECTRATIO);
+				m_PanScanAdjustWindowMode=(AdjustWindowMode)
+					DlgComboBox_GetCurSel(hDlg,IDC_OPTIONS_PANSCANADJUSTWINDOW);
 				m_fMinimizeToTray=
 					DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_MINIMIZETOTRAY);
 				m_fDisablePreviewWhenMinimized=
@@ -237,6 +271,11 @@ INT_PTR CViewOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				if (m_fUseLogoIcon!=f) {
 					m_fUseLogoIcon=f;
 					GetAppClass().GetUICore()->UpdateIcon();
+				}
+				f=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWTITLEEVENTTIME);
+				if (m_fShowTitleEventTime!=f) {
+					m_fShowTitleEventTime=f;
+					GetAppClass().GetUICore()->UpdateTitle();
 				}
 				{
 					bool fLogo=DlgCheckBox_IsChecked(hDlg,IDC_OPTIONS_SHOWLOGO);

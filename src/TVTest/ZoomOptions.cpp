@@ -13,45 +13,51 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define PACK_LPARAM(index,rate,factor) \
-	((LPARAM)(((index)<<24)|((rate)<<12)|(factor)))
-#define GET_LPARAM_INDEX(lparam)	((int)((lparam)>>24))
-#define GET_LPARAM_RATE(lparam)		((int)(((lparam)>>12)&0xFFF))
-#define GET_LPARAM_FACTOR(lparam)	((int)((lparam)&0xFFF))
+#define MAX_ZOOM_TEXT 64
 
 
 #ifdef TVH264_FOR_1SEG
 #define f1Seg true
+#define BASE_WIDTH 320
+#define BASE_HEIGHT 180
 #else
 #define f1Seg false
+#define BASE_WIDTH 1920
+#define BASE_HEIGHT 1080
 #endif
 
-CZoomOptions::ZoomInfo CZoomOptions::m_ZoomList[NUM_ZOOM] = {
-	{CM_ZOOM_20,		{  1,   5},	!f1Seg},
-	{CM_ZOOM_25,		{  1,   4},	!f1Seg},
-	{CM_ZOOM_33,		{  1,   3},	!f1Seg},
-	{CM_ZOOM_50,		{  1,   2},	true},
-	{CM_ZOOM_66,		{  2,   3},	true},
-	{CM_ZOOM_75,		{  3,   4},	true},
-	{CM_ZOOM_100,		{  1,   1},	true},
-	{CM_ZOOM_150,		{  3,   2},	true},
-	{CM_ZOOM_200,		{  2,   1},	true},
-	{CM_ZOOM_250,		{  5,   2},	f1Seg},
-	{CM_ZOOM_300,		{  3,   1},	f1Seg},
-	{CM_CUSTOMZOOM_1,	{100, 100},	false},
-	{CM_CUSTOMZOOM_2,	{100, 100},	false},
-	{CM_CUSTOMZOOM_3,	{100, 100},	false},
-	{CM_CUSTOMZOOM_4,	{100, 100},	false},
-	{CM_CUSTOMZOOM_5,	{100, 100},	false},
+const CZoomOptions::ZoomCommandInfo CZoomOptions::m_DefaultZoomList[NUM_ZOOM_COMMANDS] = {
+	{CM_ZOOM_20,			{ZOOM_RATE,	{  1,   5},	{BASE_WIDTH/5,   BASE_HEIGHT/5},	!f1Seg}},
+	{CM_ZOOM_25,			{ZOOM_RATE,	{  1,   4},	{BASE_WIDTH/4,   BASE_HEIGHT/4},	!f1Seg}},
+	{CM_ZOOM_33,			{ZOOM_RATE,	{  1,   3},	{BASE_WIDTH/3,   BASE_HEIGHT/3},	!f1Seg}},
+	{CM_ZOOM_50,			{ZOOM_RATE,	{  1,   2},	{BASE_WIDTH/2,   BASE_HEIGHT/2},	true}},
+	{CM_ZOOM_66,			{ZOOM_RATE,	{  2,   3},	{BASE_WIDTH*2/3, BASE_HEIGHT*2/3},	true}},
+	{CM_ZOOM_75,			{ZOOM_RATE,	{  3,   4},	{BASE_WIDTH*3/4, BASE_HEIGHT*3/4},	true}},
+	{CM_ZOOM_100,			{ZOOM_RATE,	{  1,   1},	{BASE_WIDTH,     BASE_HEIGHT},		true}},
+	{CM_ZOOM_150,			{ZOOM_RATE,	{  3,   2},	{BASE_WIDTH*3/2, BASE_HEIGHT*3/2},	true}},
+	{CM_ZOOM_200,			{ZOOM_RATE,	{  2,   1},	{BASE_WIDTH*2,   BASE_HEIGHT*2},	true}},
+	{CM_ZOOM_250,			{ZOOM_RATE,	{  5,   2},	{BASE_WIDTH*5/2, BASE_HEIGHT*5/2},	f1Seg}},
+	{CM_ZOOM_300,			{ZOOM_RATE,	{  3,   1},	{BASE_WIDTH*3,   BASE_HEIGHT*3},	f1Seg}},
+	{CM_CUSTOMZOOM_FIRST+0,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+1,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+2,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+3,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+4,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+5,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+6,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+7,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+8,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
+	{CM_CUSTOMZOOM_FIRST+9,	{ZOOM_RATE,	{100, 100},	{BASE_WIDTH,     BASE_HEIGHT},		false}},
 };
 
 
-CZoomOptions::CZoomOptions(const CCommandList *pCommandList)
+CZoomOptions::CZoomOptions()
 	: CCommandCustomizer(CM_CUSTOMZOOM_FIRST,CM_CUSTOMZOOM_LAST)
-	, m_pCommandList(pCommandList)
 {
-	for (int i=0;i<NUM_ZOOM;i++)
+	for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
+		m_ZoomList[i]=m_DefaultZoomList[i].Info;
 		m_Order[i]=i;
+	}
 }
 
 
@@ -73,17 +79,28 @@ bool CZoomOptions::ReadSettings(CSettings &Settings)
 
 	int j=CM_ZOOM_LAST-CM_ZOOM_FIRST+1;
 	for (int i=0;i<=CM_CUSTOMZOOM_LAST-CM_CUSTOMZOOM_FIRST;i++,j++) {
-		int Rate;
+		int Type,Rate,Width,Height;
 
 		::wsprintf(szText,TEXT("CustomZoom%d"),i+1);
 		if (Settings.Read(szText,&Rate) && Rate>0 && Rate<=MAX_RATE)
-			m_ZoomList[j].Zoom.Rate=Rate;
+			m_ZoomList[j].Rate.Rate=Rate;
+		::wsprintf(szText,TEXT("CustomZoom%d_Type"),i+1);
+		if (Settings.Read(szText,&Type) && Type>=ZOOM_RATE && Type<=ZOOM_SIZE)
+			m_ZoomList[j].Type=(ZoomType)Type;
+		::wsprintf(szText,TEXT("CustomZoom%d_Width"),i+1);
+		if (Settings.Read(szText,&Width) && Width>0)
+			m_ZoomList[j].Size.Width=Width;
+		::wsprintf(szText,TEXT("CustomZoom%d_Height"),i+1);
+		if (Settings.Read(szText,&Height) && Height>0)
+			m_ZoomList[j].Size.Height=Height;
 	}
 
 	int ListCount;
 	if (Settings.Read(TEXT("ZoomListCount"),&ListCount) && ListCount>0) {
-		if (ListCount>NUM_ZOOM)
-			ListCount=NUM_ZOOM;
+		const CCommandList *pCommandList=GetAppClass().GetCommandList();
+
+		if (ListCount>NUM_ZOOM_COMMANDS)
+			ListCount=NUM_ZOOM_COMMANDS;
 		int Count=0;
 		for (int i=0;i<ListCount;i++) {
 			TCHAR szName[32];
@@ -95,13 +112,10 @@ bool CZoomOptions::ReadSettings(CSettings &Settings)
 					p++;
 				if (*p==_T(','))
 					*p++=_T('\0');
-				int Command=m_pCommandList->ParseText(szText);
+				int Command=pCommandList->ParseText(szText);
 				if (Command!=0) {
-					for (j=0;j<NUM_ZOOM;j++) {
-						if (m_ZoomList[j].Command==Command)
-							break;
-					}
-					if (j<NUM_ZOOM) {
+					j=GetIndexByCommand(Command);
+					if (j>=0) {
 						int k;
 						for (k=0;k<Count;k++) {
 							if (m_Order[k]==j)
@@ -116,8 +130,8 @@ bool CZoomOptions::ReadSettings(CSettings &Settings)
 				}
 			}
 		}
-		if (Count<NUM_ZOOM) {
-			for (int i=0;i<NUM_ZOOM;i++) {
+		if (Count<NUM_ZOOM_COMMANDS) {
+			for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
 				for (j=0;j<Count;j++) {
 					if (m_Order[j]==i)
 						break;
@@ -127,6 +141,7 @@ bool CZoomOptions::ReadSettings(CSettings &Settings)
 			}
 		}
 	}
+
 	return true;
 }
 
@@ -138,58 +153,105 @@ bool CZoomOptions::WriteSettings(CSettings &Settings)
 	int j=CM_ZOOM_LAST-CM_ZOOM_FIRST+1;
 	for (int i=0;i<=CM_CUSTOMZOOM_LAST-CM_CUSTOMZOOM_FIRST;i++,j++) {
 		::wsprintf(szText,TEXT("CustomZoom%d"),i+1);
-		Settings.Write(szText,m_ZoomList[j].Zoom.Rate);
+		Settings.Write(szText,m_ZoomList[j].Rate.Rate);
+		::wsprintf(szText,TEXT("CustomZoom%d_Type"),i+1);
+		Settings.Write(szText,(int)m_ZoomList[j].Type);
+		::wsprintf(szText,TEXT("CustomZoom%d_Width"),i+1);
+		Settings.Write(szText,m_ZoomList[j].Size.Width);
+		::wsprintf(szText,TEXT("CustomZoom%d_Height"),i+1);
+		Settings.Write(szText,m_ZoomList[j].Size.Height);
 	}
 
-	Settings.Write(TEXT("ZoomListCount"),NUM_ZOOM);
-	for (int i=0;i<NUM_ZOOM;i++) {
-		const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
+	Settings.Write(TEXT("ZoomListCount"),NUM_ZOOM_COMMANDS);
+	const CCommandList *pCommandList=GetAppClass().GetCommandList();
+	for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
+		const int Index=m_Order[i];
+		const ZoomInfo &Info=m_ZoomList[Index];
 		TCHAR szName[32];
 
 		::wsprintf(szName,TEXT("ZoomList%d"),i);
 		StdUtil::snprintf(szText,lengthof(szText),TEXT("%s,%d"),
-						  m_pCommandList->GetCommandTextByID(pInfo->Command),pInfo->fVisible?1:0);
+						  pCommandList->GetCommandTextByID(m_DefaultZoomList[Index].Command),
+						  Info.fVisible?1:0);
 		Settings.Write(szName,szText);
 	}
+
 	return true;
 }
 
 
-bool CZoomOptions::SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const
+bool CZoomOptions::SetMenu(HMENU hmenu,const ZoomInfo *pCurZoom) const
 {
 	for (int i=::GetMenuItemCount(hmenu)-3;i>=0;i--)
 		::DeleteMenu(hmenu,i,MF_BYPOSITION);
+
 	int Pos=0;
-	bool fCheck=false;
-	for (int i=0;i<NUM_ZOOM;i++) {
-		const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
-		if (pInfo->fVisible) {
-			TCHAR szText[64];
+	bool fRateCheck=false,fSizeCheck=false;
+	for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
+		const ZoomInfo &Info=m_ZoomList[m_Order[i]];
+
+		if (Info.fVisible) {
+			TCHAR szText[MAX_ZOOM_TEXT];
 			UINT Flags=MF_BYPOSITION | MF_STRING | MF_ENABLED;
 
-			if (!fCheck && pCurRate!=NULL
-					&& pCurRate->GetPercentage()==pInfo->Zoom.GetPercentage()) {
-				Flags|=MF_CHECKED;
-				fCheck=true;
+			if (Info.Type==ZOOM_RATE) {
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("%d%%"),
+								  Info.Rate.GetPercentage());
+				if (!fRateCheck
+						&& pCurZoom!=NULL
+						&& pCurZoom->Rate.GetPercentage()==Info.Rate.GetPercentage()) {
+					Flags|=MF_CHECKED;
+					fRateCheck=true;
+				}
+			} else {
+				StdUtil::snprintf(szText,lengthof(szText),TEXT("%d x %d"),
+								  Info.Size.Width,Info.Size.Height);
+				if (!fSizeCheck
+						&& pCurZoom!=NULL
+						&& pCurZoom->Size.Width==Info.Size.Width
+						&& pCurZoom->Size.Height==Info.Size.Height) {
+					Flags|=MF_CHECKED;
+					fSizeCheck=true;
+				}
 			}
-			StdUtil::snprintf(szText,lengthof(szText),TEXT("%d%%"),
-							  pInfo->Zoom.GetPercentage());
-			::InsertMenu(hmenu,Pos++,Flags,pInfo->Command,szText);
+			::InsertMenu(hmenu,Pos++,Flags,m_DefaultZoomList[m_Order[i]].Command,szText);
 		}
 	}
+
 	return true;
 }
 
 
-bool CZoomOptions::GetZoomRateByCommand(int Command,ZoomRate *pRate) const
+bool CZoomOptions::GetZoomInfoByCommand(int Command,ZoomInfo *pInfo) const
 {
-	for (int i=0;i<NUM_ZOOM;i++) {
-		if (m_ZoomList[i].Command==Command) {
-			*pRate=m_ZoomList[i].Zoom;
-			return true;
-		}
+	const int i=GetIndexByCommand(Command);
+
+	if (i<0)
+		return false;
+	*pInfo=m_ZoomList[i];
+	return true;
+}
+
+
+int CZoomOptions::GetIndexByCommand(int Command) const
+{
+	for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
+		if (m_DefaultZoomList[i].Command==Command)
+			return i;
 	}
-	return false;
+	return -1;
+}
+
+
+void CZoomOptions::FormatCommandText(int Command,const ZoomInfo &Info,LPTSTR pszText,int MaxLength) const
+{
+	int Length=::LoadString(GetAppClass().GetResourceInstance(),Command,pszText,MaxLength);
+	if (Command>=CM_CUSTOMZOOM_FIRST && Command<=CM_CUSTOMZOOM_LAST) {
+		if (Info.Type==ZOOM_RATE)
+			StdUtil::snprintf(pszText+Length,MaxLength-Length,TEXT(" : %d%%"),Info.Rate.GetPercentage());
+		else if (Info.Type==ZOOM_SIZE)
+			StdUtil::snprintf(pszText+Length,MaxLength-Length,TEXT(" : %d x %d"),Info.Size.Width,Info.Size.Height);
+	}
 }
 
 
@@ -199,25 +261,61 @@ void CZoomOptions::SetItemState(HWND hDlg)
 	int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 	if (Sel>=0) {
-		LVITEM lvi;
-
-		lvi.mask=LVIF_PARAM;
-		lvi.iItem=Sel;
-		lvi.iSubItem=0;
-		ListView_GetItem(hwndList,&lvi);
-		::SetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_RATE,
-			GET_LPARAM_RATE(lvi.lParam)*100/GET_LPARAM_FACTOR(lvi.lParam),TRUE);
-		int Index=GET_LPARAM_INDEX(lvi.lParam);
-		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_RATE,
-						m_ZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
-							&& m_ZoomList[Index].Command<=CM_CUSTOMZOOM_LAST);
+		const int Index=GetItemIndex(hwndList,Sel);
+		const ZoomInfo &Info=m_ZoomSettingList[Index];
+		const bool fCustom=m_DefaultZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
+						&& m_DefaultZoomList[Index].Command<=CM_CUSTOMZOOM_LAST;
+		::CheckRadioButton(hDlg,IDC_ZOOMOPTIONS_TYPE_RATE,IDC_ZOOMOPTIONS_TYPE_SIZE,
+						   IDC_ZOOMOPTIONS_TYPE_RATE+Info.Type);
+		::EnableDlgItems(hDlg,IDC_ZOOMOPTIONS_TYPE_RATE,IDC_ZOOMOPTIONS_TYPE_SIZE,fCustom);
+		::SetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_RATE,Info.Rate.GetPercentage(),TRUE);
+		::SetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_WIDTH,Info.Size.Width,TRUE);
+		::SetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_HEIGHT,Info.Size.Height,TRUE);
+		::EnableDlgItems(hDlg,IDC_ZOOMOPTIONS_RATE_LABEL,IDC_ZOOMOPTIONS_RATE_UNIT,Info.Type==ZOOM_RATE);
+		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_RATE,Info.Type==ZOOM_RATE && fCustom);
+		::EnableDlgItems(hDlg,IDC_ZOOMOPTIONS_WIDTH_LABEL,IDC_ZOOMOPTIONS_GETCURSIZE,Info.Type==ZOOM_SIZE);
+		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_WIDTH,Info.Type==ZOOM_SIZE && fCustom);
+		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_HEIGHT,Info.Type==ZOOM_SIZE && fCustom);
+		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_GETCURSIZE,Info.Type==ZOOM_SIZE && fCustom);
 		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_UP,Sel>0);
-		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_DOWN,Sel+1<NUM_ZOOM);
+		::EnableDlgItem(hDlg,IDC_ZOOMOPTIONS_DOWN,Sel+1<NUM_ZOOM_COMMANDS);
 	} else {
 		::SetDlgItemText(hDlg,IDC_ZOOMOPTIONS_RATE,TEXT(""));
-		::EnableDlgItems(hDlg,IDC_ZOOMOPTIONS_RATE,IDC_ZOOMOPTIONS_DOWN,FALSE);
+		::SetDlgItemText(hDlg,IDC_ZOOMOPTIONS_WIDTH,TEXT(""));
+		::SetDlgItemText(hDlg,IDC_ZOOMOPTIONS_HEIGHT,TEXT(""));
+		::EnableDlgItems(hDlg,IDC_ZOOMOPTIONS_TYPE_RATE,IDC_ZOOMOPTIONS_DOWN,FALSE);
 	}
 }
+
+
+int CZoomOptions::GetItemIndex(HWND hwndList,int Item)
+{
+	LVITEM lvi;
+
+	lvi.mask=LVIF_PARAM;
+	lvi.iItem=Item;
+	lvi.iSubItem=0;
+	ListView_GetItem(hwndList,&lvi);
+	return (int)lvi.lParam;
+}
+
+
+void CZoomOptions::UpdateItemText(HWND hDlg,int Item)
+{
+	HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
+	const int Index=GetItemIndex(hwndList,Item);
+	LVITEM lvi;
+	TCHAR szText[MAX_ZOOM_TEXT];
+
+	FormatCommandText(m_DefaultZoomList[Index].Command,m_ZoomSettingList[Index],
+					  szText,lengthof(szText));
+	lvi.mask=LVIF_TEXT;
+	lvi.iItem=Item;
+	lvi.iSubItem=0;
+	lvi.pszText=szText;
+	ListView_SetItem(hwndList,&lvi);
+}
+
 
 INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
@@ -239,17 +337,19 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			lvc.iSubItem=0;
 			ListView_InsertColumn(hwndList,0,&lvc);
 			LVITEM lvi;
-			TCHAR szText[64];
+			TCHAR szText[MAX_ZOOM_TEXT];
 			lvi.mask=LVIF_TEXT | LVIF_PARAM;
 			lvi.iSubItem=0;
 			lvi.pszText=szText;
-			for (int i=0;i<NUM_ZOOM;i++) {
-				const ZoomInfo *pInfo=&m_ZoomList[m_Order[i]];
+			for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
+				const int Index=m_Order[i];
+				const ZoomInfo &Info=m_ZoomList[Index];
+				m_ZoomSettingList[Index]=Info;
 				lvi.iItem=i;
-				lvi.lParam=PACK_LPARAM(m_Order[i],pInfo->Zoom.Rate,pInfo->Zoom.Factor);
-				m_pCommandList->GetCommandNameByID(pInfo->Command,szText,lengthof(szText));
+				lvi.lParam=Index;
+				FormatCommandText(m_DefaultZoomList[Index].Command,Info,szText,lengthof(szText));
 				ListView_InsertItem(hwndList,&lvi);
-				ListView_SetCheckState(hwndList,i,pInfo->fVisible);
+				ListView_SetCheckState(hwndList,i,Info.fVisible);
 			}
 			SetItemState(hDlg);
 			m_fChanging=false;
@@ -259,35 +359,90 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 	case WM_COMMAND:
 		switch (LOWORD(wParam)) {
+		case IDC_ZOOMOPTIONS_TYPE_RATE:
+		case IDC_ZOOMOPTIONS_TYPE_SIZE:
+			{
+				HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
+				const int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
+
+				if (Sel>=0) {
+					const int Index=GetItemIndex(hwndList,Sel);
+					const int Command=m_DefaultZoomList[Index].Command;
+					if (Command>=CM_CUSTOMZOOM_FIRST && Command<=CM_CUSTOMZOOM_LAST) {
+						ZoomType Type=::IsDlgButtonChecked(hDlg,IDC_ZOOMOPTIONS_TYPE_RATE)?ZOOM_RATE:ZOOM_SIZE;
+						ZoomInfo &Info=m_ZoomSettingList[Index];
+						if (Type!=Info.Type) {
+							Info.Type=Type;
+							m_fChanging=true;
+							UpdateItemText(hDlg,Sel);
+							SetItemState(hDlg);
+							m_fChanging=false;
+						}
+					}
+				}
+			}
+			return TRUE;
+
 		case IDC_ZOOMOPTIONS_RATE:
-			if (HIWORD(wParam)==EN_CHANGE) {
+			if (HIWORD(wParam)==EN_CHANGE && !m_fChanging) {
 				int Rate=::GetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_RATE,NULL,TRUE);
 
 				if (Rate>0 && Rate<=MAX_RATE) {
 					HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
-					int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
+					const int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
 
 					if (Sel>=0) {
-						LVITEM lvi;
-						lvi.mask=LVIF_PARAM;
-						lvi.iItem=Sel;
-						lvi.iSubItem=0;
-						ListView_GetItem(hwndList,&lvi);
-						int Index=GET_LPARAM_INDEX(lvi.lParam);
-						if (m_ZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
-								&& m_ZoomList[Index].Command<=CM_CUSTOMZOOM_LAST) {
-							TCHAR szText[64];
-
+						const int Index=GetItemIndex(hwndList,Sel);
+						const int Command=m_DefaultZoomList[Index].Command;
+						if (Command>=CM_CUSTOMZOOM_FIRST && Command<=CM_CUSTOMZOOM_LAST) {
+							ZoomInfo &Info=m_ZoomSettingList[Index];
+							Info.Rate.Rate=Rate;
+							Info.Rate.Factor=100;
 							m_fChanging=true;
-							::LoadString(GetAppClass().GetResourceInstance(),m_ZoomList[Index].Command,szText,lengthof(szText));
-							::wsprintf(szText+::lstrlen(szText),TEXT(" : %d%%"),Rate);
-							lvi.mask=LVIF_TEXT | LVIF_PARAM;
-							lvi.pszText=szText;
-							lvi.lParam=PACK_LPARAM(Index,Rate,100);
-							ListView_SetItem(hwndList,&lvi);
+							UpdateItemText(hDlg,Sel);
 							m_fChanging=false;
 						}
 					}
+				}
+			}
+			return TRUE;
+
+		case IDC_ZOOMOPTIONS_WIDTH:
+		case IDC_ZOOMOPTIONS_HEIGHT:
+			if (HIWORD(wParam)==EN_CHANGE && !m_fChanging) {
+				int Width=::GetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_WIDTH,NULL,TRUE);
+				int Height=::GetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_HEIGHT,NULL,TRUE);
+
+				if (Width>0 && Height>0) {
+					HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
+					const int Sel=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED);
+
+					if (Sel>=0) {
+						const int Index=GetItemIndex(hwndList,Sel);
+						const int Command=m_DefaultZoomList[Index].Command;
+						if (Command>=CM_CUSTOMZOOM_FIRST && Command<=CM_CUSTOMZOOM_LAST) {
+							ZoomInfo &Info=m_ZoomSettingList[Index];
+							Info.Size.Width=Width;
+							Info.Size.Height=Height;
+							m_fChanging=true;
+							UpdateItemText(hDlg,Sel);
+							m_fChanging=false;
+						}
+					}
+				}
+			}
+			return TRUE;
+
+		case IDC_ZOOMOPTIONS_GETCURSIZE:
+			{
+				HWND hwndViewer=GetAppClass().GetUICore()->GetViewerWindow();
+
+				if (hwndViewer!=NULL) {
+					RECT rc;
+
+					::GetClientRect(hwndViewer,&rc);
+					::SetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_WIDTH,rc.right-rc.left,TRUE);
+					::SetDlgItemInt(hDlg,IDC_ZOOMOPTIONS_HEIGHT,rc.bottom-rc.top,TRUE);
 				}
 			}
 			return TRUE;
@@ -299,22 +454,22 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				int From=ListView_GetNextItem(hwndList,-1,LVNI_SELECTED),To;
 
 				if (From>=0) {
-					m_fChanging=true;
 					if (LOWORD(wParam)==IDC_ZOOMOPTIONS_UP) {
 						if (From<1)
 							break;
 						To=From-1;
 					} else {
-						if (From+1>=NUM_ZOOM)
+						if (From+1>=NUM_ZOOM_COMMANDS)
 							break;
 						To=From+1;
 					}
+					m_fChanging=true;
 					LVITEM lvi;
-					TCHAR szText[64];
+					TCHAR szText[MAX_ZOOM_TEXT];
 					lvi.mask=LVIF_STATE | LVIF_TEXT | LVIF_PARAM;
 					lvi.iItem=From;
 					lvi.iSubItem=0;
-					lvi.stateMask=(UINT)-1;
+					lvi.stateMask=~0U;
 					lvi.pszText=szText;
 					lvi.cchTextMax=lengthof(szText);
 					ListView_GetItem(hwndList,&lvi);
@@ -332,19 +487,13 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case IDOK:
 			{
 				HWND hwndList=::GetDlgItem(hDlg,IDC_ZOOMOPTIONS_LIST);
-				LVITEM lvi;
 
-				lvi.mask=LVIF_PARAM;
-				lvi.iSubItem=0;
-				for (int i=0;i<NUM_ZOOM;i++) {
-					lvi.iItem=i;
-					ListView_GetItem(hwndList,&lvi);
-					int Index=GET_LPARAM_INDEX(lvi.lParam);
+				for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
+					int Index=GetItemIndex(hwndList,i);
 					m_Order[i]=Index;
-					if (m_ZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
-							&& m_ZoomList[Index].Command<=CM_CUSTOMZOOM_LAST) {
-						m_ZoomList[Index].Zoom.Rate=GET_LPARAM_RATE(lvi.lParam);
-						m_ZoomList[Index].Zoom.Factor=GET_LPARAM_FACTOR(lvi.lParam);
+					if (m_DefaultZoomList[Index].Command>=CM_CUSTOMZOOM_FIRST
+							&& m_DefaultZoomList[Index].Command<=CM_CUSTOMZOOM_LAST) {
+						m_ZoomList[Index]=m_ZoomSettingList[Index];
 					}
 					m_ZoomList[Index].fVisible=ListView_GetCheckState(hwndList,i)!=FALSE;
 				}
@@ -371,10 +520,9 @@ INT_PTR CZoomOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 
 bool CZoomOptions::GetCommandName(int Command,LPTSTR pszName,int MaxLength)
 {
-	ZoomRate Zoom;
-	if (!GetZoomRateByCommand(Command,&Zoom))
+	ZoomInfo Info;
+	if (!GetZoomInfoByCommand(Command,&Info))
 		return false;
-	int Length=::LoadString(GetAppClass().GetResourceInstance(),Command,pszName,MaxLength);
-	StdUtil::snprintf(pszName+Length,MaxLength-Length,TEXT(" : %d%%"),Zoom.GetPercentage());
+	FormatCommandText(Command,Info,pszName,MaxLength);
 	return true;
 }

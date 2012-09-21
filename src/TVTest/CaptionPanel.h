@@ -60,6 +60,7 @@ class CCaptionPanel : public CPanelForm::CPage, protected CCaptionDecoder::IHand
 	bool m_fContinue;
 	std::deque<LPTSTR> m_CaptionList;
 	enum { MAX_QUEUE_TEXT=10000 };
+	TVTest::String m_NextCaption;
 	CCriticalLock m_Lock;
 	CCaptionDRCSMap m_DRCSMap;
 

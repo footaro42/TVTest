@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "BonSrcDecoder.h"
+#include "StdUtil.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -21,21 +22,25 @@ typedef IBonDriver* (PFCREATEBONDRIVER)(void);
 
 CBonSrcDecoder::CBonSrcDecoder(IEventHandler *pEventHandler)
 	: CMediaDecoder(pEventHandler, 0UL, 1UL)
+	, m_hBonDriverLib(NULL)
 	, m_pBonDriver(NULL)
 	, m_pBonDriver2(NULL)
 	, m_hStreamRecvThread(NULL)
-	, m_RequestTimeout(5000)
+	, m_RequestTimeout(10000)
 	, m_bIsPlaying(false)
 	, m_StreamRemain(0)
 	, m_SignalLevel(0.0f)
 	, m_StreamThreadPriority(THREAD_PRIORITY_NORMAL)
 	, m_bPurgeStreamOnChannelChange(true)
+	, m_FirstChannelSetDelay(0)
+	, m_MinChannelChangeInterval(0)
+	, m_SetChannelCount(0)
 {
 }
 
 CBonSrcDecoder::~CBonSrcDecoder()
 {
-	CloseTuner();
+	UnloadBonDriver();
 }
 
 void CBonSrcDecoder::Reset(void)
@@ -88,18 +93,101 @@ const bool CBonSrcDecoder::InputMedia(CMediaData *pMediaData, const DWORD dwInpu
 	return false;
 }
 
-const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
+bool CBonSrcDecoder::LoadBonDriver(LPCTSTR pszFileName)
 {
+	if (m_hBonDriverLib != NULL) {
+		SetError(TEXT("既に読み込まれています。"));
+		return false;
+	}
+
+	if (pszFileName == NULL) {
+		SetError(TEXT("ファイルが指定されていません。"));
+		return false;
+	}
+
+	Trace(TEXT("BonDriver \"%s\" を読み込みます..."), pszFileName);
+
+	m_hBonDriverLib = ::LoadLibrary(pszFileName);
+
+	if (m_hBonDriverLib == NULL) {
+		const DWORD ErrorCode = ::GetLastError();
+		TCHAR szText[MAX_PATH + 64];
+
+		StdUtil::snprintf(szText, _countof(szText),
+						  TEXT("\"%s\" が読み込めません。"), pszFileName);
+		SetError(szText);
+
+		switch (ErrorCode) {
+		case ERROR_MOD_NOT_FOUND:
+			SetErrorAdvise(TEXT("ファイルが見つかりません。"));
+			break;
+
+		case ERROR_BAD_EXE_FORMAT:
+			SetErrorAdvise(
+#ifndef _WIN64
+				TEXT("32")
+#else
+				TEXT("64")
+#endif
+				TEXT("ビット用の BonDriver ではないか、ファイルが破損している可能性があります。"));
+			break;
+
+		case ERROR_SXS_CANT_GEN_ACTCTX:
+			SetErrorAdvise(TEXT("この BonDriver に必要なランタイムがインストールされていない可能性があります。"));
+			break;
+
+		default:
+			StdUtil::snprintf(szText, _countof(szText), TEXT("エラーコード: 0x%x"), ErrorCode);
+			SetErrorAdvise(szText);
+		}
+
+		SetErrorSystemMessageByErrorCode(ErrorCode);
+
+		return false;
+	}
+
+	Trace(TEXT("BonDriver を読み込みました。"));
+
+	return true;
+}
+
+bool CBonSrcDecoder::UnloadBonDriver()
+{
+	if (m_hBonDriverLib != NULL) {
+		CloseTuner();
+
+		Trace(TEXT("BonDriver を解放します..."));
+		::FreeLibrary(m_hBonDriverLib);
+		m_hBonDriverLib = NULL;
+		Trace(TEXT("BonDriver を解放しました。"));
+	}
+
+	return true;
+}
+
+bool CBonSrcDecoder::IsBonDriverLoaded() const
+{
+	return m_hBonDriverLib != NULL;
+}
+
+bool CBonSrcDecoder::OpenTuner()
+{
+	if (m_hBonDriverLib == NULL) {
+		SetError(ERR_NOTLOADED, TEXT("BonDriverが読み込まれていません。"));
+		return false;
+	}
+
 	// オープンチェック
 	if (m_pBonDriver) {
-		SetError(ERR_ALREADYOPEN, NULL);
+		SetError(ERR_ALREADYOPEN, TEXT("チューナは既に開かれています。"));
 		return false;
 	}
 
 	Trace(TEXT("チューナを開いています..."));
 
 	// ドライバポインタの取得
-	PFCREATEBONDRIVER *pfCreateBonDriver=(PFCREATEBONDRIVER*)::GetProcAddress(hBonDrvDll,"CreateBonDriver");
+	PFCREATEBONDRIVER *pfCreateBonDriver =
+		(PFCREATEBONDRIVER*)::GetProcAddress(m_hBonDriverLib, "CreateBonDriver");
 	if (pfCreateBonDriver == NULL) {
 		SetError(ERR_DRIVER,
 				 TEXT("CreateBonDriver() のアドレスを取得できません。"),
@@ -132,6 +220,9 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 			throw ERR_TUNEROPEN;
 		}
 
+		m_SetChannelCount = 0;
+		m_TunerOpenTime = ::GetTickCount();
+
 		// IBonDriver2インタフェース取得
 		m_pBonDriver2 = dynamic_cast<IBonDriver2 *>(m_pBonDriver);
 
@@ -160,7 +251,7 @@ const bool CBonSrcDecoder::OpenTuner(HMODULE hBonDrvDll)
 	return true;
 }
 
-const bool CBonSrcDecoder::CloseTuner(void)
+bool CBonSrcDecoder::CloseTuner(void)
 {
 	// ストリーム停止
 	m_bIsPlaying = false;
@@ -197,17 +288,19 @@ const bool CBonSrcDecoder::CloseTuner(void)
 
 	ResetStatus();
 
+	m_SetChannelCount = 0;
+
 	ClearError();
 
 	return true;
 }
 
-const bool CBonSrcDecoder::IsOpen() const
+bool CBonSrcDecoder::IsOpen() const
 {
 	return m_pBonDriver != NULL;
 }
 
-const bool CBonSrcDecoder::Play(void)
+bool CBonSrcDecoder::Play(void)
 {
 	TRACE(TEXT("CBonSrcDecoder::Play()\n"));
 
@@ -253,7 +346,7 @@ const bool CBonSrcDecoder::Play(void)
 	return true;
 }
 
-const bool CBonSrcDecoder::Stop(void)
+bool CBonSrcDecoder::Stop(void)
 {
 	TRACE(TEXT("CBonSrcDecoder::Stop()\n"));
 
@@ -273,7 +366,7 @@ const bool CBonSrcDecoder::Stop(void)
 	return true;
 }
 
-const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
+bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 {
 	TRACE(TEXT("CBonSrcDecoder::SetChannel(%d)\n"), byChannel);
 
@@ -325,7 +418,7 @@ const bool CBonSrcDecoder::SetChannel(const BYTE byChannel)
 	return true;
 }
 
-const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel)
+bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel)
 {
 	TRACE(TEXT("CBonSrcDecoder::SetChannel(%lu, %lu)\n"), dwSpace, dwChannel);
 
@@ -378,7 +471,7 @@ const bool CBonSrcDecoder::SetChannel(const DWORD dwSpace, const DWORD dwChannel
 	return true;
 }
 
-const bool CBonSrcDecoder::SetChannelAndPlay(const DWORD dwSpace, const DWORD dwChannel)
+bool CBonSrcDecoder::SetChannelAndPlay(const DWORD dwSpace, const DWORD dwChannel)
 {
 	TRACE(TEXT("CBonSrcDecoder::SetChannelAndPlay(%lu, %lu)\n"), dwSpace, dwChannel);
 
@@ -390,25 +483,7 @@ const bool CBonSrcDecoder::SetChannelAndPlay(const DWORD dwSpace, const DWORD dw
 	return true;
 }
 
-const float CBonSrcDecoder::GetSignalLevel(void)
-{
-#if 0
-	if (m_pBonDriver == NULL) {
-		// チューナが開かれていない
-		SetError(ERR_NOTOPEN, NULL);
-		return 0.0f;
-	}
-
-	ClearError();
-
-	// 信号レベルを返す
-	return m_pBonDriver->GetSignalLevel();
-#else
-	return m_SignalLevel;
-#endif
-}
-
-const bool CBonSrcDecoder::IsBonDriver2(void) const
+bool CBonSrcDecoder::IsBonDriver2(void) const
 {
 	// IBonDriver2インタフェースの使用可否を返す
 	return m_pBonDriver2 != NULL;
@@ -434,7 +509,7 @@ LPCTSTR CBonSrcDecoder::GetChannelName(const DWORD dwSpace, const DWORD dwChanne
 	return m_pBonDriver2->EnumChannelName(dwSpace, dwChannel);
 }
 
-const bool CBonSrcDecoder::PurgeStream(void)
+bool CBonSrcDecoder::PurgeStream(void)
 {
 	TRACE(TEXT("CBonSrcDecoder::PurgeStream()\n"));
 
@@ -498,6 +573,24 @@ int CBonSrcDecoder::GetCurChannel() const
 	return m_pBonDriver2->GetCurChannel();
 }
 
+float CBonSrcDecoder::GetSignalLevel(void)
+{
+#if 0
+	if (m_pBonDriver == NULL) {
+		// チューナが開かれていない
+		SetError(ERR_NOTOPEN, NULL);
+		return 0.0f;
+	}
+
+	ClearError();
+
+	// 信号レベルを返す
+	return m_pBonDriver->GetSignalLevel();
+#else
+	return m_SignalLevel;
+#endif
+}
+
 DWORD CBonSrcDecoder::GetBitRate() const
 {
 	return m_BitRateCalculator.GetBitRate();
@@ -526,6 +619,30 @@ void CBonSrcDecoder::SetPurgeStreamOnChannelChange(bool bPurge)
 	TRACE(TEXT("CBonSrcDecoder::SetPurgeStreamOnChannelChange(%s)\n"),
 		  bPurge ? TEXT("true") : TEXT("false"));
 	m_bPurgeStreamOnChannelChange = bPurge;
+}
+
+bool CBonSrcDecoder::SetFirstChannelSetDelay(const DWORD Delay)
+{
+	if (Delay > FIRST_CHANNEL_SET_DELAY_MAX)
+		return false;
+
+	TRACE(TEXT("CBonSrcDecoder::SetFirstChannelSetDelay(%u)\n"), Delay);
+
+	m_FirstChannelSetDelay = Delay;
+
+	return true;
+}
+
+bool CBonSrcDecoder::SetMinChannelChangeInterval(const DWORD Interval)
+{
+	if (Interval > CHANNEL_CHANGE_INTERVAL_MAX)
+		return false;
+
+	TRACE(TEXT("CBonSrcDecoder::SetMinChannelChangeInterval(%u)\n"), Interval);
+
+	m_MinChannelChangeInterval = Interval;
+
+	return true;
 }
 
 unsigned int __stdcall CBonSrcDecoder::StreamingThread(LPVOID pParam)
@@ -567,15 +684,19 @@ void CBonSrcDecoder::StreamingMain()
 
 			switch (Request.Type) {
 			case StreamingRequest::TYPE_SETCHANNEL:
+				SetChannelWait();
 				TRACE(TEXT("IBonDriver::SetChannel(%d)\n"), Request.SetChannel.Channel);
 				m_bRequestResult = m_pBonDriver->SetChannel(Request.SetChannel.Channel);
+				m_SetChannelTime = ::GetTickCount();
 				break;
 
 			case StreamingRequest::TYPE_SETCHANNEL2:
+				SetChannelWait();
 				TRACE(TEXT("IBonDriver2::SetChannel(%u, %u)\n"),
 					  Request.SetChannel2.Space, Request.SetChannel2.Channel);
 				m_bRequestResult = m_pBonDriver2->SetChannel(Request.SetChannel2.Space,
 															 Request.SetChannel2.Channel);
+				m_SetChannelTime = ::GetTickCount();
 				break;
 
 			case StreamingRequest::TYPE_PURGESTREAM:
@@ -707,4 +828,27 @@ void CBonSrcDecoder::SetRequestTimeoutError()
 	} else {
 		SetError(ERR_TIMEOUT, TEXT("ストリーム受信スレッドが応答しません。"));
 	}
+}
+
+void CBonSrcDecoder::SetChannelWait()
+{
+	DWORD Time, Wait;
+
+	if (m_SetChannelCount == 0) {
+		Time = m_TunerOpenTime;
+		Wait = m_FirstChannelSetDelay;
+	} else {
+		Time = m_SetChannelTime;
+		Wait = m_MinChannelChangeInterval;
+	}
+
+	if (Wait > 0) {
+		DWORD Interval = ::GetTickCount() - Time;
+		if (Interval < Wait) {
+			TRACE(TEXT("SetChannel wait %u ms\n"), Wait - Interval);
+			::Sleep(Wait - Interval);
+		}
+	}
+
+	m_SetChannelCount++;
 }

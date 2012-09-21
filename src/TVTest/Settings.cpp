@@ -34,7 +34,8 @@ bool CSettings::Open(LPCTSTR pszFileName,unsigned int Flags)
 	Close();
 
 	if (IsStringEmpty(pszFileName) || ::lstrlen(pszFileName)>=MAX_PATH
-			|| (Flags & (OPEN_READ | OPEN_WRITE))==0)
+			|| (Flags & (OPEN_READ | OPEN_WRITE))==0
+			|| (Flags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==(OPEN_WRITE | OPEN_WRITE_VOLATILE))
 		return false;
 
 	UINT IniFlags=0;
@@ -42,10 +43,14 @@ bool CSettings::Open(LPCTSTR pszFileName,unsigned int Flags)
 		IniFlags|=CIniFile::OPEN_READ;
 	if ((Flags&OPEN_WRITE)!=0)
 		IniFlags|=CIniFile::OPEN_WRITE;
+	if ((Flags&OPEN_WRITE_VOLATILE)!=0)
+		IniFlags|=CIniFile::OPEN_WRITE_VOLATILE;
 	if (!m_IniFile.Open(pszFileName,IniFlags))
 		return false;
 
 	m_OpenFlags=Flags;
+	if ((Flags & OPEN_WRITE_VOLATILE)!=0)
+		m_OpenFlags|=OPEN_WRITE;
 
 	return true;
 }
@@ -159,6 +164,24 @@ bool CSettings::Write(LPCTSTR pszValueName,LPCTSTR pszData)
 	}
 
 	return m_IniFile.SetValue(pszValueName,pszData);
+}
+
+
+bool CSettings::Read(LPCTSTR pszValueName,TVTest::String *pValue)
+{
+	if ((m_OpenFlags&OPEN_READ)==0)
+		return false;
+
+	if (pValue==NULL)
+		return false;
+
+	return m_IniFile.GetValue(pszValueName,pValue);
+}
+
+
+bool CSettings::Write(LPCTSTR pszValueName,const TVTest::String &Value)
+{
+	return Write(pszValueName,Value.c_str());
 }
 
 

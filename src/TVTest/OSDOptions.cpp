@@ -27,7 +27,7 @@ COSDOptions::COSDOptions()
 	, m_Opacity(80)
 	, m_FadeTime(3000)
 	, m_ChannelChangeType(CHANNELCHANGE_LOGOANDTEXT)
-	, m_EnabledOSD(OSD_FLAG(OSD_CHANNEL) | OSD_FLAG(OSD_VOLUME))
+	, m_EnabledOSD(OSD_FLAG(OSD_CHANNEL) | OSD_FLAG(OSD_VOLUME) | OSD_FLAG(OSD_CHANNELNOINPUT))
 
 	, m_fLayeredWindow(true)
 	, m_fCompositionEnabled(false)
@@ -39,11 +39,9 @@ COSDOptions::COSDOptions()
 		 | NOTIFY_ECMERROR
 #endif
 		)
+	, m_fDisplayFontAutoSize(false)
 {
-	OSVERSIONINFO osvi;
-	osvi.dwOSVersionInfoSize=sizeof(osvi);
-	::GetVersionEx(&osvi);
-	if (osvi.dwMajorVersion>=6) {
+	if (Util::OS::IsWindowsVistaOrLater()) {
 		CAeroGlass Aero;
 		if (Aero.IsEnabled())
 			m_fCompositionEnabled=true;
@@ -59,8 +57,7 @@ COSDOptions::COSDOptions()
 		-12;
 #endif
 
-	m_DisplayMenuFont=lf;
-	m_fDisplayMenuFontAutoSize=true;
+	m_DisplayFont=lf;
 }
 
 
@@ -79,7 +76,18 @@ bool COSDOptions::ReadSettings(CSettings &Settings)
 	Settings.ReadColor(TEXT("OSDTextColor"),&m_TextColor);
 	Settings.Read(TEXT("OSDOpacity"),&m_Opacity);
 	Settings.Read(TEXT("OSDFadeTime"),&m_FadeTime);
-	Settings.Read(TEXT("EnabledOSD"),&m_EnabledOSD);
+	unsigned int EnabledOSD=m_EnabledOSD;
+	if (Settings.Read(TEXT("EnabledOSD"),&EnabledOSD)) {
+		// 項目が増えた時にデフォルト値が反映されるようにする
+		unsigned int EnabledOSDMask;
+		if (!Settings.Read(TEXT("EnabledOSDMask"),&EnabledOSDMask)
+				|| EnabledOSDMask==0)
+			EnabledOSDMask=OSD_FLAG(OSD_CHANNELNOINPUT)-1;
+		if ((EnabledOSD & ~EnabledOSDMask)==0)
+			m_EnabledOSD=(EnabledOSD & EnabledOSDMask) | (m_EnabledOSD & ~EnabledOSDMask);
+		else
+			m_EnabledOSD=EnabledOSD;
+	}
 	if (Settings.Read(TEXT("ChannelOSDType"),&Value)
 			&& Value>=CHANNELCHANGE_FIRST && Value<=CHANNELCHANGE_LAST)
 		m_ChannelChangeType=(ChannelChangeType)Value;
@@ -116,8 +124,8 @@ bool COSDOptions::ReadSettings(CSettings &Settings)
 	if (Settings.Read(TEXT("NotificationBarFontItalic"),&Value))
 		m_NotificationBarFont.lfItalic=Value;
 
-	Settings.Read(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
-	Settings.Read(TEXT("DisplayMenuFontAutoSize"),&m_fDisplayMenuFontAutoSize);
+	Settings.Read(TEXT("DisplayMenuFont"),&m_DisplayFont);
+	Settings.Read(TEXT("DisplayMenuFontAutoSize"),&m_fDisplayFontAutoSize);
 	return true;
 }
 
@@ -130,6 +138,7 @@ bool COSDOptions::WriteSettings(CSettings &Settings)
 	Settings.Write(TEXT("OSDOpacity"),m_Opacity);
 	Settings.Write(TEXT("OSDFadeTime"),m_FadeTime);
 	Settings.Write(TEXT("EnabledOSD"),m_EnabledOSD);
+	Settings.Write(TEXT("EnabledOSDMask"),OSD_FLAG(OSD_TRAILER_)-1);
 	Settings.Write(TEXT("ChannelOSDType"),(int)m_ChannelChangeType);
 
 	Settings.Write(TEXT("EnableNotificationBar"),m_fEnableNotificationBar);
@@ -143,8 +152,8 @@ bool COSDOptions::WriteSettings(CSettings &Settings)
 	Settings.Write(TEXT("NotificationBarFontWeight"),(int)m_NotificationBarFont.lfWeight);
 	Settings.Write(TEXT("NotificationBarFontItalic"),(int)m_NotificationBarFont.lfItalic);
 
-	Settings.Write(TEXT("DisplayMenuFont"),&m_DisplayMenuFont);
-	Settings.Write(TEXT("DisplayMenuFontAutoSize"),m_fDisplayMenuFontAutoSize);
+	Settings.Write(TEXT("DisplayMenuFont"),&m_DisplayFont);
+	Settings.Write(TEXT("DisplayMenuFontAutoSize"),m_fDisplayFontAutoSize);
 	return true;
 }
 
@@ -218,6 +227,7 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_VOLUME,(m_EnabledOSD&OSD_FLAG(OSD_VOLUME))!=0);
 			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_AUDIO,(m_EnabledOSD&OSD_FLAG(OSD_AUDIO))!=0);
 			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_RECORDING,(m_EnabledOSD&OSD_FLAG(OSD_RECORDING))!=0);
+			DlgCheckBox_Check(hDlg,IDC_OSDOPTIONS_SHOW_CHANNELNOINPUT,(m_EnabledOSD&OSD_FLAG(OSD_CHANNELNOINPUT))!=0);
 			static const LPCTSTR ChannelChangeModeText[] = {
 				TEXT("ロゴとチャンネル名"),
 				TEXT("チャンネル名のみ"),
@@ -237,9 +247,9 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			SetFontInfo(hDlg,IDC_NOTIFICATIONBAR_FONT_INFO,&m_CurNotificationBarFont);
 			EnableDlgItems(hDlg,IDC_NOTIFICATIONBAR_FIRST,IDC_NOTIFICATIONBAR_LAST,m_fEnableNotificationBar);
 
-			m_CurDisplayMenuFont=m_DisplayMenuFont;
-			SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&m_DisplayMenuFont);
-			DlgCheckBox_Check(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE,m_fDisplayMenuFontAutoSize);
+			m_DisplayFontCur=m_DisplayFont;
+			SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&m_DisplayFont);
+			DlgCheckBox_Check(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE,m_fDisplayFontAutoSize);
 		}
 		return TRUE;
 
@@ -277,8 +287,8 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			return TRUE;
 
 		case IDC_DISPLAYMENU_FONT_CHOOSE:
-			if (ChooseFontDialog(hDlg,&m_CurDisplayMenuFont))
-				SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&m_CurDisplayMenuFont);
+			if (ChooseFontDialog(hDlg,&m_DisplayFontCur))
+				SetFontInfo(hDlg,IDC_DISPLAYMENU_FONT_INFO,&m_DisplayFontCur);
 			return TRUE;
 		}
 		return TRUE;
@@ -300,6 +310,8 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					EnabledOSD|=OSD_FLAG(OSD_AUDIO);
 				if (DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOW_RECORDING))
 					EnabledOSD|=OSD_FLAG(OSD_RECORDING);
+				if (DlgCheckBox_IsChecked(hDlg,IDC_OSDOPTIONS_SHOW_CHANNELNOINPUT))
+					EnabledOSD|=OSD_FLAG(OSD_CHANNELNOINPUT);
 				m_EnabledOSD=EnabledOSD;
 				m_ChannelChangeType=(ChannelChangeType)DlgComboBox_GetCurSel(hDlg,IDC_OSDOPTIONS_CHANNELCHANGE);
 
@@ -313,8 +325,8 @@ INT_PTR COSDOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 					::GetDlgItemInt(hDlg,IDC_NOTIFICATIONBAR_DURATION,NULL,FALSE)*1000;
 				m_NotificationBarFont=m_CurNotificationBarFont;
 
-				m_DisplayMenuFont=m_CurDisplayMenuFont;
-				m_fDisplayMenuFontAutoSize=DlgCheckBox_IsChecked(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE);
+				m_DisplayFont=m_DisplayFontCur;
+				m_fDisplayFontAutoSize=DlgCheckBox_IsChecked(hDlg,IDC_DISPLAYMENU_AUTOFONTSIZE);
 
 				m_fChanged=true;
 			}

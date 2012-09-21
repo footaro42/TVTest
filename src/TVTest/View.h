@@ -9,23 +9,45 @@
 
 class ABSTRACT_CLASS(CDisplayView) : public CCustomWindow
 {
-	friend class CDisplayBase;
+public:
+	CDisplayView();
+	virtual ~CDisplayView() = 0;
+	virtual bool Close() = 0;
+	virtual bool IsMessageNeed(const MSG *pMsg) const;
+	virtual bool OnMouseWheel(UINT Msg,WPARAM wParam,LPARAM lParam) { return false; }
 
-	void SetDisplayVisible(bool fVisible);
+// CBasicWindow
+	void SetVisible(bool fVisible) override;
 
 protected:
+	enum ItemType {
+		ITEM_STYLE_NORMAL,
+		ITEM_STYLE_NORMAL_1,
+		ITEM_STYLE_NORMAL_2,
+		ITEM_STYLE_HOT,
+		ITEM_STYLE_SELECTED,
+		ITEM_STYLE_CURRENT
+	};
+
+	enum BackgroundType {
+		BACKGROUND_STYLE_CONTENT,
+		BACKGROUND_STYLE_CATEGORIES
+	};
+
 	class CDisplayBase *m_pDisplayBase;
 
 	virtual bool OnVisibleChange(bool fVisible);
 	virtual bool GetCloseButtonRect(RECT *pRect) const;
 	bool CloseButtonHitTest(int x,int y) const;
 	void DrawCloseButton(HDC hdc) const;
+	bool GetItemStyle(ItemType Type,Theme::Style *pStyle) const;
+	bool GetBackgroundStyle(BackgroundType Type,Theme::GradientInfo *pGradient) const;
+	int GetDefaultFontSize(int Width,int Height) const;
 
-public:
-	CDisplayView();
-	virtual ~CDisplayView()=0;
-// CBasicWindow
-	void SetVisible(bool fVisible) override;
+private:
+	void SetDisplayVisible(bool fVisible);
+
+	friend class CDisplayBase;
 };
 
 class CDisplayBase

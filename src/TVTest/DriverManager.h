@@ -8,13 +8,6 @@
 
 class CDriverInfo
 {
-	CDynamicString m_FileName;
-	CDynamicString m_TunerName;
-	bool m_fChannelFileLoaded;
-	CTuningSpaceList m_TuningSpaceList;
-	bool m_fDriverSpaceLoaded;
-	CTuningSpaceList m_DriverSpaceList;
-
 public:
 	CDriverInfo(LPCTSTR pszFileName);
 	~CDriverInfo();
@@ -27,6 +20,7 @@ public:
 		LOADTUNINGSPACE_USEDRIVER_NOOPEN,
 	};
 	bool LoadTuningSpaceList(LoadTuningSpaceListMode Mode=LOADTUNINGSPACE_DEFAULT);
+	void ClearTuningSpaceList();
 	bool IsChannelFileLoaded() const { return m_fChannelFileLoaded; }
 	bool IsDriverChannelLoaded() const { return m_fDriverSpaceLoaded; }
 	bool IsTuningSpaceListLoaded() const {
@@ -37,24 +31,33 @@ public:
 	const CTuningSpaceList *GetAvailableTuningSpaceList() const;
 	const CChannelList *GetChannelList(int Space) const;
 	int NumDriverSpaces() const { return m_DriverSpaceList.NumSpaces(); }
+
+private:
+	CDynamicString m_FileName;
+	CDynamicString m_TunerName;
+	bool m_fChannelFileLoaded;
+	CTuningSpaceList m_TuningSpaceList;
+	bool m_fDriverSpaceLoaded;
+	CTuningSpaceList m_DriverSpaceList;
 };
 
 class CDriverManager
 {
-	std::vector<CDriverInfo*> m_DriverList;
-	CDynamicString m_BaseDirectory;
-
-	static bool CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2);
-
 public:
 	CDriverManager();
 	~CDriverManager();
 	void Clear();
-	int NumDrivers() const { return (int)m_DriverList.size(); }
 	bool Find(LPCTSTR pszDirectory);
+	LPCTSTR GetBaseDirectory() const { return m_BaseDirectory.Get(); }
+	int NumDrivers() const { return (int)m_DriverList.size(); }
 	CDriverInfo *GetDriverInfo(int Index);
 	const CDriverInfo *GetDriverInfo(int Index) const;
-	LPCTSTR GetBaseDirectory() const { return m_BaseDirectory.Get(); }
+	int FindByFileName(LPCTSTR pszFileName) const;
+	bool GetAllServiceList(CChannelList *pList) const;
+
+private:
+	std::vector<CDriverInfo*> m_DriverList;
+	CDynamicString m_BaseDirectory;
 };
 
 

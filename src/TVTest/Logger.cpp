@@ -13,6 +13,9 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define MAX_LOG_TEXT_LENGTH 1024
+
+
 
 
 CLogItem::CLogItem(LPCTSTR pszText)
@@ -38,20 +41,56 @@ void CLogItem::GetTime(SYSTEMTIME *pTime) const
 
 int CLogItem::Format(char *pszText,int MaxLength) const
 {
+	int Length;
+
+	Length=FormatTime(pszText,MaxLength);
+	pszText[Length++]='>';
+	Length+=::WideCharToMultiByte(CP_ACP,0,m_Text.Get(),m_Text.Length(),
+								  pszText+Length,MaxLength-Length-1,NULL,NULL);
+	pszText[Length]='\0';
+	return Length;
+}
+
+
+int CLogItem::Format(WCHAR *pszText,int MaxLength) const
+{
+	int Length;
+
+	Length=FormatTime(pszText,MaxLength);
+	pszText[Length++]=L'>';
+	::lstrcpynW(pszText+Length,m_Text.Get(),MaxLength-Length);
+	Length+=::lstrlenW(pszText+Length);
+	return Length;
+}
+
+
+int CLogItem::FormatTime(char *pszText,int MaxLength) const
+{
 	SYSTEMTIME st;
 	int Length;
 
 	GetTime(&st);
-	Length=::GetDateFormatA(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,
-											NULL,pszText,MaxLength-1);
+	Length=::GetDateFormatA(LOCALE_USER_DEFAULT,DATE_SHORTDATE,
+							&st,NULL,pszText,MaxLength-1);
 	pszText[Length-1]=' ';
-	Length+=::GetTimeFormatA(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,
-								NULL,pszText+Length,MaxLength-Length);
-	pszText[Length-1]='>';
-	Length+=::WideCharToMultiByte(CP_ACP,0,m_Text.Get(),m_Text.Length(),
-									pszText+Length,MaxLength-Length-1,NULL,NULL);
-	pszText[Length]='\0';
-	return Length;
+	Length+=::GetTimeFormatA(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,
+							 &st,NULL,pszText+Length,MaxLength-Length);
+	return Length-1;
+}
+
+
+int CLogItem::FormatTime(WCHAR *pszText,int MaxLength) const
+{
+	SYSTEMTIME st;
+	int Length;
+
+	GetTime(&st);
+	Length=::GetDateFormatW(LOCALE_USER_DEFAULT,DATE_SHORTDATE,
+							&st,NULL,pszText,MaxLength-1);
+	pszText[Length-1]=L' ';
+	Length+=::GetTimeFormatW(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,
+							 &st,NULL,pszText+Length,MaxLength-Length);
+	return Length-1;
 }
 
 
@@ -119,7 +158,7 @@ bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 
 	CBlockLock Lock(&m_Lock);
 
-	TCHAR szText[1024];
+	TCHAR szText[MAX_LOG_TEXT_LENGTH];
 	StdUtil::vsnprintf(szText,lengthof(szText),pszText,Args);
 	CLogItem *pLogItem=new CLogItem(szText);
 	m_LogList.push_back(pLogItem);
@@ -133,7 +172,7 @@ bool CLogger::AddLogV(LPCTSTR pszText,va_list Args)
 		hFile=::CreateFile(szFileName,GENERIC_WRITE,FILE_SHARE_READ,NULL,
 						   OPEN_ALWAYS,FILE_ATTRIBUTE_NORMAL,NULL);
 		if (hFile!=INVALID_HANDLE_VALUE) {
-			char szText[1024];
+			char szText[MAX_LOG_TEXT_LENGTH];
 			DWORD Length,Write;
 
 			::SetFilePointer(hFile,0,NULL,FILE_END);
@@ -153,8 +192,8 @@ void CLogger::Clear()
 {
 	CBlockLock Lock(&m_Lock);
 
-	for (size_t i=0;i<m_LogList.size();i++)
-		delete m_LogList[i];
+	for (auto itr=m_LogList.begin();itr!=m_LogList.end();++itr)
+		delete *itr;
 	m_LogList.clear();
 }
 
@@ -182,11 +221,11 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend)
 
 	m_Lock.Lock();
 
-	for (size_t i=0;i<m_LogList.size();i++) {
-		char szText[1024];
+	for (auto itr=m_LogList.begin();itr!=m_LogList.end();++itr) {
+		char szText[MAX_LOG_TEXT_LENGTH];
 		DWORD Length,Write;
 
-		Length=m_LogList[i]->Format(szText,lengthof(szText)-1);
+		Length=(*itr)->Format(szText,lengthof(szText)-1);
 		szText[Length++]='\r';
 		szText[Length++]='\n';
 		::WriteFile(hFile,szText,Length,&Write,NULL);
@@ -195,6 +234,7 @@ bool CLogger::SaveToFile(LPCTSTR pszFileName,bool fAppend)
 	m_Lock.Unlock();
 
 	::CloseHandle(hFile);
+
 	return true;
 }
 
@@ -206,14 +246,34 @@ void CLogger::GetDefaultLogFileName(LPTSTR pszFileName) const
 }
 
 
+bool CLogger::CopyToClipboard(HWND hwnd)
+{
+	TVTest::String LogText;
+
+	m_Lock.Lock();
+
+	for (auto itr=m_LogList.begin();itr!=m_LogList.end();++itr) {
+		TCHAR szText[MAX_LOG_TEXT_LENGTH];
+
+		(*itr)->Format(szText,lengthof(szText));
+		LogText+=szText;
+		LogText+=TEXT("\r\n");
+	}
+
+	m_Lock.Unlock();
+
+	return CopyTextToClipboard(hwnd,LogText.c_str());
+}
+
+
 INT_PTR CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 {
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
 			HWND hwndList=GetDlgItem(hDlg,IDC_LOG_LIST);
-			LV_COLUMN lvc;
-			LV_ITEM lvi;
+			LVCOLUMN lvc;
+			LVITEM lvi;
 
 			ListView_SetExtendedListViewStyle(hwndList,LVS_EX_FULLROWSELECT | LVS_EX_LABELTIP);
 			lvc.mask=LVCF_FMT | LVCF_WIDTH | LVCF_TEXT;
@@ -223,32 +283,27 @@ INT_PTR CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 			ListView_InsertColumn(hwndList,0,&lvc);
 			lvc.pszText=TEXT("“à—e");
 			ListView_InsertColumn(hwndList,1,&lvc);
+
+			lvi.iItem=0;
 			lvi.mask=LVIF_TEXT;
 			m_Lock.Lock();
 			ListView_SetItemCount(hwndList,(int)m_LogList.size());
-			for (size_t i=0;i<m_LogList.size();i++) {
-				const CLogItem *pLogItem=m_LogList[i];
-				SYSTEMTIME st;
-				int Length;
+			for (auto itr=m_LogList.begin();itr!=m_LogList.end();++itr) {
+				const CLogItem *pLogItem=*itr;
 				TCHAR szTime[64];
 
-				lvi.iItem=(int)i;
 				lvi.iSubItem=0;
-				pLogItem->GetTime(&st);
-				Length=::GetDateFormat(LOCALE_USER_DEFAULT,DATE_SHORTDATE,&st,
-											NULL,szTime,lengthof(szTime)-1);
-				szTime[Length-1]=_T(' ');
-				::GetTimeFormat(LOCALE_USER_DEFAULT,TIME_FORCE24HOURFORMAT,&st,
-								NULL,szTime+Length,lengthof(szTime)-Length);
+				pLogItem->FormatTime(szTime,lengthof(szTime));
 				lvi.pszText=szTime;
 				ListView_InsertItem(hwndList,&lvi);
 				lvi.iSubItem=1;
-				lvi.pszText=(LPTSTR)pLogItem->GetText();
+				lvi.pszText=const_cast<LPTSTR>(pLogItem->GetText());
 				ListView_SetItem(hwndList,&lvi);
+				lvi.iItem++;
 			}
 			for (int i=0;i<2;i++)
 				ListView_SetColumnWidth(hwndList,i,LVSCW_AUTOSIZE_USEHEADER);
-			if (m_LogList.size()>0)
+			if (!m_LogList.empty())
 				ListView_EnsureVisible(hwndList,(int)m_LogList.size()-1,FALSE);
 			m_Lock.Unlock();
 
@@ -261,6 +316,10 @@ INT_PTR CLogger::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 		case IDC_LOG_CLEAR:
 			ListView_DeleteAllItems(GetDlgItem(hDlg,IDC_LOG_LIST));
 			Clear();
+			return TRUE;
+
+		case IDC_LOG_COPY:
+			CopyToClipboard(GetAppClass().GetUICore()->GetMainWindow());
 			return TRUE;
 
 		case IDC_LOG_SAVE:

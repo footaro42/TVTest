@@ -270,7 +270,7 @@ void CEpgDataConverter::ConvertEventInfo(const CEventInfoData &EventData,
 	TVTest::EpgEventInfo *pEventInfo=*ppEventInfo;
 	pEventInfo->EventID=EventData.m_EventID;
 	pEventInfo->RunningStatus=EventData.m_RunningStatus;
-	pEventInfo->FreeCaMode=EventData.m_FreeCaMode==CEventInfoData::FREE_CA_MODE_SCRAMBLED;
+	pEventInfo->FreeCaMode=EventData.m_CaType==CEventInfoData::CA_TYPE_CHARGEABLE;
 	pEventInfo->Reserved=0;
 	pEventInfo->StartTime=EventData.m_stStartTime;
 	pEventInfo->Duration=EventData.m_DurationSec;
@@ -1037,8 +1037,8 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			if (pInfo->Size==sizeof(TVTest::StatusInfo)) {
 				pInfo->DropPacketCount=DropCount;
 				if (pCoreEngine->GetDescramble()
-					&& pCoreEngine->GetCardReaderType()!=CCoreEngine::CARDREADER_NONE) {
-					if (pCoreEngine->m_DtvEngine.m_TsDescrambler.IsBcasCardOpen()) {
+						&& pCoreEngine->GetCasDevice()>=0) {
+					if (pCoreEngine->m_DtvEngine.m_CasProcessor.IsCasCardOpen()) {
 						pInfo->BcasCardStatus=TVTest::BCAS_STATUS_OK;
 					} else {
 						// Žæ‚è‚ ‚¦‚¸...
@@ -1256,8 +1256,10 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 												 pProgramInfo->MaxEventExtText,
 												 fNext);
 			}
-			pDtvEngine->GetEventTime(&pProgramInfo->StartTime,NULL,fNext);
-			pProgramInfo->Duration=pDtvEngine->GetEventDuration(fNext);
+			if (!pDtvEngine->GetEventTime(&pProgramInfo->StartTime,&pProgramInfo->Duration,fNext)) {
+				::ZeroMemory(&pProgramInfo->StartTime,sizeof(SYSTEMTIME));
+				pProgramInfo->Duration=0;
+			}
 		}
 		return TRUE;
 
@@ -1388,27 +1390,24 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 			if (pBCasInfo==NULL || pBCasInfo->Size!=sizeof(TVTest::BCasInfo))
 				return FALSE;
 
-			CTsDescrambler *pDescrambler=&GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsDescrambler;
-			CBcasCard::BcasCardInfo CardInfo;
-			if (!pDescrambler->GetBcasCardInfo(&CardInfo))
+			CCasProcessor::CasCardInfo CardInfo;
+			if (!GetAppClass().GetCoreEngine()->m_DtvEngine.m_CasProcessor.GetCasCardInfo(&CardInfo))
 				return FALSE;
 			pBCasInfo->CASystemID=CardInfo.CASystemID;
-			::CopyMemory(pBCasInfo->CardID,CardInfo.BcasCardID,6);
+			::CopyMemory(pBCasInfo->CardID,CardInfo.CardID,6);
 			pBCasInfo->CardType=CardInfo.CardType;
 			pBCasInfo->MessagePartitionLength=CardInfo.MessagePartitionLength;
 			::CopyMemory(pBCasInfo->SystemKey,CardInfo.SystemKey,32);
-			::CopyMemory(pBCasInfo->InitialCBC,CardInfo.InitialCbc,8);
+			::CopyMemory(pBCasInfo->InitialCBC,CardInfo.InitialCBC,8);
 			pBCasInfo->CardManufacturerID=CardInfo.CardManufacturerID;
+			pBCasInfo->CardVersion=CardInfo.CardVersion;
 			pBCasInfo->CheckCode=CardInfo.CheckCode;
 #ifdef UNICODE
-			WCHAR szCardID[25];
-			pDescrambler->FormatBcasCardID(szCardID,lengthof(szCardID));
-			::WideCharToMultiByte(CP_ACP,0,szCardID,-1,
+			::WideCharToMultiByte(CP_ACP,0,CardInfo.CardIDText,-1,
 								  pBCasInfo->szFormatCardID,lengthof(pBCasInfo->szFormatCardID),NULL,NULL);
 #else
-			pDescrambler->FormatBcasCardID(pBCasInfo->szFormatCardID,lengthof(pBCasInfo->szFormatCardID));
+			::lstrcpyn(pBCasInfo->szFormatCardID,CardInfo.CardIDText,lengthof(pBCasInfo->szFormatCardID));
 #endif
-
 		}
 		return TRUE;
 
@@ -1421,7 +1420,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 					|| pBCasCommand->pReceiveData==NULL)
 				return FALSE;
 
-			return GetAppClass().GetCoreEngine()->m_DtvEngine.m_TsDescrambler.SendBcasCommand(
+			return GetAppClass().GetCoreEngine()->m_DtvEngine.m_CasProcessor.SendCasCommand(
 				pBCasCommand->pSendData, pBCasCommand->SendSize,
 				pBCasCommand->pReceiveData, &pBCasCommand->ReceiveSize);
 		}
@@ -1451,7 +1450,7 @@ LRESULT CALLBACK CPlugin::Callback(TVTest::PluginParam *pParam,UINT Message,LPAR
 				if (pSetting->Type!=TVTest::SETTING_TYPE_STRING)
 					return FALSE;
 				TCHAR szDirectory[MAX_PATH];
-				GetAppClass().GetDriverDirectory(szDirectory);
+				GetAppClass().GetDriverDirectory(szDirectory,lengthof(szDirectory));
 				if (pSetting->Value.pszString!=NULL)
 					::lstrcpyn(pSetting->Value.pszString,szDirectory,pSetting->ValueSize);
 				else
@@ -1913,7 +1912,7 @@ LRESULT CPlugin::OnPluginMessage(WPARAM wParam,LPARAM lParam)
 
 			if (pszDriverName==NULL)
 				return FALSE;
-			return GetAppClass().SetDriver(pszDriverName);
+			return GetAppClass().OpenTuner(pszDriverName);
 		}
 
 	case TVTest::MESSAGE_STARTRECORD:
@@ -2223,7 +2222,7 @@ LRESULT CPlugin::OnPluginMessage(WPARAM wParam,LPARAM lParam)
 			int MaxLength=(int)pParam->lParam2;
 			TCHAR szFileName[MAX_PATH];
 
-			if (!GetAppClass().GetCoreEngine()->GetDriverPath(szFileName))
+			if (!GetAppClass().GetCoreEngine()->GetDriverPath(szFileName,lengthof(szFileName)))
 				return 0;
 			if (pszPath!=NULL && MaxLength>0)
 				::lstrcpyn(pszPath,szFileName,MaxLength);

@@ -18,13 +18,18 @@ public:
 		virtual bool SetOSDHideTimer(DWORD Delay)=0;
 	};
 
+	enum {
+		SHOW_NO_FADE = 0x0001U,
+		SHOW_PSEUDO  = 0x0002U
+	};
+
 	COSDManager(const COSDOptions *pOptions);
 	~COSDManager();
 	void SetEventHandler(CEventHandler *pEventHandler);
 	void Reset();
 	void ClearOSD();
 	void OnParentMove();
-	bool ShowOSD(LPCTSTR pszText);
+	bool ShowOSD(LPCTSTR pszText,unsigned int Flags=0);
 	void HideOSD();
 	bool ShowChannelOSD(const CChannelInfo *pInfo,bool fChanging=false);
 	void HideChannelOSD();

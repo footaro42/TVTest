@@ -15,6 +15,8 @@
 class CMainMenu
 {
 	HMENU m_hmenu;
+	HMENU m_hmenuPopup;
+	HMENU m_hmenuShow;
 	bool m_fPopup;
 	int m_PopupMenu;
 
@@ -30,20 +32,22 @@ public:
 		SUBMENU_CHANNELHISTORY	= 9,
 		SUBMENU_VOLUME			= 11,
 		SUBMENU_AUDIO			= 12,
+		SUBMENU_RESET			= 22,
 		SUBMENU_BAR				= 26,
 		SUBMENU_PLUGIN			= 27,
 		SUBMENU_FILTERPROPERTY	= 29
 	};
+
 	CMainMenu();
 	~CMainMenu();
 	bool Create(HINSTANCE hinst);
 	void Destroy();
-	bool Show(UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
+	bool Show(UINT Flags,int x,int y,HWND hwnd,bool fToggle=true,const std::vector<int> *pItemList=NULL);
 	bool PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd,bool fToggle=true);
 	void EnableItem(UINT ID,bool fEnable);
 	void CheckItem(UINT ID,bool fCheck);
 	void CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID);
-	HMENU GetMenuHandle() const;
+	bool IsMainMenu(HMENU hmenu) const;
 	HMENU GetSubMenu(int SubMenu) const;
 	bool SetAccelerator(CAccelerator *pAccelerator);
 };

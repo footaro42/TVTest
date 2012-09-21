@@ -9,11 +9,33 @@
 
 class CChannelScan : public COptions
 {
+public:
+	CChannelScan();
+	~CChannelScan();
+
+// COptions
+	bool Apply(DWORD Flags) override;
+
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
+
+// CBasicDialog
+	bool Create(HWND hwndOwner) override;
+
+// CChannelScan
+	bool SetTuningSpaceList(const CTuningSpaceList *pTuningSpaceList);
+	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
+	bool IsScanning() const { return m_hScanThread!=NULL; }
+
+	bool AutoUpdateChannelList(CTuningSpaceList *pTuningSpaceList,std::vector<TVTest::String> *pMessageList=NULL);
+
+private:
 	enum {
 		UPDATE_CHANNELLIST	= 0x0000001UL,
 		UPDATE_PREVIEW		= 0x0000002UL
 	};
-	CCoreEngine *m_pCoreEngine;
+
 	int m_ScanSpace;
 	int m_ScanChannel;
 	const CTuningSpaceList *m_pOriginalTuningSpaceList;
@@ -36,7 +58,9 @@ class CChannelScan : public COptions
 	bool m_fSortDescending;
 	bool m_fChanging;
 	float m_MaxSignalLevel;
+	float m_ChannelMaxSignalLevel;
 	DWORD m_MaxBitRate;
+	std::vector<float> m_ChannelSignalLevel;
 
 // CBasicDialog
 	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
@@ -46,26 +70,15 @@ class CChannelScan : public COptions
 	CChannelInfo *GetSelectedChannelInfo() const;
 	bool LoadPreset(LPCTSTR pszFileName,CChannelList *pChannelList,int Space,bool *pfCorrupted);
 	bool SetPreset(bool fAuto);
+	void Scan();
 	float GetSignalLevel();
-	static unsigned int __stdcall ScanProc(LPVOID lpParameter);
-	static INT_PTR CALLBACK ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	static INT_PTR CALLBACK ChannelPropDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
-	static CChannelScan *GetThis(HWND hDlg);
+	INT_PTR ScanDlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 
-public:
-	CChannelScan(CCoreEngine *pCoreEngine);
-	~CChannelScan();
-// COptions
-	bool Apply(DWORD Flags) override;
-// CSettingsBase
-	bool ReadSettings(CSettings &Settings) override;
-	bool WriteSettings(CSettings &Settings) override;
-// CBasicDialog
-	bool Create(HWND hwndOwner) override;
-// CChannelScan
-	bool SetTuningSpaceList(const CTuningSpaceList *pTuningSpaceList);
-	const CTuningSpaceList *GetTuningSpaceList() const { return &m_TuningSpaceList; }
-	bool IsScanning() const { return m_hScanThread!=NULL; }
+	static bool IsScanService(const CTsAnalyzer::SdtServiceInfo &ServiceInfo,bool fData=true);
+	static bool IsScanServiceType(BYTE ServiceType,bool fData=true);
+
+	static unsigned int __stdcall ScanProc(LPVOID lpParameter);
+	static INT_PTR CALLBACK ScanDialogProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam);
 };
 
 

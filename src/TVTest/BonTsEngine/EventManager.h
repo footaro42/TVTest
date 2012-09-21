@@ -1,9 +1,15 @@
 #pragma once
 
+#if (_MSC_VER >= 1600) || (__cplusplus >= 201103)
+#define EVENTMANAGER_USE_UNORDERED_MAP
+#endif
 
 #include <map>
 #include <set>
 #include <vector>
+#ifdef EVENTMANAGER_USE_UNORDERED_MAP
+#include <unordered_map>
+#endif
 #include "MediaDecoder.h"
 #include "TsTable.h"
 
@@ -11,8 +17,9 @@
 /*
 	î‘ëgèÓïÒä«óùÉNÉâÉX
 */
-class CEventManager : public CMediaDecoder
-					, public CPsiStreamTable::ISectionHandler
+class CEventManager
+	: public CMediaDecoder
+	, public CPsiStreamTable::ISectionHandler
 {
 public:
 	class CEventInfo {
@@ -144,11 +151,24 @@ public:
 			}
 		};
 
+		enum {
+			TYPE_BASIC     = 0x0001U,
+			TYPE_EXTENDED  = 0x0002U,
+			TYPE_PRESENT   = 0x0004U,
+			TYPE_FOLLOWING = 0x0008U
+		};
+
 		CEventInfo();
 		CEventInfo(const CEventInfo &Src);
 		~CEventInfo();
 		CEventInfo &operator=(const CEventInfo &Src);
 		ULONGLONG GetUpdateTime() const { return m_UpdateTime; }
+		unsigned int GetType() const { return m_Type; }
+		bool HasBasic() const { return (m_Type & TYPE_BASIC) != 0; }
+		bool HasExtended() const { return (m_Type & TYPE_EXTENDED) != 0; }
+		bool IsPresent() const { return (m_Type & TYPE_PRESENT) != 0; }
+		bool IsFollowing() const { return (m_Type & TYPE_FOLLOWING) != 0; }
+		bool IsPresentFollowing() const { return (m_Type & (TYPE_PRESENT | TYPE_FOLLOWING)) != 0; }
 		WORD GetEventID() const { return m_EventID; }
 		const SYSTEMTIME &GetStartTime() const { return m_StartTime; }
 		DWORD GetDuration() const { return m_Duration; }
@@ -170,6 +190,7 @@ public:
 
 	private:
 		ULONGLONG m_UpdateTime;
+		unsigned int m_Type;
 		WORD m_EventID;
 		SYSTEMTIME m_StartTime;
 		DWORD m_Duration;
@@ -184,7 +205,9 @@ public:
 		EventGroupList m_EventGroupList;
 		bool m_bCommonEvent;
 		CommonEventInfo m_CommonEventInfo;
+
 		void SetText(LPTSTR *ppszText, LPCTSTR pszNewText);
+
 		friend class CEventManager;
 	};
 	typedef std::vector<CEventInfo> EventList;
@@ -213,6 +236,16 @@ public:
 					  const WORD EventID, CEventInfo *pInfo);
 	bool GetEventInfo(const WORD NetworkID, const WORD TransportStreamID, const WORD ServiceID,
 					  const SYSTEMTIME *pTime, CEventInfo *pInfo);
+	bool IsScheduleComplete(const WORD NetworkID, const WORD TransportStreamID, const WORD ServiceID, const bool bExtended = false);
+	bool HasSchedule(const WORD NetworkID, const WORD TransportStreamID, const WORD ServiceID, const bool bExtended = false);
+
+	static ULONGLONG SystemTimeToSeconds(const SYSTEMTIME &Time)
+	{
+		FILETIME ft;
+		if (!::SystemTimeToFileTime(&Time, &ft))
+			return 0;
+		return (((ULONGLONG)ft.dwHighDateTime << 32) | (ULONGLONG)ft.dwLowDateTime) / 10000000ULL;
+	}
 
 protected:
 	struct TimeEventInfo {
@@ -220,13 +253,48 @@ protected:
 		DWORD Duration;
 		WORD EventID;
 		ULONGLONG UpdateTime;
-		TimeEventInfo(const SYSTEMTIME *pStartTime);
+
+		TimeEventInfo(ULONGLONG Time);
+		TimeEventInfo(const SYSTEMTIME &StartTime);
 		bool operator<(const TimeEventInfo &Obj) const {
 			return StartTime < Obj.StartTime;
 		}
 	};
 
+	class CScheduleInfo {
+	public:
+		CScheduleInfo();
+		void Clear();
+		bool IsComplete(int Hour, bool bExtended) const;
+		bool IsTableComplete(int Table, int Hour, bool bExtended) const;
+		bool HasSchedule(const bool bExtended) const;
+		bool OnSection(const class CEitTable *pTable, const CPsiSection *pSection);
+
+	private:
+		struct SegmentInfo {
+			BYTE SectionNum;
+			BYTE Flags;
+		};
+
+		struct TableInfo {
+			BYTE Version;
+			SegmentInfo SegmentList[32];
+		};
+
+		struct TableList {
+			BYTE TableNum;
+			TableInfo Table[8];
+		};
+
+		TableList m_Basic;
+		TableList m_Extended;
+	};
+
+#ifdef EVENTMANAGER_USE_UNORDERED_MAP
+	typedef std::unordered_map<WORD, CEventInfo> EventMap;
+#else
 	typedef std::map<WORD, CEventInfo> EventMap;
+#endif
 	typedef std::set<TimeEventInfo> TimeEventMap;
 
 	struct ServiceEventMap {
@@ -234,6 +302,8 @@ protected:
 		EventMap EventMap;
 		TimeEventMap TimeMap;
 		bool bUpdated;
+		CScheduleInfo Schedule;
+		SYSTEMTIME ScheduleUpdatedTime;
 	};
 
 	typedef ULONGLONG ServiceMapKey;
@@ -246,7 +316,8 @@ protected:
 
 	CTsPidMapManager m_PidMapManager;
 	ServiceMap m_ServiceMap;
-	ULONGLONG m_CurTotTime;
+	SYSTEMTIME m_CurTotTime;
+	ULONGLONG m_CurTotSeconds;
 
 	static bool RemoveEvent(EventMap *pMap, const WORD EventID);
 

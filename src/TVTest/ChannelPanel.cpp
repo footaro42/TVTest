@@ -3,6 +3,7 @@
 #include "ChannelPanel.h"
 #include "StdUtil.h"
 #include "DrawUtil.h"
+#include "EpgUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -12,14 +13,8 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define CHANNEL_LEFT_MARGIN		2
-#define CHANNEL_RIGHT_MARGIN	2
-#define EVENT_LEFT_MARGIN	8
 #define CHEVRON_WIDTH	10
 #define CHEVRON_HEIGHT	10
-
-#define EXPAND_INCREASE_EVENTS 4
-
 
 
 const LPCTSTR CChannelPanel::m_pszClassName=APP_NAME TEXT(" Channel Panel");
@@ -54,14 +49,18 @@ CChannelPanel::CChannelPanel()
 	, m_EventInfoPopupHandler(this)
 	, m_pProgramList(NULL)
 	, m_FontHeight(0)
-	, m_ChannelNameMargin(2)
-	, m_EventNameMargin(1)
 	, m_EventNameLines(2)
+	, m_ChannelNameMargins(2,2,2,2)
+	, m_EventNameMargins(8,1,2,1)
+	, m_ChannelChevronMargin(12)
+	, m_ChannelNameHeight(0)
+	, m_EventNameHeight(0)
 	, m_ItemHeight(0)
 	, m_ExpandedItemHeight(0)
 
 	, m_EventsPerChannel(2)
-	, m_ExpandEvents(m_EventsPerChannel+EXPAND_INCREASE_EVENTS)
+	, m_ExpandAdditionalEvents(4)
+	, m_ExpandEvents(m_EventsPerChannel+m_ExpandAdditionalEvents)
 	, m_ScrollPos(0)
 	, m_CurChannel(-1)
 	, m_pEventHandler(NULL)
@@ -110,6 +109,32 @@ bool CChannelPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 {
 	return CreateBasicWindow(hwndParent,Style,ExStyle,ID,
 							 m_pszClassName,TEXT("ƒ`ƒƒƒ“ƒlƒ‹"),m_hinst);
+}
+
+
+bool CChannelPanel::ReadSettings(CSettings &Settings)
+{
+	bool f;
+	if (Settings.Read(TEXT("ChannelPanelDetailToolTip"),&f))
+		SetDetailToolTip(f);
+
+	int EventsPerChannel=m_EventsPerChannel;
+	int AdditionalEvents=m_ExpandAdditionalEvents;
+	if (Settings.Read(TEXT("ChannelPanelEventsPerChannel"),&EventsPerChannel)
+			|| Settings.Read(TEXT("ChannelPanelExpandEvents"),&AdditionalEvents))
+		SetEventsPerChannel(EventsPerChannel,AdditionalEvents);
+
+	return true;
+}
+
+
+bool CChannelPanel::WriteSettings(CSettings &Settings)
+{
+	Settings.Write(TEXT("ChannelPanelDetailToolTip"),m_fDetailToolTip);
+	Settings.Write(TEXT("ChannelPanelEventsPerChannel"),m_EventsPerChannel);
+	Settings.Write(TEXT("ChannelPanelExpandEvents"),m_ExpandAdditionalEvents);
+
+	return true;
 }
 
 
@@ -217,7 +242,7 @@ bool CChannelPanel::SetChannelList(const CChannelList *pChannelList,bool fSetEve
 }
 
 
-bool CChannelPanel::UpdateChannelList(bool fUpdateProgramList)
+bool CChannelPanel::UpdateAllChannels(bool fUpdateProgramList)
 {
 	if (m_pProgramList!=NULL && !m_ChannelList.empty()) {
 		bool fChanged=false;
@@ -374,13 +399,19 @@ void CChannelPanel::SetDetailToolTip(bool fDetail)
 }
 
 
-bool CChannelPanel::SetEventsPerChannel(int Events)
+bool CChannelPanel::SetEventsPerChannel(int Events,int Expand)
 {
-	if (Events<1 || Events>4)
+	if (Events>0 && Events>MAX_EVENTS_PER_CHANNEL)
 		return false;
-	if (m_EventsPerChannel!=Events) {
-		m_EventsPerChannel=Events;
-		m_ExpandEvents=Events+EXPAND_INCREASE_EVENTS;
+	if (Expand>0 && Expand>MAX_EXPAND_EVENTS)
+		return false;
+	if ((Events>0 && m_EventsPerChannel!=Events)
+			|| (Expand>0 && m_ExpandAdditionalEvents!=Expand)) {
+		if (Events>0)
+			m_EventsPerChannel=Events;
+		if (Expand>0)
+			m_ExpandAdditionalEvents=Expand;
+		m_ExpandEvents=m_EventsPerChannel+m_ExpandAdditionalEvents;
 		for (size_t i=0;i<m_ChannelList.size();i++) {
 			CChannelEventInfo *pInfo=m_ChannelList[i];
 
@@ -388,11 +419,12 @@ bool CChannelPanel::SetEventsPerChannel(int Events)
 		}
 		if (m_hwnd!=NULL)
 			CalcItemHeight();
-		UpdateChannelList(false);
+		UpdateAllChannels(false);
 		if (m_hwnd!=NULL) {
 			m_ScrollPos=0;
 			SetScrollBar();
 			Invalidate();
+			SetTooltips();
 		}
 	}
 	return true;
@@ -512,6 +544,7 @@ LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			case SB_LINEDOWN:	Pos+=m_FontHeight;		break;
 			case SB_PAGEUP:		Pos-=Page;				break;
 			case SB_PAGEDOWN:	Pos+=Page;				break;
+			case SB_THUMBPOSITION:
 			case SB_THUMBTRACK:	Pos=HIWORD(wParam);		break;
 			case SB_TOP:		Pos=0;					break;
 			case SB_BOTTOM:		Pos=max(Height-Page,0);	break;
@@ -531,8 +564,9 @@ LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			if (Channel>=0) {
 				if (Type==HIT_CHEVRON)
 					ExpandChannel(Channel,!m_ChannelList[Channel]->IsExpanded());
-				else if (m_pEventHandler!=NULL)
-					m_pEventHandler->OnChannelClick(m_ChannelList[Channel]->GetChannelInfo());
+				else if (Type!=HIT_MARGIN
+						&& m_pEventHandler!=NULL)
+					m_pEventHandler->OnChannelClick(&m_ChannelList[Channel]->GetChannelInfo());
 			}
 		}
 		return 0;
@@ -544,9 +578,11 @@ LRESULT CChannelPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 
 	case WM_MOUSEMOVE:
 		{
-			int y=GET_Y_LPARAM(lParam);
+			HitType Type;
+			int Channel;
 
-			if (y>=0 && y<CalcHeight()-m_ScrollPos)
+			Channel=HitTest(GET_X_LPARAM(lParam),GET_Y_LPARAM(lParam),&Type);
+			if (Channel>=0 && Type!=HIT_MARGIN)
 				::SetCursor(::LoadCursor(NULL,IDC_HAND));
 			else
 				::SetCursor(::LoadCursor(NULL,IDC_ARROW));
@@ -632,7 +668,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 		CChannelEventInfo *pChannelInfo=m_ChannelList[i];
 		const bool fCurrent=pChannelInfo->GetOriginalChannelIndex()==m_CurChannel;
 
-		rc.bottom=rc.top+m_FontHeight+m_ChannelNameMargin*2;
+		rc.bottom=rc.top+m_ChannelNameHeight;
 		if (rc.bottom>prcPaint->top) {
 			const Theme::Style &Style=
 				fCurrent?m_Theme.CurChannelNameStyle:m_Theme.ChannelNameStyle;
@@ -642,10 +678,12 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 			rc.left=0;
 			rc.right=rcClient.right;
 			Theme::DrawStyleBackground(hdc,&rc,&Style);
-			rc.left=CHANNEL_LEFT_MARGIN;
-			rc.right-=CHEVRON_WIDTH+CHANNEL_RIGHT_MARGIN;
+			rc.left=m_ChannelNameMargins.left;
+			rc.right-=m_ChannelChevronMargin+CHEVRON_WIDTH+m_ChannelNameMargins.right;
 			pChannelInfo->DrawChannelName(hdc,&rc);
-			m_Chevron.Draw(hdc,rc.right,rc.top+((rc.bottom-rc.top)-CHEVRON_HEIGHT)/2,
+			m_Chevron.Draw(hdc,
+						   rc.right+m_ChannelChevronMargin,
+						   rc.top+((rc.bottom-rc.top)-CHEVRON_HEIGHT)/2,
 						   Style.TextColor,
 						   pChannelInfo->IsExpanded()?CHEVRON_WIDTH:0,0,
 						   CHEVRON_WIDTH,CHEVRON_HEIGHT);
@@ -656,7 +694,7 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 		rc.right=rcClient.right;
 		for (int j=0;j<NumEvents;j++) {
 			rc.top=rc.bottom;
-			rc.bottom=rc.top+m_FontHeight*m_EventNameLines+m_EventNameMargin*2;
+			rc.bottom=rc.top+m_EventNameHeight;
 			if (rc.bottom>prcPaint->top) {
 				const Theme::Style &Style=
 					(fCurrent?m_Theme.CurChannelEventStyle:m_Theme.EventStyle)[j%2];
@@ -665,10 +703,10 @@ void CChannelPanel::Draw(HDC hdc,const RECT *prcPaint)
 				::SetTextColor(hdc,Style.TextColor);
 				Theme::DrawStyleBackground(hdc,&rc,&Style);
 				RECT rcText;
-				rcText.left=rc.left+EVENT_LEFT_MARGIN;
-				rcText.top=rc.top+m_EventNameMargin;
-				rcText.right=rc.right;
-				rcText.bottom=rc.bottom-m_EventNameMargin;
+				rcText.left=rc.left+m_EventNameMargins.left;
+				rcText.top=rc.top+m_EventNameMargins.top;
+				rcText.right=rc.right-m_EventNameMargins.right;
+				rcText.bottom=rc.bottom-m_EventNameMargins.bottom;
 				pChannelInfo->DrawEventName(hdc,&rcText,j);
 			}
 		}
@@ -743,10 +781,11 @@ void CChannelPanel::CalcItemHeight()
 	if (hdc==NULL)
 		return;
 	m_FontHeight=m_Font.GetHeight(hdc);
-	int ChannelNameHeight=m_FontHeight+m_ChannelNameMargin*2;
-	int EventNameHeight=m_FontHeight*m_EventNameLines+m_EventNameMargin*2;
-	m_ItemHeight=EventNameHeight*m_EventsPerChannel+ChannelNameHeight;
-	m_ExpandedItemHeight=EventNameHeight*m_ExpandEvents+ChannelNameHeight;
+	m_ChannelNameHeight=m_FontHeight+m_ChannelNameMargins.top+m_ChannelNameMargins.bottom;
+	m_EventNameHeight=m_FontHeight*m_EventNameLines+
+		m_EventNameMargins.top+m_EventNameMargins.bottom;
+	m_ItemHeight=m_ChannelNameHeight+m_EventNameHeight*m_EventsPerChannel;
+	m_ExpandedItemHeight=m_ChannelNameHeight+m_EventNameHeight*m_ExpandEvents;
 	::ReleaseDC(m_hwnd,hdc);
 }
 
@@ -790,21 +829,23 @@ int CChannelPanel::HitTest(int x,int y,HitType *pType) const
 	GetClientRect(&rc);
 	rc.top=-m_ScrollPos;
 	for (int i=0;i<(int)m_ChannelList.size();i++) {
-		rc.bottom=rc.top+m_FontHeight+m_ChannelNameMargin*2;
+		rc.bottom=rc.top+m_ChannelNameHeight;
 		if (::PtInRect(&rc,pt)) {
 			if (pType!=NULL) {
-				if (x>=rc.right-(CHEVRON_WIDTH+CHANNEL_RIGHT_MARGIN))
+				if (x<rc.right-(m_ChannelChevronMargin+CHEVRON_WIDTH+m_ChannelNameMargins.right))
+					*pType=HIT_CHANNELNAME;
+				else if (x>=rc.right-(CHEVRON_WIDTH+m_ChannelNameMargins.right))
 					*pType=HIT_CHEVRON;
 				else
-					*pType=HIT_CHANNELNAME;
+					*pType=HIT_MARGIN;
 			}
 			return i;
 		}
-		int NumEvents=m_ChannelList[i]->IsExpanded()?
-											m_ExpandEvents:m_EventsPerChannel;
+		const int NumEvents=
+			m_ChannelList[i]->IsExpanded()?m_ExpandEvents:m_EventsPerChannel;
 		for (int j=0;j<NumEvents;j++) {
 			rc.top=rc.bottom;
-			rc.bottom=rc.top+m_EventNameLines*m_FontHeight+m_EventNameMargin*2;
+			rc.bottom=rc.top+m_EventNameHeight;
 			if (::PtInRect(&rc,pt)) {
 				if (pType!=NULL)
 					*pType=(HitType)(HIT_EVENT1+j);
@@ -846,11 +887,11 @@ void CChannelPanel::SetTooltips(bool fRectOnly)
 		rc.top=-m_ScrollPos;
 		ToolCount=0;
 		for (int i=0;i<(int)m_ChannelList.size();i++) {
-			rc.top+=m_FontHeight+m_ChannelNameMargin*2;
+			rc.top+=m_ChannelNameHeight;
 			int NumEvents=m_ChannelList[i]->IsExpanded()?
 											m_ExpandEvents:m_EventsPerChannel;
 			for (int j=0;j<NumEvents;j++) {
-				rc.bottom=rc.top+m_EventNameLines*m_FontHeight+m_EventNameMargin*2;
+				rc.bottom=rc.top+m_EventNameHeight;
 				if (ToolCount<NumTools)
 					m_Tooltip.SetToolRect(ToolCount,rc);
 				else
@@ -979,11 +1020,10 @@ int CChannelPanel::CChannelEventInfo::FormatEventText(LPTSTR pszText,int MaxLeng
 	}
 
 	const CEventInfoData &Info=m_EventList[Index];
-	SYSTEMTIME stEnd;
-	Info.GetEndTime(&stEnd);
-	return StdUtil::snprintf(pszText,MaxLength,TEXT("%d:%02d`%d:%02d %s%s%s"),
-							 Info.m_stStartTime.wHour,Info.m_stStartTime.wMinute,
-							 stEnd.wHour,stEnd.wMinute,
+	TCHAR szTime[EpgUtil::MAX_EVENT_TIME_LENGTH];
+	EpgUtil::FormatEventTime(&Info,szTime,lengthof(szTime));
+	return StdUtil::snprintf(pszText,MaxLength,TEXT("%s %s%s%s"),
+							 szTime,
 							 NullToEmptyString(Info.GetEventName()),
 							 Info.GetEventText()!=NULL?TEXT("\n\n"):TEXT(""),
 							 NullToEmptyString(Info.GetEventText()));
@@ -1030,15 +1070,14 @@ void CChannelPanel::CChannelEventInfo::DrawEventName(HDC hdc,const RECT *pRect,i
 {
 	if (IsEventEnabled(Index)) {
 		const CEventInfoData &Info=m_EventList[Index];
-		TCHAR szText[256];
-		SYSTEMTIME stEnd;
+		TCHAR szText[256],szTime[EpgUtil::MAX_EVENT_TIME_LENGTH];
 
-		Info.GetEndTime(&stEnd);
-		StdUtil::snprintf(szText,lengthof(szText),TEXT("%02d:%02d`%02d:%02d %s"),
-						  Info.m_stStartTime.wHour,Info.m_stStartTime.wMinute,
-						  stEnd.wHour,stEnd.wMinute,
-						  NullToEmptyString(Info.GetEventName()));
-		::DrawText(hdc,szText,-1,const_cast<LPRECT>(pRect),
+		EpgUtil::FormatEventTime(&Info,szTime,lengthof(szTime),
+								 EpgUtil::EVENT_TIME_HOUR_2DIGITS);
+		StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %s"),
+						  szTime,NullToEmptyString(Info.GetEventName()));
+		RECT rc=*pRect;
+		::DrawText(hdc,szText,-1,&rc,
 				   DT_WORDBREAK | DT_NOPREFIX | DT_END_ELLIPSIS);
 	}
 }

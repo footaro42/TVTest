@@ -30,6 +30,38 @@ inline LPCWSTR NullToEmptyString(LPCWSTR pszString) {
 	return pszString!=NULL?pszString:L"";
 }
 
+inline LPSTR StringNextChar(LPCSTR pszCur)
+{
+	return ::CharNextA(pszCur);
+}
+
+inline LPWSTR StringNextChar(LPCWSTR pszCur)
+{
+	if (*pszCur!=L'\0') {
+		if (IS_SURROGATE_PAIR(*pszCur,*(pszCur+1)))
+			return const_cast<LPWSTR>(pszCur+2);
+	}
+	return ::CharNextW(pszCur);
+}
+
+inline LPSTR StringPrevChar(LPCSTR pszString,LPCSTR pszCur)
+{
+	return ::CharPrevA(pszString,pszCur);
+}
+
+inline LPWSTR StringPrevChar(LPCWSTR pszString,LPCWSTR pszCur)
+{
+	LPWSTR pPrev=::CharPrevW(pszString,pszCur);
+	if (pPrev>pszString && IS_SURROGATE_PAIR(*(pPrev-1),*pPrev))
+		pPrev--;
+	return pPrev;
+}
+
+template<typename T> int StringCharLength(T pszString)
+{
+	return (int)(StringNextChar(pszString)-pszString);
+}
+
 
 namespace TVTest
 {
@@ -53,6 +85,8 @@ namespace TVTest
 		bool ToAnsi(const String &Src,AnsiString *pDst);
 		bool Split(const String &Src,LPCWSTR pszDelimiter,std::vector<String> *pList);
 		bool Combine(const std::vector<String> &List,LPCWSTR pszDelimiter,String *pDst);
+		bool Encode(LPCWSTR pszSrc,String *pDst,LPCWSTR pszEncodeChars=L"\\\"\',/");
+		bool Decode(LPCWSTR pszSrc,String *pDst);
 
 	}
 

@@ -1909,6 +1909,149 @@ const bool CDownloadContentDesc::StoreContents(const BYTE *pPayload)
 
 
 /////////////////////////////////////////////////////////////////////////////
+// [0xCB] CA Contract Info 記述子抽象化クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CCaContractInfoDesc::CCaContractInfoDesc()
+{
+	Reset();
+}
+
+CCaContractInfoDesc::CCaContractInfoDesc(const CCaContractInfoDesc &Operand)
+{
+	CopyDesc(&Operand);
+}
+
+CCaContractInfoDesc & CCaContractInfoDesc::operator = (const CCaContractInfoDesc &Operand)
+{
+	CopyDesc(&Operand);
+
+	return *this;
+}
+
+void CCaContractInfoDesc::CopyDesc(const CBaseDesc *pOperand)
+{
+	CBaseDesc::CopyDesc(pOperand);
+
+	const CCaContractInfoDesc *pSrcDesc = dynamic_cast<const CCaContractInfoDesc *>(pOperand);
+
+	if (pSrcDesc && pSrcDesc != this) {
+		m_CaUnitID = pSrcDesc->m_CaUnitID;
+		m_NumOfComponent = pSrcDesc->m_NumOfComponent;
+		::CopyMemory(m_ComponentTag, pSrcDesc->m_ComponentTag, pSrcDesc->m_NumOfComponent);
+		m_ContractVerificationInfoLength = pSrcDesc->m_ContractVerificationInfoLength;
+		::CopyMemory(m_ContractVerificationInfo, pSrcDesc->m_ContractVerificationInfo,
+					 pSrcDesc->m_ContractVerificationInfoLength);
+		::lstrcpyn(m_szFeeName, pSrcDesc->m_szFeeName, MAX_FEE_NAME);
+	}
+}
+
+void CCaContractInfoDesc::Reset(void)
+{
+	CBaseDesc::Reset();
+
+	m_CaSystemID = 0x0000;
+	m_CaUnitID = 0x0;
+	m_NumOfComponent = 0;
+	m_ContractVerificationInfoLength = 0;
+	m_szFeeName[0] = _T('\0');
+}
+
+WORD CCaContractInfoDesc::GetCaSystemID() const
+{
+	return m_CaSystemID;
+}
+
+BYTE CCaContractInfoDesc::GetCaUnitID() const
+{
+	return m_CaUnitID;
+}
+
+BYTE CCaContractInfoDesc::GetNumOfComponent() const
+{
+	return m_NumOfComponent;
+}
+
+BYTE CCaContractInfoDesc::GetComponentTag(BYTE Index) const
+{
+	if (Index >= m_NumOfComponent)
+		return 0x00;
+	return m_ComponentTag[Index];
+}
+
+BYTE CCaContractInfoDesc::GetContractVerificationInfoLength() const
+{
+	return m_ContractVerificationInfoLength;
+}
+
+BYTE CCaContractInfoDesc::GetContractVerificationInfo(BYTE *pInfo, BYTE MaxLength) const
+{
+	if (!pInfo || MaxLength < m_ContractVerificationInfoLength)
+		return 0;
+
+	::CopyMemory(pInfo, m_ContractVerificationInfo, m_ContractVerificationInfoLength);
+
+	return m_ContractVerificationInfoLength;
+}
+
+int CCaContractInfoDesc::GetFeeName(LPTSTR pszName, int MaxName) const
+{
+	if (pszName && MaxName > 0)
+		::lstrcpyn(pszName, m_szFeeName, MaxName);
+
+	return ::lstrlen(m_szFeeName);
+}
+
+const bool CCaContractInfoDesc::StoreContents(const BYTE *pPayload)
+{
+	if (m_byDescTag != DESC_TAG || m_byDescLen < 7)
+		return false;
+
+	m_CaSystemID = (pPayload[0] << 8) | pPayload[1];
+	m_CaUnitID = pPayload[2] >> 4;
+	if (m_CaUnitID == 0x0) {
+		Reset();
+		return false;
+	}
+
+	// Component Tag
+	m_NumOfComponent = pPayload[2] & 0x0F;
+	if (m_NumOfComponent == 0
+			|| m_NumOfComponent > MAX_NUM_OF_COMPONENT
+			|| m_byDescLen < 7 + m_NumOfComponent) {
+		Reset();
+		return false;
+	}
+	int Pos = 3;
+	::CopyMemory(m_ComponentTag, &pPayload[Pos], m_NumOfComponent);
+	Pos += m_NumOfComponent;
+
+	// Contract Verification Info
+	m_ContractVerificationInfoLength = pPayload[Pos++];
+	if (m_ContractVerificationInfoLength > MAX_VERIFICATION_INFO_LENGTH
+			|| m_byDescLen < Pos + m_ContractVerificationInfoLength + 1) {
+		Reset();
+		return false;
+	}
+	::CopyMemory(m_ContractVerificationInfo, &pPayload[Pos], m_ContractVerificationInfoLength);
+	Pos += m_ContractVerificationInfoLength;
+
+	// Fee Name
+	const BYTE FeeNameLength = pPayload[Pos++];
+	m_szFeeName[0] = _T('\0');
+	if (FeeNameLength > 0) {
+		if (m_byDescLen < Pos + FeeNameLength) {
+			Reset();
+			return false;
+		}
+		CAribString::AribToString(m_szFeeName, MAX_FEE_NAME, &pPayload[Pos], FeeNameLength);
+	}
+
+	return true;
+}
+
+
+/////////////////////////////////////////////////////////////////////////////
 // 記述子ブロック抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
@@ -2057,6 +2200,7 @@ CBaseDesc * CDescBlock::CreateDescInstance(const BYTE byTag)
 	case CEventGroupDesc::DESC_TAG					: return new CEventGroupDesc;
 	case CLocalTimeOffsetDesc::DESC_TAG				: return new CLocalTimeOffsetDesc;
 	case CDownloadContentDesc::DESC_TAG				: return new CDownloadContentDesc;
+	case CCaContractInfoDesc::DESC_TAG				: return new CCaContractInfoDesc;
 	default											: return new CBaseDesc;
 	}
 }

@@ -5,6 +5,7 @@
 #include "PanelForm.h"
 #include "Settings.h"
 #include "DrawUtil.h"
+#include "RichEditUtil.h"
 
 
 class CInformationPanel : public CPanelForm::CPage, public CSettingsBase
@@ -29,6 +30,42 @@ public:
 		NUM_ITEMS,
 	};
 
+	static bool Initialize(HINSTANCE hinst);
+
+	CInformationPanel();
+	~CInformationPanel();
+
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
+
+// CInformationPanel
+	void ResetStatistics();
+	bool IsVisible() const;
+	void SetColor(COLORREF crBackColor,COLORREF crTextColor);
+	void SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor);
+	bool SetFont(const LOGFONT *pFont);
+	bool SetItemVisible(int Item,bool fVisible);
+	bool IsItemVisible(int Item) const;
+	void UpdateItem(int Item);
+	void SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight);
+	void SetAspectRatio(int AspectX,int AspectY);
+	void SetVideoDecoderName(LPCTSTR pszName);
+	void SetVideoRendererName(LPCTSTR pszName);
+	void SetAudioDeviceName(LPCTSTR pszName);
+	void ShowSignalLevel(bool fShow);
+	void SetMediaBitRate(DWORD VideoBitRate,DWORD AudioBitRate);
+	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
+						 ULONGLONG WroteSize=0,unsigned int RecordTime=0,
+						 ULONGLONG FreeSpace=0);
+	void SetProgramInfo(LPCTSTR pszInfo);
+	bool GetProgramInfoNext() const { return m_fNextProgramInfo; }
+	bool SetProgramInfoRichEdit(bool fRichEdit);
+	bool SetEventHandler(CEventHandler *pHandler);
+
 private:
 	static const LPCTSTR m_pszClassName;
 	static HINSTANCE m_hinst;
@@ -38,6 +75,8 @@ private:
 	HWND m_hwndProgramInfoPrev;
 	HWND m_hwndProgramInfoNext;
 	CEventHandler *m_pEventHandler;
+	CRichEditUtil m_RichEditUtil;
+	bool m_fUseRichEdit;
 
 	COLORREF m_crBackColor;
 	COLORREF m_crTextColor;
@@ -61,8 +100,6 @@ private:
 	CDynamicString m_VideoRendererName;
 	CDynamicString m_AudioDeviceName;
 	bool m_fSignalLevel;
-	float m_SignalLevel;
-	DWORD m_BitRate;
 	DWORD m_VideoBitRate;
 	DWORD m_AudioBitRate;
 	bool m_fRecording;
@@ -70,55 +107,25 @@ private:
 	unsigned int m_RecordTime;
 	ULONGLONG m_DiskFreeSpace;
 	CDynamicString m_ProgramInfo;
+	CRichEditUtil::CharRangeList m_ProgramInfoLinkList;
+	POINT m_ProgramInfoClickPos;
+	bool m_fProgramInfoCursorOverLink;
 	bool m_fNextProgramInfo;
 
 	static const LPCTSTR m_pszItemNameList[];
 
 	static LRESULT CALLBACK ProgramInfoHookProc(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam);
+
+	void UpdateProgramInfoText();
+	bool CreateProgramInfoEdit();
 	void GetItemRect(int Item,RECT *pRect) const;
-	void UpdateItem(int Item);
 	void CalcFontHeight();
 	void Draw(HDC hdc,const RECT &PaintRect);
 	bool GetDrawItemRect(int Item,RECT *pRect,const RECT &PaintRect) const;
 	void DrawItem(HDC hdc,LPCTSTR pszText,const RECT &Rect);
+
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
-
-public:
-	static bool Initialize(HINSTANCE hinst);
-
-	CInformationPanel();
-	~CInformationPanel();
-// CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
-// CSettingsBase
-	bool ReadSettings(CSettings &Settings) override;
-	bool WriteSettings(CSettings &Settings) override;
-// CInformationPanel
-	void ResetStatistics();
-	bool IsVisible() const;
-	void SetColor(COLORREF crBackColor,COLORREF crTextColor);
-	void SetProgramInfoColor(COLORREF crBackColor,COLORREF crTextColor);
-	bool SetFont(const LOGFONT *pFont);
-	bool SetItemVisible(int Item,bool fVisible);
-	bool IsItemVisible(int Item) const;
-	void SetVideoSize(int OriginalWidth,int OriginalHeight,int DisplayWidth,int DisplayHeight);
-	void SetAspectRatio(int AspectX,int AspectY);
-	void SetVideoDecoderName(LPCTSTR pszName);
-	void SetVideoRendererName(LPCTSTR pszName);
-	void SetAudioDeviceName(LPCTSTR pszName);
-	void SetSignalLevel(float Level);
-	void ShowSignalLevel(bool fShow);
-	bool IsSignalLevelEnabled() const { return m_fSignalLevel; }
-	void SetBitRate(DWORD BitRate);
-	void SetMediaBitRate(DWORD VideoBitRate,DWORD AudioBitRate);
-	void UpdateErrorCount();
-	void SetRecordStatus(bool fRecording,LPCTSTR pszFileName=NULL,
-						 ULONGLONG WroteSize=0,unsigned int RecordTime=0,
-						 ULONGLONG FreeSpace=0);
-	void SetProgramInfo(LPCTSTR pszInfo);
-	bool GetProgramInfoNext() const { return m_fNextProgramInfo; }
-	bool SetEventHandler(CEventHandler *pHandler);
 };
 
 

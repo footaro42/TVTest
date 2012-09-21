@@ -80,7 +80,7 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 
 		if (::PathIsRelative(pszFileName)) {
 			TCHAR szTemp[MAX_PATH];
-			GetAppClass().GetDriverDirectory(szTemp);
+			GetAppClass().GetDriverDirectory(szTemp,lengthof(szTemp));
 			::PathAppend(szTemp,pszFileName);
 			::PathCanonicalize(szFilePath,szTemp);
 		} else {
@@ -91,7 +91,7 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 		if (hLib!=NULL) {
 			TCHAR szCurDriverPath[MAX_PATH];
 
-			if (App.GetCoreEngine()->GetDriverPath(szCurDriverPath)
+			if (App.GetCoreEngine()->GetDriverPath(szCurDriverPath,lengthof(szCurDriverPath))
 					&& ::lstrcmpi(szFilePath,szCurDriverPath)==0) {
 				m_DriverSpaceList=*App.GetChannelManager()->GetDriverTuningSpaceList();
 				m_fDriverSpaceLoaded=true;
@@ -134,6 +134,15 @@ bool CDriverInfo::LoadTuningSpaceList(LoadTuningSpaceListMode Mode)
 	if (!m_fChannelFileLoaded && !m_fDriverSpaceLoaded)
 		return false;
 	return true;
+}
+
+
+void CDriverInfo::ClearTuningSpaceList()
+{
+	m_TuningSpaceList.Clear();
+	m_fChannelFileLoaded=false;
+	m_DriverSpaceList.Clear();
+	m_fDriverSpaceLoaded=false;
 }
 
 
@@ -185,22 +194,17 @@ void CDriverManager::Clear()
 }
 
 
-bool CDriverManager::CompareDriverFileName(const CDriverInfo *pDriver1,const CDriverInfo *pDriver2)
-{
-	return ::lstrcmpi(pDriver1->GetFileName(),pDriver2->GetFileName())<0;
-}
-
-
 bool CDriverManager::Find(LPCTSTR pszDirectory)
 {
 	if (pszDirectory==NULL)
 		return false;
 
+	Clear();
+
 	TCHAR szMask[MAX_PATH];
 	HANDLE hFind;
 	WIN32_FIND_DATA wfd;
 
-	Clear();
 	::PathCombine(szMask,pszDirectory,TEXT("BonDriver*.dll"));
 	hFind=::FindFirstFile(szMask,&wfd);
 	if (hFind!=INVALID_HANDLE_VALUE) {
@@ -211,9 +215,16 @@ bool CDriverManager::Find(LPCTSTR pszDirectory)
 		} while (::FindNextFile(hFind,&wfd));
 		::FindClose(hFind);
 	}
-	if (m_DriverList.size()>1)
-		std::sort(m_DriverList.begin(),m_DriverList.end(),CompareDriverFileName);
+
+	if (m_DriverList.size()>1) {
+		std::sort(m_DriverList.begin(),m_DriverList.end(),
+				  [](const CDriverInfo *pDriver1,const CDriverInfo *pDriver2) {
+				      return ::lstrcmpi(pDriver1->GetFileName(),pDriver2->GetFileName())<0;
+				  });
+	}
+
 	m_BaseDirectory.Set(pszDirectory);
+
 	return true;
 }
 
@@ -231,4 +242,61 @@ const CDriverInfo *CDriverManager::GetDriverInfo(int Index) const
 	if (Index<0 || (size_t)Index>=m_DriverList.size())
 		return NULL;
 	return m_DriverList[Index];
+}
+
+
+int CDriverManager::FindByFileName(LPCTSTR pszFileName) const
+{
+	if (IsStringEmpty(pszFileName))
+		return -1;
+	for (size_t i=0;i<m_DriverList.size();i++) {
+		if (::lstrcmpi(m_DriverList[i]->GetFileName(),pszFileName)==0)
+			return (int)i;
+	}
+	return -1;
+}
+
+
+bool CDriverManager::GetAllServiceList(CChannelList *pList) const
+{
+	if (pList==NULL)
+		return false;
+
+	pList->Clear();
+
+	for (auto it=m_DriverList.begin();it!=m_DriverList.end();++it) {
+		LPCTSTR pszFileName=(*it)->GetFileName();
+		LPCTSTR pszExtension=::PathFindExtension(pszFileName);
+		if (pszExtension>pszFileName
+				&& *(pszExtension-1)>=_T('1') && *(pszExtension-1)<=_T('9')) {
+			TCHAR szFirstFile[MAX_PATH];
+			::lstrcpy(szFirstFile,pszFileName);
+			szFirstFile[pszExtension-1-pszFileName]=_T('0');
+			if (FindByFileName(szFirstFile)>=0)
+				continue;
+		}
+
+		if ((*it)->LoadTuningSpaceList(CDriverInfo::LOADTUNINGSPACE_NOLOADDRIVER)) {
+			const CTuningSpaceList *pTuningSpaceList=(*it)->GetTuningSpaceList();
+			const CChannelList *pChannelList=pTuningSpaceList->GetAllChannelList();
+			const int NumChannels=pChannelList->NumChannels();
+
+			for (int i=0;i<NumChannels;i++) {
+				const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(i);
+
+				if (pChannelInfo->IsEnabled()
+						&& pChannelInfo->GetNetworkID()>0
+						&& pChannelInfo->GetTransportStreamID()>0
+						&& pChannelInfo->GetServiceID()>0
+						&& pList->FindByIDs(
+							pChannelInfo->GetNetworkID(),
+							pChannelInfo->GetTransportStreamID(),
+							pChannelInfo->GetServiceID())<0) {
+					pList->AddChannel(*pChannelInfo);
+				}
+			}
+		}
+	}
+
+	return true;
 }

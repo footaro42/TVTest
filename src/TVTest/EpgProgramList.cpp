@@ -66,6 +66,7 @@ CEventInfoData::CEventInfoData()
 	: m_fValidStartTime(false)
 	, m_fCommonEvent(false)
 	, m_UpdateTime(0)
+	, m_Type(0)
 	, m_fDatabase(false)
 {
 }
@@ -111,7 +112,7 @@ CEventInfoData &CEventInfoData::operator=(const CEventInfoData &Info)
 			m_stStartTime=Info.m_stStartTime;
 		m_DurationSec=Info.m_DurationSec;
 		m_RunningStatus=Info.m_RunningStatus;
-		m_FreeCaMode=Info.m_FreeCaMode;
+		m_CaType=Info.m_CaType;
 		m_VideoInfo=Info.m_VideoInfo;
 		m_AudioList=Info.m_AudioList;
 		m_ContentNibble=Info.m_ContentNibble;
@@ -141,7 +142,7 @@ CEventInfoData &CEventInfoData::operator=(CEventInfoData &&Info)
 			m_stStartTime=Info.m_stStartTime;
 		m_DurationSec=Info.m_DurationSec;
 		m_RunningStatus=Info.m_RunningStatus;
-		m_FreeCaMode=Info.m_FreeCaMode;
+		m_CaType=Info.m_CaType;
 		m_VideoInfo=Info.m_VideoInfo;
 		m_AudioList=std::move(Info.m_AudioList);
 		m_ContentNibble=Info.m_ContentNibble;
@@ -169,7 +170,7 @@ CEventInfoData &CEventInfoData::operator=(const CEventManager::CEventInfo &Info)
 										   m_stStartTime.wDay);
 	m_DurationSec=Info.GetDuration();
 	m_RunningStatus=Info.GetRunningStatus();
-	m_FreeCaMode=Info.GetFreeCaMode()?FREE_CA_MODE_SCRAMBLED:FREE_CA_MODE_UNSCRAMBLED;
+	m_CaType=Info.GetFreeCaMode()?CA_TYPE_CHARGEABLE:CA_TYPE_FREE;
 	m_VideoInfo=Info.GetVideoInfo();
 	m_AudioList=Info.GetAudioList();
 	m_ContentNibble=Info.GetContentNibble();
@@ -178,6 +179,7 @@ CEventInfoData &CEventInfoData::operator=(const CEventManager::CEventInfo &Info)
 	if (m_fCommonEvent)
 		m_CommonEventInfo=Info.GetCommonEvent();
 	m_UpdateTime=Info.GetUpdateTime();
+	m_Type=Info.GetType();
 
 	return *this;
 }
@@ -197,7 +199,7 @@ bool CEventInfoData::operator==(const CEventInfoData &Info) const
 			|| ::memcmp(&m_stStartTime,&Info.m_stStartTime,sizeof(SYSTEMTIME))==0)
 		&& m_DurationSec==Info.m_DurationSec
 		&& m_RunningStatus==Info.m_RunningStatus
-		&& m_FreeCaMode==Info.m_FreeCaMode
+		&& m_CaType==Info.m_CaType
 		&& m_VideoInfo==Info.m_VideoInfo
 		&& m_AudioList==Info.m_AudioList
 		&& m_ContentNibble==Info.m_ContentNibble
@@ -348,6 +350,7 @@ const CEventInfoData *CEpgServiceInfo::GetEventInfo(WORD EventID)
 
 CEpgProgramList::CEpgProgramList(CEventManager *pEventManager)
 	: m_pEventManager(pEventManager)
+	, m_fUpdated(false)
 {
 	::ZeroMemory(&m_LastWriteTime,sizeof(FILETIME));
 }
@@ -381,13 +384,16 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 									 pService->TransportStreamID,
 									 pService->ServiceID,
 									 &EventList)
-			|| EventList.size()==0)
+			|| EventList.empty())
 		return false;
 
 	CServiceInfoData ServiceData(pService->OriginalNetworkID,
 								 pService->TransportStreamID,
 								 pService->ServiceID);
 	CEpgServiceInfo *pServiceInfo=new CEpgServiceInfo(ServiceData);
+#ifdef EVENTMANAGER_USE_UNORDERED_MAP
+	pServiceInfo->m_EventList.EventDataMap.rehash(max(EventList.size(),300));
+#endif
 
 	struct EventTime {
 		ULONGLONG StartTime;
@@ -395,21 +401,17 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 		WORD EventID;
 		ULONGLONG UpdateTime;
 		EventTime(const CEventInfoData &Info)
-			: Duration(Info.m_DurationSec)
+			: StartTime(CEventManager::SystemTimeToSeconds(Info.m_stStartTime))
+			, Duration(Info.m_DurationSec)
 			, EventID(Info.m_EventID)
 			, UpdateTime(Info.m_UpdateTime)
 		{
-			FILETIME ft;
-			::SystemTimeToFileTime(&Info.m_stStartTime, &ft);
-			StartTime = (((ULONGLONG)ft.dwHighDateTime << 32)
-						| (ULONGLONG)ft.dwLowDateTime) / FILETIME_SECOND;
 		}
 		bool operator<(const EventTime &Obj) const {
 			return StartTime < Obj.StartTime;
 		}
 	};
 	std::set<EventTime> EventTimeTable;
-	bool fHasExtText=false;
 
 #ifdef _DEBUG
 	SYSTEMTIME stOldestTime,stNewestTime;
@@ -417,13 +419,12 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 	::FillMemory(&stNewestTime,sizeof(SYSTEMTIME),0x00);
 #endif
 
-	for (size_t j=0;j<EventList.size();j++) {
-		const CEventManager::CEventInfo &Event = EventList[j];
+	for (CEventManager::EventList::const_iterator itrEvent=EventList.begin();itrEvent!=EventList.end();++itrEvent) {
 		CEventInfoData &EventData=
 			pServiceInfo->m_EventList.EventDataMap.insert(
-				std::pair<WORD,CEventInfoData>(Event.GetEventID(),CEventInfoData())).first->second;
+				std::pair<WORD,CEventInfoData>(itrEvent->GetEventID(),CEventInfoData())).first->second;
 
-		EventData=Event;
+		EventData=*itrEvent;
 		EventData.m_NetworkID=ServiceData.m_NetworkID;
 		EventData.m_TSID=ServiceData.m_TSID;
 		EventData.m_ServiceID=ServiceData.m_ServiceID;
@@ -438,9 +439,6 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 #endif
 
 		EventTimeTable.insert(EventTime(EventData));
-
-		if (!IsStringEmpty(EventData.GetEventExtText()))
-			fHasExtText=true;
 	}
 
 #ifdef _DEBUG
@@ -451,9 +449,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 		  (unsigned int)pServiceInfo->m_EventList.EventDataMap.size());
 #endif
 
-	const ServiceMapKey Key=GetServiceMapKey(ServiceData.m_NetworkID,
-											 ServiceData.m_TSID,
-											 ServiceData.m_ServiceID);
+	const ServiceMapKey Key=GetServiceMapKey(ServiceData);
 	std::pair<ServiceMap::iterator,bool> ServiceInsertResult=
 		m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo*>(Key,pServiceInfo));
 
@@ -468,10 +464,8 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 			ULONGLONG CurTime;
 			if (fDiscardEndedEvents) {
 				SYSTEMTIME st;
-				FILETIME ft;
 				GetCurrentJST(&st);
-				::SystemTimeToFileTime(&st,&ft);
-				CurTime=(((ULONGLONG)ft.dwHighDateTime<<32) | ((ULONGLONG)ft.dwLowDateTime))/FILETIME_SECOND;
+				CurTime=CEventManager::SystemTimeToSeconds(st);
 			}
 
 			bool fMergeOldEvents=false;
@@ -482,14 +476,16 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 
 			for (CEventInfoList::EventMap::iterator itrEvent=pOldServiceInfo->m_EventList.EventDataMap.begin();
 					itrEvent!=pOldServiceInfo->m_EventList.EventDataMap.end();
-					itrEvent++) {
+					++itrEvent) {
 				if (!itrEvent->second.m_fDatabase)
 					continue;
 
 				CEventInfoList::EventMap::iterator itrEventNew=
 					pServiceInfo->m_EventList.EventDataMap.find(itrEvent->second.m_EventID);
 				if (itrEventNew!=pServiceInfo->m_EventList.EventDataMap.end()) {
-					if (!fHasExtText
+					if (!itrEventNew->second.HasExtended()
+							&& CompareSystemTime(&itrEventNew->second.m_stStartTime,
+												 &itrEvent->second.m_stStartTime)==0
 							&& CopyEventExtText(&itrEventNew->second,&itrEvent->second)) {
 						itrEventNew->second.m_fDatabase=true;
 						fMergeOldEvents=true;
@@ -503,15 +499,14 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 				EventTime Time(itrEvent->second);
 
 				if (fDiscardEndedEvents
-						&& Time.StartTime+Time.Duration<CurTime)
+						&& Time.StartTime+Time.Duration<=CurTime)
 					continue;
 
 				std::set<EventTime>::iterator itrUpper=EventTimeTable.upper_bound(Time);
 				bool fSkip=false;
-				std::set<EventTime>::iterator itr;
 				if (itrUpper!=EventTimeTable.begin()) {
-					itr=itrUpper;
-					itr--;
+					std::set<EventTime>::iterator itr=itrUpper;
+					--itr;
 					if (itr->StartTime==Time.StartTime) {
 						fSkip=true;
 					} else {
@@ -530,7 +525,7 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 					}
 				}
 				if (!fSkip) {
-					for (itr=itrUpper;itr!=EventTimeTable.end();) {
+					for (std::set<EventTime>::iterator itr=itrUpper;itr!=EventTimeTable.end();) {
 						if (itr->StartTime>=Time.StartTime+Time.Duration)
 							break;
 						if (itr->UpdateTime>=Time.UpdateTime) {
@@ -564,6 +559,8 @@ bool CEpgProgramList::UpdateService(CEventManager *pEventManager,
 	} else {
 		pServiceInfo->m_fMergeOldEvents=false;
 	}
+
+	m_fUpdated=true;
 
 	return true;
 }
@@ -627,7 +624,7 @@ void CEpgProgramList::Clear()
 {
 	CBlockLock Lock(&m_Lock);
 
-	for (ServiceMap::iterator itr=m_ServiceMap.begin();itr!=m_ServiceMap.end();itr++)
+	for (ServiceMap::iterator itr=m_ServiceMap.begin();itr!=m_ServiceMap.end();++itr)
 		delete itr->second;
 	m_ServiceMap.clear();
 }
@@ -649,7 +646,7 @@ CEpgServiceInfo *CEpgProgramList::EnumService(int ServiceIndex)
 		return NULL;
 	ServiceMap::iterator itrService=m_ServiceMap.begin();
 	for (int i=0;i<ServiceIndex && itrService!=m_ServiceMap.end();i++)
-		itrService++;
+		++itrService;
 	if (itrService==m_ServiceMap.end())
 		return NULL;
 	return itrService->second;
@@ -666,7 +663,7 @@ CEpgServiceInfo *CEpgProgramList::GetServiceInfo(WORD NetworkID,WORD TSID,WORD S
 		if (itrService!=m_ServiceMap.end())
 			return itrService->second;
 	} else {
-		for (itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();itrService++) {
+		for (itrService=m_ServiceMap.begin();itrService!=m_ServiceMap.end();++itrService) {
 			if ((NetworkID==0 || itrService->second->m_ServiceData.m_NetworkID==NetworkID)
 					&& (TSID==0 || itrService->second->m_ServiceData.m_TSID==TSID)
 					&& itrService->second->m_ServiceData.m_ServiceID==ServiceID)
@@ -726,7 +723,7 @@ bool CEpgProgramList::GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
 
 	CEventInfoList::EventMap::iterator itrEvent;
 	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
-			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();itrEvent++) {
+			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();++itrEvent) {
 		SYSTEMTIME stStart,stEnd;
 
 		itrEvent->second.GetStartTime(&stStart);
@@ -755,7 +752,7 @@ bool CEpgProgramList::GetNextEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
 	const CEventInfoData *pNextEvent=NULL;
 	SYSTEMTIME stNearest;
 	for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
-			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();itrEvent++) {
+			itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();++itrEvent) {
 		SYSTEMTIME stStart;
 
 		itrEvent->second.GetStartTime(&stStart);
@@ -797,9 +794,9 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 			pInfo->SetEventName(EventInfo.GetEventName());
 			pInfo->SetEventText(EventInfo.GetEventText());
 			pInfo->SetEventExtText(EventInfo.GetEventExtendedText());
-			pInfo->m_FreeCaMode=EventInfo.GetFreeCaMode()?
-								CEventInfoData::FREE_CA_MODE_SCRAMBLED:
-								CEventInfoData::FREE_CA_MODE_UNSCRAMBLED;
+			pInfo->m_CaType=EventInfo.GetFreeCaMode()?
+								CEventInfoData::CA_TYPE_CHARGEABLE:
+								CEventInfoData::CA_TYPE_FREE;
 			pInfo->m_VideoInfo=EventInfo.GetVideoInfo();
 			pInfo->m_AudioList=EventInfo.GetAudioList();
 			pInfo->m_ContentNibble=EventInfo.GetContentNibble();
@@ -813,7 +810,7 @@ bool CEpgProgramList::SetCommonEventInfo(CEventInfoData *pInfo)
 			pInfo->SetEventName(pCommonEvent->GetEventName());
 			pInfo->SetEventText(pCommonEvent->GetEventText());
 			pInfo->SetEventExtText(pCommonEvent->GetEventExtText());
-			pInfo->m_FreeCaMode=pCommonEvent->m_FreeCaMode;
+			pInfo->m_CaType=pCommonEvent->m_CaType;
 			pInfo->m_VideoInfo=pCommonEvent->m_VideoInfo;
 			pInfo->m_AudioList=pCommonEvent->m_AudioList;
 			pInfo->m_ContentNibble=pCommonEvent->m_ContentNibble;
@@ -911,6 +908,9 @@ bool CEpgProgramList::CopyEventExtText(CEventInfoData *pDstInfo,const CEventInfo
 	└─────────────────────┘
 */
 
+// ver.0.7.0より前の古いEPGファイルに対応
+//#define EPG_FILE_V0_SUPPORT
+
 struct EpgListFileHeader {
 	char Type[8];
 	DWORD Version;
@@ -919,6 +919,8 @@ struct EpgListFileHeader {
 
 #define EPGLISTFILEHEADER_TYPE		"EPG-LIST"
 #define EPGLISTFILEHEADER_VERSION	1
+
+#ifdef EPG_FILE_V0_SUPPORT
 
 struct ServiceInfoHeader {
 	DWORD NumEvents;
@@ -951,6 +953,8 @@ struct EventInfoHeader {
 	DWORD ContentNibbleListCount;
 };
 
+#endif	// EPG_FILE_V0_SUPPORT
+
 struct ServiceInfoHeader2 {
 	WORD NetworkID;
 	WORD TransportStreamID;
@@ -971,8 +975,8 @@ struct ServiceInfoHeader2 {
 #define MAX_CONTENT_NIBBLE_COUNT 7
 
 #define EVENTINFO_FLAG_RUNNINGSTATUSMASK	0x07
-#define EVENTINFO_FLAG_FREECAMODE_MASK		0x18
-#define EVENTINFO_FLAG_FREECAMODE_SHIFT		3
+#define EVENTINFO_FLAG_CATYPE_MASK			0x18
+#define EVENTINFO_FLAG_CATYPE_SHIFT			3
 
 #define DATA_FLAG_EVENTNAME		0x80
 #define DATA_FLAG_EVENTTEXT		0x40
@@ -999,7 +1003,7 @@ struct EventInfoHeader2 {
 		: EventID(Data.m_EventID)
 		, CommonServiceID(Data.m_fCommonEvent?Data.m_CommonEventInfo.ServiceID:0)
 		, CommonEventID(Data.m_fCommonEvent?Data.m_CommonEventInfo.EventID:0)
-		, Flags(Data.m_RunningStatus | (Data.m_FreeCaMode<<EVENTINFO_FLAG_FREECAMODE_SHIFT))
+		, Flags(Data.m_RunningStatus | (Data.m_CaType<<EVENTINFO_FLAG_CATYPE_SHIFT))
 		, VideoListCount(1)
 		, UpdateTime(Data.m_UpdateTime)
 		, StartTime(Data.m_stStartTime)
@@ -1080,6 +1084,7 @@ static bool ReadString(CNFile *pFile,LPWSTR *ppszString,CCrc32 *pCrc)
 	return true;
 }
 
+#ifdef EPG_FILE_V0_SUPPORT
 // 旧形式用
 static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 {
@@ -1100,6 +1105,7 @@ static bool ReadString(CNFile *pFile,LPWSTR *ppszString)
 	}
 	return true;
 }
+#endif
 
 static bool WriteData(CNFile *pFile,const void *pData,DWORD DataSize,CCrc32 *pCrc)
 {
@@ -1151,9 +1157,18 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 
 	if (File.Read(&FileHeader,sizeof(EpgListFileHeader))!=sizeof(EpgListFileHeader))
 		return false;
-	if (memcmp(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type))!=0
-			|| FileHeader.Version>EPGLISTFILEHEADER_VERSION)
+	if (memcmp(FileHeader.Type,EPGLISTFILEHEADER_TYPE,sizeof(FileHeader.Type))!=0)
 		return false;
+#ifndef EPG_FILE_V0_SUPPORT
+	if (FileHeader.Version==0) {
+		AppMain.AddLog(TEXT("EPGファイルが古い形式のため読み込めません。"));
+		return false;
+	}
+#endif
+	if (FileHeader.Version>EPGLISTFILEHEADER_VERSION) {
+		AppMain.AddLog(TEXT("EPGファイルが未知の形式のため読み込めません。"));
+		return false;
+	}
 
 	Clear();
 
@@ -1161,6 +1176,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 		LPWSTR pszText;
 
 		ServiceInfoHeader2 ServiceHeader2;
+#ifdef EPG_FILE_V0_SUPPORT
 		if (FileHeader.Version==0) {
 			ServiceInfoHeader ServiceHeader;
 
@@ -1174,7 +1190,9 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 			ServiceHeader2.TransportStreamID=ServiceHeader.TSID;
 			ServiceHeader2.ServiceID=ServiceHeader.ServiceID;
 			ServiceHeader2.NumEvents=(WORD)ServiceHeader.NumEvents;
-		} else {
+		} else
+#endif
+		{
 			if (File.Read(&ServiceHeader2,sizeof(ServiceInfoHeader2))!=sizeof(ServiceInfoHeader2))
 				goto OnError;
 			if (ServiceHeader2.CRC!=CCrcCalculator::CalcCrc32((const BYTE*)&ServiceHeader2,
@@ -1191,19 +1209,21 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 		CEpgServiceInfo *pServiceInfo=new CEpgServiceInfo(ServiceData);
 		if (!m_ServiceMap.insert(
 				std::pair<ServiceMapKey,CEpgServiceInfo*>(
-					GetServiceMapKey(ServiceData.m_NetworkID,
-									 ServiceData.m_TSID,
-									 ServiceData.m_ServiceID),
+					GetServiceMapKey(ServiceData),
 					pServiceInfo)).second) {
 			delete pServiceInfo;
 			break;
 		}
+#ifdef EVENTMANAGER_USE_UNORDERED_MAP
+		pServiceInfo->m_EventList.EventDataMap.rehash(ServiceHeader2.NumEvents);
+#endif
 
 		bool fCRCError=false;
 
 		for (WORD j=0;j<ServiceHeader2.NumEvents;j++) {
 			CEventInfoData *pEventData;
 
+#ifdef EPG_FILE_V0_SUPPORT
 			if (FileHeader.Version==0) {
 				EventInfoHeader EventHeader;
 				if (File.Read(&EventHeader,sizeof(EventInfoHeader))!=sizeof(EventInfoHeader))
@@ -1221,7 +1241,7 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				pEventData->m_stStartTime=EventHeader.StartTime;
 				pEventData->m_DurationSec=EventHeader.DurationSec;
 				pEventData->m_RunningStatus=0;
-				pEventData->m_FreeCaMode=CEventInfoData::FREE_CA_MODE_UNKNOWN;
+				pEventData->m_CaType=CEventInfoData::CA_TYPE_UNKNOWN;
 				::ZeroMemory(&pEventData->m_VideoInfo,sizeof(CEventInfoData::VideoInfo));
 				pEventData->m_VideoInfo.ComponentType=EventHeader.ComponentType;
 				pEventData->m_AudioList.resize(1);
@@ -1264,7 +1284,9 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 					delete [] pszText;
 				}
 				pEventData->m_fDatabase=true;
-			} else {
+			} else
+#endif
+			{
 				EventInfoHeader2 EventHeader2;
 				CCrc32 CRC;
 				if (!ReadData(&File,&EventHeader2,sizeof(EventInfoHeader2),&CRC))
@@ -1283,8 +1305,8 @@ bool CEpgProgramList::LoadFromFile(LPCTSTR pszFileName)
 				pEventData->m_stStartTime=EventHeader2.StartTime;
 				pEventData->m_DurationSec=EventHeader2.Duration;
 				pEventData->m_RunningStatus=EventHeader2.Flags&EVENTINFO_FLAG_RUNNINGSTATUSMASK;
-				pEventData->m_FreeCaMode=
-					(EventHeader2.Flags&EVENTINFO_FLAG_FREECAMODE_MASK)>>EVENTINFO_FLAG_FREECAMODE_SHIFT;
+				pEventData->m_CaType=
+					(EventHeader2.Flags&EVENTINFO_FLAG_CATYPE_MASK)>>EVENTINFO_FLAG_CATYPE_SHIFT;
 				::ZeroMemory(&pEventData->m_VideoInfo,sizeof(CEventInfoData::VideoInfo));
 				pEventData->m_VideoInfo.ComponentType=EventHeader2.ComponentType;
 
@@ -1500,14 +1522,14 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 	size_t ServiceIndex=0;
 	for (ServiceMap::iterator itrService=m_ServiceMap.begin();
 			itrService!=m_ServiceMap.end();
-			itrService++) {
+			++itrService) {
 		const CEpgServiceInfo *pServiceInfo=itrService->second;
 		CEventInfoList::EventMap::const_iterator itrEvent;
 		WORD NumEvents=0;
 
 		for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
 				itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
-				itrEvent++) {
+				++itrEvent) {
 			if (itrEvent->second.GetEndTime(&st)
 					&& CompareSystemTime(&st,&stCurrent)>0)
 				NumEvents++;
@@ -1528,7 +1550,7 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 
 	ServiceIndex=0;
 	for (ServiceMap::iterator itrService=m_ServiceMap.begin();
-		 	itrService!=m_ServiceMap.end();itrService++,ServiceIndex++) {
+		 	itrService!=m_ServiceMap.end();++itrService,ServiceIndex++) {
 		if (pNumEvents[ServiceIndex]==0)
 			continue;
 
@@ -1543,7 +1565,7 @@ bool CEpgProgramList::SaveToFile(LPCTSTR pszFileName)
 		CEventInfoList::EventMap::const_iterator itrEvent;
 		for (itrEvent=pServiceInfo->m_EventList.EventDataMap.begin();
 				itrEvent!=pServiceInfo->m_EventList.EventDataMap.end();
-				itrEvent++) {
+				++itrEvent) {
 			const CEventInfoData &EventInfo=itrEvent->second;
 
 			if (EventInfo.GetEndTime(&st)
@@ -1682,10 +1704,7 @@ bool CEpgProgramList::Merge(CEpgProgramList *pSrcList)
 	for (itrSrcService=pSrcList->m_ServiceMap.begin();
 			itrSrcService!=pSrcList->m_ServiceMap.end();) {
 		CEpgServiceInfo *pSrcServiceInfo=itrSrcService->second;
-		ServiceMapKey Key=GetServiceMapKey(
-			pSrcServiceInfo->m_ServiceData.m_NetworkID,
-			pSrcServiceInfo->m_ServiceData.m_TSID,
-			pSrcServiceInfo->m_ServiceData.m_ServiceID);
+		ServiceMapKey Key=GetServiceMapKey(pSrcServiceInfo->m_ServiceData);
 		ServiceMap::iterator itrDstService=m_ServiceMap.find(Key);
 		if (itrDstService==m_ServiceMap.end()) {
 			m_ServiceMap.insert(std::pair<ServiceMapKey,CEpgServiceInfo*>(Key,pSrcServiceInfo));
@@ -1695,11 +1714,11 @@ bool CEpgProgramList::Merge(CEpgProgramList *pSrcList)
 
 			for (itrEvent=pSrcServiceInfo->m_EventList.EventDataMap.begin();
 					itrEvent!=pSrcServiceInfo->m_EventList.EventDataMap.end();
-					itrEvent++) {
+					++itrEvent) {
 				itrDstService->second->m_EventList.EventDataMap.insert(
 					std::pair<WORD,CEventInfoData>(itrEvent->first,itrEvent->second));
 			}
-			itrSrcService++;
+			++itrSrcService;
 		}
 	}
 	return true;

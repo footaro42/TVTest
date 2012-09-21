@@ -24,19 +24,22 @@ class CPanelOptions : public COptions
 public:
 	CPanelOptions(CPanelFrame *pPanelFrame);
 	~CPanelOptions();
+
 // CSettingsBase
 	bool ReadSettings(CSettings &Settings) override;
 	bool WriteSettings(CSettings &Settings) override;
+
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
+
 // CPanelOptions
 	bool InitializePanelForm(CPanelForm *pPanelForm);
-	void ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel);
 	bool GetSnapAtMainWindow() const { return m_fSnapAtMainWindow; }
 	int GetSnapMargin() const { return m_SnapMargin; }
 	bool GetAttachToMainWindow() const { return m_fAttachToMainWindow; }
 	const LOGFONT *GetFont() const { return &m_Font; }
 	int GetFirstTab() const;
+	bool GetProgramInfoUseRichEdit() const { return m_fProgramInfoUseRichEdit; }
 
 private:
 	CPanelFrame *m_pPanelFrame;
@@ -56,8 +59,7 @@ private:
 		bool fVisible;
 	};
 	TabInfo m_TabList[NUM_PANELS];
-	bool m_fChannelDetailToolTip;
-	int m_EventsPerChannel;
+	bool m_fProgramInfoUseRichEdit;
 
 // CBasicDialog
 	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;

@@ -13,6 +13,11 @@ class CZoomOptions
 	, public CCommandList::CCommandCustomizer
 {
 public:
+	enum ZoomType {
+		ZOOM_RATE,
+		ZOOM_SIZE
+	};
+
 	struct ZoomRate {
 		int Rate;
 		int Factor;
@@ -20,7 +25,22 @@ public:
 		int GetPercentage() const { return Factor!=0?Rate*100/Factor:0; }
 	};
 
-	CZoomOptions(const CCommandList *pCommandList);
+	struct ZoomSize {
+		int Width;
+		int Height;
+	};
+
+	struct ZoomInfo {
+		ZoomType Type;
+		ZoomRate Rate;
+		ZoomSize Size;
+		bool fVisible;
+	};
+
+	enum { NUM_ZOOM_COMMANDS = 11+10 };
+	enum { MAX_RATE = 1000 };
+
+	CZoomOptions();
 	~CZoomOptions();
 
 //CBasicDialog
@@ -31,26 +51,31 @@ public:
 	bool WriteSettings(CSettings &Settings) override;
 
 //CZoomOptions
-	bool SetMenu(HMENU hmenu,const ZoomRate *pCurRate) const;
-	bool GetZoomRateByCommand(int Command,ZoomRate *pRate) const;
+	bool SetMenu(HMENU hmenu,const ZoomInfo *pCurZoom) const;
+	bool GetZoomInfoByCommand(int Command,ZoomInfo *pInfo) const;
 
 private:
-	enum { NUM_ZOOM = 16 };
-	enum { MAX_RATE = 1000 };
-
-	struct ZoomInfo {
-		const int Command;
-		ZoomRate Zoom;
-		bool fVisible;
+	struct ZoomCommandInfo {
+		int Command;
+		ZoomInfo Info;
 	};
-	static ZoomInfo m_ZoomList[NUM_ZOOM];
+	static const ZoomCommandInfo m_DefaultZoomList[NUM_ZOOM_COMMANDS];
 
-	const CCommandList *m_pCommandList;
-	int m_Order[NUM_ZOOM];
+	ZoomInfo m_ZoomList[NUM_ZOOM_COMMANDS];
+
+	int m_Order[NUM_ZOOM_COMMANDS];
 	bool m_fChanging;
+	ZoomInfo m_ZoomSettingList[NUM_ZOOM_COMMANDS];
 
+	int GetIndexByCommand(int Command) const;
+	void FormatCommandText(int Command,const ZoomInfo &Info,LPTSTR pszText,int MaxLength) const;
+
+	void SetItemState(HWND hDlg);
+	int GetItemIndex(HWND hwndList,int Item);
+	void UpdateItemText(HWND hDlg,int Item);
+
+// CBasicDialog
 	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
-	static void CZoomOptions::SetItemState(HWND hDlg);
 
 //CCommandCustomizer
 	bool GetCommandName(int Command,LPTSTR pszName,int MaxLength) override;

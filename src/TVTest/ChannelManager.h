@@ -25,8 +25,6 @@ class CChannelManager
 	int m_NetworkRemoconCurrentChannel;
 #endif
 
-	bool LoadOldChannelFile(LPCTSTR pszFileName);
-
 public:
 	enum {
 		SPACE_INVALID=-2,
@@ -74,6 +72,7 @@ public:
 	bool SetNetworkRemoconCurrentChannel(int Channel);
 #endif
 
+	bool ChannelFileHasStreamIDs() const { return m_fChannelFileHasStreamIDs; }
 	bool UpdateStreamInfo(int Space,int ChannelIndex,
 						  WORD NetworkID,WORD TransportStreamID,WORD ServiceID);
 	bool LoadChannelSettings(LPCTSTR pszFileName,LPCTSTR pszDriverName);
@@ -96,6 +95,7 @@ public:
 	int GetChannel() const { return m_Channel; }
 	bool SetServiceID(int ServiceID);
 	int GetServiceID() const { return m_ServiceID; }
+	bool IsValid() const { return m_Space>=0 && m_Channel>=0; }
 };
 
 

@@ -44,169 +44,6 @@ void CChannelManager::Reset()
 }
 
 
-static void SkipSpaces(char **ppText)
-{
-	char *p=*ppText;
-
-	while (*p==' ' || *p=='\t')
-		p++;
-	*ppText=p;
-}
-
-
-bool CChannelManager::LoadOldChannelFile(LPCTSTR pszFileName)
-{
-	// 古い形式のチャンネル設定ファイル
-	HANDLE hFile;
-	DWORD Size,Read;
-	char *pszText,*p,*q;
-	CChannelList ChannelList;
-	int NumSpaces;
-
-	hFile=::CreateFile(pszFileName,GENERIC_READ,FILE_SHARE_READ,NULL,
-														OPEN_EXISTING,0,NULL);
-	if (hFile==INVALID_HANDLE_VALUE)
-		return false;
-	Size=::GetFileSize(hFile,NULL);
-	if (Size==0 || Size==INVALID_FILE_SIZE) {
-		::CloseHandle(hFile);
-		return false;
-	}
-	pszText=new char[Size+1];
-	if (!::ReadFile(hFile,pszText,Size,&Read,NULL) || Read!=Size) {
-		delete [] pszText;
-		::CloseHandle(hFile);
-		return false;
-	}
-	::CloseHandle(hFile);
-	NumSpaces=m_DriverTuningSpaceList.NumSpaces();
-	pszText[Size]='\0';
-	p=pszText;
-	do {
-		TCHAR szName[MAX_CHANNEL_NAME];
-		int Space,ChannelNo,Channel,ChannelIndex;
-
-		while (*p=='\r' || *p=='\n' || *p==' ' || *p=='\t')
-			p++;
-		if (*p==';') {	// コメント
-			while (*p!='\r' && *p!='\n' && *p!='\0')
-				p++;
-			continue;
-		}
-		if (*p=='\0')
-			break;
-		// チャンネル名
-		q=p;
-		while (*p!=',' && *p!='\0') {
-			if (::IsDBCSLeadByteEx(CP_ACP,*p) && *(p+1)!='\0')
-				p++;
-			p++;
-		}
-		if (*p!=',')
-			goto Next;
-		*p++='\0';
-#ifdef UNICODE
-		::MultiByteToWideChar(CP_ACP,0,q,-1,szName,MAX_CHANNEL_NAME);
-#else
-		::lstrcpyn(szName,q,MAX_CHANNEL_NAME);
-#endif
-		SkipSpaces(&p);
-		// リモコン番号
-		ChannelNo=0;
-		while (*p>='0' && *p<='9') {
-			ChannelNo=ChannelNo*10+(*p-'0');
-			p++;
-		}
-		SkipSpaces(&p);
-		if (*p!=',')
-			goto Next;
-		p++;
-		SkipSpaces(&p);
-		// チャンネル
-		bool fCompatible=false;
-		bool fOK=false;
-		int Length;
-		TCHAR szChannel[64];
-		int i,j;
-		if (*p=='C' || *p=='c' || (*p>='0' && *p<='9')) {
-			// 物理チャンネル番号による指定か判定(cap_hdusとの互換用)
-			Length=0;
-			if (*p=='C' || *p=='c') {
-				Space=1;
-				Length++;
-			} else
-				Space=0;
-			Channel=0;
-			while (p[Length]>='0' && p[Length]<='9') {
-				Channel=Channel*10+(p[Length]-'0');
-				Length++;
-			}
-			if ((p[Length]=='\r' || p[Length]=='\n' || p[Length]=='\0' || p[Length]==',')
-					&& Channel>=FIRST_UHF_CHANNEL) {
-				::wsprintf(szChannel,TEXT("%s%dch"),
-							(*p=='C' || *p=='c')?TEXT("C"):TEXT(""),Channel);
-				p+=Length;
-				Length=::lstrlen(szChannel);
-				fCompatible=true;
-			}
-		}
-		if (!fCompatible) {
-			q=p;
-			while (*p!='\0' && *p!='\r' && *p!='\n' && *p!=',')
-				p++;
-			Length=::MultiByteToWideChar(CP_ACP,0,q,(int)(p-q),szChannel,lengthof(szChannel));
-			Channel=0;
-		}
-		if (NumSpaces>0) {
-			for (i=0;i<NumSpaces;i++) {
-				const CChannelList *pList=m_DriverTuningSpaceList.GetChannelList(i);
-
-				for (j=0;j<pList->NumChannels();j++) {
-					const CChannelInfo *pChInfo=pList->GetChannelInfo(j);
-					LPCTSTR pszChannel=pChInfo->GetName();
-
-					if (::StrCmpNI(pszChannel,szChannel,Length)==0
-							&& (pszChannel[Length]==_T(' ') || pszChannel[Length]==_T('\0'))) {
-						Space=i;
-						ChannelIndex=pChInfo->GetChannelIndex();
-						fOK=true;
-						break;
-					}
-				}
-			}
-		}
-		if (!fOK && fCompatible) {
-			ChannelIndex=Channel-FIRST_UHF_CHANNEL;
-			fOK=true;
-		}
-#if 0
-		// サービス
-		int Service=0;
-		if (*p==',') {
-			p++;
-			SkipSpaces(&p);
-			while (*p>='0' && *p<='9') {
-				Service=Service*10+(*p-'0');
-				p++;
-			}
-		}
-#endif
-		if (ChannelNo>0 && fOK) {
-			CChannelInfo ChInfo(Space,ChannelIndex,ChannelNo,szName);
-			ChInfo.SetPhysicalChannel(Channel);
-			ChannelList.AddChannel(ChInfo);
-			TRACE(TEXT("Channel loaded : %s sp %d ch %d id %d\n"),
-								szName,Space,ChannelIndex,ChannelNo);
-		}
-	Next:
-		while (*p!='\r' && *p!='\n' && *p!='\0')
-			p++;
-	} while (*p!='\0');
-	delete [] pszText;
-	return m_TuningSpaceList.Create(&ChannelList,NumSpaces);
-}
-
-
 bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 {
 	if (IsStringEmpty(pszFileName))
@@ -217,7 +54,6 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 		|| ::PathMatchSpec(pszFileName,TEXT("*.ch1"))
 #endif
 		) {
-		// 新しい形式のチャンネル設定ファイル
 		if (!m_TuningSpaceList.LoadFromFile(pszFileName))
 			return false;
 
@@ -242,11 +78,6 @@ bool CChannelManager::LoadChannelList(LPCTSTR pszFileName)
 		}
 	Break:
 		;
-	} else if (::PathMatchSpec(pszFileName,TEXT("*.ch"))) {
-		// 古い形式のチャンネル設定ファイル(cap_hdus等との互換用)
-		if (!LoadOldChannelFile(pszFileName))
-			return false;
-		m_fChannelFileHasStreamIDs=false;
 	} else {
 		return false;
 	}

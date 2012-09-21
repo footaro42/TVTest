@@ -75,15 +75,36 @@ COLORREF MixColor(COLORREF Color1,COLORREF Color2,BYTE Ratio)
 }
 
 
-/*
-// ÇÊÇ≠çlÇ¶ÇΩÇÁÇΩÇæà¯ÇØÇŒÇ¢Ç¢ÇæÇØÇæÇ»...
-DWORD TickTimeSpan(DWORD Start,DWORD End)
+COLORREF HSVToRGB(double Hue,double Saturation,double Value)
 {
-	if (Start<End)
-		return End-Start;
-	return (0xFFFFFFFFUL-Start+1)+End;
+	double r,g,b;
+
+	if (Saturation==0.0) {
+		r=g=b=Value;
+	} else {
+		double h,s,v;
+		double f,p,q,t;
+
+		h=Hue*6.0;
+		if (h>=6.0)
+			h-=6.0;
+		s=Saturation;
+		v=Value;
+		f=h-(int)h;
+		p=v*(1.0-s);
+		q=v*(1.0-s*f);
+		t=v*(1.0-s*(1.0-f));
+		switch ((int)h) {
+		case 0: r=v; g=t; b=p; break;
+		case 1: r=q; g=v; b=p; break;
+		case 2: r=p; g=v; b=t; break;
+		case 3: r=p; g=q; b=v; break;
+		case 4: r=t; g=p; b=v; break;
+		case 5: r=v; g=p; b=q; break;
+		}
+	}
+	return RGB((BYTE)(r*255.0+0.5),(BYTE)(g*255.0+0.5),(BYTE)(b*255.0+0.5));
 }
-*/
 
 
 FILETIME &operator+=(FILETIME &ft,LONGLONG Offset)
@@ -249,6 +270,41 @@ LPCTSTR GetDayOfWeekText(int DayOfWeek)
 }
 
 
+bool CopyTextToClipboard(HWND hwndOwner,LPCTSTR pszText)
+{
+	if (pszText==NULL)
+		return false;
+
+	bool fOK=false;
+	SIZE_T Size=(::lstrlen(pszText)+1)*sizeof(TCHAR);
+	HGLOBAL hData=::GlobalAlloc(GMEM_MOVEABLE | GMEM_SHARE,Size);
+	if (hData!=NULL) {
+		LPTSTR pBuffer=static_cast<LPTSTR>(::GlobalLock(hData));
+		if (pBuffer!=NULL) {
+			::CopyMemory(pBuffer,pszText,Size);
+			::GlobalUnlock(hData);
+
+			if (::OpenClipboard(hwndOwner)) {
+				::EmptyClipboard();
+				if (::SetClipboardData(
+#ifdef UNICODE
+						CF_UNICODETEXT,
+#else
+						CF_TEXT,
+#endif
+						hData)!=NULL)
+					fOK=true;
+				::CloseClipboard();
+			}
+		}
+		if (!fOK)
+			::GlobalFree(hData);
+	}
+
+	return fOK;
+}
+
+
 void ClearMenu(HMENU hmenu)
 {
 	int Count,i;
@@ -261,29 +317,26 @@ void ClearMenu(HMENU hmenu)
 
 int CopyToMenuText(LPCTSTR pszSrcText,LPTSTR pszDstText,int MaxLength)
 {
-	int i,j;
+	int SrcPos,DstPos;
 
-	i=j=0;
-	while (pszSrcText[i]!=_T('\0') && j+1<MaxLength) {
-		pszDstText[j++]=pszSrcText[i];
-#ifndef UNICODE
-		if (::IsDBCSLeadByteEx(CP_ACP,pszSrcText[i])) {
-			if (j+1>=MaxLength || pszSrcText[i+1]=='\0')
+	SrcPos=DstPos=0;
+	while (pszSrcText[SrcPos]!=_T('\0') && DstPos+1<MaxLength) {
+		if (pszSrcText[SrcPos]==_T('&')) {
+			if (DstPos+2>=MaxLength)
 				break;
-			pszDstText[j++]=pszSrcText[++i];
-			i++;
-			continue;
-		}
-#endif
-		if (pszSrcText[i]==_T('&')) {
-			if (j+1>=MaxLength)
+			pszDstText[DstPos++]=_T('&');
+			pszDstText[DstPos++]=_T('&');
+			SrcPos++;
+		} else {
+			int Length=StringCharLength(&pszSrcText[SrcPos]);
+			if (Length==0 || DstPos+Length>=MaxLength)
 				break;
-			pszDstText[j++]=_T('&');
+			for (int i=0;i<Length;i++)
+				pszDstText[DstPos++]=pszSrcText[SrcPos++];
 		}
-		i++;
 	}
-	pszDstText[j]=_T('\0');
-	return j;
+	pszDstText[DstPos]=_T('\0');
+	return DstPos;
 }
 
 
@@ -659,6 +712,19 @@ HICON CreateIconFromBitmap(HBITMAP hbm,int IconWidth,int IconHeight,int ImageWid
 	HICON hico=::CreateIconIndirect(&ii);
 	::DeleteObject(ii.hbmMask);
 	::DeleteObject(ii.hbmColor);
+	return hico;
+}
+
+
+HICON CreateEmptyIcon(int Width,int Height)
+{
+	size_t Size=(Width+7)/8*Height;
+	BYTE *pAndBits=new BYTE[Size*2];
+	BYTE *pXorBits=pAndBits+Size;
+	::FillMemory(pAndBits,Size,0xFF);
+	::FillMemory(pXorBits,Size,0x00);
+	HICON hico=::CreateIcon(::GetModuleHandle(NULL),Width,Height,1,1,pAndBits,pXorBits);
+	delete [] pAndBits;
 	return hico;
 }
 
@@ -1261,3 +1327,92 @@ void CGlobalLock::Release()
 		m_fOwner=false;
 	}
 }
+
+
+namespace Util
+{
+
+	namespace OS
+	{
+
+		bool GetVersion(DWORD *pMajor,DWORD *pMinor)
+		{
+			OSVERSIONINFO osvi;
+
+			osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
+			if (!::GetVersionEx(&osvi))
+				return false;
+			if (pMajor)
+				*pMajor=osvi.dwMajorVersion;
+			if (pMinor)
+				*pMinor=osvi.dwMinorVersion;
+			return true;
+		}
+
+		static bool CheckOSVersion(DWORD Major,DWORD Minor)
+		{
+			DWORD MajorVersion,MinorVersion;
+			if (!GetVersion(&MajorVersion,&MinorVersion))
+				return false;
+			return MajorVersion==Major
+				&& MinorVersion==Minor;
+		}
+
+		static bool CheckOSVersionLater(DWORD Major,DWORD Minor)
+		{
+			DWORD MajorVersion,MinorVersion;
+			if (!GetVersion(&MajorVersion,&MinorVersion))
+				return false;
+			return MajorVersion>Major
+				|| (MajorVersion==Major && MinorVersion>=Minor);
+		}
+
+		DWORD GetMajorVersion()
+		{
+			DWORD MajorVersion;
+			if (!GetVersion(&MajorVersion,nullptr))
+				return 0;
+			return MajorVersion;
+		}
+
+		bool IsWindowsXP()
+		{
+			DWORD MajorVersion,MinorVersion;
+			if (!GetVersion(&MajorVersion,&MinorVersion))
+				return false;
+			return MajorVersion==5 && MinorVersion>=1;
+		}
+
+		bool IsWindowsVista()
+		{
+			return CheckOSVersion(6,0);
+		}
+
+		bool IsWindows7()
+		{
+			return CheckOSVersion(6,1);
+		}
+
+		bool IsWindows8()
+		{
+			return CheckOSVersion(6,2);
+		}
+
+		bool IsWindowsXPOrLater()
+		{
+			return CheckOSVersionLater(5,1);
+		}
+
+		bool IsWindowsVistaOrLater()
+		{
+			return CheckOSVersionLater(6,0);
+		}
+
+		bool IsWindows7OrLater()
+		{
+			return CheckOSVersionLater(6,1);
+		}
+
+	}	// namespace OS
+
+}	// namespace Util

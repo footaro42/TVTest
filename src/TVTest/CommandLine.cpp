@@ -340,6 +340,30 @@ bool CArgsParser::GetDurationValue(int *pValue) const
 }
 
 
+static bool GetIniEntry(LPCWSTR pszText,CCommandLineOptions::IniEntry *pEntry)
+{
+	LPCWSTR p=pszText;
+
+	if (*p==L'[') {
+		p++;
+		LPCWSTR pEnd=::StrChrW(p,L']');
+		if (pEnd==NULL)
+			return false;
+		pEntry->Section.Set(p,pEnd-p);
+		p=pEnd+1;
+	}
+
+	LPCWSTR pEnd=::StrChrW(p,L'=');
+	if (pEnd==NULL || pEnd-p<1)
+		return false;
+	pEntry->Name.Set(p,pEnd-p);
+	p=pEnd+1;
+	pEntry->Value.Set(p);
+
+	return true;
+}
+
+
 
 
 CCommandLineOptions::CCommandLineOptions()
@@ -387,6 +411,13 @@ CCommandLineOptions::CCommandLineOptions()
 	, m_fMute(false)
 
 	, m_fNoPlugin(false)
+
+	, m_fShowProgramGuide(false)
+	, m_fProgramGuideOnly(false)
+	, m_ProgramGuideSpace(-2)
+
+	, m_fHomeDisplay(false)
+	, m_fChannelDisplay(false)
 {
 }
 
@@ -400,6 +431,7 @@ CCommandLineOptions::CCommandLineOptions()
 	/f /fullscreen	フルスクリーン
 	/ini			INIファイル名
 	/init			初期設定ダイアログを表示する
+	/inikey			INIファイルの値を設定
 	/log			終了時にログを保存する
 	/max			最大化状態で起動
 	/min			最小化状態で起動
@@ -413,7 +445,6 @@ CCommandLineOptions::CCommandLineOptions()
 	/nid			ネットワークID
 	/nodriver		BonDriverを読み込まない
 	/nodshow		DirectShowの初期化をしない
-	/noepg			EPG 情報の取得を行わない
 	/noplugin		プラグインを読み込まない
 	/noview			プレビュー無効
 	/nr				ネットワークリモコンを使用する
@@ -436,6 +467,13 @@ CCommandLineOptions::CCommandLineOptions()
 	/standby		待機状態で起動
 	/tsid			トランスポートストリームID
 	/volume			音量
+	/noepg			EPG情報の取得を行わない
+	/epg			EPG番組表を表示する
+	/epgonly		EPG番組表のみ表示する
+	/epgtuner		EPG番組表のデフォルトチューナー
+	/epgspace		EPG番組表のデフォルトチューニング空間
+	/home			ホーム画面表示
+	/chdisplay		チャンネル選択画面表示
 */
 void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 {
@@ -446,11 +484,17 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 	do {
 		if (Args.IsSwitch()) {
 			if (!Args.GetOption(TEXT("ch"),&m_Channel)
+					&& !Args.GetOption(TEXT("chdisplay"),&m_fChannelDisplay)
 					&& !Args.GetOption(TEXT("chspace"),&m_TuningSpace)
 					&& !Args.GetOption(TEXT("d"),&m_DriverName)
+					&& !Args.GetOption(TEXT("epg"),&m_fShowProgramGuide)
+					&& !Args.GetOption(TEXT("epgonly"),&m_fProgramGuideOnly)
+					&& !Args.GetOption(TEXT("epgspace"),&m_ProgramGuideSpace)
+					&& !Args.GetOption(TEXT("epgtuner"),&m_ProgramGuideTuner)
 					&& !Args.GetOption(TEXT("f"),&m_fFullscreen)
 					&& !Args.GetOption(TEXT("fullscreen"),&m_fFullscreen)
 					&& !Args.GetOption(TEXT("height"),&m_WindowHeight)
+					&& !Args.GetOption(TEXT("home"),&m_fHomeDisplay)
 					&& !Args.GetOption(TEXT("ini"),&m_IniFileName)
 					&& !Args.GetOption(TEXT("init"),&m_fInitialSettings)
 					&& !Args.GetOption(TEXT("log"),&m_fSaveLog)
@@ -487,9 +531,16 @@ void CCommandLineOptions::Parse(LPCWSTR pszCmdLine)
 					&& !Args.GetOption(TEXT("standby"),&m_fStandby)
 					&& !Args.GetOption(TEXT("tray"),&m_fTray)
 					&& !Args.GetOption(TEXT("tsid"),&m_TransportStreamID)
+					&& !Args.GetOption(TEXT("tvcas"),&m_CasLibraryName)
 					&& !Args.GetOption(TEXT("volume"),&m_Volume)
 					&& !Args.GetOption(TEXT("width"),&m_WindowWidth)) {
-				if (Args.IsOption(TEXT("plugin-"))) {
+				if (Args.IsOption(TEXT("inikey"))) {
+					if (Args.Next()) {
+						IniEntry Entry;
+						if (GetIniEntry(Args.GetText(),&Entry))
+							m_IniValueList.push_back(Entry);
+					}
+				} else if (Args.IsOption(TEXT("plugin-"))) {
 					if (Args.Next()) {
 						TCHAR szPlugin[MAX_PATH];
 						if (Args.GetText(szPlugin,MAX_PATH))

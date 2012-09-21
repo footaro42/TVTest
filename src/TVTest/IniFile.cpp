@@ -31,7 +31,8 @@ namespace TVTest
 		TRACE(TEXT("CIniFile::Open( \"%s\", 0x%x)\n"),pszFileName,Flags);
 
 		if (IsStringEmpty(pszFileName)
-				|| (Flags & (OPEN_READ | OPEN_WRITE))==0)
+				|| (Flags & (OPEN_READ | OPEN_WRITE))==0
+				|| (Flags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==(OPEN_WRITE | OPEN_WRITE_VOLATILE))
 			return false;
 
 		String MutexName;
@@ -126,14 +127,14 @@ namespace TVTest
 		if ((m_OpenFlags&OPEN_WRITE)!=0 && m_hFile!=INVALID_HANDLE_VALUE) {
 			String Buffer;
 
-			for (auto itrSection=m_SectionList.begin();itrSection!=m_SectionList.end();itrSection++) {
+			for (auto itrSection=m_SectionList.begin();itrSection!=m_SectionList.end();++itrSection) {
 				if (!itrSection->SectionName.empty()) {
 					Buffer+=L"[";
 					Buffer+=itrSection->SectionName;
 					Buffer+=L"]\r\n";
 				}
 
-				for (auto itrValue=itrSection->Entries.begin();itrValue!=itrSection->Entries.end();itrValue++) {
+				for (auto itrValue=itrSection->Entries.begin();itrValue!=itrSection->Entries.end();++itrValue) {
 					if (!itrValue->Name.empty()) {
 						Buffer+=itrValue->Name;
 						Buffer+=L"=";
@@ -145,11 +146,12 @@ namespace TVTest
 
 			::SetFilePointer(m_hFile,0,nullptr,FILE_BEGIN);
 
+			const DWORD Size=(DWORD)(Buffer.size()*sizeof(String::value_type));
 			DWORD Write;
 			static const WORD BOM=0xFEFF;
 			if (!::WriteFile(m_hFile,&BOM,sizeof(BOM),&Write,nullptr) || Write!=sizeof(BOM)
-					|| !::WriteFile(m_hFile,Buffer.data(),Buffer.size()*sizeof(String::value_type),&Write,nullptr)
-					|| Write!=Buffer.size()*sizeof(String::value_type)) {
+					|| !::WriteFile(m_hFile,Buffer.data(),Size,&Write,nullptr)
+					|| Write!=Size) {
 				fOK=false;
 			} else {
 				::SetEndOfFile(m_hFile);
@@ -188,7 +190,7 @@ namespace TVTest
 
 		auto i=FindSection(pszSection);
 		if (i==m_SectionList.end()) {
-			if ((m_OpenFlags & OPEN_WRITE)==0)
+			if ((m_OpenFlags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==0)
 				return false;
 
 			CreateSection(pszSection);
@@ -212,7 +214,7 @@ namespace TVTest
 
 	bool CIniFile::DeleteSection(LPCWSTR pszSection)
 	{
-		if ((m_OpenFlags & OPEN_WRITE)==0
+		if ((m_OpenFlags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==0
 				|| IsStringEmpty(pszSection))
 			return false;
 
@@ -228,7 +230,7 @@ namespace TVTest
 
 	bool CIniFile::ClearSection(LPCWSTR pszSection)
 	{
-		if ((m_OpenFlags & OPEN_WRITE)==0
+		if ((m_OpenFlags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==0
 				|| IsStringEmpty(pszSection))
 			return false;
 
@@ -284,7 +286,7 @@ namespace TVTest
 
 	bool CIniFile::SetValue(LPCWSTR pszName,LPCWSTR pszValue)
 	{
-		if ((m_OpenFlags & OPEN_WRITE)==0
+		if ((m_OpenFlags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==0
 				|| m_Section.empty()
 				|| IsStringEmpty(pszName))
 			return false;
@@ -332,7 +334,7 @@ namespace TVTest
 
 	bool CIniFile::DeleteValue(LPCWSTR pszName)
 	{
-		if ((m_OpenFlags & OPEN_WRITE)==0
+		if ((m_OpenFlags & (OPEN_WRITE | OPEN_WRITE_VOLATILE))==0
 				|| m_Section.empty()
 				|| IsStringEmpty(pszName))
 			return false;

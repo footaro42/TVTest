@@ -150,7 +150,9 @@ class CAribTime
 public:
 	static const bool AribToSystemTime(const BYTE *pHexData, SYSTEMTIME *pSysTime);
 	static void SplitAribMjd(const WORD wAribMjd, WORD *pwYear, WORD *pwMonth, WORD *pwDay, WORD *pwDayOfWeek = NULL);
+	static bool BuildAribMjd(const WORD Year, const WORD Month, const WORD Day, WORD *pMjd);
 	static void MjdToSystemTime(const WORD wAribMjd, SYSTEMTIME *pSysTime);
+	static const bool SystemTimeToMjd(const SYSTEMTIME *pSysTime, WORD *pMjd);
 	static void SplitAribBcd(const BYTE *pAribBcd, WORD *pwHour, WORD *pwMinute, WORD *pwSecond = NULL);
 	static const DWORD AribBcdToSecond(const BYTE *pAribBcd);
 	static const WORD BcdHMToMinute(const WORD Bcd);

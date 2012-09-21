@@ -21,27 +21,15 @@ static char THIS_FILE[]=__FILE__;
 CInitialSettings::CInitialSettings(const CDriverManager *pDriverManager)
 	: m_pDriverManager(pDriverManager)
 	, m_VideoRenderer(CVideoRenderer::RENDERER_DEFAULT)
-	, m_CardReader(
-#ifndef TVH264_FOR_1SEG
-		CCoreEngine::CARDREADER_SCARD
-#else
-		CCoreEngine::CARDREADER_NONE
-#endif
-		)
+	, m_CasDevice(-1)
 {
 	m_szDriverFileName[0]='\0';
 	m_szMpeg2DecoderName[0]='\0';
 #if 0
 	// VistaではビデオレンダラのデフォルトをEVRにする
 	// ...と問題が出る環境もあるみたい
-	{
-		OSVERSIONINFO osvi;
-
-		osvi.dwOSVersionInfoSize=sizeof(OSVERSIONINFO);
-		GetVersionEx(&osvi);
-		if (osvi.dwMajorVersion>=6)
-			m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
-	}
+	if (Util::OS::IsWindowsVistaOrLater())
+		m_VideoRenderer=CVideoRenderer::RENDERER_EVR;
 #endif
 	if (!::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_MYVIDEO,FALSE)
 			&& !::SHGetSpecialFolderPath(NULL,m_szRecordFolder,CSIDL_PERSONAL,FALSE))
@@ -152,7 +140,7 @@ INT_PTR CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 					}
 				}
 				DlgComboBox_InsertString(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,
-					0,Count>0?TEXT("デフォルト"):TEXT("<デコーダが見付かりません>"));
+					0,Count>0?TEXT("自動"):TEXT("<デコーダが見付かりません>"));
 				DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_MPEG2DECODER,Sel);
 			}
 
@@ -169,29 +157,21 @@ INT_PTR CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 
 			// カードリーダー
 			{
-				CCardReader *pCardReader;
+				CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+				CCoreEngine::CasDeviceList CasDevList;
+				const int DefaultDevice=pCoreEngine->m_DtvEngine.m_CasProcessor.GetDefaultCasDevice();
+				int Sel=0;
 
-				for (int i=0;i<=CCoreEngine::CARDREADER_LAST;i++)
-					DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_CARDREADER,
-										  CCoreEngine::GetCardReaderSettingName((CCoreEngine::CardReaderType)i));
-				m_CardReader=CCoreEngine::CARDREADER_NONE;
-				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
-				if (pCardReader!=NULL) {
-					if (pCardReader->NumReaders()>0)
-						m_CardReader=CCoreEngine::CARDREADER_SCARD;
-					delete pCardReader;
+				pCoreEngine->GetCasDeviceList(&CasDevList);
+				for (size_t i=0;i<CasDevList.size();i++) {
+					DlgComboBox_AddString(hDlg,IDC_INITIALSETTINGS_CASDEVICE,
+										  CasDevList[i].Text.c_str());
+					DlgComboBox_SetItemData(hDlg,IDC_INITIALSETTINGS_CASDEVICE,
+											i,CasDevList[i].Device);
+					if (CasDevList[i].Device==DefaultDevice)
+						Sel=(int)i;
 				}
-				if (m_CardReader==CCoreEngine::CARDREADER_NONE) {
-					pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
-					if (pCardReader!=NULL) {
-						if (pCardReader->Open()) {
-							m_CardReader=CCoreEngine::CARDREADER_HDUS;
-							pCardReader->Close();
-						}
-						delete pCardReader;
-					}
-				}
-				DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER,m_CardReader);
+				DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CASDEVICE,Sel);
 			}
 
 			// 録画フォルダ
@@ -235,46 +215,32 @@ INT_PTR CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 
 		case IDC_INITIALSETTINGS_SEARCHCARDREADER:
 			{
-				CCoreEngine::CardReaderType ReaderType=CCoreEngine::CARDREADER_NONE;
-				CCardReader *pCardReader;
+				CCasProcessor &CasProcessor=GetAppClass().GetCoreEngine()->m_DtvEngine.m_CasProcessor;
+				int Device=-1;
 				TCHAR szText[1024];
-				int Length;
+				CStaticStringFormatter Formatter(szText,lengthof(szText));
 
 				::SetCursor(::LoadCursor(NULL,IDC_WAIT));
-				Length=StdUtil::snprintf(szText,lengthof(szText),
-										 TEXT("以下のカードリーダが見付かりました。\n"));
-				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_SCARD);
-				if (pCardReader!=NULL) {
-					if (pCardReader->NumReaders()>0) {
-						for (int i=0;i<pCardReader->NumReaders();i++) {
-							LPCTSTR pszReaderName=pCardReader->EnumReader(i);
-							if (pszReaderName!=NULL) {
-								Length+=StdUtil::snprintf(
-									szText+Length,lengthof(szText)-Length,
-									TEXT("\"%s\"\n"),pszReaderName);
-							}
-						}
-						ReaderType=CCoreEngine::CARDREADER_SCARD;
+				Formatter.Append(TEXT("以下のカードリーダが見付かりました。\n"));
+
+				const int DeviceCount=CasProcessor.GetCasDeviceCount();
+				for (int i=0;i<DeviceCount;i++) {
+					CCasProcessor::StringList CardList;
+
+					if (CasProcessor.IsCasDeviceAvailable(i)
+							&& CasProcessor.GetCasDeviceCardList(i,&CardList)) {
+						for (auto itr=CardList.begin();itr!=CardList.end();++itr)
+							Formatter.AppendFormat(TEXT("\"%s\"\n"),itr->c_str());
+						if (Device<0)
+							Device=i;
 					}
-					delete pCardReader;
 				}
-				pCardReader=CCardReader::CreateCardReader(CCardReader::READER_HDUS);
-				if (pCardReader!=NULL) {
-					if (pCardReader->Open()) {
-						/*Length+=*/StdUtil::snprintf(
-							szText+Length,lengthof(szText)-Length,
-							TEXT("\"HDUS内蔵カードリーダ\"\n"));
-						pCardReader->Close();
-						if (ReaderType==CCoreEngine::CARDREADER_NONE)
-							ReaderType=CCoreEngine::CARDREADER_HDUS;
-					}
-					delete pCardReader;
-				}
+
 				::SetCursor(::LoadCursor(NULL,IDC_ARROW));
-				if (ReaderType==CCoreEngine::CARDREADER_NONE) {
+				if (Device<0) {
 					::MessageBox(hDlg,TEXT("カードリーダは見付かりませんでした。"),TEXT("検索結果"),MB_OK | MB_ICONINFORMATION);
 				} else {
-					DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER,(WPARAM)ReaderType);
+					DlgComboBox_SetCurSel(hDlg,IDC_INITIALSETTINGS_CASDEVICE,Device+1);
 					::MessageBox(hDlg,szText,TEXT("検索結果"),MB_OK | MB_ICONINFORMATION);
 				}
 			}
@@ -351,9 +317,14 @@ INT_PTR CInitialSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 					::lstrcpy(m_szMpeg2DecoderName,szMpeg2Decoder);
 				else
 					m_szMpeg2DecoderName[0]='\0';
+
 				m_VideoRenderer=VideoRenderer;
-				m_CardReader=(CCoreEngine::CardReaderType)
-					DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_CARDREADER);
+
+				LRESULT CasDeviceSel=DlgComboBox_GetCurSel(hDlg,IDC_INITIALSETTINGS_CASDEVICE);
+				if (CasDeviceSel>=0)
+					m_CasDevice=(int)DlgComboBox_GetItemData(hDlg,IDC_INITIALSETTINGS_CASDEVICE,CasDeviceSel);
+				else
+					m_CasDevice=-1;
 
 				TCHAR szRecordFolder[MAX_PATH];
 				::GetDlgItemText(hDlg,IDC_INITIALSETTINGS_RECORDFOLDER,

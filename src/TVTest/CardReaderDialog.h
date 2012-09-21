@@ -3,7 +3,6 @@
 
 
 #include "Dialog.h"
-#include "CoreEngine.h"
 
 
 class CCardReaderErrorDialog : public CBasicDialog
@@ -13,12 +12,12 @@ public:
 	~CCardReaderErrorDialog();
 	bool Show(HWND hwndOwner) override;
 	bool SetMessage(LPCTSTR pszMessage);
-	CCoreEngine::CardReaderType GetReaderType() const { return m_ReaderType; }
+	int GetCasDevice() const { return m_CasDevice; }
 	LPCTSTR GetReaderName() const { return m_ReaderName.Get(); }
 
 private:
 	CDynamicString m_Message;
-	CCoreEngine::CardReaderType m_ReaderType;
+	int m_CasDevice;
 	CDynamicString m_ReaderName;
 
 	INT_PTR DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam) override;

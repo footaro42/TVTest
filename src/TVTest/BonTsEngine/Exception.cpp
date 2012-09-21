@@ -208,6 +208,21 @@ void CBonErrorHandler::SetErrorSystemMessage(LPCTSTR pszSystemMessage)
 }
 
 
+void CBonErrorHandler::SetErrorSystemMessageByErrorCode(DWORD ErrorCode)
+{
+	TCHAR szText[256];
+
+	if (::FormatMessage(
+			FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, NULL,
+			ErrorCode, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+			szText, _countof(szText), NULL) > 0) {
+		m_Exception.SetSystemMessage(szText);
+	} else {
+		m_Exception.SetSystemMessage(NULL);
+	}
+}
+
+
 void CBonErrorHandler::SetErrorCode(int ErrorCode)
 {
 	m_Exception.m_ErrorCode=ErrorCode;

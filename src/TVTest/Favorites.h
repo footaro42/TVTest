@@ -42,6 +42,7 @@ namespace TVTest
 		void Clear();
 		size_t GetItemCount() const;
 		size_t GetSubItemCount() const;
+		CFavoriteItem *GetItem(size_t Index);
 		const CFavoriteItem *GetItem(size_t Index) const;
 		bool AddItem(CFavoriteItem *pItem);
 		bool AddItem(size_t Pos,CFavoriteItem *pItem);
@@ -63,6 +64,7 @@ namespace TVTest
 		LPCTSTR GetBonDriverFileName() const { return m_BonDriverFileName.c_str(); }
 		bool SetBonDriverFileName(LPCTSTR pszFileName);
 		const CChannelInfo &GetChannelInfo() const { return m_ChannelInfo; }
+		bool SetChannelInfo(const CChannelInfo &ChannelInfo);
 		bool GetForceBonDriverChange() const { return m_fForceBonDriverChange; }
 		void SetForceBonDriverChange(bool fForce) { m_fForceBonDriverChange=fForce; }
 
@@ -70,6 +72,16 @@ namespace TVTest
 		String m_BonDriverFileName;
 		CChannelInfo m_ChannelInfo;
 		bool m_fForceBonDriverChange;
+	};
+
+	class CFavoriteItemEnumerator
+	{
+	public:
+		bool EnumItems(CFavoriteFolder &Folder);
+
+	protected:
+		virtual bool ChannelItem(CFavoriteFolder &Folder,CFavoriteChannel &Channel) { return true; }
+		virtual bool FolderItem(CFavoriteFolder &Folder) { return true; }
 	};
 
 	class CFavoritesManager
@@ -80,8 +92,6 @@ namespace TVTest
 			CChannelInfo Channel;
 			String BonDriverFileName;
 			bool fForceBonDriverChange;
-
-			ChannelInfo() : Channel(-1,-1,0,TEXT("")) {}
 		};
 
 		CFavoritesManager();

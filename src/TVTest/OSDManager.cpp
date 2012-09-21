@@ -53,7 +53,7 @@ void COSDManager::OnParentMove()
 }
 
 
-bool COSDManager::ShowOSD(LPCTSTR pszText)
+bool COSDManager::ShowOSD(LPCTSTR pszText,unsigned int Flags)
 {
 	if (IsStringEmpty(pszText))
 		return false;
@@ -66,6 +66,14 @@ bool COSDManager::ShowOSD(LPCTSTR pszText)
 	bool fForcePseudoOSD=false;
 	if (!m_pEventHandler->GetOSDWindow(&hwnd,&rc,&fForcePseudoOSD))
 		return false;
+	if ((Flags & SHOW_PSEUDO)!=0)
+		fForcePseudoOSD=true;
+
+	DWORD FadeTime;
+	if ((Flags & SHOW_NO_FADE)!=0)
+		FadeTime=0;
+	else
+		FadeTime=m_pOptions->GetFadeTime();
 
 	if (!m_pOptions->GetPseudoOSD() && !fForcePseudoOSD
 			&& CoreEngine.m_DtvEngine.m_MediaViewer.IsDrawTextSupported()) {
@@ -100,8 +108,8 @@ bool COSDManager::ShowOSD(LPCTSTR pszText)
 			if (CoreEngine.m_DtvEngine.m_MediaViewer.DrawText(pszText,
 					rcSrc.left,rcSrc.top,hfont,
 					m_pOptions->GetTextColor(),m_pOptions->GetOpacity())) {
-				if (m_pOptions->GetFadeTime()>0)
-					m_pEventHandler->SetOSDHideTimer(m_pOptions->GetFadeTime());
+				if (FadeTime>0)
+					m_pEventHandler->SetOSDHideTimer(FadeTime);
 			}
 			::DeleteObject(hfont);
 		}
@@ -117,8 +125,9 @@ bool COSDManager::ShowOSD(LPCTSTR pszText)
 		m_OSD.SetPosition(rc.left+8,rc.top+8,sz.cx,sz.cy);
 		m_OSD.SetTextColor(m_pOptions->GetTextColor());
 		m_OSD.SetOpacity(m_pOptions->GetOpacity());
-		m_OSD.Show(m_pOptions->GetFadeTime(),false);
+		m_OSD.Show(FadeTime,false);
 	}
+
 	return true;
 }
 
@@ -251,6 +260,7 @@ bool COSDManager::ShowChannelOSD(const CChannelInfo *pInfo,bool fChanging)
 		m_OSD.Show(m_pOptions->GetFadeTime(),
 				   !fChanging && !m_OSD.IsVisible());
 	}
+
 	return true;
 }
 
@@ -319,6 +329,7 @@ bool COSDManager::ShowVolumeOSD(int Volume)
 		m_VolumeOSD.SetOpacity(m_pOptions->GetOpacity());
 		m_VolumeOSD.Show(m_pOptions->GetFadeTime());
 	}
+
 	return true;
 }
 

@@ -2,8 +2,15 @@
 #define EPG_PROGRAM_LIST
 
 
+#if (_MSC_VER >= 1600) || (__cplusplus >= 201103)
+#define EPG_EVENT_LIST_USE_UNORDERED_MAP
+#endif
+
 #include <vector>
 #include <map>
+#ifdef EPG_EVENT_LIST_USE_UNORDERED_MAP
+#include <unordered_map>
+#endif
 #include "BonTsEngine/EventManager.h"
 
 
@@ -60,9 +67,16 @@ public:
 	};
 
 	enum {
-		FREE_CA_MODE_UNKNOWN,
-		FREE_CA_MODE_UNSCRAMBLED,
-		FREE_CA_MODE_SCRAMBLED
+		CA_TYPE_UNKNOWN,
+		CA_TYPE_FREE,
+		CA_TYPE_CHARGEABLE
+	};
+
+	enum {
+		TYPE_BASIC     = 0x0001U,
+		TYPE_EXTENDED  = 0x0002U,
+		TYPE_PRESENT   = 0x0004U,
+		TYPE_FOLLOWING = 0x0008U
 	};
 
 	WORD m_NetworkID;
@@ -74,7 +88,7 @@ public:
 	DWORD m_DurationSec;
 	BYTE m_RunningStatus;
 	//bool m_fFreeCaMode;
-	BYTE m_FreeCaMode;
+	BYTE m_CaType;
 	VideoInfo m_VideoInfo;
 	AudioList m_AudioList;
 	ContentNibble m_ContentNibble;
@@ -82,6 +96,7 @@ public:
 	bool m_fCommonEvent;
 	CommonEventInfo m_CommonEventInfo;
 	ULONGLONG m_UpdateTime;
+	unsigned int m_Type;
 	bool m_fDatabase;
 
 	CEventInfoData();
@@ -108,6 +123,10 @@ public:
 	bool GetEndTime(SYSTEMTIME *pTime) const;
 	int GetMainAudioIndex() const;
 	const AudioInfo *GetMainAudioInfo() const;
+	bool HasExtended() const { return (m_Type&TYPE_EXTENDED)!=0; }
+	bool IsPresent() const { return (m_Type&TYPE_PRESENT)!=0; }
+	bool IsFollowing() const { return (m_Type&TYPE_FOLLOWING)!=0; }
+	bool IsPresentFollowing() const { return (m_Type&(TYPE_PRESENT | TYPE_FOLLOWING))!=0; }
 
 private:
 	CDynamicString m_EventName;
@@ -120,8 +139,12 @@ private:
 class CEventInfoList
 {
 public:
+#ifdef EPG_EVENT_LIST_USE_UNORDERED_MAP
+	typedef std::unordered_map<WORD,CEventInfoData> EventMap;
+#else
 	typedef std::map<WORD,CEventInfoData> EventMap;
-	typedef std::map<WORD,CEventInfoData>::iterator EventIterator;
+#endif
+	typedef EventMap::iterator EventIterator;
 	EventMap EventDataMap; //ÉLÅ[ EventID
 
 	CEventInfoList();
@@ -152,11 +175,16 @@ class CEpgProgramList
 	typedef std::map<ServiceMapKey,CEpgServiceInfo*> ServiceMap;
 	ServiceMap m_ServiceMap;
 	mutable CCriticalLock m_Lock;
+	bool m_fUpdated;
 	FILETIME m_LastWriteTime;
 
 	static ServiceMapKey GetServiceMapKey(WORD NetworkID,WORD TSID,WORD ServiceID) {
 		return ((ULONGLONG)NetworkID<<32) | ((ULONGLONG)TSID<<16) | (ULONGLONG)ServiceID;
 	}
+	static ServiceMapKey GetServiceMapKey(const CServiceInfoData &ServiceInfo) {
+		return GetServiceMapKey(ServiceInfo.m_NetworkID,ServiceInfo.m_TSID,ServiceInfo.m_ServiceID);
+	}
+
 	const CEventInfoData *GetEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID);
 	bool SetCommonEventInfo(CEventInfoData *pInfo);
 	bool SetEventExtText(CEventInfoData *pInfo);
@@ -188,6 +216,8 @@ public:
 					  const SYSTEMTIME *pTime,CEventInfoData *pInfo);
 	bool GetNextEventInfo(WORD NetworkID,WORD TSID,WORD ServiceID,
 						  const SYSTEMTIME *pTime,CEventInfoData *pInfo);
+	bool IsUpdated() const { return m_fUpdated; }
+	void SetUpdated(bool fUpdated) { m_fUpdated=fUpdated; }
 	bool LoadFromFile(LPCTSTR pszFileName);
 	bool SaveToFile(LPCTSTR pszFileName);
 };

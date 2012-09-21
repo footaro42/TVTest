@@ -10,7 +10,7 @@
 
 <h3>必要なランタイム</h3>
 <p>
-実行には Microsoft Visual C++ 2005 SP1 (ATL のセキュリティ更新) のランタイムが必要ですので、もしお使いのシステムに入っていない場合は事前にインストールしてください。<br>
+試験には Microsoft Visual C++ 2005 SP1 (ATL のセキュリティ更新) のランタイムが必要ですので、もしお使いのシステムに入っていない場合は事前にインストールしてください。<br>
 以下のページからダウンロードできます。<br>
 <a href="http://www.microsoft.com/downloads/details.aspx?familyid=766a6af7-ec73-40ff-b072-9112bab119c2&displaylang=ja">Microsoft Visual C++ 2005 Service Pack 1 再頒布可能パッケージ ATL のセキュリティ更新プログラム</a><br>
 (タイトルが紛らわしいですが、これが現時点での最新のランタイムです)<br>
@@ -20,32 +20,32 @@ TVTest が x86 版の場合は vcredist_x86.exe を、x64 版の場合は vcredist_x64.exe を
 
 <h3>その他必要なもの</h3>
 <p>
-TVTest で視聴を行うには別途 MPEG-2 のデコーダが必要です。<br>
+TVTest で視聴試験を行うには別途 MPEG-2 のデコーダが必要です。<br>
 もしお使いの環境に入っていない場合は、インストールしておく必要があります。<br>
 (Vista/7 では Microsoft のデコーダがデフォルトで入っています)<br>
-以下のデコーダで動作が確認されています。
+以下のデコーダで試験が行えることが確認されています。
 </p>
 <ul>
+	<li>Microsoft MPEG-2 Video Decoder / Microsoft DTV-DVD Video Decoder</li>
 	<li>MPV Decoder Filter / MPC - MPEG-2 Video Decoder / Mpeg2Dec Filter</li>
 	<li>ATI MPEG Video Decoder</li>
-	<li>Microsoft MPEG-2 Video Decoder</li>
 	<li>CyberLink Video/SP Decoder</li>
 	<li>ffdshow Video Decoder</li>
 </ul>
 
-<h3>インストール</h3>
+<h3>試験準備</h3>
 <p>
-TVTest のインストールは、適当なフォルダに書庫内のファイルを展開するだけです。<br>
+TVTest の試験準備は、適当なフォルダに書庫内のファイルを展開するだけです。<br>
 フォルダ内に設定などを保存しますので、読み書きのアクセス権限のある場所にしてください(Program Files 内は避けた方が無難です)。
 </p>
 
-<h3>単体で視聴する</h3>
+<h3>単体で視聴試験を行う</h3>
 <p>
-TVTest で実際に視聴を行うには、BonDriver が必要です。<br>
+TVTest で実際に視聴試験を行うには、BonDriver が必要です。<br>
 使用するチューナーに対応した BonDriver を TVTest.exe と同じフォルダに入れます。
 </p>
 
-<h3>EpgDataCap_Bon や cap_hdus GUI+ などから呼び出して視聴する</h3>
+<h3>EpgDataCap_Bon や cap_hdus GUI+ などから呼び出して視聴試験を行う</h3>
 <p>
 呼び出し側のプログラムで、視聴プログラムを<br>
 <span class="nowrap">"TVTestのあるフォルダ\TVTest.exe" /nd /d BonDriver_UDP.dll"</span><br>

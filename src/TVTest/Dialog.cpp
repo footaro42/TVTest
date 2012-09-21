@@ -212,12 +212,16 @@ INT_PTR CResizableDialog::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lPara
 			::GetClientRect(hDlg,&rc);
 			m_OriginalClientSize.cx=rc.right-rc.left;
 			m_OriginalClientSize.cy=rc.bottom-rc.top;
-			m_hwndSizeGrip=::CreateWindowEx(0,TEXT("SCROLLBAR"),NULL,
-				WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | SBS_SIZEGRIP |
-												SBS_SIZEBOXBOTTOMRIGHTALIGN,
-				0,0,rc.right,rc.bottom,m_hDlg,(HMENU)0,
-				reinterpret_cast<HINSTANCE>(::GetWindowLongPtr(m_hDlg,GWLP_HINSTANCE)),NULL);
-			::SetWindowPos(m_hwndSizeGrip,HWND_BOTTOM,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE);
+			if ((::GetWindowLong(hDlg,GWL_STYLE)&WS_CHILD)==0) {
+				m_hwndSizeGrip=::CreateWindowEx(0,TEXT("SCROLLBAR"),NULL,
+					WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | SBS_SIZEGRIP |
+													SBS_SIZEBOXBOTTOMRIGHTALIGN,
+					0,0,rc.right,rc.bottom,m_hDlg,(HMENU)0,
+					reinterpret_cast<HINSTANCE>(::GetWindowLongPtr(m_hDlg,GWLP_HINSTANCE)),NULL);
+				::SetWindowPos(m_hwndSizeGrip,HWND_BOTTOM,0,0,0,0,SWP_NOMOVE | SWP_NOSIZE);
+			} else {
+				m_hwndSizeGrip=NULL;
+			}
 		}
 		return TRUE;
 

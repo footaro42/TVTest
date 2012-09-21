@@ -11,9 +11,12 @@
 #include "EventInfoPopup.h"
 #include "LogoManager.h"
 #include "Tooltip.h"
+#include "Settings.h"
 
 
-class CChannelPanel : public CPanelForm::CPage
+class CChannelPanel
+	: public CPanelForm::CPage
+	, public CSettingsBase
 {
 public:
 	struct ThemeInfo {
@@ -24,25 +27,37 @@ public:
 		COLORREF MarginColor;
 	};
 
-	CChannelPanel();
-	~CChannelPanel();
-// CBasicWindow
-	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
-// CChannelPanel
-	bool SetEpgProgramList(CEpgProgramList *pList);
-	bool SetChannelList(const CChannelList *pChannelList,bool fSetEvent=true);
-	bool UpdateChannelList(bool fUpdateProgramList);
-	bool UpdateChannel(int ChannelIndex);
-	bool UpdateChannels(WORD NetworkID,WORD TransportStreamID);
-	void ClearChannelList() { SetChannelList(NULL); }
-	bool IsChannelListEmpty() const;
-	bool SetCurrentChannel(int CurChannel);
 	class CEventHandler {
 	public:
 		virtual ~CEventHandler() {}
 		virtual void OnChannelClick(const CChannelInfo *pChannelInfo) {}
 		virtual void OnRButtonDown() {}
 	};
+
+	enum {
+		MAX_EVENTS_PER_CHANNEL = 4,
+		MAX_EXPAND_EVENTS      = 10
+	};
+
+	CChannelPanel();
+	~CChannelPanel();
+
+// CBasicWindow
+	bool Create(HWND hwndParent,DWORD Style,DWORD ExStyle=0,int ID=0) override;
+
+// CSettingsBase
+	bool ReadSettings(CSettings &Settings) override;
+	bool WriteSettings(CSettings &Settings) override;
+
+// CChannelPanel
+	bool SetEpgProgramList(CEpgProgramList *pList);
+	bool SetChannelList(const CChannelList *pChannelList,bool fSetEvent=true);
+	bool UpdateAllChannels(bool fUpdateProgramList);
+	bool UpdateChannel(int ChannelIndex);
+	bool UpdateChannels(WORD NetworkID,WORD TransportStreamID);
+	void ClearChannelList() { SetChannelList(NULL); }
+	bool IsChannelListEmpty() const;
+	bool SetCurrentChannel(int CurChannel);
 	void SetEventHandler(CEventHandler *pEventHandler);
 	bool SetTheme(const ThemeInfo *pTheme);
 	bool GetTheme(ThemeInfo *pTheme) const;
@@ -50,8 +65,9 @@ public:
 	bool SetEventInfoFont(const LOGFONT *pFont);
 	void SetDetailToolTip(bool fDetail);
 	bool GetDetailToolTip() const { return m_fDetailToolTip; }
-	bool SetEventsPerChannel(int Events);
+	bool SetEventsPerChannel(int Events,int Expand=-1);
 	int GetEventsPerChannel() const { return m_EventsPerChannel; }
+	int GetExpandAdditionalEvents() const { return m_ExpandAdditionalEvents; }
 	bool ExpandChannel(int Channel,bool fExpand);
 	void SetLogoManager(CLogoManager *pLogoManager);
 	bool QueryUpdate() const;
@@ -59,32 +75,20 @@ public:
 	static bool Initialize(HINSTANCE hinst);
 
 private:
-	CEpgProgramList *m_pProgramList;
-	DrawUtil::CFont m_Font;
-	DrawUtil::CFont m_ChannelFont;
-	int m_FontHeight;
-	int m_ChannelNameMargin;
-	int m_EventNameMargin;
-	int m_EventNameLines;
-	int m_ItemHeight;
-	int m_ExpandedItemHeight;
-	ThemeInfo m_Theme;
-	DrawUtil::CMonoColorBitmap m_Chevron;
-	int m_EventsPerChannel;
-	int m_ExpandEvents;
-	int m_ScrollPos;
-	class CChannelEventInfo {
+	class CChannelEventInfo
+	{
 		CChannelInfo m_ChannelInfo;
 		int m_OriginalChannelIndex;
 		std::vector<CEventInfoData> m_EventList;
 		HBITMAP m_hbmLogo;
 		DrawUtil::CBitmap m_StretchedLogo;
 		bool m_fExpanded;
+
 	public:
 		CChannelEventInfo(const CChannelInfo *pChannelInfo,int OriginalIndex);
 		~CChannelEventInfo();
 		bool SetEventInfo(int Index,const CEventInfoData *pInfo);
-		const CChannelInfo *GetChannelInfo() const { return &m_ChannelInfo; }
+		const CChannelInfo &GetChannelInfo() const { return m_ChannelInfo; }
 		const CEventInfoData &GetEventInfo(int Index) const { return m_EventList[Index]; }
 		int NumEvents() const { return (int)m_EventList.size(); }
 		void SetMaxEvents(int Events);
@@ -101,6 +105,25 @@ private:
 		bool IsExpanded() const { return m_fExpanded; }
 		void Expand(bool fExpand) { m_fExpanded=fExpand; }
 	};
+
+	CEpgProgramList *m_pProgramList;
+	DrawUtil::CFont m_Font;
+	DrawUtil::CFont m_ChannelFont;
+	int m_FontHeight;
+	Util::CRect m_ChannelNameMargins;
+	Util::CRect m_EventNameMargins;
+	int m_ChannelChevronMargin;
+	int m_EventNameLines;
+	int m_ChannelNameHeight;
+	int m_EventNameHeight;
+	int m_ItemHeight;
+	int m_ExpandedItemHeight;
+	ThemeInfo m_Theme;
+	DrawUtil::CMonoColorBitmap m_Chevron;
+	int m_EventsPerChannel;
+	int m_ExpandAdditionalEvents;
+	int m_ExpandEvents;
+	int m_ScrollPos;
 	std::vector<CChannelEventInfo*> m_ChannelList;
 	int m_CurChannel;
 	CEventHandler *m_pEventHandler;
@@ -134,6 +157,7 @@ private:
 	enum HitType {
 		HIT_CHANNELNAME,
 		HIT_CHEVRON,
+		HIT_MARGIN,
 		HIT_EVENT1
 	};
 	int HitTest(int x,int y,HitType *pType=NULL) const;
@@ -141,6 +165,7 @@ private:
 	void SetTooltips(bool fRectOnly=false);
 	bool EventInfoPopupHitTest(int x,int y,LPARAM *pParam);
 	bool GetEventInfoPopupEventInfo(LPARAM Param,const CEventInfoData **ppInfo);
+
 // CCustomWindow
 	LRESULT OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam) override;
 };

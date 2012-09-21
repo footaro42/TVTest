@@ -94,40 +94,9 @@ void COptionDialog::SetPage(int Page)
 }
 
 
-static COLORREF HSVToRGB(double Hue,double Saturation,double Value)
-{
-	double r,g,b;
-
-	if (Saturation==0.0) {
-		r=g=b=Value;
-	} else {
-		double h,s,v;
-		double f,p,q,t;
-
-		h=Hue*6.0;
-		if (h>=6.0)
-			h-=6.0;
-		s=Saturation;
-		v=Value;
-		f=h-(int)h;
-		p=v*(1.0-s);
-		q=v*(1.0-s*f);
-		t=v*(1.0-s*(1.0-f));
-		switch ((int)h) {
-		case 0: r=v; g=t; b=p; break;
-		case 1: r=q; g=v; b=p; break;
-		case 2: r=p; g=v; b=t; break;
-		case 3: r=p; g=q; b=v; break;
-		case 4: r=t; g=p; b=v; break;
-		case 5: r=v; g=p; b=q; break;
-		}
-	}
-	return RGB((BYTE)(r*255.0+0.5),(BYTE)(g*255.0+0.5),(BYTE)(b*255.0+0.5));
-}
-
 COLORREF COptionDialog::GetTitleColor(int Page) const
 {
-	return HSVToRGB(1.0*(double)Page/(double)NUM_PAGES,0.4,0.9);
+	return HSVToRGB((double)Page/(double)NUM_PAGES,0.4,0.9);
 }
 
 

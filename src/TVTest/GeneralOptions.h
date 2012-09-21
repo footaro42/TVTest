@@ -21,13 +21,17 @@ public:
 
 	CGeneralOptions();
 	~CGeneralOptions();
+
 // COptions
 	bool Apply(DWORD Flags) override;
+
 // CSettingsBase
 	bool ReadSettings(CSettings &Settings) override;
 	bool WriteSettings(CSettings &Settings) override;
+
 // CBasicDialog
 	bool Create(HWND hwndOwner) override;
+
 // CGeneralOptions
 	DefaultDriverType GetDefaultDriverType() const;
 	LPCTSTR GetDefaultDriverName() const;
@@ -37,12 +41,12 @@ public:
 	bool SetMpeg2DecoderName(LPCTSTR pszDecoderName);
 	CVideoRenderer::RendererType GetVideoRendererType() const;
 	bool SetVideoRendererType(CVideoRenderer::RendererType Renderer);
-	CCoreEngine::CardReaderType GetCardReaderType() const;
-	bool SetCardReaderType(CCoreEngine::CardReaderType CardReader);
+	int GetCasDevice(bool fUseName);
+	bool SetCasDevice(int Device);
 	void SetTemporaryNoDescramble(bool fNoDescramble);
 	bool GetResident() const;
 	bool GetKeepSingleTask() const;
-	CTsDescrambler::InstructionType GetDescrambleInstruction() const { return m_DescrambleInstruction; }
+	int GetDescrambleInstruction() const { return m_DescrambleInstruction; }
 	bool GetDescrambleCurServiceOnly() const;
 	bool GetEnableEmmProcess() const;
 
@@ -52,19 +56,6 @@ private:
 
 	void DescrambleBenchmarkTest(HWND hwndOwner);
 
-	TCHAR m_szDriverDirectory[MAX_PATH];
-	DefaultDriverType m_DefaultDriverType;
-	TCHAR m_szDefaultDriverName[MAX_PATH];
-	TCHAR m_szLastDriverName[MAX_PATH];
-	CDynamicString m_Mpeg2DecoderName;
-	CVideoRenderer::RendererType m_VideoRendererType;
-	CCoreEngine::CardReaderType m_CardReaderType;
-	bool m_fTemporaryNoDescramble;
-	bool m_fResident;
-	bool m_fKeepSingleTask;
-	CTsDescrambler::InstructionType m_DescrambleInstruction;
-	bool m_fDescrambleCurServiceOnly;
-	bool m_fEnableEmmProcess;
 	enum {
 		UPDATE_DECODER				= 0x00000001UL,
 		UPDATE_RENDERER				= 0x00000002UL,
@@ -74,7 +65,20 @@ private:
 		UPDATE_ENABLEEMMPROCESS		= 0x00000020UL
 	};
 
-	static CGeneralOptions *GetThis(HWND hDlg);
+	TVTest::String m_BonDriverDirectory;
+	DefaultDriverType m_DefaultDriverType;
+	TVTest::String m_DefaultBonDriverName;
+	TVTest::String m_LastBonDriverName;
+	TVTest::String m_Mpeg2DecoderName;
+	CVideoRenderer::RendererType m_VideoRendererType;
+	TVTest::String m_CasDeviceName;
+	int m_CasDevice;
+	bool m_fTemporaryNoDescramble;
+	bool m_fResident;
+	bool m_fKeepSingleTask;
+	int m_DescrambleInstruction;
+	bool m_fDescrambleCurServiceOnly;
+	bool m_fEnableEmmProcess;
 };
 
 

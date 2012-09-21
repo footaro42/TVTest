@@ -11,6 +11,8 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+#define WM_APP_ADD_CAPTION WM_APP
+
 #define IDC_EDIT	1000
 
 
@@ -76,19 +78,18 @@ bool CCaptionPanel::Create(HWND hwndParent,DWORD Style,DWORD ExStyle,int ID)
 void CCaptionPanel::SetVisible(bool fVisible)
 {
 	if (m_hwnd!=NULL) {
-		if (fVisible && !m_CaptionList.empty()) {
-			int Length=0;
-			for (std::deque<LPTSTR>::iterator itr=m_CaptionList.begin();itr!=m_CaptionList.end();itr++)
-				Length+=::lstrlen(*itr);
-			LPTSTR pszText=new TCHAR[Length+1],p;
-			p=pszText;
-			for (std::deque<LPTSTR>::iterator itr=m_CaptionList.begin();itr!=m_CaptionList.end();itr++) {
-				::lstrcpy(p,*itr);
-				p+=::lstrlen(*itr);
+		if (fVisible) {
+			CBlockLock Lock(&m_Lock);
+
+			if (!m_CaptionList.empty()) {
+				TVTest::String Text;
+
+				for (std::deque<LPTSTR>::iterator itr=m_CaptionList.begin();itr!=m_CaptionList.end();++itr)
+					Text+=*itr;
+				Text+=m_NextCaption;
+				AppendText(Text.c_str());
+				ClearCaptionList();
 			}
-			AppendText(pszText);
-			delete [] pszText;
-			ClearCaptionList();
 		}
 		CPanelForm::CPage::SetVisible(fVisible);
 	}
@@ -141,10 +142,12 @@ bool CCaptionPanel::LoadDRCSMap(LPCTSTR pszFileName)
 void CCaptionPanel::ClearCaptionList()
 {
 	if (!m_CaptionList.empty()) {
-		for (std::deque<LPTSTR>::iterator itr=m_CaptionList.begin();itr!=m_CaptionList.end();itr++)
+		for (std::deque<LPTSTR>::iterator itr=m_CaptionList.begin();itr!=m_CaptionList.end();++itr)
 			delete [] *itr;
 		m_CaptionList.clear();
 	}
+
+	m_NextCaption.clear();
 }
 
 
@@ -211,15 +214,15 @@ LRESULT CCaptionPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 			return reinterpret_cast<LRESULT>(m_BackBrush.GetHandle());
 		}
 
-	case WM_APP:
+	case WM_APP_ADD_CAPTION:
 		{
-			LPTSTR pszText=reinterpret_cast<LPTSTR>(lParam);
+			CBlockLock Lock(&m_Lock);
 
-			if (pszText!=NULL) {
+			if (!m_NextCaption.empty()) {
 				if (m_fEnable) {
 					if (GetVisible()) {
 						::SendMessage(m_hwndEdit,WM_SETREDRAW,FALSE,0);
-						AppendText(pszText);
+						AppendText(m_NextCaption.c_str());
 						::SendMessage(m_hwndEdit,WM_SETREDRAW,TRUE,0);
 					} else {
 						// ”ñ•\Ž¦‚Ìê‡‚ÍƒLƒ…[‚É—­‚ß‚é
@@ -228,11 +231,10 @@ LRESULT CCaptionPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 							m_CaptionList.pop_front();
 							::SetWindowText(m_hwndEdit,TEXT(""));
 						}
-						m_CaptionList.push_back(pszText);
-						pszText=NULL;
+						m_CaptionList.push_back(DuplicateString(m_NextCaption.c_str()));
 					}
 				}
-				delete [] pszText;
+				m_NextCaption.clear();
 			}
 		}
 		return 0;
@@ -297,6 +299,7 @@ LRESULT CCaptionPanel::OnMessage(HWND hwnd,UINT uMsg,WPARAM wParam,LPARAM lParam
 		}
 		return 0;
 	}
+
 	return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
 }
 
@@ -307,6 +310,7 @@ LRESULT CALLBACK CCaptionPanel::EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 
 	if (pThis==NULL)
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+
 	switch (uMsg) {
 	case WM_RBUTTONDOWN:
 		{
@@ -336,6 +340,7 @@ LRESULT CALLBACK CCaptionPanel::EditWndProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 		pThis->m_hwndEdit=NULL;
 		break;
 	}
+
 	return ::CallWindowProc(pThis->m_pOldEditProc,hwnd,uMsg,wParam,lParam);
 }
 
@@ -362,7 +367,8 @@ void CCaptionPanel::OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR p
 				if (m_fClearLast || m_fContinue)
 					return;
 				m_fClearLast=true;
-				::PostMessage(m_hwnd,WM_APP,0,(LPARAM)DuplicateString(TEXT("\r\n")));
+				m_NextCaption+=TEXT("\r\n");
+				::PostMessage(m_hwnd,WM_APP_ADD_CAPTION,0,0);
 				return;
 			} else {
 				m_fClearLast=false;
@@ -420,10 +426,11 @@ void CCaptionPanel::OnCaption(CCaptionDecoder *pDecoder,BYTE Language, LPCTSTR p
 #endif
 			if (m_fContinue)
 				pszBuff[DstLength-(3-sizeof(TCHAR))]='\0';
-			if (DstLength>0)
-				::PostMessage(m_hwnd,WM_APP,0,(LPARAM)pszBuff);
-			else
-				delete [] pszBuff;
+			if (DstLength>0) {
+				m_NextCaption+=pszBuff;
+				::PostMessage(m_hwnd,WM_APP_ADD_CAPTION,0,0);
+			}
+			delete [] pszBuff;
 		}
 	}
 }

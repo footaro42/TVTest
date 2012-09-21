@@ -21,7 +21,9 @@ public:
 	~CEpgDataLoader();
 	bool Load(LPCTSTR pszFolder,HANDLE hAbortEvent=NULL);
 	bool LoadAsync(LPCTSTR pszFolder,CEventHandler *pEventHandler=NULL);
+	bool IsLoading() const;
 	bool Abort(DWORD Timeout=10000);
+	bool Wait(DWORD Timeout=INFINITE);
 
 private:
 	CEventManager m_EventManager;
@@ -31,7 +33,7 @@ private:
 	CEventHandler *m_pEventHandler;
 
 	bool LoadFromFile(LPCTSTR pszFileName);
-	static unsigned int __stdcall LoadThread(LPVOID lpParameter);
+	static unsigned int __stdcall LoadThread(void *pParameter);
 };
 
 

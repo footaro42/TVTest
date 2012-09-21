@@ -31,6 +31,7 @@ public:
 	HBITMAP GetAssociatedLogoBitmap(WORD NetworkID,WORD ServiceID,BYTE LogoType);
 	const CGdiPlus::CImage *GetLogoImage(WORD OriginalNetworkID,WORD LogoID,BYTE LogoType);
 	const CGdiPlus::CImage *GetAssociatedLogoImage(WORD NetworkID,WORD ServiceID,BYTE LogoType);
+	HICON CreateLogoIcon(WORD NetworkID,WORD ServiceID,int Width,int Height);
 	bool IsLogoAvailable(WORD NetworkID,WORD ServiceID,BYTE LogoType);
 	DWORD GetAvailableLogoType(WORD NetworkID,WORD ServiceID);
 

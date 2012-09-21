@@ -3,6 +3,7 @@
 #include "StatusItems.h"
 #include "AppMain.h"
 #include "Menu.h"
+#include "EpgUtil.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -36,8 +37,10 @@ void CChannelStatusItem::Draw(HDC hdc,const RECT *pRect)
 		StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
 						  pInfo->GetChannelNo(),pInfo->GetName());
 	} else if ((pInfo=ChannelManager.GetCurrentChannelInfo())!=NULL) {
+		TCHAR szService[MAX_CHANNEL_NAME];
 		StdUtil::snprintf(szText,lengthof(szText),TEXT("%d: %s"),
-						  pInfo->GetChannelNo(),pInfo->GetName());
+			pInfo->GetChannelNo(),
+			AppMain.GetCurrentServiceName(szService,lengthof(szService))?szService:pInfo->GetName());
 	} else {
 		::lstrcpy(szText,TEXT("<ƒ`ƒƒƒ“ƒlƒ‹>"));
 	}
@@ -514,23 +517,28 @@ CSignalLevelStatusItem::CSignalLevelStatusItem()
 
 void CSignalLevelStatusItem::Draw(HDC hdc,const RECT *pRect)
 {
-	const CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
-	TCHAR szText[64];
+	const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+	TCHAR szText[64],szSignalLevel[32];
 	int Length=0;
 
 	if (m_fShowSignalLevel) {
+		pCoreEngine->GetSignalLevelText(szSignalLevel,lengthof(szSignalLevel));
 		Length=StdUtil::snprintf(szText,lengthof(szText),
-								 TEXT("%.2f dB / "),CoreEngine.GetSignalLevel());
+								 TEXT("%s / "),szSignalLevel);
 	}
-	unsigned int BitRate=CoreEngine.GetBitRate()*100/(1024*1024);
-	StdUtil::snprintf(szText+Length,lengthof(szText)-Length,
-					  TEXT("%u.%02u Mbps"),BitRate/100,BitRate%100);
+	pCoreEngine->GetBitRateText(szText+Length,lengthof(szText)-Length);
 	DrawText(hdc,pRect,szText);
 }
 
 void CSignalLevelStatusItem::DrawPreview(HDC hdc,const RECT *pRect)
 {
-	DrawText(hdc,pRect,TEXT("34.52 dB / 16.73 Mbps"));
+	const CCoreEngine *pCoreEngine=GetAppClass().GetCoreEngine();
+	TCHAR szText[64],szSignalLevel[32],szBitRate[32];
+
+	pCoreEngine->GetSignalLevelText(24.52f,szSignalLevel,lengthof(szSignalLevel));
+	pCoreEngine->GetBitRateText(16.73f,szBitRate,lengthof(szBitRate));
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%s / %s"),szSignalLevel,szBitRate);
+	DrawText(hdc,pRect,szText);
 }
 
 void CSignalLevelStatusItem::ShowSignalLevel(bool fShow)
@@ -690,15 +698,17 @@ bool CProgramInfoStatusItem::UpdateContent()
 	CCoreEngine &CoreEngine=*GetAppClass().GetCoreEngine();
 	TCHAR szText[256],szEventName[256];
 	CStaticStringFormatter Formatter(szText,lengthof(szText));
-	SYSTEMTIME stStart,stEnd;
+	SYSTEMTIME StartTime;
+	DWORD Duration;
 
 	if (m_fNext)
 		Formatter.Append(TEXT("ŽŸ: "));
-	if (CoreEngine.m_DtvEngine.GetEventTime(&stStart,NULL,m_fNext)) {
-		Formatter.AppendFormat(TEXT("%d:%02d`"),stStart.wHour,stStart.wMinute);
-		if (CoreEngine.m_DtvEngine.GetEventTime(NULL,&stEnd,m_fNext))
-			Formatter.AppendFormat(TEXT("%d:%02d"),stEnd.wHour,stEnd.wMinute);
-		Formatter.Append(TEXT(" "));
+	if (CoreEngine.m_DtvEngine.GetEventTime(&StartTime,&Duration,m_fNext)) {
+		TCHAR szTime[EpgUtil::MAX_EVENT_TIME_LENGTH];
+		if (EpgUtil::FormatEventTime(StartTime,Duration,szTime,lengthof(szTime))>0) {
+			Formatter.Append(szTime);
+			Formatter.Append(TEXT(" "));
+		}
 	}
 	if (CoreEngine.m_DtvEngine.GetEventName(szEventName,lengthof(szEventName),m_fNext)>0)
 		Formatter.Append(szEventName);

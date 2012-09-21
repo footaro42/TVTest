@@ -2,7 +2,6 @@
 #include "TVTest.h"
 #include "AppMain.h"
 #include "PanelOptions.h"
-#include "ChannelPanel.h"
 #include "DialogUtil.h"
 #include "resource.h"
 
@@ -28,8 +27,7 @@ CPanelOptions::CPanelOptions(CPanelFrame *pPanelFrame)
 	, m_fSpecCaptionFont(true)
 	, m_FirstTab(-1)
 	, m_LastTab(0)
-	, m_fChannelDetailToolTip(false)
-	, m_EventsPerChannel(2)
+	, m_fProgramInfoUseRichEdit(true)
 {
 	DrawUtil::GetDefaultUIFont(&m_Font);
 	DrawUtil::GetSystemFont(DrawUtil::FONT_MESSAGE,&m_CaptionFont);
@@ -65,13 +63,6 @@ bool CPanelOptions::InitializePanelForm(CPanelForm *pPanelForm)
 	}
 	pPanelForm->SetTabOrder(TabOrder);
 	return true;
-}
-
-
-void CPanelOptions::ApplyChannelPanelOptions(class CChannelPanel *pChannelPanel)
-{
-	pChannelPanel->SetDetailToolTip(m_fChannelDetailToolTip);
-	pChannelPanel->SetEventsPerChannel(m_EventsPerChannel);
 }
 
 
@@ -160,8 +151,7 @@ bool CPanelOptions::ReadSettings(CSettings &Settings)
 		}
 	}
 
-	Settings.Read(TEXT("ChannelPanelDetailToolTip"),&m_fChannelDetailToolTip);
-	Settings.Read(TEXT("ChannelPanelEventsPerChannel"),&m_EventsPerChannel);
+	Settings.Read(TEXT("InfoPanelUseRichEdit"),&m_fProgramInfoUseRichEdit);
 
 	return true;
 }
@@ -193,15 +183,10 @@ bool CPanelOptions::WriteSettings(CSettings &Settings)
 		Settings.Write(szName,m_TabList[i].fVisible);
 	}
 
-	// Channel panel
-	CPanelForm *pPanel=dynamic_cast<CPanelForm*>(m_pPanelFrame->GetWindow());
-	if (pPanel!=NULL) {
-		CChannelPanel *pChannelPanel=dynamic_cast<CChannelPanel*>(pPanel->GetPageByID(PANEL_ID_CHANNEL));
-		if (pChannelPanel!=NULL) {
-			Settings.Write(TEXT("ChannelPanelDetailToolTip"),pChannelPanel->GetDetailToolTip());
-			Settings.Write(TEXT("ChannelPanelEventsPerChannel"),pChannelPanel->GetEventsPerChannel());
-		}
-	}
+	// Information panel
+	// UI–¢ŽÀ‘•
+	//Settings.Write(TEXT("InfoPanelUseRichEdit"),m_fProgramInfoUseRichEdit);
+
 	return true;
 }
 
@@ -227,7 +212,8 @@ static void SetFontInfo(HWND hDlg,int ID,const LOGFONT *plf)
 	hdc=GetDC(hDlg);
 	if (hdc==NULL)
 		return;
-	wsprintf(szText,TEXT("%s, %d pt"),plf->lfFaceName,CalcFontPointHeight(hdc,plf));
+	StdUtil::snprintf(szText,lengthof(szText),TEXT("%s, %d pt"),
+					  plf->lfFaceName,CalcFontPointHeight(hdc,plf));
 	SetDlgItemText(hDlg,ID,szText);
 	ReleaseDC(hDlg,hdc);
 }
@@ -326,7 +312,7 @@ INT_PTR CPanelOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam)
 				::SetTextColor(pdis->hDC,OldTextColor);
 				::SetBkMode(pdis->hDC,OldBkMode);
 			}
-			if ((pdis->itemState&ODS_FOCUS)!=0)
+			if ((pdis->itemState & (ODS_FOCUS | ODS_NOFOCUSRECT))==ODS_FOCUS)
 				::DrawFocusRect(pdis->hDC,&pdis->rcItem);
 		}
 		return TRUE;
@@ -462,6 +448,7 @@ LRESULT CALLBACK CPanelOptions::TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 
 	if (pOldWndProc==NULL)
 		return ::DefWindowProc(hwnd,uMsg,wParam,lParam);
+
 	switch (uMsg) {
 	case WM_LBUTTONDOWN:
 		{
@@ -486,5 +473,6 @@ LRESULT CALLBACK CPanelOptions::TabListProc(HWND hwnd,UINT uMsg,WPARAM wParam,LP
 		::RemoveProp(hwnd,TEXT("TabList"));
 		break;
 	}
+
 	return ::CallWindowProc(pOldWndProc,hwnd,uMsg,wParam,lParam);
 }

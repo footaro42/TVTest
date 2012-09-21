@@ -174,14 +174,14 @@ CDsmccSection::CDsmccSection(LogoDataCallback pCallback, void *pCallbackParam
 
 CDsmccSection::~CDsmccSection()
 {
-	for (LogoDataMap::iterator itr = m_LogoDataMap.begin(); itr != m_LogoDataMap.end(); itr++) {
+	for (LogoDataMap::iterator itr = m_LogoDataMap.begin(); itr != m_LogoDataMap.end(); ++itr) {
 		delete itr->second;
 	}
 }
 
 bool CDsmccSection::EnumLogoData(DWORD DownloadID)
 {
-	for (LogoDataMap::iterator itr = m_LogoDataMap.begin(); itr != m_LogoDataMap.end(); itr++) {
+	for (LogoDataMap::iterator itr = m_LogoDataMap.begin(); itr != m_LogoDataMap.end(); ++itr) {
 		if (itr->second->GetDownloadID() == DownloadID) {
 			if (itr->second->IsComplete()) {
 				return itr->second->EnumLogoData();
@@ -386,7 +386,7 @@ void CLogoDownloader::OnSection(CPsiStreamTable *pTable, const CPsiSection *pSec
 
 			if (!UpdatedDownloadIDList.empty()) {
 				for (std::vector<ServiceInfo>::iterator itrService = m_ServiceList.begin();
-						itrService != m_ServiceList.end(); itrService++) {
+						itrService != m_ServiceList.end(); ++itrService) {
 					for (size_t i = 0; i < itrService->EsList.size(); i++) {
 						CDsmccSection *pDsmccSection =
 							dynamic_cast<CDsmccSection*>(m_PidMapManager.GetMapTarget(itrService->EsList[i]));

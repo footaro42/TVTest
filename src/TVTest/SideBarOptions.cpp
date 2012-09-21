@@ -12,9 +12,7 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
-#define NUM_ZOOM_COMMANDS	16
-#define ZOOM_ICON_FIRST		35
-
+#define ZOOM_ICON_FIRST		36
 
 static const CSideBar::SideBarItem ItemList[] = {
 	{CM_ZOOM_20,				ZOOM_ICON_FIRST+0},
@@ -28,11 +26,16 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_ZOOM_200,				ZOOM_ICON_FIRST+8},
 	{CM_ZOOM_250,				ZOOM_ICON_FIRST+9},
 	{CM_ZOOM_300,				ZOOM_ICON_FIRST+10},
-	{CM_CUSTOMZOOM_1,			ZOOM_ICON_FIRST+11},
-	{CM_CUSTOMZOOM_2,			ZOOM_ICON_FIRST+12},
-	{CM_CUSTOMZOOM_3,			ZOOM_ICON_FIRST+13},
-	{CM_CUSTOMZOOM_4,			ZOOM_ICON_FIRST+14},
-	{CM_CUSTOMZOOM_5,			ZOOM_ICON_FIRST+15},
+	{CM_CUSTOMZOOM_FIRST+0,		ZOOM_ICON_FIRST+11},
+	{CM_CUSTOMZOOM_FIRST+1,		ZOOM_ICON_FIRST+12},
+	{CM_CUSTOMZOOM_FIRST+2,		ZOOM_ICON_FIRST+13},
+	{CM_CUSTOMZOOM_FIRST+3,		ZOOM_ICON_FIRST+14},
+	{CM_CUSTOMZOOM_FIRST+4,		ZOOM_ICON_FIRST+15},
+	{CM_CUSTOMZOOM_FIRST+5,		ZOOM_ICON_FIRST+16},
+	{CM_CUSTOMZOOM_FIRST+6,		ZOOM_ICON_FIRST+17},
+	{CM_CUSTOMZOOM_FIRST+7,		ZOOM_ICON_FIRST+18},
+	{CM_CUSTOMZOOM_FIRST+8,		ZOOM_ICON_FIRST+19},
+	{CM_CUSTOMZOOM_FIRST+9,		ZOOM_ICON_FIRST+20},
 	{CM_ASPECTRATIO_DEFAULT,	0},
 	{CM_ASPECTRATIO_16x9,		1},
 	{CM_ASPECTRATIO_LETTERBOX,	2},
@@ -55,19 +58,20 @@ static const CSideBar::SideBarItem ItemList[] = {
 	{CM_OPTIONS,				19},
 	{CM_STREAMINFO,				20},
 	{CM_SPDIF_TOGGLE,			21},
-	{CM_CHANNELDISPLAYMENU,		22},
-	{CM_CHANNELNO_1,			23},
-	{CM_CHANNELNO_2,			24},
-	{CM_CHANNELNO_3,			25},
-	{CM_CHANNELNO_4,			26},
-	{CM_CHANNELNO_5,			27},
-	{CM_CHANNELNO_6,			28},
-	{CM_CHANNELNO_7,			29},
-	{CM_CHANNELNO_8,			30},
-	{CM_CHANNELNO_9,			31},
-	{CM_CHANNELNO_10,			32},
-	{CM_CHANNELNO_11,			33},
-	{CM_CHANNELNO_12,			34},
+	{CM_HOMEDISPLAY,			22},
+	{CM_CHANNELDISPLAY,			23},
+	{CM_CHANNELNO_1,			24},
+	{CM_CHANNELNO_2,			25},
+	{CM_CHANNELNO_3,			26},
+	{CM_CHANNELNO_4,			27},
+	{CM_CHANNELNO_5,			28},
+	{CM_CHANNELNO_6,			29},
+	{CM_CHANNELNO_7,			30},
+	{CM_CHANNELNO_8,			31},
+	{CM_CHANNELNO_9,			32},
+	{CM_CHANNELNO_10,			33},
+	{CM_CHANNELNO_11,			34},
+	{CM_CHANNELNO_12,			35},
 };
 
 static const int DefaultItemList[] = {
@@ -88,7 +92,7 @@ static const int DefaultItemList[] = {
 	0,
 	CM_PANEL,
 	CM_PROGRAMGUIDE,
-	CM_CHANNELDISPLAYMENU,
+	CM_CHANNELDISPLAY,
 	CM_OPTIONS,
 };
 
@@ -207,29 +211,51 @@ HBITMAP CSideBarOptions::CreateImage()
 			HBITMAP hbmDstOld=static_cast<HBITMAP>(::SelectObject(hdcDst,hbm));
 			HDC hdcSrc=::CreateCompatibleDC(NULL);
 			HBITMAP hbmSrcOld=static_cast<HBITMAP>(::SelectObject(hdcSrc,hbmZoom));
-			for (int i=0;i<NUM_ZOOM_COMMANDS;i++) {
-				CZoomOptions::ZoomRate Zoom;
-				m_pZoomOptions->GetZoomRateByCommand(ItemList[i].Command,&Zoom);
-				int Percentage=Zoom.Rate*100/Zoom.Factor;
-				if (Percentage<100) {
-					if (Percentage>=10)
-						::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16,0,4,16,
-								 hdcSrc,(Percentage/10)*4,0,SRCCOPY);
-					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+5,0,4,16,
-							 hdcSrc,(Percentage%10)*4,0,SRCCOPY);
-					// %
-					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+10,0,6,16,
-							 hdcSrc,40,0,SRCCOPY);
-				} else {
-					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16,0,3,16,
-							 hdcSrc,(Percentage/100%10)*3,16,SRCCOPY);
-					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+4,0,3,16,
-							 hdcSrc,(Percentage/10%10)*3,16,SRCCOPY);
-					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+8,0,3,16,
-							 hdcSrc,(Percentage%10)*3,16,SRCCOPY);
-					// %
-					::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+12,0,4,16,
-							 hdcSrc,30,16,SRCCOPY);
+			for (int i=0;i<CZoomOptions::NUM_ZOOM_COMMANDS;i++) {
+				CZoomOptions::ZoomInfo Zoom;
+				if (m_pZoomOptions->GetZoomInfoByCommand(ItemList[i].Command,&Zoom)) {
+					RECT rc;
+					rc.left=(ZOOM_ICON_FIRST+i)*16;
+					rc.top=0;
+					rc.right=rc.left+16;
+					rc.bottom=16;
+					if (Zoom.Type==CZoomOptions::ZOOM_RATE) {
+						int Percentage=Zoom.Rate.GetPercentage();
+						if (Percentage<1000) {
+							::FillRect(hdcDst,&rc,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
+							if (Percentage<100) {
+								if (Percentage>=10)
+									::BitBlt(hdcDst,rc.left,0,4,16,
+											 hdcSrc,(Percentage/10)*4,0,SRCCOPY);
+								::BitBlt(hdcDst,rc.left+5,0,4,16,
+										 hdcSrc,(Percentage%10)*4,0,SRCCOPY);
+								// %
+								::BitBlt(hdcDst,(ZOOM_ICON_FIRST+i)*16+10,0,6,16,
+										 hdcSrc,40,0,SRCCOPY);
+							} else {
+								for (int j=0;j<3;j++) {
+									::BitBlt(hdcDst,rc.left+(2-j)*4,0,3,16,
+											 hdcSrc,(Percentage%10)*3,16,SRCCOPY);
+									Percentage/=10;
+								}
+								// %
+								::BitBlt(hdcDst,rc.left+12,0,4,16,
+										 hdcSrc,30,16,SRCCOPY);
+							}
+						}
+					} else if (Zoom.Type==CZoomOptions::ZOOM_SIZE) {
+						if (Zoom.Size.Width<10000 && Zoom.Size.Height<10000) {
+							::FillRect(hdcDst,&rc,static_cast<HBRUSH>(::GetStockObject(BLACK_BRUSH)));
+							for (int j=0;j<2;j++) {
+								int Size=j==0?Zoom.Size.Width:Zoom.Size.Height;
+								for (int k=0;k<4 && Size!=0;k++) {
+									::BitBlt(hdcDst,rc.left+(3-k)*4,j*8,3,8,
+											 hdcSrc,(Size%10)*3,32,SRCCOPY);
+									Size/=10;
+								}
+							}
+						}
+					}
 				}
 			}
 			::SelectObject(hdcSrc,hbmSrcOld);
@@ -239,6 +265,7 @@ HBITMAP CSideBarOptions::CreateImage()
 			::DeleteObject(hbmZoom);
 		}
 	}
+
 	return hbm;
 }
 
@@ -360,7 +387,7 @@ INT_PTR CSideBarOptions::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lParam
 					lvi.mask=LVIF_STATE | LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;
 					lvi.iItem=Sel;
 					lvi.iSubItem=0;
-					lvi.stateMask=(UINT)-1;
+					lvi.stateMask=~0U;
 					lvi.pszText=szText;
 					lvi.cchTextMax=lengthof(szText);
 					ListView_GetItem(hwndList,&lvi);

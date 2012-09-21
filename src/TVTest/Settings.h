@@ -12,8 +12,9 @@ class CSettings
 
 public:
 	enum {
-		OPEN_READ  = 0x00000001U,
-		OPEN_WRITE = 0x00000002U
+		OPEN_READ           = 0x00000001U,
+		OPEN_WRITE          = 0x00000002U,
+		OPEN_WRITE_VOLATILE = 0x00000004U
 	};
 
 	CSettings();
@@ -29,6 +30,8 @@ public:
 	bool Write(LPCTSTR pszValueName,unsigned int Data);
 	bool Read(LPCTSTR pszValueName,LPTSTR pszData,unsigned int Max);
 	bool Write(LPCTSTR pszValueName,LPCTSTR pszData);
+	bool Read(LPCTSTR pszValueName,TVTest::String *pValue);
+	bool Write(LPCTSTR pszValueName,const TVTest::String &Value);
 	bool Read(LPCTSTR pszValueName,bool *pfData);
 	bool Write(LPCTSTR pszValueName,bool fData);
 	bool ReadColor(LPCTSTR pszValueName,COLORREF *pcrData);

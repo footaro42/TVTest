@@ -4,6 +4,7 @@
 #include "ProgramGuide.h"
 #include "AppMain.h"
 #include "DialogUtil.h"
+#include "LogoManager.h"
 #include "resource.h"
 
 #ifdef _DEBUG
@@ -41,11 +42,21 @@ INT_PTR CEpgChannelSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 	switch (uMsg) {
 	case WM_INITDIALOG:
 		{
-			const CChannelList *pChannelList=m_pProgramGuide->GetChannelList();
+			m_pProgramGuide->GetChannelList(&m_ChannelList,false);
 
 			HWND hwndList=::GetDlgItem(hDlg,IDC_EPGCHANNELSETTINGS_CHANNELLIST);
+			if (Util::OS::IsWindowsVistaOrLater())
+				::SetWindowTheme(hwndList,L"explorer",NULL);
 			ListView_SetExtendedListViewStyle(hwndList,
 				LVS_EX_FULLROWSELECT | LVS_EX_CHECKBOXES | LVS_EX_LABELTIP);
+
+			const int IconWidth=::GetSystemMetrics(SM_CXSMICON);
+			const int IconHeight=::GetSystemMetrics(SM_CYSMICON);
+			HIMAGELIST himl=::ImageList_Create(IconWidth,IconHeight,ILC_COLOR24 | ILC_MASK,
+											   m_ChannelList.NumChannels()+1,100);
+			ImageList_AddIcon(himl,CreateEmptyIcon(IconWidth,IconHeight));
+			ListView_SetImageList(hwndList,himl,LVSIL_SMALL);
+			CLogoManager *pLogoManager=GetAppClass().GetLogoManager();
 
 			RECT rc;
 			::GetClientRect(hwndList,&rc);
@@ -58,12 +69,22 @@ INT_PTR CEpgChannelSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			ListView_InsertColumn(hwndList,0,&lvc);
 
 			LVITEM lvi;
-			lvi.mask=LVIF_TEXT | LVIF_PARAM;
+			lvi.mask=LVIF_TEXT | LVIF_IMAGE | LVIF_PARAM;
 			lvi.iSubItem=0;
-			for (int i=0;i<pChannelList->NumChannels();i++) {
-				const CChannelInfo *pChannelInfo=pChannelList->GetChannelInfo(i);
+			for (int i=0;i<m_ChannelList.NumChannels();i++) {
+				const CChannelInfo *pChannelInfo=m_ChannelList.GetChannelInfo(i);
 				lvi.iItem=i;
 				lvi.pszText=const_cast<LPTSTR>(pChannelInfo->GetName());
+				HICON hico=pLogoManager->CreateLogoIcon(
+					pChannelInfo->GetNetworkID(),
+					pChannelInfo->GetServiceID(),
+					IconWidth,IconHeight);
+				if (hico!=NULL) {
+					lvi.iImage=ImageList_AddIcon(himl,hico);
+					::DestroyIcon(hico);
+				} else {
+					lvi.iImage=0;
+				}
 				lvi.lParam=reinterpret_cast<LPARAM>(pChannelInfo);
 				lvi.iItem=ListView_InsertItem(hwndList,&lvi);
 				ListView_SetCheckState(hwndList,lvi.iItem,
@@ -122,7 +143,7 @@ INT_PTR CEpgChannelSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 				LVITEM lvi;
 				lvi.mask=LVIF_STATE | LVIF_PARAM;
 				lvi.iSubItem=0;
-				lvi.stateMask=(UINT)-1;
+				lvi.stateMask=~0U;
 				for (int i=0;i<ItemCount;i++) {
 					lvi.iItem=i;
 					if (ListView_GetItem(hwndList,&lvi)) {
@@ -143,6 +164,10 @@ INT_PTR CEpgChannelSettings::DlgProc(HWND hDlg,UINT uMsg,WPARAM wParam,LPARAM lP
 			::EndDialog(hDlg,LOWORD(wParam));
 			return TRUE;
 		}
+		return TRUE;
+
+	case WM_DESTROY:
+		m_ChannelList.Clear();
 		return TRUE;
 	}
 

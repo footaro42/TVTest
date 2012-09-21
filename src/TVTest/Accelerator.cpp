@@ -184,7 +184,7 @@ static const struct {
 
 
 const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
-	{CM_ZOOM_100,			VK_HOME,		0,			false},
+//	{CM_ZOOM_100,			VK_HOME,		0,			false},
 	{CM_ASPECTRATIO,		'A',			0,			false},
 	{CM_FULLSCREEN,			VK_RETURN,		MOD_ALT,	false},
 	{CM_ALWAYSONTOP,		'T',			0,			false},
@@ -199,7 +199,8 @@ const CAccelerator::KeyInfo CAccelerator::m_DefaultAccelList[] = {
 	{CM_SAVEIMAGE,			'V',			0,			false},
 	{CM_PANEL,				'P',			0,			false},
 	{CM_PROGRAMGUIDE,		'E',			0,			false},
-	{CM_CHANNELDISPLAYMENU,	'Z',			0,			false},
+	{CM_HOMEDISPLAY,		VK_HOME,		MOD_ALT,	false},
+	{CM_CHANNELDISPLAY,		'Z',			0,			false},
 };
 
 const CAccelerator::AppCommandInfo CAccelerator::m_DefaultAppCommandList[] = {
@@ -217,6 +218,7 @@ const CAccelerator::AppCommandInfo CAccelerator::m_DefaultAppCommandList[] = {
 	*/
 	{CM_CHANNEL_BACKWARD,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_BROWSER_BACKWARD},
 	{CM_CHANNEL_FORWARD,	MEDIAKEY_APPCOMMAND,	APPCOMMAND_BROWSER_FORWARD},
+	{CM_HOMEDISPLAY,		MEDIAKEY_APPCOMMAND,	APPCOMMAND_BROWSER_HOME},
 	{CM_CLOSE,				MEDIAKEY_APPCOMMAND,	APPCOMMAND_CLOSE},
 	{CM_SAVEIMAGE,			MEDIAKEY_APPCOMMAND,	APPCOMMAND_SAVE},
 	{CM_COPY,				MEDIAKEY_APPCOMMAND,	APPCOMMAND_COPY},

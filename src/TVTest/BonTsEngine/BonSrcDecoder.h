@@ -23,6 +23,7 @@ public:
 	// エラーコード
 	enum {
 		ERR_NOERROR,		// エラーなし
+		ERR_NOTLOADED,		// ライブラリが読み込まれていない
 		ERR_DRIVER,			// ドライバエラー
 		ERR_TUNEROPEN,		// チューナオープンエラー
 		ERR_TUNER,			// チューナエラー
@@ -31,8 +32,13 @@ public:
 		ERR_NOTPLAYING,		// 再生されていない
 		ERR_ALREADYPLAYING,	// 既に再生されている
 		ERR_TIMEOUT,		// タイムアウト
-		ERR_PENDING,		// 
+		ERR_PENDING,		// 前の処理が終わっていない
 		ERR_INTERNAL		// 内部エラー
+	};
+
+	enum {
+		FIRST_CHANNEL_SET_DELAY_MAX = 5000UL,
+		CHANNEL_CHANGE_INTERVAL_MAX = 5000UL
 	};
 
 	CBonSrcDecoder(IEventHandler *pEventHandler = NULL);
@@ -44,35 +50,43 @@ public:
 	virtual const bool InputMedia(CMediaData *pMediaData, const DWORD dwInputIndex = 0UL) override;
 
 // CBonSrcDecoder
-	const bool OpenTuner(HMODULE hBonDrvDll);
-	const bool CloseTuner(void);
-	const bool IsOpen() const;
+	bool LoadBonDriver(LPCTSTR pszFileName);
+	bool UnloadBonDriver();
+	bool IsBonDriverLoaded() const;
+	bool OpenTuner();
+	bool CloseTuner(void);
+	bool IsOpen() const;
 
-	const bool Play(void);
-	const bool Stop(void);
+	bool Play(void);
+	bool Stop(void);
 
-	const bool SetChannel(const BYTE byChannel);
-	const bool SetChannel(const DWORD dwSpace, const DWORD dwChannel);
-	const bool SetChannelAndPlay(const DWORD dwSpace, const DWORD dwChannel);
-	const float GetSignalLevel(void);
+	bool SetChannel(const BYTE byChannel);
+	bool SetChannel(const DWORD dwSpace, const DWORD dwChannel);
+	bool SetChannelAndPlay(const DWORD dwSpace, const DWORD dwChannel);
 
-	const bool IsBonDriver2(void) const;
+	bool IsBonDriver2(void) const;
 	LPCTSTR GetSpaceName(const DWORD dwSpace) const;
 	LPCTSTR GetChannelName(const DWORD dwSpace, const DWORD dwChannel) const;
 
-	const bool PurgeStream(void);
+	bool PurgeStream(void);
 
-	// Append by HDUSTestの中の人
 	int NumSpaces() const;
 	LPCTSTR GetTunerName() const;
 	int GetCurSpace() const;
 	int GetCurChannel() const;
+
+	float GetSignalLevel(void);
 	DWORD GetBitRate() const;
 	DWORD GetStreamRemain() const;
+
 	bool SetStreamThreadPriority(int Priority);
 	int GetStreamThreadPriority() const { return m_StreamThreadPriority; }
 	void SetPurgeStreamOnChannelChange(bool bPurge);
 	bool IsPurgeStreamOnChannelChange() const { return m_bPurgeStreamOnChannelChange; }
+	bool SetFirstChannelSetDelay(const DWORD Delay);
+	DWORD GetFirstChannelSetDelay() const { return m_FirstChannelSetDelay; }
+	bool SetMinChannelChangeInterval(const DWORD Interval);
+	DWORD GetMinChannelChangeInterval() const { return m_MinChannelChangeInterval; }
 
 private:
 	struct StreamingRequest
@@ -109,7 +123,9 @@ private:
 	bool WaitAllRequests(DWORD Timeout);
 	bool HasPendingRequest();
 	void SetRequestTimeoutError();
+	void SetChannelWait();
 
+	HMODULE m_hBonDriverLib;
 	IBonDriver *m_pBonDriver;
 	IBonDriver2 *m_pBonDriver2;	
 
@@ -129,4 +145,10 @@ private:
 
 	int m_StreamThreadPriority;
 	bool m_bPurgeStreamOnChannelChange;
+
+	DWORD m_FirstChannelSetDelay;
+	DWORD m_MinChannelChangeInterval;
+	DWORD m_TunerOpenTime;
+	DWORD m_SetChannelTime;
+	UINT m_SetChannelCount;
 };

@@ -15,6 +15,8 @@ static char THIS_FILE[]=__FILE__;
 
 CMainMenu::CMainMenu()
 	: m_hmenu(NULL)
+	, m_hmenuPopup(NULL)
+	, m_hmenuShow(NULL)
 	, m_fPopup(false)
 {
 }
@@ -33,6 +35,7 @@ bool CMainMenu::Create(HINSTANCE hinst)
 	m_hmenu=::LoadMenu(hinst,MAKEINTRESOURCE(IDM_MENU));
 	if (m_hmenu==NULL)
 		return false;
+	m_hmenuPopup=::GetSubMenu(m_hmenu,0);
 	return true;
 }
 
@@ -42,24 +45,83 @@ void CMainMenu::Destroy()
 	if (m_hmenu) {
 		::DestroyMenu(m_hmenu);
 		m_hmenu=NULL;
+		m_hmenuPopup=NULL;
 	}
 }
 
 
-bool CMainMenu::Show(UINT Flags,int x,int y,HWND hwnd,bool fToggle)
+bool CMainMenu::Show(UINT Flags,int x,int y,HWND hwnd,bool fToggle,const std::vector<int> *pItemList)
 {
 	if (m_hmenu==NULL)
 		return false;
+
 	if (!m_fPopup || !fToggle || m_PopupMenu>=0) {
 		if (m_fPopup)
 			::EndMenu();
+
+		HMENU hmenuCustom=m_hmenuPopup;
+
+		if (pItemList!=NULL && !pItemList->empty()) {
+			hmenuCustom=::CreatePopupMenu();
+			int OrigItemCount=::GetMenuItemCount(m_hmenuPopup);
+
+			MENUITEMINFO mii;
+			TCHAR szText[256];
+
+			mii.cbSize=sizeof(mii);
+			mii.fMask=MIIM_FTYPE | MIIM_STATE | MIIM_ID | MIIM_SUBMENU | MIIM_STRING;
+			mii.dwTypeData=szText;
+
+			int ItemCount=0;
+
+			for (auto itr=pItemList->begin();itr!=pItemList->end();++itr) {
+				int ID=*itr;
+
+				if (ID<0) {
+					if (::AppendMenu(hmenuCustom,MF_SEPARATOR,0,NULL))
+						ItemCount++;
+				} else if (ID>=CM_COMMAND_FIRST) {
+					for (int j=0;j<OrigItemCount;j++) {
+						mii.cch=lengthof(szText);
+						if (::GetMenuItemInfo(m_hmenuPopup,j,TRUE,&mii)
+								&& mii.wID==ID) {
+							if (::InsertMenuItem(hmenuCustom,ItemCount,TRUE,&mii))
+								ItemCount++;
+							break;
+						}
+					}
+				} else {
+					mii.cch=lengthof(szText);
+					if (::GetMenuItemInfo(m_hmenuPopup,ID,TRUE,&mii)
+							&& ::InsertMenuItem(hmenuCustom,ItemCount,TRUE,&mii))
+						ItemCount++;
+				}
+			}
+
+			if (ItemCount==0) {
+				::DestroyMenu(hmenuCustom);
+				hmenuCustom=m_hmenuPopup;
+			}
+		}
+
+		m_hmenuShow=hmenuCustom;
 		m_fPopup=true;
 		m_PopupMenu=-1;
-		::TrackPopupMenu(::GetSubMenu(m_hmenu,0),Flags,x,y,0,hwnd,NULL);
+		::TrackPopupMenu(hmenuCustom,Flags,x,y,0,hwnd,NULL);
 		m_fPopup=false;
+		m_hmenuShow=NULL;
+
+		if (hmenuCustom!=m_hmenuPopup) {
+			for (int i=::GetMenuItemCount(hmenuCustom)-1;i>=0;i--) {
+				if ((::GetMenuState(hmenuCustom,i,MF_BYPOSITION)&MF_POPUP)!=0)
+					::RemoveMenu(hmenuCustom,i,MF_BYPOSITION);
+			}
+			::DestroyMenu(hmenuCustom);
+		}
 	} else {
 		::EndMenu();
 	}
+
 	return true;
 }
 
@@ -86,37 +148,45 @@ bool CMainMenu::PopupSubMenu(int SubMenu,UINT Flags,int x,int y,HWND hwnd,bool f
 
 void CMainMenu::EnableItem(UINT ID,bool fEnable)
 {
-	if (m_hmenu)
-		::EnableMenuItem(m_hmenu,ID,MF_BYCOMMAND | (fEnable?MFS_ENABLED:MFS_GRAYED));
+	if (m_hmenuPopup!=NULL) {
+		::EnableMenuItem(m_hmenuPopup,ID,MF_BYCOMMAND | (fEnable?MFS_ENABLED:MFS_GRAYED));
+		if (m_hmenuShow!=NULL && m_hmenuShow!=m_hmenuPopup)
+			::EnableMenuItem(m_hmenuShow,ID,MF_BYCOMMAND | (fEnable?MFS_ENABLED:MFS_GRAYED));
+	}
 }
 
 
 void CMainMenu::CheckItem(UINT ID,bool fCheck)
 {
-	if (m_hmenu)
-		::CheckMenuItem(m_hmenu,ID,MF_BYCOMMAND | (fCheck?MFS_CHECKED:MFS_UNCHECKED));
+	if (m_hmenuPopup!=NULL) {
+		::CheckMenuItem(m_hmenuPopup,ID,MF_BYCOMMAND | (fCheck?MFS_CHECKED:MFS_UNCHECKED));
+		if (m_hmenuShow!=NULL && m_hmenuShow!=m_hmenuPopup)
+			::CheckMenuItem(m_hmenuShow,ID,MF_BYCOMMAND | (fCheck?MFS_CHECKED:MFS_UNCHECKED));
+	}
 }
 
 
 void CMainMenu::CheckRadioItem(UINT FirstID,UINT LastID,UINT CheckID)
 {
-	if (m_hmenu)
-		::CheckMenuRadioItem(m_hmenu,FirstID,LastID,CheckID,MF_BYCOMMAND);
+	if (m_hmenuPopup!=NULL) {
+		::CheckMenuRadioItem(m_hmenuPopup,FirstID,LastID,CheckID,MF_BYCOMMAND);
+		if (m_hmenuShow!=NULL && m_hmenuShow!=m_hmenuPopup)
+			::CheckMenuRadioItem(m_hmenuShow,FirstID,LastID,CheckID,MF_BYCOMMAND);
+	}
 }
 
 
-HMENU CMainMenu::GetMenuHandle() const
+bool CMainMenu::IsMainMenu(HMENU hmenu) const
 {
-	if (m_hmenu)
-		return ::GetSubMenu(m_hmenu,0);
-	return NULL;
+	return hmenu!=NULL
+		&& hmenu==m_hmenuShow;
 }
 
 
 HMENU CMainMenu::GetSubMenu(int SubMenu) const
 {
-	if (m_hmenu)
-		return ::GetSubMenu(::GetSubMenu(m_hmenu,0),SubMenu);
+	if (m_hmenuPopup!=NULL)
+		return ::GetSubMenu(m_hmenuPopup,SubMenu);
 	return NULL;
 }
 
@@ -1029,10 +1099,7 @@ bool CIconMenu::Initialize(HMENU hmenu,HINSTANCE hinst,LPCTSTR pszImageName,
 
 	int IconCount;
 
-	OSVERSIONINFO osvi;
-	osvi.dwOSVersionInfoSize=sizeof(osvi);
-	::GetVersionEx(&osvi);
-	if (osvi.dwMajorVersion<6) {
+	if (!Util::OS::IsWindowsVistaOrLater()) {
 		m_hImageList=::ImageList_LoadImage(hinst,pszImageName,IconWidth,1,0,
 										   IMAGE_BITMAP,LR_CREATEDIBSECTION);
 		if (m_hImageList==NULL)
@@ -1104,7 +1171,7 @@ bool CIconMenu::OnInitMenuPopup(HWND hwnd,HMENU hmenu)
 	for (int i=0;i<Count;i++) {
 		mii.fMask=MIIM_ID | MIIM_STATE | MIIM_DATA;
 		if (::GetMenuItemInfo(hmenu,i,TRUE,&mii)) {
-			for (auto itrItem=m_ItemList.begin();itrItem!=m_ItemList.end();itrItem++) {
+			for (auto itrItem=m_ItemList.begin();itrItem!=m_ItemList.end();++itrItem) {
 				if (itrItem->ID==mii.wID) {
 					mii.fMask=MIIM_STATE | MIIM_BITMAP | MIIM_DATA;
 					mii.dwItemData=(mii.dwItemData & ~ITEM_DATA_IMAGEMASK) | (itrItem->Image+1);
@@ -1273,15 +1340,9 @@ HINSTANCE CDropDownMenu::m_hinst=NULL;
 bool CDropDownMenu::Initialize(HINSTANCE hinst)
 {
 	if (m_hinst==NULL) {
-		OSVERSIONINFO osvi;
 		WNDCLASS wc;
 
-		osvi.dwOSVersionInfoSize=sizeof(osvi);
-		if (::GetVersionEx(&osvi)
-				&& (osvi.dwMajorVersion>5
-					|| (osvi.dwMajorVersion==5 && osvi.dwMinorVersion>=1))
-				&& osvi.dwPlatformId==VER_PLATFORM_WIN32_NT) {
-			// XP or later
+		if (Util::OS::IsWindowsXPOrLater()) {
 			wc.style=CS_DROPSHADOW;
 		} else {
 			wc.style=0;

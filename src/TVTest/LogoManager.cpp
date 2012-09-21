@@ -88,7 +88,7 @@ CLogoManager::~CLogoManager()
 
 void CLogoManager::Clear()
 {
-	for (LogoMap::iterator itr=m_LogoMap.begin();itr!=m_LogoMap.end();itr++)
+	for (LogoMap::iterator itr=m_LogoMap.begin();itr!=m_LogoMap.end();++itr)
 		delete itr->second;
 	m_LogoMap.clear();
 }
@@ -167,7 +167,7 @@ bool CLogoManager::SaveLogoFile(LPCTSTR pszFileName)
 			|| Write!=sizeof(FileHeader))
 		goto OnError;
 
-	for (LogoMap::const_iterator itr=m_LogoMap.begin();itr!=m_LogoMap.end();itr++) {
+	for (LogoMap::const_iterator itr=m_LogoMap.begin();itr!=m_LogoMap.end();++itr) {
 		LogoImageHeader ImageHeader;
 
 		ImageHeader.OriginalNetworkID=itr->second->GetOriginalNetworkID();
@@ -296,7 +296,7 @@ bool CLogoManager::SaveLogoIDMap(LPCTSTR pszFileName)
 		}
 	}
 
-	for (LogoIDMap::const_iterator itr=m_LogoIDMap.begin();itr!=m_LogoIDMap.end();itr++) {
+	for (LogoIDMap::const_iterator itr=m_LogoIDMap.begin();itr!=m_LogoIDMap.end();++itr) {
 		TCHAR szKey[16],szText[16];
 
 		::wsprintf(szKey,TEXT("%08lX"),itr->first);
@@ -410,6 +410,25 @@ const CGdiPlus::CImage *CLogoManager::GetAssociatedLogoImage(WORD NetworkID,WORD
 	if (itr==m_LogoIDMap.end())
 		return NULL;
 	return GetLogoImage(NetworkID,itr->second,LogoType);
+}
+
+
+HICON CLogoManager::CreateLogoIcon(WORD NetworkID,WORD ServiceID,int Width,int Height)
+{
+	if (Width<1 || Height<1)
+		return NULL;
+
+	HBITMAP hbm=GetAssociatedLogoBitmap(NetworkID,ServiceID,
+		(Width<=36 && Height<=24)?LOGOTYPE_SMALL:LOGOTYPE_BIG);
+	if (hbm==NULL)
+		return NULL;
+
+	// –{—ˆ‚Ì”ä—¦‚æ‚èc’·‚É‚µ‚Ä‚¢‚é(Œ©‰h‚¦‚Ì‚½‚ß)
+	int ImageWidth=Height*16/10;
+	int ImageHeight=Width*10/16;
+	return CreateIconFromBitmap(hbm,Width,Height,
+								min(Width,ImageWidth),
+								min(Height,ImageHeight));
 }
 
 

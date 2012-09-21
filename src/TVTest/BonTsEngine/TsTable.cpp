@@ -14,123 +14,205 @@ static char THIS_FILE[]=__FILE__;
 #endif
 
 
+/////////////////////////////////////////////////////////////////////////////
+// PSIテーブル基底クラス
+/////////////////////////////////////////////////////////////////////////////
+
+CPsiTableBase::CPsiTableBase(const bool bTargetSectionExt, const bool bIgnoreSectionNumber)
+	: m_PsiSectionParser(this, bTargetSectionExt, bIgnoreSectionNumber)
+	, m_bTableUpdated(false)
+{
+}
+
+CPsiTableBase::~CPsiTableBase()
+{
+}
+
+void CPsiTableBase::Reset()
+{
+	// 状態初期化
+	m_PsiSectionParser.Reset();
+	m_bTableUpdated = false;
+}
+
+bool CPsiTableBase::IsUpdated() const
+{
+	return m_bTableUpdated;
+}
+
+DWORD CPsiTableBase::GetCrcErrorCount() const
+{
+	return m_PsiSectionParser.GetCrcErrorCount();
+}
+
+const bool CPsiTableBase::StorePacket(const CTsPacket *pPacket)
+{
+	if (!pPacket)
+		return false;
+
+	m_bTableUpdated = false;
+
+	// パケットストア
+	m_PsiSectionParser.StorePacket(pPacket);
+
+	return m_bTableUpdated;
+}
+
+void CPsiTableBase::OnPidUnmapped(const WORD wPID)
+{
+	// インスタンスを開放する
+	delete this;
+}
+
+
 //////////////////////////////////////////////////////////////////////
 // CPsiTableクラスの構築/消滅
 //////////////////////////////////////////////////////////////////////
-/*
+
 CPsiTable::CPsiTable()
 {
 	Reset();
 }
 
-CPsiTable::CPsiTable(const CPsiTable &Operand)
+CPsiTable::~CPsiTable()
 {
-	*this = Operand;
+	ClearTable();
 }
 
-CPsiTable & CPsiTable::operator = (const CPsiTable &Operand)
-{
-	m_TableArray = Operand.m_TableArray;
-
-	return *this;
-}
-
-const bool CPsiTable::StoreSection(const CPsiSection *pSection, bool *pbUpdate)
-{
-	bool bUpdate = false;
-
-	// セクションのサイズをチェック
-	if(!pSection->GetPayloadSize()){
-		if(pbUpdate)*pbUpdate = bUpdate;
-		return false;
-		}
-
-	// カレントネクストインジケータチェック(本来は別バンクに貯めるべき？)
-	if(!pSection->IsCurrentNext()){
-		if(pbUpdate)*pbUpdate = bUpdate;
-		return true;
-		}
-
-	// テーブルID拡張を検索する
-	DWORD dwIndex;
-
-	for(dwIndex = 0UL ; dwIndex < m_TableArray.size() ; dwIndex++){
-		if(m_TableArray[dwIndex].wTableIdExtension == pSection->GetTableIdExtension())break;
-		}
-
-	if(dwIndex >= m_TableArray.size()){
-		// テーブルID拡張が見つからない、テーブル追加
-		m_TableArray.resize(dwIndex + 1);
-		m_TableArray[dwIndex].wTableIdExtension = pSection->GetTableIdExtension();
-		m_TableArray[dwIndex].wSectionNum = (WORD)pSection->GetLastSectionNumber() + 1U;
-		m_TableArray[dwIndex].byVersionNo = pSection->GetVersionNo();
-		m_TableArray[dwIndex].SectionArray.resize(m_TableArray[dwIndex].wSectionNum);
-		bUpdate = true;
-		}
-	else if(m_TableArray[dwIndex].byVersionNo != pSection->GetVersionNo()){
-		// バージョンが不一致、テーブルが更新された
-		m_TableArray[dwIndex].wSectionNum = (WORD)pSection->GetLastSectionNumber() + 1U;
-		m_TableArray[dwIndex].byVersionNo = pSection->GetVersionNo();
-		m_TableArray[dwIndex].SectionArray.clear();
-		m_TableArray[dwIndex].SectionArray.resize(m_TableArray[dwIndex].wSectionNum);
-		bUpdate = true;
-		}
-	else if(m_TableArray[dwIndex].wSectionNum != ((WORD)pSection->GetLastSectionNumber() + 1U)){
-		// セクション数が変化した(例外？)
-		m_TableArray[dwIndex].wSectionNum = (WORD)pSection->GetLastSectionNumber() + 1U;
-		m_TableArray[dwIndex].SectionArray.resize(m_TableArray[dwIndex].wSectionNum);
-		}
-
-	// セクションデータを更新する
-	m_TableArray[dwIndex].SectionArray[pSection->GetSectionNumber()].SetData(pSection->GetPayloadData(), pSection->GetPayloadSize());
-
-	// 更新情報設定
-	if(pbUpdate)*pbUpdate = bUpdate;
-
-	return true;
-}
-
-const WORD CPsiTable::GetExtensionNum(void) const
+WORD CPsiTable::GetExtensionNum(void) const
 {
 	// テーブルの数を返す
-	return m_TableArray.size();
+	return (WORD)m_TableArray.size();
 }
 
-const bool CPsiTable::GetExtension(const WORD wIndex, WORD *pwExtension) const
+bool CPsiTable::GetExtension(const WORD Index, WORD *pExtension) const
 {
-	if(wIndex >= GetExtensionNum())return false;
+	if (Index >= GetExtensionNum())
+		return false;
 
 	// テーブルID拡張を返す
-	*pwExtension = m_TableArray[wIndex].wTableIdExtension;
+	*pExtension = m_TableArray[Index].TableIdExtension;
 
 	return true;
 }
 
-const bool CPsiTable::GetSectionNum(const WORD wIndex, WORD *pwSectionNum) const
+WORD CPsiTable::GetSectionNum(const WORD Index) const
 {
-	if(wIndex >= GetExtensionNum())return false;
+	if (Index >= GetExtensionNum())
+		return 0;
 
-	// テーブルID拡張を返す
-	*pwSectionNum = m_TableArray[wIndex].wSectionNum;
-
-	return true;
+	// セクション数を返す
+	return m_TableArray[Index].SectionNum;
 }
 
-const CMediaData * CPsiTable::GetSectionData(const WORD wIndex, const BYTE bySectionNo) const
+const CPsiTableBase * CPsiTable::GetSection(const WORD Index, const BYTE SectionNo) const
 {
-	if(wIndex >= GetExtensionNum())return NULL;
-	if(bySectionNo > m_TableArray[wIndex].wSectionNum)return NULL;
+	if (Index >= GetExtensionNum())
+		return NULL;
+	if (SectionNo >= m_TableArray[Index].SectionNum)
+		return NULL;
 
 	// セクションデータを返す
-	return &m_TableArray[wIndex].SectionArray[bySectionNo];
+	return m_TableArray[Index].SectionArray[SectionNo].pTable;
 }
 
-void CPsiTable::Reset(void)
+bool CPsiTable::IsExtensionComplete(const WORD Index) const
+{
+	if (Index >= GetExtensionNum())
+		return false;
+
+	const TableItem &Table = m_TableArray[Index];
+
+	for (size_t i = 0; i < Table.SectionArray.size(); i++) {
+		if (!Table.SectionArray[i].pTable
+				|| !Table.SectionArray[i].bUpdated)
+			return false;
+	}
+
+	return true;
+}
+
+void CPsiTable::Reset()
+{
+	CPsiTableBase::Reset();
+
+	ClearTable();
+}
+
+void CPsiTable::ClearTable()
 {
 	// 全てのテーブルを削除する
+	for (size_t i = 0; i < m_TableArray.size(); i++)
+		m_TableArray[i].ClearSection();
+
 	m_TableArray.clear();
 }
-*/
+
+void CPsiTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
+{
+	m_bTableUpdated = false;
+
+	// セクション番号チェック
+	if (pSection->GetSectionNumber() > pSection->GetLastSectionNumber())
+		return;
+
+	// セクションのサイズをチェック
+	if (!pSection->GetPayloadSize())
+		return;
+
+	// カレントネクストインジケータチェック(本来は別バンクに貯めるべき？)
+	if (!pSection->IsCurrentNext())
+		return;
+
+	// テーブルID拡張を検索する
+	size_t Index;
+
+	for (Index = 0; Index < m_TableArray.size(); Index++) {
+		if (m_TableArray[Index].TableIdExtension == pSection->GetTableIdExtension())
+			break;
+	}
+
+	if (Index == m_TableArray.size()) {
+		// テーブルID拡張が見つからない、テーブル追加
+		m_TableArray.resize(Index + 1);
+		m_TableArray[Index].TableIdExtension = pSection->GetTableIdExtension();
+		m_TableArray[Index].SectionNum = (WORD)pSection->GetLastSectionNumber() + 1;
+		m_TableArray[Index].VersionNo = pSection->GetVersionNo();
+		m_TableArray[Index].SectionArray.resize(m_TableArray[Index].SectionNum);
+		m_bTableUpdated = true;
+	} else if (m_TableArray[Index].VersionNo != pSection->GetVersionNo()
+			|| m_TableArray[Index].SectionNum != (WORD)pSection->GetLastSectionNumber() + 1) {
+		// バージョンが不一致、テーブルが更新された
+		m_TableArray[Index].SectionNum = (WORD)pSection->GetLastSectionNumber() + 1;
+		m_TableArray[Index].VersionNo = pSection->GetVersionNo();
+		m_TableArray[Index].ClearSection();
+		m_TableArray[Index].SectionArray.resize(m_TableArray[Index].SectionNum);
+		m_bTableUpdated = true;
+	}
+
+	// セクションデータを更新する
+	const WORD SectionNumber = pSection->GetSectionNumber();
+	TableItem::SectionItem &Section = m_TableArray[Index].SectionArray[SectionNumber];
+	if (!Section.pTable) {
+		Section.pTable = CreateSectionTable(pSection);
+		if (!Section.pTable)
+			return;
+	}
+	Section.pTable->OnPsiSection(pPsiSectionParser, pSection);
+	if (Section.pTable->IsUpdated()) {
+		Section.bUpdated = true;
+		m_bTableUpdated = true;
+	}
+}
+
+
+void CPsiTable::TableItem::ClearSection()
+{
+	for (size_t i = 0; i < SectionArray.size(); i++)
+		delete SectionArray[i].pTable;
+
+	SectionArray.clear();
+}
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -138,16 +220,12 @@ void CPsiTable::Reset(void)
 /////////////////////////////////////////////////////////////////////////////
 
 CPsiSingleTable::CPsiSingleTable(const bool bTargetSectionExt)
-	: CTsPidMapTarget()
-	, m_PsiSectionParser(this, bTargetSectionExt)
-	, m_bTableUpdated(false)
+	: CPsiTableBase(bTargetSectionExt)
 {
 
 }
 
 CPsiSingleTable::CPsiSingleTable(const CPsiSingleTable &Operand)
-	: CTsPidMapTarget()
-	, m_PsiSectionParser(this)
 {
 	// コピーコンストラクタ
 	*this = Operand;
@@ -162,45 +240,34 @@ CPsiSingleTable & CPsiSingleTable::operator = (const CPsiSingleTable &Operand)
 {
 	// インスタンスのコピー
 	if (&Operand != this) {
+		CPsiTableBase::operator=(Operand);
+
 		m_CurSection = Operand.m_CurSection;
-		m_PsiSectionParser = Operand.m_PsiSectionParser;
-		m_bTableUpdated = Operand.m_bTableUpdated;
 	}
 
 	return *this;
 }
 
-const bool CPsiSingleTable::StorePacket(const CTsPacket *pPacket)
-{
-	if(!pPacket)return false;
-
-	m_bTableUpdated = false;
-
-	// パケットストア
-	m_PsiSectionParser.StorePacket(pPacket);
-
-	return m_bTableUpdated;
-}
-
-void CPsiSingleTable::OnPidUnmapped(const WORD wPID)
-{
-	// インスタンスを開放する
-	delete this;
-}
-
-void CPsiSingleTable::Reset(void)
+void CPsiSingleTable::Reset()
 {
 	// 状態初期化
-	m_PsiSectionParser.Reset();
+	CPsiTableBase::Reset();
 	m_CurSection.Reset();
-
-	m_bTableUpdated = false;
 }
 
-const DWORD CPsiSingleTable::GetCrcErrorCount(void) const
+void CPsiSingleTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
 {
-	// CRCエラーカウントを取得する
-	return m_PsiSectionParser.GetCrcErrorCount();
+	// セクションのフィルタリングを行う場合は派生クラスでオーバーライドする
+	// デフォルトの実装ではセクションペイロード更新時に仮想関数に通知する
+	m_bTableUpdated = false;
+	if (*pSection != m_CurSection) {
+		// セクションが更新された
+		if (OnTableUpdate(pSection, &m_CurSection)) {
+			// セクションストア
+			m_CurSection = *pSection;
+			m_bTableUpdated = true;
+		}
+	}
 }
 
 const bool CPsiSingleTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
@@ -209,37 +276,19 @@ const bool CPsiSingleTable::OnTableUpdate(const CPsiSection *pCurSection, const 
 	return true;
 }
 
-void CPsiSingleTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
-{
-	// セクションのフィルタリングを行う場合は派生クラスでオーバーライドする
-	// デフォルトの実装ではセクションペイロード更新時に仮想関数に通知する
-	if(!(*pSection == m_CurSection)){
-		// セクションが更新された
-		if(OnTableUpdate(pSection, &m_CurSection)){
-			// セクションストア
-			m_CurSection = *pSection;
-			m_bTableUpdated = true;
-			}
-		}
-}
-
 
 /////////////////////////////////////////////////////////////////////////////
 // ストリーム型テーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
 CPsiStreamTable::CPsiStreamTable(ISectionHandler *pHandler, const bool bTargetSectionExt, const bool bIgnoreSectionNumber)
-	: CTsPidMapTarget()
-	, m_PsiSectionParser(this, bTargetSectionExt, bIgnoreSectionNumber)
+	: CPsiTableBase(bTargetSectionExt, bIgnoreSectionNumber)
 	, m_pSectionHandler(pHandler)
-	, m_bTableUpdated(false)
 {
 
 }
 
 CPsiStreamTable::CPsiStreamTable(const CPsiStreamTable &Operand)
-	: CTsPidMapTarget()
-	, m_PsiSectionParser(this)
 {
 	// コピーコンストラクタ
 	*this = Operand;
@@ -254,62 +303,37 @@ CPsiStreamTable & CPsiStreamTable::operator = (const CPsiStreamTable &Operand)
 {
 	// インスタンスのコピー
 	if (&Operand != this) {
+		CPsiTableBase::operator=(Operand);
+
 		m_pSectionHandler = Operand.m_pSectionHandler;
-		m_PsiSectionParser = Operand.m_PsiSectionParser;
-		m_bTableUpdated = Operand.m_bTableUpdated;
 	}
 
 	return *this;
 }
 
-const bool CPsiStreamTable::StorePacket(const CTsPacket *pPacket)
-{
-	if(!pPacket)return false;
-
-	m_bTableUpdated = false;
-
-	// パケットストア
-	m_PsiSectionParser.StorePacket(pPacket);
-
-	return m_bTableUpdated;
-}
-
-void CPsiStreamTable::OnPidUnmapped(const WORD wPID)
-{
-	// インスタンスを開放する
-	delete this;
-}
-
-void CPsiStreamTable::Reset(void)
+void CPsiStreamTable::Reset()
 {
 	// 状態初期化
-	m_PsiSectionParser.Reset();
-
-	m_bTableUpdated = false;
+	CPsiTableBase::Reset();
 
 	if (m_pSectionHandler)
 		m_pSectionHandler->OnReset(this);
 }
 
-const DWORD CPsiStreamTable::GetCrcErrorCount(void) const
+void CPsiStreamTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
 {
-	// CRCエラーカウントを取得する
-	return m_PsiSectionParser.GetCrcErrorCount();
+	m_bTableUpdated = false;
+	if (OnTableUpdate(pSection)) {
+		if (m_pSectionHandler)
+			m_pSectionHandler->OnSection(this, pSection);
+		m_bTableUpdated = true;
+	}
 }
 
 const bool CPsiStreamTable::OnTableUpdate(const CPsiSection *pCurSection)
 {
 	// デフォルトの実装では何もしない
 	return true;
-}
-
-void CPsiStreamTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
-{
-	if (OnTableUpdate(pSection)) {
-		if (m_pSectionHandler)
-			m_pSectionHandler->OnSection(this, pSection);
-		m_bTableUpdated = true;
-	}
 }
 
 CPsiStreamTable::ISectionHandler::~ISectionHandler()
@@ -485,6 +509,92 @@ void CALLBACK CPsiTableSuite::StoreSection(const CPsiSection *pSection, const PV
 	if(bUpdate)pThis->m_bTableUpdated = true;
 }
 */
+
+
+CPsiTableSet::CPsiTableSet(const bool bTargetSectionExt)
+	: CPsiTableBase(bTargetSectionExt)
+	, m_LastUpdatedTableID(0xFF)
+{
+
+}
+
+CPsiTableSet::~CPsiTableSet()
+{
+	UnmapAllTables();
+}
+
+void CPsiTableSet::Reset()
+{
+	// 状態初期化
+	CPsiTableBase::Reset();
+
+	m_LastUpdatedTableID = 0xFF;
+}
+
+bool CPsiTableSet::MapTable(const BYTE TableID, CPsiTableBase *pTable)
+{
+	if (pTable == NULL)
+		return false;
+
+	UnmapTable(TableID);
+
+	m_TableMap.insert(std::pair<BYTE, CPsiTableBase *>(TableID, pTable));
+
+	return true;
+}
+
+bool CPsiTableSet::UnmapTable(const BYTE TableID)
+{
+	SectionTableMap::iterator itr = m_TableMap.find(TableID);
+
+	if (itr == m_TableMap.end())
+		return false;
+
+	delete itr->second;
+
+	m_TableMap.erase(itr);
+
+	return true;
+}
+
+void CPsiTableSet::UnmapAllTables()
+{
+	for (SectionTableMap::iterator itr = m_TableMap.begin();
+			itr != m_TableMap.end(); ++itr)
+		delete itr->second;
+
+	m_TableMap.clear();
+}
+
+CPsiTableBase * CPsiTableSet::GetTableByID(const BYTE TableID)
+{
+	SectionTableMap::iterator itr = m_TableMap.find(TableID);
+
+	if (itr == m_TableMap.end())
+		return NULL;
+
+	return itr->second;
+}
+
+BYTE CPsiTableSet::GetLastUpdatedTableID() const
+{
+	return m_LastUpdatedTableID;
+}
+
+void CPsiTableSet::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
+{
+	CPsiTableBase *pTable = GetTableByID(pSection->GetTableID());
+
+	m_bTableUpdated = false;
+
+	if (pTable) {
+		pTable->OnPsiSection(pPsiSectionParser, pSection);
+		if (pTable->IsUpdated()) {
+			m_bTableUpdated = true;
+			m_LastUpdatedTableID = pSection->GetTableID();
+		}
+	}
+}
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -891,8 +1001,9 @@ const bool CPmtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 // SDTテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-CSdtTable::CSdtTable()
+CSdtTable::CSdtTable(const BYTE TableID)
 	: CPsiSingleTable()
+	, m_TableID(TableID)
 {
 
 }
@@ -906,6 +1017,7 @@ CSdtTable & CSdtTable::operator = (const CSdtTable &Operand)
 {
 	if (this != &Operand) {
 		CPsiSingleTable::operator = (Operand);
+		m_TableID = Operand.m_TableID;
 		m_wNetworkID = Operand.m_wNetworkID;
 		m_ServiceInfoArray = Operand.m_ServiceInfoArray;
 	}
@@ -920,6 +1032,16 @@ void CSdtTable::Reset(void)
 
 	m_wNetworkID = 0xFFFF;
 	m_ServiceInfoArray.clear();
+}
+
+const BYTE CSdtTable::GetTableID(void) const
+{
+	return m_TableID;
+}
+
+const WORD CSdtTable::GetTransportStreamID(void) const
+{
+	return m_CurSection.GetTableIdExtension();
 }
 
 const WORD CSdtTable::GetNetworkID(void) const
@@ -950,6 +1072,21 @@ const WORD CSdtTable::GetServiceID(const WORD wIndex) const
 {
 	// 	サービスIDを返す
 	return (wIndex < GetServiceNum())? m_ServiceInfoArray[wIndex].wServiceID : 0xFFFFU;
+}
+
+const bool CSdtTable::GetHEITFlag(const WORD wIndex) const
+{
+	return (wIndex < GetServiceNum()) ? m_ServiceInfoArray[wIndex].bHEITFlag : false;
+}
+
+const bool CSdtTable::GetMEITFlag(const WORD wIndex) const
+{
+	return (wIndex < GetServiceNum()) ? m_ServiceInfoArray[wIndex].bMEITFlag : false;
+}
+
+const bool CSdtTable::GetLEITFlag(const WORD wIndex) const
+{
+	return (wIndex < GetServiceNum()) ? m_ServiceInfoArray[wIndex].bLEITFlag : false;
 }
 
 const bool CSdtTable::GetEITScheduleFlag(const WORD wIndex) const
@@ -984,10 +1121,8 @@ const CDescBlock * CSdtTable::GetItemDesc(const WORD wIndex) const
 
 void CSdtTable::OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection)
 {
-	if(pSection->GetTableID() != 0x42U)return;
-
-	// Actual Streamだけを処理する
-	CPsiSingleTable::OnPsiSection(pPsiSectionParser, pSection);
+	if (pSection->GetTableID() == m_TableID)
+		CPsiSingleTable::OnPsiSection(pPsiSectionParser, pSection);
 }
 
 const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection)
@@ -997,8 +1132,7 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 	if (wDataSize < 3)
 		return false;
-	if (pCurSection->GetTableID() != 0x42		// actual
-		&& pCurSection->GetTableID() != 0x46)	// other
+	if (pCurSection->GetTableID() != m_TableID)
 		return false;
 
 	// 状態をクリアする
@@ -1006,7 +1140,9 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 
 	m_wNetworkID = ((WORD)pHexData[0] << 8) | (WORD)pHexData[1];
 
-	TRACE(TEXT("\n------- SDT Table -------\nTransport Stream ID = %04X\nOriginal Network ID = %04X\n"), pCurSection->GetTableIdExtension(), m_wNetworkID);
+	TRACE(TEXT("\n------- SDT Table (%s) -------\nTransport Stream ID = %04X\nOriginal Network ID = %04X\n"),
+		  m_TableID == TABLE_ID_ACTUAL ? TEXT("actual") : TEXT("other"),
+		  pCurSection->GetTableIdExtension(), m_wNetworkID);
 
 	// テーブルを解析する
 	WORD wDescLen;
@@ -1014,6 +1150,9 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 		TAG_SDTITEM SdtItem;
 
 		SdtItem.wServiceID					= ((WORD)pHexData[wPos + 0] << 8) | (WORD)pHexData[wPos + 1];
+		SdtItem.bHEITFlag					= (pHexData[wPos + 2] & 0x10) != 0;
+		SdtItem.bMEITFlag					= (pHexData[wPos + 2] & 0x08) != 0;
+		SdtItem.bLEITFlag					= (pHexData[wPos + 2] & 0x04) != 0;
 		SdtItem.bEITScheduleFlag			= (pHexData[wPos + 2] & 0x02) != 0;
 		SdtItem.bEITPresentFollowingFlag	= (pHexData[wPos + 2] & 0x01) != 0;
 		SdtItem.byRunningStatus				= pHexData[wPos + 3] >> 5;
@@ -1046,6 +1185,20 @@ const bool CSdtTable::OnTableUpdate(const CPsiSection *pCurSection, const CPsiSe
 	}
 
 	return true;
+}
+
+
+CSdtOtherTable::CSdtOtherTable()
+{
+}
+
+CSdtOtherTable::~CSdtOtherTable()
+{
+}
+
+CPsiTableBase * CSdtOtherTable::CreateSectionTable(const CPsiSection *pSection)
+{
+	return new CSdtTable(CSdtTable::TABLE_ID_OTHER);
 }
 
 

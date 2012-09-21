@@ -51,13 +51,13 @@ bool CChannelHistory::SetCurrentChannel(LPCTSTR pszDriverName,const CChannelInfo
 	}
 
 	while ((int)m_ChannelList.size()-1>m_CurrentChannel) {
-		delete m_ChannelList[m_ChannelList.size()-1];
+		delete m_ChannelList.back();
 		m_ChannelList.pop_back();
 	}
 	m_ChannelList.push_back(new CChannel(pszDriverName,pChannelInfo));
 	m_CurrentChannel++;
 	if ((int)m_ChannelList.size()>m_MaxChannelHistory) {
-		delete m_ChannelList[0];
+		delete m_ChannelList.front();
 		m_ChannelList.pop_front();
 		m_CurrentChannel--;
 	}
@@ -132,12 +132,13 @@ bool CRecentChannelList::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelI
 		return false;
 
 	std::deque<CChannel*>::iterator itr;
-	for (itr=m_ChannelList.begin();itr!=m_ChannelList.end();itr++) {
+	for (itr=m_ChannelList.begin();itr!=m_ChannelList.end();++itr) {
 		if (::lstrcmpi((*itr)->GetDriverFileName(),pszDriverName)==0
 				&& (*itr)->GetSpace()==pChannelInfo->GetSpace()
 				&& (*itr)->GetChannelIndex()==pChannelInfo->GetChannelIndex()
 				&& (*itr)->GetServiceID()==pChannelInfo->GetServiceID()) {
-			if (itr==m_ChannelList.begin())
+			if (itr==m_ChannelList.begin()
+					&& (*itr)->GetNetworkID()==pChannelInfo->GetNetworkID())
 				return true;
 			delete *itr;
 			m_ChannelList.erase(itr);
@@ -146,7 +147,7 @@ bool CRecentChannelList::Add(LPCTSTR pszDriverName,const CChannelInfo *pChannelI
 	}
 	m_ChannelList.push_front(new CChannel(pszDriverName,pChannelInfo));
 	if ((int)m_ChannelList.size()>m_MaxChannelHistory) {
-		delete m_ChannelList[m_ChannelList.size()-1];
+		delete m_ChannelList.back();
 		m_ChannelList.pop_back();
 	}
 	return true;
@@ -188,7 +189,7 @@ bool CRecentChannelList::ReadSettings(CSettings &Settings)
 			Count=m_MaxChannelHistory;
 		for (int i=0;i<Count;i++) {
 			TCHAR szName[32],szDriverName[MAX_PATH],szChannelName[MAX_CHANNEL_NAME];
-			int Space,Channel,ServiceID;
+			int Space,Channel,ServiceID,NetworkID;
 
 			::wsprintf(szName,TEXT("History%d_Driver"),i);
 			if (!Settings.Read(szName,szDriverName,lengthof(szDriverName))
@@ -207,8 +208,12 @@ bool CRecentChannelList::ReadSettings(CSettings &Settings)
 			::wsprintf(szName,TEXT("History%d_ServiceID"),i);
 			if (!Settings.Read(szName,&ServiceID))
 				break;
+			::wsprintf(szName,TEXT("History%d_NetworkID"),i);
+			if (!Settings.Read(szName,&NetworkID))
+				NetworkID=0;
 			CChannelInfo ChannelInfo(Space,Channel,0,szChannelName);
 			ChannelInfo.SetServiceID(ServiceID);
+			ChannelInfo.SetNetworkID(NetworkID);
 			m_ChannelList.push_back(new CChannel(szDriverName,&ChannelInfo));
 		}
 	}
@@ -236,6 +241,8 @@ bool CRecentChannelList::WriteSettings(CSettings &Settings)
 		Settings.Write(szName,pChannelInfo->GetChannelIndex());
 		::wsprintf(szName,TEXT("History%d_ServiceID"),i);
 		Settings.Write(szName,pChannelInfo->GetServiceID());
+		::wsprintf(szName,TEXT("History%d_NetworkID"),i);
+		Settings.Write(szName,pChannelInfo->GetNetworkID());
 	}
 	return true;
 }

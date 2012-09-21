@@ -6,6 +6,7 @@
 
 
 #include <vector>
+#include <map>
 #include "MediaData.h"
 #include "TsStream.h"
 #include "TsDescriptor.h"
@@ -15,46 +16,85 @@ using std::vector;
 
 
 /////////////////////////////////////////////////////////////////////////////
+// PSIテーブル基底クラス
+/////////////////////////////////////////////////////////////////////////////
+
+class ABSTRACT_CLASS_DECL CPsiTableBase
+	: public CTsPidMapTarget
+	, public CPsiSectionParser::IPsiSectionHandler
+{
+public:
+	CPsiTableBase(const bool bTargetSectionExt = true, const bool bIgnoreSectionNumber = false);
+	virtual ~CPsiTableBase() = 0;
+
+	virtual void Reset();
+
+	bool IsUpdated() const;
+	DWORD GetCrcErrorCount() const;
+
+// CTsPidMapTarget
+	virtual const bool StorePacket(const CTsPacket *pPacket) override;
+	virtual void OnPidUnmapped(const WORD wPID) override;
+
+protected:
+	CPsiSectionParser m_PsiSectionParser;
+	bool m_bTableUpdated;
+};
+
+
+/////////////////////////////////////////////////////////////////////////////
 // PSIテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
-/*
-class CPsiTable		// 保留： 実際のユースケースを判断した上で仕様を決める必要あり
+
+class ABSTRACT_CLASS_DECL CPsiTable : public CPsiTableBase
 {
 public:
 	CPsiTable();
-	CPsiTable(const CPsiTable &Operand);
+	virtual ~CPsiTable() = 0;
 
-	CPsiTable & operator = (const CPsiTable &Operand);
+	WORD GetExtensionNum(void) const;
+	bool GetExtension(const WORD Index, WORD *pExtension) const;
+	WORD GetSectionNum(const WORD Index) const;
+	const CPsiTableBase * GetSection(const WORD Index = 0, const BYTE SectionNo = 0) const;
+	bool IsExtensionComplete(const WORD Index) const;
 
-	const bool StoreSection(const CPsiSection *pSection, bool *pbUpdate = NULL);
-
-	const WORD GetExtensionNum(void) const;
-	const bool GetExtension(const WORD wIndex, WORD *pwExtension) const;
-	const bool GetSectionNum(const WORD wIndex, WORD *pwSectionNum) const;
-	const CMediaData * GetSectionData(const WORD wIndex = 0U, const BYTE bySectionNo = 0U) const;
-
-	void Reset(void);
+// CPsiTableBase
+	virtual void Reset() override;
 
 protected:
-	struct TAG_TABLEITEM
+// CPsiSectionParser::IPsiSectionHandler
+	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection) override;
+
+	virtual CPsiTableBase * CreateSectionTable(const CPsiSection *pSection) = 0;
+
+	void ClearTable();
+
+	struct TableItem
 	{
-		WORD wTableIdExtension;				// テーブルID拡張
-		WORD wSectionNum;					// セクション数
-		BYTE byVersionNo;					// バージョン番号
-		vector<CMediaData> SectionArray;	// セクションデータ
+		struct SectionItem
+		{
+			CPsiTableBase * pTable;
+			bool bUpdated;
+
+			SectionItem() : pTable(NULL), bUpdated(false) {}
+		};
+
+		WORD TableIdExtension;					// テーブルID拡張
+		WORD SectionNum;						// セクション数
+		BYTE VersionNo;							// バージョン番号
+		std::vector<SectionItem> SectionArray;	// セクションデータ
+
+		void ClearSection();
 	};
 
-	vector<TAG_TABLEITEM> m_TableArray;		// テーブル
+	std::vector<TableItem> m_TableArray;		// テーブル
 };
-*/
 
 /////////////////////////////////////////////////////////////////////////////
 // PSIシングルテーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class ABSTRACT_CLASS_DECL CPsiSingleTable
-	: public CTsPidMapTarget
-	, public CPsiSectionParser::IPsiSectionHandler
+class ABSTRACT_CLASS_DECL CPsiSingleTable : public CPsiTableBase
 {
 public:
 	CPsiSingleTable(const bool bTargetSectionExt = true);
@@ -63,37 +103,27 @@ public:
 
 	CPsiSingleTable & operator = (const CPsiSingleTable &Operand);
 
-// CTsPidMapTarget
-	virtual const bool StorePacket(const CTsPacket *pPacket);
-	virtual void OnPidUnmapped(const WORD wPID);
-
-// CPsiSingleTable
-	virtual void Reset(void);
-
-	const DWORD GetCrcErrorCount(void) const;
+// CPsiTableBase
+	virtual void Reset() override;
 
 	CPsiSection m_CurSection;
 
 protected:
-	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection);
+// CPsiSectionParser::IPsiSectionHandler
+	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection) override;
+
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection, const CPsiSection *pOldSection);
-
-	bool m_bTableUpdated;
-
-private:
-	CPsiSectionParser m_PsiSectionParser;
 };
 
 /////////////////////////////////////////////////////////////////////////////
 // ストリーム型テーブル抽象化クラス
 /////////////////////////////////////////////////////////////////////////////
 
-class ABSTRACT_CLASS_DECL CPsiStreamTable
-	: public CTsPidMapTarget
-	, public CPsiSectionParser::IPsiSectionHandler
+class ABSTRACT_CLASS_DECL CPsiStreamTable : public CPsiTableBase
 {
 public:
-	class ABSTRACT_CLASS_DECL ISectionHandler {
+	class ABSTRACT_CLASS_DECL ISectionHandler
+	{
 	public:
 		virtual ~ISectionHandler() = 0;
 		virtual void OnReset(CPsiStreamTable *pTable) {}
@@ -106,23 +136,15 @@ public:
 
 	CPsiStreamTable & operator = (const CPsiStreamTable &Operand);
 
-// CTsPidMapTarget
-	virtual const bool StorePacket(const CTsPacket *pPacket);
-	virtual void OnPidUnmapped(const WORD wPID);
-
-// CPsiStreamTable
-	virtual void Reset(void);
-
-	const DWORD GetCrcErrorCount(void) const;
+// CPsiTableBase
+	virtual void Reset() override;
 
 protected:
-	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection);
+// CPsiSectionParser::IPsiSectionHandler
+	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection) override;
+
 	virtual const bool OnTableUpdate(const CPsiSection *pCurSection);
 
-	bool m_bTableUpdated;
-
-private:
-	CPsiSectionParser m_PsiSectionParser;
 	ISectionHandler *m_pSectionHandler;
 };
 
@@ -189,6 +211,32 @@ private:
 	CPsiSectionParser m_PsiSectionParser;
 };
 */
+
+class CPsiTableSet : public CPsiTableBase
+{
+public:
+	CPsiTableSet(const bool bTargetSectionExt = true);
+	~CPsiTableSet();
+
+// CPsiTableBase
+	virtual void Reset() override;
+
+// CPsiTableSet
+	bool MapTable(const BYTE TableID, CPsiTableBase *pTable);
+	bool UnmapTable(const BYTE TableID);
+	void UnmapAllTables();
+	CPsiTableBase * GetTableByID(const BYTE TableID);
+	BYTE GetLastUpdatedTableID() const;
+
+protected:
+// CPsiSectionParser::IPsiSectionHandler
+	virtual void OnPsiSection(const CPsiSectionParser *pPsiSectionParser, const CPsiSection *pSection) override;
+
+	typedef std::map<BYTE, CPsiTableBase *> SectionTableMap;
+	SectionTableMap m_TableMap;
+
+	BYTE m_LastUpdatedTableID;
+};
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -329,7 +377,12 @@ protected:
 class CSdtTable : public CPsiSingleTable
 {
 public:
-	CSdtTable();
+	enum {
+		TABLE_ID_ACTUAL = 0x42,
+		TABLE_ID_OTHER  = 0x46
+	};
+
+	CSdtTable(const BYTE TableID = TABLE_ID_ACTUAL);
 	CSdtTable(const CSdtTable &Operand);
 
 	CSdtTable & operator = (const CSdtTable &Operand);
@@ -338,10 +391,15 @@ public:
 	virtual void Reset(void);
 
 // CSdtTable
+	const BYTE GetTableID(void) const;
+	const WORD GetTransportStreamID(void) const;
 	const WORD GetNetworkID(void) const;
 	const WORD GetServiceNum(void) const;
 	const WORD GetServiceIndexByID(const WORD wServiceID);
 	const WORD GetServiceID(const WORD wIndex) const;
+	const bool GetHEITFlag(const WORD wIndex) const;
+	const bool GetMEITFlag(const WORD wIndex) const;
+	const bool GetLEITFlag(const WORD wIndex) const;
 	const bool GetEITScheduleFlag(const WORD wIndex) const;
 	const bool GetEITPresentFollowingFlag(const WORD wIndex) const;
 	const BYTE GetRunningStatus(const WORD wIndex) const;
@@ -355,6 +413,9 @@ protected:
 	struct TAG_SDTITEM
 	{
 		WORD wServiceID;				// Service ID
+		bool bHEITFlag;					// H-EIT flag
+		bool bMEITFlag;					// M-EIT flag
+		bool bLEITFlag;					// L-EIT flag
 		bool bEITScheduleFlag;			// EIT Schedule Flag
 		bool bEITPresentFollowingFlag;	// EIT Present Following Flag
 		BYTE byRunningStatus;			// Running Status
@@ -362,8 +423,20 @@ protected:
 		CDescBlock DescBlock;			// Service Descriptor 他
 	};
 
+	BYTE m_TableID;
 	WORD m_wNetworkID;
 	vector<TAG_SDTITEM> m_ServiceInfoArray;
+};
+
+class CSdtOtherTable : public CPsiTable
+{
+public:
+	CSdtOtherTable();
+	~CSdtOtherTable();
+
+protected:
+// CPsiTable
+	virtual CPsiTableBase * CreateSectionTable(const CPsiSection *pSection) override;
 };
 
 

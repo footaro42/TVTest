@@ -26,41 +26,6 @@ namespace TVTest
 	};
 
 
-	static void EncodeText(LPCWSTR pszSrc,String *pDst)
-	{
-		pDst->clear();
-
-		LPCWSTR p=pszSrc;
-		while (*p!=L'\0') {
-			if (*p<=0x19 || *p==L'%' || *p==L'\\' || *p==L'"' || *p==L',' || *p==L'/') {
-				WCHAR szCode[8];
-				StdUtil::snprintf(szCode,lengthof(szCode),L"%%%04X",*p);
-				*pDst+=szCode;
-			} else {
-				pDst->push_back(*p);
-			}
-			p++;
-		}
-	}
-
-	static void DecodeText(LPCWSTR pszSrc,String *pDst)
-	{
-		pDst->clear();
-
-		LPCWSTR p=pszSrc;
-		while (*p!=L'\0') {
-			if (*p==L'%') {
-				p++;
-				WCHAR Code=(WCHAR)HexStringToUInt(p,4,&p);
-				pDst->push_back(Code);
-			} else {
-				pDst->push_back(*p);
-				p++;
-			}
-		}
-	}
-
-
 	bool CFavoriteItem::SetName(LPCTSTR pszName)
 	{
 		if (pszName==nullptr)
@@ -134,6 +99,14 @@ namespace TVTest
 		}
 
 		return Count;
+	}
+
+	CFavoriteItem *CFavoriteFolder::GetItem(size_t Index)
+	{
+		if (Index>=m_Children.size())
+			return nullptr;
+
+		return m_Children[Index];
 	}
 
 	const CFavoriteItem *CFavoriteFolder::GetItem(size_t Index) const
@@ -250,6 +223,51 @@ namespace TVTest
 			m_BonDriverFileName=pszFileName;
 		else
 			m_BonDriverFileName.clear();
+
+		return true;
+	}
+
+	bool CFavoriteChannel::SetChannelInfo(const CChannelInfo &ChannelInfo)
+	{
+		m_ChannelInfo=ChannelInfo;
+
+		return true;
+	}
+
+
+	bool CFavoriteItemEnumerator::EnumItems(CFavoriteFolder &Folder)
+	{
+		const size_t ItemCount=Folder.GetItemCount();
+
+		for (size_t i=0;i<ItemCount;i++) {
+			CFavoriteItem *pItem=Folder.GetItem(i);
+
+			switch (pItem->GetType()) {
+			case CFavoriteItem::ITEM_FOLDER:
+				{
+					CFavoriteFolder *pFolder=dynamic_cast<CFavoriteFolder*>(pItem);
+
+					if (pFolder!=nullptr) {
+						if (!FolderItem(*pFolder))
+							return false;
+						if (!EnumItems(*pFolder))
+							return false;
+					}
+				}
+				break;
+
+			case CFavoriteItem::ITEM_CHANNEL:
+				{
+					CFavoriteChannel *pChannel=dynamic_cast<CFavoriteChannel*>(pItem);
+
+					if (pChannel!=nullptr) {
+						if (!ChannelItem(Folder,*pChannel))
+							return false;
+					}
+				}
+				break;
+			}
+		}
 
 		return true;
 	}
@@ -455,7 +473,7 @@ namespace TVTest
 					StringUtility::Split(Items[0],TEXT("\\"),&PathItems);
 					for (size_t i=0;i<PathItems.size();i++) {
 						if (!PathItems[i].empty()) {
-							DecodeText(PathItems[i].c_str(),&Temp);
+							StringUtility::Decode(PathItems[i].c_str(),&Temp);
 							PathItems[i]=Temp;
 						}
 					}
@@ -544,7 +562,7 @@ namespace TVTest
 					const CFavoriteFolder *pFolder=dynamic_cast<const CFavoriteFolder*>(pItem);
 					if (pFolder!=nullptr) {
 						String FolderPath(Path),Name;
-						EncodeText(pFolder->GetName(),&Name);
+						StringUtility::Encode(pFolder->GetName(),&Name);
 						FolderPath+=Name;
 						FolderPath+=TEXT("\\");
 						if (pFolder->GetItemCount()>0) {
@@ -563,7 +581,7 @@ namespace TVTest
 					if (pChannel!=nullptr) {
 						const CChannelInfo &ChannelInfo=pChannel->GetChannelInfo();
 						String Name,ChannelSpec;
-						EncodeText(pChannel->GetName(),&Name);
+						StringUtility::Encode(pChannel->GetName(),&Name);
 						unsigned int Flags=0;
 						if (pChannel->GetForceBonDriverChange())
 							Flags|=CHANNEL_FLAG_FORCEBONDRIVERCHANGE;
@@ -1656,7 +1674,7 @@ namespace TVTest
 						tvis.hInsertAfter=TVI_LAST;
 						tvis.item.mask=TVIF_STATE | TVIF_TEXT | TVIF_IMAGE | TVIF_SELECTEDIMAGE | TVIF_CHILDREN | TVIF_PARAM;
 						tvis.item.state=TVIS_EXPANDED;
-						tvis.item.stateMask=(UINT)-1;
+						tvis.item.stateMask=~0U;
 						tvis.item.pszText=const_cast<LPTSTR>(pSubFolder->GetName());
 						tvis.item.iImage=FAVORITES_ICON_FOLDER;
 						tvis.item.iSelectedImage=FAVORITES_ICON_FOLDER;
@@ -1683,18 +1701,13 @@ namespace TVTest
 
 						const CChannelInfo &ChannelInfo=pChannel->GetChannelInfo();
 						if (ChannelInfo.GetNetworkID()!=0 && ChannelInfo.GetServiceID()!=0) {
-							HBITMAP hbm=GetAppClass().GetLogoManager()->GetAssociatedLogoBitmap(
-								ChannelInfo.GetNetworkID(),ChannelInfo.GetServiceID(),
-								CLogoManager::LOGOTYPE_SMALL);
-							if (hbm!=nullptr) {
-								// –{—ˆ‚Ì”ä—¦‚æ‚èc’·‚É‚µ‚Ä‚¢‚é(Œ©‰h‚¦‚Ì‚½‚ß)
-								HICON hico=CreateIconFromBitmap(hbm,16,16,16,11);
-								if (hico!=nullptr) {
-									tvis.item.iImage=ImageList_AddIcon(
-										TreeView_GetImageList(hwndTree,TVSIL_NORMAL),hico);
-									tvis.item.iSelectedImage=tvis.item.iImage;
-									::DestroyIcon(hico);
-								}
+							HICON hico=GetAppClass().GetLogoManager()->CreateLogoIcon(
+								ChannelInfo.GetNetworkID(),ChannelInfo.GetServiceID(),16,16);
+							if (hico!=nullptr) {
+								tvis.item.iImage=ImageList_AddIcon(
+									TreeView_GetImageList(hwndTree,TVSIL_NORMAL),hico);
+								tvis.item.iSelectedImage=tvis.item.iImage;
+								::DestroyIcon(hico);
 							}
 						}
 

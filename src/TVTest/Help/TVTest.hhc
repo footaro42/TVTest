@@ -9,7 +9,7 @@
 </OBJECT>
 <UL>
 	<LI> <OBJECT type="text/sitemap">
-		<param name="Name" value="TVTest ヘルプ">
+		<param name="Name" value="デジタル放送汎用視聴プログラム実装研究資料 ヘルプ">
 		<param name="Local" value="index.html">
 		</OBJECT>
 	<LI> <OBJECT type="text/sitemap">
@@ -89,6 +89,10 @@
 			<param name="Local" value="options\sidebar.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
+			<param name="Name" value="メニュー">
+			<param name="Local" value="options\menu.html">
+			</OBJECT>
+		<LI> <OBJECT type="text/sitemap">
 			<param name="Name" value="パネル">
 			<param name="Local" value="options\panel.html">
 			</OBJECT>
@@ -109,7 +113,7 @@
 			<param name="Local" value="options\controller.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">
-			<param name="Name" value="ドライバ別設定">
+			<param name="Name" value="BonDriver設定">
 			<param name="Local" value="options\driver.html">
 			</OBJECT>
 		<LI> <OBJECT type="text/sitemap">

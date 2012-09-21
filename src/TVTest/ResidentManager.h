@@ -30,7 +30,7 @@ public:
 	bool GetResident() const { return m_fResident; }
 	bool SetMinimizeToTray(bool fMinimizeToTray);
 	bool GetMinimizeToTray() const { return m_fMinimizeToTray; }
-	bool SetStatus(UINT Status,UINT Mask=(UINT)-1);
+	bool SetStatus(UINT Status,UINT Mask=~0U);
 	UINT GetStatus() const { return m_Status; }
 	bool SetTipText(LPCTSTR pszText);
 	enum {

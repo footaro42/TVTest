@@ -12,13 +12,15 @@ static char THIS_FILE[]=__FILE__;
 
 
 CCoreEngine::CCoreEngine()
-	: m_hDriverLib(NULL)
-	, m_DriverType(DRIVER_UNKNOWN)
+	: m_DriverType(DRIVER_UNKNOWN)
+
 	, m_fDescramble(true)
-	, m_CardReaderType(CARDREADER_SCARD)
+	, m_CasDevice(-1)
+
 	, m_fPacketBuffering(false)
 	, m_PacketBufferLength(m_DtvEngine.m_MediaBuffer.GetBufferLength())
 	, m_PacketBufferPoolPercentage(m_DtvEngine.m_MediaBuffer.GetPoolPercentage())
+
 	, m_OriginalVideoWidth(0)
 	, m_OriginalVideoHeight(0)
 	, m_DisplayVideoWidth(0)
@@ -53,6 +55,7 @@ CCoreEngine::CCoreEngine()
 CCoreEngine::~CCoreEngine()
 {
 	Close();
+
 	if (m_TimerResolution!=0)
 		::timeEndPeriod(m_TimerResolution);
 }
@@ -61,14 +64,13 @@ CCoreEngine::~CCoreEngine()
 void CCoreEngine::Close()
 {
 	m_DtvEngine.CloseEngine();
-	UnloadDriver();
 }
 
 
 bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 {
 	if (!m_DtvEngine.BuildEngine(pEventHandler,
-			m_fDescramble?m_CardReaderType!=CARDREADER_NONE:false,
+			m_fDescramble?m_CasDevice>=0:false,
 			true/*m_fPacketBuffering*/,!m_fNoEpg)) {
 		return false;
 	}
@@ -76,149 +78,9 @@ bool CCoreEngine::BuildDtvEngine(CDtvEngine::CEventHandler *pEventHandler)
 }
 
 
-bool CCoreEngine::GetDriverDirectory(LPTSTR pszDirectory) const
+bool CCoreEngine::IsBuildComplete() const
 {
-	if (m_szDriverDirectory[0]!='\0') {
-		if (::PathIsRelative(m_szDriverDirectory)) {
-			TCHAR szTemp[MAX_PATH];
-
-			::GetModuleFileName(NULL,szTemp,lengthof(szTemp));
-			::PathRemoveFileSpec(szTemp);
-			::PathAppend(szTemp,m_szDriverDirectory);
-			::PathCanonicalize(pszDirectory,szTemp);
-		} else {
-			::lstrcpy(pszDirectory,m_szDriverDirectory);
-		}
-	} else {
-		::GetModuleFileName(NULL,pszDirectory,MAX_PATH);
-		::PathRemoveFileSpec(pszDirectory);
-	}
-	return true;
-}
-
-
-bool CCoreEngine::SetDriverDirectory(LPCTSTR pszDirectory)
-{
-	if (pszDirectory==NULL) {
-		m_szDriverDirectory[0]='\0';
-	} else {
-		if (::lstrlen(pszDirectory)>=MAX_PATH)
-			return false;
-		::lstrcpy(m_szDriverDirectory,pszDirectory);
-	}
-	return true;
-}
-
-
-bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
-{
-	if (pszFileName==NULL || ::lstrlen(pszFileName)>=MAX_PATH)
-		return false;
-	::lstrcpy(m_szDriverFileName,pszFileName);
-	return true;
-}
-
-
-bool CCoreEngine::GetDriverPath(LPTSTR pszPath) const
-{
-	if (m_szDriverFileName[0]=='\0' || pszPath==NULL)
-		return false;
-	if (::PathIsRelative(m_szDriverFileName)) {
-		TCHAR szTemp[MAX_PATH];
-
-		GetDriverDirectory(szTemp);
-		::PathAppend(szTemp,m_szDriverFileName);
-		::PathCanonicalize(pszPath,szTemp);
-	} else {
-		::lstrcpy(pszPath,m_szDriverFileName);
-	}
-	return true;
-}
-
-
-bool CCoreEngine::LoadDriver()
-{
-	UnloadDriver();
-	TCHAR szDriverPath[MAX_PATH];
-	GetDriverPath(szDriverPath);
-	m_hDriverLib=::LoadLibrary(szDriverPath);
-	if (m_hDriverLib==NULL) {
-		int ErrorCode=::GetLastError();
-		TCHAR szText[MAX_PATH+64];
-
-		StdUtil::snprintf(szText,lengthof(szText),
-						  TEXT("\"%s\" が読み込めません。"),m_szDriverFileName);
-		SetError(szText);
-		switch (ErrorCode) {
-		case ERROR_MOD_NOT_FOUND:
-			SetErrorAdvise(TEXT("ファイルが見つかりません。"));
-			break;
-		case ERROR_BAD_EXE_FORMAT:
-			SetErrorAdvise(
-#ifndef WIN64
-				TEXT("32")
-#else
-				TEXT("64")
-#endif
-				TEXT("ビット用のBonDriverではないか、ファイルが破損している可能性があります。"));
-			break;
-		case ERROR_SXS_CANT_GEN_ACTCTX:
-			SetErrorAdvise(TEXT("このBonDriverに必要なランタイムがインストールされていない可能性があります。"));
-			break;
-		default:
-			StdUtil::snprintf(szText,lengthof(szText),TEXT("エラーコード: %d"),ErrorCode);
-			SetErrorAdvise(szText);
-		}
-		if (GetErrorText(ErrorCode,szText,lengthof(szText)))
-			SetErrorSystemMessage(szText);
-		return false;
-	}
-	return true;
-}
-
-
-bool CCoreEngine::UnloadDriver()
-{
-	if (m_hDriverLib) {
-		CloseDriver();
-		::FreeLibrary(m_hDriverLib);
-		m_hDriverLib=NULL;
-	}
-	return true;
-}
-
-
-bool CCoreEngine::OpenDriver()
-{
-	if (m_hDriverLib==NULL)
-		return false;
-	if (m_DtvEngine.IsSrcFilterOpen())
-		return false;
-	if (!m_DtvEngine.OpenSrcFilter_BonDriver(m_hDriverLib)) {
-		SetError(m_DtvEngine.GetLastErrorException());
-		return false;
-	}
-	LPCTSTR pszName=m_DtvEngine.m_BonSrcDecoder.GetTunerName();
-	m_DriverType=DRIVER_UNKNOWN;
-	if (pszName!=NULL) {
-		if (::_tcsncmp(pszName,TEXT("UDP/"),4)==0)
-			m_DriverType=DRIVER_UDP;
-		else if (::_tcsncmp(pszName,TEXT("TCP"),3)==0)
-			m_DriverType=DRIVER_TCP;
-	}
-	return true;
-}
-
-
-bool CCoreEngine::CloseDriver()
-{
-	return m_DtvEngine.ReleaseSrcFilter();
-}
-
-
-bool CCoreEngine::IsDriverOpen() const
-{
-	return m_DtvEngine.IsSrcFilterOpen();
+	return m_DtvEngine.IsBuildComplete();
 }
 
 
@@ -256,70 +118,6 @@ bool CCoreEngine::CloseMediaViewer()
 }
 
 
-bool CCoreEngine::OpenCardReader(CardReaderType Type,LPCTSTR pszReaderName)
-{
-	if (Type==CARDREADER_SCARD && pszReaderName==NULL && IsDriverSpecified()) {
-		// 現在の BonDriver 専用の winscard.dll があればそれを利用する
-		TCHAR szFileName[MAX_PATH];
-
-		GetDriverPath(szFileName);
-		::PathRenameExtension(szFileName,TEXT(".scard"));
-		if (::PathFileExists(szFileName)) {
-			if (!m_DtvEngine.OpenBcasCard(CCardReader::READER_SCARD_DYNAMIC,szFileName)) {
-				SetError(m_DtvEngine.GetLastErrorException());
-				return false;
-			}
-			return true;
-		}
-	}
-	if (!m_DtvEngine.OpenBcasCard(
-			Type==CARDREADER_SCARD?CCardReader::READER_SCARD:
-			Type==CARDREADER_HDUS?CCardReader::READER_HDUS:
-			Type==CARDREADER_BONCASCLIENT?CCardReader::READER_BONCASCLIENT:
-			CCardReader::READER_NONE,
-			pszReaderName)) {
-		SetError(m_DtvEngine.GetLastErrorException());
-		return false;
-	}
-	return true;
-}
-
-
-bool CCoreEngine::OpenBcasCard()
-{
-	if (m_fDescramble) {
-		if (!OpenCardReader(m_CardReaderType))
-			return false;
-	}
-	return true;
-}
-
-
-bool CCoreEngine::CloseBcasCard()
-{
-	return m_DtvEngine.CloseBcasCard();
-}
-
-
-bool CCoreEngine::IsBcasCardOpen() const
-{
-	return m_DtvEngine.m_TsDescrambler.IsBcasCardOpen();
-}
-
-
-// ある BonDriver 専用の winscard.dll を使用しているか取得する
-bool CCoreEngine::IsDriverCardReader() const
-{
-	return m_DtvEngine.m_TsDescrambler.GetCardReaderType()==CCardReader::READER_SCARD_DYNAMIC;
-}
-
-
-bool CCoreEngine::IsBuildComplete() const
-{
-	return m_DtvEngine.IsBuildComplete();
-}
-
-
 bool CCoreEngine::EnablePreview(bool fPreview)
 {
 	if (!m_DtvEngine.EnablePreview(fPreview))
@@ -330,37 +128,135 @@ bool CCoreEngine::EnablePreview(bool fPreview)
 }
 
 
-bool CCoreEngine::SetDescramble(bool fDescramble)
+bool CCoreEngine::GetDriverDirectory(LPTSTR pszDirectory,int MaxLength) const
 {
-	if (m_fDescramble!=fDescramble) {
-		if (m_DtvEngine.IsEngineBuild()) {
-			if (!m_DtvEngine.SetDescramble(fDescramble)) {
-				SetError(m_DtvEngine.GetLastErrorException());
+	if (pszDirectory==NULL || MaxLength<1)
+		return false;
+
+	pszDirectory[0]='\0';
+
+	if (m_szDriverDirectory[0]!='\0') {
+		if (::PathIsRelative(m_szDriverDirectory)) {
+			TCHAR szTemp[MAX_PATH],szPath[MAX_PATH];
+
+			::GetModuleFileName(NULL,szTemp,lengthof(szTemp));
+			::PathRemoveFileSpec(szTemp);
+			if (!::PathAppend(szTemp,m_szDriverDirectory)
+					|| !::PathCanonicalize(szPath,szTemp)
+					|| ::lstrlen(szPath)>=MaxLength)
 				return false;
-			}
+			::lstrcpy(pszDirectory,szPath);
+		} else {
+			if (::lstrlen(m_szDriverDirectory)>=MaxLength)
+				return false;
+			::lstrcpy(pszDirectory,m_szDriverDirectory);
 		}
-		m_fDescramble=fDescramble;
+	} else {
+		DWORD Length=::GetModuleFileName(NULL,pszDirectory,MaxLength);
+		if (Length==0 || Length>=(DWORD)(MaxLength-1))
+			return false;
+		::PathRemoveFileSpec(pszDirectory);
+	}
+
+	return true;
+}
+
+
+bool CCoreEngine::SetDriverDirectory(LPCTSTR pszDirectory)
+{
+	if (pszDirectory==NULL) {
+		m_szDriverDirectory[0]='\0';
+	} else {
+		if (::lstrlen(pszDirectory)>=MAX_PATH)
+			return false;
+		::lstrcpy(m_szDriverDirectory,pszDirectory);
 	}
 	return true;
 }
 
 
-bool CCoreEngine::SetCardReaderType(CardReaderType Type,LPCTSTR pszReaderName)
+bool CCoreEngine::SetDriverFileName(LPCTSTR pszFileName)
 {
-	if (Type<CARDREADER_NONE || Type>CARDREADER_LAST)
+	if (pszFileName==NULL || ::lstrlen(pszFileName)>=MAX_PATH)
 		return false;
-	/*if (m_CardReaderType!=Type)*/ {
-		if (m_DtvEngine.IsEngineBuild()) {
-			if (!SetDescramble(Type!=CARDREADER_NONE))
-				return false;
-			if (!OpenCardReader(Type,pszReaderName)) {
-				m_CardReaderType=CARDREADER_NONE;
-				return false;
-			}
-		}
-		m_CardReaderType=Type;
-	}
+	::lstrcpy(m_szDriverFileName,pszFileName);
 	return true;
+}
+
+
+bool CCoreEngine::GetDriverPath(LPTSTR pszPath,int MaxLength) const
+{
+	if (pszPath==NULL || MaxLength<1)
+		return false;
+
+	pszPath[0]='\0';
+
+	if (m_szDriverFileName[0]=='\0')
+		return false;
+
+	if (::PathIsRelative(m_szDriverFileName)) {
+		TCHAR szDir[MAX_PATH],szPath[MAX_PATH];
+
+		if (!GetDriverDirectory(szDir,lengthof(szDir))
+				|| !::PathAppend(szDir,m_szDriverFileName)
+				|| !::PathCanonicalize(szPath,szDir)
+				|| ::lstrlen(szPath)>=MaxLength)
+			return false;
+		::lstrcpy(pszPath,szPath);
+	} else {
+		if (::lstrlen(m_szDriverFileName)>=MaxLength)
+			return false;
+		::lstrcpy(pszPath,m_szDriverFileName);
+	}
+
+	return true;
+}
+
+
+bool CCoreEngine::OpenTuner()
+{
+	TRACE(TEXT("CCoreEngine::OpenTuner()\n"));
+
+	if (IsTunerOpen()) {
+		SetError(TEXT("チューナが既に開かれています。"));
+		return false;
+	}
+
+	TCHAR szDriverPath[MAX_PATH];
+	if (!GetDriverPath(szDriverPath,lengthof(szDriverPath))) {
+		SetError(TEXT("BonDriverのパスを取得できません。"));
+		return false;
+	}
+
+	if (!m_DtvEngine.OpenBonDriver(szDriverPath)) {
+		SetError(m_DtvEngine.GetLastErrorException());
+		return false;
+	}
+
+	LPCTSTR pszName=m_DtvEngine.m_BonSrcDecoder.GetTunerName();
+	m_DriverType=DRIVER_UNKNOWN;
+	if (pszName!=NULL) {
+		if (::_tcsncmp(pszName,TEXT("UDP/"),4)==0)
+			m_DriverType=DRIVER_UDP;
+		else if (::_tcsncmp(pszName,TEXT("TCP"),3)==0)
+			m_DriverType=DRIVER_TCP;
+	}
+
+	return true;
+}
+
+
+bool CCoreEngine::CloseTuner()
+{
+	TRACE(TEXT("CCoreEngine::CloseTuner()\n"));
+
+	return m_DtvEngine.ReleaseSrcFilter();
+}
+
+
+bool CCoreEngine::IsTunerOpen() const
+{
+	return m_DtvEngine.IsSrcFilterOpen();
 }
 
 
@@ -375,6 +271,165 @@ bool CCoreEngine::IsNetworkDriverFileName(LPCTSTR pszFileName)
 			|| ::lstrcmpi(pszName,TEXT("BonDriver_TCP.dll"))==0)
 		return true;
 	return false;
+}
+
+
+bool CCoreEngine::LoadCasLibrary()
+{
+	if (!m_DtvEngine.m_CasProcessor.LoadCasLibrary(m_CasLibraryName.c_str())) {
+		SetError(m_DtvEngine.m_CasProcessor.GetLastErrorException());
+		return false;
+	}
+	return true;
+}
+
+
+bool CCoreEngine::SetCasLibraryName(LPCTSTR pszName)
+{
+	if (!IsStringEmpty(pszName))
+		m_CasLibraryName=pszName;
+	else
+		m_CasLibraryName.clear();
+	return true;
+}
+
+
+bool CCoreEngine::FindCasLibraries(LPCTSTR pszDirectory,std::vector<TVTest::String> *pList) const
+{
+	if (IsStringEmpty(pszDirectory) || pList==NULL)
+		return false;
+
+	pList->clear();
+
+	TCHAR szMask[MAX_PATH];
+	WIN32_FIND_DATA fd;
+
+	if (::PathCombine(szMask,pszDirectory,TEXT("*.tvcas"))==NULL)
+		return false;
+	HANDLE hFind=::FindFirstFile(szMask,&fd);
+	if (hFind==INVALID_HANDLE_VALUE)
+		return false;
+	do {
+		if ((fd.dwFileAttributes&FILE_ATTRIBUTE_DIRECTORY)==0)
+			pList->push_back(TVTest::String(fd.cFileName));
+	} while (::FindNextFile(hFind,&fd));
+	::FindClose(hFind);
+
+	return true;
+}
+
+
+bool CCoreEngine::OpenCasCard(int Device,LPCTSTR pszName)
+{
+	if (Device==0 && IsStringEmpty(pszName) && IsDriverSpecified()) {
+		// 現在の BonDriver 専用の winscard.dll があればそれを利用する
+		TCHAR szFileName[MAX_PATH];
+
+		GetDriverPath(szFileName,lengthof(szFileName));
+		::PathRenameExtension(szFileName,TEXT(".scard"));
+		if (::PathFileExists(szFileName)) {
+			if (!m_DtvEngine.OpenCasCard(Device,szFileName)) {
+				SetError(m_DtvEngine.GetLastErrorException());
+				return false;
+			}
+			return true;
+		}
+	}
+
+	if (!m_DtvEngine.OpenCasCard(Device,pszName)) {
+		SetError(m_DtvEngine.GetLastErrorException());
+		return false;
+	}
+
+	return true;
+}
+
+
+bool CCoreEngine::OpenCasCard()
+{
+	if (m_fDescramble) {
+		if (!OpenCasCard(m_CasDevice))
+			return false;
+	}
+	return true;
+}
+
+
+bool CCoreEngine::CloseCasCard()
+{
+	return m_DtvEngine.CloseCasCard();
+}
+
+
+bool CCoreEngine::IsCasCardOpen() const
+{
+	return m_DtvEngine.m_CasProcessor.IsCasCardOpen();
+}
+
+
+// ある BonDriver 専用の winscard.dll を使用しているか取得する
+bool CCoreEngine::IsDriverCardReader() const
+{
+	TCHAR szName[MAX_PATH];
+
+	return m_DtvEngine.m_CasProcessor.GetCasCardName(szName,lengthof(szName))>0
+		&& ::PathMatchSpec(szName,TEXT("*.scard"));
+}
+
+
+bool CCoreEngine::SetDescramble(bool fDescramble)
+{
+	if (m_DtvEngine.IsEngineBuild()) {
+		if (!m_DtvEngine.SetDescramble(fDescramble)) {
+			SetError(m_DtvEngine.GetLastErrorException());
+			return false;
+		}
+	}
+	m_fDescramble=fDescramble;
+	return true;
+}
+
+
+bool CCoreEngine::SetCasDevice(int Device,LPCTSTR pszName)
+{
+	if (Device<-1)
+		return false;
+	if (m_DtvEngine.IsEngineBuild()) {
+		if (!SetDescramble(Device>=0))
+			return false;
+		if (!OpenCasCard(Device,pszName)) {
+			m_CasDevice=-1;
+			return false;
+		}
+	}
+	m_CasDevice=Device;
+	return true;
+}
+
+
+bool CCoreEngine::GetCasDeviceList(CasDeviceList *pList)
+{
+	if (pList==NULL)
+		return false;
+
+	CasDeviceInfo Info;
+
+	Info.Device=-1;
+	Info.DeviceID=0;
+//	Info.Name=TEXT("");
+	Info.Text=TEXT("なし (スクランブル解除しない)");
+	pList->push_back(Info);
+
+	CCasProcessor::CasDeviceInfo DeviceInfo;
+	for (int i=0;m_DtvEngine.m_CasProcessor.GetCasDeviceInfo(i,&DeviceInfo);i++) {
+		Info.Device=i;
+		Info.DeviceID=DeviceInfo.DeviceID;
+		Info.Name=DeviceInfo.Name;
+		Info.Text=DeviceInfo.Text;
+		pList->push_back(Info);
+	}
+
+	return true;
 }
 
 
@@ -598,7 +653,7 @@ DWORD CCoreEngine::UpdateStatistics()
 		m_ContinuityErrorPacketCount=ContinuityErrorCount;
 		Updated|=STATISTIC_CONTINUITYERRORPACKETCOUNT;
 	}
-	DWORD ScrambleCount=m_DtvEngine.m_TsDescrambler.GetScramblePacketCount();
+	DWORD ScrambleCount=(DWORD)m_DtvEngine.m_CasProcessor.GetScramblePacketCount();
 	if (ScrambleCount!=m_ScramblePacketCount) {
 		m_ScramblePacketCount=ScrambleCount;
 		Updated|=STATISTIC_SCRAMBLEPACKETCOUNT;
@@ -632,8 +687,32 @@ void CCoreEngine::ResetErrorCount()
 	m_DtvEngine.m_TsPacketParser.ResetErrorPacketCount();
 	m_ErrorPacketCount=0;
 	m_ContinuityErrorPacketCount=0;
-	m_DtvEngine.m_TsDescrambler.ResetScramblePacketCount();
+	m_DtvEngine.m_CasProcessor.ResetScramblePacketCount();
 	m_ScramblePacketCount=0;
+}
+
+
+int CCoreEngine::GetSignalLevelText(LPTSTR pszText,int MaxLength) const
+{
+	return GetSignalLevelText(m_SignalLevel,pszText,MaxLength);
+}
+
+
+int CCoreEngine::GetSignalLevelText(float SignalLevel,LPTSTR pszText,int MaxLength) const
+{
+	return StdUtil::snprintf(pszText,MaxLength,TEXT("%.2f dB"),SignalLevel);
+}
+
+
+int CCoreEngine::GetBitRateText(LPTSTR pszText,int MaxLength) const
+{
+	return GetBitRateText(GetBitRateFloat(),pszText,MaxLength);
+}
+
+
+int CCoreEngine::GetBitRateText(float BitRate,LPTSTR pszText,int MaxLength) const
+{
+	return StdUtil::snprintf(pszText,MaxLength,TEXT("%.2f Mbps"),BitRate);
 }
 
 
@@ -676,8 +755,8 @@ bool CCoreEngine::GetCurrentEventInfo(CEventInfoData *pInfo,WORD ServiceID,bool 
 		pInfo->m_stStartTime=EventInfo.StartTime;
 	pInfo->m_DurationSec=EventInfo.Duration;
 	pInfo->m_RunningStatus=EventInfo.RunningStatus;
-	pInfo->m_FreeCaMode=EventInfo.bFreeCaMode?
-		CEventInfoData::FREE_CA_MODE_SCRAMBLED:CEventInfoData::FREE_CA_MODE_UNSCRAMBLED;
+	pInfo->m_CaType=EventInfo.bFreeCaMode?
+		CEventInfoData::CA_TYPE_CHARGEABLE:CEventInfoData::CA_TYPE_FREE;
 	pInfo->m_VideoInfo.StreamContent=EventInfo.Video.StreamContent;
 	pInfo->m_VideoInfo.ComponentType=EventInfo.Video.ComponentType;
 	pInfo->m_VideoInfo.ComponentTag=EventInfo.Video.ComponentTag;
@@ -743,19 +822,4 @@ bool CCoreEngine::SetMinTimerResolution(bool fMin)
 		}
 	}
 	return true;
-}
-
-
-LPCTSTR CCoreEngine::GetCardReaderSettingName(CardReaderType Type)
-{
-	static const LPCTSTR CardReaderList[] = {
-		TEXT("なし (スクランブル解除しない)"),
-		TEXT("スマートカードリーダ"),
-		TEXT("HDUS内蔵カードリーダ"),
-		TEXT("BonCasClient"),
-	};
-
-	if (Type<CARDREADER_NONE || Type>CARDREADER_LAST)
-		return NULL;
-	return CardReaderList[Type];
 }
