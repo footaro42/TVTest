@@ -252,7 +252,6 @@ HRESULT CAacDecFilter::CheckTransform(const CMediaType* mtIn, const CMediaType* 
 
 HRESULT CAacDecFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOCATOR_PROPERTIES *pprop)
 {
-	CAutoLock AutoLock(m_pLock);
 	CheckPointer(pAllocator, E_POINTER);
 	CheckPointer(pprop, E_POINTER);
 
@@ -279,7 +278,7 @@ HRESULT CAacDecFilter::DecideBufferSize(IMemAllocator * pAllocator, ALLOCATOR_PR
 
 HRESULT CAacDecFilter::GetMediaType(int iPosition, CMediaType *pMediaType)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 	CheckPointer(pMediaType, E_POINTER);
 
 	if (iPosition < 0)
@@ -294,7 +293,7 @@ HRESULT CAacDecFilter::GetMediaType(int iPosition, CMediaType *pMediaType)
 
 HRESULT CAacDecFilter::StartStreaming(void)
 {
-	CAutoLock AutoLock(m_pLock);
+	ASSERT(CritCheckIn(&m_csFilter) && CritCheckIn(&m_csReceive));
 
 	// ADTSパーサ初期化
 	m_AdtsParser.Reset();
@@ -303,6 +302,7 @@ HRESULT CAacDecFilter::StartStreaming(void)
 	if(!m_AacDecoder.OpenDecoder())
 		return E_FAIL;
 
+	CAutoLock AutoLock(&m_cStateLock);
 	m_StartTime = -1;
 	m_SampleCount = 0;
 	m_bDiscontinuity = true;
@@ -314,11 +314,12 @@ HRESULT CAacDecFilter::StartStreaming(void)
 
 HRESULT CAacDecFilter::StopStreaming(void)
 {
-	CAutoLock AutoLock(m_pLock);
+	ASSERT(CritCheckIn(&m_csFilter) && CritCheckIn(&m_csReceive));
 
 	// AACデコーダクローズ
 	m_AacDecoder.CloseDecoder();
 
+	CAutoLock AutoLock(&m_cStateLock);
 	m_BitRateCalculator.Reset();
 
 	return S_OK;
@@ -326,21 +327,27 @@ HRESULT CAacDecFilter::StopStreaming(void)
 
 HRESULT CAacDecFilter::BeginFlush()
 {
+	ASSERT(CritCheckIn(&m_csFilter));
 	HRESULT hr = S_OK;
-
-	m_AdtsParser.Reset();
-	m_AacDecoder.ResetDecoder();
-	m_StartTime = -1;
-	m_SampleCount = 0;
-	m_bDiscontinuity = true;
 	if (m_pOutput) {
 		hr = m_pOutput->DeliverBeginFlush();
 	}
+
+	CAutoLock AutoLock(&m_csReceive);
+	m_AdtsParser.Reset();
+	m_AacDecoder.ResetDecoder();
+
+	CAutoLock AutoLock2(&m_cStateLock);
+	m_StartTime = -1;
+	m_SampleCount = 0;
+	m_bDiscontinuity = true;
 	return hr;
 }
 
 const BYTE CAacDecFilter::GetCurrentChannelNum()
 {
+	CAutoLock AutoLock(&m_cStateLock);
+
 	if (m_byCurChannelNum == 0)
 		return CHANNEL_INVALID;
 	if (m_bDualMono)
@@ -350,7 +357,8 @@ const BYTE CAacDecFilter::GetCurrentChannelNum()
 
 HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 {
-	CAutoLock AutoLock(m_pLock);
+	// ストリーミングスレッドでm_pLock(==&m_csFilter)をロックすべきでない
+	// http://msdn.microsoft.com/en-us/library/windows/desktop/dd373817%28v=vs.85%29.aspx
 
 	// 入力データポインタを取得する
 	BYTE *pInData;
@@ -362,6 +370,7 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 	LONG InSize = pIn->GetActualDataLength();
 	m_AdtsParser.StoreEs(pInData, InSize);
 
+	CAutoLock AutoLock(&m_cStateLock);
 	m_BitRateCalculator.Update(InSize);
 
 #if 0
@@ -408,6 +417,8 @@ HRESULT CAacDecFilter::Transform(IMediaSample *pIn, IMediaSample *pOut)
 
 HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 {
+	ASSERT(CritCheckIn(&m_csReceive));
+
 	const AM_SAMPLE2_PROPERTIES *pProps = m_pInput->SampleProps();
 	if (pProps->dwStreamId != AM_STREAM_MEDIA)
 		return m_pOutput->Deliver(pSample);
@@ -431,6 +442,8 @@ HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 		}
 		pOutSample->Release();
 	} else */{
+		CAutoLock AutoLock(&m_cStateLock);
+
 		REFERENCE_TIME rtStart = -1, rtEnd;
 		hr = pSample->GetTime(&rtStart, &rtEnd);
 		if (pSample->IsDiscontinuity() == S_OK) {
@@ -447,7 +460,8 @@ HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 			TRACE(TEXT("Initialize audio stream time\n"));
 			m_StartTime = rtStart;
 		}
-
+	}
+	{
 		hr = Transform(pSample, NULL);
 		if (SUCCEEDED(hr)) {
 			hr = S_OK;
@@ -460,8 +474,15 @@ HRESULT CAacDecFilter::Receive(IMediaSample *pSample)
 
 void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData, const DWORD dwSamples, const BYTE byChannels)
 {
+	ASSERT(CritCheckIn(&m_csReceive));
+
 	if (byChannels != 1 && byChannels != 2 && byChannels != 6)
 		return;
+
+	IMediaSample *pOutSample = NULL;
+
+	{ // AutoLock(&m_cStateLock)
+	CAutoLock AutoLock(&m_cStateLock);
 
 	const bool bDualMono = byChannels == 2 && pAacDecoder->GetChannelConfig() == 0;
 	const bool bSurround = byChannels == 6 && !m_bDownMixSurround;
@@ -500,9 +521,9 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 	m_byCurChannelNum = byChannels;
 
 	if (m_bPassthrough) {
-		OutputSpdif();
-		return;
-	}
+		if (!ProcessSpdif(&pOutSample))
+			return;
+	} else { // !m_bPassthrough
 
 	HRESULT hr;
 
@@ -559,7 +580,6 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 		}
 	}
 
-	IMediaSample *pOutSample = NULL;
 	hr = m_pOutput->GetDeliveryBuffer(&pOutSample, NULL, NULL, 0);
 	if (FAILED(hr) || !pOutSample) {
 		OutputLog(TEXT("出力メディアサンプルを取得できません。(%08x)\r\n"), hr);
@@ -612,6 +632,11 @@ void CAacDecFilter::OnPcmFrame(const CAacDecoder *pAacDecoder, const BYTE *pData
 		pOutSample->SetTime(&m_StartTime, &rtEnd);
 		m_StartTime = rtEnd;
 	}
+
+	} // !m_bPassthrough
+
+	} // AutoLock(&m_cStateLock)
+
 	pOutSample->SetMediaTime(NULL, NULL);
 	pOutSample->SetPreroll(FALSE);
 	pOutSample->SetDiscontinuity(m_bDiscontinuity);
@@ -640,6 +665,8 @@ const DWORD CAacDecFilter::MonoToStereo(short *pDst, const short *pSrc, const DW
 
 const DWORD CAacDecFilter::DownMixStereo(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
+	ASSERT(CritCheckIn(&m_cStateLock));
+
 	if (m_StereoMode == STEREOMODE_STEREO) {
 		// 2ch → 2ch スルー
 		::CopyMemory(pDst, pSrc, dwSamples * (sizeof(short) * 2));
@@ -721,6 +748,7 @@ const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const
 const DWORD CAacDecFilter::DownMixSurround(short *pDst, const short *pSrc, const DWORD dwSamples)
 {
 	// 5.1ch → 2ch ダウンミックス
+	ASSERT(CritCheckIn(&m_cStateLock));
 
 	int iOutLch, iOutRch;
 
@@ -804,14 +832,14 @@ const DWORD CAacDecFilter::MapSurroundChannels(short *pDst, const short *pSrc, c
 
 bool CAacDecFilter::ResetDecoder()
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_csReceive);
 
 	return m_AacDecoder.ResetDecoder();
 }
 
 bool CAacDecFilter::SetStereoMode(int StereoMode)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	switch (StereoMode) {
 	case STEREOMODE_STEREO:
@@ -826,7 +854,7 @@ bool CAacDecFilter::SetStereoMode(int StereoMode)
 
 bool CAacDecFilter::SetAutoStereoMode(int StereoMode)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	switch (StereoMode) {
 	case STEREOMODE_STEREO:
@@ -841,7 +869,7 @@ bool CAacDecFilter::SetAutoStereoMode(int StereoMode)
 
 bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	m_bDownMixSurround = bDownMix;
 	return true;
@@ -849,7 +877,7 @@ bool CAacDecFilter::SetDownMixSurround(bool bDownMix)
 
 bool CAacDecFilter::SetGainControl(bool bGainControl, float Gain, float SurroundGain)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	m_bGainControl = bGainControl;
 	m_Gain = Gain;
@@ -859,6 +887,8 @@ bool CAacDecFilter::SetGainControl(bool bGainControl, float Gain, float Surround
 
 bool CAacDecFilter::GetGainControl(float *pGain, float *pSurroundGain) const
 {
+	CAutoLock AutoLock(const_cast<CCritSec*>(&m_cStateLock));
+
 	if (pGain)
 		*pGain = m_Gain;
 	if (pSurroundGain)
@@ -888,7 +918,7 @@ bool CAacDecFilter::SetSpdifOptions(const SpdifOptions *pOptions)
 	if (!pOptions)
 		return false;
 
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	m_SpdifOptions = *pOptions;
 
@@ -900,7 +930,7 @@ bool CAacDecFilter::GetSpdifOptions(SpdifOptions *pOptions) const
 	if (!pOptions)
 		return false;
 
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(const_cast<CCritSec*>(&m_cStateLock));
 
 	*pOptions = m_SpdifOptions;
 
@@ -909,7 +939,7 @@ bool CAacDecFilter::GetSpdifOptions(SpdifOptions *pOptions) const
 
 bool CAacDecFilter::SetAdjustStreamTime(bool bAdjust)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	m_bAdjustStreamTime = bAdjust;
 
@@ -921,7 +951,7 @@ bool CAacDecFilter::SetAdjustStreamTime(bool bAdjust)
 
 bool CAacDecFilter::SetStreamCallback(StreamCallback pCallback, void *pParam)
 {
-	CAutoLock AutoLock(m_pLock);
+	CAutoLock AutoLock(&m_cStateLock);
 
 	m_pStreamCallback = pCallback;
 	m_pStreamCallbackParam = pParam;
@@ -931,11 +961,15 @@ bool CAacDecFilter::SetStreamCallback(StreamCallback pCallback, void *pParam)
 
 DWORD CAacDecFilter::GetBitRate() const
 {
+	CAutoLock AutoLock(const_cast<CCritSec*>(&m_cStateLock));
+
 	return m_BitRateCalculator.GetBitRate();
 }
 
 void CAacDecFilter::OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame *pFrame)
 {
+	ASSERT(CritCheckIn(&m_csReceive));
+
 	m_pAdtsFrame = pFrame;
 
 	/*
@@ -948,15 +982,17 @@ void CAacDecFilter::OnAdtsFrame(const CAdtsParser *pAdtsParser, const CAdtsFrame
 	m_pAdtsFrame = NULL;
 }
 
-void CAacDecFilter::OutputSpdif()
+bool CAacDecFilter::ProcessSpdif(IMediaSample **ppOutSample)
 {
+	ASSERT(CritCheckIn(&m_csReceive) && CritCheckIn(&m_cStateLock));
+
 	static const int PREAMBLE_SIZE = sizeof(WORD) * 4;
 
 	const CAdtsFrame *pFrame = m_pAdtsFrame;
 
 	if (pFrame->GetRawDataBlockNum() != 0) {
 		OutputLog(TEXT("no_raw_data_blocks_in_frameが不正です。(%d)\r\n"), pFrame->GetRawDataBlockNum());
-		return;
+		return false;
 	}
 
 	HRESULT hr;
@@ -967,7 +1003,7 @@ void CAacDecFilter::OutputSpdif()
 	if (DataBurstSize > PacketSize) {
 		OutputLog(TEXT("ビットレートが不正です。(Frame size %d / Data-burst size %d / Packet size %d)\r\n"),
 				  FrameSize, DataBurstSize, PacketSize);
-		return;
+		return false;
 	}
 
 #ifdef _DEBUG
@@ -990,7 +1026,7 @@ void CAacDecFilter::OutputSpdif()
 
 		pwfx = reinterpret_cast<WAVEFORMATEX*>(mt.AllocFormatBuffer(sizeof(WAVEFORMATEX)));
 		if (pwfx == NULL)
-			return;
+			return false;
 		pwfx->wFormatTag = WAVE_FORMAT_DOLBY_AC3_SPDIF;
 		pwfx->nChannels = 2;
 		pwfx->nSamplesPerSec = FREQUENCY;
@@ -1018,14 +1054,14 @@ void CAacDecFilter::OutputSpdif()
 
 		hr = ReconnectOutput(PacketSize, mt);
 		if (FAILED(hr))
-			return;
+			return false;
 
 		if (hr == S_OK) {
 			OutputLog(TEXT("出力メディアタイプを更新します。\r\n"));
 			hr = m_pOutput->SetMediaType(&mt);
 			if (FAILED(hr)) {
 				OutputLog(TEXT("出力メディアタイプを設定できません。(%08x)\r\n"), hr);
-				return;
+				return false;
 			}
 			m_MediaType = mt;
 			m_bDiscontinuity = true;
@@ -1037,7 +1073,7 @@ void CAacDecFilter::OutputSpdif()
 	hr = m_pOutput->GetDeliveryBuffer(&pOutSample, NULL, NULL, 0);
 	if (FAILED(hr) || !pOutSample) {
 		OutputLog(TEXT("出力メディアサンプルを取得できません。(%08x)\r\n"), hr);
-		return;
+		return false;
 	}
 	if (bMediaTypeChanged)
 		pOutSample->SetMediaType(&m_MediaType);
@@ -1047,7 +1083,7 @@ void CAacDecFilter::OutputSpdif()
 	if (FAILED(hr) || !pOutBuff) {
 		pOutSample->Release();
 		OutputLog(TEXT("サンプルのバッファを取得できません。(%08x)\r\n"), hr);
-		return;
+		return false;
 	}
 
 	WORD *pWordData = reinterpret_cast<WORD*>(pOutBuff);
@@ -1077,18 +1113,9 @@ void CAacDecFilter::OutputSpdif()
 		pOutSample->SetTime(&m_StartTime, &rtEnd);
 		m_StartTime = rtEnd;
 	}
-	pOutSample->SetMediaTime(NULL, NULL);
-	pOutSample->SetPreroll(FALSE);
-	pOutSample->SetDiscontinuity(m_bDiscontinuity);
-	m_bDiscontinuity = false;
-	pOutSample->SetSyncPoint(TRUE);
 
-	hr = m_pOutput->Deliver(pOutSample);
-	pOutSample->Release();
-	if (FAILED(hr)) {
-		OutputLog(TEXT("サンプルの送信エラー(%08x)\r\n"), hr);
-		return;
-	}
+	*ppOutSample = pOutSample;
+	return true;
 }
 
 HRESULT CAacDecFilter::ReconnectOutput(long BufferSize, const CMediaType &mt)

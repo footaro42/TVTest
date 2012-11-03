@@ -96,6 +96,8 @@ private:
 	CAacDecFilter(LPUNKNOWN pUnk, HRESULT *phr);
 	~CAacDecFilter(void);
 
+	// m_AdtsParser,m_AacDecoder,m_bDiscontinuity,m_pAdtsFrame‚ğœ‚­ƒƒ“ƒo‚ğ•ÛŒì
+	// m_csFilter,m_csReceive,m_cStateLock‚Ì‡‚ÉƒƒbƒN
 	CCritSec m_cStateLock;
 	HRESULT Transform(IMediaSample *pIn, IMediaSample *pOut);
 
@@ -118,7 +120,7 @@ private:
 	const DWORD MapSurroundChannels(short *pDst, const short *pSrc, const DWORD dwSamples);
 	void GainControl(short *pBuffer, const DWORD Samples, const float Gain);
 
-	void OutputSpdif();
+	bool ProcessSpdif(IMediaSample **ppOutSample);
 	HRESULT ReconnectOutput(long BufferSize, const CMediaType &mt);
 
 	int m_StereoMode;
