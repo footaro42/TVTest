@@ -21,6 +21,11 @@
 *.exp
 *.ilk
 *.pdb
-*/ipch/*
-*/Debug/*
-*/Release/*
+bin/win32/*
+bin/x64/*
+src/*/ipch/*
+src/*/win32/*
+src/*/x64/*
+src/*/*/ipch/*
+src/*/*/win32/*
+src/*/*/x64/*
