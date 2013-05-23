@@ -1,0 +1,1 @@
+#undef TVTEST_GIT_VERSION

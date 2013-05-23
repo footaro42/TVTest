@@ -2,6 +2,8 @@
 #define TVTEST_H
 
 
+#include "../config.h"
+
 #ifndef TVH264
 #define APP_NAME_A	"TVTest"
 #else
@@ -13,7 +15,11 @@
 #define VERSION_BUILD		0
 #define VERSION_REVISION	0
 
+#ifndef TVTEST_GIT_VERSION
 #define VERSION_TEXT_A	"0.8.0"
+#else
+#define VERSION_TEXT_A  TVTEST_GIT_VERSION
+#endif
 
 #ifdef TVH264
 // ÉèÉìÉZÉOå¸ÇØ
