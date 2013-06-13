@@ -28,3 +28,5 @@ src/*/x64/*
 src/*/*/ipch/*
 src/*/*/win32/*
 src/*/*/x64/*
+src/*/*/*/win32/*
+src/*/*/*/x64/*
