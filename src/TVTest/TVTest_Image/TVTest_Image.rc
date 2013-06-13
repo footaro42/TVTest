@@ -1,0 +1,55 @@
+#include "windows.h"
+#include "../TVTest.h"
+
+#undef APP_NAME_A
+#define APP_NAME_A      "TVTest_Image"
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION VERSION_MAJOR,VERSION_MINOR,VERSION_BUILD,VERSION_REVISION
+ PRODUCTVERSION VERSION_MAJOR,VERSION_MINOR,VERSION_BUILD,VERSION_REVISION
+ FILEFLAGSMASK 0x3FL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+	BLOCK "StringFileInfo"
+	BEGIN
+		BLOCK "041104B0"
+		BEGIN
+			VALUE "Comments", "Image conversion library for TVTest."
+#ifdef TVTEST_IMAGE_ZLIB
+								" [zlib:" TVTEST_IMAGE_ZLIB "]"
+#endif
+#ifdef TVTEST_IMAGE_LIBPNG
+								" [libpng:" TVTEST_IMAGE_LIBPNG "]"
+#endif
+#ifdef TVTEST_IMAGE_LIBJPEG
+								" [libjpeg:" TVTEST_IMAGE_LIBJPEG "]"
+#endif
+								"\0"
+			VALUE "CompanyName", APP_NAME_A "\0"
+			VALUE "FileDescription", APP_NAME_A "\0"
+			VALUE "FileVersion", VERSION_TEXT_A "\0"
+			VALUE "InternalName", APP_NAME_A "\0"
+			VALUE "LegalCopyright", APP_NAME_A "\0"
+			VALUE "OriginalFilename", APP_NAME_A ".dll\0"
+#ifdef _DEBUG
+			VALUE "PrivateBuild", "\0"
+#endif
+			VALUE "ProductName", APP_NAME_A "\0"
+			VALUE "ProductVersion", VERSION_TEXT_A "\0"
+#ifdef _DEBUG
+			VALUE "SpecialBuild", "\0"
+#endif
+		END
+	END
+	BLOCK "VarFileInfo"
+	BEGIN
+		VALUE "Translation", 0x411, 1200
+	END
+END
