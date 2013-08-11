@@ -345,6 +345,7 @@ public:
 	bool GetDayTimeRange(int Day,SYSTEMTIME *pFirstTime,SYSTEMTIME *pLastTime) const;
 	bool ScrollToTime(const SYSTEMTIME &Time);
 	bool ScrollToCurrentTime();
+	void ScrollToSelectedHour();
 	bool SetViewDay(int Day);
 	int GetViewDay() const { return m_Day; }
 	bool JumpEvent(WORD NetworkID,WORD TSID,WORD ServiceID,WORD EventID);
@@ -450,6 +451,7 @@ private:
 	ServiceInfoList m_ExcludeServiceList;
 
 	int m_BeginHour;
+	int m_SelectedHour;
 	SYSTEMTIME m_stFirstTime;
 	SYSTEMTIME m_stLastTime;
 	SYSTEMTIME m_stCurTime;

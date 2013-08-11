@@ -1344,6 +1344,7 @@ bool CProgramGuide::UpdateProgramGuide(bool fUpdateList)
 		}
 
 		::SetCursor(hcurOld);
+		ScrollToSelectedHour();
 	}
 
 	return true;
@@ -2278,6 +2279,11 @@ void CProgramGuide::Scroll(int XScroll,int YScroll)
 		Invalidate();
 	}
 
+	SYSTEMTIME st;
+	GetCurrentTimeRange(&st,NULL);
+	m_SelectedHour=st.wHour+(int)(m_ScrollPos.y/m_LinesPerHour);
+	if(m_SelectedHour>=24)
+		m_SelectedHour-=24;
 	SetTooltip();
 }
 
@@ -2658,6 +2664,7 @@ bool CProgramGuide::SetWeekListMode(int Service)
 			m_pFrame->OnListModeChanged();
 
 		::SetCursor(hcurOld);
+		ScrollToSelectedHour();
 	}
 	return true;
 }
@@ -2775,6 +2782,7 @@ bool CProgramGuide::ScrollToTime(const SYSTEMTIME &Time)
 	Pos.y=(int)(DiffSystemTime(&stFirst,&st)/(60*60*1000))*m_LinesPerHour;
 	SetScrollPos(Pos);
 
+	m_SelectedHour=Time.wHour;
 	return true;
 }
 
@@ -2782,6 +2790,19 @@ bool CProgramGuide::ScrollToTime(const SYSTEMTIME &Time)
 bool CProgramGuide::ScrollToCurrentTime()
 {
 	return ScrollToTime(m_stCurTime);
+}
+
+
+void CProgramGuide::ScrollToSelectedHour()
+{
+	SYSTEMTIME st,stFirst;
+	if (GetCurrentTimeRange(&stFirst,NULL)) {
+		st=stFirst;
+		st.wHour=m_SelectedHour;
+		if (CompareSystemTime(&st,&stFirst)<0)
+			OffsetSystemTime(&st,24LL*60*60*1000);
+		ScrollToTime(st);
+	}
 }
 
 
@@ -3809,6 +3830,7 @@ void CProgramGuide::OnCommand(int id)
 		if (id>=CM_PROGRAMGUIDE_DAY_FIRST
 				&& id<=CM_PROGRAMGUIDE_DAY_LAST) {
 			SetViewDay(id-CM_PROGRAMGUIDE_DAY_FIRST);
+			ScrollToSelectedHour();
 			return;
 		}
 
@@ -4489,10 +4511,10 @@ public:
 			TCHAR szText[256];
 
 			m_pProgramGuide->GetCurrentTimeRange(&stFirst,NULL);
-			StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %d/%d(%s) %dŽž`"),
+			StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %d/%d(%s)"),
 							  DayText[m_pProgramGuide->GetViewDay()],
 							  stFirst.wMonth,stFirst.wDay,
-							  GetDayOfWeekText(stFirst.wDayOfWeek),stFirst.wHour);
+							  GetDayOfWeekText(stFirst.wDayOfWeek));
 			DrawText(hdc,pRect,szText);
 		} else {
 			const ProgramGuide::CServiceInfo *pService=
@@ -4514,9 +4536,9 @@ public:
 					TCHAR szText[256];
 
 					m_pProgramGuide->GetDayTimeRange(i,&st,NULL);
-					StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %d/%d(%s) %dŽž`"),
+					StdUtil::snprintf(szText,lengthof(szText),TEXT("%s %d/%d(%s)"),
 									  DayText[i],
-									  st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek),st.wHour);
+									  st.wMonth,st.wDay,GetDayOfWeekText(st.wDayOfWeek));
 					m_Menu.AppendItem(new CDropDownMenu::CItem(CM_PROGRAMGUIDE_DAY_FIRST+i,szText));
 				}
 				CurItem=CM_PROGRAMGUIDE_DAY_FIRST+m_pProgramGuide->GetViewDay();
