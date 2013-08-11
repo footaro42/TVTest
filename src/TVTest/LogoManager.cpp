@@ -472,7 +472,7 @@ void CLogoManager::OnLogo(const CLogoDownloader::LogoData *pData)
 	CLogoData *pLogoData;
 	if (itr!=m_LogoMap.end()) {
 		// バージョンが新しい場合のみ更新
-		if (CompareLogoVersion(itr->second->GetLogoVersion(),pData->LogoVersion)<0) {
+		if (CompareLogoVersion(itr->second->GetLogoVersion(),pData->LogoVersion)<=0) {
 			// BS/CSはバージョンが共通のため、データを比較して更新を確認する
 			if (pData->DataSize!=itr->second->GetDataSize()
 					|| ::memcmp(pData->pData,itr->second->GetData(),pData->DataSize)!=0) {
